@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { errorResponse } from "@/server/modules/runtime/public/http";
 import { holdingPeopleDirectory } from "@/server/modules/organization/public/holding-people-directory";
@@ -10,7 +11,7 @@ export async function GET(
   return measureReadRequest("people", async () => {
   try {
     const actor = await requireWorkContext((await context.params).holdingSlug);
-    return Response.json({ data: await holdingPeopleDirectory(actor) }, {
+    return Response.json(canonicalDestinationLinks({ data: await holdingPeopleDirectory(actor) }), {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {

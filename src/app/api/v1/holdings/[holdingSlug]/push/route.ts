@@ -1,3 +1,5 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
@@ -9,7 +11,7 @@ import { frontCompanyBrand } from "@/server/modules/work_projection/public/front
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug:string }> };
-const response = (data:unknown) => Response.json({data},{headers:{"Cache-Control":"private, no-store"}});
+const response = (data:unknown) => Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}});
 function assertOrigin(request:Request) {
   if(request.headers.get("origin")!==requestPublicOrigin(request))
     throw new ApiError(403,"ORIGIN_FORBIDDEN","Use this workspace's own origin.");
@@ -27,7 +29,7 @@ export async function POST(request:Request,context:Context) {
     const actor=await requireWorkContext((await context.params).holdingSlug),input=await request.json();
     const {write}=await holdingResources(actor.holdingId);
     if(input?.action==="subscribe"){
-      let landingPath=`${workspaceBase(publicScope(actor))}/inbox?tab=updates`;
+      let landingPath=canonicalUiHref(`${workspaceBase(publicScope(actor))}/inbox?tab=updates`);
       if(frontAppForHost(request.headers.get("host"))){
         if(typeof input.frontCompanySlug!=="string" || !/^[A-Za-z0-9_-]+$/.test(input.frontCompanySlug))
           throw new ApiError(422,"INVALID_FRONT_COMPANY","Choose a valid Front company.");

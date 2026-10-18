@@ -12,7 +12,8 @@ import { createSocialSourceApplication, type SocialSourceRepository } from '../a
 import { BusinessRuleError } from '../../shared';
 import { socialAssignmentAccessSql } from '../../identity_access/public/collaboration-social-authorization';
 import { socialProjectAudienceSql } from '../../projects/public/project-read-projections';
-export function sourceAccessSql(alias = 'p', currentAssignment?: string) {
+import {workSocialReadScope} from './work-social-purchases';
+export function sourceAccessSql(alias = 'p', currentAssignment?: string,viewer?:{userId:string;now:string}) {
     const audience = `    ${alias}.audience_kind IS NULL OR ${alias}.audience_kind IN ('company','branch','department')
     OR (${alias}.audience_kind='participants' AND EXISTS(
       SELECT 1 FROM social_post_participants sp WHERE sp.post_id=${alias}.id AND sp.user_id=a.user_id))
@@ -23,7 +24,7 @@ export function sourceAccessSql(alias = 'p', currentAssignment?: string) {
     OR (${alias}.audience_kind='project' AND EXISTS(
       ${socialProjectAudienceSql(alias)}))
 `;
-    return socialAssignmentAccessSql(alias, currentAssignment ? `AND (NOT EXISTS(SELECT 1 FROM social_post_sources ps WHERE ps.post_id=${alias}.id AND ps.source_kind='pms_record') OR a.id=${currentAssignment})` : '', audience, `${handoverSourcesReadableSql(alias, 'a.user_id')} AND ${pmsPostSourcesReadableSql(alias, 'a.user_id', 'a.id')}`);
+    return socialAssignmentAccessSql(alias, currentAssignment ? `AND (NOT EXISTS(SELECT 1 FROM social_post_sources ps WHERE ps.post_id=${alias}.id AND ps.source_kind='pms_record') OR a.id=${currentAssignment})` : '', audience, `${handoverSourcesReadableSql(alias, 'a.user_id')} AND ${pmsPostSourcesReadableSql(alias, 'a.user_id', 'a.id')}`,viewer);
 }
 export function socialPostScope(actor: Pick<WorkContext, "companyId" | "userId" | "branchId" | "departmentId"> & Partial<Pick<WorkContext, "assignmentId">>, alias = "p") {
     const now = Date.now(), base = `${alias}.company_id=? AND ${alias}.state='published' AND ${sourceAccessSql(alias, actor.assignmentId ? "?::text" : undefined)}`;
@@ -32,9 +33,9 @@ export function socialPostScope(actor: Pick<WorkContext, "companyId" | "userId" 
         ? { sql: `${base} AND (${alias}.department_id=? OR (${alias}.department_id IS NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=?)))`, bindings: [...values, actor.departmentId, actor.branchId] }
         : { sql: `${base} AND (${alias}.branch_id IS NULL OR ?::text IS NULL OR ${alias}.branch_id=?)`, bindings: [...values, actor.branchId, actor.branchId] };
 }
-function application(db: SqlDatabase) {
+function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSocialReadScope>>={prefix:'',where:'TRUE',args:[]}) {
     const repository: SocialSourceRepository<SqlStatement> = { async publishedPost(id: string, companyId: string, userId: string, now: number, now2: number, value: string[]) {
-            return db.prepare(`SELECT p.* FROM social_posts p WHERE p.id=? AND p.company_id=? AND p.state='published' AND ${sourceAccessSql("p", value.length ? "?::text" : undefined)}`).bind(id, companyId, userId, now, now2, ...value).first<PostRow>();
+            return db.prepare(`${purchase.prefix}SELECT p.* FROM social_posts p WHERE p.id=? AND p.company_id=? AND p.state='published' AND ${sourceAccessSql("p", value.length ? "?::text" : undefined)} AND ${purchase.where}`).bind(...purchase.args,id, companyId, userId, now, now2, ...value).first<PostRow>();
         },
         guardPublishedSource(key: string, step: string, id: string, company_id: string, version: number, user: string, now: number, now2: number) {
             return assertion(db, key, step, `EXISTS(SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND p.version=? AND p.state='published' AND ${sourceAccessSql()})`, [id, company_id, version, user, now, now2]);
@@ -62,6 +63,6 @@ async function exposed<Result>(work: () => Promise<Result>) {
         throw error;
     }
 }
-export async function readablePost(db: SqlDatabase, actor: Pick<StaffActor, "userId" | "companyId"> & Partial<Pick<StaffActor, "assignmentId">>, id: string) { return exposed(() => application(db).readablePost(actor, id)); }
+export async function readablePost(db: SqlDatabase, actor: Pick<StaffActor, "userId" | "companyId"> & Partial<Pick<StaffActor, "assignmentId">>, id: string) { return exposed(async() => application(db,await workSocialReadScope(db,actor)).readablePost(actor, id)); }
 export function sourceGuard(db: SqlDatabase, key: string, post: PostRow, user: string, step: string) { return application(db).sourceGuard(key, post, user, step); }
-export async function sourceSnapshot(db: SqlDatabase, actor: Pick<StaffActor, "userId" | "companyId">, id: string, commentIds: string[]) { return exposed(() => application(db).sourceSnapshot(actor, id, commentIds)); }
+export async function sourceSnapshot(db: SqlDatabase, actor: Pick<StaffActor, "userId" | "companyId">, id: string, commentIds: string[]) { return exposed(async() => application(db,await workSocialReadScope(db,actor)).sourceSnapshot(actor, id, commentIds)); }

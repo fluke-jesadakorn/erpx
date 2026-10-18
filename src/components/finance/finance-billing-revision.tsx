@@ -1,4 +1,5 @@
 "use client";
+import { useFinanceDraftScope } from "./finance-draft-boundary";
 import { useState } from "react";
 import type { BusinessContractInput } from "@/server/modules/finance/public/rules/finance-contract-policy";
 import { financeCsvRows } from "@/lib/finance/finance-csv";
@@ -20,6 +21,7 @@ export function FinanceBillingRevision({
   onSave,
   posted=false,
   periods=[],
+  commandError,
 }: {
   bill: Row;
   accounts: Row[];
@@ -27,7 +29,9 @@ export function FinanceBillingRevision({
   onSave: (input: unknown) => Promise<void>;
   posted?:boolean;
   periods?:Row[];
+  commandError?:string;
 }) {
+  const draftScope=useFinanceDraftScope();
   const [error, setError] = useState(""),
     content = JSON.parse(
       String(bill.effective_contract_content_json),
@@ -40,12 +44,12 @@ export function FinanceBillingRevision({
       usageEvidence: string;
     };
   return (
-    <FormDisclosure
+    <FormDisclosure error={commandError || error}
       appearance="standard"
       drawerTitle={posted?"Prepare reviewed credit and replacement":"Correct an unposted bill or usage reading"}
     >
       <summary>{posted?"Prepare credit and replacement":"Prepare corrected billing edition"}</summary>
-      <FormLayout
+      <FormLayout data-finance-draft={draftScope}
         className="ui-form-grid"
         onSubmit={async (e) => {
           e.preventDefault();

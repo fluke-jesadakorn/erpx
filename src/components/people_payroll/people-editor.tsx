@@ -1,12 +1,16 @@
 "use client";
-import { FormDrawer } from "@/components/ui/dialog";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import {PeopleFormDrawer} from "./people-form-drawer";
+import type {PeoplePurchaseControls} from "@/lib/people_payroll/purchase-controls";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
+import {useDirectoryOwnerCommand} from "@/lib/people_payroll/use-directory-owner-command";
+import type {DirectoryOwnerScope} from "@/lib/people_payroll/directory-owner-command";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import type { OrganizationOverview } from "@/lib/organization/organization";
 import type { PeopleLifecycleData } from "@/lib/people_payroll/people-lifecycle";
 import { positionGpoStatus } from "@/components/people_payroll/gpo-status";
@@ -27,6 +31,9 @@ export function PeopleEditor({ appearance = "legacy",
   lifecycleManaged = false,
   initialOpen = false,
   alwaysOpen = false,
+  purchases,
+  commandScope,
+  onCloseRetained,
 }: ({
   base: string;
   person?: Row;
@@ -42,12 +49,19 @@ export function PeopleEditor({ appearance = "legacy",
   lifecycleManaged?: boolean;
   initialOpen?: boolean;
   alwaysOpen?: boolean;
+  purchases?:PeoplePurchaseControls;
+  commandScope?: DirectoryOwnerScope;
+  onCloseRetained?: () => void;
 }) & { appearance?: UiAppearance }) {
+  const [commandEdits, setCommandEdits] = useState(0);
+  const guarded = useDirectoryOwnerCommand("directory", commandScope ? {...commandScope, base, purchases, draftVersion: commandEdits, hasDraft: commandEdits > 0, recordId: person ? String(person.id) : undefined, memberUserId: member?.id ?? (person?.user_id ? String(person.user_id) : undefined)} : null);
   const ready = useHydrated();
   const router = useRouter();
   const [open, setOpen] = useState(initialOpen || !!initialPositionId);
+  const [visited, setVisited] = useState(initialOpen || !!initialPositionId || alwaysOpen);
   const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
+  const [legacyPending, setPending] = useState(false);
+  const pending = legacyPending || !!commandScope && guarded.busy;
   const [branch, setBranch] = useState(
     String(
       person?.branch_id ??
@@ -77,7 +91,14 @@ export function PeopleEditor({ appearance = "legacy",
       [...people, ...(organization?.people ?? [])].map((p) => [String(p.person_id), p]),
     ).values(),
   ];
-  async function send(path: string, input: unknown) {
+  async function send(path: string, input: unknown,form?:HTMLFormElement) {
+    if (commandScope) {
+      await guarded.send<{id: string}>(path, input, form, result => {setCommandEdits(0); setOpen(false); router.push(returnTo ?? canonicalUiHref(`${base}/people/${result.id}`));});
+      return;
+    }
+    const formEditVersion=form?.getAttribute("data-erpx-edit-version")??null;
+    const newWork=path.endsWith("/status")?(input as {status:string}).status==="active":true;
+    if(purchases&&!(newWork?purchases.directory.newWork:purchases.directory.settleExisting)){setError("This package does not permit the requested People work.");return;}
     const payload = JSON.stringify(input);
     if (command.current?.payload !== payload)
       command.current = { payload, key: crypto.randomUUID() };
@@ -85,7 +106,7 @@ export function PeopleEditor({ appearance = "legacy",
     setError("");
     try {
       const response = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/people/directory${path}`,
+        `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/people/directory${path}`,
         {
           method: "POST",
           headers: {
@@ -94,6 +115,7 @@ export function PeopleEditor({ appearance = "legacy",
           },
           body: payload,
         },
+        form?{form,formEditVersion}:undefined,
       );
       const result = (await response.json()) as {
         data: { id: string };
@@ -101,8 +123,9 @@ export function PeopleEditor({ appearance = "legacy",
       };
       if (!response.ok) throw new Error(result.error?.message ?? "Unable to save.");
       command.current = null;
+      if(form&&formEditVersion!==form.getAttribute("data-erpx-edit-version")){setError("The submitted version was saved. Review the changes you have typed since then before saving again.");return;}
       setOpen(false);
-      router.push(returnTo ?? `${base}/people/${result.data.id}`);
+      router.push(returnTo ?? canonicalUiHref(`${base}/people/${result.data.id}`));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save.");
@@ -110,8 +133,9 @@ export function PeopleEditor({ appearance = "legacy",
       setPending(false);
     }
   }
+  const recovery = commandScope && guarded.pending ? <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-notice" : "content-stack"} role="status"><p>The original employee request may have completed. Recover it before submitting a different request; your newer draft is retained.</p><Button appearance={appearance} type="button" variant="secondary" disabled={guarded.busy} onClick={() => void guarded.retry()}>Recover original employee request</Button>{(alwaysOpen ? !!onCloseRetained : open) && <Button appearance={appearance} type="button" variant="secondary" disabled={guarded.busy} onClick={() => {if (!guarded.busy) {if (alwaysOpen) onCloseRetained?.();else setOpen(false);}}}>Close and retain request</Button>}</div> : null;
   return (
-    <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
+    <section data-ui-appearance={appearance} data-directory-command-pending={commandScope && (guarded.pending || guarded.busy) ? "true" : undefined} data-directory-command-busy={pending ? "true" : undefined} className={appearance === "standard" ? "ui-panel" : "card"}>
       <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-section-header" : "section-head"}>
         <h2 data-ui-appearance={appearance}>{person ? "Manage employee" : "Add a person"}</h2>
         {!alwaysOpen && (
@@ -119,20 +143,24 @@ export function PeopleEditor({ appearance = "legacy",
             type="submit"
             variant="primary"
 
-            disabled={!ready}
-            onClick={() => setOpen(!open)}
+            disabled={!ready || pending || !!commandScope && guarded.pending || purchases?.directory.newWork===false}
+            onClick={() => {setVisited(true);setOpen(!open);}}
           >
             {open ? "Close form" : person ? "Edit employee" : "Add person"}
           </Button>
         )}
       </div>
+      {recovery}
+      {commandScope && visited && !alwaysOpen && !open && <Button appearance={appearance} type="button" variant="secondary" disabled={guarded.busy} onClick={() => setOpen(true)}>Reopen retained employee form</Button>}
+      {commandScope && guarded.notice && <p data-ui-appearance={appearance} role="status">{guarded.notice}</p>}
+      {commandScope && guarded.error && <p data-ui-appearance={appearance} role="alert">{guarded.error}</p>}
       {error && (
         <p data-ui-appearance={appearance} role="alert" className="error">
           {error}
         </p>
       )}
-      {(open || alwaysOpen) && (
-        <FormDrawer appearance={appearance} inline={alwaysOpen || initialOpen} open={open} onClose={() => setOpen(false)} title={person ? "Edit employee" : "Add a person"} dismissDisabled={pending}><form data-ui-appearance={appearance}
+      {(open || alwaysOpen || !!commandScope && visited) && (
+        <PeopleFormDrawer appearance={appearance} inline={alwaysOpen} open={open} retainFormContents={!!commandScope} onClose={() => {if (!commandScope || !guarded.pending && !guarded.busy) setOpen(false);}} title={person ? "Edit employee" : "Add a person"} dismissDisabled={pending || !!commandScope && guarded.pending} onDiscard={()=>{if (commandScope && (guarded.pending || guarded.busy)) return;setBranch(String(person?.branch_id??organization?.positions.find(p=>p.id===initialPositionId)?.branch_id??nodes.find(n=>n.kind==="branch")?.id??""));setPositionId(String(person?.position_id??initialPositionId??""));setLevelId(String(person?.level_id??organization?.positions.find(p=>p.id===initialPositionId)?.level_id??""));setOpen(false);}}>{!alwaysOpen && recovery}<form data-ui-appearance={appearance} onChangeCapture={commandScope ? () => setCommandEdits(value => value + 1) : undefined}
           className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={(e) => {
             e.preventDefault();
@@ -170,7 +198,7 @@ export function PeopleEditor({ appearance = "legacy",
                       : {}),
                   }
                 : {}),
-            });
+            },e.currentTarget);
           }}
         >
           <Field appearance={appearance}>
@@ -451,12 +479,12 @@ export function PeopleEditor({ appearance = "legacy",
               clientManaged variant="primary"
 
               type="submit"
-              disabled={pending || !ready}
+              disabled={pending || !ready || purchases?.directory.newWork===false}
             >
               {pending ? "Saving…" : "Save employee"}
             </Button>
           </div>
-        </form></FormDrawer>
+        </form></PeopleFormDrawer>
       )}
       {person && (
         <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"}>
@@ -467,7 +495,7 @@ export function PeopleEditor({ appearance = "legacy",
               type="submit"
               variant="secondary"
 
-              disabled={pending || !ready}
+              disabled={pending || !ready || (person.status === "active" && person.engagement_status === "active" ? purchases?.directory.settleExisting===false : purchases?.directory.newWork===false)}
               onClick={() =>
                 void send(`/${person.id}/status`, {
                   status:
@@ -490,6 +518,7 @@ export function PeopleEditor({ appearance = "legacy",
             disabled={
               pending ||
               !ready ||
+              purchases?.directory.settleExisting===false ||
               person.status === "archived" ||
               (lifecycleManaged && person.engagement_status !== "ended")
             }

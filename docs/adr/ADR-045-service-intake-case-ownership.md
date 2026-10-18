@@ -1,0 +1,5 @@
+# Keep Service intake cases with Support and delegate their operational lifecycle
+
+A Service-only Company needs to request a visit directly under an active agreement. Retain a Support-owned ticket linked one-to-one with its Service order, and commit both records together; Service owns dispatch, customer confirmation and the independent close/billing handoff through a scoped Support capability. This retains the established case owner and identity while avoiding a second case ledger. The cross-owner reference is durable and requires additive migration/rollback compatibility.
+
+Service-origin cases use Service authority and surfaces. Existing Helpdesk and sales-linked tickets keep their workflow; Service intake does not grant Support management permissions or role assignments. An audit-linked deferred projection closes or cancels the source ticket with its Service order in the same Holding transaction, retaining compatibility with the established Service writer. Helpdesk retains read/history authority while Service controls the operational lifecycle. This is development implementation work under the production plan, with no activation or acceptance promotion.

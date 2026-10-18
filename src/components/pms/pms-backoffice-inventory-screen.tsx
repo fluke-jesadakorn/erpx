@@ -1,16 +1,17 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type { Option, Field } from "./workspace-types";
 import { RecordSurface } from "@/components/records/record-surface";
 import { FeatureWidget } from "@/components/shared/features/feature-page";
 import { AttachmentFeatureSurface } from "@/components/files/attachment-feature-context";
 import { type RecordDocumentPurpose } from "@/components/files/record-document-panel";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePmsWorkspaceContext} from "./pms-backoffice-workspace";
+import type {BackofficePmsWorkspaceInventoryScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
 
 
 const RecordDocumentPanel = dynamic(() => import("@/components/files/record-document-panel").then(module => module.RecordDocumentPanel));
@@ -155,9 +156,9 @@ export function BackofficePmsWorkspaceInventoryScreen({context}: {context: Backo
                     {crossLinks.inventory && (
                       <p className={styles.muted}>
                         Shared inventory:{" "}
-                        <Link href={`${erpBase}/commerce?view=stock`}>Stock & movements</Link> ·{" "}
-                        <Link href={`${erpBase}/commerce?view=products`}>Products</Link> ·{" "}
-                        <Link href={`${erpBase}/commerce?view=warehouses`}>Warehouses</Link>
+                        <Link href={canonicalUiHref(`${erpBase}/commerce?view=stock`)}>Stock & movements</Link> ·{" "}
+                        <Link href={canonicalUiHref(`${erpBase}/commerce?view=products`)}>Products</Link> ·{" "}
+                        <Link href={canonicalUiHref(`${erpBase}/commerce?view=warehouses`)}>Warehouses</Link>
                       </p>
                     )}
                     {form("Add item", "item.save", [

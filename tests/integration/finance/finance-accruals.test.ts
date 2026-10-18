@@ -1,3 +1,6 @@
+import {accrualRecordDetail} from "../../../src/server/modules/finance/public/finance-accruals";
+import {afterEach} from "vitest";
+import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
@@ -24,4 +27,21 @@ it("requires independent approval and posts each recurring accrual period once",
   const schedule=await db.prepare("SELECT status,next_run_date,version FROM finance_accrual_schedules WHERE id=?").bind(created.id).first();expect(schedule).toMatchObject({status:"active",next_run_date:"2026-10-01",version:3});
   const next=await prepareAccrualRun(f.owner,String(created.id),key());expect(next).toMatchObject({amountMinor:10000,periodStart:"2026-10-01"});
   await expect(db.prepare("DELETE FROM finance_accrual_schedule_events WHERE schedule_id=?").bind(created.id).run()).rejects.toThrow();
+});
+
+afterEach(()=>vi.unstubAllEnvs());
+
+function purchaseSchedule(){return accrualScheduleSchema.parse({description:"Purchased retained insurance",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable,currency:"THB",total:"300",startDate:"2026-09-01",endDate:"2026-09-30",frequency:"monthly"});}
+it("unpurchased accrual reads and commands deny before effects and draining Finance completes the exact retained period",async()=>{
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const command=key(),input=purchaseSchedule();await expect(createAccrualSchedule(f.reviewer,input,command)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(accrualSchedulePage(f.owner)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(accrualRecordDetail(f.owner,"schedule","absent")).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await reviewedFinanceGrant(db,f.company,"finance");const created=await createAccrualSchedule(f.reviewer,input,command);await reviewedFinanceGrant(db,f.company,"finance","draining");expect(await createAccrualSchedule(f.reviewer,input,command)).toEqual(created);await expect(createAccrualSchedule(f.reviewer,input,key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});
+ await decideAccrualSchedule(f.manager,String(created.id),{expectedVersion:1,reason:"Reviewed existing insurance source"},"approve",key());const prepared=await prepareAccrualRun(f.reviewer,String(created.id),key()),decision={expectedVersion:1,reason:"Reviewed retained insurance month"},postKey=key(),posted=await postAccrualRun(f.manager,String(prepared.id),decision,postKey);expect(await postAccrualRun(f.manager,String(prepared.id),decision,postKey)).toEqual(posted);expect((await accrualRecordDetail(f.owner,"schedule",String(created.id))).row.status).toBe("completed");
+});
+it("accrual final authority is rechecked after deferred journal and outbox effects with complete rollback and one retry",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const created=await createAccrualSchedule(f.reviewer,purchaseSchedule(),key());await decideAccrualSchedule(f.manager,String(created.id),{expectedVersion:1,reason:"Independent recurring source review"},"approve",key());const prepared=await prepareAccrualRun(f.reviewer,String(created.id),key()),decision={expectedVersion:1,reason:"Post reviewed one-month source"},command=key(),fault=`accrual_purchase_${key().replaceAll("-","")}`;
+ const snapshot=async()=>Promise.all(["finance_accrual_schedules","finance_accrual_schedule_runs","finance_accrual_schedule_events","finance_journals","finance_journal_lines","command_receipts","audit_events","outbox_events"].map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await snapshot();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.manager.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
+ try{await expect(postAccrualRun(f.manager,String(prepared.id),decision,command)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(await snapshot()).toEqual(before);}
+ finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}()`);}
+ const posted=await postAccrualRun(f.manager,String(prepared.id),decision,command);expect(await postAccrualRun(f.manager,String(prepared.id),decision,command)).toEqual(posted);
 });

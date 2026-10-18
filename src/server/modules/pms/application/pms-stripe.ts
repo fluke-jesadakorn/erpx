@@ -271,8 +271,11 @@ export type PmsCounterPaymentUnit = {
     persistEffects(arg0: WorkContext, arg1: Snapshot, arg2: Effects): Promise<void>;
     persist(arg0: Snapshot, arg1: Map<string, string>): Promise<void>;
 };
+export type PmsCounterPurchase = { companyId: string; purpose?: "settle-existing" | "history" } &
+    ({ actor: WorkContext; permission: "pms.cashier" | "pms.approve" } | { actor?: never; permission?: never });
 export type PmsCounterPaymentRepository = PmsCounterPaymentUnit & {
-    transaction<Result>(work: (unit: PmsCounterPaymentUnit) => Promise<Result>): Promise<Result>;
+    transaction<Result>(work: (unit: PmsCounterPaymentUnit) => Promise<Result>, purchase?: PmsCounterPurchase): Promise<Result>;
+    requirePurchase(input: PmsCounterPurchase): Promise<void>;
 };
 export type PmsCounterPaymentPorts = {
     clock: Clock;
@@ -349,7 +352,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
             const money = await tx.snapshotMoney(actor, { sourceType: 'pms_stripe_payment', sourceId: key, amountKind: 'requested', transactionDate: s.property.businessDate, currency: 'THB', amountUnits: String(input.amountMinor) });
             await money.statement.run();
             return key;
-        });
+        }, { companyId: actor.companyId, actor, permission: 'pms.cashier' });
         return ensurePmsStripeQr(db, id, now);
     }
     async function ensurePmsStripeQr(db: PmsCounterPaymentRepository, id: string, now = ports.clock.now()) {
@@ -358,6 +361,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
             throw ports.error(404, 'PMS_PAYMENT_NOT_FOUND', 'Payment request not found');
         if (row.state !== 'requested' || row.provider_id)
             return visible(row);
+        await db.requirePurchase({ companyId: row.company_id });
         if (Number(row.expires_at) <= now)
             throw ports.error(409, 'PMS_PAYMENT_EXPIRED', 'Create a new payment request');
         const pi = await ports.stripeCall(Boolean(row.livemode), 'payment_intents', { method: 'POST', account: row.account_id, key: `pms-counter-${id}`, body: { amount: String(row.amount_minor), currency: 'thb', 'payment_method_types[0]': 'promptpay', 'payment_method_data[type]': 'promptpay', confirm: 'true', 'metadata[pms_counter_payment_id]': id, ...(row.payer_email ? { receipt_email: row.payer_email } : {}) } });
@@ -375,6 +379,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
             throw ports.error(404, 'PMS_PAYMENT_NOT_FOUND', 'Payment request not found');
         const s = await db.bookingSnapshot(row.property_id);
         scope(actor, s);
+        await db.requirePurchase({ companyId: actor.companyId, actor, permission: 'pms.cashier', purpose: 'history' });
         await reconcilePmsStripePayment(db, id, now);
         const latest = (await db.readPmsStripePayments2({ id: id }))!;
         return visible(latest);
@@ -383,6 +388,8 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
         const row = await db.readPmsStripePayments2({ id: id });
         if (!row || !['pending', 'requested', 'cancelled'].includes(row.state))
             return;
+        const purchase: PmsCounterPurchase = { companyId: row.company_id };
+        await db.requirePurchase(purchase);
         if (!row.provider_id) {
             if (row.state === 'requested' && Number(row.expires_at) <= now)
                 await db.updatePmsStripePayments2({ now: now, id: id });
@@ -420,7 +427,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
                 s.property.config.accounts.edc = oldEdc;
                 await tx.updatePmsProperties({ version: s.property.version, now: now, id: s.property.id });
                 await tx.updatePmsStripePayments6({ id: outcome.id, now: now, now2: now, id2: id });
-            });
+            }, purchase);
             return;
         }
         if (pi.status === 'canceled') {
@@ -482,7 +489,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
             await tx.persist(s, before);
             await tx.updatePmsStripePayments12({ amountMinor: amountMinor, fact1: reason.trim(), userId: actor.userId, fact3: ports.clock.now(), paymentId: paymentId });
             return { id: paymentId, state: 'requested' };
-        });
+        }, { companyId: actor.companyId, actor, permission: 'pms.cashier' });
     }
     async function approvePmsStripeRefund(db: PmsCounterPaymentRepository, actor: WorkContext, paymentId: string) {
         if (!hasPermission(actor, 'pms.approve') || actor.departmentId) throw ports.error(403,'PMS_APPROVAL_REQUIRED','PMS refund approval is required');
@@ -511,12 +518,14 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
                 throw ports.error(409, 'PMS_REFUND_ACCOUNTING_REQUIRED', 'Recover the original receipt and approve online liability mappings');
             await tx.updatePmsStripePayments13({ userId: actor.userId, fact1: ports.clock.now(), paymentId: paymentId });
             return { id: paymentId, state: 'approved' };
-        });
+        }, { companyId: actor.companyId, actor, permission: 'pms.approve' });
     }
     async function processPmsStripeRefund(db: PmsCounterPaymentRepository, id: string, now = ports.clock.now()) {
         const row = await db.readPmsStripePayments2({ id: id });
         if (!row || !['approved', 'processing', 'requires_action'].includes(row.refund_state ?? ''))
             return;
+        const purchase: PmsCounterPurchase = { companyId: row.company_id };
+        await db.requirePurchase(purchase);
         if (!row.refund_liability_posted)
             throw ports.error(409, 'PMS_REFUND_ACCOUNTING_REQUIRED', 'Independent Finance liability review is required');
         if (!row.provider_id || !row.refund_amount_minor || !row.payer_email)
@@ -565,7 +574,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
             }
             await tx.updatePmsCounterRefundAttempts3({ now: now, id: id, refund_generation: current.refund_generation });
             await tx.updatePmsStripePayments17({ now: now, id: id });
-        });
+        }, purchase);
     }
     async function pmsStripeRefundsForFinance(actor: WorkContext) {
         if (!hasPermission(actor, 'finance.read') || actor.branchId || actor.departmentId) return [];
@@ -580,6 +589,8 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
         const found = await db.readPmsStripePayments3({ id: id, companyId: actor.companyId });
         if (!found || !['approved', 'processing', 'requires_action', 'failed'].includes(found.refund_state ?? '') || samePerson(actor, found.refund_requested_by ?? ''))
             throw ports.error(409, 'PMS_REFUND_RECOVERY_UNAVAILABLE', 'Choose an independently approved provider refund');
+        const purchase: PmsCounterPurchase = { companyId: actor.companyId, actor, permission: 'pms.approve' };
+        await db.requirePurchase(purchase);
         const provider = found.refund_id ? await ports.stripeCall(Boolean(found.livemode), `refunds/${found.refund_id}`, { account: found.account_id }) : null;
         if (found.refund_state === 'failed' && !provider)
             throw ports.error(409, 'PMS_REFUND_PROVIDER_MISSING', 'Recover the original provider refund identity');
@@ -595,7 +606,7 @@ export function createPmsCounterPayment(ports: PmsCounterPaymentPorts) {
                 await tx.updatePmsStripePayments18({ fact0: ports.clock.now(), id: id });
             await tx.updatePmsStripePayments19({ fact0: payerEmail ?? null, fact1: `Recovery approved by ${actor.userId}: ${reason.trim()}`.slice(0, 500), fact2: ports.clock.now(), id: id });
             return { id, state: 'recovery_approved' };
-        });
+        }, purchase);
     }
     return { createPmsStripePayment, pmsStripePaymentStatus, reconcilePmsStripePayment, drainPmsStripePayments, requestPmsStripeRefund, approvePmsStripeRefund, processPmsStripeRefund, pmsStripeRefundsForFinance, recoverPmsStripeRefund };
 }

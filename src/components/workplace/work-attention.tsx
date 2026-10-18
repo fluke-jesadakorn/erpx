@@ -1,6 +1,7 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 import { Button } from "@/components/ui/foundation";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { ArrowUpRight, CircleCheck, CornerDownRight } from "lucide-react";
 import { workItemHref, workTypes } from "@/lib/work_projection/work-item";
 import { workTypeTone } from "@/lib/work_projection/work-category-tone";
@@ -58,7 +59,7 @@ export function WorkAttention({
           </h2>
           <p>Your next steps across the workspace</p>
         </div>
-        <Link href={`${base}/work?view=actions`} aria-label="View all work">
+        <Link href={canonicalUiHref(`${base}/work?view=actions`)} aria-label="View all work">
           <ArrowUpRight size={18} aria-hidden />
         </Link>
       </header>
@@ -139,7 +140,7 @@ export function WorkAttention({
         </div>
       )}
       {!compact && (
-        <Link className={styles.allWork} href={`${base}/work?view=actions`}>
+        <Link className={styles.allWork} href={canonicalUiHref(`${base}/work?view=actions`)}>
           View all actions <span aria-hidden>→</span>
         </Link>
       )}

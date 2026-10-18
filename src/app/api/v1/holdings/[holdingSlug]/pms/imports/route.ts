@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
@@ -10,7 +11,7 @@ type Context={params:Promise<{holdingSlug:string}>};
 export async function GET(request:Request,{params}:Context){
   try{const {holdingSlug}=await params,actor=await requireWorkContext(holdingSlug),{write}=await holdingResources(actor.holdingId);
     const property=z.string().min(1).max(160).parse(new URL(request.url).searchParams.get("property"));
-    return Response.json({data:await pmsImportBatches(write,actor,property)},{headers:{"Cache-Control":"private, no-store"}});
+    return Response.json(canonicalDestinationLinks({data:await pmsImportBatches(write,actor,property)}),{headers:{"Cache-Control":"private, no-store"}});
   }catch(error){return errorResponse(error);}
 }
 export async function POST(request:Request,{params}:Context){
@@ -21,6 +22,6 @@ export async function POST(request:Request,{params}:Context){
     if(!isTransactionalSqlDatabase(write))throw new Error("POSTGRES_REQUIRED");
     const {action,input}=z.object({action:z.enum(["preview","approve","apply"]),input:z.unknown()}).strict().parse(await request.json());
     const result=action==="preview"?await previewPmsImport(write,actor,input,key):action==="approve"?await approvePmsImport(write,actor,input,key):await applyPmsImport(write,actor,input,key);
-    return Response.json({data:result});
+    return Response.json(canonicalDestinationLinks({data:result}));
   }catch(error){return errorResponse(error);}
 }

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { iamContext } from "@/server/modules/identity_access/public/iam-context";
 import { readManagement } from "@/server/modules/identity_access/public/user-management";
 import {
@@ -16,7 +17,7 @@ export async function GET(
   try {
     const { holdingSlug, path = [] } = await context.params,
       { db, actor } = await iamContext(holdingSlug);
-    if (path.join("/") === "management") return Response.json({data:await readManagement(db,actor)},{headers:{"Cache-Control":"private, no-store"}});
+    if (path.join("/") === "management") return Response.json(canonicalDestinationLinks({data:await readManagement(db,actor)}),{headers:{"Cache-Control":"private, no-store"}});
     const data = await peopleAccessData(db, actor),
       params = new URL(request.url).searchParams;
     let result: unknown;
@@ -30,7 +31,7 @@ export async function GET(
     else
       throw new ApiError(404, "NOT_FOUND", "People access resource not found.");
     return Response.json(
-      { data: result },
+      canonicalDestinationLinks({ data: result }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

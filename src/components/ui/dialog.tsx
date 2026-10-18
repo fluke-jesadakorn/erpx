@@ -20,6 +20,7 @@ export function FormDrawer({ inline = false, ...props }: {
   onClose: () => void;
   title: string;
   dismissDisabled?: boolean;
+  retainFormContents?: boolean;
   children: ReactNode;
 }) {
   return inline ? <>{props.children}</> : <Dialog {...props} presentation="form-drawer" />;
@@ -69,7 +70,7 @@ export function Dialog({
   useWorkspaceEditor(open && presentation === "form-drawer" && workspaceRole === "editor");
   const [hasOpened, setHasOpened] = useState(retainFormContents && open);
   if (retainFormContents && open && !hasOpened) setHasOpened(true);
-  const keepFormMounted = retainFormContents && presentation === "form-drawer" && hasOpened;
+  const keepFormMounted = retainFormContents && (presentation === "form-drawer" || presentation === "fullscreen") && hasOpened;
   // Embedded editors retain their existing explicit-discard behavior.
   if (embedded && !workspace.active && presentation === "form-drawer") return open ? <EmbeddedForm title={title} onClose={onClose} dismissDisabled={dismissDisabled}>{children}</EmbeddedForm> : null;
   const panel = presentation !== "default";

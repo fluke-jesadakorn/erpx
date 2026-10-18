@@ -1,7 +1,7 @@
 import type { SqlDatabase, FileStore } from "../../src/server/modules/runtime/adapters/runtime/types";
 import type { WorkContext } from "../../src/server/modules/identity_access/public/authorization";
 const key = () => crypto.randomUUID();
-export async function seedExpenseCompany(db: SqlDatabase, files: FileStore, withMoneyQuote = true) {
+export async function seedExpenseCompany(db: SqlDatabase, files: FileStore, withMoneyQuote = true, withFinancialReferences = true) {
   await db.prepare("INSERT INTO beta_bootstrap(singleton,holding_id,owner_user_id,created_at) VALUES(1,'h001','fixture',1) ON CONFLICT(singleton) DO NOTHING").run();
   const company = `expense-${key()}`,
     branch = `${company}-branch`,
@@ -42,7 +42,8 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore, with
     ),
     // Synthetic manual quote for dated money snapshots in isolated workflows.
     // It is intentionally stable, not a market rate or live provider result.
-    ...(withMoneyQuote?[db.prepare("INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,'THB','2026-01-01','36','fixture:finance',1,'Synthetic isolated-test manual THB/USD quote')").bind(`${company}-thb-rate`,company)]:[]),
+    ...(withFinancialReferences&&withMoneyQuote?[db.prepare("INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,'THB','2026-01-01','36','fixture:finance',1,'Synthetic isolated-test manual THB/USD quote')").bind(`${company}-thb-rate`,company)]:[]),
+    ...(withFinancialReferences ? [
     db
       .prepare(
         "INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at) VALUES(?,?,'Chart','THB','fixture',1,1)",
@@ -53,6 +54,7 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore, with
         "INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES(?,?,'2026','2026-01-01','2026-12-31',1)",
       )
       .bind(period, company),
+    ] : []),
   ]);
   const accounts = {
     expense: `${company}-expense`,
@@ -61,6 +63,7 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore, with
     cash: `${company}-cash`,
     revenue: `${company}-revenue`,
   };
+  if (withFinancialReferences) {
   await db.batch(
     Object.entries(accounts).map(([name, id]) =>
       db
@@ -100,6 +103,7 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore, with
       accounts.cash,
     )
     .run();
+  }
   async function member(
     name: string,
     role = "employee",

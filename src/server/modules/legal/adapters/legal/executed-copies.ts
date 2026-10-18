@@ -1,3 +1,5 @@
+import {legalPackageEnforcementMode} from "../../../commercial/public/purchase-command-boundary";
+import {withLegalPurchasedCommand,requireLegalItemPurchasedRead,inLegacyLegalOperationsUnit} from '../purchases';
 import { finalRootOwnerProjectionSources as filesProjectionSources } from "../../../files/public/final-root-owner-projection-sources";
 import "server-only";
 import type {SqlDatabase} from "../../../runtime/public/runtime/types";
@@ -30,5 +32,8 @@ commit:async(x,item,e,authors,state,now,event,key)=>{
   ]);
 }
 }});}
-export function executedCopies(db:SqlDatabase,a:WorkContext,id:string){return application(db,a).executedCopies(id);}
-export function reviewExecutedCopy(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).reviewExecutedCopy(raw,key);}
+export async function executedCopies(db:SqlDatabase,a:WorkContext,id:string){if(await legalPackageEnforcementMode()!=="disabled")await requireLegalItemPurchasedRead(db,a,await access(db,a,id),["legal.documents"]);return application(db,a).executedCopies(id);}
+export async function reviewExecutedCopy(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){
+ if(await legalPackageEnforcementMode()==='disabled')return inLegacyLegalOperationsUnit(db,a.companyId,tx=>application(tx,a).reviewExecutedCopy(raw,key));
+ const id=raw&&typeof raw==="object"&&"id" in raw&&typeof raw.id==="string"?raw.id:undefined;return withLegalPurchasedCommand(db,a,{key,id,operation:"legal.executed.review",purpose:"settle-existing",permission:"legal.approve",additional:["legal.documents"]},tx=>application(tx,a).reviewExecutedCopy(raw,key));
+}

@@ -2,6 +2,7 @@ import type {z} from "zod";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {ListPage} from "../../work_projection/public/list-page";
 import {handbookSchema,handbookActionSchema,handbookEditorSchema,type Article,type HandbookRevision,type HandbookListRow} from "../domain/handbook";
+import type {HandbookPurchaseControls} from '../domain/handbook-purchases';
 export interface OwnerCommands<Effect>{replay<Result=Record<string,unknown>>(actor:WorkContext,key:string,operation:string,id:string,input:unknown):Promise<Result|null>;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[],scope?:Pick<WorkContext,'companyId'|'branchId'|'departmentId'>):Promise<Result>;}
 export type HandbookRepository<Effect>={editor(companyId:string,userId:string):Promise<Record<string,unknown>|null>;
 settings(companyId:string):Promise<{ version: number }|null>;
@@ -24,7 +25,7 @@ publishDraft(id:string,companyId:string,draft_revision:number):Promise<{ title: 
 publishRevision(userId:string,now:number,id:string,draft_revision:number,companyId:string):Effect;
 publishArticle(version:number,now:number,id:string,companyId:string):Effect;
 archiveArticle(value:0 | 1,version:number,now:number,id:string,companyId:string):Effect;};
-export type HandbookPorts<Effect>={repository:HandbookRepository<Effect>;commands:OwnerCommands<Effect>;now():number;error(status:number,code:string,message:string):Error;companyMember(company:string,user:string):Promise<boolean>;requireServiceOwner(actor:WorkContext):Promise<void>;serviceOwner(actor:WorkContext):Promise<boolean>;serviceAuthoritySnapshot(company:string):Promise<(key:string)=>Effect[]>;authorityGuard(key:string,actor:WorkContext,roles:string[]):Effect;page(actor:WorkContext,q:string,editing:boolean,cursor?:string):Promise<ListPage<HandbookListRow>>;};
+export type HandbookPorts<Effect>={repository:HandbookRepository<Effect>;commands:OwnerCommands<Effect>;purchaseAccess(actor:WorkContext):Promise<HandbookPurchaseControls|undefined>;now():number;error(status:number,code:string,message:string):Error;companyMember(company:string,user:string):Promise<boolean>;requireServiceOwner(actor:WorkContext):Promise<void>;serviceOwner(actor:WorkContext):Promise<boolean>;serviceAuthoritySnapshot(company:string):Promise<(key:string)=>Effect[]>;authorityGuard(key:string,actor:WorkContext,roles:string[]):Effect;page(actor:WorkContext,q:string,editing:boolean,cursor?:string):Promise<ListPage<HandbookListRow>>;};
 export function createHandbookService<Effect>(ports:HandbookPorts<Effect>){
 async function handbookAccess(actor: WorkContext) {
   if (!(await ports.companyMember(actor.companyId, actor.userId)))
@@ -33,11 +34,12 @@ async function handbookAccess(actor: WorkContext) {
       "MEMBERSHIP_REQUIRED",
       "Current company membership is required.",
     );
+  const purchase=await ports.purchaseAccess(actor);
   const owner = await ports.serviceOwner(actor),
     editor =
       owner ||
       !!(await ports.repository.editor(actor.companyId,actor.userId));
-  return { owner, editor };
+  return { owner, editor, ...(purchase?{purchase}:{}) };
 }
 async function requireEditor(actor: WorkContext) {
   if (!(await handbookAccess(actor)).editor)
@@ -51,6 +53,7 @@ async function handbookEditorOptions(
   actor: WorkContext,
 ) {
   await ports.requireServiceOwner(actor);
+  await ports.purchaseAccess(actor);
   return {
     version:
       (

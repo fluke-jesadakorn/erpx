@@ -52,6 +52,48 @@ function serviceEnvironment(environment:Record<string,string|undefined>={ERPX_AT
 it("Files disabled intake never opens the repository or private store",async()=>{const {service}=serviceEnvironment({});await expect(service.createAttachmentSet(repository<AttachmentServiceUnit<string>>({}),actor,{targetType:"project",targetId:"project",componentKind:"record",purposeKey:"project_document",expectedTargetVersion:3},"command")).rejects.toMatchObject({code:"ATTACHMENTS_DISABLED"});});
 it("Files frozen intake cannot consume a command key or write quarantine metadata",async()=>{const {service}=serviceEnvironment({ERPX_ATTACHMENTS_V2:"true",ERPX_ATTACHMENT_UPLOAD_FREEZE:"true"});await expect(service.createAttachmentSet(repository<AttachmentServiceUnit<string>>({}),actor,{targetType:"project",targetId:"project",componentKind:"record",purposeKey:"project_document",expectedTargetVersion:3},"command")).rejects.toMatchObject({code:"ATTACHMENT_UPLOAD_FREEZE"});});
 it("Files unavailable scanner denies a reservation before reading source versions",async()=>{const {ports}=serviceEnvironment();const service=createAttachmentService<string>({...ports,providers:{...ports.providers,attachmentScannerReadiness:async()=>({enabled:true,ready:false,engine:null,definitionUpdatedAt:null,error:"unavailable"})}});await expect(service.reserveAttachmentFile(repository<AttachmentServiceUnit<string>>({}),actor,"set",{filename:"proof.png",mediaType:"image/png",bytes:20},"command")).rejects.toMatchObject({code:"ATTACHMENT_SCANNER_UNAVAILABLE"});});
-it("Files stale source version cannot create a set after authorization",async()=>{const {service}=serviceEnvironment();const unit=repository<AttachmentServiceUnit<string>>({authorizeTarget:async()=>({companyId:actor.companyId,branchId:null,departmentId:null,version:4,editable:true})});await expect(service.createAttachmentSet(unit,actor,{targetType:"project",targetId:"project",componentKind:"record",purposeKey:"project_document",expectedTargetVersion:3},"command")).rejects.toMatchObject({code:"ATTACHMENT_TARGET_CHANGED"});});
+it("Files stale source version cannot create a set after authorization",async()=>{const {service}=serviceEnvironment();const unit=repository<AttachmentServiceUnit<string>>({readAttachmentSets9:async()=>null,readAttachmentSetAlias:async()=>null,authorizeTarget:async()=>({companyId:actor.companyId,branchId:null,departmentId:null,version:4,editable:true})});await expect(service.createAttachmentSet(unit,actor,{targetType:"project",targetId:"project",componentKind:"record",purposeKey:"project_document",expectedTargetVersion:3},"command")).rejects.toMatchObject({code:"ATTACHMENT_TARGET_CHANGED"});});
 it("Files binding requires an explicit closed evidence set selection",async()=>{const {service}=serviceEnvironment();await expect(service.prepareAttachmentBinding(repository<AttachmentServiceUnit<string>>({}),actor,{attachmentSetIds:[],bindingContract:{targetType:"project",bindingType:"record_document",contexts:[]},targetId:"project",expectedTargetVersion:3,commandId:"command",bindingId:"project"})).rejects.toMatchObject({code:"ATTACHMENT_SETS_REQUIRED"});});
 it("Files standalone revision uses the owner port and injected commit time",()=>{const {service}=serviceEnvironment(),step=vi.fn(()=>"revision-effect"),unit=repository<AttachmentServiceUnit<string>>({ownerVersionStep:step});expect(service.attachmentRecordVersionStep(unit,"project","project",3)).toBe("revision-effect");expect(step).toHaveBeenCalledWith("project","project",3,123456);});
+// Owner denials are independent of local scanner availability. These exercise
+// the real createAttachmentSet application; unprovided writes fail immediately.
+it.each([
+  {status:403,code:"PACKAGE_REQUIRED"},
+  {status:403,code:"ATTACHMENT_FORBIDDEN"},
+  {status:404,code:"ATTACHMENT_TARGET_NOT_FOUND"},
+])("Files fresh intake preserves current owner $code before probing unavailable scanner tools",async({status,code})=>{
+ const {ports}=serviceEnvironment(),denied=error(status,code,"Original owner denied this file target"),scanner=vi.fn(async()=>({enabled:true,ready:false,engine:null,definitionUpdatedAt:null,error:"unavailable"})),preview=vi.fn(async()=>({ready:false,error:"unavailable"})),authorize=vi.fn<AttachmentServiceUnit<string>["authorizeTarget"]>(async()=>{throw denied;}),service=createAttachmentService<string>({...ports,providers:{...ports.providers,attachmentScannerReadiness:scanner,attachmentPreviewReadiness:preview}}),unit=repository<AttachmentServiceUnit<string>>({readAttachmentSets9:async()=>null,readAttachmentSetAlias:async()=>null,authorizeTarget:authorize});
+ await expect(service.createAttachmentSet(unit,actor,{targetType:"project",targetId:"project",componentKind:"record",purposeKey:"project_document",expectedTargetVersion:3},"original-command")).rejects.toBe(denied);
+ expect(authorize).toHaveBeenCalledExactlyOnceWith(actor,expect.objectContaining({targetType:"project",purposeKey:"project_document"}),"project","write");expect(scanner).not.toHaveBeenCalled();expect(preview).not.toHaveBeenCalled();
+});
+
+it("Files authorized fresh intake still fails closed on scanner readiness before atomic metadata or receipt effects",async()=>{
+ const {ports}=serviceEnvironment(),order:string[]=[],scanner=vi.fn(async()=>{order.push("scanner");return {enabled:true,ready:false,engine:null,definitionUpdatedAt:null,error:"unavailable"};}),preview=vi.fn(async()=>{order.push("preview");return {ready:true,error:null};}),service=createAttachmentService<string>({...ports,providers:{...ports.providers,attachmentScannerReadiness:scanner,attachmentPreviewReadiness:preview}}),unit=repository<AttachmentServiceUnit<string>>({readAttachmentSets9:async()=>null,readAttachmentSetAlias:async()=>null,authorizeTarget:async()=>{order.push("current-owner");return {companyId:actor.companyId,branchId:null,departmentId:null,version:3,editable:true};}});
+ await expect(service.createAttachmentSet(unit,actor,{targetType:"project",targetId:"project",componentKind:"record",purposeKey:"project_document",expectedTargetVersion:3},"original-command")).rejects.toMatchObject({status:503,code:"ATTACHMENT_SCANNER_UNAVAILABLE"});
+ expect(order).toEqual(["current-owner","scanner","preview"]);expect(scanner).toHaveBeenCalledExactlyOnceWith({ERPX_ATTACHMENTS_V2:"true"});expect(preview).toHaveBeenCalledExactlyOnceWith({ERPX_ATTACHMENTS_V2:"true"});
+});
+
+import type {SetRow as IntakeSetRow} from "../../../src/server/modules/files/domain/attachments/service-models";
+function recordedIntakeFixture(kind:"direct"|"alias",options:{denied?:Error;expectedVersion?:number}={}){
+ const {ports}=serviceEnvironment(),id="attachment-set-"+"a".repeat(32),stored:IntakeSetRow={id,company_id:actor.companyId,branch_id:null,department_id:null,target_type:"project",target_id:"project",component_kind:"record",component_ref:null,purpose_key:"project_document",expected_target_version:3,policy_version:1,classification:"internal",audience_json:"{}",required_count:0,max_files:20,state:"bound",created_by:actor.userId,created_at:100,updated_at:200},scanner=vi.fn(async()=>({enabled:true,ready:false,engine:null,definitionUpdatedAt:null,error:"unavailable"})),preview=vi.fn(async()=>({ready:false,error:"unavailable"})),operations:string[]=[],service=createAttachmentService<string>({...ports,providers:{...ports.providers,attachmentScannerReadiness:scanner,attachmentPreviewReadiness:preview}});
+ const unit:AttachmentServiceUnit<string>=repository<AttachmentServiceUnit<string>>({
+  readAttachmentSets9:async facts=>{expect(facts).toEqual({id,companyId:actor.companyId});return kind==="direct"?stored:null;},
+  readAttachmentSetAlias:async facts=>{expect(facts).toEqual({id,companyId:actor.companyId,userId:actor.userId});return kind==="alias"?stored:null;},
+  authorizeTarget:async(_actor,_policy,target,operation)=>{expect(target).toBe("project");operations.push(operation);if(options.denied)throw options.denied;return {companyId:actor.companyId,branchId:null,departmentId:null,version:9,editable:false};},
+  atomic:async run=>run(unit),lock8:async()=>({results:[]}),readAttachmentEvents10:async()=>null,readAttachmentLinks5:async()=>({results:[]}),
+ });
+ return {service,unit,stored,scanner,preview,operations,input:{targetType:"project",targetId:"project",componentKind:"record" as const,purposeKey:"project_document",expectedTargetVersion:options.expectedVersion??3}};
+}
+it.each(["direct","alias"] as const)("Files actual recorded %s set recovers by current read authority without a fresh scanner or write requirement",async kind=>{
+ const f=recordedIntakeFixture(kind),before=JSON.stringify(f.stored);
+ await expect(f.service.createAttachmentSet(f.unit,actor,f.input,"original-command")).resolves.toMatchObject({id:f.stored.id,state:"bound",expectedTargetVersion:3,links:[]});
+ expect(f.operations).toEqual(["read","read"]);expect(JSON.stringify(f.stored)).toBe(before);expect(f.scanner).not.toHaveBeenCalled();expect(f.preview).not.toHaveBeenCalled();
+});
+it("Files recorded intake still denies revoked current read authority before unavailable scanner disclosure",async()=>{
+ const denied=error(404,"ATTACHMENT_TARGET_NOT_FOUND","Current owner is unavailable"),f=recordedIntakeFixture("direct",{denied});
+ await expect(f.service.createAttachmentSet(f.unit,actor,f.input,"original-command")).rejects.toBe(denied);expect(f.operations).toEqual(["read"]);expect(f.scanner).not.toHaveBeenCalled();expect(f.preview).not.toHaveBeenCalled();
+});
+it("Files recorded set retains exact original request conflict while the scanner is unavailable",async()=>{
+ const f=recordedIntakeFixture("alias",{expectedVersion:4});
+ await expect(f.service.createAttachmentSet(f.unit,actor,f.input,"original-command")).rejects.toMatchObject({status:409,code:"IDEMPOTENCY_CONFLICT"});expect(f.operations).toEqual(["read","read"]);expect(f.scanner).not.toHaveBeenCalled();expect(f.preview).not.toHaveBeenCalled();
+});

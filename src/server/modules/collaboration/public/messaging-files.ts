@@ -1,1 +1,1 @@
-export {validMessagingSignature,uploadMessagingFile} from '../adapters/messaging-files';
+export {validMessagingSignature,uploadMessagingFile,discardMessagingFile} from '../adapters/messaging-files';

@@ -1,3 +1,4 @@
+import { applicationOrigin } from "@/lib/runtime/application-origins";
 import { drainProvisioning } from "@/server/modules/identity_access/public/technology";
 import { drainPeopleLifecycle } from "@/server/modules/people_payroll/public/people-lifecycle-jobs";
 import { drainDirectoryOperations } from "@/server/modules/identity_access/public/directory-operations";
@@ -164,12 +165,12 @@ export async function pmsWork(env: JobEnv) {
  for (const slot of await activeSlots(env)) if (!slot.beta) {
    const db=registeredResources(env,slot.id).write as PostgresDatabase;
    await (await import("@/server/modules/pms/public/pms")).drainPms(db);
-   await (await import("@/server/modules/pms/public/pms-booking")).drainBookingPayments(db,{secret:String(env.BETTER_AUTH_SECRET),origin:String(env.ERPX_PUBLIC_ORIGIN),apiKey:typeof env.RESEND_API_KEY==='string'?env.RESEND_API_KEY:undefined,from:typeof env.RESEND_FROM==='string'?env.RESEND_FROM:undefined});
+   await (await import("@/server/modules/pms/public/pms-booking")).drainBookingPayments(db,{secret:String(env.BETTER_AUTH_SECRET),origin:applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY==='string'?env.RESEND_API_KEY:undefined,from:typeof env.RESEND_FROM==='string'?env.RESEND_FROM:undefined});
    await (await import("@/server/modules/pms/public/pms-stripe")).drainPmsStripePayments(db);
    {
      const booking=await import("@/server/modules/pms/public/pms-booking");
      const {simulationBookingEmailProvider}=await import("@/server/modules/pms/public/simulation-email");
-     await booking.deliverBookingEmails(db,{secret: String(env.BETTER_AUTH_SECRET),origin: String(env.ERPX_PUBLIC_ORIGIN),apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined},simulationBookingEmailProvider(env));
+     await booking.deliverBookingEmails(db,{secret: String(env.BETTER_AUTH_SECRET),origin: applicationOrigin("booking",String(env.ERPX_PUBLIC_ORIGIN))!,apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined},simulationBookingEmailProvider(env));
    }
  }
 

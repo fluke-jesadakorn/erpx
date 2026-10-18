@@ -1,3 +1,4 @@
+import {manufacturingMetricSource} from "../../manufacturing/public/metric-purchases";
 import { inventoryExecutiveOwnerProjections as commerceProjectionSources } from "../../commerce/public/inventory-executive-owner-projections";
 import { inventoryExecutiveOwnerProjections as manufacturingProjectionSources } from "../../manufacturing/public/inventory-executive-owner-projections";
 import { inventoryExecutiveOwnerProjections as organizationProjectionSources } from "../../organization/public/inventory-executive-owner-projections";
@@ -27,7 +28,9 @@ export function executiveEvidenceSources(database: SqlDatabase) {
     const db = database;
     return { async searchRows0(actor: WorkContext, input: z.infer<typeof inputSchema>, cursor: ReturnType<typeof parseCursor>, isScenario: boolean): Promise<EvidenceRow[]> {
             const values: unknown[] = [actor.companyId, actor.branchId, actor.branchId];
-            const where = ["s.company_id=?", "(?::text IS NULL OR s.branch_id=?)"];
+            const purchased=await manufacturingMetricSource(db,actor,input.metric);
+            const where = ["s.company_id=?", "(?::text IS NULL OR s.branch_id=?)",`EXISTS(SELECT 1 FROM (${purchased.sql}) purchased_production WHERE purchased_production.id=s.id)`];
+            values.push(...purchased.args);
             if (isScenario) {
                 where.push("s.due_date BETWEEN ? AND ?", "jsonb_path_exists(COALESCE(s.shortages_json::jsonb,'[]'::jsonb),'$[*] ? (@.shortageMilli > 0)')");
             }

@@ -1,63 +1,34 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
+import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Dialog } from "@/components/ui/dialog";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import { useState } from "react";
+import { useRouter } from "@/lib/shared/destination-router";
+import { useFinanceCommand } from "./use-finance-command";
+import { useFinanceDraftClose } from "./finance-draft-boundary";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { vatTreatmentLabels } from "@/lib/finance/finance-vat-labels";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import type { TaxRow } from "@/server/modules/finance/public/finance-tax-register";
 import { FormLayout, Card, Stack } from "@/components/ui/foundation";
 
-function useTaxCommand(base: string) {
-  const [pending, setPending] = useState(false),
-    [error, setError] = useState(""),
-    router = useRouter(),
-    attempt = useRef<{ fingerprint: string; key: string } | null>(null);
-  async function send(path: string, input: unknown) {
-    const fingerprint = JSON.stringify({ path, input });
-    if (attempt.current?.fingerprint !== fingerprint)
-      attempt.current = { fingerprint, key: crypto.randomUUID() };
-    setPending(true);
-    setError("");
-    try {
-      const response = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-          body: JSON.stringify(input),
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error?.message ?? "Could not save.");
-      attempt.current = null;
-      router.refresh();
-      return result.data;
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save.");
-      return null;
-    } finally {
-      setPending(false);
-    }
-  }
-  return { send, pending, error };
-}
+function useTaxCommand(base:string){return useFinanceCommand(base,"finance.tax");}
 export function VatEntryPreparation({ base, candidates }: { base: string; candidates: TaxRow[] }) {
-  const { send, pending, error } = useTaxCommand(base),
+  const { send, pending, error, draftScope, canSettle } = useTaxCommand(base),
     [selected, setSelected] = useState(String(candidates[0]?.id ?? ""));
   const source = candidates.find((c) => c.id === selected);
   return (
-    <FormLayout
+    <FormDisclosure appearance="standard" error={error} drawerTitle="Prepare VAT entry"><summary>Prepare VAT entry</summary>
+    <FormLayout data-finance-draft={draftScope}
       className="ui-panel ui-form-grid"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!source) return;
-        const form = new FormData(e.currentTarget);
+        const element=e.currentTarget,editVersion=element.getAttribute("data-erpx-edit-version"),form = new FormData(element);
         const result = await send("tax-entries", {
           sourceType: source.source_type ?? "invoice",
           sourceId: source.id,
@@ -71,7 +42,7 @@ export function VatEntryPreparation({ base, candidates }: { base: string; candid
           taxPointEvidence: form.get("taxPointEvidence"),
           documentEvidence: form.get("documentEvidence"),
         });
-        if (result) setSelected("");
+        if (result&&element.getAttribute("data-erpx-edit-version")===editVersion) setSelected("");
       }}
     >
       <h2>Prepare VAT entry from source</h2>
@@ -150,17 +121,17 @@ export function VatEntryPreparation({ base, candidates }: { base: string; candid
           {error}
         </InlineNotice>
       )}
-      <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !source}>
+      <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={!canSettle || pending || !source}>
         {pending ? "Preparing…" : "Save draft for review"}
       </Button>
-    </FormLayout>
+    </FormLayout></FormDisclosure>
   );
 }
 export function VatEntryReview({ base, entry }: { base: string; entry: TaxRow }) {
-  const { send, pending, error } = useTaxCommand(base),
+  const { send, pending, error, draftScope, canSettle } = useTaxCommand(base),
     [reason, setReason] = useState("");
   return (
-    <div>
+    <FormLayout data-finance-draft={draftScope} onSubmit={event=>event.preventDefault()}>
       <Field appearance="standard">
         Review reason {String(entry.document_reference)}
         <TextArea appearance="standard"
@@ -172,9 +143,9 @@ export function VatEntryReview({ base, entry }: { base: string; entry: TaxRow })
       </Field>
       <div className="ui-form-actions">
         <Button appearance="standard"
-          type="submit"
+          type="button"
           variant="primary"
-          disabled={pending || reason.trim().length < 10}
+          disabled={!canSettle || pending || reason.trim().length < 10}
           onClick={() =>
             void send(`tax-entries/${entry.id}/approve`, {
               expectedVersion: Number(entry.version),
@@ -185,9 +156,9 @@ export function VatEntryReview({ base, entry }: { base: string; entry: TaxRow })
           Approve VAT entry
         </Button>
         <Button appearance="standard"
-          type="submit"
+          type="button"
           variant="secondary"
-          disabled={pending || reason.trim().length < 10}
+          disabled={!canSettle || pending || reason.trim().length < 10}
           onClick={() =>
             void send(`tax-entries/${entry.id}/reject`, {
               expectedVersion: Number(entry.version),
@@ -203,7 +174,7 @@ export function VatEntryReview({ base, entry }: { base: string; entry: TaxRow })
           {error}
         </InlineNotice>
       )}
-    </div>
+    </FormLayout>
   );
 }
 export function VatCorrectionPreparation({
@@ -215,26 +186,27 @@ export function VatCorrectionPreparation({
   entry: TaxRow;
   currentSourceVersion: number;
 }) {
-  const { send, pending, error } = useTaxCommand(base),
+  const { send, pending, error, draftScope, canSettle } = useTaxCommand(base),
     router = useRouter(),
     facts = JSON.parse(String(entry.evidence_json)).facts;
   const ready = useHydrated(),
     [expanded, setExpanded] = useState(false),
     [treatment, setTreatment] = useState(String(entry.treatment)),
     [percent, setPercent] = useState(Number(entry.deductible_bps) / 100);
+  const close=useFinanceDraftClose(()=>setExpanded(false));
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <Button appearance="standard"
         variant="secondary"
         type="button"
         aria-expanded={expanded}
-        disabled={!ready || pending}
+        disabled={!canSettle || !ready || pending}
         onClick={() => setExpanded(!expanded)}
       >
         Prepare correction to approved entry
       </Button>
       {expanded && (
-        <Dialog appearance="standard" open={expanded} onClose={() => setExpanded(false)} title="Prepare VAT correction" presentation="form-drawer" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<FormLayout
+        <Dialog appearance="standard" open={expanded} onClose={close} title="Prepare VAT correction" presentation="form-drawer" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={async (event) => {
             event.preventDefault();
@@ -252,7 +224,7 @@ export function VatCorrectionPreparation({
               documentEvidence: f.get("documentEvidence"),
               reason: f.get("reason"),
             });
-            if (result) router.push(`${base}/finance/tax/corrections/${result.id}`);
+            if (result) router.push(canonicalUiHref(`${base}/finance/tax/corrections/${result.id}`));
           }}
         >
           <p className="muted">
@@ -366,7 +338,7 @@ export function VatCorrectionPreparation({
               {error}
             </InlineNotice>
           )}
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={!canSettle || pending}>
             {pending ? "Preparing…" : "Prepare correction set for review"}
           </Button>
         </FormLayout></Stack></Dialog>
@@ -375,7 +347,7 @@ export function VatCorrectionPreparation({
   );
 }
 export function VatCorrectionReview({ base, correction }: { base: string; correction: TaxRow }) {
-  const { send, pending, error } = useTaxCommand(base),
+  const { send, pending, error, draftScope, canSettle } = useTaxCommand(base),
     [reason, setReason] = useState("");
   return (
     <Card as="section" appearance="standard" className="ui-panel">
@@ -384,6 +356,7 @@ export function VatCorrectionReview({ base, correction }: { base: string; correc
         Approval applies all replacements together and retains the originals. Return and prepare
         again if a source has changed.
       </p>
+      <FormLayout data-finance-draft={draftScope} onSubmit={event=>event.preventDefault()}>
       <Field appearance="standard">
         Correction-set review evidence and reason
         <TextArea appearance="standard"
@@ -395,9 +368,9 @@ export function VatCorrectionReview({ base, correction }: { base: string; correc
       </Field>
       <div className="ui-form-actions">
         <Button appearance="standard"
-          type="submit"
+          type="button"
           variant="primary"
-          disabled={pending || reason.trim().length < 10}
+          disabled={!canSettle || pending || reason.trim().length < 10}
           onClick={() =>
             void send(`vat-corrections/${correction.id}/approve`, {
               expectedVersion: Number(correction.version),
@@ -408,9 +381,9 @@ export function VatCorrectionReview({ base, correction }: { base: string; correc
           Approve complete correction set
         </Button>
         <Button appearance="standard"
-          type="submit"
+          type="button"
           variant="secondary"
-          disabled={pending || reason.trim().length < 10}
+          disabled={!canSettle || pending || reason.trim().length < 10}
           onClick={() =>
             void send(`vat-corrections/${correction.id}/reject`, {
               expectedVersion: Number(correction.version),
@@ -421,6 +394,7 @@ export function VatCorrectionReview({ base, correction }: { base: string; correc
           Return complete correction set
         </Button>
       </div>
+      </FormLayout>
       {error && (
         <InlineNotice tone="danger" className="error" role="alert">
           {error}
@@ -442,9 +416,10 @@ export function VatPackagePreparation({
   packages: TaxRow[];
   ready: boolean;
 }) {
-  const { send, pending, error } = useTaxCommand(base);
+  const { send, pending, error, draftScope, canSettle } = useTaxCommand(base);
   return (
-    <FormLayout
+    <FormDisclosure appearance="standard" error={error} drawerTitle="Prepare VAT workpaper package"><summary>Prepare VAT workpaper package</summary>
+    <FormLayout data-finance-draft={draftScope}
       className="ui-panel ui-form-grid"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -494,10 +469,10 @@ export function VatPackagePreparation({
           {error}
         </InlineNotice>
       )}
-      <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !ready}>
+      <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={!canSettle || pending || !ready}>
         {pending ? "Preparing…" : "Prepare package for review"}
       </Button>
-    </FormLayout>
+    </FormLayout></FormDisclosure>
   );
 }
 export function VatPackageControls({
@@ -513,7 +488,7 @@ export function VatPackageControls({
   userId: string;
   currentReady?: boolean;
 }) {
-  const { send, pending, error } = useTaxCommand(base),
+  const { send, pending, error, draftScope, canSettle } = useTaxCommand(base),
     [reason, setReason] = useState("");
   async function exportFile() {
     const result = await send(`vat-packages/${p.id}/export`, {
@@ -534,6 +509,7 @@ export function VatPackageControls({
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>VAT workpaper next steps</h2>
+      <FormLayout data-finance-draft={draftScope} onSubmit={event=>event.preventDefault()}>
       <Field appearance="standard">
         Reason / evidence
         <TextArea appearance="standard"
@@ -546,9 +522,9 @@ export function VatPackageControls({
       <div className="ui-form-actions">
         {p.status === "prepared" && canApprove && p.prepared_by !== userId && (
           <Button appearance="standard"
-            type="submit"
+            type="button"
             variant="primary"
-            disabled={pending || !currentReady || reason.trim().length < 10}
+            disabled={!canSettle || pending || !currentReady || reason.trim().length < 10}
             onClick={() =>
               void send(`vat-packages/${p.id}/approve`, {
                 expectedVersion: Number(p.version),
@@ -561,9 +537,9 @@ export function VatPackageControls({
         )}
         {p.status === "approved_for_export" && (
           <Button appearance="standard"
-            type="submit"
+            type="button"
             variant="primary"
-            disabled={pending || !currentReady || reason.trim().length < 10}
+            disabled={!canSettle || pending || !currentReady || reason.trim().length < 10}
             onClick={() => void exportFile()}
           >
             Export workpaper CSV
@@ -572,9 +548,9 @@ export function VatPackageControls({
         {["prepared", "approved_for_export", "exported"].includes(String(p.status)) &&
           (p.prepared_by === userId || canApprove) && (
             <Button appearance="standard"
-              type="submit"
+              type="button"
               variant="secondary"
-              disabled={pending || reason.trim().length < 10}
+              disabled={!canSettle || pending || reason.trim().length < 10}
               onClick={() =>
                 void send(`vat-packages/${p.id}/supersede`, {
                   expectedVersion: Number(p.version),
@@ -586,8 +562,9 @@ export function VatPackageControls({
             </Button>
           )}
       </div>
+      </FormLayout>
       {p.status === "exported" && (
-        <FormLayout
+        <FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={async (e) => {
             e.preventDefault();
@@ -601,6 +578,7 @@ export function VatPackageControls({
             });
           }}
         >
+          <Field appearance="standard">Filing reason / evidence<TextArea appearance="standard" value={reason} onChange={event=>setReason(event.target.value)} required minLength={10} maxLength={4000}/></Field>
           <p>
             After the responsible person files through the official channel, record the receipt
             against the original export.
@@ -617,7 +595,7 @@ export function VatPackageControls({
             Filing receipt evidence location
             <TextArea appearance="standard" name="receiptEvidence" required minLength={10} maxLength={4000} />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || reason.trim().length < 10}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={!canSettle || pending || reason.trim().length < 10}>
             Record external filing evidence
           </Button>
         </FormLayout>

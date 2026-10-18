@@ -1,0 +1,1 @@
+export {workTaskSocialFileSourceRows,workTaskSocialPurchasePredicate,workTaskSocialSourceLocks,workTaskSocialAudienceSourceLocks,workTaskSocialPurchaseSource} from '../adapters/work-task-purchase-source';

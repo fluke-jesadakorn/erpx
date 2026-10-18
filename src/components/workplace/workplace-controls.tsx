@@ -4,9 +4,10 @@ import { Button, TextInput, type UiAppearance } from "@/components/ui/foundation
 import { AppNavigation } from "./app-navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { navigationSearch } from "@/lib/work_projection/navigation-catalog";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import {
   ArrowLeftRight,
   ArrowUpRight,

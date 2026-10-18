@@ -1,0 +1,599 @@
+{
+  "version": 1,
+  "verifiedAt": "2026-10-14T11:11:43.151363+00:00",
+  "environment": "development",
+  "status": "infrastructure-published-product-acceptance-incomplete",
+  "zone": {
+    "id": "0c8a0f8910b3637ad5dfe9a43ab3b5e8",
+    "name": "jesadakorn.com"
+  },
+  "tunnel": {
+    "id": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6",
+    "name": "erpx-local",
+    "baselineVersion": 10,
+    "publishedVersion": 11,
+    "service": "http://127.0.0.1:3100",
+    "existingHostRoutesPreserved": 6,
+    "catchAllPreserved": true,
+    "incomingHostOverride": false
+  },
+  "tls": {
+    "type": "universal",
+    "certificatePackId": "358b584f-8267-49ce-a062-4cb7ae416c20",
+    "hosts": [
+      "jesadakorn.com",
+      "*.jesadakorn.com"
+    ],
+    "advancedCertificateManagerPurchased": false,
+    "totalTlsEnabledByThisRollout": false
+  },
+  "cache": {
+    "rulesetId": "05ecdae0a72b4efeabb8c114c852af73",
+    "ruleId": "07ee3df1c67f45b594553dfcfe9eb48f",
+    "expression": "(http.host in {\"work-dev-erpx.jesadakorn.com\" \"pos-dev-erpx.jesadakorn.com\" \"pms-dev-erpx.jesadakorn.com\" \"finance-dev-erpx.jesadakorn.com\" \"people-dev-erpx.jesadakorn.com\" \"sales-dev-erpx.jesadakorn.com\" \"supply-dev-erpx.jesadakorn.com\" \"assets-dev-erpx.jesadakorn.com\" \"projects-dev-erpx.jesadakorn.com\" \"recruit-dev-erpx.jesadakorn.com\" \"learn-dev-erpx.jesadakorn.com\" \"support-dev-erpx.jesadakorn.com\" \"service-dev-erpx.jesadakorn.com\" \"legal-dev-erpx.jesadakorn.com\" \"manufacturing-dev-erpx.jesadakorn.com\" \"apps-dev-erpx.jesadakorn.com\" \"account-dev-erpx.jesadakorn.com\" \"admin-dev-erpx.jesadakorn.com\" \"booking-dev-erpx.jesadakorn.com\" \"portal-dev-erpx.jesadakorn.com\" \"legal-portal-dev-erpx.jesadakorn.com\" \"forms-dev-erpx.jesadakorn.com\"} and not starts_with(http.request.uri.path, \"/_next/static/\") and not starts_with(http.request.uri.path, \"/fonts/\") and not starts_with(http.request.uri.path, \"/brand/\"))",
+    "action": "bypass",
+    "otherHostsMatched": false
+  },
+  "hosts": [
+    {
+      "key": "work",
+      "origin": "https://work-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "50480515f606d90b923e267123148818",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "pos",
+      "origin": "https://pos-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "557e306c4bda07b969ec1328116d2f8c",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "pms",
+      "origin": "https://pms-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "8864a375bebc656ba64e0556a28b7f36",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "finance",
+      "origin": "https://finance-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "0ed23099c1c7709fcd86595a79a3213b",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "people",
+      "origin": "https://people-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "73709ad54ff13f68832e8537dc9f9360",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "sales",
+      "origin": "https://sales-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "62909118ce0e9393e975106a10f5ef2c",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "supply",
+      "origin": "https://supply-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "98d876cce81b177aac811bd64c390dfa",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "assets",
+      "origin": "https://assets-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "93996de31a0864a55b640b0b04d58409",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "projects",
+      "origin": "https://projects-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "b6d160b579cf0ff3f8dd6d6ab74ce313",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "recruit",
+      "origin": "https://recruit-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "b596284fa225220a52cab01ca5452317",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "learn",
+      "origin": "https://learn-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "257613dd5a8afea3af306f708abc98ab",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "support",
+      "origin": "https://support-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "509d2492dc19721ab21b1725edd638cb",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "service",
+      "origin": "https://service-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "563a8b132566172541df1e37f0e9808c",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "legal",
+      "origin": "https://legal-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "63a082abd5e3aa2fdddc1edb36b73182",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "manufacturing",
+      "origin": "https://manufacturing-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "678574a59ce5205dfbbc99623c3aa6b5",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "apps",
+      "origin": "https://apps-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "28fbf3615df332557d76b014062fd248",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "account",
+      "origin": "https://account-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "d02574cd4047e494585ea24a96730012",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "admin",
+      "origin": "https://admin-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "950c65e965c9f7d919f4992e7288ace9",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 307,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "booking",
+      "origin": "https://booking-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "2dbc14363f76f6be208944c093f8a008",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 200,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "portal",
+      "origin": "https://portal-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "7b8c85d36b354bd9738623ae8604fc52",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 200,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "legal-portal",
+      "origin": "https://legal-portal-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "3e5286ff1dfa7147b2f825c05d0340ff",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 200,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    },
+    {
+      "key": "forms",
+      "origin": "https://forms-dev-erpx.jesadakorn.com",
+      "dnsRecordId": "29d5ce419f8206de0b14673ee7138736",
+      "cname": "750f6ab5-1a43-4369-a40a-f6c88ccfb9c6.cfargotunnel.com",
+      "proxied": true,
+      "httpsVerified": true,
+      "healthStatus": 200,
+      "anonymousRootStatus": 200,
+      "iconStatus": 200,
+      "dynamicCfCacheStatus": "DYNAMIC",
+      "browserLandingVerified": true,
+      "productWorkflowAccepted": false
+    }
+  ],
+  "browser": {
+    "centralSignIns": 1,
+    "hostOnlyProductSessions": 17,
+    "landingChecks": 22,
+    "pageErrors": 0,
+    "consoleNormalSignIn": true,
+    "allProductWorkflowAcceptance": false,
+    "mobileLandingChecks": 22,
+    "desktopViewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "mobileViewport": {
+      "width": 390,
+      "height": 844
+    },
+    "mobileQueryPreservationAndFamilyLogout": true,
+    "mobilePageErrors": 0,
+    "pageOverflowCount": 0
+  },
+  "commercialGrantsChanged": false,
+  "stagingAccessed": false,
+  "productionDeployed": false,
+  "rollbackJournal": ".scratch/dev/cloudflare-product-rollout/journal.json",
+  "source": {
+    "runtimeFingerprint": "089c9b9f194902ba43eb8602521ab4cc04171b1b8d2850110cfa54a6e4683145",
+    "verificationFingerprint": "5f3f75c6ae5081f723183e7582d0b437e5dbcc4fa5751f076138bbe22d1897ab",
+    "release": "2026-10-14T11-09-30-761Z",
+    "buildMatches": true,
+    "checkedAt": "2026-10-14T11:14:52.061Z"
+  },
+  "checks": {
+    "unit": {
+      "files": 207,
+      "passed": 2810,
+      "failed": 0
+    },
+    "ssoIntegration": {
+      "files": 2,
+      "passed": 13,
+      "failed": 0,
+      "scope": "focused PostgreSQL SSO handlers/store; full integration lane not rerun for this infrastructure change"
+    },
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "warnings": 1091
+    },
+    "architecture": "passed; zero legacy edges",
+    "structure": "passed",
+    "catalogue": "passed; 33 modules / 527 suites",
+    "productManifest": "passed; 15 products / 22 hosts / 33 modules",
+    "isolatedReleaseBuild": "passed; not deployed",
+    "globalUiGuard": {
+      "status": "failed",
+      "frozenChanges": 36,
+      "legacyBoundaryConsumers": 467,
+      "fingerprintsRefreshed": false,
+      "fullProductUiAcceptance": false
+    }
+  },
+  "environmentHealth": {
+    "checkedAt": "2026-10-14T11:15:40.396694+00:00",
+    "health": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "status": 200
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "status": 200
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "status": 200
+      },
+      {
+        "url": "https://dev-pos.jesadakorn.com/api/health",
+        "status": 200
+      },
+      {
+        "url": "https://dev-pms.jesadakorn.com/api/health",
+        "status": 200
+      },
+      {
+        "url": "https://dev-erpx.jesadakorn.com/api/health",
+        "status": 200
+      }
+    ],
+    "negativeChecks": [
+      {
+        "host": "unknown-dev-erpx.jesadakorn.com",
+        "status": 421
+      },
+      {
+        "host": "work.dev-erpx.jesadakorn.com",
+        "status": 421
+      },
+      {
+        "host": "dev-work.erpx.com",
+        "status": 421
+      },
+      {
+        "url": "https://booking-dev-erpx.jesadakorn.com/api/v1/holdings/acme/finance",
+        "status": 404
+      },
+      {
+        "url": "https://portal-dev-erpx.jesadakorn.com/api/v1/holdings/acme/finance",
+        "status": 404
+      },
+      {
+        "url": "https://legal-portal-dev-erpx.jesadakorn.com/api/v1/holdings/acme/finance",
+        "status": 404
+      },
+      {
+        "url": "https://forms-dev-erpx.jesadakorn.com/api/v1/holdings/acme/finance",
+        "status": 404
+      },
+      {
+        "url": "https://finance-dev-erpx.jesadakorn.com/api/v1/platform/operations/provision",
+        "status": 404
+      },
+      {
+        "url": "https://pos-dev-erpx.jesadakorn.com/api/v1/front/acme/acme-co/pms",
+        "status": 404
+      }
+    ],
+    "detachedDev": {
+      "pid": 83242,
+      "parentPid": 1,
+      "listenerPid": 83268,
+      "cwdVerified": true,
+      "renderer": "webpack",
+      "node": "26.11.1",
+      "bun": "1.4.3"
+    },
+    "postgres5432": "accepting connections"
+  },
+  "completedAt": "2026-10-14T11:16:03.005140+00:00",
+  "consoleEntryRedirect": {
+    "checkedAt": "2026-10-14T11:27:38.050487+00:00",
+    "source": {
+      "runtimeFingerprint": "f889f6c3e4a253238105c91600b0a189d1dc1ef42382cfdf32e0a1a69ce95852",
+      "verificationFingerprint": "6df00e6d946e22b42497eef1d262754b19df4586e6d59eecd9974b0a497c6762",
+      "release": "2026-10-14T11-24-59-893Z",
+      "buildMatches": true
+    },
+    "destination": "https://apps-dev-erpx.jesadakorn.com/",
+    "status": 307,
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "scope": "Console root only, conditional on local product routing and SSO",
+    "queryPreserved": true,
+    "privateNoStore": true,
+    "deepLinksApisLoginUnchanged": true,
+    "mutationRequestsRedirected": false,
+    "cloudflareChanged": false,
+    "stagingAccessed": false,
+    "browserVerified": true,
+    "browserScreenshot": ".scratch/dev/console-apps-redirect/redirect-browser.png",
+    "tests": {
+      "proxyUnit": {
+        "passed": 12,
+        "failed": 0
+      },
+      "typecheck": "passed",
+      "focusedLint": "passed",
+      "architecture": "passed",
+      "structure": "passed",
+      "catalogue": "passed",
+      "docs": "passed",
+      "build": "passed; isolated release not deployed"
+    },
+    "health": {
+      "health": [
+        {
+          "url": "http://127.0.0.1:3100/api/health",
+          "status": 200
+        },
+        {
+          "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+          "status": 200
+        },
+        {
+          "url": "http://127.0.0.1:3101/api/health",
+          "status": 200
+        }
+      ],
+      "detachedDev": true,
+      "postgres5432": true
+    }
+  },
+  "existingWorkspaceRecovery": {
+    "checkedAt": "2026-10-14T11:54:58.993Z",
+    "issue": "Package-only Apps launcher hid legacy workspace entry before grant migration",
+    "source": {
+      "runtimeFingerprint": "63fdb5aba201b8430cd8c5e3c085813848b62959dc9659cc62416fd6928b8f1f",
+      "verificationFingerprint": "67edbcf17519502a317d30e49cb9b758209f81b89bb9b98e1a5bf0bf5f10d080",
+      "release": "2026-10-14T11-50-28-117Z",
+      "buildMatches": true
+    },
+    "developmentGrantCounts": [
+      {
+        "holdingId": "h001",
+        "grants": 0
+      },
+      {
+        "holdingId": "h002",
+        "grants": 0
+      },
+      {
+        "holdingId": "h003",
+        "grants": 0
+      }
+    ],
+    "recovery": "Current-authority links to canonical existing Console workspaces; no grants or roles created",
+    "browser": [
+      {
+        "mode": "desktop",
+        "existingWorkspaces": 3,
+        "consoleRedirect": true,
+        "normalCentralAndLegacySignIn": true,
+        "todayReady": true,
+        "officeRecovery": true,
+        "pageErrors": []
+      },
+      {
+        "mode": "mobile",
+        "existingWorkspaces": 3,
+        "consoleRedirect": true,
+        "normalCentralAndLegacySignIn": true,
+        "todayReady": true,
+        "officeRecovery": true,
+        "pageErrors": []
+      }
+    ],
+    "checks": {
+      "unitPassed": 4,
+      "typecheck": "passed",
+      "focusedLint": "passed",
+      "architecture": "passed",
+      "structure": "passed",
+      "catalogue": "passed",
+      "docs": "passed after derived route inventory refresh",
+      "isolatedBuild": "passed; not deployed"
+    },
+    "commercialMigrationComplete": false,
+    "cloudflareChanged": false,
+    "stagingAccessed": false
+  }
+}

@@ -3,7 +3,7 @@ import {usePosController, type PosConsoleProps} from "@/components/pos/pos-contr
 import {PosRecordDetail} from "./pos-record-detail";
 import {Button} from "@/components/ui/button";
 import type {ReactNode} from "react";
-import {useRouter} from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 /** Receipt commands share the console controller without importing its screens. */
 export function PosRecordConsole(props: PosConsoleProps & {initialSummary?:ReactNode}) {
   const router=useRouter();

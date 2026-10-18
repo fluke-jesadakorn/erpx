@@ -1,4 +1,4 @@
-import {afterAll,beforeAll,describe,expect,it,vi} from 'vitest';
+import {afterAll,afterEach,beforeAll,describe,expect,it,vi} from 'vitest';
 import {createHash} from 'node:crypto';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
@@ -10,6 +10,8 @@ import type {AttachmentComponentKind} from "../../../src/server/modules/files/pu
 import {attachmentPolicy} from "../../../src/server/modules/files/public/attachments/policy";
 import {attachmentContent,attachmentLinkStatus,bindRecordAttachmentSet,completeAttachmentUpload,createAttachmentSet,drainAttachmentScans,listAttachmentSets,prepareAttachmentBinding,reserveAttachmentFile} from "../../../src/server/modules/files/public/attachments/service";
 import {loadIamAuthority} from "../../../src/server/modules/identity_access/public/iam-store";
+import {packageGrantStore,readCompanyPackageGrants} from "../../../src/server/modules/commercial/public/package-grants";
+import {attachmentDestructionEligibility} from "../../../src/server/modules/files/public/attachments/service";
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 // The clean scanner is a declared fixture. Upload bytes, sniffing, sanitized
@@ -26,8 +28,67 @@ const previousGate=process.env.ERPX_ATTACHMENTS_V2;
 let foreignActor:WorkContext;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);process.env.ERPX_ATTACHMENTS_V2='true';foreignActor=(await expenseFixture()).owner;foreignActor.iam=await loadIamAuthority(db,foreignActor.companyId,foreignActor.userId,foreignActor.role);});
 afterAll(()=>{if(previousGate===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previousGate;});
+afterEach(()=>vi.unstubAllEnvs());
+async function commerceGrant(company:string,packageId:string,state:'active'|'draining'='active'){
+ const store=packageGrantStore(db,{authorize:async(_tx,current)=>{if(current!==company)throw new Error('FICTIONAL_PROVIDER_SCOPE');return {userId:'fictional-commerce-files-provider'};},obligations:async()=>{throw new Error('NO_INACTIVE_FILE_CUTOVER');}}),previous=(await readCompanyPackageGrants(db,company)).find(row=>row.packageId===packageId);
+ return store.apply({expectedVersion:previous?.version??0,idempotencyKey:key(),grant:{companyId:company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(previous?.version??0)+1,reason:'Isolated Commerce file source fixture',evidence:'test:commerce-files-owner-boundary'}});
+}
 
 describe('Business File Sources owner intake',()=>{
+ it.each(['stock_count','inventory_stock_count'] as const)('Physical Count Files preserve original action binding, history bytes and Legal holds for %s',async(targetType)=>{
+  const policy=attachmentPolicy(targetType,'count_evidence','action'),owner=await businessFileTarget(db,await expenseFixture(),policy,'action'),actor=owner.actor;actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);
+  const input={targetType,targetId:owner.targetId,purposeKey:'count_evidence',componentKind:'action' as const,componentRef:owner.componentRef??undefined,expectedTargetVersion:owner.version};
+  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await expect(createAttachmentSet(db,actor,input,key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+  await commerceGrant(actor.companyId,'supply');
+  const set=await createAttachmentSet(db,actor,input,key()),reserved=await reserveAttachmentFile(db,actor,set.id,{filename:'retained-count-source.png',mediaType:'image/png',bytes:png.byteLength},key()),uploaded=await completeAttachmentUpload(db,env.H001_FILES,actor,reserved.uploadIntentId,body);await drainAttachmentScans(db,env.H001_FILES,uploaded.sourceId);
+  const command=key(),bound=await owner.bindAction!(set.id,command);if(owner.assertNative)await owner.assertNative();
+  await commerceGrant(actor.companyId,'supply','draining');expect(await owner.bindAction!(set.id,command)).toEqual(bound);
+  expect(await attachmentBindingState(db,set.id)).toMatchObject({set_state:'bound',link_state:'bound',bound_command_id:command});
+  expect(Buffer.from(await (await attachmentContent(db,env.H001_FILES,actor,reserved.attachmentLinkId,'original')).object.arrayBuffer())).toEqual(png);
+  await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(uploaded.sourceId).run();expect(await attachmentDestructionEligibility(db,uploaded.sourceId,Date.now()+400*86_400_000)).toMatchObject({eligible:false,reason:'legal_hold'});
+  await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),actor.assignmentId).run();await expect(attachmentContent(db,env.H001_FILES,actor,reserved.attachmentLinkId,'original')).rejects.toMatchObject({status:404,code:'ATTACHMENT_TARGET_NOT_FOUND'});
+  expect(await db.prepare('SELECT source_state,legal_hold FROM attachments WHERE id=?').bind(uploaded.sourceId).first()).toEqual({source_state:'available',legal_hold:1});
+ });
+ it.each(['source','authority'] as const)('Physical Count Files roll back late %s changes in their original atomic intake',async(change)=>{
+  const policy=attachmentPolicy('stock_count','count_evidence','action'),owner=await businessFileTarget(db,await expenseFixture(),policy,'action'),actor=owner.actor;actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);
+  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await commerceGrant(actor.companyId,'supply');
+  const command=key(),name=`count_files_${key().replaceAll('-','')}`,before=await db.prepare('SELECT reason,version FROM inventory_counts WHERE id=?').bind(owner.targetId).first(),assignment=await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(actor.assignmentId).first();
+  const update=change==='source'?`UPDATE inventory_counts SET reason=reason||' changed' WHERE id='${owner.targetId}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${actor.assignmentId}'`;
+  await db.prepare(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${update}; RETURN NEW; END $$`).run();
+  await db.prepare(`CREATE TRIGGER ${name} AFTER INSERT ON attachment_sets FOR EACH ROW WHEN (NEW.target_id='${owner.targetId}') EXECUTE FUNCTION ${name}()`).run();
+  const input={targetType:'stock_count',targetId:owner.targetId,purposeKey:'count_evidence',componentKind:'action' as const,componentRef:owner.componentRef??undefined,expectedTargetVersion:owner.version};
+  try{await expect(createAttachmentSet(db,actor,input,command)).rejects.toMatchObject({status:409,code:'COUNT_ATTACHMENT_CHANGED'});}finally{await db.prepare(`DROP TRIGGER ${name} ON attachment_sets`).run();await db.prepare(`DROP FUNCTION ${name}()`).run();}
+  expect(await db.prepare('SELECT reason,version FROM inventory_counts WHERE id=?').bind(owner.targetId).first()).toEqual(before);expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(actor.assignmentId).first()).toEqual(assignment);
+  expect(await db.prepare('SELECT 1 FROM attachment_sets WHERE target_id=?').bind(owner.targetId).first()).toBeNull();
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();
+  const created=await createAttachmentSet(db,actor,input,command);expect(await createAttachmentSet(db,actor,input,command)).toEqual(created);
+ });
+ it.each([
+  ['commerce_order','customer_brief','record','sales'],
+  ['commerce_fulfillment','return_condition','action','supply'],
+  ['commerce_return','condition_photo','action','supply'],
+ ] as const)('Commerce purchase Files retain exact bytes, original binding and Legal holds for %s',async(targetType,purposeKey,componentKind,packageId)=>{
+  const policy=attachmentPolicy(targetType,purposeKey,componentKind),owner=await businessFileTarget(db,await expenseFixture(),policy,componentKind),actor=owner.actor;actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);
+  const input={targetType,targetId:owner.targetId,purposeKey,componentKind,componentRef:owner.componentRef??undefined,expectedTargetVersion:owner.version};
+  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await expect(createAttachmentSet(db,actor,input,key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+  await commerceGrant(actor.companyId,packageId);await commerceGrant(actor.companyId,packageId,'draining');const command=key(),set=await createAttachmentSet(db,actor,input,key()),reserved=await reserveAttachmentFile(db,actor,set.id,{filename:'retained-commerce-source.png',mediaType:'image/png',bytes:png.byteLength},key()),uploaded=await completeAttachmentUpload(db,env.H001_FILES,actor,reserved.uploadIntentId,body);await drainAttachmentScans(db,env.H001_FILES,uploaded.sourceId);
+  const bind=()=>componentKind==='record'?bindRecordAttachmentSet(db,actor,set.id,owner.version,command):owner.bindAction!(set.id,command),bound=await bind();expect(await bind()).toEqual(bound);if(owner.assertNative)await owner.assertNative();
+  expect(await attachmentBindingState(db,set.id)).toMatchObject({set_state:'bound',link_state:'bound',bound_command_id:command});const content=await attachmentContent(db,env.H001_FILES,actor,reserved.attachmentLinkId,'original');expect(Buffer.from(await content.object.arrayBuffer())).toEqual(png);expect(await db.prepare('SELECT checksum_sha256,bytes FROM attachments WHERE id=?').bind(uploaded.sourceId).first()).toEqual({checksum_sha256:checksum,bytes:png.byteLength});
+  await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(uploaded.sourceId).run();expect(await attachmentDestructionEligibility(db,uploaded.sourceId,Date.now()+400*86_400_000)).toMatchObject({eligible:false,reason:'legal_hold'});expect(Buffer.from(await (await attachmentContent(db,env.H001_FILES,actor,reserved.attachmentLinkId,'original')).object.arrayBuffer())).toEqual(png);
+  const revoke=await db.prepare('SELECT version FROM assignments WHERE id=?').bind(actor.assignmentId).first('version');await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),actor.assignmentId).run();await expect(attachmentContent(db,env.H001_FILES,actor,reserved.attachmentLinkId,'original')).rejects.toMatchObject({status:404,code:'ATTACHMENT_TARGET_NOT_FOUND'});expect(await db.prepare('SELECT source_state,legal_hold FROM attachments WHERE id=?').bind(uploaded.sourceId).first()).toEqual({source_state:'available',legal_hold:1});expect(revoke).toBeGreaterThan(0);
+ });
+ it.each(['source','authority'] as const)('Commerce purchase Files roll back late %s changes with record, binding, receipt, audit and outbox',async(change)=>{
+  const policy=attachmentPolicy('commerce_order','customer_brief','record'),owner=await businessFileTarget(db,await expenseFixture(),policy),actor=owner.actor;actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await commerceGrant(actor.companyId,'sales');
+  const set=await createAttachmentSet(db,actor,{targetType:'commerce_order',targetId:owner.targetId,purposeKey:'customer_brief',componentKind:'record',expectedTargetVersion:1},key()),reserved=await reserveAttachmentFile(db,actor,set.id,{filename:'atomic-commerce-source.png',mediaType:'image/png',bytes:png.byteLength},key()),uploaded=await completeAttachmentUpload(db,env.H001_FILES,actor,reserved.uploadIntentId,body);await drainAttachmentScans(db,env.H001_FILES,uploaded.sourceId);
+  const command=key(),suffix=key().replaceAll('-',''),fn=`commerce_files_late_${suffix}`,trigger=`commerce_files_late_${suffix}`,original=await db.prepare('SELECT kind,version FROM commerce_orders WHERE id=?').bind(owner.targetId).first(),assignment=await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(actor.assignmentId).first();
+  // This declared native trigger changes the owner after Files' binding effect,
+  // before its final checks. Only the isolated fixture set can activate it.
+  const update=change==='source'?`UPDATE commerce_orders SET kind='purchase' WHERE id='${owner.targetId}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${actor.assignmentId}'`;
+  await db.exec(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.set_id='${set.id}' AND NEW.action='set.bound' THEN ${update}; END IF; RETURN NEW; END $$; CREATE TRIGGER ${trigger} AFTER INSERT ON attachment_events FOR EACH ROW EXECUTE FUNCTION ${fn}()`);
+  try{await expect(bindRecordAttachmentSet(db,actor,set.id,1,command)).rejects.toMatchObject({status:409,code:change==='source'?'COMMERCE_ATTACHMENT_SOURCE_CHANGED':'COMMERCE_ATTACHMENT_AUTHORITY_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_events; DROP FUNCTION ${fn}()`);}
+  expect(await db.prepare('SELECT kind,version FROM commerce_orders WHERE id=?').bind(owner.targetId).first()).toEqual(original);expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(actor.assignmentId).first()).toEqual(assignment);expect(await attachmentBindingState(db,set.id)).toMatchObject({set_state:'draft',link_state:'draft',bound_command_id:null});
+  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(0);expect(Buffer.from(await (await attachmentContent(db,env.H001_FILES,actor,reserved.attachmentLinkId,'original')).object.arrayBuffer())).toEqual(png);
+ });
  it('rechecks selected grant expiry, suspended principal, live modules and published role permissions while retaining a narrower request snapshot',async()=>{
   const policy=attachmentPolicy('asset','nameplate_photo','record'),owner=await businessFileTarget(db,await expenseFixture(),policy),actor=owner.actor;
   actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);

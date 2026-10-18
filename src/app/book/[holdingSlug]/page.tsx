@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import { GuestBookingVisualPrototype } from "@/components/pms/visual-prototype";
-import { BookingFlow } from "@/components/pms/booking-flow";
+import { PublicBookingReservation } from "@/components/pms/public-booking-reservation";
 import { BookingGallery } from "@/components/pms/booking-gallery";
 import { BookingCopy } from "@/components/pms/booking-copy";
 import styles from "@/components/pms/booking.module.css";
@@ -39,7 +39,7 @@ export default async function BookingPage({
       </header>
       {hotels.length ? (
         <>
-          <BookingFlow
+          <PublicBookingReservation
             slug={holdingSlug}
             hotels={hotels}
             today={new Intl.DateTimeFormat("en-CA", {

@@ -9,8 +9,10 @@ import {ApiError} from "@/server/modules/runtime/public/http";
 import {decimalToMinor} from "@/lib/finance/finance-money";
 import {BusinessRuleError} from "../../shared";
 import {createBenefitPlanApplication, type BenefitPlanInputPorts} from "../application/plan";
-export async function createBenefitPlan(a:WorkContext,raw:unknown,key:string){
- let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=(holdingResources(a.holdingId).then(x=>x.write));
+import {withBenefitPurchasedCommand} from "./purchases";
+export function createBenefitPlan(a:WorkContext,raw:unknown,key:string){return withBenefitPurchasedCommand(a,{key,operation:"benefits.plan.create",target:{kind:"plan",id:`benefit-plan-${key}`},purpose:"new-work",review:true},database=>nativeCreateBenefitPlan(a,raw,key,database));}
+async function nativeCreateBenefitPlan(a:WorkContext,raw:unknown,key:string,provided:SqlDatabase){
+ let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=(holdingResources(a.holdingId).then(x=>x.write));
  const ports:BenefitPlanInputPorts={clock:{now:()=>Date.now()},
  async authorize(){requirePermission(a,"records.write");if(!hasModuleAccess(a.modules,"benefits"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Benefits.");requirePermission(a, "benefits.review");},
  async replay(key,operation,id,input){return replayCommand(await database(),a,key,operation,id,input);},

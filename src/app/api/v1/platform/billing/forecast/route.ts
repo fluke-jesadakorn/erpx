@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {customerHoldingBindingExists} from "@/server/modules/runtime/public/app-native-sources";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 import { readSeatForecastBaseline } from "@/server/modules/billing/public/billing-forecast";
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
     const db = (await runtimeEnv()).CONTROL_DB as PostgresDatabase;
     const binding = await customerHoldingBindingExists(db,holdingId);
     if (!binding) throw new ApiError(404, "NOT_FOUND", "Customer Holding not found.");
-    return Response.json({ data: await readSeatForecastBaseline(db, holdingId) },
+    return Response.json(canonicalDestinationLinks({ data: await readSeatForecastBaseline(db, holdingId) }),
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

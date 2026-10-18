@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { requestAction } from "@/lib/work_projection/request-actions";
 import { selfServiceHref } from "@/lib/work_projection/self-service";
 import type { WorkItem } from "@/lib/work_projection/work-item";
@@ -187,6 +188,6 @@ export function newWorkHref(
   const query = new URLSearchParams(current);
   query.set("new", creation.kind);
   return creation.kind === "expense"
-    ? `${base}/expenses/new?${query}`
-    : `${base}/work?${query}`;
+    ? canonicalUiHref(`${base}/expenses/new?${query}`)
+    : canonicalUiHref(`${base}/work?${query}`);
 }

@@ -1,4 +1,4 @@
-import { financeTransaction } from "../../finance/public/finance-transactions";
+import {commerceOrderReadKinds,requireCommercePurchasedRead,requireCommerceOrderRead,withCommercePurchasedCommand} from "./purchase-boundary";
 import { ensureCustomerReceipt } from "../../finance/public/sales";
 import { commerceFinalOwnerProjectionSources as filesProjectionSources } from "../../files/public/commerce-final-owner-projection-sources";
 import { commerceFinalOwnerProjectionSources as procurementProjectionSources } from "../../procurement/public/commerce-final-owner-projection-sources";
@@ -93,14 +93,20 @@ async function commercePages(write: SqlDatabase, actor: WorkContext, query: {
 /** Sales lists do not require posting setup; preparing documents still does. */
 export async function commerceSalesDocuments(actor: WorkContext, query: { view: "sales" | "quote"; q?: string; status?: string; startDate?: string; endDate?: string; cursor?: string }) {
     requirePermission(actor, "commerce.read");
-    return (await commercePages((await holdingResources(actor.holdingId)).write, actor, query)).page;
+    const database=(await holdingResources(actor.holdingId)).write;
+    await requireCommercePurchasedRead(database,actor,query.view);
+    return (await commercePages(database, actor, query)).page;
 }
-function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
+function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
     return {
         readCommerceSettings1: facts => commerceFinanceJoinedFacts(db).readCommerceSettings1(facts),
         readFinancePeriods1: facts => CommerceFinanceFacts(db).readFinancePeriods1(facts),
         readCommerceOrders1: facts => commerceFinanceJoinedFacts(db).readCommerceOrders1(facts),
-        readCommerceOrders2: facts => commerceFinanceJoinedFacts(db).readCommerceOrders2(facts),
+        readCommerceOrders2: async facts => {
+            const kinds=actor?await commerceOrderReadKinds(db,actor):null;
+            if(kinds===null)return commerceFinanceJoinedFacts(db).readCommerceOrders2(facts);
+            return db.prepare(`SELECT o.*,p.name party_name FROM commerce_orders o ${commerceFinancePageSources.orderPartyJoin} WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND ${kinds.length?`o.kind IN (${kinds.map(()=>"?").join(",")})`:"false"} ORDER BY o.created_at DESC LIMIT 250`).bind(...facts.fact0,...kinds).all<Row>();
+        },
         readCommerceProducts1: (facts: {
             companyId: string;
         }) => db.prepare("SELECT * FROM commerce_products WHERE company_id=? ORDER BY sku").bind(facts.companyId).all<Row>(),
@@ -115,7 +121,12 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
         readOrganizationNodes1: facts => CommerceOrganizationFacts(db).readOrganizationNodes1(facts),
         readSalesPriceLists1: facts => CommerceSalesFacts(db).readSalesPriceLists1(facts),
         readSalesPriceListItems1: facts => CommerceSalesFacts(db).readSalesPriceListItems1(facts),
-        readCommerceOrders3: facts => commerceFinanceJoinedFacts(db).readCommerceOrders3(facts),
+        readCommerceOrders3: async facts => {
+            const rows=await commerceFinanceJoinedFacts(db).readCommerceOrders3(facts);
+            if(!actor)return rows;
+            const access=await (await import("./record-purchases")).commerceWorkAccess(db,actor,rows.results.map(row=>String(row.id)));
+            return access===null?rows:{...rows,results:rows.results.filter(row=>access.get(String(row.id))?.history)};
+        },
         readInventoryActiveReservations2: facts => CommerceInventoryFacts(db).readInventoryActiveReservations2(facts),
         readCommerceFulfillments1: facts => commerceFinanceJoinedFacts(db).readCommerceFulfillments1(facts),
         readCommerceReturnLines1: (facts: {
@@ -890,20 +901,55 @@ function unit(db: SqlDatabase): CommerceUnit<SqlStatement> {
         pages: (actor, query) => commercePages(db, actor, query)
     };
 }
-function applicationFor(owner?: SqlDatabase) { return createCommerceApplication<SqlStatement>({ clock: { now: () => Date.now() }, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), hash: sha256, forActor: async (actor) => unit(owner ?? (await holdingResources(actor.holdingId)).write), forContext: async () => { throw new Error("No registry context for this service"); }, attachmentReadable: attachmentsV2Readable, returnCompletionValues }); }
+type ManufacturingStockMasterMoneyCapture={money:import('../../finance/public/manufacturing-initial-physical-stock-master-sources').ManufacturingInitialPhysicalStockProductMoney|null;errorCode?:string};
+function applicationFor(owner?:SqlDatabase,masterCapture?:ManufacturingStockMasterMoneyCapture){return createCommerceApplication<SqlStatement>({clock:{now:()=>Date.now()},require:requirePermission,error:(status,code,message)=>new ApiError(status,code,message),hash:sha256,forActor:async actor=>{
+ const original=unit(owner??(await holdingResources(actor.holdingId)).write,actor);
+ if(!masterCapture)return original;
+ return {...original,snapshotMoney:async(quoteActor,input)=>{const plan=await original.snapshotMoney(quoteActor,input);if(masterCapture.money)throw new ApiError(409,masterCapture.errorCode??'MANUFACTURING_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED','The original product command produced more than one price capture.');masterCapture.money={input:{...input},amountUnits:plan.amountUnits,usdUnits:plan.usdUnits,currencyScale:plan.currencyScale,rateId:plan.rateId,usedLatestFallback:plan.usedLatestFallback};return plan;}};
+},forContext:async()=>{throw new Error('No registry context for this service');},attachmentReadable:attachmentsV2Readable,returnCompletionValues});}
+/** Same-owner composition only. The public closed master commands supply their
+ * already owned transaction; this bridge has no pool fallback or public port. */
+export async function createManufacturingInitialPhysicalStockMasterInTransaction(database:SqlDatabase,actor:WorkContext,kind:'products'|'warehouses',input:unknown,key:string){
+ const capture:ManufacturingStockMasterMoneyCapture={money:null};
+ const result=await applicationFor(database,capture).saveMaster(actor,kind,null,input,key);
+ return {result,money:capture.money};
+}
 const application = applicationFor();
 export function commerceOverview(actor: WorkContext) { return application.commerceOverview(actor); }
-export function workOrderRows(actor: WorkContext, provided?: SqlDatabase) { return application.workOrderRows(actor, provided ? unit(provided) : undefined); }
-export function getOrder(actor: WorkContext, id: string, ownerWrite?: SqlDatabase) { return application.getOrder(actor, id, ownerWrite ? unit(ownerWrite) : undefined); }
-export function changeOrderReservation(actor: WorkContext, id: string, raw: unknown, key: string, ownerWrite?: SqlDatabase) { return application.changeOrderReservation(actor, id, raw, key, ownerWrite ? unit(ownerWrite) : undefined); }
-export function requestCommerceReturn(actor: WorkContext, fulfillmentId: string, input: z.input<typeof returnRequestSchema>, key: string, ownerWrite?: SqlDatabase) { return application.requestCommerceReturn(actor, fulfillmentId, input, key, ownerWrite ? unit(ownerWrite) : undefined); }
-export function decideCommerceReturn(actor: WorkContext, returnId: string, action: "approve" | "reject", input: z.infer<typeof returnDecisionSchema>, key: string) { return application.decideCommerceReturn(actor, returnId, action, input, key); }
-export function completeCommerceReturn(actor: WorkContext, returnId: string, input: z.infer<typeof returnCompleteSchema>, key: string) { return application.completeCommerceReturn(actor, returnId, input, key); }
-export function saveOrder(actor: WorkContext, id: string | null, input: z.infer<typeof orderSchema>, key: string, ownerWrite?: SqlDatabase) { return application.saveOrder(actor, id, input, key, ownerWrite ? unit(ownerWrite) : undefined); }
-export function transitionOrder(actor: WorkContext, id: string, input: z.infer<typeof transitionSchema>, key: string, ownerWrite?: SqlDatabase) { return application.transitionOrder(actor, id, input, key, ownerWrite ? unit(ownerWrite) : undefined); }
-export function fulfillOrder(actor: WorkContext, id: string, input: z.input<typeof fulfillmentSchema>, key: string) { return holdingResources(actor.holdingId).then(({write}) => financeTransaction(write, tx => applicationFor(tx).fulfillOrder(actor, id, input, key))); }
-export function invoiceFulfillment(actor: WorkContext, fulfillmentId: string, input: z.infer<typeof invoiceFromDeliverySchema>, key: string) { return holdingResources(actor.holdingId).then(({write}) => financeTransaction(write, tx => applicationFor(tx).invoiceFulfillment(actor, fulfillmentId, input, key))); }
-export function settleInvoice(actor: WorkContext, invoiceId: string, input: z.input<typeof settlementSchema>, key: string) { return holdingResources(actor.holdingId).then(({write}) => financeTransaction(write, async tx => { const result = await applicationFor(tx).settleInvoice(actor, invoiceId, input, key); await ensureCustomerReceipt(tx, actor, result.paymentId); return result; })); }
+export async function workOrderRows(actor: WorkContext, provided?: SqlDatabase) { const database=provided??(await holdingResources(actor.holdingId)).write;return application.workOrderRows(actor,unit(database,actor)); }
+export async function getOrder(actor: WorkContext, id: string, ownerWrite?: SqlDatabase) {
+ const database=ownerWrite??(await holdingResources(actor.holdingId)).write;
+ await requireCommerceOrderRead(database,actor,id);
+ return application.getOrder(actor,id,ownerWrite?unit(ownerWrite):undefined);
+}
+export function changeOrderReservation(actor: WorkContext, id: string, raw: unknown, key: string, ownerWrite?: SqlDatabase) {
+ const input=raw as {action?:string};
+ return withCommercePurchasedCommand(actor,{operation:"commerce.stock.reserve",key,target:{type:"order",id},purpose:input?.action==="release"?"settle-existing":"new-work",permissions:["inventory.prepare"],stock:true},database=>applicationFor(database).changeOrderReservation(actor,id,raw,key,unit(database)),ownerWrite);
+}
+export function requestCommerceReturn(actor: WorkContext, fulfillmentId: string, input: z.input<typeof returnRequestSchema>, key: string, ownerWrite?: SqlDatabase) {
+ return withCommercePurchasedCommand(actor,{operation:"commerce.return.request",kindAuthority:true,key,target:{type:"fulfillment",id:fulfillmentId},purpose:"settle-existing",permissions:[]},database=>applicationFor(database).requestCommerceReturn(actor,fulfillmentId,input,key,unit(database)),ownerWrite);
+}
+export function decideCommerceReturn(actor: WorkContext, returnId: string, action: "approve" | "reject", input: z.infer<typeof returnDecisionSchema>, key: string) {
+ return withCommercePurchasedCommand(actor,{operation:`commerce.return.${action}`,key,target:{type:"return",id:returnId},purpose:"settle-existing",permissions:["commerce.approve"],stock:action==="approve",financial:action==="approve"},database=>applicationFor(database).decideCommerceReturn(actor,returnId,action,input,key));
+}
+export function completeCommerceReturn(actor: WorkContext, returnId: string, input: z.infer<typeof returnCompleteSchema>, key: string) {
+ return withCommercePurchasedCommand(actor,{operation:"commerce.return.complete",key,target:{type:"return",id:returnId},purpose:"settle-existing",permissions:["finance.write","finance.approve"],financial:true},database=>applicationFor(database).completeCommerceReturn(actor,returnId,input,key));
+}
+export function saveOrder(actor: WorkContext, id: string | null, input: z.infer<typeof orderSchema>, key: string, ownerWrite?: SqlDatabase) {
+ return withCommercePurchasedCommand(actor,{operation:id?"commerce.order.update":"commerce.order.create",kindAuthority:true,key,target:id?{type:"order",id}:{type:"new",id:`order-${key}`,kind:input.kind},purpose:"new-work",permissions:[input.kind==="purchase"?"commerce.purchase":"commerce.sales"]},database=>applicationFor(database).saveOrder(actor,id,input,key,unit(database)),ownerWrite);
+}
+export function transitionOrder(actor: WorkContext, id: string, input: z.infer<typeof transitionSchema>, key: string, ownerWrite?: SqlDatabase) {
+ return withCommercePurchasedCommand(actor,{operation:`commerce.order.${input.action}`,kindAuthority:true,key,target:{type:"order",id},purpose:["cancel","return"].includes(input.action)?"settle-existing":"new-work",permissions:input.action==="approve"?["commerce.approve"]:[],convert:input.action==="convert"},database=>applicationFor(database).transitionOrder(actor,id,input,key,unit(database)),ownerWrite);
+}
+export function fulfillOrder(actor: WorkContext, id: string, input: z.input<typeof fulfillmentSchema>, key: string) {
+ return withCommercePurchasedCommand(actor,{operation:"commerce.order.fulfill",key,target:{type:"order",id},purpose:"settle-existing",permissions:input.completionMode==="service"?["commerce.sales"]:input.completionMode==="mixed"?["inventory.prepare","commerce.sales"]:["inventory.prepare"],transactional:true,stockLines:input.lines.map(line=>line.lineId),financial:true,receiving:true},database=>applicationFor(database).fulfillOrder(actor,id,input,key));
+}
+export function invoiceFulfillment(actor: WorkContext, fulfillmentId: string, input: z.infer<typeof invoiceFromDeliverySchema>, key: string) {
+ return withCommercePurchasedCommand(actor,{operation:"commerce.invoice.create",key,target:{type:"fulfillment",id:fulfillmentId},purpose:"settle-existing",permissions:["finance.write"],transactional:true,financial:true},database=>applicationFor(database).invoiceFulfillment(actor,fulfillmentId,input,key));
+}
+export function settleInvoice(actor: WorkContext, invoiceId: string, input: z.input<typeof settlementSchema>, key: string) {
+ return withCommercePurchasedCommand(actor,{operation:"commerce.invoice.settle",key,target:{type:"invoice",id:invoiceId},purpose:"settle-existing",permissions:["finance.write"],transactional:true,financial:true},async database=>{const result=await applicationFor(database).settleInvoice(actor,invoiceId,input,key);await ensureCustomerReceipt(database,actor,result.paymentId);return result;});
+}
 export function prepareInvoiceSettlement(write: SqlDatabase, actor: WorkContext, invoice: Row, expense: Row | null, input: z.infer<typeof settlementSchema>, key: string) { return application.prepareInvoiceSettlement(unit(write), actor, invoice, expense, input, key); }
 export async function saveMaster(actor: WorkContext, kind: "products" | "parties" | "warehouses", id: string | null, input: unknown, key: string) {
     try { return await application.saveMaster(actor, kind, id, input, key); }
@@ -924,4 +970,27 @@ export function commercePage(actor: WorkContext, query: {
     status?: string;
     startDate?: string;
     endDate?: string;
-}) { return application.commercePage(actor, query); }
+}) {
+ if(["quote","sales","purchase"].includes(query.view))return holdingResources(actor.holdingId).then(async({write})=>{await requireCommercePurchasedRead(write,actor,query.view as "quote"|"sales"|"purchase");return application.commercePage(actor,query);});
+ return application.commercePage(actor, query);
+}
+
+/** Same Commerce owner, same actual native application and supplied transaction.
+ * This bridge is private to the two closed POS master commands. */
+export async function createPosStartupMasterInTransaction(database:SqlDatabase,actor:WorkContext,kind:'products'|'warehouses',input:unknown,key:string){
+ const capture:ManufacturingStockMasterMoneyCapture={money:null,errorCode:'POS_STARTUP_SOURCE_CHANGED'};
+ const result=await applicationFor(database,capture).saveMaster(actor,kind,null,input,key);
+ return {result,money:capture.money};
+}
+
+/** Private Service-only bridge, preserving the original native master command. */
+export async function createServiceInitialPhysicalStockMasterInTransaction(database:SqlDatabase,actor:WorkContext,kind:'products'|'warehouses',input:unknown,key:string){
+ const capture:ManufacturingStockMasterMoneyCapture={money:null,errorCode:'SERVICE_INITIAL_PHYSICAL_STOCK_SOURCE_CHANGED'};
+ const result=await applicationFor(database,capture).saveMaster(actor,kind,null,input,key);return {result,money:capture.money};
+}
+
+/** Sales service catalogue joins the original product writer in its owned unit. */
+export async function createSalesServiceProductInTransaction(database:SqlDatabase,actor:WorkContext,input:unknown,key:string){
+ const capture:ManufacturingStockMasterMoneyCapture={money:null,errorCode:'SALES_SERVICE_PRODUCT_SOURCE_CHANGED'};
+ const result=await applicationFor(database,capture).saveMaster(actor,'products',null,input,key);return {result,money:capture.money};
+}

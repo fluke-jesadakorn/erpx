@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { parseHoldingWorkspace, type HoldingWorkspaceScope } from "@/lib/work_projection/workspace";
 import { assignmentProblem, safeReturnPath } from '../domain/access-problem';
 import type { AccessProblem } from "@/lib/shared/access-problem";
@@ -74,7 +75,7 @@ export function createAccessDiagnosis(ports: AccessDiagnosisPorts) {
         const email = identity.session.user.email, userId = identity.session.user.id;
         if (!safeReturnPath(from))
             return { problem: "invalid", email };
-        if (from!.startsWith("/platform/")) {
+        if (from!.startsWith(canonicalUiHref("/platform/"))) {
             try {
                 await ports.platform();
                 return { problem: hint ?? "available", email };

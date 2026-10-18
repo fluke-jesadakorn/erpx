@@ -1,10 +1,12 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { FinanceEvidenceDocuments } from "./finance-evidence-documents";
 import { useState, useContext } from "react";
 import { EmbeddedRecord } from "@/components/records/record-context";
 import { recordCanonicalHref } from "@/lib/records/record-drawer";
-import { useRouter } from "next/navigation";
-import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
+import {useRouter} from "@/lib/shared/destination-router";
+import {useFinanceCommand} from "./use-finance-command";
+import {captureFinanceForm} from "./finance-draft-boundary";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import {
   Button,
@@ -57,38 +59,15 @@ export function FinanceBankAutomationControls({
   userId: string;
   query?: Record<string, string | undefined>;
 }) {
-  const recordOnly = useContext(EmbeddedRecord);
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+  const recordOnly = useContext(EmbeddedRecord),router=useRouter();
+  const {send,busy,error,draftScope,canPrepare,canSettle}=useFinanceCommand(base,"finance.banking");
   const [selectedBanks, setSelectedBanks] = useState<Row[]>([]);
   const [selectedCash, setSelectedCash] = useState<Row[]>([]);
-  async function run(path: string, input: unknown) {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await workFetch(
-          `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Idempotency-Key": crypto.randomUUID(),
-            },
-            body: JSON.stringify(input),
-          },
-        ),
-        body = await r.json();
-      if (!r.ok) throw new Error(body.error?.message ?? "Bank action failed");
-      if (path === "bank-match-groups") {
-        setSelectedBanks([]);
-        setSelectedCash([]);
-      }
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Bank action failed");
-    } finally {
-      setBusy(false);
+  async function run(path:string,input:unknown){
+    const completion=captureFinanceForm();
+    const result=await send(path,input,path==="bank-csv-mappings"?"new-work":"settle-existing");
+    if(result&&path==="bank-match-groups"&&completion?.form.hasAttribute("data-bank-match-selection")&&completion.formEditVersion===completion.form.getAttribute("data-erpx-edit-version")){
+      setSelectedBanks([]);setSelectedCash([]);
     }
   }
   return (
@@ -110,7 +89,7 @@ export function FinanceBankAutomationControls({
           drawerTitle="Save bank CSV columns"
         >
           <summary>Save CSV mapping</summary>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -152,7 +131,7 @@ export function FinanceBankAutomationControls({
               appearance="standard"
               clientManaged
               type="submit"
-              disabled={busy}
+              disabled={!canPrepare || busy}
             >
               Save mapping
             </Button>
@@ -174,7 +153,7 @@ export function FinanceBankAutomationControls({
           drawerTitle="Import mapped bank CSV"
         >
           <summary>Import with saved mapping</summary>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -243,7 +222,7 @@ export function FinanceBankAutomationControls({
               appearance="standard"
               clientManaged
               type="submit"
-              disabled={busy}
+              disabled={!canSettle || busy}
             >
               Import statement
             </Button>
@@ -281,7 +260,7 @@ export function FinanceBankAutomationControls({
                         return (
                           <li key={id}>
                             <RecordLink
-                              href={`${base}/finance/journals/${line?.journal_id}`}
+                              href={canonicalUiHref(`${base}/finance/journals/${line?.journal_id}`)}
                             >
                               {String(line?.entry_date)} ·{" "}
                               {minorToDecimal(
@@ -300,7 +279,7 @@ export function FinanceBankAutomationControls({
                     <Button
                       appearance="standard"
                       clientManaged
-                      disabled={busy}
+                      disabled={!canSettle || busy}
                       onClick={() =>
                         void run("bank-match-groups", {
                           bankTransactionIds: s.bankTransactionIds,
@@ -339,7 +318,7 @@ export function FinanceBankAutomationControls({
           }}
         >
           <summary>Choose movements to match</summary>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope} data-bank-match-selection
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
@@ -461,7 +440,7 @@ export function FinanceBankAutomationControls({
                     new FormData(form ?? undefined).get("cashQuery") ?? "",
                   ).trim();
                   if (value) params.set("cashQuery", value);
-                  router.push(`${base}/finance/bank?${params}`);
+                  router.push(canonicalUiHref(`${base}/finance/bank?${params}`));
                 }}
               >
                 Search cash lines
@@ -486,7 +465,7 @@ export function FinanceBankAutomationControls({
                     Number(r.debit_minor) - Number(r.credit_minor),
                   )}{" "}
                   {String(r.currency)} · {String(r.description ?? "")} ·{" "}
-                  <RecordLink href={`${base}/finance/journals/${r.journal_id}`}>
+                  <RecordLink href={canonicalUiHref(`${base}/finance/journals/${r.journal_id}`)}>
                     Source journal
                   </RecordLink>
                   <br />
@@ -514,7 +493,7 @@ export function FinanceBankAutomationControls({
               appearance="standard"
               clientManaged
               type="submit"
-              disabled={busy || !selectedBanks.length || !selectedCash.length}
+              disabled={!canSettle || busy || !selectedBanks.length || !selectedCash.length}
             >
               Prepare match group
             </Button>
@@ -558,7 +537,7 @@ export function FinanceBankAutomationControls({
                       ).map((l) => (
                         <li key={String(l.id)}>
                           <RecordLink
-                            href={`${base}/finance/journals/${l.journal_id}`}
+                            href={canonicalUiHref(`${base}/finance/journals/${l.journal_id}`)}
                           >
                             {String(l.entry_date)} ·{" "}
                             {minorToDecimal(
@@ -577,7 +556,7 @@ export function FinanceBankAutomationControls({
                   <p>Current status: {String(g.status)}</p>
                   <p>{String(JSON.parse(String(g.explanation_json)).input?.reason ?? "Legacy source evidence requires review")}</p>
                   <ul>{((JSON.parse(String(g.explanation_json)).source?.banks ?? []) as Row[]).map(r=><li key={String(r.id)}>{String(r.external_id)} · {String(r.transaction_date)} · {minorToDecimal(Number(r.amount_minor))} {String(r.currency)}</li>)}</ul>
-                  <ul>{((JSON.parse(String(g.explanation_json)).source?.lines ?? []) as Row[]).map(l=><li key={String(l.id)}><RecordLink href={`${base}/finance/journals/${l.journal_id}`}>{String(l.entry_date)} · {minorToDecimal(Number(l.debit_minor)-Number(l.credit_minor))} {String(g.currency)}</RecordLink></li>)}</ul>
+                  <ul>{((JSON.parse(String(g.explanation_json)).source?.lines ?? []) as Row[]).map(l=><li key={String(l.id)}><RecordLink href={canonicalUiHref(`${base}/finance/journals/${l.journal_id}`)}>{String(l.entry_date)} · {minorToDecimal(Number(l.debit_minor)-Number(l.credit_minor))} {String(g.currency)}</RecordLink></li>)}</ul>
                   <FinanceEvidenceDocuments
                     base={base}
                     row={g}
@@ -588,7 +567,7 @@ export function FinanceBankAutomationControls({
                     (g.status === "matched" ||
                       (g.status === "proposed" &&
                         g.proposed_by !== userId)) && (
-                      <FormLayout
+                      <FormLayout data-finance-draft={draftScope}
                         onSubmit={(e) => {
                           e.preventDefault();
                           const f = new FormData(e.currentTarget);
@@ -624,7 +603,7 @@ export function FinanceBankAutomationControls({
                           appearance="standard"
                           clientManaged
                           type="submit"
-                          disabled={busy}
+                          disabled={!canSettle || busy}
                         >
                           Confirm review
                         </Button>

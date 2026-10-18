@@ -3,6 +3,10 @@ import { delimiter } from "node:path";
 /** Pure units cannot inherit a database administrator or ambient PostgreSQL connection. */
 export function vitestChildEnvironment(environment: Record<string, string | undefined>, postgres: boolean): Record<string, string | undefined> {
   const selected = { ...environment };
+  // Native owner fixtures choose their mode explicitly. Never inherit an
+  // installed development rollout flag into otherwise legacy regression cases.
+  delete selected.ERPX_SUPPORT_PACKAGE_ENFORCEMENT;
+  delete selected.ERPX_SERVICE_PACKAGE_ENFORCEMENT;
   const postgresTools = selected.ERPX_TEST_PG_BIN?.trim();
   if (postgresTools) {
     const existingPath = selected.PATH?.split(delimiter).filter(Boolean) ?? [];
@@ -16,7 +20,7 @@ type Environment = Record<string, string | undefined>;
 const providerConfiguration = /^(AI_|RESEND_|STRIPE_|POS_STRIPE_|SITEMINDER_|ERPX_MINIO_|ERPX_IAM_|ERPX_POS_STRIPE_|OPENAI_|ANTHROPIC_|GEMINI_|AWS_|MINIO_)/;
 const ambientRuntimeConfiguration = /^(ERPX_ENGINEERING_|ERPX_BROWSER_|ERPX_E2E_|ERPX_DEMO_|ERPX_UAT_|ERPX_TEST_RELEASE_|ERPX_SERVER_SCRIPT_)/;
 const ambientRuntimeNames = new Set([
-  "ERPX_DATABASE_MANIFEST", "ERPX_MIGRATION_DATABASE_MANIFEST", "ERPX_DATA_DIR", "ERPX_PROCESS_ROLE", "ERPX_ENVIRONMENT",
+  "ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "ERPX_SERVICE_PACKAGE_ENFORCEMENT", "ERPX_DATABASE_MANIFEST", "ERPX_MIGRATION_DATABASE_MANIFEST", "ERPX_DATA_DIR", "ERPX_PROCESS_ROLE", "ERPX_ENVIRONMENT",
   "ERPX_PUBLIC_ORIGIN", "ERPX_MARKETING_ORIGIN", "ERPX_FRONT_PMS_ORIGIN", "ERPX_FRONT_POS_ORIGIN", "ERPX_PUBLIC_BETA",
   "ERPX_EMAIL_ADAPTER", "ERPX_AI_ADAPTER", "ERPX_PAYROLL_ADAPTER", "ERPX_POS_ROOM_CHARGE_PILOT_ENABLED",
   "ERPX_PMS_PROVIDER_FIXTURE", "PMS_STRIPE_BOOKING_ENABLED",

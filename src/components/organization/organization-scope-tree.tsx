@@ -1,6 +1,8 @@
 "use client";
 import {useState} from "react";
-import {useRouter,useSearchParams,usePathname} from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import {Button} from "@/components/ui/button";
 import {ChevronDown,ChevronRight} from "lucide-react";
 import styles from "./organization-structure.module.css";

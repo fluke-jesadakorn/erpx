@@ -16,3 +16,11 @@ describe('Finance expansion Work owner projection',()=>{
  it('uses injected local calendar date to select closing readiness periods',async()=>{const c=context();await c.run(actor);expect(c.ports.periods).toHaveBeenCalledWith(actor,'2026-09-30')});
  it('preserves validated actor returned by Identity permission gate',async()=>{const validated={...actor,companyId:'validated'},c=context({permission:()=>validated});await c.run(actor);expect(c.ports.ready).toHaveBeenCalledWith(validated);expect(c.ports.due).toHaveBeenCalledWith(validated)});
 });
+
+it("routes independent retained calculations through their prepare/review permission and owner page",async()=>{
+ const rows:ExpansionWorkRow[]=[{...row,id:"prepared-calc",kind:"calculation",status:"prepared"},{...row,id:"reviewed-calc",kind:"calculation",status:"reviewed"}],a={...actor,iam:{roleRevision:1,identityVersion:1,permissions:["finance.read","finance.write"],grantablePermissions:[],principalId:"reviewer",personId:null,freshUntil:null}};
+ expect(await context({rows:async()=>rows}).run(a)).toMatchObject([{id:"prepared-calc",href:"/finance/engines",canAct:true},{id:"reviewed-calc",href:"/finance/engines",canAct:false}]);
+});
+it("keeps retained review history out of the actionable queue when settlement is unavailable",async()=>{
+ expect(await context({actionAllowed:()=>false}).run(actor)).toMatchObject([{canAct:false,queue:"waiting",nextAction:"View retained Finance history"}]);
+});

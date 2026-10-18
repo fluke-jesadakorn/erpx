@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { assistantPage } from "@/lib/work_projection/ai/workspace-assistant";
 import { guidedIntakeModelSchema, intakeMissing, type GuidedIntakeAction, type GuidedIntakeResult, type IntakeIntent } from "@/lib/operations/ai/guided-intake-domain";
 import { workspaceBase } from "@/lib/work_projection/workspace";
@@ -92,11 +93,11 @@ export function createGuidedIntakeApplication<Effect>(ports: GuidedIntakePorts<E
         const base = workspaceBase(ports.publicScope(actor));
         const capByKind = new Map(caps.creation.map(item => [item.kind, item.href]));
         const paths: Partial<Record<Exclude<IntakeIntent, "unknown">, string>> = {
-            purchase: capByKind.has("purchase_request") ? `${base}/requests/new?kind=purchase` : undefined,
-            expense: capByKind.has("expense") ? `${base}/expenses/new` : undefined,
-            leave: capByKind.has("leave") ? `${base}/leave/new` : undefined,
-            task: capByKind.has("task") ? `${base}/staff-tasks/new` : undefined,
-            post: `${base}/home#compose`,
+            purchase: capByKind.has("purchase_request") ? canonicalUiHref(`${base}/requests/new?kind=purchase`) : undefined,
+            expense: capByKind.has("expense") ? canonicalUiHref(`${base}/expenses/new`) : undefined,
+            leave: capByKind.has("leave") ? canonicalUiHref(`${base}/leave/new`) : undefined,
+            task: capByKind.has("task") ? canonicalUiHref(`${base}/staff-tasks/new`) : undefined,
+            post: canonicalUiHref(`${base}/home#compose`),
         };
         return (Object.keys(labels) as Exclude<IntakeIntent, "unknown">[])
             .filter(id => !!paths[id])

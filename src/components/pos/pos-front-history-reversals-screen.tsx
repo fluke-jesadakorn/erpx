@@ -6,6 +6,6 @@ import type {FrontPosDailyContext} from "./pos-front-console";
 
 const RoomChargeReversalReviews = dynamic(() => import("@/components/shared/hospitality/room-charge-reversals").then(module => module.RoomChargeReversalReviews));
 export function FrontPosDailyHistoryReversalsScreen({context}: {context: FrontPosDailyContext}) {
-  const {api} = context;
-  return <FrontLocalizedTree>{<RoomChargeReversalReviews base={api.slice("/api/v1".length)}/>}</FrontLocalizedTree>;
+  const {api,data} = context;
+  return <FrontLocalizedTree>{<RoomChargeReversalReviews base={api.slice("/api/v1".length)} owner={{userId:data.userId,companyId:data.companyId}}/>}</FrontLocalizedTree>;
 }

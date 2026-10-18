@@ -18,6 +18,7 @@ import { snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal } from "@/serv
 import { capturePosReceipt, createPosCustomer, posDayCommand, assertPosDayWritable } from "@/server/modules/pos/public/pos-daily";
 import type { SqlStatement } from "../../runtime/public/runtime/types";
 import { createPosApplication, type PosUnit, type PosRepository, type PosRow } from "../application/pos-core";
+import { withPosPurchasedCommand, posPackageEnforcementMode } from "./purchase-boundary";
 export type { PosRow } from "../application/pos-core";
 export async function one(db: SqlDatabase, sql: string, ...args: unknown[]) { return db.prepare(sql).bind(...args).first<PosRow>(); }
 export async function all(db: SqlDatabase, sql: string, ...args: unknown[]) { return (await db.prepare(sql).bind(...args).all<PosRow>()).results; }
@@ -1117,6 +1118,10 @@ export function enqueue(db: SqlDatabase, companyId: string, kind: string, record
 export function reserve(db: SqlDatabase, f: PosRow) { return application.reserve(unit(db), f); }
 export function receivePayment(db: SqlDatabase, payment: PosRow, actorId: string, date?: string) { return application.receivePayment(unit(db), payment, actorId, date); }
 export function completeSale(db: SqlDatabase, sale: PosRow, actorId: string, date?: string) { return application.completeSale(unit(db), sale, actorId, date); }
-export function posCommand(db: PostgresDatabase, actor: WorkContext, operation: string, input: unknown, key: string) { return application.posCommand(repository(db), actor, operation, input, key); }
+export async function posCommand(db: PostgresDatabase, actor: WorkContext, operation: string, input: unknown, key: string) {
+    const mode = await posPackageEnforcementMode(), commands = repository(db);
+    if (mode !== "disabled") commands.transaction = work => withPosPurchasedCommand(db, actor, operation, input, key, mode, transaction => work(unit(transaction)));
+    return application.posCommand(commands, actor, operation, input, key);
+}
 export function completeRefundPayment(db: SqlDatabase, refundPaymentId: string, actorId: string, date?: string) { return application.completeRefundPayment(unit(db), refundPaymentId, actorId, date); }
 export function releaseUnpaidReservations(db: SqlDatabase, saleId: string) { return application.releaseUnpaidReservations(unit(db), saleId); }

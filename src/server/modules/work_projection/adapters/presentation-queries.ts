@@ -9,6 +9,7 @@ import { executiveVisible } from "@/server/modules/runtime/public/executive/acce
 import { activeCompanyName } from "@/server/modules/organization/public/people-app-entrypoint-facts";
 import { getEmployeeRequest } from "@/server/modules/records/public/employee-requests";
 import { requestPageOptions } from "@/server/modules/records/public/request-page";
+import {messagingPeople} from '../../collaboration/public/messaging';
 
 type ReadArguments<F extends (...args: never[]) => unknown> = Parameters<F> extends [unknown, ...infer Rest] ? Rest : never;
 
@@ -18,6 +19,7 @@ export async function workProjectionPresentationQueries(holdingId: string) {
   return {
     calendarData: (...args: ReadArguments<typeof calendarData>) => calendarData(write, ...args),
     calendarHierarchy: (...args: ReadArguments<typeof calendarHierarchy>) => calendarHierarchy(write, ...args),
+    calendarAccounts: (...args: ReadArguments<typeof messagingPeople>) => messagingPeople(write, ...args),
     activeCompanySlug: (...args: ReadArguments<typeof activeCompanySlug>) => activeCompanySlug(write, ...args),
     activeCompanyIdentity: (...args: ReadArguments<typeof activeCompanyIdentity>) => activeCompanyIdentity(write, ...args),
     resolveWorkspaceBrand: (...args: ReadArguments<typeof resolveWorkspaceBrand>) => resolveWorkspaceBrand(write, ...args),

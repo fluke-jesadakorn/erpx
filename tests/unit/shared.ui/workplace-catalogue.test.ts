@@ -1,9 +1,29 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { moduleRegistry } from "../../../src/data/module-registry";
 import { availableNavigationAppIds, workplaceModuleDestinations } from "../../../src/lib/work_projection/workplace-catalogue";
 import { workplaceNavigation } from "../../../src/lib/work_projection/workplace-navigation";
 import { frontWorkReturn } from "../../../src/lib/work_projection/front-work-return";
 import { workReviewCommand } from "../../../src/lib/work_projection/work-review";
+
+const migrationPorts = vi.hoisted(() => ({ bindings: vi.fn(), workspace: vi.fn(), grants: vi.fn() }));
+vi.mock("@/server/modules/runtime/public/runtime", () => ({ activeHoldingBindings: migrationPorts.bindings }));
+vi.mock("@/server/modules/identity_access/public/authorization", () => ({ firstAuthorizedWorkspace: migrationPorts.workspace }));
+vi.mock("@/server/modules/commercial/public/package-grants", () => ({ companyPackageGrants: migrationPorts.grants }));
+
+it("keeps existing workspace recovery scoped to current authority without reading or inventing product grants", async () => {
+  vi.stubEnv("ERPX_PUBLIC_ORIGIN", "https://console-dev-erpx.jesadakorn.com");
+  try {
+    migrationPorts.bindings.mockResolvedValue([{ slug: "acme", displayName: "Acme" }, { slug: "denied", displayName: "Other company" }]);
+    migrationPorts.workspace.mockImplementation(async (holding: string) => holding === "acme" ? { kind: "branch", holdingSlug: "acme", branchSlug: "main" } : null);
+    const { existingWorkspaceLaunchChoices } = await import("@/server/modules/work_projection/public/product-launcher");
+    expect(await existingWorkspaceLaunchChoices()).toEqual([{ holding: "Acme", href: "https://console-dev-erpx.jesadakorn.com/holdings/acme/branches/main/home" }]);
+    expect(migrationPorts.grants).not.toHaveBeenCalled();
+    migrationPorts.workspace.mockResolvedValue(null);
+    expect(await existingWorkspaceLaunchChoices()).toEqual([]);
+    vi.stubEnv("ERPX_PUBLIC_ORIGIN", "");
+    expect(await existingWorkspaceLaunchChoices()).toEqual([]);
+  } finally { vi.unstubAllEnvs(); }
+});
 
 it("gives every catalogue module an objective and discovery home without opening deferred features",()=>{
   expect(Object.keys(workplaceModuleDestinations).sort()).toEqual(moduleRegistry.map(module=>module.id).sort());

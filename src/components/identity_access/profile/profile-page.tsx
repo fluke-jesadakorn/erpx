@@ -1,10 +1,11 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import Image from "next/image";
 import { Camera, ExternalLink, Link2, MapPin, Pencil, UserRound } from "lucide-react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
@@ -168,7 +169,7 @@ export function ProfilePage({ initial, base }: { initial: Profile; base: string 
   const banner = coverPreview ?? profile.coverUrl;
   return (
     <div className={styles.page}>
-      <Link className={styles.back} href={`${base}/people`}>
+      <Link className={styles.back} href={canonicalUiHref(`${base}/people`)}>
         ← People
       </Link>
       <section className={styles.hero}>
@@ -447,7 +448,7 @@ export function ProfilePage({ initial, base }: { initial: Profile; base: string 
                       </div>
                     </div>
                     <p>{post.body}</p>
-                    <Link href={`${base}/posts/${encodeURIComponent(post.id)}`}>
+                    <Link href={canonicalUiHref(`${base}/posts/${encodeURIComponent(post.id)}`)}>
                       Open conversation →
                     </Link>
                   </article>

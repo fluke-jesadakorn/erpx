@@ -25,10 +25,14 @@ export async function inspectMigrations(
     // boundary.
     names = (await db.prepare('SELECT name FROM erpx_migration_receipts() ORDER BY name').all<{ name: string }>()).results.map(row => row.name);
   } catch (error) {
-    // A provisioned database always has this table. Treat a new database as
-    // entirely pending so the Platform screen can explain the next action;
-    // all other database errors remain visible to the caller.
     if (!['42P01', '42883'].includes((error as { code?: string }).code ?? '')) throw error;
+    // A missing function does not prove that no migrations were applied.
+    // Older Control tracks have receipts without the narrow read-only reader.
+    // Inspect catalogue presence without falling back to privileged table reads.
+    const receiptTable = await db.prepare("SELECT to_regclass('public.erpx_migrations') IS NOT NULL present").first<boolean>('present');
+    if (receiptTable) throw Object.assign(new Error('MIGRATION_RECEIPTS_UNAVAILABLE'), {
+      code: 'MIGRATION_RECEIPTS_UNAVAILABLE', cause: error,
+    });
   }
   const appliedNames = new Set(names);
   return {

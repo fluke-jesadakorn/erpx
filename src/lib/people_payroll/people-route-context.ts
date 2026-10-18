@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 export type PeopleRouteSearch = Record<string, string | string[] | undefined>;
 import { routeContextHref } from "@/lib/shared/route-context";
 
@@ -20,5 +21,5 @@ export function peopleContextHref(
     if (value === null) query.delete(key);
     else query.set(key, value);
   }
-  return `${base}/people${query.size ? `?${query}` : ""}`;
+  return canonicalUiHref(`${base}/people${query.size ? `?${query}` : ""}`);
 }

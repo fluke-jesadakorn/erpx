@@ -1,1 +1,1 @@
-export {peopleEvaluationStaffWorkFacts} from '../adapters/people-evaluation-work-facts';
+export {peopleEvaluationStaffWorkFacts,peopleEvaluationTaskSourceLocks,peopleEvaluationTaskSourceImage} from '../adapters/people-evaluation-work-facts';

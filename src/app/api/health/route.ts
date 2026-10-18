@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {runtimeAppSources} from "@/server/modules/runtime/public/app-native-sources";
 import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
 import { attachmentsV2Enabled } from "@/server/modules/files/public/attachments/feature";
@@ -28,7 +29,7 @@ export async function GET() {
   const billingReady=billing.scanReady&&(!enabled||billing.reconciliationReady);
   const ready=app.ready&&jobs.ready&&migration.ready&&billingReady;
   return Response.json(
-    { status: ready ? "ok" : "degraded", attachments: { enabled,uploadFrozen:app.uploadFrozen,scanner:app.scanner,preview:app.preview,jobs,migration,billing:{...billing,compatibilityReady:billing.scanReady} } },
+    canonicalDestinationLinks({ status: ready ? "ok" : "degraded", attachments: { enabled,uploadFrozen:app.uploadFrozen,scanner:app.scanner,preview:app.preview,jobs,migration,billing:{...billing,compatibilityReady:billing.scanReady} } }),
     { status: ready ? 200 : 503, headers: { "Cache-Control": "no-store" } },
   );
 }

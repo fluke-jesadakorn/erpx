@@ -13,12 +13,14 @@ import type { SqlDatabase, TransactionalSqlDatabase } from "@/server/modules/run
 import type { Effects } from "@/lib/pms/pms-engine";
 import { createPmsBookingChange, type PmsBookingChangeUnit, type PmsBookingChangeRepository, type StaffAuthority, type Proposal } from "../application/pms-booking-changes";
 import { holdingResources as resolveResources } from "../../runtime/public/runtime";
+import { requirePmsPropertyPurchase, withPmsPropertyPurchasedTransaction } from "./property-purchase-boundary";
 const signature = (env: BookingEnv, payload: string) => createHmac('sha256', env.secret).update(`pms-change:${payload}`).digest('base64url');
 function signed(p: Proposal, env: BookingEnv) { const payload = Buffer.from(JSON.stringify(p)).toString('base64url'); return `${payload}.${signature(env, payload)}`; }
 function read(token: string, env: BookingEnv): Proposal { const [body, sig, extra] = token.split('.'), expected = signature(env, body ?? ''); if (extra || !body || !sig || sig.length !== expected.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(expected)))
     throw new ApiError(422, 'PMS_PROPOSAL_INVALID', 'Review a new proposal'); return JSON.parse(Buffer.from(body, 'base64url').toString()); }
 function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChangeUnit {
     return {
+        requirePurchase: input => requirePmsPropertyPurchase(db, input),
         readPmsRecords: (facts: {
             reservationId: string;
         }) => db.prepare("SELECT property_id FROM pms_records WHERE id=? AND kind='reservation'").bind(facts.reservationId).first<{
@@ -148,7 +150,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingChan
         bookingCheckout: (arg0: string, arg1: string, arg2: BookingEnv, arg3: number) => bookingCheckout(requireWhole(whole), arg0, arg1, arg2, arg3)
     };
 }
-function repository(db: TransactionalSqlDatabase): PmsBookingChangeRepository { return { ...unit(db, db), transaction: work => db.transaction(tx => work(unit(tx, db))) }; }
+function repository(db: TransactionalSqlDatabase): PmsBookingChangeRepository { return { ...unit(db, db), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db)), purchase) }; }
 const application = createPmsBookingChange({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await resolveResources(actor.holdingId)).write), bookingSummary: (...args) => bookingSummary(...args), signed, read });
 export function publicChangeQuote(db: TransactionalSqlDatabase, token: string, kind: 'change' | 'cancel', raw: unknown, env: BookingEnv, now = Date.now(), staff?: StaffAuthority) { return application.publicChangeQuote(repository(db), token, kind, raw, env, now, staff); }
 export function confirmBookingChange(db: TransactionalSqlDatabase, slug: string, token: string, proposalToken: string, key: string, env: BookingEnv, now = Date.now(), staff?: StaffAuthority, expectedKind?: 'change' | 'cancel') { return application.confirmBookingChange(repository(db), slug, token, proposalToken, key, env, now, staff, expectedKind); }

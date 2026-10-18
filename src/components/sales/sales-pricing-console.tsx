@@ -1,18 +1,16 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RecordLink } from "@/components/records/record-link";
-import { InlineNotice } from "@/components/ui/foundation";
 
-import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput, Table, TableFrame, SectionHeader } from "@/components/ui/foundation";
 
-import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
+import {CRMCommandFeedback,CRMCommandState,CRMDraftBoundary,CRMEditor,CRMForm,useCRMSnapshot} from "@/components/crm/draft-boundary";
+import {usePricingCommand} from "./use-pricing-command";
 import { StatusBadge } from "@/components/ui/primitives";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import { useState } from "react";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { pricingWorkspace } from "@/server/modules/sales/public/sales-pricing";
-import { FormGrid, Stack, Card, FormLayout } from "@/components/ui/foundation";
+import { FormGrid, Stack, Card } from "@/components/ui/foundation";
 
 type Data = Awaited<ReturnType<typeof pricingWorkspace>>;
 type DraftItem = { productId: string; price: string; taxBps: number };
@@ -22,16 +20,18 @@ function DraftPriceListEditor({
   listItems,
   busy,
   onSave,
+  allowed,
+  currentVersion,
 }: {
   data: Data;
   list: Data["lists"][number];
   listItems: Data["items"];
   busy: boolean;
-  onSave: (input: unknown) => Promise<boolean>;
+  onSave: (input: unknown) => Promise<void>;
+  allowed: boolean;
+  currentVersion?: string | number;
 }) {
-  const [open, setOpen] = useState(false),
-    [dirty, setDirty] = useState(false),
-    [items, setItems] = useState<DraftItem[]>(() =>
+  const [items, setItems] = useState<DraftItem[]>(() =>
       listItems.map((item) => ({
         productId: String(item.product_id),
         price: minorToDecimal(Number(item.price_minor)),
@@ -48,16 +48,13 @@ function DraftPriceListEditor({
   }
   return (
     <>
-      <Button appearance="standard" variant="secondary" type="button" onClick={() => setOpen(true)}>Edit draft</Button>
-      <DraftFormDrawer appearance="standard" open={open} dirty={dirty} onClose={() => setOpen(false)} onDiscard={() => { setDirty(false); setOpen(false); setItems(listItems.map(item => ({ productId: String(item.product_id), price: minorToDecimal(Number(item.price_minor)), taxBps: Number(item.tax_bps) }))); }} title="Edit draft price list" dismissDisabled={busy}>
-      <div onChangeCapture={() => setDirty(true)} onClickCapture={event => { if ((event.target as Element).closest("button")) setDirty(true); }}>
-    <form
+      <CRMEditor title="Edit draft price list" label="Edit draft" disabled={!allowed} onDiscard={() => setItems(listItems.map(item => ({productId:String(item.product_id),price:minorToDecimal(Number(item.price_minor)),taxBps:Number(item.tax_bps)})))} onAccepted={() => setItems(listItems.map(item => ({productId:String(item.product_id),price:minorToDecimal(Number(item.price_minor)),taxBps:Number(item.tax_bps)})))}>
+    <CRMForm inline allowed={allowed} sourceVersion={currentVersion}
       className="ui-stack"
-      onSubmit={async (event) => {
+      onSubmit={(event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        if (
-          await onSave({
+        void onSave({
             expectedVersion: Number(list.version),
             name: form.get("name"),
             currency: data.currency,
@@ -66,9 +63,7 @@ function DraftPriceListEditor({
             validUntil: form.get("validUntil"),
             maxAutoDiscountBps: Math.round(Number(form.get("maxAutoDiscountPercent")) * 100),
             items,
-          })
-        )
-          { setDirty(false); setOpen(false); }
+          });
       }}
     >
       <h4>Edit draft safely</h4>
@@ -203,56 +198,20 @@ function DraftPriceListEditor({
         >
           Add product
         </Button>
-        <Button appearance="standard" variant="secondary" type="button" onClick={() => setOpen(false)}>
-          Close editor
-        </Button>
         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !items.length}>
           {busy ? "Saving…" : "Save new draft version"}
         </Button>
       </div>
-    </form>
-      </div></DraftFormDrawer>
+    </CRMForm>
+      </CRMEditor>
     </>
   );
 }
-export function SalesPricingConsole({ base, data }: { base: string; data: Data }) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [creating, setCreating] = useState(false),
-    [dirty, setDirty] = useState(false),
-    [error, setError] = useState(""),
-    [items, setItems] = useState<DraftItem[]>([]),
-    attempt = useRef<{ body: string; key: string } | null>(null);
-  async function send(path: string, input: unknown) {
-    const body = JSON.stringify(input);
-    if (attempt.current?.body !== path + body)
-      attempt.current = { body: path + body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(
-          `${base.replace("/holdings/", "/api/v1/holdings/")}/commerce/pricing${path}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-            body,
-          },
-        ),
-        result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) attempt.current = null;
-        throw new Error(result.error?.message ?? "Unable to save pricing control.");
-      }
-      attempt.current = null;
-      router.refresh();
-      return true;
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Retry the pricing action.");
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
+export function SalesPricingConsole(props: {base:string;data:Data}) {
+  const captured=useCRMSnapshot(props),{base,data}=captured.snapshot,purchase=props.data.purchase,newWork=purchase?.newWork!==false,settlement=purchase?.settleExisting!==false;
+  const [items,setItems]=useState<DraftItem[]>([]);
+  const allowed=(path:string,input:Record<string,unknown>)=>path===""||path.endsWith("/edit")?newWork:!!props.data.canApprove&&(input.action==="activate"?newWork:input.action==="cancel"?settlement:false);
+  const command=usePricingCommand(base,allowed),{send,busy}=command;
   function add() {
     const product = data.products.find((p) => !items.some((item) => item.productId === p.id));
     if (product)
@@ -262,25 +221,19 @@ export function SalesPricingConsole({ base, data }: { base: string; data: Data }
       ]);
   }
   return (
-    <Stack as="div" className="ui-stack">
-      {error && (
-        <InlineNotice tone="danger" className="error" role="alert">
-          {error}
-        </InlineNotice>
-      )}
-      <SectionHeader><div><h2 className="ui-section-title">Price lists</h2><p className="ui-description">Approved prices, effective dates and independent review.</p></div><Button appearance="standard" type="button" variant="primary" onClick={() => setCreating(true)}>Prepare price list</Button></SectionHeader>
-      <DraftFormDrawer appearance="standard" open={creating} dirty={dirty} onClose={() => setCreating(false)} onDiscard={() => { setDirty(false); setItems([]); setCreating(false); }} title="Prepare price list" dismissDisabled={busy}>
-      <div onChangeCapture={() => setDirty(true)} onClickCapture={event => { if ((event.target as Element).closest("button")) setDirty(true); }}>
+    <CRMDraftBoundary><div {...captured.rootProps}><CRMCommandState {...command}><Stack as="div" className="ui-stack">
+      <CRMCommandFeedback/>
+      <SectionHeader><div><h2 className="ui-section-title">Price lists</h2><p className="ui-description">Approved prices, effective dates and independent review.</p></div></SectionHeader>
+      <CRMEditor title="Prepare price list" primary disabled={!newWork} onDiscard={() => setItems([])} onAccepted={() => setItems([])}>
         <p className="muted">
           Create a dated company or customer price list. Another Company sales manager must activate
           it before quotations or orders use it.
         </p>
-        <form
-          onSubmit={async (event) => {
+        <CRMForm inline allowed={newWork} sourceVersion={props.data.currency}
+          onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
-            if (
-              await send("", {
+            void send("", {
                 name: form.get("name"),
                 currency: data.currency,
                 customerId: form.get("customerId") || null,
@@ -288,9 +241,7 @@ export function SalesPricingConsole({ base, data }: { base: string; data: Data }
                 validUntil: form.get("validUntil"),
                 maxAutoDiscountBps: Math.round(Number(form.get("maxAutoDiscountPercent")) * 100),
                 items,
-              })
-            )
-              { setItems([]); setCreating(false); }
+              });
           }}
         >
           <FormGrid as="div" className="ui-form-grid">
@@ -417,8 +368,8 @@ export function SalesPricingConsole({ base, data }: { base: string; data: Data }
               {busy ? "Saving…" : "Save draft price list"}
             </Button>
           </div>
-        </form>
-      </div></DraftFormDrawer>
+        </CRMForm>
+      </CRMEditor>
       <Card as="section" appearance="standard" className="ui-panel">
         <SectionHeader><h2>Price-list history</h2><span className="ui-badge">{data.lists.length}</span></SectionHeader>
         <TableFrame appearance="standard" label="Price-list history">
@@ -428,7 +379,7 @@ export function SalesPricingConsole({ base, data }: { base: string; data: Data }
               {data.lists.map((list) => {
                 const listItems = data.items.filter((item) => item.price_list_id === list.id);
                 return <tr key={String(list.id)}>
-                  <td><RecordLink href={`${base}/record-details/price_list/${encodeURIComponent(String(list.id))}`}>{String(list.name)}</RecordLink></td>
+                  <td><RecordLink href={canonicalUiHref(`${base}/record-details/price_list/${encodeURIComponent(String(list.id))}`)}>{String(list.name)}</RecordLink></td>
                   <td><div className="grid gap-3">{listItems.map(item => <div key={String(item.id)}>
                     <div>{String(item.sku)}</div>
                     <div className="ui-description">{String(item.product_name)}</div>
@@ -441,19 +392,18 @@ export function SalesPricingConsole({ base, data }: { base: string; data: Data }
                   <td><StatusBadge appearance="standard" status={String(list.status)} /></td>
                   <td>
                     <div className="flex flex-wrap gap-2">
-                      {list.status === "draft" && <DraftPriceListEditor data={data} list={list} listItems={listItems} busy={busy} onSave={(input) => send(`/${list.id}/edit`, input)} />}
-                      {list.status === "draft" && data.canApprove && <FormDisclosure appearance="standard" drawerTitle={`Review ${String(list.name)}`} dismissDisabled={busy}>
-                        <summary className="ui-standard-control cursor-pointer rounded-[var(--ui-radius-md)] border border-[var(--ui-line)] px-4 py-2">Review draft</summary>
-                        <FormLayout className="ui-form-grid" onSubmit={(event) => {
+                      {list.status === "draft" && <DraftPriceListEditor key={`${list.id}:${list.version}`} data={data} list={list} listItems={listItems} busy={busy} allowed={newWork} currentVersion={props.data.lists.find(row=>row.id===list.id)?.version??"unavailable"} onSave={(input) => send(`/${list.id}/edit`, input)} />}
+                      {list.status === "draft" && props.data.canApprove && <CRMEditor key={`review:${list.id}:${list.version}`} title={`Review ${String(list.name)}`} label="Review draft" disabled={!newWork&&!settlement}>
+                        <CRMForm inline allowed={newWork||settlement} sourceVersion={props.data.lists.find(row=>row.id===list.id)?.version??"unavailable"} className="ui-form-grid" onSubmit={(event) => {
                           event.preventDefault();
                           const form = new FormData(event.currentTarget);
                           void send(`/${list.id}`, { expectedVersion: Number(list.version), action: form.get("action"), reason: form.get("reason") });
                         }}>
-                          <Field appearance="standard">Decision<Select appearance="standard" name="action"><option value="activate">Activate</option><option value="cancel">Cancel draft</option></Select></Field>
+                          <Field appearance="standard">Decision<Select appearance="standard" name="action" defaultValue={newWork?"activate":"cancel"}>{newWork&&<option value="activate">Activate</option>}{settlement&&<option value="cancel">Cancel draft</option>}</Select></Field>
                           <Field appearance="standard">Independent review reason<TextArea appearance="standard" name="reason" required minLength={5} maxLength={1000} /></Field>
                           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>Record decision</Button>
-                        </FormLayout>
-                      </FormDisclosure>}
+                        </CRMForm>
+                      </CRMEditor>}
                     </div>
                   </td>
                 </tr>;
@@ -464,6 +414,6 @@ export function SalesPricingConsole({ base, data }: { base: string; data: Data }
         </TableFrame>
 
       </Card>
-    </Stack>
+    </Stack></CRMCommandState></div></CRMDraftBoundary>
   );
 }

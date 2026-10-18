@@ -20,7 +20,7 @@ export interface SourceRecordPorts<Effect> {
     postGuard(actor: WorkContext, id: string, key: string, step: string): Promise<Effect>;
     pmsGuard(actor: WorkContext, key: string, source: AuthorizedSourceRecord, step: string): Effect;
     supportGuards(actor: WorkContext, key: string, source: AuthorizedSourceRecord, step: string): Promise<Effect[]>;
-    sourceGuards(actor: WorkContext, key: string, source: AuthorizedSourceRecord, step: string): Effect[];
+    sourceGuards(actor: WorkContext, key: string, source: AuthorizedSourceRecord, step: string): Effect[] | Promise<Effect[]>;
 }
 export function createSourceRecordApplication<Effect>(ports: SourceRecordPorts<Effect>) {
     async function readSourceRecord(a: WorkContext, raw: z.infer<typeof sourceRecordInput>): Promise<AuthorizedSourceRecord> {

@@ -1,13 +1,19 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Card } from "@/components/ui/foundation";
 
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useEffect,useRef, useState } from "react";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
+import {useWorkforceCommand} from './use-workforce-command';
+import {WorkforceDraftBoundary} from './workforce-draft-boundary';
+import type {WorkforcePurchase} from '@/lib/people_payroll/workforce-controls';
+import type {WorkforceCommand} from '@/lib/people_payroll/workforce-command-client';
+import { useRouter } from "@/lib/shared/destination-router";
+import Link from "@/components/workplace/workspace-link";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { overtimeLabels, type OvertimeDetails } from "@/lib/people_payroll/overtime";
 import type { OvertimeDetail, previewOvertime } from "@/server/modules/people_payroll/public/overtime";
@@ -22,10 +28,14 @@ export function OvertimeForm({
   base,
   record,
   initial,
+  workContext,
+  purchase,
 }: {
   base: string;
   record?: OvertimeDetail;
   initial?: Partial<OvertimeDetails>;
+  workContext:string;
+  purchase:WorkforcePurchase|undefined;
 }) {
   const router = useRouter(),
     [details, setDetails] = useState<OvertimeDetails>(
@@ -42,15 +52,19 @@ export function OvertimeForm({
       },
     );
   const [preview, setPreview] = useState<Preview | null>(null),
-    [busy, setBusy] = useState(false),
+    [calculating, setBusy] = useState(false),
     [error, setError] = useState(""),
     [note, setNote] = useState(""),
     [saved, setSaved] = useState(false);
   const [attachments, setAttachments] = useState<Record<string, AttachmentPanelChange>>({});
-  const attempt = useRef<{ body: string; key: string } | null>(null),
+  const command=useWorkforceCommand(base,`${workContext}:overtime:${record?.id??"new"}`,purchase),busy=calculating||command.busy;
+  const detailsRef=useRef(details),noteRef=useRef(note),previewSequence=useRef(0),[dirty,setDirty]=useState(false);
+  useEffect(()=>{detailsRef.current=details;noteRef.current=note;},[details,note]);
+  const
     actions = record?.permittedActions ?? ["save"],
     editable = !record || actions.includes("save"),
     actual = record && ["authorized", "returned"].includes(record.state);
+  const canChange=editable&&command.allowed(actual?'actuals':'save');
   const submissionPurposes =
     record && editable
       ? actual
@@ -71,11 +85,13 @@ export function OvertimeForm({
     return change?.setId && change.readyCount > 0 && change.bindable ? [change.setId] : [];
   });
   const set = <K extends keyof OvertimeDetails>(key: K, value: OvertimeDetails[K]) => {
+    previewSequence.current++;setDirty(true);detailsRef.current={...detailsRef.current,[key]:value};
     setDetails((d) => ({ ...d, [key]: value }));
     setPreview(null);
     setSaved(false);
   };
   async function calculate() {
+    if(!command.allowed(actual?'actuals':'save'))return;const sequence=++previewSequence.current;
     setBusy(true);
     setError("");
     try {
@@ -83,20 +99,19 @@ export function OvertimeForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...details, actual: !!actual, id: record?.id }),
-      });
+      },undefined,'caller');
       const b = await r.json();
       if (!r.ok) throw Error(b.error?.message);
-      setPreview(b.data);
+      if(sequence===previewSequence.current)setPreview(b.data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to calculate hours.");
+      if(sequence===previewSequence.current)setError(e instanceof Error ? e.message : "Unable to calculate hours.");
     } finally {
       setBusy(false);
     }
   }
   async function send(action: string) {
-    setBusy(true);
     setError("");
-    const body = JSON.stringify(
+    const input =
       record
         ? {
             action,
@@ -105,94 +120,21 @@ export function OvertimeForm({
             note,
             attachmentSetIds: ["submit", "actuals"].includes(action) ? attachmentSetIds : [],
           }
-        : details,
-    );
-    const storage = `erpx:ot-command:${base}:${record?.id ?? "new"}`;
-    try {
-      if (!attempt.current) {
-        try {
-          attempt.current = JSON.parse(sessionStorage.getItem(storage) ?? "null");
-        } catch {}
-      }
-      if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() };
-      sessionStorage.setItem(storage, JSON.stringify(attempt.current));
-      const r = await workFetch(
-        `/api/v1${base}/overtime-requests${record ? `/${record.id}` : ""}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-          body,
-        },
-      );
-      const b = await r.json();
-      if (!r.ok) throw Error(b.error?.message ?? "Unable to save.");
-      sessionStorage.removeItem(storage);
-      attempt.current = null;
+        : details;
+    const result=await command.send({kind:'overtime',action:record?action:'create',...(record?{id:record.id}:{}),input});if(result)await acknowledged(result.request,result.receipt.id);
+  }
+  async function acknowledged(request:WorkforceCommand,id:string){
+    const input=request.input,unchanged=request.id?(!input.details||JSON.stringify(input.details)===JSON.stringify(detailsRef.current))&&input.note===noteRef.current:JSON.stringify(input)===JSON.stringify(detailsRef.current);
+    if(unchanged){
       setSaved(true);
+      setDirty(false);
       setPreview(null);
       setAttachments({});
-      window.dispatchEvent(new Event("erpx:work-changed"));
-      if (!record) router.replace(`${base}/overtime/${b.data.id}`);
+      if (!record) router.replace(canonicalUiHref(`${base}/overtime/${id}`));
       else router.refresh();
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Connection interrupted. Retry to recover the same request.",
-      );
-    } finally {
-      setBusy(false);
-    }
+    }else command.setNotice('The submitted overtime action was saved. Your newer draft is retained; load the saved version before submitting it.');
   }
-  return (
-    <>
-      {record && (
-        <Card as="section" appearance="standard" className={styles.panel}>
-          <h2>{overtimeLabels[record.state]}</h2>
-          <p>
-            Responsible:{" "}
-            {record.approval.currentApprover?.approver_name ??
-              (record.state === "approved" ? "Payroll preview" : "Requester")}
-          </p>
-          {record.approval.blockedReason && (
-            <InlineNotice tone="danger" role="alert">
-              {record.approval.blockedReason} Ask HR to review{" "}
-              <Link href={`${base}/people/settings`}>People settings</Link>.
-            </InlineNotice>
-          )}
-          <div className={styles.progress}>
-            {(record.mode === "advance"
-              ? [
-                  "Plan",
-                  "Manager authorization",
-                  "Actual hours",
-                  "Manager verification",
-                  "Independent HR",
-                  "Payroll handoff",
-                ]
-              : [
-                  "Actual hours & explanation",
-                  "Manager verification",
-                  "Independent HR",
-                  "Payroll handoff",
-                ]
-            ).map((s) => (
-              <span key={s}>{s}</span>
-            ))}
-          </div>
-          {record.decision_note && (
-            <p>
-              <strong>Reviewer’s note:</strong> {record.decision_note}
-            </p>
-          )}
-          <ApprovalHistory approval={record.approval} />
-          {record.handoff && (
-            <p>
-              Approved hours have been handed off to payroll preview. Payment is handled separately.
-            </p>
-          )}
-        </Card>
-      )}
+  const editor=(
       <Card as="section" appearance="standard" className={styles.panel}>
         <h2>{actual ? "Submit actual hours" : editable ? "1. Enter details" : "Worked time"}</h2>
         <p className={styles.muted}>
@@ -211,7 +153,7 @@ export function OvertimeForm({
             <Field appearance="standard">
               Request path
               <Select appearance="standard"
-                disabled={!!record || busy}
+                disabled={!!record || busy||!canChange}
                 value={details.mode}
                 onChange={(e) => set("mode", e.target.value as OvertimeDetails["mode"])}
               >
@@ -223,7 +165,7 @@ export function OvertimeForm({
               Timezone
               <TextInput appearance="standard"
                 required
-                disabled={!editable || busy}
+                disabled={!canChange || busy}
                 value={details.timezone}
                 onChange={(e) => set("timezone", e.target.value)}
                 list="overtime-timezones"
@@ -239,7 +181,7 @@ export function OvertimeForm({
               <TextInput appearance="standard"
                 type="datetime-local"
                 required
-                disabled={!editable || busy}
+                disabled={!canChange || busy}
                 value={details.startLocal}
                 onChange={(e) => set("startLocal", e.target.value)}
               />
@@ -249,7 +191,7 @@ export function OvertimeForm({
               <TextInput appearance="standard"
                 type="datetime-local"
                 required
-                disabled={!editable || busy}
+                disabled={!canChange || busy}
                 value={details.endLocal}
                 onChange={(e) => set("endLocal", e.target.value)}
               />
@@ -262,7 +204,7 @@ export function OvertimeForm({
               required
               min="0"
               max="1439"
-              disabled={!editable || busy}
+              disabled={!canChange || busy}
               value={details.breakMinutes}
               onChange={(e) => set("breakMinutes", Number(e.target.value))}
             />
@@ -273,7 +215,7 @@ export function OvertimeForm({
               required
               minLength={3}
               maxLength={2048}
-              disabled={!editable || busy}
+              disabled={!canChange || busy}
               value={details.reason}
               onChange={(e) => set("reason", e.target.value)}
             />
@@ -284,7 +226,7 @@ export function OvertimeForm({
               <TextArea appearance="standard"
                 required
                 maxLength={2048}
-                disabled={!editable || busy}
+                disabled={!canChange || busy}
                 value={details.lateExplanation}
                 onChange={(e) => set("lateExplanation", e.target.value)}
               />
@@ -293,12 +235,12 @@ export function OvertimeForm({
           {details.rosterShiftId && (
             <p className={styles.muted}>
               Linked to your roster shift.{" "}
-              <Link href={`${base}/people/roster?view=mine`}>View schedule</Link>
+              <Link href={canonicalUiHref(`${base}/people/roster?view=mine`)}>View schedule</Link>
             </p>
           )}
           {editable && (
             <div className={styles.actions}>
-              <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
+              <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy||!canChange}>
                 Review calculated hours
               </Button>
               <Button appearance="standard"
@@ -306,6 +248,7 @@ export function OvertimeForm({
                 type="button"
                 disabled={
                   busy ||
+                  !command.allowed('save')||
                   !details.startLocal ||
                   !details.endLocal ||
                   details.reason.trim().length < 3
@@ -321,6 +264,8 @@ export function OvertimeForm({
         {record &&
           submissionPurposes.map((purpose) => (
             <AttachmentPanel appearance="standard"
+              disabled={!canChange||busy}
+              readOnly={!canChange}
               key={`${record.id}:${record.version}:${purpose}`}
               base={base}
               targetType="overtime_request"
@@ -385,7 +330,7 @@ export function OvertimeForm({
               <Button appearance="standard"
                 type="submit"
                 variant="primary"
-                disabled={busy}
+                disabled={busy||!command.allowed('create')}
                 onClick={() => void send("save")}
               >
                 Save draft to continue
@@ -394,7 +339,7 @@ export function OvertimeForm({
               <Button appearance="standard"
                 type="submit"
                 variant="primary"
-                disabled={busy || !preview.canSubmit || attachmentPending}
+                disabled={busy || !command.allowed(actual?'actuals':'submit')|| !preview.canSubmit || attachmentPending}
                 onClick={() => void send(actual ? "actuals" : "submit")}
               >
                 {actual
@@ -406,10 +351,10 @@ export function OvertimeForm({
             )}
           </section>
         )}
-        {error && (
+        {(error||command.error) && (
           <InlineNotice tone="danger" role="alert" className={styles.error}>
-            <p>{error}</p>
-            {record && error.includes("changed") && (
+            <p>{error||command.error}</p>
+            {record && (error||command.error).includes("changed") && (
               <Button appearance="standard"
                 variant="secondary"
                 type="button"
@@ -427,6 +372,59 @@ export function OvertimeForm({
           </InlineNotice>
         )}
       </Card>
+  );
+  return (
+    <WorkforceDraftBoundary dirty={dirty||Boolean(command.pending)||attachmentSetIds.length>0}>
+      {command.notice&&<InlineNotice role="status">{command.notice}</InlineNotice>}
+      {command.pending&&<InlineNotice role="status"><p>The original overtime action has an uncertain result. Your newer draft is retained.</p><Button appearance="standard" disabled={busy} onClick={async()=>{const result=await command.recover();if(result)await acknowledged(result.request,result.receipt.id);}}>Check original action</Button></InlineNotice>}
+      {record && (
+        <Card as="section" appearance="standard" className={styles.panel}>
+          <h2>{overtimeLabels[record.state]}</h2>
+          <p>
+            Responsible:{" "}
+            {record.approval.currentApprover?.approver_name ??
+              (record.state === "approved" ? "Payroll preview" : "Requester")}
+          </p>
+          {record.approval.blockedReason && (
+            <InlineNotice tone="danger" role="alert">
+              {record.approval.blockedReason} Ask HR to review{" "}
+              <Link href={canonicalUiHref(`${base}/people/settings`)}>People settings</Link>.
+            </InlineNotice>
+          )}
+          <div className={styles.progress}>
+            {(record.mode === "advance"
+              ? [
+                  "Plan",
+                  "Manager authorization",
+                  "Actual hours",
+                  "Manager verification",
+                  "Independent HR",
+                  "Payroll handoff",
+                ]
+              : [
+                  "Actual hours & explanation",
+                  "Manager verification",
+                  "Independent HR",
+                  "Payroll handoff",
+                ]
+            ).map((s) => (
+              <span key={s}>{s}</span>
+            ))}
+          </div>
+          {record.decision_note && (
+            <p>
+              <strong>Reviewer’s note:</strong> {record.decision_note}
+            </p>
+          )}
+          <ApprovalHistory approval={record.approval} />
+          {record.handoff && (
+            <p>
+              Approved hours have been handed off to payroll preview. Payment is handled separately.
+            </p>
+          )}
+        </Card>
+      )}
+      {record&&editable?<FormDisclosure appearance="standard" drawerTitle={actual?"Record actual overtime hours":"Edit overtime request"} dismissDisabled={busy} error={error||command.error} onDiscard={()=>{setDetails(record.details);detailsRef.current=record.details;setPreview(null);setAttachments({});setDirty(Boolean(noteRef.current));previewSequence.current++;}}><summary>{actual?"Record actual hours":"Edit overtime request"}</summary>{editor}</FormDisclosure>:editor}
       {record && actions.some((a) => !["save", "submit", "actuals"].includes(a)) && (
         <Card as="section" appearance="standard" className={styles.panel}>
           <Field appearance="standard">
@@ -434,7 +432,7 @@ export function OvertimeForm({
             <TextArea appearance="standard"
               className="input"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => {noteRef.current=e.target.value;setDirty(true);setNote(e.target.value);}}
               maxLength={2048}
             />
           </Field>
@@ -446,7 +444,7 @@ export function OvertimeForm({
                   type="submit"
                   variant="secondary"
                   key={a}
-                  disabled={busy || (["return", "reject"].includes(a) && !note.trim())}
+                  disabled={busy || !command.allowed(a)|| (["return", "reject"].includes(a) && !note.trim())}
                   onClick={() => void send(a)}
                 >
                   {
@@ -464,6 +462,6 @@ export function OvertimeForm({
           </div>
         </Card>
       )}
-    </>
+    </WorkforceDraftBoundary>
   );
 }

@@ -1,1 +1,1 @@
-export {activeBenefitPerson,benefitElectionEmployeeName,benefitDependentParticipants,benefitElectionParticipants} from "../adapters/benefits-owner-facts";
+export {activeBenefitPerson,benefitElectionEmployeeName,benefitDependentParticipants,benefitElectionParticipants,benefitPeopleSourceLocks,benefitPeopleSourceWitness,benefitAttachmentPeopleSources,benefitAttachmentPeopleReadImage} from "../adapters/benefits-owner-facts";

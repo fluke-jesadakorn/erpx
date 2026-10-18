@@ -1,3 +1,5 @@
+import {withLegalPurchasedCommand,inLegacyLegalOperationsUnit} from '../purchases';
+import {legalPackageEnforcementMode} from '../../../commercial/public/purchase-command-boundary';
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "../../../identity_access/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "../../../workflow/public/final-root-owner-projection-sources";
 import "server-only";
@@ -59,5 +61,8 @@ replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),
 commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_APPROVAL_REPOSITORY_MISMATCH");return statement;})),
 }});}
 export function legalApprovalView(db:SqlDatabase,a:WorkContext,id:string){return application(db,a).legalApprovalView(id);}
-export function legalApprovalCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).legalApprovalCommand(raw,key);}
+export async function legalApprovalCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){
+ if(await legalPackageEnforcementMode()==='disabled')return inLegacyLegalOperationsUnit(db,a.companyId,tx=>application(tx,a).legalApprovalCommand(raw,key));
+ const input=(raw&&typeof raw==='object'?raw:{}) as Record<string,unknown>;return withLegalPurchasedCommand(db,a,{key,operation:String(input.action),id:typeof input.id==='string'?input.id:undefined,purpose:'settle-existing',permission:input.action==='approval.open'?'legal.review':'legal.approve',additional:['legal.documents']},tx=>application(tx,a).legalApprovalCommand(raw,key));
+}
 export function approvalDigest(item:LegalItem,documentId:string,checksum:string,signers:string[]){const {version:_version,updated_at:_updated,...source}=item;void _version;void _updated;return createHash("sha256").update(JSON.stringify({source,documentId,checksum,signers})).digest("hex");}

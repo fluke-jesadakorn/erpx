@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
@@ -25,14 +26,14 @@ export async function GET(_request: Request, context: Context) {
       actor = await requireWorkContext(holdingSlug),
       { write } = await holdingResources(actor.holdingId);
     return Response.json(
-      {
+      canonicalDestinationLinks({
         data: path[0] === "organization" ? await organizationAccessData(write, actor)
           : path[0] === "gpo-rules" ? await gpoRulesOverview(write as PostgresDatabase, actor)
           : path[0]==="position-gpo" ? await positionGpoOverview(write as PostgresDatabase,actor) : await technologyData(
           write as PostgresDatabase,
           iamActorFromWork(actor),
         ),
-      },
+      }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -62,9 +63,9 @@ export async function POST(request: Request, context: Context) {
       db = write as PostgresDatabase,
       raw = await request.json();
     if(path[0]==='provisioning'&&path[1]&&path[2]==='evidence'&&path.length===3)
-      return Response.json({data:await bindProvisioningEvidence(db,contextActor,path[1],raw,key)});
+      return Response.json(canonicalDestinationLinks({data:await bindProvisioningEvidence(db,contextActor,path[1],raw,key)}));
     if (path[0] === "directory")
-      return Response.json({
+      return Response.json(canonicalDestinationLinks({
         data: await directoryOperationsApi(
           db,
           contextActor,
@@ -72,32 +73,32 @@ export async function POST(request: Request, context: Context) {
           raw,
           key,
         ),
-      });
+      }));
     if (path[0] === "gpo-rules") {
-      if (path[1] === "not-required") return Response.json({ data: await markPositionGpoNotRequired(db, contextActor, raw, key) });
-      if (path[1] === "preview") return Response.json({ data: await previewGpoRule(db, contextActor, raw) });
-      if (path[1] === "publish") return Response.json({ data: await publishGpoRule(db, contextActor, raw, key) });
-      if (path[1] === "remove-preview") return Response.json({ data: await previewRemoveGpoRule(db, contextActor, raw) });
-      if (path[1] === "remove") return Response.json({ data: await removeGpoRule(db, contextActor, raw, key) });
-      if (path[1] === "retry-config") return Response.json({ data: await retryGpoRuleConfig(db, contextActor, raw, key) });
+      if (path[1] === "not-required") return Response.json(canonicalDestinationLinks({ data: await markPositionGpoNotRequired(db, contextActor, raw, key) }));
+      if (path[1] === "preview") return Response.json(canonicalDestinationLinks({ data: await previewGpoRule(db, contextActor, raw) }));
+      if (path[1] === "publish") return Response.json(canonicalDestinationLinks({ data: await publishGpoRule(db, contextActor, raw, key) }));
+      if (path[1] === "remove-preview") return Response.json(canonicalDestinationLinks({ data: await previewRemoveGpoRule(db, contextActor, raw) }));
+      if (path[1] === "remove") return Response.json(canonicalDestinationLinks({ data: await removeGpoRule(db, contextActor, raw, key) }));
+      if (path[1] === "retry-config") return Response.json(canonicalDestinationLinks({ data: await retryGpoRuleConfig(db, contextActor, raw, key) }));
       throw new ApiError(404, "NOT_FOUND", "GPO rule operation not found.");
     }
-    if(path[0]==="position-gpo" && path[1]==="preview")return Response.json({data:await previewPositionGpo(db,contextActor,raw)});
-    if(path[0]==="position-gpo" && path[1]==="publish")return Response.json({data:await publishPositionGpo(db,contextActor,raw,key)});
-    if(path[0]==="position-gpo" && path[1]==="unmap-preview")return Response.json({data:await previewUnmapPositionGpo(db,contextActor,raw)});
-    if(path[0]==="position-gpo" && path[1]==="unmap")return Response.json({data:await unmapPositionGpo(db,contextActor,raw,key)});
-    if(path[0]==="position-gpo" && path[1]==="retry")return Response.json({data:await retryPositionGpo(db,contextActor,raw,key)});
-    if(path[0]==="position-gpo" && path[1]==="retry-config")return Response.json({data:await retryPositionGpoConfig(db,contextActor,raw,key)});
+    if(path[0]==="position-gpo" && path[1]==="preview")return Response.json(canonicalDestinationLinks({data:await previewPositionGpo(db,contextActor,raw)}));
+    if(path[0]==="position-gpo" && path[1]==="publish")return Response.json(canonicalDestinationLinks({data:await publishPositionGpo(db,contextActor,raw,key)}));
+    if(path[0]==="position-gpo" && path[1]==="unmap-preview")return Response.json(canonicalDestinationLinks({data:await previewUnmapPositionGpo(db,contextActor,raw)}));
+    if(path[0]==="position-gpo" && path[1]==="unmap")return Response.json(canonicalDestinationLinks({data:await unmapPositionGpo(db,contextActor,raw,key)}));
+    if(path[0]==="position-gpo" && path[1]==="retry")return Response.json(canonicalDestinationLinks({data:await retryPositionGpo(db,contextActor,raw,key)}));
+    if(path[0]==="position-gpo" && path[1]==="retry-config")return Response.json(canonicalDestinationLinks({data:await retryPositionGpoConfig(db,contextActor,raw,key)}));
     if (path[0] === "provisioning" && path[1] === "preview")
-      return Response.json({
+      return Response.json(canonicalDestinationLinks({
         data: await previewProvisioning(
           db,
           actor,
           provisioningInput.parse(raw),
         ),
-      });
+      }));
     if (path[0] === "provisioning" && path[1] === "retry")
-      return Response.json({
+      return Response.json(canonicalDestinationLinks({
         data: await retryProvisioning(
           db,
           actor,
@@ -105,9 +106,9 @@ export async function POST(request: Request, context: Context) {
           z.number().int().parse(raw.expectedVersion),
           key,
         ),
-      });
+      }));
     if (path[0] === "provisioning" && path[1] === "apply")
-      return Response.json({
+      return Response.json(canonicalDestinationLinks({
         data: await applyProvisioning(
           db,
           actor,
@@ -115,7 +116,7 @@ export async function POST(request: Request, context: Context) {
           z.string().parse(raw.previewToken),
           key,
         ),
-      });
+      }));
     throw new ApiError(404, "NOT_FOUND", "Technology operation not found.");
   } catch (e) {
     return errorResponse(e);

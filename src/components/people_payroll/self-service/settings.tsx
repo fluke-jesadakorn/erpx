@@ -1,11 +1,12 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { workFetch } from "@/lib/work_projection/work-fetch";
@@ -262,7 +263,7 @@ export function SelfServiceSettings({ base, data }: { base: string; data: Data }
               <small>{item.count}</small>
             </div>
             {item.id === "policy" ? (
-              <UiActionLink appearance="standard" variant="secondary" href={`${base}/people/settings/leave-policy/new`}>
+              <UiActionLink appearance="standard" variant="secondary" href={canonicalUiHref(`${base}/people/settings/leave-policy/new`)}>
                 {item.label}
               </UiActionLink>
             ) : (

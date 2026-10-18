@@ -32,6 +32,35 @@ export function pmsFinanceFacts(db: SqlDatabase) {
             id: string;
             name: string;
         }>(db, "SELECT id,name FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' AND currency='THB' AND person_id IS NULL", facts.companyId),
+        readReceiptAllocationCredits: (facts: {
+            companyId: string; propertyId: string; branchId: string;
+            chartId: string; currency: string; receivableAccountId: string;
+            advanceAccountId: string;
+            postings: Array<{entryId: string; date: string; journalId: string}>;
+        }) => query<{entryId: string; amount: string}>(db, `
+          WITH sources AS MATERIALIZED (SELECT * FROM jsonb_to_recordset(?::jsonb)
+            AS x("entryId" text,date text,"journalId" text))
+          SELECT s."entryId",SUM(l.debit_minor)::text amount FROM sources s
+          JOIN finance_journals j ON j.id=s."journalId" AND j.company_id=?
+            AND j.chart_id=? AND j.currency=? AND j.source_type='pms'
+            AND j.source_id=? AND j.memo=s."entryId"||':credit-balance'
+            AND j.entry_date=s.date AND j.status='posted' AND j.is_opening=0
+          JOIN finance_charts c ON c.id=j.chart_id AND c.company_id=j.company_id AND c.base_currency=j.currency
+          JOIN finance_journal_lines l ON l.journal_id=j.id
+          LEFT JOIN finance_accounts a ON a.id=l.account_id
+          GROUP BY s."entryId",j.id
+          HAVING COUNT(*)=2 AND SUM(l.debit_minor)=SUM(l.credit_minor)
+            AND SUM(l.debit_minor)>0 AND SUM(l.base_debit_minor)=SUM(l.debit_minor)
+            AND SUM(l.base_credit_minor)=SUM(l.credit_minor)
+            AND BOOL_AND(COALESCE(a.company_id=j.company_id AND a.chart_id=j.chart_id AND a.currency=j.currency
+              AND ((l.account_id=? AND a.category='asset' AND l.debit_minor>0 AND l.credit_minor=0)
+              OR (l.account_id=? AND a.category='liability' AND l.credit_minor>0 AND l.debit_minor=0)),false))
+            AND BOOL_AND(COALESCE(l.dimension_json::jsonb->>'propertyId'=?
+              AND l.dimension_json::jsonb->>'branchId'=?
+              AND l.dimension_json::jsonb->>'recordId'=s."entryId",false))`,
+          JSON.stringify(facts.postings),facts.companyId,facts.chartId,facts.currency,
+          facts.propertyId,facts.receivableAccountId,facts.advanceAccountId,
+          facts.propertyId,facts.branchId),
         readFinanceJournalLines: (facts: {
             id: string;
         }) => query<{

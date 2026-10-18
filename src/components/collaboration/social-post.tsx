@@ -1,9 +1,14 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { TextInput } from "@/components/ui/foundation";
 
 import { PersonAvatar } from "@/components/ui/person-avatar";
+import {DraftFormDrawer} from "@/components/ui/draft-form-drawer";
+import {registerUnsavedWork} from "@/lib/work_projection/context-switch";
+import {useSocialRenderedContext} from "./social-command-context";
+import {SocialCommandRecovery} from "./social-command-recovery";
 import { Dialog } from "@/components/ui/dialog";
 import { Alert, Button } from "@/components/ui/foundation";
 import { SocialTextBody } from "@/components/collaboration/social-text-body";
@@ -16,12 +21,11 @@ import {
   postEditorBlocksFromStored,
   type PostEditorBlock,
 } from "@/lib/collaboration/social-post-editor-state";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import { betaFetch } from "@/lib/shared/beta-client";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/workplace/workspace-link";
+import { useRouter } from "@/lib/shared/destination-router";
 import {
   Heart,
   MessageCircle,
@@ -91,7 +95,7 @@ export function SocialPost({
   onDeleted: () => void;
   prepare: (post: HomePost, mode: "task" | "summary", useAi: boolean) => void;
 }) {
-  const router = useRouter();
+  const router = useRouter(),renderedContext=useSocialRenderedContext();
   const postMoreRef = useRef<HTMLDetailsElement>(null);
   const api = `/api/v1${base}`,
     [commentsOpen, setCommentsOpen] = useState(single),
@@ -108,7 +112,11 @@ export function SocialPost({
       body: string;
       created_at: number;
     }> | null>(null);
-  const { run, send, busy, message, setMessage } = useSocialCommand();
+  const command=useSocialCommand();
+  const {run,send,uploadImage,busy,message,setMessage}=command;
+  const [editDirty,setEditDirty]=useState(false),[closeEdit,setCloseEdit]=useState(false);
+  const newWork=post.purchase?.newWork!==false,history=post.purchase?.history!==false;
+  useEffect(()=>registerUnsavedWork(()=>editing&&editDirty||(!!command.retryAttempt||command.imagePending)),[editing,editDirty,command.retryAttempt,command.imagePending]);
   const action = (_post: HomePost, input: unknown) =>
     run(async () => {
       await send(`${api}/posts/${post.id}`, input);
@@ -116,7 +124,7 @@ export function SocialPost({
     });
   const pending = post.agentReplies.some((r) => ["pending", "running"].includes(r.state));
   const ownTeamPost = post.author_id === userId && post.kind === "team" && !post.linked_module;
-  const canEditText = ownTeamPost;
+  const canEditText = ownTeamPost&&newWork;
   function beginEdit() {
     setEditBlocks(
       postEditorBlocksFromStored(
@@ -132,7 +140,7 @@ export function SocialPost({
     setEditResetKey((value) => value + 1);
     setEditUploadDraftId(null);
     setEditUploadedIds([]);
-    setEditing(true);
+    setEditDirty(false);setEditing(true);
   }
   async function saveEdit() {
     await run(async () => {
@@ -170,24 +178,7 @@ export function SocialPost({
           );
           setEditBlocks(working);
         }
-        const response = await workFetch(uploadUrl, { method: "PUT", body: image.file });
-        const result = (await response.json()) as {
-          data?: { id: string };
-          error?: { message: string };
-        };
-        if (!response.ok || !result.data) {
-          if (response.status === 404) {
-            working = working.map((block) =>
-              block.type === "image" && block.slotId === image.slotId
-                ? { ...block, uploadUrl: undefined }
-                : block,
-            );
-            setEditBlocks(working);
-          }
-          throw new Error(
-            result.error?.message ?? "Image upload failed. Your edit is still here; try again.",
-          );
-        }
+        const result={data:await uploadImage(uploadUrl!,image.file!)};
         uploadedIds.add(result.data.id);
         setEditUploadedIds([...uploadedIds]);
         working = working.map((block) =>
@@ -221,7 +212,7 @@ export function SocialPost({
         richContent: postWireRichContent(working),
         ...(selectedUploaded && uploadDraftId ? { editDraftId: uploadDraftId } : {}),
       });
-      setEditing(false);
+      setEditDirty(false);setEditing(false);
       setEditUploadDraftId(null);
       setEditUploadedIds([]);
       await refresh();
@@ -235,7 +226,7 @@ export function SocialPost({
         setEditUploadedIds([]);
         setEditing(false);
       });
-    else setEditing(false);
+    else {setEditDirty(false);setEditing(false);}
   }
   const purpose =
     post.purpose && post.purpose !== "update"
@@ -310,19 +301,19 @@ export function SocialPost({
     <Card as="article" appearance="standard" id={post.id} key={post.id} className="ui-panel beta-post">
       <header className="beta-person">
         <Link
-          href={`${base}/profiles/${encodeURIComponent(post.author_id)}`}
+          href={canonicalUiHref(`${base}/profiles/${encodeURIComponent(post.author_id)}`)}
           aria-label={`View ${post.author_name}'s profile`}
         >
           <PersonAvatar name={post.author_name} />
         </Link>
         <div>
           <strong>
-            <Link href={`${base}/profiles/${encodeURIComponent(post.author_id)}`}>
+            <Link href={canonicalUiHref(`${base}/profiles/${encodeURIComponent(post.author_id)}`)}>
               {post.author_name}
             </Link>
           </strong>
           <p>
-            <Link href={`${base}/posts/${post.id}`}>
+            <Link href={canonicalUiHref(`${base}/posts/${post.id}`)}>
               <TimeText appearance="standard"
                 value={post.created_at}
                 options={{
@@ -347,7 +338,7 @@ export function SocialPost({
               className="beta-follow"
               aria-label={post.followed ? "Unfollow conversation" : "Follow conversation"}
               aria-pressed={!!post.followed}
-              disabled={busy}
+              disabled={busy || (post.followed?!history:!newWork)}
               onClick={() => action(post, { action: "follow", active: !post.followed })}
             >
               <Bookmark size={17} />
@@ -356,7 +347,7 @@ export function SocialPost({
             <Button appearance="standard"
               type="submit"
               variant="ghost"
-              disabled={busy}
+              disabled={busy||!newWork}
               onClick={() => prepare(post, "summary", false)}
             >
               <Sparkles size={16} /> Summarize
@@ -365,7 +356,7 @@ export function SocialPost({
               <Button appearance="standard"
                 type="submit"
                 variant="ghost"
-                disabled={busy}
+                disabled={busy||post.purchase?.createTask===false}
                 onClick={() => prepare(post, "task", false)}
               >
                 <Plus size={16} />
@@ -418,42 +409,7 @@ export function SocialPost({
           Photo update · {post.files.length} {post.files.length === 1 ? "image" : "images"}
         </p>
       )}
-      {editing ? (
-        <div className="beta-post-editor" aria-label="Edit post">
-          <SocialPostContentEditor
-            api={api}
-            blocks={editBlocks}
-            onChange={setEditBlocks}
-            resetKey={editResetKey}
-            maxLength={30000}
-            label="Edit post message"
-            placeholder="Update your message…"
-            disabled={busy}
-          />
-          <div className="beta-composer-actions">
-            <Button appearance="standard"
-              type="submit"
-              variant="primary"
-              disabled={
-                busy ||
-                (!postContentBody(editBlocks).trim() &&
-                  !editBlocks.some((block) => block.type === "image"))
-              }
-              onClick={() => void saveEdit()}
-            >
-              Save changes
-            </Button>
-            <Button appearance="standard"
-              type="submit"
-              variant="secondary"
-              disabled={busy}
-              onClick={() => void cancelEdit()}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : (
+
         <div className="beta-post-content">
           {post.content ? (
             orderedContent
@@ -468,7 +424,45 @@ export function SocialPost({
             />
           )}
         </div>
-      )}
+      <DraftFormDrawer open={editing} title="Edit post" dirty={editDirty} dismissDisabled={busy||(!!command.retryAttempt||command.imagePending)} onClose={()=>{setEditing(false);setCloseEdit(false);}} onDiscard={()=>{setCloseEdit(false);void cancelEdit();}}>
+
+        <form className="beta-post-editor" data-social-draft aria-label="Edit post" onSubmit={event=>event.preventDefault()} onChangeCapture={event=>event.currentTarget.setAttribute("data-erpx-edit-version",crypto.randomUUID())}>
+          <SocialPostContentEditor
+            api={api}
+            blocks={editBlocks}
+            onChange={value=>{setEditDirty(true);setEditBlocks(value);}}
+            resetKey={editResetKey}
+            maxLength={30000}
+            label="Edit post message"
+            placeholder="Update your message…"
+            disabled={busy||(!!command.retryAttempt||command.imagePending)||!newWork}
+          />
+          <div className="beta-composer-actions">
+            <Button appearance="standard"
+              type="submit"
+              variant="primary"
+              disabled={
+                busy || !newWork||(!!command.retryAttempt||command.imagePending)||
+                (!postContentBody(editBlocks).trim() &&
+                  !editBlocks.some((block) => block.type === "image"))
+              }
+              onClick={() => void saveEdit()}
+            >
+              Save changes
+            </Button>
+            <Button appearance="standard"
+              type="submit"
+              variant="secondary"
+              disabled={busy||(!!command.retryAttempt||command.imagePending)||!newWork}
+              onClick={()=>setCloseEdit(true)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+        <SocialCommandRecovery command={command} history={history}/>
+      </DraftFormDrawer>
+      <Dialog appearance="standard" open={closeEdit&&editing} title="Discard changes?" onClose={()=>setCloseEdit(false)}><p>Your post edit has not been saved.</p><Button appearance="standard" onClick={()=>setCloseEdit(false)}>Keep editing</Button><Button appearance="standard" variant="danger" disabled={busy||(!!command.retryAttempt||command.imagePending)} onClick={()=>{setCloseEdit(false);void cancelEdit();}}>Discard draft</Button></Dialog>
       {post.agentReplies
         .filter((r) => r.owner_type === "post" && r.state !== "completed")
         .map((r) => (
@@ -478,6 +472,7 @@ export function SocialPost({
             api={api}
             userId={userId}
             onChanged={refresh}
+            purchase={post.purchase}
             aiName={post.aiName}
             settingsUrl={
               canModerate
@@ -552,7 +547,7 @@ export function SocialPost({
                 await send(`${api}/posts/${post.id}`, { action: "retract" });
                 setDeleteConfirm(false);
                 onDeleted();
-                if (single) router.replace(`${base}/home`);
+                if (single) router.replace(canonicalUiHref(`${base}/home`));
               })
             }
           >
@@ -572,7 +567,7 @@ export function SocialPost({
         </div>
       )}
       {post.task ? (
-        <Link className="beta-task-link" href={`${base}/staff-tasks/${post.task.id}`}>
+        <Link className="beta-task-link" href={canonicalUiHref(`${base}/staff-tasks/${post.task.id}`)}>
           Open linked work · Task · {post.task.state.replaceAll("_", " ")}{" "}
           <ArrowUpRight size={15} />
         </Link>
@@ -603,7 +598,7 @@ export function SocialPost({
       {post.purpose === "handover" &&
         post.audience_kind === "participants" &&
         post.linkedSources.length > 0 && (
-          <HandoverAcknowledgement appearance="standard" api={api} postId={post.id} version={post.version} />
+          <HandoverAcknowledgement appearance="standard" api={api} postId={post.id} version={post.version} initial={post.handoverReceipt} contextToken={renderedContext?.token} purchase={post.purchase} />
         )}
       {(post.appreciationCount > 0 || post.commentCount > 0) && (
         <div className="beta-post-counts">
@@ -615,7 +610,7 @@ export function SocialPost({
         <Button appearance="standard"
           type="button"
           variant="ghost"
-          disabled={busy}
+          disabled={busy||(post.appreciated?!history:!newWork)}
           aria-pressed={!!post.appreciated}
           aria-label="Thanks"
           title="Thanks"
@@ -643,7 +638,7 @@ export function SocialPost({
           <Button appearance="standard"
             type="button"
             variant="ghost"
-            disabled={busy}
+            disabled={busy||post.purchase?.createTask===false}
             onClick={() => prepare(post, "task", false)}
             aria-label="Create task"
             title="Create task"
@@ -700,6 +695,7 @@ export function SocialPost({
           </Button>
         )}
       </details>
+      {!editing&&<SocialCommandRecovery command={command} history={history}/>}
       {!deleteConfirm && <InlineNotice tone="info" role="status">{message}</InlineNotice>}
     </Card>
   );

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { decideLeaveCancellation, leaveDecisionSchema } from "@/server/modules/people_payroll/public/leave";
@@ -13,6 +14,6 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/hold
     if (!input.success) throw new ApiError(422, "VALIDATION_FAILED", input.error.issues[0]?.message ?? "Invalid decision.");
     if (body.decision !== "approve" && body.decision !== "reject") throw new ApiError(422, "VALIDATION_FAILED", "Decision must be approve or reject.");
     const { holdingSlug, id } = await context.params, actor = await requireWorkContext(holdingSlug);
-    return Response.json({ data: await decideLeaveCancellation(actor, id, input.data, key, body.decision === "approve") });
+    return Response.json(canonicalDestinationLinks({ data: await decideLeaveCancellation(actor, id, input.data, key, body.decision === "approve") }));
   } catch (error) { return errorResponse(error); }
 }

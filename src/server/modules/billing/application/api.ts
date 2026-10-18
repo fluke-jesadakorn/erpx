@@ -1,3 +1,5 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {billingInput,type BillingActor,type BillingInput} from '../domain/billing';
 import type {BillingView} from "@/lib/billing/billing";
 import {billingMonth} from "@/lib/billing/billing";
@@ -53,13 +55,13 @@ function billingHandler(platform: boolean) {
         };
       }
       if (platform && !holdingId && request.method === "GET" && !path.length)
-        return Response.json({
+        return Response.json(canonicalDestinationLinks({
           data: {
             accounts: (
               await ports.repository.platformAccounts()
             ).rows,
           },
-        });
+        }));
       if (platform && holdingId === "h003")
         throw ports.error(403, "ERPX_NOT_CUSTOMER", "ERPX is not a customer billing account.");
       if (!holdingId)
@@ -72,7 +74,7 @@ function billingHandler(platform: boolean) {
       if(request.method==='GET'&&path.length===1&&path[0]==='target'){
         const month=url.searchParams.get('month')??billingMonth(ports.now());
         if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw ports.error(422,'INVALID_BILLING_MONTH','Choose a valid billing month.');
-        return Response.json({data:await ports.target(holdingId,month)},{headers:{'Cache-Control':'private, no-store'}});
+        return Response.json(canonicalDestinationLinks({data:await ports.target(holdingId,month)}),{headers:{'Cache-Control':'private, no-store'}});
       }
       if (path[0] === "evidence") {
         if (!platform)
@@ -174,7 +176,7 @@ function billingHandler(platform: boolean) {
             throw ports.error(409, "KEY_CONFLICT", "Upload key already used.");
           if(old){
             const state=String(old.source_state),pending=["legacy_unscanned","quarantined","scanning","scan_error"].includes(state);
-            return Response.json({data:{id:old.id,state}},{status:pending?202:200});
+            return Response.json(canonicalDestinationLinks({data:{id:old.id,state}}),{status:pending?202:200});
           }
           if (
             !(
@@ -203,14 +205,14 @@ function billingHandler(platform: boolean) {
               );
           }
           const now=ports.now();await ports.repository.retainQuarantine({id,holdingId,filename,mime,size,sha,actorId:actor.userId,now,objectKey,detected});
-          return Response.json({ data: { id,state:"quarantined" } },{status:202});
+          return Response.json(canonicalDestinationLinks({ data: { id,state:"quarantined" } }),{status:202});
         }
       }
       if (path.length)
         throw ports.error(404, "NOT_FOUND", "Billing route not found.");
       if (request.method === "GET")
         return Response.json(
-          { data: await ports.view(holdingId) },
+          canonicalDestinationLinks({ data: await ports.view(holdingId) }),
           { headers: { "Cache-Control": "private, no-store" } },
         );
       const input = billingInput.parse(await ports.body(request));
@@ -219,10 +221,10 @@ function billingHandler(platform: boolean) {
         holdingId,
         input,
         request.headers.get("Idempotency-Key") ?? "",
-        new URL(`/holdings/${slug}/settings?section=usage`, ports.origin())
+        new URL(canonicalUiHref(`/holdings/${slug}/settings?section=usage`), ports.origin())
           .href,
       );
-      return Response.json({ data });
+      return Response.json(canonicalDestinationLinks({ data }));
     } catch (error) {
       return ports.errorResponse(error);
     }

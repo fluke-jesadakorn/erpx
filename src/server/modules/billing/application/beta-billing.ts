@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {legacyStripeObjectSchema,type LegacyStripeEvent,type LegacyStripeObject,type LegacyStripeRequest} from '../domain/beta-billing';
 export interface BetaBillingPorts{error(status:number,code:string,message:string):Error;now():number;origin:string;secretKey():string|undefined;webhookSecret():string|undefined;transport(path:string,fields?:Record<string,string>,key?:string):Promise<{ok:boolean;json():Promise<unknown>}>;verifyHmac(secret:string,payload:string,bytes:Uint8Array):Promise<boolean>;customer(holdingId:string):Promise<{customer_id:string|null}|null>;retainCustomer(holdingId:string,customerId:string,now:number):Promise<unknown>;enqueueEvent(event:LegacyStripeEvent,raw:string):Promise<unknown>;inboxState(id:string):Promise<{state:string}|null>;legacyCustomer(customerId:string):Promise<{holding_id:string}|null>;ignoreEvent(id:string,now:number):Promise<unknown>;applyEvent(facts:{event:LegacyStripeEvent;current:NonNullable<LegacyStripeObject['data']>[number]|null;holdingId:string;updatedAt:number;appliedAt:number}):Promise<unknown>;}
 export function createBetaBilling(ports:BetaBillingPorts){
@@ -32,7 +33,7 @@ async function billingLink(holdingId:string,slug:string,email:string,action:"che
     await ports.retainCustomer(holdingId,customer.id,ports.now());
     row=await ports.customer(holdingId);
   }
-  const returnUrl=new URL(`/holdings/${slug}/settings?section=usage`,ports.origin).toString();
+  const returnUrl=new URL(canonicalUiHref(`/holdings/${slug}/settings?section=usage`),ports.origin).toString();
   const result=await stripeRequest("billing_portal/sessions",{customer:row!.customer_id!,return_url:returnUrl});
   if(typeof result.url!=="string"||!["checkout.stripe.com","billing.stripe.com"].includes(new URL(result.url).hostname))throw new Error("INVALID_STRIPE_URL");
   return {url:result.url,testMode:true};

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { guidedIntakeInputSchema } from "@/lib/shared/ai/guided-intake";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
@@ -11,7 +12,7 @@ export async function GET(_request: Request, context: Context) {
   try {
     const actor = await requireWorkContext((await context.params).holdingSlug);
     const { write } = await holdingResources(actor.holdingId);
-    return Response.json({ data: await guidedIntakeOptions(write,actor,await runtimeEnv()) }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json(canonicalDestinationLinks({ data: await guidedIntakeOptions(write,actor,await runtimeEnv()) }), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }
 
@@ -41,6 +42,6 @@ export async function POST(request: Request, context: Context) {
     const input = guidedIntakeInputSchema.parse(raw);
     const data = await prepareGuidedIntake(write,actor,await runtimeEnv(),input,id,
       isThaiHotelAiMockEnabled(actor.holdingSlug) ? generateThaiHotelMockAi : undefined);
-    return Response.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

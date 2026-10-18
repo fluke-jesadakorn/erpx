@@ -1,0 +1,34 @@
+import 'server-only';
+import {recordAttachmentVersionSteps} from '../../files/public/record-version-receipts';
+import type {SqlDatabase} from '../../runtime/public/runtime/types';
+import type {WorkContext} from '../../identity_access/public/authorization';
+import {payrollFinalPayCancellationMoneyImage} from '../../finance/public/payroll-final-pay-cancellation-sources';
+import type {FinalPayCancellationSource} from '../domain/final-pay-cancellation';
+const rows=(table:string,condition:string)=>`COALESCE((SELECT jsonb_agg(to_jsonb(child) ORDER BY child.id) FROM ${table} child WHERE ${condition}),'[]'::jsonb)`;
+export const finalPayOriginalPreparation=`EXISTS(SELECT 1 FROM command_receipts original JOIN hr_payroll_final_pay_events born ON born.id='final-pay-event-'||original.command_id
+ WHERE original.operation='people.payroll.final-pay.prepare' AND original.record_id=p.id AND original.actor_id=p.prepared_by AND original.authority_json::jsonb->>'companyId'=p.company_id
+ AND original.result_json::jsonb->>'id'=p.id AND original.result_json::jsonb->>'taskId'=p.task_id AND original.result_json::jsonb->>'runId'=p.run_id AND original.result_json::jsonb->>'status'='prepared' AND original.result_json::jsonb->>'version'='1'
+ AND born.company_id=p.company_id AND born.preparation_id=p.id AND born.run_id=p.run_id AND born.task_id=p.task_id AND born.actor_id=p.prepared_by AND born.action='prepared')`;
+export const finalPayOriginalParentCancellation=`EXISTS(SELECT 1 FROM command_receipts parent JOIN audit_events a ON a.command_id=parent.command_id AND a.action=parent.operation AND a.record_id=c.id
+ JOIN outbox_events o ON o.command_id=parent.command_id AND o.event_type=parent.operation AND o.aggregate_id=c.id AND o.aggregate_version=a.record_version
+ WHERE parent.operation='people.lifecycle.cancel' AND parent.record_id=c.id AND parent.authority_json::jsonb->>'companyId'=c.company_id
+ AND parent.result_json::jsonb->>'id'=c.id AND parent.result_json::jsonb->>'status'='cancelled' AND a.record_version<=c.version)`;
+export async function readFinalPayCancellationSource(database:SqlDatabase,actor:WorkContext,runId:string,excludeEventId=''){
+ const result=await database.prepare(`SELECT p.id,p.company_id "companyId",p.run_id "runId",p.task_id "taskId",p.case_id "caseId",p.engagement_id "engagementId",
+ p.version,r.version "runVersion",t.version "taskVersion",c.version "caseVersion",p.status,r.status "runStatus",r.mode,p.prepared_by "preparedBy",t.assignee_id "assigneeId",t.status "taskStatus",c.status "caseStatus",t.clearance_type "clearanceType",
+ (r.submitted_by IS NOT NULL OR r.approved_by IS NOT NULL OR r.posted_by IS NOT NULL) reviewed,
+ (${finalPayOriginalPreparation} AND EXISTS(WITH RECURSIVE versions(version) AS(SELECT 1::bigint UNION SELECT binding.next_version FROM versions JOIN (${recordAttachmentVersionSteps}) binding ON binding.previous_version=versions.version AND binding.company_id=p.company_id AND binding.target_type='payroll_final_pay' AND binding.target_id=p.id WHERE binding.next_version<=(CASE WHEN p.status='prepared' THEN p.version ELSE (SELECT (cancel.evidence_json::jsonb->'preparation'->>'version')::bigint FROM hr_payroll_final_pay_events cancel JOIN command_receipts command ON cancel.id='final-pay-cancel-event-'||command.command_id AND command.operation='people.payroll.final-pay.cancel' AND command.record_id=p.id AND command.authority_json::jsonb->>'companyId'=p.company_id WHERE cancel.preparation_id=p.id AND cancel.company_id=p.company_id AND cancel.action='cancelled' ORDER BY cancel.id LIMIT 1) END)) SELECT 1 FROM versions WHERE version=(CASE WHEN p.status='prepared' THEN p.version ELSE (SELECT (cancel.evidence_json::jsonb->'preparation'->>'version')::bigint FROM hr_payroll_final_pay_events cancel JOIN command_receipts command ON cancel.id='final-pay-cancel-event-'||command.command_id AND command.operation='people.payroll.final-pay.cancel' AND command.record_id=p.id AND command.authority_json::jsonb->>'companyId'=p.company_id WHERE cancel.preparation_id=p.id AND cancel.company_id=p.company_id AND cancel.action='cancelled' ORDER BY cancel.id LIMIT 1) END))) "originalPreparation",(${finalPayOriginalParentCancellation}) "originalParentCancellation",
+ to_jsonb(p)::text "preparationImage",to_jsonb(r)::text "runImage",to_jsonb(t)::text "taskImage",to_jsonb(c)::text "caseImage",to_jsonb(e)::text "engagementImage",
+ jsonb_build_object('items',${rows('hr_payroll_items','child.run_id=r.id')},'postings',${rows('hr_payroll_postings','child.run_id=r.id')},'payslips',${rows('hr_issued_payslips','child.run_id=r.id')},'batches',${rows('hr_payment_batches',"child.company_id=r.company_id AND child.source_type='payroll' AND child.source_id=r.id")},'deductions',${rows('hr_payroll_deduction_consumptions','child.run_id=r.id AND child.company_id=r.company_id')},'corrections',${rows('hr_payroll_corrections','child.run_id=r.id AND child.company_id=r.company_id')})::text "childrenImage",
+ (${rows('hr_payroll_final_pay_events','child.preparation_id=p.id AND child.company_id=p.company_id AND child.id<>?')})::text "eventsImage"
+ FROM hr_payroll_final_pay_preparations p JOIN hr_payroll_runs r ON r.id=p.run_id AND r.company_id=p.company_id AND r.scope_engagement_id=p.engagement_id
+ JOIN people_preparation_tasks t ON t.id=p.task_id AND t.company_id=p.company_id AND t.case_id=p.case_id
+ JOIN people_lifecycle_cases c ON c.id=p.case_id AND c.company_id=p.company_id AND c.engagement_id=p.engagement_id
+ JOIN hr_engagements e ON e.id=p.engagement_id AND e.company_id=p.company_id AND e.person_id=c.person_id
+ WHERE r.id=? AND r.company_id=?`).bind(excludeEventId,runId,actor.companyId).first<Omit<FinalPayCancellationSource,'image'|'noMoneyEffects'>&{financeImage?:string}>();
+ if(!result)return null;
+ const money=await payrollFinalPayCancellationMoneyImage(database,actor.companyId,runId),children=JSON.parse(result.childrenImage) as Record<string,Array<Record<string,unknown>>>;
+ const noMoneyEffects=!money.hasMoneyEffects&&children.postings.length===0&&children.payslips.length===0&&children.batches.length===0&&children.deductions.length===0&&children.corrections.length===0&&!children.items.some(item=>item.status==='approved'||item.status==='posted');
+ return {...result,financeImage:money.image,noMoneyEffects,image:JSON.stringify([result.preparationImage,result.runImage,result.taskImage,result.caseImage,result.engagementImage,result.childrenImage,result.eventsImage,money.image,result.originalPreparation,result.originalParentCancellation])};
+}
+export function finalPayCancellationSchemaAvailable(database:SqlDatabase){return database.prepare("SELECT to_regprocedure('hr_final_pay_cancellation_candidate(hr_payroll_runs)') IS NOT NULL AND to_regprocedure('hr_final_pay_cancellation_valid(text,text)') IS NOT NULL ready").first<boolean>('ready').then(Boolean);}

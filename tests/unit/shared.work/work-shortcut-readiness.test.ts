@@ -156,3 +156,90 @@ describe("streamed badge retry",()=>{
   expect(hooks.used).toEqual([initial,initial]);
  });
 });
+
+
+// Work-context hydration uses its actual hook/effect body. Network, clock and
+// browser event ports are controlled; no server authority is fabricated here.
+vi.mock('../../../src/components/workplace/context-switch-provider',()=>({useContextSwitch:()=>({busy:false,switchContext:async()=>false})}));
+import {WorkContextBoundary,type InitialWorkContextSnapshot} from '../../../src/components/workplace/work-context-boundary';
+import type {ComponentProps} from 'react';
+type BoundaryProps=ComponentProps<typeof WorkContextBoundary>;
+const boundaryIdentity={base:'/holdings/acme',userId:'current-user',companyId:'current-company',assignmentId:'current-role',revision:7};
+function boundarySnapshot(extra:Partial<InitialWorkContextSnapshot>={}):InitialWorkContextSnapshot{return {version:1,...boundaryIdentity,checkedAt:1_000_000,...extra};}
+function boundaryData(extra:Record<string,unknown>={}){return {valid:true,...boundaryIdentity,...extra};}
+function boundaryEventPort(){
+ const handlers=new Map<string,Set<EventListenerOrEventListenerObject>>();
+ return {addEventListener(name:string,handler:EventListenerOrEventListenerObject){const selected=handlers.get(name)??new Set();selected.add(handler);handlers.set(name,selected);},removeEventListener(name:string,handler:EventListenerOrEventListenerObject){handlers.get(name)?.delete(handler);},async emit(name:string){for(const handler of handlers.get(name)??[])await (typeof handler==='function'?handler(new Event(name)):handler.handleEvent(new Event(name)));},count(name:string){return handlers.get(name)?.size??0;}};
+}
+function mountedWorkBoundary(input:Partial<BoundaryProps>={},response:()=>Promise<Response>=async()=>Response.json({data:boundaryData()})){
+ vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(1_000_100);
+ const browser={...boundaryEventPort(),location:{pathname:'/holdings/acme/work',search:'?view=actions',hash:'#current',replace:vi.fn()}},channels:Array<ReturnType<typeof boundaryEventPort>&{closed:boolean}>=[];
+ vi.stubGlobal('window',browser);vi.stubGlobal('BroadcastChannel',class{private readonly port=boundaryEventPort();closed=false;constructor(){channels.push(this);}addEventListener=this.port.addEventListener;removeEventListener=this.port.removeEventListener;emit=this.port.emit;count=this.port.count;close(){this.closed=true;}});
+ vi.stubGlobal('MutationObserver',class{observe(){}disconnect(){}});const fetcher=vi.fn<(...args:Parameters<typeof fetch>)=>ReturnType<typeof fetch>>(response);vi.stubGlobal('fetch',fetcher);
+ let props:BoundaryProps={...boundaryIdentity,children:null,...input},cleanup:(()=>void)|undefined;
+ const node={setAttribute:vi.fn(),removeAttribute:vi.fn(),contains:()=>false,addEventListener:vi.fn(),removeEventListener:vi.fn()};
+ function render(){hooks.cursor=0;hooks.effects=[];const element=WorkContextBoundary(props) as ReactElement<{ref:{current:unknown};'data-work-stale':string;'data-work-user':string}>;element.props.ref.current=node;return element;}
+ function start(){render();const effect=hooks.effects[0];if(!effect)throw Error('Actual Work context effect missing');const result=effect();cleanup=typeof result==='function'?result:undefined;}
+ start();return {browser,channels,fetcher,render,update(next:Partial<BoundaryProps>){cleanup?.();props={...props,...next};start();},unmount(){cleanup?.();},stale:()=>render().props['data-work-stale']};
+}
+it.each(['workspace','front'] as const)('uses a matching fresh %s SSR identity without a duplicate mount request',async kind=>{
+ const front=kind==='front'?{frontApp:'pos' as const,frontLocation:'branches/north',frontRoleEndpoint:'/api/v1/front/acme/company/pos'}:{},view=mountedWorkBoundary({...front,initialCurrent:boundarySnapshot(front)});
+ expect(view.fetcher).not.toHaveBeenCalled();expect(view.stale()).toBe('false');expect(view.browser.count('focus')).toBe(1);expect(view.channels).toHaveLength(1);view.unmount();expect(view.channels[0].closed).toBe(true);
+});
+it.each([
+ {name:'absent',snapshot:undefined},
+ {name:'different base',snapshot:boundarySnapshot({base:'/holdings/other'})},
+ {name:'different account',snapshot:boundarySnapshot({userId:'other-user'})},
+ {name:'different Company',snapshot:boundarySnapshot({companyId:'other-company'})},
+ {name:'different assignment',snapshot:boundarySnapshot({assignmentId:'other-role'})},
+ {name:'different revision',snapshot:boundarySnapshot({revision:8})},
+ {name:'expired',snapshot:boundarySnapshot({checkedAt:969_999})},
+ {name:'future clock',snapshot:boundarySnapshot({checkedAt:1_000_101})},
+ {name:'wrong Front endpoint',snapshot:boundarySnapshot({frontRoleEndpoint:'/api/v1/front/acme/other/pos'})},
+ {name:'wrong Front location',snapshot:boundarySnapshot({frontLocation:'branches/other'})},
+] as const)('keeps the fresh native mount read for a $name snapshot',entry=>{
+ const view=mountedWorkBoundary({initialCurrent:entry.snapshot});expect(view.fetcher).toHaveBeenCalledExactlyOnceWith('/api/v1/holdings/acme/assignments/active',{cache:'no-store',headers:{'x-erpx-context-company':'current-company'}});view.unmount();
+});
+it.each(['focus','erpx:work-context-changed','broadcast'] as const)('always revalidates on %s after a matched SSR seed and retains revocation denial',async event=>{
+ const view=mountedWorkBoundary({initialCurrent:boundarySnapshot()},async()=>Response.json({error:{code:'WORK_ROLE_UNAVAILABLE'}},{status:403}));expect(view.fetcher).not.toHaveBeenCalled();
+ if(event==='broadcast')await view.channels[0].emit('message');else await view.browser.emit(event);
+ expect(view.fetcher).toHaveBeenCalledTimes(1);expect(view.stale()).toBe('true');view.unmount();
+});
+it('checks a switched account in the actual Front original JSON and keeps the native location header',async()=>{
+ const front={frontApp:'pms' as const,frontLocation:'branches/north',frontRoleEndpoint:'/api/v1/front/acme/company/pms'},view=mountedWorkBoundary({...front,initialCurrent:boundarySnapshot(front)},async()=>Response.json({data:boundaryData({userId:'other-account'})}));
+ expect(view.fetcher).not.toHaveBeenCalled();await view.browser.emit('focus');expect(view.fetcher).toHaveBeenCalledExactlyOnceWith(front.frontRoleEndpoint+'/roles',{cache:'no-store',headers:{'x-erpx-front-location':front.frontLocation}});expect(view.stale()).toBe('true');view.unmount();
+});
+it('does not let a delayed original JSON invalidate a newer mounted user/source after effect cleanup',async()=>{
+ let reading!:()=>void,release!:()=>void;const reached=new Promise<void>(done=>{reading=done;}),gate=new Promise<void>(done=>{release=done;});let first=true;
+ class LateOriginalJSON extends Response{override async json(){const value=await super.json();reading();await gate;return value;}}
+ const view=mountedWorkBoundary({initialCurrent:boundarySnapshot()},async()=>{if(first){first=false;return new LateOriginalJSON(JSON.stringify({data:boundaryData({valid:false,userId:'old-account',revision:99})}),{headers:{'Content-Type':'application/json'}});}return Response.json({data:boundaryData({userId:'new-account',revision:8})});});
+ const pending=view.browser.emit('focus');await reached;view.update({userId:'new-account',revision:8,initialCurrent:boundarySnapshot({userId:'new-account',revision:8})});await view.browser.emit('focus');expect(view.render().props['data-work-user']).toBe('new-account');expect(view.stale()).toBe('false');release();await pending;expect(view.stale()).toBe('false');view.unmount();
+});
+it('retains the normal expired-session redirect after initial SSR deduplication',async()=>{
+ const view=mountedWorkBoundary({initialCurrent:boundarySnapshot()},async()=>new Response(null,{status:401}));await view.browser.emit('focus');expect(view.browser.location.replace).toHaveBeenCalledExactlyOnceWith('/login?reason=expired&next='+encodeURIComponent('/holdings/acme/work?view=actions#current'));view.unmount();
+});
+
+it('keeps an unsnapshotted legacy Front boundary on the original mount-role read',()=>{
+ const view=mountedWorkBoundary({userId:undefined,frontApp:'pos',frontLocation:'holding',frontRoleEndpoint:'/api/v1/front/acme/company/pos'});expect(view.fetcher).toHaveBeenCalledExactlyOnceWith('/api/v1/front/acme/company/pos/roles',{cache:'no-store',headers:{'x-erpx-front-location':'holding'}});view.unmount();
+});
+
+
+it.each(['user','base'] as const)('never reuses the original SSR snapshot after a %s roundtrip in the same mounted boundary',field=>{
+ const view=mountedWorkBoundary({initialCurrent:boundarySnapshot()});expect(view.fetcher).not.toHaveBeenCalled();
+ view.update(field==='user'?{userId:'another-account'}:{base:'/holdings/other'});expect(view.fetcher).toHaveBeenCalledTimes(1);
+ view.update({...boundaryIdentity,initialCurrent:boundarySnapshot()});expect(view.fetcher).toHaveBeenCalledTimes(2);expect(view.fetcher).toHaveBeenLastCalledWith('/api/v1/holdings/acme/assignments/active',{cache:'no-store',headers:{'x-erpx-context-company':'current-company'}});view.unmount();
+});
+it('never reuses the original Front snapshot after leaving and returning to its location',()=>{
+ const front={frontApp:'pos' as const,frontLocation:'holding',frontRoleEndpoint:'/api/v1/front/acme/company/pos'},view=mountedWorkBoundary({...front,initialCurrent:boundarySnapshot(front)});expect(view.fetcher).not.toHaveBeenCalled();
+ view.update({frontLocation:'branches/north'});expect(view.fetcher).toHaveBeenCalledExactlyOnceWith(front.frontRoleEndpoint+'/roles',{cache:'no-store',headers:{'x-erpx-front-location':'branches/north'}});
+ view.update({...front,initialCurrent:boundarySnapshot(front)});expect(view.fetcher).toHaveBeenCalledTimes(2);expect(view.fetcher).toHaveBeenLastCalledWith(front.frontRoleEndpoint+'/roles',{cache:'no-store',headers:{'x-erpx-front-location':'holding'}});view.unmount();
+});
+it('still deduplicates StrictMode same-source effect cleanup/setup replay without duplicate listeners',()=>{
+ const view=mountedWorkBoundary({initialCurrent:boundarySnapshot()});expect(view.fetcher).not.toHaveBeenCalled();
+ // The actual effect is cleaned up and set up again with the same hook state
+ // and identity, as in StrictMode. No source refusal occurred in between.
+ view.update({});expect(view.fetcher).not.toHaveBeenCalled();expect(view.channels).toHaveLength(2);expect(view.channels[0].closed).toBe(true);expect(view.channels[1].closed).toBe(false);expect(view.browser.count('focus')).toBe(1);expect(view.browser.count('erpx:work-context-changed')).toBe(1);view.unmount();
+});
+it('keeps a refused expired snapshot ineligible even if the clock later makes its original timestamp look fresh',()=>{
+ const view=mountedWorkBoundary({initialCurrent:boundarySnapshot({checkedAt:969_999})});expect(view.fetcher).toHaveBeenCalledTimes(1);vi.setSystemTime(970_000);view.update({});expect(view.fetcher).toHaveBeenCalledTimes(2);view.unmount();
+});

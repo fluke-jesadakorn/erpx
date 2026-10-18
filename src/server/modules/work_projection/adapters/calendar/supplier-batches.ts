@@ -5,5 +5,5 @@ import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types"
 import { calendarSupplierBatchesFinanceFacts } from "../../../finance/public/calendar-supplier-batches-facts";
 import { createCalendarSupplierBatches, type CalendarSupplierBatchesUnit } from "../../application/calendar/supplier-batches";
 const service = createCalendarSupplierBatches();
-export function calendarSupplierBatchesUnit(db: SqlDatabase): CalendarSupplierBatchesUnit { return { read1: facts => calendarSupplierBatchesFinanceFacts(db).read1(facts) }; }
-export function supplierBatchCalendarItems(db: SqlDatabase, a: CalendarAccess, q: CalendarQuery, from: string, to: string, limit: number) { return service.supplierBatchCalendarItems(calendarSupplierBatchesUnit(db), a, q, from, to, limit); }
+export function calendarSupplierBatchesUnit(db: SqlDatabase,actor:CalendarAccess["actor"]): CalendarSupplierBatchesUnit { return { read1: facts => calendarSupplierBatchesFinanceFacts(db,actor).read1(facts) }; }
+export function supplierBatchCalendarItems(db: SqlDatabase, a: CalendarAccess, q: CalendarQuery, from: string, to: string, limit: number) { return service.supplierBatchCalendarItems(calendarSupplierBatchesUnit(db,a.actor), a, q, from, to, limit); }

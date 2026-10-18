@@ -1,0 +1,1 @@
+export const manufacturingInitialPhysicalStockCountLanding='production/manufacturing/settings/initial-stock';

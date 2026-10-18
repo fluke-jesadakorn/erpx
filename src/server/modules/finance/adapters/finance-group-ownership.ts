@@ -1,3 +1,5 @@
+import { withFinancePurchasedCommand, withFinancePurchasedRead } from "./purchase-boundary";
+import { groupCompanyPurchases, groupRecordPurchases, groupHistoryPredicate, groupSourceSql, groupRecordHistorySql } from "./group-purchase-sources";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -18,10 +20,11 @@ import type { SqlStatement } from '../../runtime/public/runtime/types';
 export { ownershipEditionSchema } from '../domain/finance-group-ownership';
 export { acquisitionEditionSchema } from '../domain/finance-group-ownership';
 export { groupEvidenceDecisionSchema } from '../domain/finance-group-ownership';
-function nativePorts(provided?: SqlDatabase): FinanceGroupOwnershipPorts<SqlStatement> {
+function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (company:string)=>string): FinanceGroupOwnershipPorts<SqlStatement> {
     let database = provided!;
+    let historySql: (company:string)=>string = inheritedHistory ?? (()=>"TRUE");
     const repository: FinanceGroupOwnershipRepository<SqlStatement> = { readGetRow(id: string, holdingId: string, companyId: string, table: "finance_ownership_interests" | "finance_acquisitions") {
-            return database.prepare(`SELECT * FROM ${table} WHERE id=? AND holding_id=? AND company_id=?`)
+            return database.prepare(groupSourceSql(`SELECT * FROM ${table} WHERE id=? AND holding_id=? AND company_id=?`, [groupRecordHistorySql(table === "finance_ownership_interests" ? "ownership" : "acquisition",table,historySql)]))
                 .bind(id, holdingId, companyId)
                 .first<Row>();
         },
@@ -100,12 +103,12 @@ function nativePorts(provided?: SqlDatabase): FinanceGroupOwnershipPorts<SqlStat
                 .bind(value, calculation_run_id, action, userId, reason, value2, now);
         },
         readGroupOwnershipWorkspaceOwnershipacquisitionsentities(holdingId: string, companyId: string) {
-            return database.prepare("SELECT o.*,i.company_id investor_company,v.company_id investee_company,i.reporting_name investor_name,v.reporting_name investee_name FROM finance_ownership_interests o JOIN finance_group_entities i ON i.id=o.investor_entity_id JOIN finance_group_entities v ON v.id=o.investee_entity_id WHERE o.holding_id=? AND o.company_id=? ORDER BY o.created_at DESC,o.id LIMIT 200")
+            return database.prepare(groupSourceSql("SELECT o.*,i.company_id investor_company,v.company_id investee_company,i.reporting_name investor_name,v.reporting_name investee_name FROM finance_ownership_interests o JOIN finance_group_entities i ON i.id=o.investor_entity_id JOIN finance_group_entities v ON v.id=o.investee_entity_id WHERE o.holding_id=? AND o.company_id=? ORDER BY o.created_at DESC,o.id LIMIT 200", [groupRecordHistorySql("ownership","o",historySql)]))
                 .bind(holdingId, companyId)
                 .all<Row>();
         },
         readGroupOwnershipWorkspaceOwnershipacquisitionsentities2(holdingId: string, companyId: string) {
-            return database.prepare("SELECT a.*,e.reporting_name investee_name FROM finance_acquisitions a JOIN finance_group_entities e ON e.id=a.investee_entity_id WHERE a.holding_id=? AND a.company_id=? ORDER BY a.created_at DESC,a.id LIMIT 200")
+            return database.prepare(groupSourceSql("SELECT a.*,e.reporting_name investee_name FROM finance_acquisitions a JOIN finance_group_entities e ON e.id=a.investee_entity_id WHERE a.holding_id=? AND a.company_id=? ORDER BY a.created_at DESC,a.id LIMIT 200", [groupRecordHistorySql("acquisition","a",historySql)]))
                 .bind(holdingId, companyId)
                 .all<Row>();
         },
@@ -115,11 +118,12 @@ function nativePorts(provided?: SqlDatabase): FinanceGroupOwnershipPorts<SqlStat
                 .all<Row>();
         } };
     return { repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
+            historySql=await groupHistoryPredicate();
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, batch: effects => database.batch(effects), transaction: run => financeTransaction(database, tx => run(nativePorts(tx))), digestBytes: bytes => crypto.subtle.digest('SHA-256', bytes), requirePermission: (...args) => fromNativeSync(() => requirePermission(...args)), requireFinanceTool: (...args) => fromNative(() => requireFinanceTool(database, ...args)), requireFinanceMoneyScale: (...args) => fromNative(() => requireFinanceMoneyScale(database, ...args)), sha256: (...args) => fromNative(() => sha256(...args)) };
+        }, batch: effects => database.batch(effects), transaction: run => owned && provided ? run(nativePorts(provided,true,historySql)) : financeTransaction(database, tx => run(nativePorts(tx,true,historySql))), digestBytes: bytes => crypto.subtle.digest('SHA-256', bytes), requirePermission: (...args) => fromNativeSync(() => requirePermission(...args)), requireFinanceTool: (...args) => fromNative(() => requireFinanceTool(database, ...args)), requireFinanceMoneyScale: (...args) => fromNative(() => requireFinanceMoneyScale(database, ...args)), sha256: (...args) => fromNative(() => sha256(...args)) };
 }
-function application(provided?: SqlDatabase) { return createFinanceGroupOwnershipApplication(nativePorts(provided)); }
+function application(provided?: SqlDatabase, owned = false) { return createFinanceGroupOwnershipApplication(nativePorts(provided,owned)); }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {
         return await run();
@@ -150,8 +154,8 @@ async function invoke<Result>(run: () => Promise<Result>) {
         throw error;
     }
 }
-export async function prepareOwnershipEdition(actor: WorkContext, raw: z.input<typeof ownershipEditionSchema>, key: string) { return invoke(() => application().prepareOwnershipEdition(actor, raw, key)); }
-export async function decideOwnershipEdition(actor: WorkContext, id: string, raw: z.input<typeof groupEvidenceDecisionSchema>, action: "approve" | "reject", key: string) { return invoke(() => application().decideOwnershipEdition(actor, id, raw, action, key)); }
-export async function prepareAcquisitionEdition(actor: WorkContext, raw: z.input<typeof acquisitionEditionSchema>, key: string) { return invoke(() => application().prepareAcquisitionEdition(actor, raw, key)); }
-export async function decideAcquisitionEdition(actor: WorkContext, id: string, raw: z.input<typeof groupEvidenceDecisionSchema>, action: "approve" | "reject", key: string) { return invoke(() => application().decideAcquisitionEdition(actor, id, raw, action, key)); }
-export async function groupOwnershipWorkspace(actor: WorkContext) { return invoke(() => application().groupOwnershipWorkspace(actor)); }
+export async function prepareOwnershipEdition(actor: WorkContext, raw: z.input<typeof ownershipEditionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.ownership.prepare",purpose:"new-work",capability:"finance.advanced",companyPurchases:()=>Promise.resolve(groupCompanyPurchases([raw.investorCompanyId,raw.investeeCompanyId]))},tx=>invoke(()=>application(tx,true).prepareOwnershipEdition(actor,raw,key))); }
+export async function decideOwnershipEdition(actor: WorkContext, id: string, raw: z.input<typeof groupEvidenceDecisionSchema>, action: "approve" | "reject", key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.ownership.${action}`,purpose:"settle-existing",capability:"finance.advanced",companyPurchases:db=>groupRecordPurchases(db,actor,"ownership",id)},tx=>invoke(()=>application(tx,true).decideOwnershipEdition(actor,id,raw,action,key))); }
+export async function prepareAcquisitionEdition(actor: WorkContext, raw: z.input<typeof acquisitionEditionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.acquisition.prepare",purpose:"new-work",capability:"finance.advanced",companyPurchases:db=>groupRecordPurchases(db,actor,"ownership",raw.ownershipId)},tx=>invoke(()=>application(tx,true).prepareAcquisitionEdition(actor,raw,key))); }
+export async function decideAcquisitionEdition(actor: WorkContext, id: string, raw: z.input<typeof groupEvidenceDecisionSchema>, action: "approve" | "reject", key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.acquisition.${action}`,purpose:"settle-existing",capability:"finance.advanced",companyPurchases:db=>groupRecordPurchases(db,actor,"acquisition",id)},tx=>invoke(()=>application(tx,true).decideAcquisitionEdition(actor,id,raw,action,key))); }
+export async function groupOwnershipWorkspace(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>invoke(()=>application(db).groupOwnershipWorkspace(actor)),"finance.advanced"); }

@@ -1,4 +1,6 @@
 "use client";
+import {PayrollCommandRecovery} from "./payroll-command-recovery";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
@@ -6,12 +8,12 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { RecordLink as Link } from "@/components/records/record-link";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { MoneyAmount } from "@/components/finance/money/currency-provider";
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import { payrollErrorMessage, type PayrollApiError } from "@/lib/people_payroll/payroll-errors";
-import { Card, FormLayout } from "@/components/ui/foundation";
+import { usePayrollCommand } from "./use-payroll-command";
+import { PayrollForm } from "./payroll-draft-boundary";
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import {useState} from "react";
+import { Card } from "@/components/ui/foundation";
 type Row = Record<string, unknown>;
 export function PayrollPaymentPanel({
   base,
@@ -46,47 +48,18 @@ export function PayrollPaymentPanel({
     };
     return labels[String(value)] ?? String(value);
   };
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const attempt = useRef<{
-    body: string;
-    key: string;
-  } | null>(null);
-  const outstanding = items.filter((item) =>
-    ["outstanding", "failed"].includes(String(item.status)),
-  );
-  async function send(path: string, input: unknown) {
-    const body = JSON.stringify(input);
-    if (attempt.current?.body !== path + body)
-      attempt.current = { body: path + body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/people/${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-        body,
-      });
-      const result = (await response.json()) as {
-        error?: PayrollApiError;
-      };
-      if (!response.ok) throw result.error ?? { message: "Could not save payment change." };
-      attempt.current = null;
-      router.refresh();
-    } catch (cause) {
-      setError(payrollErrorMessage(cause, "Could not save payment change."));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const {send, busy, error, notice, canSettle, canRead, recovery} = usePayrollCommand(base, `run:${run.id}:payments`, JSON.stringify([run, batch, items, canPrepare, canApprove, canExport, canConfirm]));
+  const [drawerRevisions, setDrawerRevisions] = useState<Record<string, number>>({});
+  const discard = (name: string) => setDrawerRevisions(current => ({...current, [name]: (current[name] ?? 0) + 1}));
+  canPrepare &&= canSettle; canApprove &&= canSettle; canExport &&= canSettle; canConfirm &&= canSettle;
+  const outstanding = items.filter((item) => ["outstanding", "failed"].includes(String(item.status)));
   return (
     <Card as="section" appearance="standard" className="ui-panel" aria-label="Payroll payment batch">
       <h2>{"Payment batch"}</h2>
       <p className="muted">{"Exported instructions do not transfer funds from this page."}</p>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <PayrollCommandRecovery {...recovery} appearance="standard"/>{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{notice && <p role="status">{notice}</p>}
       {!batch && canPrepare && String(run.status) === "posted" && (
-        <FormLayout
+        <FormDisclosure appearance="standard" drawerTitle="Prepare payroll payment batch" onDiscard={() => discard("prepare")}><summary>Prepare payment batch</summary><PayrollForm key={drawerRevisions.prepare ?? 0}
           className="ui-form-grid"
           onSubmit={(event) => {
             event.preventDefault();
@@ -113,12 +86,12 @@ export function PayrollPaymentPanel({
           </Field>
           <p className="muted">
             {"Review bank accounts in"}{" "}
-            <Link href={`${base}/finance/bank`}>Finance · Cash & banking</Link>
+            <Link href={canonicalUiHref(`${base}/finance/bank`)}>Finance · Cash & banking</Link>
           </p>
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             {"Prepare batch"}
           </Button>
-        </FormLayout>
+        </PayrollForm></FormDisclosure>
       )}
       {!batch && !canPrepare && <p className="muted">{"No payment batch yet."}</p>}
       {batch && (
@@ -158,7 +131,7 @@ export function PayrollPaymentPanel({
                 {"Export instruction"}
               </Button>
             )}
-            {["exported", "partially_settled", "settled"].includes(String(batch.status)) && (
+            {canRead && ["exported", "partially_settled", "settled"].includes(String(batch.status)) && (
               <UiActionLink appearance="standard"
                 variant="secondary"
                 href={`/api/v1${base}/people/payments/batches/${batch.id}/file`}
@@ -191,7 +164,7 @@ export function PayrollPaymentPanel({
           {canConfirm &&
             ["exported", "partially_settled"].includes(String(batch.status)) &&
             outstanding.length > 0 && (
-              <FormLayout
+              <FormDisclosure appearance="standard" drawerTitle="Reconcile payroll bank results" onDiscard={() => discard("reconcile")}><summary>Reconcile bank results</summary><PayrollForm key={drawerRevisions.reconcile ?? 0}
                 className="ui-form-grid"
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -222,7 +195,7 @@ export function PayrollPaymentPanel({
                 <h3>{"Reconcile bank results"}</h3>
                 <p className="muted">
                   {"Confirm only accepted payments with transaction ID and version from"}{" "}
-                  <Link href={`${base}/finance/bank`}>{"Bank transactions"}</Link>.{" "}
+                  <Link href={canonicalUiHref(`${base}/finance/bank`)}>{"Bank transactions"}</Link>.{" "}
                   {"Rejected rows remain payable."}
                 </p>
                 {outstanding.map((item) => (
@@ -268,7 +241,7 @@ export function PayrollPaymentPanel({
                 <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                   {"Confirm results"}
                 </Button>
-              </FormLayout>
+              </PayrollForm></FormDisclosure>
             )}
           {batch.status === "partially_settled" && !outstanding.length && (
             <InlineNotice tone="info" role="status">{"Refresh to review remaining items."}</InlineNotice>

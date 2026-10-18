@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { setActiveSchema, setAppreciation } from "@/server/modules/collaboration/public/social";
@@ -10,6 +11,6 @@ export async function PUT(request: Request, context: RouteContext<"/api/v1/holdi
     const parsed = setActiveSchema.safeParse(await request.json());
     if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid appreciation state.");
     const actor = await requireWorkContext(holdingSlug);
-    return Response.json({ data: await setAppreciation(actor.holdingId, id, parsed.data.active, commandId, actor) });
+    return Response.json(canonicalDestinationLinks({ data: await setAppreciation(actor.holdingId, id, parsed.data.active, commandId, actor) }));
   } catch (error) { return errorResponse(error); }
 }

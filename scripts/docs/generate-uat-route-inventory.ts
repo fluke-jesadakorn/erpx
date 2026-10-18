@@ -16,12 +16,13 @@ function walk(directory: string): string[] {
 }
 
 const pageFiles = walk(appRoot)
-  .filter((path) => /\/page\.(?:tsx|ts|jsx|js)$/.test(path))
+  .filter((path) => /\/page\.(?:tsx|ts|jsx|js)$/.test(path) && !relative(appRoot,path).split("/").some(segment=>segment.startsWith("_")||segment.startsWith("@")))
   .sort();
 const publicPrefixes = [
   "/access",
   "/activate",
   "/book/",
+  "/forms/",
   "/dev/",
   "/forgot-password",
   "/front-access",
@@ -56,12 +57,14 @@ function category(route: string): string {
   if (route.startsWith("/front/")) return "Front PMS/POS";
   if (route.startsWith("/platform/")) return "Platform";
   if (route.startsWith("/book/")) return "Public booking";
+  if (route.startsWith("/forms/")) return "Public forms";
   if (route.startsWith("/customer-portal/")) return "Customer portal";
   if (route.startsWith("/legal-portal/")) return "Legal portal";
   return "Public and account";
 }
 
 function primaryActor(route: string): string {
+  if (route.startsWith("/forms/")) return "public form visitor";
   if (route.startsWith("/platform/")) return "platform administrator (external identity required)";
   if (route.startsWith("/front/") && route.includes("/[app]/")) return "pms_frontdesk or pos_cashier";
   if (/\/pms(?:\/|$)/.test(route)) return "pms_frontdesk";
@@ -95,7 +98,7 @@ const entries = pageFiles.map((path) => {
       ? ["holding", "branch", "department", "branch-department"]
       : holdingRoute ? ["holding"] : [],
     dynamicParameters: [...new Set(dynamicParameters)],
-    detailRoute: dynamicParameters.some((name) => ["id", "reportId", "propertyId"].includes(name)),
+    detailRoute: route.startsWith("/forms/") || dynamicParameters.some((name) => ["id", "reportId", "propertyId"].includes(name)),
     sourceSignals: stateSignals.filter(([, pattern]) => pattern.test(source)).map(([name]) => name),
   };
 });

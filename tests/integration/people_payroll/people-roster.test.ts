@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { escalateRosterCoverage, rosterCommand, rosterData, rosterNotificationLink } from "../../../src/server/modules/people_payroll/public/people-roster";
@@ -6,8 +6,11 @@ import { rosterMonday, addDays } from "../../../src/lib/people_payroll/people-ro
 import { rosterPositionExitStatements } from "../../../src/server/modules/people_payroll/public/roster-position-exit";
 import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
 import { prepareLocalBrowserRosterExample } from "../../../fixtures/people_payroll/builders/local-browser-roster-directory";
+import { packageGrantStore, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
+import { calendarCommand } from "../../../src/server/modules/work_projection/public/calendar/commands";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 const db = env.H001_DB, key = () => crypto.randomUUID();
+afterEach(() => vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;
 const monday = addDays(rosterMonday(), 14);
 const person = (a: WorkContext) => `person-${a.userId}`;
@@ -48,6 +51,118 @@ beforeEach(async () => {
   await db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,roster_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,1,'fixture',1,1)")
     .bind(id,f.company,f.branch,f.department,"Roster staff",`${f.company}-level-1`).run();
   await db.prepare("UPDATE hr_engagements SET position_id=? WHERE person_id=ANY(?::text[])").bind(id,`{${[person(f.claimant),person(f.tie)].join(',')}}`).run();
+});
+
+async function purchase(packageId: "people" | "people-workforce", state: "active" | "draining" = "active", endsAt: number | null = null) {
+  const prior = (await readCompanyPackageGrants(db, f.company)).find(grant => grant.packageId === packageId);
+  return packageGrantStore(db, {authorize: async () => ({userId: "isolated-roster-purchase-review"}), obligations: async () => {throw Error("Roster withdrawal requires its concrete owner witness");}})
+    .apply({expectedVersion: prior?.version ?? 0, idempotencyKey: key(), grant: {companyId: f.company, packageId, packageVersion: 1, state, startsAt: 0, endsAt, version: (prior?.version ?? 0) + 1, reason: "Reviewed disposable roster package", evidence: "test:roster-purchase"}});
+}
+
+it("requires the workforce add-on for Roster reads, native commands and inbox links, without granting a role", async () => {
+  vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT", "enforced");
+  await expect(read()).rejects.toMatchObject({code: "PACKAGE_REQUIRED"});
+  await expect(createWeek()).rejects.toMatchObject({code: "PACKAGE_REQUIRED"});
+  await expect(rosterNotificationLink(db, f.manager, "roster_week", "missing")).rejects.toMatchObject({code: "PACKAGE_REQUIRED"});
+  await purchase("people");
+  await expect(createWeek()).rejects.toMatchObject({code: "PACKAGE_REQUIRED"});
+  await purchase("people-workforce");
+  const week = await createWeek();
+  expect((await read()).week?.id).toBe(week.id);
+  expect((await read()).purchase).toMatchObject({newWork: true, settleExisting: true, history: true});
+  await expect(command({action: "week.create", departmentId: f.department, weekStart: addDays(monday, 7)}, f.claimant)).rejects.toMatchObject({code: "PERMISSION_REQUIRED"});
+});
+
+it("settles a previously accepted request and cancellations while draining, with new planning and self review closed", async () => {
+  await purchase("people"); await purchase("people-workforce");
+  vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT", "enforced");
+  const s = await setup(), request = await swap(s);
+  await purchase("people-workforce", "draining");
+  await expect(createWeek(addDays(monday, 7))).rejects.toMatchObject({code: "PACKAGE_DRAINING"});
+  await expect(command({action: "week.publish", id: s.w.id, expectedVersion: 1})).rejects.toMatchObject({code: "PACKAGE_DRAINING"});
+  await expect(command({action: "request.create", kind: "extra", targetShiftId: s.c.id, reason: "New obligation while draining"}, f.claimant)).rejects.toMatchObject({code: "PACKAGE_DRAINING"});
+  expect((await read()).purchase).toMatchObject({newWork: false, settleExisting: true, history: true});
+  await command({action: "request.decide", id: request.id, expectedVersion: 1, decision: "accept"}, f.tie);
+  await expect(command({action: "request.decide", id: request.id, expectedVersion: 2, decision: "approve"}, f.claimant)).rejects.toMatchObject({code: "PERMISSION_REQUIRED"});
+  await command({action: "request.decide", id: request.id, expectedVersion: 2, decision: "approve"});
+  expect((await read()).requests.find(row => row.id === request.id)?.state).toBe("approved");
+  const shift = (await read()).shifts.find(row => row.id === s.c.id)!;
+  await command({action: "shift.cancel", id: shift.id, expectedVersion: shift.version, reason: "Settle retained open slot during draining"});
+  expect((await read()).shifts.find(row => row.id === shift.id)?.state).toBe("cancelled");
+});
+
+it("retains exact lost-response replay and history after expiry but requires current authority", async () => {
+  await purchase("people"); await purchase("people-workforce");
+  vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT", "enforced");
+  const commandKey = key(), input = {action: "week.create", departmentId: f.department, weekStart: monday, timezone: "Asia/Bangkok"};
+  const result = await command(input, f.manager, commandKey);
+  await purchase("people-workforce", "active", 1);
+  expect(await command(input, f.manager, commandKey)).toEqual(result);
+  expect((await read()).purchase).toMatchObject({newWork: false, settleExisting: true, history: true});
+  await expect(createWeek(addDays(monday, 7))).rejects.toMatchObject({code: "PACKAGE_DRAINING"});
+  await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.manager.assignmentId).run();
+  await expect(command(input, f.manager, commandKey)).rejects.toMatchObject({code: "ROSTER_ACCESS_CHANGED"});
+  await expect(read()).rejects.toMatchObject({code: "ROSTER_ACCESS_CHANGED"});
+});
+
+it("keeps shadow Roster observational and leaves disabled responses unchanged", async () => {
+  expect((await read()).purchase).toBeUndefined();
+  vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT", "shadow");
+  const telemetry = vi.spyOn(console, "info").mockImplementation(() => {});
+  try {
+    const week = await createWeek();
+    expect((await read()).week?.id).toBe(week.id);
+    expect((await read()).purchase).toMatchObject({newWork: true, settleExisting: true, history: true});
+    expect(telemetry.mock.calls.some(([message]) => String(message).includes('"code":"PACKAGE_REQUIRED"'))).toBe(true);
+    expect(await readCompanyPackageGrants(db, f.company)).toEqual([]);
+  } finally {telemetry.mockRestore();}
+});
+
+it("runs queued coverage only for Companies with workforce settlement while retaining current recipient authority", async () => {
+  vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT", "enforced");
+  const prior = (await db.prepare("SELECT id FROM staff_notifications WHERE record_type='roster_coverage'").all<{id: string}>()).results.map(row => row.id);
+  try {
+  const count = () => db.prepare("SELECT count(*)::int n FROM staff_notifications WHERE company_id=? AND record_type='roster_coverage'").bind(f.company).first("n");
+  await escalateRosterCoverage(db, monday);
+  expect(await count()).toBe(0);
+  await purchase("people"); await purchase("people-workforce"); await purchase("people-workforce", "draining");
+  expect((await escalateRosterCoverage(db, monday)).missing).toBeGreaterThan(0);
+  expect(Number(await count())).toBeGreaterThan(0);
+  const before = await count();
+  await escalateRosterCoverage(db, monday);
+  expect(await count()).toBe(before);
+  await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE company_id=? AND iam_role_allows(role,company_id,'roster.manage')").bind(f.company).run();
+  await escalateRosterCoverage(db, addDays(monday, 14));
+  expect(await count()).toBe(before);
+  } finally {
+    await db.prepare("DELETE FROM staff_notifications WHERE record_type='roster_coverage' AND id NOT IN (SELECT jsonb_array_elements_text(?::jsonb))").bind(JSON.stringify(prior)).run();
+  }
+});
+
+it("rolls back deferred package expiry together with the Roster, notices, receipt and audit", async () => {
+  await purchase("people"); await purchase("people-workforce", "active", Date.now() + 2000);
+  vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT", "enforced");
+  const tables = ["people_roster_weeks", "people_roster_history", "people_roster_locks", "staff_notifications", "command_receipts", "audit_events", "outbox_events", "company_package_grants"];
+  const image = () => Promise.all(tables.map(async table => (await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results));
+  const before = await image(), trigger = `roster_expiry_${key().replaceAll("-", "")}`;
+  await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(2.5); RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.action='roster.week.create' AND NEW.authority_json::jsonb->>'companyId'='${f.company}') EXECUTE FUNCTION ${trigger}()`);
+  try {await expect(createWeek()).rejects.toMatchObject({code: "PACKAGE_CAPABILITY_CHANGED"}); expect(await image()).toEqual(before);}
+  finally {await db.exec(`DROP TRIGGER ${trigger} ON audit_events; DROP FUNCTION ${trigger}()`);}
+});
+
+it("fences Calendar shift rescheduling through its final deferred receipt and current Roster authority", async () => {
+  await purchase("people"); await purchase("people-workforce");
+  vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT", "enforced");
+  const week = await createWeek(), shift = await addShift(week.id, [], monday, "06:00", "14:00");
+  await purchase("people-workforce", "draining");
+  const input = {action: "shift.reschedule", id: shift.id, expectedVersion: 1, date: monday, startTime: "07:00", endTime: "15:00", reason: "Move this retained shift within its week"};
+  const tables = ["people_roster_shifts", "people_roster_weeks", "people_roster_history", "assignments", "command_receipts", "audit_events", "outbox_events", "calendar_history"];
+  const image = () => Promise.all(tables.map(async table => (await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results));
+  const before = await image(), trigger = `roster_calendar_revoke_${key().replaceAll("-", "")}`;
+  await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.manager.assignmentId}'; RETURN NEW; END $$; CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.action='calendar.shift.reschedule' AND NEW.authority_json::jsonb->>'companyId'='${f.company}') EXECUTE FUNCTION ${trigger}()`);
+  try {await expect(calendarCommand(db, f.manager, input, key())).rejects.toMatchObject({code: "ROSTER_ACCESS_CHANGED"}); expect(await image()).toEqual(before);}
+  finally {await db.exec(`DROP TRIGGER ${trigger} ON audit_events; DROP FUNCTION ${trigger}()`);}
+  expect(await calendarCommand(db, f.manager, input, key())).toMatchObject({id: shift.id, version: 2});
 });
 
 it("keeps roster reads side-effect free and deduplicates scheduled coverage alerts", async () => {
@@ -253,4 +368,38 @@ it("releases future assignments and closes pending requests with a Position exit
   expect(assignment?.state).toBe("released");
   expect(pending?.state).toBe("invalidated");
   await expect(command({action:"request.create",kind:"extra",targetShiftId:s.c.id,reason:"Cover this"},f.claimant)).rejects.toMatchObject({code:"ROSTER_STAFF"});
+});
+
+it("keeps actual published future Roster coverage pending without forcing a Position or employment exit",async()=>{
+ const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),input={companyId:f.company,packageId:'people-workforce',packageVersion:1},observation=(now=Date.now())=>withOwnerPackageObligations(db,input,tx=>readOwnerPackageObligations(db,tx,{...input,now}));await purchase('people');await purchase('people-workforce');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const s=await setup(),request=await swap(s);await purchase('people-workforce','draining');expect((await observation()).total).toBeGreaterThan(1);await command({action:'request.decide',id:request.id,expectedVersion:1,decision:'reject',reason:'Original selected coworker closes future request'},f.tie);const before=await db.prepare('SELECT id,status,version FROM hr_engagements WHERE company_id=? ORDER BY id').bind(f.company).all(),data=await read(),shift=data.shifts.find(row=>row.id===s.a.id)!;await expect(command({action:'shift.cancel',id:shift.id,expectedVersion:shift.version,reason:'Original published coverage must remain'})).rejects.toMatchObject({code:'ROSTER_COVERAGE'});expect((await observation()).total).toBeGreaterThan(0);expect((await observation(Math.max(...data.shifts.map(row=>row.ends_at))+1)).total).toBe(0);expect((await db.prepare('SELECT id,status,version FROM hr_engagements WHERE company_id=? ORDER BY id').bind(f.company).all()).results).toEqual(before.results);
+});
+it("withdraws Workforce through normal Commercial review after actual Roster shifts have naturally ended, retaining assigned history and standing employment",async()=>{
+ const {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),{packageGrantRevision}=await import('../../../src/server/modules/commercial/public/package-grants'),input={companyId:f.company,packageId:'people-workforce',packageVersion:1};await purchase('people');await purchase('people-workforce');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const past=addDays(rosterMonday(),-14),{shift}=await(async()=>{vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date(Date.parse(past)-7*86400000));try{const week=await createWeek(past),shift=await addShift(week.id,[f.claimant,f.tie],past),version=Number(await db.prepare('SELECT version FROM people_roster_weeks WHERE id=?').bind(week.id).first('version'));await command({action:'week.publish',id:week.id,expectedVersion:version});return {shift};}finally{vi.useRealTimers();}})();await purchase('people-workforce','draining');expect((await withOwnerPackageObligations(db,input,tx=>readOwnerPackageObligations(db,tx,{...input,now:Date.now()}))).total).toBe(0);const before=await db.prepare('SELECT id,status,version FROM hr_engagements WHERE company_id=? ORDER BY id').bind(f.company).all(),grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==='people-workforce')!,change={companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Actual original Roster duties ended naturally with physical employment retained',evidence:'test:roster-concrete-withdrawal'}}]},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-roster-source-settlement'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)}),review=(apply=false)=>withOwnerPackageObligations(db,input,tx=>apply?store.batch.applyIn(tx,change,async()=>{}):store.batch.previewIn(tx,change));const preview=await review(),applied=await review(true);expect(applied).toEqual(preview);expect(await review(true)).toEqual(applied);expect((await read(f.manager,f.department,past)).purchase).toMatchObject({newWork:false,settleExisting:false,history:true});expect((await db.prepare('SELECT id,status,version FROM hr_engagements WHERE company_id=? ORDER BY id').bind(f.company).all()).results).toEqual(before.results);expect(await db.prepare('SELECT count(*)::int count FROM people_roster_assignments WHERE shift_id=?').bind(shift.id).first('count')).toBe(2);
+});
+
+let rosterProjectionVersion=100;
+async function rosterProjectionNotice(actor:WorkContext,type:string,id:string,message:string,at:number){
+ const version=++rosterProjectionVersion,{publishInboxEvent}=await import('../../../src/server/modules/collaboration/public/inbox');await db.prepare('INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,?,?,?,?,?)').bind(key(),f.company,actor.userId,type,id,version,message,at).run();await publishInboxEvent(db,{key:key(),companyId:f.company,sourceType:type,sourceId:id,sourceVersion:version,category:'work',preview:message,recipientIds:[actor.userId],createdAt:at});
+}
+it('Roster notice projections filter 105 missing/private requests before actual published week and swap sources for the original modules-empty employee',async()=>{
+ const {listStaffNotifications,notificationsPage}=await import('../../../src/server/modules/collaboration/public/staff-notifications'),{inboxPage}=await import('../../../src/server/modules/collaboration/public/inbox');const s=await setup(),request=await swap(s),observer=await f.member('roster-observer','employee'),actor={...f.claimant,modules:[]},now=Date.now();
+ await rosterProjectionNotice(actor,'roster_week',s.w.id,'Roster projection actual published week',now);await rosterProjectionNotice(actor,'roster_request',request.id,'Roster projection actual employee swap',now+1);
+ for(let index=0;index<105;index++)await rosterProjectionNotice(actor,'roster_request',`missing-roster-${key()}`,'Roster projection missing owner source',now+index+2);
+ await rosterProjectionNotice(observer,'roster_week',s.w.id,'Roster projection observer department week',now);for(let index=0;index<105;index++)await rosterProjectionNotice(observer,'roster_request',request.id,'Roster projection another employee private swap',now+index+2);
+ vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');expect(await listStaffNotifications(db,actor)).toEqual([]);expect((await inboxPage(db,actor,{view:'all'})).items).toEqual([]);await purchase('people');await purchase('people-workforce');expect(actor.modules).toEqual([]);
+ const notices=await listStaffNotifications(db,actor);expect(notices.filter(row=>row.message.startsWith('Roster projection')).map(row=>row.record_id).sort()).toEqual([request.id,s.w.id].sort());expect((await notificationsPage(db,actor,{view:'all'})).items.some(row=>row.message==='Roster projection actual employee swap')).toBe(true);const inbox=(await inboxPage(db,actor,{view:'all'})).items.filter(row=>row.message.startsWith('Roster projection'));expect(inbox).toHaveLength(4);expect(inbox.every(row=>[request.id,s.w.id].includes(row.sourceId))).toBe(true);
+ const observerNotices=await listStaffNotifications(db,observer);expect(observerNotices.filter(row=>row.message.startsWith('Roster projection')).map(row=>row.record_id)).toEqual([s.w.id]);expect((await inboxPage(db,observer,{view:'all'})).items.some(row=>row.message==='Roster projection another employee private swap')).toBe(false);
+ await purchase('people-workforce','draining');expect((await listStaffNotifications(db,actor)).some(row=>row.record_id===request.id)).toBe(true);await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(actor.assignmentId).run();expect(await listStaffNotifications(db,actor)).toEqual([]);expect((await inboxPage(db,actor,{view:'all'})).items).toEqual([]);
+});
+it('Roster notice projections follow the actual current participant account without transferring an old delivery to another employee',async()=>{
+ await db.prepare("UPDATE assignments SET role='employee',version=version+1 WHERE id=?").bind(f.tie.assignmentId).run();f.tie={...f.tie,role:'employee',modules:[]};
+ const {listStaffNotifications}=await import('../../../src/server/modules/collaboration/public/staff-notifications'),s=await setup(),request=await swap(s);await purchase('people');await purchase('people-workforce');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');expect((await listStaffNotifications(db,{...f.tie,modules:[]})).some(row=>row.record_id===request.id)).toBe(true);
+ const newUser=`roster-relinked-${key()}`,newAssignment=`assignment-${key()}`;await db.prepare("INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,scope_kind) VALUES(?,?,'employee','[]',?,0,9999999999999,'holding')").bind(newAssignment,newUser,f.company).run();await db.prepare('UPDATE hr_people SET user_id=?,version=version+1 WHERE id=? AND company_id=?').bind(newUser,person(f.tie),f.company).run();
+ expect((await listStaffNotifications(db,{...f.tie,modules:[]})).some(row=>row.record_id===request.id)).toBe(false);const linked:WorkContext={...f.tie,userId:newUser,assignmentId:newAssignment,role:'employee',modules:[]};expect(await rosterNotificationLink(db,linked,'roster_request',request.id)).toContain(`request=${encodeURIComponent(request.id)}`);expect(await listStaffNotifications(db,linked)).toEqual([]);expect(await db.prepare('SELECT user_id FROM staff_notifications WHERE company_id=? AND record_type=\'roster_request\' AND record_id=? ORDER BY created_at DESC LIMIT 1').bind(f.company,request.id).first('user_id')).toBe(f.tie.userId);
+});
+it('Roster coverage notice projections use actual current gaps before limits and safely reject malformed dates, unrelated staff and fulfilled coverage',async()=>{
+ const {listStaffNotifications}=await import('../../../src/server/modules/collaboration/public/staff-notifications'),{inboxPage}=await import('../../../src/server/modules/collaboration/public/inbox'),start=addDays(rosterMonday(),7),id=`${f.department}:${start}:${person(f.claimant)}`,now=Date.now();await rosterProjectionNotice(f.manager,'roster_coverage',id,'Roster projection actual missing future shift',now);
+ for(let index=0;index<105;index++)await rosterProjectionNotice(f.manager,'roster_coverage',index%2?`${f.department}:2026-99-99:${person(f.claimant)}`:`${f.department}:${start}:missing-person-${key()}`,'Roster projection invalid coverage source',now+index+1);
+ await rosterProjectionNotice(f.claimant,'roster_coverage',id,'Roster projection employee cannot review coverage',now);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');expect(await listStaffNotifications(db,f.manager)).toEqual([]);await purchase('people');await purchase('people-workforce');expect((await listStaffNotifications(db,f.manager)).filter(row=>row.message.startsWith('Roster projection')).map(row=>row.record_id)).toEqual([id]);expect((await inboxPage(db,f.manager,{view:'all'})).items.filter(row=>row.message==='Roster projection actual missing future shift')).toHaveLength(2);expect((await listStaffNotifications(db,f.claimant)).some(row=>row.record_type==='roster_coverage')).toBe(false);
+ const week=await createWeek(start);await addShift(week.id,[f.claimant,f.tie],start,'06:00','14:00');await publish(week.id);expect((await listStaffNotifications(db,f.manager)).some(row=>row.message==='Roster projection actual missing future shift')).toBe(false);expect((await inboxPage(db,f.manager,{view:'all'})).items.some(row=>row.message==='Roster projection actual missing future shift')).toBe(false);
 });

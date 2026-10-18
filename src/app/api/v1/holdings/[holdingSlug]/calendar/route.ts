@@ -1,9 +1,12 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import type { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
 import { calendarData, calendarCommand } from "@/server/modules/work_projection/public/calendar/index";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
+import { productHostForHost } from "@/lib/runtime/product-hosts";
+import { calendarProductActionAllowed } from "@/lib/runtime/product-api-policy";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export async function GET(request: Request, context: Context) {
@@ -11,13 +14,13 @@ export async function GET(request: Request, context: Context) {
     const actor = await requireWorkContext((await context.params).holdingSlug),
       { write } = await holdingResources(actor.holdingId);
     return Response.json(
-      {
+      canonicalDestinationLinks({
         data: await calendarData(
           write,
           actor,
           Object.fromEntries(new URL(request.url).searchParams),
         ),
-      },
+      }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -40,8 +43,7 @@ export async function POST(request: Request, context: Context) {
         "IDEMPOTENCY_KEY_REQUIRED",
         "Idempotency-Key is required.",
       );
-    const actor = await requireWorkContext((await context.params).holdingSlug),
-      { write } = await holdingResources(actor.holdingId);
+    const actor = await requireWorkContext((await context.params).holdingSlug);
     let input: unknown;
     try {
       input = await request.json();
@@ -52,6 +54,8 @@ export async function POST(request: Request, context: Context) {
         "Request body must be valid JSON.",
       );
     }
+    if (!calendarProductActionAllowed(productHostForHost(request.headers.get("host")), input && typeof input === "object" && "action" in input ? input.action : undefined))
+      throw new ApiError(404, "NOT_FOUND", "This Calendar action is unavailable on this product.");
     const resource = (await context.params).path?.[0];
     const prefix =
       resource === "appointments"
@@ -76,9 +80,10 @@ export async function POST(request: Request, context: Context) {
         "INVALID_CALENDAR_ACTION",
         "Use an action for this calendar resource.",
       );
-    return Response.json({
+    const { write } = await holdingResources(actor.holdingId);
+    return Response.json(canonicalDestinationLinks({
       data: await calendarCommand(write as PostgresDatabase, actor, input, key),
-    });
+    }));
   } catch (e) {
     return errorResponse(e);
   }

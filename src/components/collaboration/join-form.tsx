@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work_projection/work-fetch";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useState } from "react";
 export function JoinForm({ holding, token }: { holding: string; token: string }) {
   const router = useRouter();

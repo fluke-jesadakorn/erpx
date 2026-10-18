@@ -86,6 +86,7 @@ export interface OwnerCommands<Effect> {
     commit<Result>(actor: WorkContext, key: string, operation: string, input: unknown, id: string, version: number, result: Result, effects: Effect[], scope?: Pick<WorkContext, 'companyId' | 'branchId' | 'departmentId'>): Promise<Result>;
 }
 export interface ProjectStructurePorts<Effect> {
+    purchasedCostHistory?: boolean;
     repository: ProjectStructureRepository<Effect>;
     clock: Clock;
     commands: OwnerCommands<Effect>;
@@ -100,7 +101,7 @@ export function createProjectStructureApplication<Effect>(ports: ProjectStructur
     const r = ports.repository;
     function access(a: WorkContext, write = false) { ports.requirePermission(a, write ? 'records.write' : 'records.read'); if (!hasModuleAccess(a.modules, 'projects'))
         throw new BusinessRuleError(403, 'MODULE_FORBIDDEN', 'Your current role cannot access Projects.'); }
-    function costAccess(a: WorkContext, p: Project) { return hasPermission(a, 'finance.read') && (!a.branchId || a.branchId === p.branch_id) && (!a.departmentId || a.departmentId === p.department_id); }
+    function costAccess(a: WorkContext, p: Project) { return ports.purchasedCostHistory !== false && hasPermission(a, 'finance.read') && (!a.branchId || a.branchId === p.branch_id) && (!a.departmentId || a.departmentId === p.department_id); }
     async function project(a: WorkContext, projectId: string) {
         access(a);
         const current = await r.currentProjectAuthority(a.assignmentId, a.companyId, a.userId, a.role, ports.clock.now(), ports.clock.now());

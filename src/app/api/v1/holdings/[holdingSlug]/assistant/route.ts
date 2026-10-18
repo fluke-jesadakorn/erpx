@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { assistantAskSchema, assistantPageSchema } from "@/lib/work_projection/ai/workspace-assistant";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
@@ -13,7 +14,7 @@ export async function GET(request:Request,context:Context) {
   try {
     const actor=await requireWorkContext((await context.params).holdingSlug),{write}=await holdingResources(actor.holdingId);
     const input=assistantPageSchema.parse(Object.fromEntries(new URL(request.url).searchParams));
-    return Response.json({data:await assistantView(write,actor,await runtimeEnv(),input.path,input.mode)},{headers:{"Cache-Control":"private, no-store"}});
+    return Response.json(canonicalDestinationLinks({data:await assistantView(write,actor,await runtimeEnv(),input.path,input.mode)}),{headers:{"Cache-Control":"private, no-store"}});
   }catch(e){return errorResponse(e);}
 }
 export async function POST(request:Request,context:Context) {
@@ -28,6 +29,6 @@ export async function POST(request:Request,context:Context) {
     while(true){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>24000){await reader.cancel();throw new ApiError(413,"MESSAGE_TOO_LARGE","Shorten this message.");}body+=decoder.decode(part.value,{stream:true});}
     let raw:unknown;try{raw=JSON.parse(body+decoder.decode());}catch{throw new ApiError(422,"INVALID_JSON","Use valid JSON.");}
     const data=await askAssistant(write,actor,await runtimeEnv(),assistantAskSchema.parse(raw),key,isThaiHotelAiMockEnabled(actor.holdingSlug)?generateThaiHotelMockAi:undefined);
-    return Response.json({data},{headers:{"Cache-Control":"private, no-store"}});
+    return Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}});
   }catch(e){return errorResponse(e);}
 }

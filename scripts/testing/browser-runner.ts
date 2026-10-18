@@ -1,7 +1,7 @@
 import { chmod, copyFile, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { loadCatalogue, repositoryRoot, selectSuites, type Suite } from "./catalogue";
@@ -16,6 +16,9 @@ import { assignedBrowserShard, type BrowserShard, type BrowserInventoryCase, typ
 import { assertBrowserFaultProbeSelection, browserFaultProbeError, isBrowserFaultProbeCase, orderedBrowserExecutionCases, orderedBrowserExecutionGroups, parseBrowserCaseOrder, selectBrowserCaseOrder, triggerBrowserFaultProbe, type BrowserCaseOrder } from "./browser-execution-plan";
 import { assertRequiredCaseInventory, canonicalCaseFile, loadRequiredCases } from "./required-case-inventory";
 import { writeJsonOutput } from "./json-output";
+import {productIds} from "../../src/lib/commercial/product-registry";
+import { productHostBrowserFile, productHostProducts, productHostPlan, productHostBusinessWorkflowForCase, startProductHostEdge } from "./product-host-cohort";
+import {captureUiBrowserEvidence,verifyUiBrowserEvidence,type UiBrowserEvidenceWitness} from "./ui-evidence-witness";
 
 const root = repositoryRoot;
 const node = resolve(process.env.ERPX_NODE_BIN ?? join(root, ".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
@@ -32,6 +35,7 @@ async function execute(args: string[], env: Record<string, string | undefined>, 
   if (interrupted) throw new Error(`BROWSER_RUN_INTERRUPTED:${interrupted}`);
   const cohort = Boolean(env.ERPX_BROWSER_SIMULATION_RUN_ID || env.ERPX_BROWSER_SIMULATION_RUN || env.ERPX_DEMO_RUN);
   const environment = cohort ? browserChildEnvironment(process.env, { ...env, ERPX_NODE_BIN: node }) : { ...process.env, ...env, ERPX_NODE_BIN: node };
+  if(cohort)for(const key of ["ERPX_PRODUCT_HOST_LEASE","ERPX_PRODUCT_HOST_PLAN","ERPX_PRODUCT_HOST_PLAN_SHA256"])if(env[key]===undefined)delete environment[key];
   const bun = args[0] === process.execPath || args[0] === process.env.ERPX_BUN_BIN;
   const command = cohort && bun ? [args[0], "--env-file=/dev/null", ...args.slice(1)] : args;
   const handle = await import("node:fs/promises").then(fs => fs.open(log, "w", 0o600));
@@ -44,13 +48,13 @@ async function execute(args: string[], env: Record<string, string | undefined>, 
 }
 
 
-export type BrowserRunCaseReceipt = { suite: string; file?: string; project: "desktop" | "mobile"; title?: string; run?: string; report?: string; passed?: boolean; required?: false; reason?: string; faultProbe?: true; failure?: string; cleanup?: { completed: boolean; ownedDirectoryAbsent: boolean } };
+export type BrowserRunCaseReceipt = { suite: string; file?: string; project: "desktop" | "mobile"; title?: string; run?: string; report?: string; passed?: boolean; required?: false; reason?: string; faultProbe?: true; failure?: string; productHostLease?:{path:string;sha256:string}; cleanup?: { completed: boolean; ownedDirectoryAbsent: boolean }; uiEvidence?:UiBrowserEvidenceWitness };
 export type BrowserRunReceipt = { version: 1; passed: boolean; runtimeFingerprint: string; verificationFingerprint: string; shard: BrowserShard | null; interrupted: string | null; suites: string[]; cleanupFailures: string[]; inventory: BrowserInventoryCase[]; receipts: BrowserRunCaseReceipt[]; execution: { caseOrder: BrowserCaseOrder; mode: "acceptance" | "fault-probe"; faultProbe?: BrowserCaseIdentity } };
 export class BrowserFaultProbeError extends Error {
   constructor(readonly evidenceDirectory: string) { super(browserFaultProbeError); this.name = "BrowserFaultProbeError"; }
 }
 
-export async function runBrowserSuites(suites: Suite[], options: { projects?: ("desktop" | "mobile")[]; grep?: string; headed?: boolean; releaseDirectory?: string; shard?: BrowserShard; caseOrder?: BrowserCaseOrder; faultProbe?: BrowserCaseIdentity; investorCapture?: boolean; port?: 3102 | 3104; caseSelection?: { suite: string; title: string; project: "desktop" | "mobile" }[]; onInvestorEvidence?: (directory: string) => void } = {}) {
+export async function runBrowserSuites(suites: Suite[], options: { projects?: ("desktop" | "mobile")[]; grep?: string; headed?: boolean; releaseDirectory?: string; shard?: BrowserShard; caseOrder?: BrowserCaseOrder; faultProbe?: BrowserCaseIdentity; investorCapture?: boolean; port?: 3102 | 3104; caseSelection?: { suite: string; title: string; project: "desktop" | "mobile" }[]; onInvestorEvidence?: (directory: string) => void; productHostPlanPath?:string } = {}) {
   if (!suites.length || suites.some(suite => !["e2e", "journeys", "uat"].includes(suite.lane))) throw new Error("BROWSER_SUITES_REQUIRED");
   if (options.shard && (options.grep || options.projects)) throw new Error("SHARDED_BROWSER_FULL_INVENTORY_REQUIRED");
   const caseOrder = parseBrowserCaseOrder(options.caseOrder ?? "forward");
@@ -73,6 +77,13 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
   const templates = new Map<string, { run: string; env: Record<string, string>; output: string }>();
   const cleanupErrors: unknown[] = [];
   let releaseDirectory = options.releaseDirectory;
+  const productHostCases=suites.some(suite=>suite.files.includes(productHostBrowserFile));
+  const productArm=options.productHostPlanPath??process.env.ERPX_TEST_PRODUCT_HOST_PLAN;
+  if(productHostCases&&(!productArm||!releaseDirectory))throw Error("PRODUCT_HOST_MODE_REQUIRES_EXPLICIT_PLAN_AND_CURRENT_RELEASE");
+  const productPlan=productHostCases?await productHostPlan(root,productArm!,runtimeFingerprint,verificationFingerprint,releaseDirectory!):null;
+  if(productPlan&&JSON.stringify(productHostProducts)!==JSON.stringify(productIds))throw Error("PRODUCT_HOST_REGISTRY_CHANGED");
+  if(productPlan&&resolve(root,productPlan.plan.tools.node.path)!==node)throw Error("PRODUCT_HOST_PINNED_NODE_BINDING_REQUIRED");
+  if(productPlan&&resolve(root,productPlan.plan.tools.chromium.path)!==(await import("playwright")).chromium.executablePath())throw Error("PRODUCT_HOST_ORIGINAL_PLAYWRIGHT_EXECUTABLE_REQUIRED");
   let completed = false;
   const signal = (name: string) => { interrupted = name; for (const child of active) child.kill("SIGTERM"); };
   const onInt = () => signal("SIGINT"), onTerm = () => signal("SIGTERM");
@@ -129,13 +140,15 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
     if (interrupted && completed) throw new Error(`BROWSER_RUN_INTERRUPTED:${interrupted}`);
   }
 
-  async function cleanup(run: string, env: Record<string, string>, output: string) {
+  async function cleanup(run: string, env: Record<string, string>, output: string, uiEvidence?:UiBrowserEvidenceWitness) {
     if (!existsSync(join(root, ".runtime/browser", run, "state.json"))) return;
     let evidenceFailure: unknown;
     try {
+      if(uiEvidence)await verifyUiBrowserEvidence(root,uiEvidence,true);
       await retainBrowserFixtureEvidence(root, run, output);
       for (const name of ["server.log", "jobs.log", "state.json", "attachment-baseline.json", "attachment-baseline-error.log", "jobs-enrollment.json", "jobs-pause.json", "jobs-resume.json"]) {
         const path = join(root, ".runtime/browser", run, name);
+        if(name==="state.json"&&uiEvidence)continue; // Exact original state was retained and checked before teardown.
         if (existsSync(path)) { await copyFile(path, join(output, name)); await chmod(join(output, name), 0o600); }
       }
     }
@@ -147,14 +160,17 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
     }
     if (existsSync(join(root, ".runtime/browser", run))) throw new Error("BROWSER_COHORT_CLEANUP_INCOMPLETE");
     if (evidenceFailure) throw new Error("BROWSER_FIXTURE_EVIDENCE_RETENTION_FAILED", { cause: evidenceFailure });
+    if(uiEvidence)await verifyUiBrowserEvidence(root,uiEvidence);
   }
 
   async function cohort(suite: Suite, project: "desktop" | "mobile", wanted?: BrowserCase): Promise<BrowserCase[]> {
-    const run = randomBytes(6).toString("hex"), port = options.port ?? (suite.lane === "uat" || suite.fixture === "legal" || suite.fictionalProvider ? 3104 : 3102);
+    const productMode=suite.files.includes(productHostBrowserFile);
+    if(productMode&&(suite.files.length!==1||!productPlan))throw Error("EXACT_PRODUCT_HOST_SUITE_AND_ARM_REQUIRED");
+    const run = randomBytes(6).toString("hex"), port = productMode?3104:options.port ?? (suite.lane === "uat" || suite.fixture === "legal" || suite.fictionalProvider ? 3104 : 3102);
     const origin = `http://127.0.0.1:${port}`, output = join(evidence, run);
     await freePort(port); await mkdir(output, { mode: 0o700 });
     if (suite.fictionalProvider && (port !== 3104 || !releaseDirectory)) throw new Error('FICTIONAL_PROVIDER_COMPILED_3104_REQUIRED');
-    const verifyRelease = (suite.lane === "uat" || Boolean(suite.fictionalProvider)) && Boolean(releaseDirectory);
+    const verifyRelease = (productMode || suite.lane === "uat" || Boolean(suite.fictionalProvider)) && Boolean(releaseDirectory);
     // Global health requires the real worker, scanner and reconciled storage.
     // Capability-specific requirements remain explicit in the catalogue.
     const requirements = { jobs: true, scanner: true };
@@ -163,6 +179,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
       ERPX_BROWSER_SIMULATION_ATTACHMENTS: requirements.scanner ? "local" : "none", ERPX_BROWSER_SIMULATION_JOBS: requirements.jobs ? "1" : "0",
       ERPX_BROWSER_SIMULATION_LEGAL: suite.fixture === "legal" || suite.fixture === "uat" ? "1" : "0",
       ERPX_BROWSER_SIMULATION_MENU_IMAGES: options.investorCapture ? "1" : "0",
+      ...(productMode?{ERPX_BROWSER_SIMULATION_PRODUCT_HOSTS:"1",ERPX_PRODUCT_HOST_PLAN:productPlan!.binding.path,ERPX_PRODUCT_HOST_PLAN_SHA256:productPlan!.binding.sha256}:{}),
       ...(suite.fictionalProvider ? { ERPX_PMS_PROVIDER_FIXTURE: "1", ERPX_ENVIRONMENT: "local", ERPX_PUBLIC_ORIGIN: origin, ERPX_DATA_DIR: join(root, '.runtime/browser', run), POS_STRIPE_TEST_SECRET_KEY: 'sk_test_erpx_fictional_provider', POS_STRIPE_TEST_WEBHOOK_SECRET: 'whsec_erpx_fictional_provider' } : {}),
     };
     const simulation = (mode: string) => [process.execPath, "scripts/local/run-server-script.ts", "scripts/local/browser-simulation.ts", mode, run];
@@ -170,9 +187,10 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
     let failed = false;
     let caseReceipt: BrowserRunCaseReceipt | undefined;
     let faultTriggered = false;
+    let productEdge:Awaited<ReturnType<typeof startProductHostEdge>>|undefined;
     try {
       if (await runtimeSourceFingerprint(root) !== runtimeFingerprint || await verificationSourceFingerprint(root, runtimeFingerprint) !== verificationFingerprint) throw new Error("BROWSER_SOURCE_CHANGED");
-      const templateKey = JSON.stringify([suite.fixture, port, requirements, suite.fictionalProvider ?? null]);
+      const templateKey = JSON.stringify([suite.fixture, port, requirements, suite.fictionalProvider ?? null, ...(productMode?["product-hosts-v1"]:[])]);
       let template = templates.get(templateKey);
       if (!template) {
         const templateRun = randomBytes(6).toString("hex"), templateOutput = join(evidence, `template-${templateRun}`);
@@ -201,6 +219,10 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
         await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid)], env, join(output, "readiness.log"));
         Object.assign(testEnv, await prepareBrowserCasePrerequisites({ suite, wanted, run, directory: join(root, ".runtime/browser", run), releaseDirectory, evidenceDirectory: output, environment: testEnv, execute }));
         await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid)], env, join(output, "prerequisites-readiness.log"));
+        if(productMode){
+          productEdge=await startProductHostEdge(root,productPlan!,run,output,productHostBusinessWorkflowForCase(wanted.file,wanted.title));
+          Object.assign(testEnv,{ERPX_PRODUCT_HOST_LEASE:productEdge.path,NODE_EXTRA_CA_CERTS:productEdge.lease.ca.path});
+        }
         if (suite.lane === "uat") {
           const profiles = requiredUatAuthProfiles(suite, wanted);
           if (profiles.length) await execute([process.execPath, "scripts/testing/prepare-uat-auth.ts"], { ...testEnv, ERPX_UAT_AUTH_PROFILES: profiles.join(",") }, join(output, "auth.log"));
@@ -223,8 +245,10 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
       const result = JSON.parse(await readFile(report, "utf8"));
       if (wanted) {
         assertBrowserCasePassed(result, wanted);
+        if(productEdge)await productEdge.stable();
         if (await runtimeSourceFingerprint(root) !== runtimeFingerprint || await verificationSourceFingerprint(root, runtimeFingerprint) !== verificationFingerprint) throw new Error("BROWSER_SOURCE_CHANGED");
-        caseReceipt = { suite: suite.id, file: wanted.file, project, title: wanted.title, run, report, passed: true };
+        const uiEvidence=await captureUiBrowserEvidence({root,run,reportPath:report,report:result,runtimeFingerprint,verificationFingerprint,...(productEdge?{productHostLeasePath:productEdge.path}:{})});
+        caseReceipt = { suite: suite.id, file: wanted.file, project, title: wanted.title, run, report, passed: true, ...(productEdge?{productHostLease:uiEvidence?.productHostLease??{path:productEdge.path,sha256:createHash("sha256").update(await readFile(productEdge.path)).digest("hex")}}:{}),...(uiEvidence?{uiEvidence}:{}) };
         receipts.push(caseReceipt);
         console.log(JSON.stringify({ suite: suite.id, project, title: wanted.title, passed: true }));
         return [];
@@ -238,12 +262,14 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
       throw error;
     }
     finally {
+      let edgeFailed=false,edgeFailure:unknown;
+      if(productEdge){try{await productEdge.stable();}catch(error){edgeFailed=true;edgeFailure=error;}try{await productEdge.close();}catch(error){if(!edgeFailed){edgeFailed=true;edgeFailure=error;}}if(edgeFailed)cleanupErrors.push(edgeFailure);}
       // A preparation failure can leave owned databases; the known run identity
       // permits exact cleanup even before the launcher emitted its final JSON.
       if (existsSync(join(root, ".runtime/browser", run, "state.json"))) {
         const wasInterrupted = interrupted; interrupted = undefined;
         try {
-          await cleanup(run, env, output);
+          await cleanup(run, env, output,caseReceipt?.uiEvidence);
           if (caseReceipt) caseReceipt.cleanup = { completed: true, ownedDirectoryAbsent: !existsSync(join(root, ".runtime/browser", run)) };
         } catch (error) {
           if (caseReceipt) caseReceipt.cleanup = { completed: false, ownedDirectoryAbsent: !existsSync(join(root, ".runtime/browser", run)) };
@@ -253,6 +279,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
         }
         finally { interrupted = wasInterrupted; }
       }
+      if(edgeFailed&&!failed)throw edgeFailure;
     }
   }
 }
@@ -272,6 +299,7 @@ if (import.meta.main) {
     else if (arg === "--project" || arg.startsWith("--project=")) { const project = value("--project"); if (!["desktop", "mobile"].includes(project)) throw new Error("UNKNOWN_BROWSER_PROJECT"); options.projects = [project as "desktop" | "mobile"]; }
     else if (arg === "--grep" || arg.startsWith("--grep=")) options.grep = value("--grep");
     else if (arg === "--case-order" || arg.startsWith("--case-order=")) options.caseOrder = selectBrowserCaseOrder(options.caseOrder, value("--case-order"));
+    else if(arg==="--product-host-plan"||arg.startsWith("--product-host-plan="))options.productHostPlanPath=resolve(value("--product-host-plan"));
     else if (arg === "--release-dir" || arg.startsWith("--release-dir=")) options.releaseDirectory = resolve(value("--release-dir"));
     else if (arg.startsWith("tests/")) files.push(arg);
     else if (arg !== "--") throw new Error(`UNKNOWN_BROWSER_ARGUMENT:${arg}`);

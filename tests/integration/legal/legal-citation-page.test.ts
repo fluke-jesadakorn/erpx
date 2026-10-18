@@ -21,7 +21,7 @@ vi.mock("../../../src/server/modules/runtime/adapters/runtime", async original =
 // The request boundary is the isolated fixture. Native page loading and all
 // Legal source revision/date/member/Company guards remain real.
 vi.mock("../../../src/server/modules/work_projection/public/page-error", () => ({ pageError: async (error: unknown) => { throw error; } }));
-import CitationPage from "../../../src/app/holdings/[holdingSlug]/legal/citations/[id]/page";
+import CitationPage from "../../../src/app/holdings/[holdingSlug]/_presenters/legal/citations/[id]/screen";
 
 const db = env.H001_DB, key = () => crypto.randomUUID(), text = "ข้อความอ้างอิงสมมติสำหรับการทดสอบ ไม่ใช่กฎหมายหรือคำแนะนำจริง";
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;

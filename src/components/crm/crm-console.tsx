@@ -1,63 +1,35 @@
 "use client";
-import { HubForm } from "@/components/sales/customers/hub-form";
-import { InlineNotice } from "@/components/ui/foundation";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import {CRMEditor as HubForm,CRMForm as FormLayout,CRMDraftBoundary,CRMCommandState,CRMCommandFeedback,useCRMSnapshot} from "./draft-boundary";
+import {useCRMCommand} from "./use-crm-command";
+import {crmCommandAllowed} from "@/lib/crm/purchase-controls";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "@/lib/shared/destination-router";
 import { hubResultHref } from "@/lib/shared/hub-result";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { crmDetail, crmWorkspace } from "@/server/modules/crm/public/crm";
 import type { crmIdentities } from "@/server/modules/crm/public/crm-identities";
-import { Card, FormLayout } from "@/components/ui/foundation";
+import { Card } from "@/components/ui/foundation";
 export function CRMConsole({
   base,
-  data,
-  identityData,
-  detail,
+  data: currentData,
+  identityData: currentIdentityData,
+  detail: currentDetail,
+  inlineCapture=false,
 }: {
   base: string;
+  inlineCapture?: boolean;
   data?: Awaited<ReturnType<typeof crmWorkspace>>;
   identityData?: Awaited<ReturnType<typeof crmIdentities>>;
   detail?: Awaited<ReturnType<typeof crmDetail>>;
 }) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [selectedAccount, setSelectedAccount] = useState(""),
-    last = useRef<{ fingerprint: string; key: string } | null>(null),
-    r = detail?.row;
-  async function send(input: unknown) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const fingerprint = JSON.stringify(input);
-    if (last.current?.fingerprint !== fingerprint)
-      last.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/crm`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body: JSON.stringify(input),
-        }),
-        result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(result.error?.message ?? "Unable to save CRM action.");
-      }
-      last.current = null;
-      window.dispatchEvent(new Event("erpx:hub-saved"));
-      window.dispatchEvent(new Event("erpx:record-saved"));
-      if (!(input && typeof input === "object" && "domain" in input && input.domain === "identity"))
-        router.push(hubResultHref(window.location.href, base, `${base}/crm/${result.data.id}`) ?? `${base}/crm/${result.data.id}`, { scroll: false });
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry the same command.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const {snapshot,rootProps}=useCRMSnapshot({data:currentData,identityData:currentIdentityData,detail:currentDetail}),{data,identityData,detail}=snapshot;
+  const router=useRouter(),[selectedAccount,setSelectedAccount]=useState(''),r=detail?.row,purchase=currentData?.purchase??currentDetail?.purchase,references=currentData?.referencePurchases??currentDetail?.referencePurchases;
+  const active=purchase?.newWork!==false,settle=purchase?.settleExisting!==false,hotelActive=active&&references?.hotel.newWork!==false,hotelSettle=settle&&references?.hotel.settleExisting!==false;
+  const sourceVersion=JSON.stringify([currentDetail?.row.version,currentDetail?.row.opportunity_version,currentDetail?.quotes.map(row=>[row.id,row.version]),currentDetail?.sales.map(row=>[row.id,row.version]),currentIdentityData?.accounts.map(row=>[row.id,row.version]),currentIdentityData?.contacts.map(row=>[row.id,row.version]),currentData?.campaigns.map(row=>row.id)]);
+  const command=useCRMCommand(base,'crm',input=>{const body=input as Record<string,unknown>,role=body.domain==='identity'?currentDetail?.canManage:!body.id?currentData?.canCreate:['reassign','reopen'].includes(String(body.action))?currentDetail?.canManage:currentDetail?.canAct;return role!==false&&crmCommandAllowed(purchase,input,references);},(receipt,input)=>{if(input.domain!=='identity'){const destination=canonicalUiHref(`${base}/crm/${receipt.id}`);router.push(hubResultHref(window.location.href,base,destination)??destination,{scroll:false});}}),{send,busy}=command;
   const reason = (
       <Field appearance="standard">
         Evidence and reason
@@ -65,7 +37,7 @@ export function CRMConsole({
       </Field>
     ),
     button = (label: string) => (
-      <Button appearance="standard" type="submit" variant="primary" disabled={busy}>
+      <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy}>
         {label}
       </Button>
     ),
@@ -82,12 +54,12 @@ export function CRMConsole({
       leadVersion: Number(r!.version),
     });
   return (
-    <>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+    <CRMCommandState {...command}><CRMDraftBoundary><div {...rootProps}>
+      <CRMCommandFeedback/>
       {data?.canCreate && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Capture lead</h2>
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={active&&currentData?.canCreate!==false} inline={inlineCapture}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -194,7 +166,7 @@ export function CRMConsole({
       {r && detail?.canAct && r.status === "open" && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Qualify customer needs</h2>
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={active&&currentDetail?.canAct!==false}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -236,7 +208,7 @@ export function CRMConsole({
             {reason}
             {button("Qualify and create opportunity")}
           </FormLayout>
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={settle&&currentDetail?.canAct!==false}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -251,7 +223,7 @@ export function CRMConsole({
       {r && detail?.canManage && r.stage !== "won" && r.status !== "disqualified" && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Change responsibility</h2>
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={settle&&currentDetail?.canManage!==false}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -280,7 +252,7 @@ export function CRMConsole({
         </Card>
       )}
       {r && detail?.canManage && r.status === "disqualified" && (
-        <FormLayout
+        <FormLayout sourceVersion={sourceVersion} allowed={active&&currentDetail?.canManage!==false}
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -302,7 +274,7 @@ export function CRMConsole({
               Prepare the quotation in Sales for this customer and branch. Another manager must
               approve it before linking it here.
             </p>
-            <FormLayout
+            <FormLayout sourceVersion={sourceVersion} allowed={settle&&currentDetail?.canAct!==false}
               className="ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -331,7 +303,7 @@ export function CRMConsole({
               {button("Link approved quotation")}
             </FormLayout>
             {r.quote_id && (
-              <FormLayout
+              <FormLayout sourceVersion={sourceVersion} allowed={settle&&currentDetail?.canAct!==false}
                 className="ui-form-grid"
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -342,7 +314,7 @@ export function CRMConsole({
                 {button("Record negotiation")}
               </FormLayout>
             )}
-            <FormLayout
+            <FormLayout sourceVersion={sourceVersion} allowed={settle&&currentDetail?.canAct!==false}
               className="ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -370,7 +342,7 @@ export function CRMConsole({
               {reason}
               {button("Record won opportunity")}
             </FormLayout>
-            <FormLayout
+            <FormLayout sourceVersion={sourceVersion} allowed={settle&&currentDetail?.canAct!==false}
               className="ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -395,7 +367,7 @@ export function CRMConsole({
           </Card>
         )}
       {r && detail?.canManage && r.contact_id && detail.guestCandidates.length > 0 && (
-        <HubForm title="Review PMS guest link" label="Review PMS guest link" primary={false}><FormLayout
+        <HubForm disabled={!hotelActive} title="Review PMS guest link" label="Review PMS guest link" primary={false}><FormLayout sourceVersion={sourceVersion} allowed={hotelActive&&currentDetail?.canManage!==false}
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -438,7 +410,7 @@ export function CRMConsole({
         r.opportunity_id &&
         ["discovery", "proposal", "negotiation"].includes(String(r.stage)) &&
         detail.reservations.some((x) => x.state === "confirmed") && (
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={hotelSettle&&currentDetail?.canAct!==false}
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -471,7 +443,7 @@ export function CRMConsole({
           </FormLayout>
         )}
       {r && detail?.canManage && r.stage === "lost" && (
-        <FormLayout
+        <FormLayout sourceVersion={sourceVersion} allowed={active&&currentDetail?.canManage!==false}
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -486,6 +458,6 @@ export function CRMConsole({
           {button("Reopen opportunity")}
         </FormLayout>
       )}
-    </>
+    </div></CRMDraftBoundary></CRMCommandState>
   );
 }

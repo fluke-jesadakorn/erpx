@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { SetupChecklist } from "@/components/ui/setup-checklist";
 import { FrontLocalizedTree } from "@/components/front/front-language";
 import type {BackofficePosConsoleContext} from "./pos-backoffice-console";
@@ -14,7 +15,7 @@ export function BackofficePosConsoleReadinessScreen({context}: {context: Backoff
                       label: tr("Accounting and sales setup"),
                       ready: !!data.settings?.enabled,
                       owner: tr("POS administrator / Finance"),
-                      href: `${erpBase}/pos?tab=settings`,
+                      href: canonicalUiHref(`${erpBase}/pos?tab=settings`),
                       detail: data.settings?.enabled
                         ? tr("Configuration enabled")
                         : tr("Complete setup and enable sales"),
@@ -24,7 +25,7 @@ export function BackofficePosConsoleReadinessScreen({context}: {context: Backoff
                       label: tr("Active register"),
                       ready: !!register?.active,
                       owner: tr("POS administrator"),
-                      href: `${erpBase}/pos?tab=settings`,
+                      href: canonicalUiHref(`${erpBase}/pos?tab=settings`),
                     },
                     {
                       id: "shift",
@@ -43,7 +44,7 @@ export function BackofficePosConsoleReadinessScreen({context}: {context: Backoff
                             label: tr("Products in Commerce"),
                             ready: data.products.length > 0,
                             owner: "Commerce",
-                            href: `${erpBase}/commerce`,
+                            href: canonicalUiHref(`${erpBase}/commerce`),
                             detail: data.products.length
                               ? `${data.products.length} ${tr("active products available")}`
                               : tr("Add at least one product before the first sale"),

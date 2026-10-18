@@ -1,0 +1,11 @@
+.workspace { display:grid; gap:24px; min-inline-size:0; color:var(--ui-ink); }
+.workspace :is(h2,h3,p) { margin-block:0; }
+.steps { display:flex; flex-wrap:wrap; gap:16px; padding:0; list-style:none; color:var(--ui-muted); }
+.steps [aria-current="step"] { color:var(--ui-ink); font-weight:600; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:16px; min-inline-size:0; }
+.hotel { display:grid; gap:16px; min-inline-size:0; }
+.offer { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:24px; padding-block:16px; border-block-end:1px solid var(--ui-line); min-inline-size:0; }
+.offer > div { display:grid; gap:8px; flex:1 1 240px; min-inline-size:0; overflow-wrap:anywhere; }
+.offer > div:last-child { flex:0 1 240px; }
+.offer strong { font-size:20px; }
+@media(max-width:650px) { .workspace { gap:16px; } .offer > div:last-child { flex-basis:100%; } }

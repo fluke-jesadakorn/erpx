@@ -1,11 +1,12 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Table, TableFrame, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { LedgerRow } from "@/server/modules/finance/public/ledger";
@@ -49,7 +50,7 @@ export function JournalBatchReview({
     setError("");
     try {
       const response = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/journals/batch-post`,
+        `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/journals/batch-post`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
@@ -114,7 +115,7 @@ export function JournalBatchReview({
                   />
                 </td>
                 <td>
-                  <RecordLink href={`${base}/finance/journals/${encodeURIComponent(String(j.id))}`}>{String(j.journal_number)}</RecordLink>
+                  <RecordLink href={canonicalUiHref(`${base}/finance/journals/${encodeURIComponent(String(j.id))}`)}>{String(j.journal_number)}</RecordLink>
                 </td>
                 <td>{String(j.entry_date)}</td>
                 <td>

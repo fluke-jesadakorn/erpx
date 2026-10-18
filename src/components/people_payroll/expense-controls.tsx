@@ -1,4 +1,7 @@
 "use client";
+import {useExpensePurchase} from "./expense-purchase-context";
+import {expenseActionAllowed,expenseCommandPurpose} from "@/lib/people_payroll/expense-purchases";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
@@ -6,14 +9,15 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { ReviewDecisionForm } from "@/components/workplace/review-decision";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import Image from "next/image";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useLayoutEffect, useRef, useState } from "react";
+import { useRouter } from "@/lib/shared/destination-router";
 import type { ExpenseRow as Row } from "@/server/modules/people_payroll/expense";
 import { createReceiptUploader, validateReceipt } from "@/lib/people_payroll/expense-upload";
 import styles from "@/components/people_payroll/expense.module.css";
 import { Card, FormGrid } from "@/components/ui/foundation";
 export { ExpenseEditor } from "@/components/people_payroll/expense-editor";
 export function useExpenseCommand(base: string) {
+  const purchase=useExpensePurchase(),currentPurchase=useRef(purchase);useLayoutEffect(()=>{currentPurchase.current=purchase;},[purchase]);
   const router = useRouter(),
     last = useRef<{ body: string; key: string } | null>(null);
   const [pending, setPending] = useState(false),
@@ -21,6 +25,8 @@ export function useExpenseCommand(base: string) {
   async function send(path: string, input: unknown, create = false) {
     const body = JSON.stringify(input),
       fingerprint = path + body;
+    const retry=last.current?.body===fingerprint,contextKey=purchase?.contextKey;
+    if(!expenseActionAllowed(purchase,retry?"history":expenseCommandPurpose(path))){setError("The current Expense purchase does not permit this action.");return false;}
     if (last.current?.body !== fingerprint)
       last.current = { body: fingerprint, key: crypto.randomUUID() };
     setPending(true);
@@ -39,8 +45,9 @@ export function useExpenseCommand(base: string) {
         error?: { message: string };
       };
       if (!r.ok) throw new Error(v.error?.message ?? "Unable to save claim.");
+      if(currentPurchase.current?.contextKey!==contextKey||!expenseActionAllowed(currentPurchase.current,"history"))throw new Error("The Expense context changed. Keep the original request for an authorized retry.");
       last.current = null;
-      if (create) router.push(`${base}/expenses/${v.data.id}`);
+      if (create) router.push(canonicalUiHref(`${base}/expenses/${v.data.id}`));
       router.refresh();
       return true;
     } catch (e) {
@@ -50,7 +57,7 @@ export function useExpenseCommand(base: string) {
       setPending(false);
     }
   }
-  return { send, pending, error };
+  return { send, pending, error, canNewWork:expenseActionAllowed(purchase,"new-work"),canSettle:expenseActionAllowed(purchase,"settle-existing") };
 }
 export function ExpenseActions({
   base,

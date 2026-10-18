@@ -34,6 +34,15 @@ export type SupportContextRow = Row & {
     due_date: string;
     currency_code: string;
 };
-export function supportSessionProjection(a: WorkContext, rows: SupportSession[], now: () => number) { return rows.map(r => ({ ...r, effective_status: r.status === 'approved' && Number(r.expires_at) <= now() ? 'expired' : r.status, canReview: r.status === 'pending' && r.created_by !== a.userId && r.requested_for !== a.userId && Number(r.can_review) > 0 && hasPermission(a, 'support.manage'), canManage: r.status === 'approved' && Number(r.expires_at) > now() && Number(r.can_review) > 0 && hasPermission(a, 'support.manage') })); }
+export function supportSessionProjection(a: WorkContext, rows: SupportSession[], now: () => number) {
+    const instant = now();
+    return rows.map(r => {
+        const expired = Number(r.expires_at) <= instant, eligible = Number(r.can_review) > 0 && hasPermission(a, 'support.manage');
+        const canReview = r.status === 'pending' && !expired && r.created_by !== a.userId && r.requested_for !== a.userId && eligible;
+        const canManage = r.status === 'approved' && !expired && eligible;
+        return { ...r, effective_status: ['pending', 'approved'].includes(r.status) && expired ? 'expired' : r.status,
+            canReview, canManage, canApprove: canReview, canIssueCapability: canManage };
+    });
+}
 export type SupportSessionView = ReturnType<typeof supportSessionProjection>[number];
 export function supportSessionWorkItems(a: WorkContext, rows: SupportSessionView[]): WorkItem[] { return rows.map(r => { const pending = r.status === 'pending', active = r.effective_status === 'approved', canAct = pending ? Boolean(r.canReview) : active ? Boolean(r.canManage) : false; return { id: String(r.id), type: 'support_session', actionKind: pending && canAct ? 'approval' : 'work', title: `Temporary support access · ${r.title}`, detail: `${r.requested_for_name ?? r.requested_for} · expires ${new Date(Number(r.expires_at)).toISOString()}`, href: `/support/sessions/${encodeURIComponent(String(r.id))}`, status: String(r.effective_status), updatedAt: Number(r.updated_at), dueAt: Number(r.expires_at), queue: ['rejected', 'revoked', 'expired'].includes(String(r.effective_status)) ? 'completed' : canAct ? 'todo' : 'waiting', canAct, responsibleQueue: pending ? 'Independent Support manager' : 'Support manager', nextAction: pending ? 'Review requested customer access' : 'Issue or revoke an explicit capability', blocker: Number(r.target_eligible) ? null : 'Requested support colleague is no longer eligible; revoke this session', relationships: [r.created_by === a.userId ? 'requested' : r.requested_for === a.userId ? 'assigned' : canAct ? 'approval' : 'team'] }; }); }

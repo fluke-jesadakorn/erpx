@@ -1,0 +1,5 @@
+import {technologyContext} from '@/app/holdings/[holdingSlug]/administration/technology/_context';
+import {TechnologySectionWorkspace} from '@/components/identity_access/technology/section-workspace';
+import {PageHeader} from '@/components/ui/primitives';
+import {IamConsole} from '@/components/iam/sections/connections';
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){const {local,actor,queries,base}=await technologyContext((await params).holdingSlug,'directory'),query=await searchParams;const data=await queries.iamOverview(actor,false);return <div className="content-stack" data-source="live"><PageHeader appearance="standard" eyebrow="Technology" title="Directory" description="Choose a section, inspect records and review changes."/><TechnologySectionWorkspace base={base} view="directory" section="connections" title="Directory"><IamConsole embedded presentation="workspace" data={data} base={base} api={`/api/v1${base}/iam`} section="connections"/></TechnologySectionWorkspace></div>;}

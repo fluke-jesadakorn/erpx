@@ -184,3 +184,47 @@ it("retains a specifically requested healthy routing record instead of requiring
   expect(detail).toHaveBeenNthCalledWith(1, "selected-service"); expect(detail).toHaveBeenNthCalledWith(2, "selected-service");
   expect(issues?.[0].request).toBe(request); expect(issues?.[0].route).toBeNull();
 });
+it('loads only the exact included conversation and minimal command context without Social discovery or Work snapshots',async()=>{
+ const post=only<Awaited<ReturnType<SocialPagePorts['post']>>>({id:'actual-included-post'}),audience=vi.fn<SocialPagePorts['audience']>(),moderate=vi.fn<SocialPagePorts['moderate']>(),feed=vi.fn<SocialPagePorts['feed']>(),seed=vi.fn<SocialPagePorts['seed']>(),presentation=vi.fn<NonNullable<SocialPagePorts['presentation']>>();
+ const result=await createSocialPageQuery({prepare:async()=>{},post:async id=>{expect(id).toBe(post.id);return post;},audience,moderate,feed,seed,presentation})({beta:false},{postId:post.id,sourceOnly:true});expect(result.posts).toHaveLength(1);expect(result.posts[0]).toBe(post);expect(result.options).toEqual({branches:[],audiences:[],projects:[]});expect(result.moderate).toBe(false);expect(result.initialDay).toBeUndefined();for(const read of [audience,moderate,feed,seed])expect(read).not.toHaveBeenCalled();expect(presentation).toHaveBeenCalledOnce();
+});
+
+
+import {readFileSync as frontRoleRead} from 'node:fs';
+import {resolve as frontRoleResolve} from 'node:path';
+import {createRequire as frontRoleRequire} from 'node:module';
+import {errorResponse as frontRoleErrorResponse} from '../../../src/server/modules/runtime/public/http';
+import {canonicalDestinationLinks as frontRoleLinks} from '../../../src/lib/work_projection/destination-links';
+type FrontRoleGet=(request:Request,context:{params:Promise<{holdingSlug:string;companySlug:string;app:string;path:string[]}>})=>Promise<Response>;
+function actualFrontRoleGet(service:ReturnType<typeof front>){
+ const require=frontRoleRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=frontRoleRead(frontRoleResolve('src/app/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts'),'utf8'),tree=ts.createSourceFile('actual-front-route.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),declarations:import('typescript').FunctionDeclaration[]=[];ts.forEachChild(tree,node=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='GET')declarations.push(node);});expect(declarations).toHaveLength(1);const declaration=declarations[0];if(!declaration)throw Error('Actual Front GET missing');
+ const code=ts.transpileModule(declaration.getText(tree).replace(/^export\s+/,''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
+ const load=new Function('ports',`const {frontCompanyBrand,ensureFrontRole,ApiError,errorResponse,canonicalDestinationLinks,frontPmsAttachmentPaths}=ports;\n${code}\nreturn GET;`) as (ports:Record<string,unknown>)=>FrontRoleGet;
+ // Only the exact roles branch is exercised. Real Front application authority,
+ // canonical JSON and error adapters run; no other owner API is substituted.
+ return load({frontCompanyBrand:async()=>({companyId:'company'}),ensureFrontRole:service.ensureFrontRole,ApiError,errorResponse:frontRoleErrorResponse,canonicalDestinationLinks:frontRoleLinks,frontPmsAttachmentPaths:new Set<string>()});
+}
+it.each(['pos','pms'] as const)('returns public current-user metadata from the original %s role owner without an IAM/session snapshot',async app=>{
+ const accountAccess=vi.fn<FrontPorts['accountAccess']>(async()=>access),roles=vi.fn<FrontPorts['roles']>(async()=>new Map([['owner',{permissions:['pos.read','pms.read']}]])),service=front({accountAccess,roles}),get=actualFrontRoleGet(service),response=await get(new Request(`https://${app}-dev-erpx.jesadakorn.com/api/v1/front/acme/hotel/${app}/roles`,{headers:{'x-erpx-front-location':'holding'}}),{params:Promise.resolve({holdingSlug:'acme',companySlug:'hotel',app,path:['roles']})});
+ expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toBe('private, no-store');const body=await response.json();expect(body).toEqual({data:{valid:true,userId:access.userId,revision:selection.revision,assignmentId:selection.assignment_id,companyId:'company'}});expect(Object.keys(body.data).sort()).toEqual(['assignmentId','companyId','revision','userId','valid']);expect(JSON.stringify(body)).not.toContain('session');expect(accountAccess).toHaveBeenCalledExactlyOnceWith({kind:'holding',holdingSlug:'acme'});expect(roles).toHaveBeenCalledExactlyOnceWith('company',access.assignments.map(row=>row.role));
+});
+it.each(['revoked-session','revoked-role'] as const)('keeps the actual Front %s refusal before returning role identity metadata',async kind=>{
+ const roles=vi.fn<FrontPorts['roles']>(async()=>new Map()),accountAccess=vi.fn<FrontPorts['accountAccess']>(async()=>{if(kind==='revoked-session')throw error(401,'SESSION_REVOKED','Current session is revoked.');return access;}),get=actualFrontRoleGet(front({accountAccess,roles})),response=await get(new Request('https://pos-dev-erpx.jesadakorn.com/api/v1/front/acme/hotel/pos/roles'),{params:Promise.resolve({holdingSlug:'acme',companySlug:'hotel',app:'pos',path:['roles']})}),body=await response.json();
+ expect(response.status).toBe(kind==='revoked-session'?401:403);expect(body.error.code).toBe(kind==='revoked-session'?'SESSION_REVOKED':'FRONT_ACCESS_DENIED');expect(body.data).toBeUndefined();expect(accountAccess).toHaveBeenCalledExactlyOnceWith({kind:'holding',holdingSlug:'acme'});if(kind==='revoked-session')expect(roles).not.toHaveBeenCalled();
+});
+
+
+it("timestamps the named Front role snapshot before current authority without repeating the native read", async () => {
+ const order:string[]=[];
+ let now=1000;
+ const accountAccess=vi.fn<FrontPorts['accountAccess']>(async()=>{order.push('authority');now=1100;return access;}),roles=vi.fn<FrontPorts['roles']>(async()=>new Map([['owner',{permissions:['pos.read']}]])),select=vi.fn<FrontPorts['select']>();
+ const result=await front({now:()=>{order.push('clock');return now;},accountAccess,roles,select}).ensureFrontRoleSnapshot('acme','company','pos','holding');
+ expect(result.checkedAt).toBe(1000);expect(result.access).toBe(access);expect(result.selection).toBe(selection);expect(result.selected?.id).toBe(assignment.id);expect(result.options).toEqual([assignment]);
+ expect(order[0]).toBe('clock');expect(order.indexOf('authority')).toBeGreaterThan(0);expect(accountAccess).toHaveBeenCalledExactlyOnceWith({kind:'holding',holdingSlug:'acme'});expect(roles).toHaveBeenCalledExactlyOnceWith('company',['owner']);expect(select).not.toHaveBeenCalled();
+});
+it.each(['revoked-session','role-unavailable','company-mismatch'] as const)("retains the original %s refusal through the named Front role snapshot",async kind=>{
+ const failure=error(401,'SESSION_REVOKED','Current session is revoked.'),accountAccess=vi.fn<FrontPorts['accountAccess']>(async()=>{if(kind==='revoked-session')throw failure;return kind==='company-mismatch'?{...access,scope:{...access.scope,companyId:'other'}}:access;}),roles=vi.fn<FrontPorts['roles']>(async()=>kind==='role-unavailable'?new Map():new Map([['owner',{permissions:['pos.read']}]]));
+ const result=front({accountAccess,roles}).ensureFrontRoleSnapshot('acme','company','pos','holding');
+ if(kind==='revoked-session')await expect(result).rejects.toBe(failure);else await expect(result).rejects.toMatchObject({code:kind==='company-mismatch'?'FRONT_NOT_FOUND':'FRONT_ACCESS_DENIED'});
+ expect(accountAccess).toHaveBeenCalledTimes(1);if(kind==='revoked-session'||kind==='company-mismatch')expect(roles).not.toHaveBeenCalled();
+});

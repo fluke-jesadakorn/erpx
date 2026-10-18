@@ -68,7 +68,7 @@ export async function iamRoles(db: SqlDatabase, companyId: string, ids: readonly
             });
     return roles;
 }
-export async function loadIamAuthority(db: SqlDatabase, companyId: string, userId: string, roleId: string, sessionId?: string): Promise<NonNullable<PermissionActor['iam']>> {
+export async function readIamAuthorityFacts(db: SqlDatabase, companyId: string, userId: string, roleId: string, sessionId?: string) {
     db = iamDb(db);
     // One authoritative snapshot per invocation, never reused across requests or transactions.
     // Keep policy decisions in the application service and mutation guards in the write transaction.
@@ -130,6 +130,10 @@ export async function loadIamAuthority(db: SqlDatabase, companyId: string, userI
         emergency: decode<{ expires_at: number } | null>(row.emergency),
         hr_appointment: decode<{ version: number } | null>(row.hr_appointment),
     };
+    return facts;
+}
+export async function loadIamAuthority(db: SqlDatabase, companyId: string, userId: string, roleId: string, sessionId?: string): Promise<NonNullable<PermissionActor['iam']>> {
+    const facts = await readIamAuthorityFacts(db, companyId, userId, roleId, sessionId);
     return createIamAuthority({
         role: async () => facts.role,
         member: async () => facts.member,

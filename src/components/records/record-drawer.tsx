@@ -4,7 +4,8 @@ import { WorkspaceDetail } from "@/components/ui/workspace";
 import { useWorkspaceOverlay } from "@/components/ui/workspace-overlay";
 import { useRecordWorkspace } from "./record-workspace";
 import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { EmbeddedRecord } from "./record-context";
@@ -14,7 +15,7 @@ import "./record-drawer.css";
 
 let originTrigger:HTMLElement|null=null;
 type HistoryNavigationEvent=Event & {navigationType?:string;destination?:{url:string}};
-export function RecordDrawer({ title, fullHref, children }: { title: string; fullHref: string; children: ReactNode }) {
+export function RecordDrawer({ title, fullHref, closeHref, children }: { title: string; fullHref: string; closeHref?:string; children: ReactNode }) {
   const router = useRouter(), query = useSearchParams();
   const {host}=useRecordWorkspace(), {editors}=useWorkspaceOverlay();
   const [contentNode, setContentNode] = useState<HTMLDivElement | null>(null), [stale, setStale] = useState(false);
@@ -33,7 +34,7 @@ export function RecordDrawer({ title, fullHref, children }: { title: string; ful
     if (dirty) { destination.current = url; setConfirming(true); }
     else router.push(url, { scroll: false });
   }
-  function close() { navigate(withoutRecordDrawer(window.location.href)); }
+  function close() { navigate(closeHref??withoutRecordDrawer(window.location.href)); }
   useEffect(() => {
     latestUrl.current = window.location.href;
     const candidate=document.querySelector<HTMLElement>('[data-record-trigger="true"]');
@@ -41,7 +42,7 @@ export function RecordDrawer({ title, fullHref, children }: { title: string; ful
     if(candidate&&!candidate.closest('[data-record-drawer-content]'))originTrigger=candidate;
     trigger.current=originTrigger?.isConnected?originTrigger:candidate;
     return () => { requestAnimationFrame(() => {
-      if(!new URLSearchParams(window.location.search).has('detailKind'))focusTarget()?.focus({preventScroll:true});
+      if(!document.querySelector('[data-record-drawer-content]'))focusTarget()?.focus({preventScroll:true});
     }); };
   }, []);
   useEffect(() => { latestUrl.current = window.location.href; latestHistoryState.current=window.history.state; }, [query]);
@@ -54,12 +55,21 @@ export function RecordDrawer({ title, fullHref, children }: { title: string; ful
     function edited(event: Event) {
       if(event.target instanceof Element&&!event.target.matches('input[type="search"]')){
         const form=event.target.closest('form, [contenteditable="true"]');
-        if(form){editedForms.current.add(form);updateDirty();}
+        if(form){
+          if(form.matches('form'))form.setAttribute('data-erpx-edit-version',crypto.randomUUID());
+          editedForms.current.add(form);updateDirty();
+        }
       }
     }
     function saved(event:Event) {
-      const detail=(event as CustomEvent<{form?:Element|null;root?:Element|null}>).detail;
-      for(const form of editedForms.current)if(form===detail?.form||detail?.root?.contains(form))editedForms.current.delete(form);
+      const detail=(event as CustomEvent<{form?:Element|null;formEditVersion?:string|null;root?:Element|null}>).detail;
+      for(const form of editedForms.current){
+        if(event.type==='erpx:record-command-saved'){
+          // A saved original command cannot mark newer local fields clean.
+          // Tracked form edits receive a stamp even without an owner adapter.
+          if(form===detail?.form&&typeof detail.formEditVersion==='string'&&detail.formEditVersion!==''&&form.getAttribute('data-erpx-edit-version')===detail.formEditVersion)editedForms.current.delete(form);
+        }else if(form===detail?.form||detail?.root?.contains(form))editedForms.current.delete(form);
+      }
       updateDirty();
     }
     function requested(event: Event) {
@@ -114,7 +124,7 @@ export function RecordDrawer({ title, fullHref, children }: { title: string; ful
     return () => observer.disconnect();
   }, []);
   const body=<>
-    <div className="record-drawer-toolbar"><a href={fullHref} onClick={event => { if (dirty && !event.metaKey && !event.ctrlKey) { event.preventDefault(); destination.current = fullHref; setConfirming(true); } }}>Open full page ↗</a><span role="status">{dirty ? "Unsaved changes" : ""}</span></div>
+    <div className="record-drawer-toolbar"><a href={fullHref} target="_blank" rel="noopener">Open in new tab ↗</a><span role="status">{dirty ? "Unsaved changes" : ""}</span></div>
     {stale && <p role="alert">Your work role changed. Reload this page to review access to the record.</p>}
     <div ref={setContentNode} hidden={stale} inert={stale} data-record-drawer-content data-record-dirty={dirty}>
       <EmbeddedRecord value={true}><Suspense fallback={<p role="status">Loading record details…</p>}>{children}</Suspense></EmbeddedRecord>

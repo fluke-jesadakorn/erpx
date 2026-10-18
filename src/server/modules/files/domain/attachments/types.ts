@@ -99,7 +99,7 @@ export type AttachmentTargetScope = {
   editable: boolean;
 };
 
-export type AttachmentOperation = "read" | "write" | "bind" | "publish";
+export type AttachmentOperation = "read" | "write" | "bind" | "publish" | "withdraw" | "revoke" | "revoke-history";
 
 export type AttachmentPolicy = {
   targetType: string;

@@ -1,3 +1,6 @@
+import {supplierBillOwnerPredicate} from "./bill-source-sql";
+import {withSupplierBillPurchasedRead,withSupplierBillPurchasedCommand,supplierBillPurchaseAccess} from "./bill-purchases";
+import {supplierBillDecisionSchema} from "../domain/supplier-bills";
 import { platformOwnerProjectionSources as commercePlatformSources } from "../../commerce/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as financePlatformSources } from "../../finance/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "../../identity_access/public/platform-owner-projection-sources";
@@ -54,7 +57,7 @@ function application(actor:WorkContext,provided?:SqlDatabase){
     FROM procurement_bill_matches m
     JOIN (${financePlatformSources.finance_parties}) p ON p.id=m.supplier_id
     JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=m.order_id
-    WHERE ${scope} ORDER BY m.updated_at DESC
+    WHERE ${scope} AND ${supplierBillOwnerPredicate("m")} ORDER BY m.updated_at DESC
   `).bind(...args(actor)).all<Row>()).results;
 },captureOptions:async()=>{const write=await database();
   const receipts = (await write.prepare(`
@@ -115,7 +118,7 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  policy:async()=>(await database()).prepare(`SELECT p.*,COALESCE(person.legal_name,p.updated_by) updated_by_name FROM procurement_invoice_policies p LEFT JOIN (${people_payrollPlatformSources.hr_people}) person ON person.company_id=p.company_id AND person.user_id=p.updated_by AND person.merged_into_id IS NULL WHERE p.company_id=?`).bind(actor.companyId).first<Row>(),
  policyEvents:async()=>(await (await database()).prepare(`SELECT e.*,COALESCE(person.legal_name,e.actor_id) actor_name FROM procurement_invoice_policy_events e LEFT JOIN (${people_payrollPlatformSources.hr_people}) person ON person.company_id=e.company_id AND person.user_id=e.actor_id AND person.merged_into_id IS NULL WHERE e.company_id=? ORDER BY e.version DESC`).bind(actor.companyId).all<Row>()).results,
  receipt:async(id)=>(await database()).prepare(`SELECT f.*,j.status journal_status,j.currency journal_currency,j.chart_id journal_chart_id FROM (${commercePlatformSources.commerce_fulfillments}) f LEFT JOIN (${financePlatformSources.finance_journals}) j ON j.id=f.journal_id WHERE f.id=?`).bind(id).first<Row>(),
- order:async(id)=>(await getOrder(actor,id)).order,
+ order:async(id)=>(await getOrder(actor,id,provided)).order,
  configuration:async()=>(await database()).prepare(`SELECT * FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(actor.companyId).first<Row>(),
  postings:async(id)=>(await (await database()).prepare(`SELECT * FROM (${financePlatformSources.finance_journal_lines}) finance_journal_lines WHERE journal_id=? ORDER BY ordinal`).bind(id).all<Row>()).results,
  receiptLines:async(ids)=>(await (await database()).prepare(`SELECT fl.*,ol.product_id,ol.description,p.sku,p.unit,p.tracking_mode FROM (${commercePlatformSources.commerce_fulfillment_lines}) fl JOIN (${commercePlatformSources.commerce_order_lines}) ol ON ol.id=fl.order_line_id JOIN (${commercePlatformSources.commerce_products}) p ON p.id=ol.product_id WHERE fl.fulfillment_id IN (${ids.map(()=>'?').join(',')}) ORDER BY fl.fulfillment_id,ol.ordinal`).bind(...ids).all<Row>()).results,
@@ -174,14 +177,14 @@ async function commit<Result>(write:SqlDatabase,actor:WorkContext,m:BillMutation
  return executeCommand(write,actor,key,operation,input,id,input.expectedVersion+1,result,steps,{companyId:actor.companyId,branchId:String(bill.branch_id),departmentId:bill.department_id?String(bill.department_id):null});
 }
 async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
-export const getSupplierBill=(a:WorkContext,id:string,provided?:SqlDatabase)=>invoke(()=>application(a,provided).get(id));
-export const supplierBillWorkspace=(a:WorkContext)=>invoke(()=>application(a).workspace());
-export const supplierBillCaptureOptions=(a:WorkContext)=>invoke(()=>application(a).captureOptions());
-export const supplierInvoicePolicy=(a:WorkContext)=>invoke(()=>application(a).policy());
-export const saveSupplierInvoicePolicy=(a:WorkContext,raw:unknown,key:string)=>invoke(()=>application(a).savePolicy(raw,key));
-export const supplierBillDetail=(a:WorkContext,id:string)=>invoke(()=>application(a).detail(id));
-export const captureSupplierBill=(a:WorkContext,raw:unknown,key:string)=>invoke(()=>application(a).capture(raw,key));
-export const decideSupplierBill=(a:WorkContext,id:string,raw:unknown,key:string)=>invoke(()=>application(a).decide(id,raw,key));
+export const getSupplierBill=(a:WorkContext,id:string,provided?:SqlDatabase)=>withSupplierBillPurchasedRead(a,db=>invoke(()=>application(a,db).get(id)),provided,id);
+export const supplierBillWorkspace=(a:WorkContext)=>withSupplierBillPurchasedRead(a,db=>invoke(()=>application(a,db).workspace()));
+export const supplierBillCaptureOptions=(a:WorkContext)=>withSupplierBillPurchasedRead(a,db=>invoke(()=>application(a,db).captureOptions()));
+export const supplierInvoicePolicy=(a:WorkContext)=>withSupplierBillPurchasedRead(a,async(db,purchase)=>({...await invoke(()=>application(a,db).policy()),companyId:a.companyId,purchase}));
+export const saveSupplierInvoicePolicy=(a:WorkContext,raw:unknown,key:string)=>withSupplierBillPurchasedCommand(a,{key,operation:"procurement.invoice-policy.update",id:a.companyId,policy:true,purpose:"new-work",permissions:["finance.approve"]},db=>invoke(()=>application(a,db).savePolicy(raw,key)));
+export const supplierBillDetail=(a:WorkContext,id:string)=>withSupplierBillPurchasedRead(a,async(db,purchase)=>({...await invoke(()=>application(a,db).detail(id)),purchase}),undefined,id);
+export const captureSupplierBill=(a:WorkContext,raw:unknown,key:string)=>withSupplierBillPurchasedCommand(a,{key,operation:"procurement.bill.capture",id:`bill-match-${key}`,capture:raw,purpose:"settle-existing",permissions:["finance.write","commerce.read"]},db=>invoke(()=>application(a,db).capture(raw,key)));
+export const decideSupplierBill=(a:WorkContext,id:string,raw:unknown,key:string)=>{const input=supplierBillDecisionSchema.parse(raw);return withSupplierBillPurchasedCommand(a,{key,operation:`procurement.bill.${input.action}`,id,purpose:"settle-existing",permissions:["finance.read","finance.write","finance.approve"]},db=>invoke(()=>application(a,db).decide(id,raw,key)));};
 export const supplierBillInvoiceHandoff=(db:SqlDatabase,a:WorkContext,fulfillment:Row,input:z.infer<typeof invoiceFromDeliverySchema>,invoiceId:string,key:string)=>invoke(()=>application(a,db).invoiceHandoff(fulfillment,input,invoiceId,key));
 export const matchedInvoicePosting=(db:SqlDatabase,a:WorkContext,invoice:Row,key:string)=>invoke(()=>application(a,db).invoicePosting(invoice,key));
-export const supplierBillWork=(a:WorkContext)=>invoke(()=>application(a).work());
+export const supplierBillWork=async(a:WorkContext)=>{if(!hasPermission(a,"finance.read"))return [];const access=await supplierBillPurchaseAccess((await holdingResources(a.holdingId)).write,a);if(access&&!access.history)return [];const items=await invoke(()=>application(a).work());return access&&!access.settleExisting?items.map(item=>({...item,canAct:false,queue:"waiting" as const})):items;};

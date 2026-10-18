@@ -1,3 +1,4 @@
+import {preparePeopleLifecycleIamReview} from "../../people_payroll/public/iam-purchases";
 import {identitySnapshotSources as organizationSnapshotSources} from '../../organization/public/identity-snapshot-sources';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '../../people_payroll/public/identity-snapshot-sources';
 const organizationSources=organizationSnapshotSources();
@@ -34,7 +35,7 @@ export async function insertIamGrant(c: PoolClient, actor: IamActor, input: z.in
 export async function grantIamAccess(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof grantInput>, key: string) { return serviceCommands(db).grantIamAccess(actor, input, key); }
 export async function revokeIamAssignment(db: PostgresDatabase, actor: IamActor, id: string, version: number, reason: string, key: string) { return serviceCommands(db).revokeIamAssignment(actor, id, version, reason, key); }
 export async function applyIamRevocation(c: PoolClient, actor: IamActor, id: string, version: number, reason: string, approved = false) { return serviceCommands().applyIamRevocation(serviceTransaction(c, actor), actor, id, version, reason, approved); }
-export async function decideIamReview(db: PostgresDatabase, actor: IamActor, id: string, input: z.infer<typeof reviewInput>, key: string, applyExtension?: (c: PoolClient, kind: string, payload: Record<string, unknown>) => Promise<void>, rejectExtension?: (c: PoolClient, kind: string, payload: Record<string, unknown>) => Promise<void>) { return serviceCommands(db).decideIamReview(actor, id, input, key, applyExtension ? async (tx, kind, payload) => applyExtension(extensionClients.get(tx)!, kind, payload) : undefined, rejectExtension ? async (tx, kind, payload) => rejectExtension(extensionClients.get(tx)!, kind, payload) : undefined); }
+export async function decideIamReview(db: PostgresDatabase, actor: IamActor, id: string, input: z.infer<typeof reviewInput>, key: string, applyExtension?: (c: PoolClient, kind: string, payload: Record<string, unknown>) => Promise<void>, rejectExtension?: (c: PoolClient, kind: string, payload: Record<string, unknown>) => Promise<void>) { return serviceCommands(db,c=>preparePeopleLifecycleIamReview(c,actor,id,input.decision,key)).decideIamReview(actor, id, input, key, applyExtension ? async (tx, kind, payload) => applyExtension(extensionClients.get(tx)!, kind, payload) : undefined, rejectExtension ? async (tx, kind, payload) => rejectExtension(extensionClients.get(tx)!, kind, payload) : undefined); }
 export { review as proposeIamReview };
 function serviceTransaction(c: PoolClient, actor: IamActor): IamServiceTransaction {
     return { activeReviewAssignments: async (facts) => { const { observedNow } = facts; return (await c.query("SELECT id,user_id,role,scope_kind,scope_node_id,source,valid_until,version FROM assignments WHERE company_id=$1 AND revoked_at IS NULL AND iam_assignment_active(id,$2) AND iam_principal_active(user_id,$1,$2) ORDER BY user_id,role,id", [actor.companyId, observedNow])).rows; },
@@ -276,7 +277,7 @@ function serviceTransaction(c: PoolClient, actor: IamActor): IamServiceTransacti
             ]);
         } };
 }
-function serviceCommands(db?: PostgresDatabase) {
+function serviceCommands(db?: PostgresDatabase,prepareOwner?:import("../public/iam-transactions").IamOwnerPreparation) {
     return createIamServiceCommands({ error: (...args) => new ApiError(...args), now: Date.now, id: () => crypto.randomUUID(), companyScope: assertCompanyScope, authorize: requirePermission, fresh: requireFreshMfa, userExists: async (userId) => !!await (await runtimeEnv()).CONTROL_DB.prepare('SELECT id FROM "user" WHERE id=?').bind(userId).first(), command: async (actor, key, operation, payload, permission, run) => iamCommand(iamDb(db!), actor, key, operation, payload, permission, async (c) => {
             const tx = serviceTransaction(c, actor);
             extensionClients.set(tx, c);
@@ -286,7 +287,7 @@ function serviceCommands(db?: PostgresDatabase) {
             finally {
                 extensionClients.delete(tx);
             }
-        }) });
+        },prepareOwner) });
 }
 function readService(database: PostgresDatabase) {
     const db = iamDb(database);

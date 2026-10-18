@@ -354,8 +354,10 @@ export function createSocialHomeApplication<Effect>(ports: SocialHomePorts<Effec
         ]);
     }
     async function cancelCommentUploadDraft(actor: StaffActor, id: string, key: string) {
-        const draft = await socialUploadOwner(actor, id, true);
-        if (!draft.comment_parent_post_id)
+        const prior = await ports.commands.replay<{id:string}>(actor,key,"social.comment.upload.cancel",id,{id});
+        if (prior) return prior;
+        const draft = await r.draft(id,actor.companyId);
+        if (!draft || draft.author_id !== actor.userId || draft.cancelled_at !== null || draft.published_post_id || draft.published_comment_id || draft.edit_post_id || !draft.comment_parent_post_id)
             throw new BusinessRuleError(404, "DRAFT_NOT_FOUND", "Comment upload draft unavailable.");
         const now = ports.clock.now();
         return ports.commands.commit(actor, key, "social.comment.upload.cancel", { id }, id, draft.version + 1, { id }, [
@@ -378,10 +380,11 @@ export function createSocialHomeApplication<Effect>(ports: SocialHomePorts<Effec
         ]);
     }
     async function cancelPostEditUploadDraft(actor: StaffActor, id: string, key: string) {
+        const prior = await ports.commands.replay<{id:string}>(actor,key,"social.post.edit-upload.cancel",id,{id});
+        if (prior) return prior;
         const draft = await r.editDraft(id, actor.companyId);
-        if (!draft || !draft.edit_post_id || draft.edit_saved_version !== null || draft.cancelled_at !== null)
+        if (!draft || !draft.edit_post_id || draft.edit_saved_version !== null || draft.cancelled_at !== null || draft.published_post_id || draft.published_comment_id || draft.comment_parent_post_id)
             throw new BusinessRuleError(404, "UPLOAD_DRAFT_UNAVAILABLE", "Post edit upload draft unavailable.");
-        await ports.readablePost(actor, draft.edit_post_id);
         if (draft.author_id !== actor.userId)
             throw new BusinessRuleError(404, "UPLOAD_DRAFT_UNAVAILABLE", "Post edit upload draft unavailable.");
         const now = ports.clock.now();

@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {workspaceHref,type WorkspaceScope} from "@/lib/work_projection/workspace";
 import {safeReturnPath,type AccessProblem} from "@/lib/shared/access-problem";
 export type PageApiError=Error&{code:string;status:number};
@@ -8,7 +9,7 @@ async function currentPagePath(holdingSlug?: string) {
   const pageUrl = pagePath ? new URL(pagePath, "https://erpx.invalid") : null;
   const requested = safeReturnPath(pageUrl?.pathname === "/work-role" ? pageUrl.searchParams.get("from") : pagePath);
   if (requested) return requested;
-  if (!holdingSlug) return "/platform/home";
+  if (!holdingSlug) return canonicalUiHref("/platform/home");
   return safeReturnPath(workspaceHref(await ports.requestedHoldingScope(holdingSlug), h.get("x-erpx-destination") || "home")) ?? "/";
 }
 async function accessPage(reason: AccessProblem, holdingSlug?: string): Promise<never> {

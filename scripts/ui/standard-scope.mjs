@@ -5,6 +5,11 @@ export const deferredPrefixes = [
   "src/app/book/", "src/app/front/", "src/app/front-access/", "src/app/marketing/",
   "src/app/holdings/[holdingSlug]/pms/", "src/app/holdings/[holdingSlug]/pos/",
   "src/app/holdings/[holdingSlug]/hospitality/",
+  // Canonical route extraction preserves these presenters' original owner
+  // boundary. Their source/retirement fingerprints and browser gates remain.
+  "src/app/holdings/[holdingSlug]/_presenters/pms/",
+  "src/app/holdings/[holdingSlug]/_presenters/pos/",
+  "src/app/holdings/[holdingSlug]/_presenters/hospitality/",
 ];
 export const frozenFiles = [
   "src/app/holdings/[holdingSlug]/calendar/page.tsx",
@@ -28,6 +33,41 @@ export const frozenFiles = [
   "src/components/collaboration/social-post-content-editor.tsx", "src/components/collaboration/social-advanced-editor.tsx",
 ];
 export const sharedAdapters = [
+  // Link forwards its caller's anchor/Next props without presentation. Index
+  // callers must choose appearance explicitly; authorization stays server-side.
+  // Navigation context adds no DOM, classes or widget dimensions. Actual SSR
+  // preserves calendar markup and the null-audience Console destination.
+  "src/components/workplace/product-link-context.tsx",
+  // Explicit legacy Front appearance and standard Office/Account/Admin default;
+  // actual Dialog/Button SSR preserves the unchanged navigation/dirty controller.
+  "src/components/workplace/product-navigation-boundary.tsx",
+  // Actual owner SSR keeps specialized children byte-identical for absent,
+  // active, draining and history controls; visual notices live separately.
+  "src/components/projects/purchase-context.tsx",
+  "src/components/people_payroll/payroll-purchase-context.tsx",
+  // Front reads only DOM-free shared account state; controller/retry UI is separate.
+  "src/components/identity_access/account-preferences-context.tsx",
+  // DOM-free Social command identity transport; actual provider SSR retains
+  // specialized child markup and the exact supplied context value.
+  "src/components/collaboration/social-command-context.tsx",
+  // Callers choose legacy/standard for both the mention trigger and detail Dialog.
+  "src/components/collaboration/social-record-mention.tsx",
+  // Existing specialized People editors retain the tested legacy default;
+  // standard presentation is explicit and submitted-edit acknowledgement stays owned.
+  "src/components/people_payroll/people-form-drawer.tsx",
+  // Original Payroll form/context and drawer bodies, imported without the
+  // page-wide boundary; specialized Compensation retains explicit legacy props.
+  "src/components/people_payroll/payroll-form.tsx",
+  "src/components/people_payroll/payroll-form-drawer.tsx",
+  // Only the specialized Calendar mounts this legacy-default confirmation;
+  // real child/Dialog/Button SSR preserves its existing markup and controls.
+  "src/components/work_projection/calendar/calendar-draft-boundary.tsx",
+  // Real Calendar fields/submit/completion are shared; specialized Team Schedule
+  // explicitly selects legacy controls/CSS while standard Calendar retains its default.
+  "src/components/work_projection/calendar/standard-calendar-forms.tsx",
+  "src/components/workplace/workspace-link.tsx",
+  "src/components/workplace/destination-index.tsx",
+  "src/components/workplace/destination-index-view.tsx",
   // Shared record navigation is opt-in at register/list triggers; frozen callers keep their presentation.
   "src/components/records/record-link.tsx", "src/components/records/record-context.tsx",
   "src/components/records/record-collection.tsx", "src/components/records/pms-entry-detail.tsx", "src/components/records/pms-hotel-sources.tsx",

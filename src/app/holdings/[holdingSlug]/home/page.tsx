@@ -1,7 +1,6 @@
-import { workspaceNavigation } from "@/server/modules/work_projection/public/navigation-snapshot";
-import { SocialPage } from "@/components/collaboration/social-page";
-export default async function Home({params,searchParams}:PageProps<"/holdings/[holdingSlug]/home">) {
-  const { context: actor, initialWork } = await workspaceNavigation(params);
-  const query = await searchParams;
-  return <SocialPage actor={actor} initialWork={initialWork} tag={typeof query.tag === "string" ? query.tag.normalize("NFC").toLowerCase() : undefined}/>;
+import Screen from "@/app/holdings/[holdingSlug]/_presenters/home/screen";
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
+ const query={...await searchParams,...{}};
+ const props={params:Promise.resolve({...await params,...{}}),searchParams:Promise.resolve(query)} as Parameters<typeof Screen>[0];
+ return (await Screen(props))??null;
 }

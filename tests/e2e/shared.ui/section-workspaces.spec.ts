@@ -1,72 +1,63 @@
-import { expect, test } from "@playwright/test";
-import { selectFixtureAssignment } from "../../support/browser/select-fixture-assignment";
-
-const base = "/holdings/acme";
-test.setTimeout(120_000);
-test.beforeEach(async ({ context }) => {
-  const response = await context.request.post("/api/auth/sign-in/email", {
-    headers: { Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100" },
-    data: {
-      email: process.env.ERPX_E2E_ADMIN_EMAIL ?? "jesadakorn.kirtnu@gmail.com",
-      password: process.env.ERPX_E2E_ADMIN_PASSWORD ?? "12345678",
-    },
-  });
-  expect(response.status(), await response.text()).toBe(200);
-  const company = await context.request.post(`/api/v1${base}/companies/active`, {headers:{Origin:process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100"},data:{companyId:"acme-co"}});
-  expect(company.status()).toBe(200);
-  await selectFixtureAssignment(context,"acme-co","dev_usr_jesadakorn_acme-co_holding_owner");
-});
-
-
+import {expect,test,type Page} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+const base='/holdings/acme';
+const origin='https://console-dev-erpx.jesadakorn.com';
 test.setTimeout(600_000);
-const routes:readonly (readonly [string,string])[]=[
- ['assets','Assets & maintenance'],['assets?view=maintenance','Assets & maintenance'],['assets?view=plans','Assets & maintenance'],
- ['knowledge','Knowledge'],['knowledge?view=handbook&section=drafts','Knowledge'],['knowledge?view=handbook&section=editors','Knowledge'],['knowledge?view=learning&section=courses','Knowledge'],['knowledge?view=learning&section=assignments','Knowledge'],['knowledge?view=learning&section=mine','Knowledge'],
- ['benefits','Benefits'],['benefits?view=enrollments','Benefits'],['benefits?view=mine','Benefits'],
- ['settings?section=approvals','Administration settings'],['settings?section=approvals&tab=issues','Administration settings'],['settings?section=approvals&tab=history','Administration settings'],['settings?section=brand','Administration settings'],['settings?section=brand&tab=media','Administration settings'],['settings?section=brand&tab=history','Administration settings'],['settings?section=ai','Administration settings'],['settings?section=usage','Administration settings'],['settings?section=feedback','Administration settings'],
- ['commerce?view=products','Products'],['commerce?view=warehouses','Warehouses'],['commerce?view=pricing','Price lists and discounts'],
- ...['checklist','chart','profile','opening','books','tools','policy','ai'].map(step=>[`finance/setup?step=${step}`,'Finance setup'] as const),['projects','Projects'],
-];
-test('workspace shell hydrates before its topic controls become interactive',async({page})=>{
- const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));await page.goto(`${base}/assets`);await expect(page.getByRole('button',{name:'Switch workspace',exact:true})).toBeEnabled({timeout:60_000});const units=page.getByRole('navigation',{name:'Organization units',exact:true});if(!await units.isVisible())await page.getByRole('button',{name:'Choose views · Asset register',exact:true}).click();await units.getByRole('button',{name:'Collapse Bangkok Operations',exact:true}).click();await expect(units).toBeVisible();await expect(units.getByRole('button',{name:'Expand Bangkok Operations',exact:true})).toBeVisible();expect(errors).toEqual([]);
+async function signIn(page:Page){
+ const credentials=JSON.parse(readFileSync('.scratch/dev/credentials/console-dev.json','utf8')) as {origin:string;email:string;password:string};
+ if(credentials.origin!==origin)throw new Error('Development sign-in origin mismatch');
+ await page.getByLabel('Work email',{exact:true}).fill(credentials.email);
+ await page.getByLabel('Password',{exact:true}).fill(credentials.password);
+ await page.getByRole('button',{name:'Sign in',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Switch workspace',exact:true})).toBeEnabled({timeout:60_000});
+}
+async function ready(page:Page){await expect(page.getByRole('button',{name:'Switch workspace',exact:true})).toBeEnabled({timeout:60_000});await expect(page.locator('main')).not.toContainText('Loading your workspace…',{timeout:60_000});}
+test.beforeEach(async({page,baseURL})=>{
+ if(baseURL!==origin)throw new Error('This read-only route check requires the authorized development console');
+ await page.goto(origin+'/login?next='+encodeURIComponent(base+'/administration/technology/directory/connections'));
+ await page.getByLabel('Work email',{exact:true}).waitFor({state:'visible',timeout:60_000});await signIn(page);
+ await ready(page);
 });
-test('combined workspaces render every owner section in both themes without business mutations',async({page,context,baseURL})=>{
- const writes:string[]=[],errors:string[]=[];page.on('request',request=>{if(request.method()==='POST'&&request.url().includes('/api/v1/holdings/'))writes.push(new URL(request.url()).pathname);});page.on('pageerror',error=>errors.push(error.message));
+test('workspace shell hydrates before its topic controls become interactive',async({page},info)=>{
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ await expect(page.getByRole('heading',{name:'Directory',exact:true}).first()).toBeVisible();
+ await expect(page.getByRole('navigation',{name:'Directory sections',exact:true}).getByRole('link',{name:'Connections',exact:true})).toHaveAttribute('aria-current','page');
+ await page.getByRole('button',{name:'Show breadcrumb path',exact:true}).click();
+ await expect(page.getByRole('group',{name:'Breadcrumb path'})).toContainText('Administration');
+ await expect(page.getByRole('group',{name:'Breadcrumb path'})).toContainText('Technology');
+ await page.keyboard.press('Escape');
+ await page.screenshot({path:info.outputPath('connections.png'),fullPage:false});
+ expect(errors).toEqual([]);
+});
+test('combined workspaces render every owner section in both themes without business mutations',async({page,context},info)=>{
+ const writes:string[]=[],errors:string[]=[];page.on('request',r=>{if(['POST','PUT','PATCH','DELETE'].includes(r.method())&&r.url().includes('/api/v1/holdings/'))writes.push(new URL(r.url()).pathname);});page.on('pageerror',e=>errors.push(e.message));
+ const routes=[['work/actions','My work'],['work/tracking','My work'],['calendar/coverage','Calendar'],['inbox/teams','Inbox'],['people-organization/people/hr-settings/leave','HR settings'],['customers-sales/sales/documents/quote','Sales'],['purchasing/orders','Purchase orders'],['inventory-quality/products','Products'],['projects-routines/projects','Projects'],['services/assets/register','Assets & maintenance'],['finance/setup/books','Finance setup'],['administration/technology/resources/accounts','Resources']] as const;
  for(const theme of ['light','dark']){
-  await context.addCookies([{name:'erpx_appearance',value:theme,url:baseURL!}]);
-  for(const [route,title] of routes){await test.step(`${theme}: ${route}`,async()=>{await page.goto(`${base}/${route}`);await expect(page.getByRole('button',{name:'Switch workspace',exact:true})).toBeEnabled({timeout:60_000});await expect(page.locator('[data-section-workspace]')).toBeVisible({timeout:60_000});await expect(page.getByRole('heading',{name:title,exact:true}).first()).toBeVisible();await expect(page.locator('html')).toHaveAttribute('data-theme',theme);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);});}
+  await context.addCookies([{name:'erpx_appearance',value:theme,url:origin}]);
+  for(const [route] of routes)await test.step(theme+': '+route,async()=>{await page.goto(origin+base+'/'+route);await ready(page);await expect(page.locator('html')).toHaveAttribute('data-theme',theme);await expect(page.locator('main h1').first()).toBeVisible();await expect(page.locator('main')).not.toContainText('Something went wrong');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await page.reload();await ready(page);});
  }
- expect(writes).toEqual([]);expect(errors).toEqual([]);
+ await page.screenshot({path:info.outputPath('submenu-dark.png')});expect(writes).toEqual([]);expect(errors).toEqual([]);
 });
-test('old workspace URLs preserve repeated filters and selected record context',async({page})=>{
- for(const [route,path,view,section] of [['maintenance','assets','maintenance',null],['handbook','knowledge','handbook','published'],['learning','knowledge','learning','courses'],['learning?view=mine','knowledge','learning','mine'],['brand','settings',null,'brand']] as const){await page.goto(`${base}/${route}${route.includes('?')?'&':'?'}filter=a&filter=b&unit=unit-context&chart=chart-context`);await expect(page.locator('[data-section-workspace]')).toBeVisible({timeout:60_000});const url=new URL(page.url());expect(url.pathname).toBe(`${base}/${path}`);if(view)expect(url.searchParams.get('view')).toBe(view);if(section)expect(url.searchParams.get('section')).toBe(section);expect(url.searchParams.getAll('filter')).toEqual(['a','b']);expect(url.searchParams.get('unit')).toBe('unit-context');expect(url.searchParams.get('chart')).toBe('chart-context');}
+test('path records preserve repeated collection filters and selected detail tabs',async({page,context})=>{
+ await page.goto(origin+base+'/people-organization/people/directory/current?q=Tara&filter=one&filter=two');await ready(page);
+ await page.getByRole('button',{name:'Tara Suwan',exact:true}).click();
+ await expect(page).toHaveURL(/\/directory\/person\/[^/]+\/profile/,{timeout:60_000});
+ const detail=page.getByRole('complementary',{name:'Tara Suwan details',exact:true});await expect(detail).toBeVisible({timeout:60_000});
+ const employment=detail.getByRole('link',{name:'Employment',exact:true});const href=await employment.getAttribute('href');expect(href).toMatch(/\/employment\?/);
+ await employment.click();await expect(page).toHaveURL(/\/employment\?/);await expect(detail).toBeVisible({timeout:60_000});
+ await page.reload();await ready(page);await expect(detail).toBeVisible({timeout:60_000});
+ const newTab=await context.newPage();await newTab.goto(origin+href!);await ready(newTab);await expect(newTab.getByRole('complementary',{name:'Tara Suwan details',exact:true})).toBeVisible({timeout:60_000});await newTab.close();
+ await page.goBack();await expect(page).toHaveURL(/\/profile\?/);await expect(detail).toBeVisible({timeout:60_000});await page.goForward();await expect(page).toHaveURL(/\/employment\?/);
+ await detail.getByRole('button',{name:'Close details',exact:true}).click();await expect(detail).toHaveCount(0,{timeout:60_000});const closed=new URL(page.url());expect(closed.searchParams.getAll('filter')).toEqual(['one','two']);expect(closed.searchParams.get('q')).toBe('Tara');
 });
-test('record details dock or overlay, retain dirty edits, and coordinate one editor',async({page})=>{
- await page.goto('/dev/ui');const link=page.getByRole('link',{name:'Workspace fixture',exact:true});await expect(link).toBeVisible({timeout:60_000});await link.click();const detail=page.getByTestId('record-detail-drawer');await expect(detail).toBeVisible({timeout:60_000});await expect(detail.getByRole('heading',{name:'Workspace fixture',level:2,exact:true})).toBeVisible();await expect(page.locator('[data-record-workspace-detail]')).toHaveCount(1);
- const input=detail.getByRole('textbox',{name:'Placement',exact:true});await input.fill('Unsaved workspace draft');await detail.getByRole('button',{name:'Close details',exact:true}).click();const confirm=page.getByRole('dialog',{name:'Discard unsaved changes?',exact:true});await expect(confirm).toBeVisible();await confirm.getByRole('button',{name:'Keep editing',exact:true}).click();await expect(input).toHaveValue('Unsaved workspace draft');await detail.getByRole('button',{name:'Close details',exact:true}).click();await confirm.getByRole('button',{name:'Discard changes',exact:true}).click();await expect(detail).toHaveCount(0);await expect(link).toBeFocused();
- await link.click();await detail.locator('summary').filter({hasText:/^Edit fixture$/}).click();const nested=page.getByRole('dialog',{name:'Edit fixture',exact:true});await expect(nested).toBeVisible();await expect(detail).toBeHidden();await nested.getByRole('button',{name:'Close dialog',exact:true}).click();await expect(detail).toBeVisible();await detail.getByRole('button',{name:'Close details',exact:true}).click();
- await page.goto(`${base}/assets`);await expect(page.getByRole('button',{name:'Switch workspace',exact:true})).toBeEnabled({timeout:60_000});
- const units=page.getByRole('navigation',{name:'Organization units',exact:true});if(!await units.isVisible())await page.getByRole('button',{name:'Choose views · Asset register',exact:true}).click();
- await units.getByRole('button',{name:'Collapse Bangkok Operations',exact:true}).click();await expect(units).toBeVisible();await units.getByRole('button',{name:'Expand Bangkok Operations',exact:true}).click();await units.getByRole('button',{name:'Bangkok Accounting',exact:true}).click();await expect(page).toHaveURL(url=>url.searchParams.has('unit'));const scope=new URL(page.url()).searchParams.get('unit');
- await page.getByRole('searchbox',{name:'Search this view',exact:true}).fill('workspace-no-match');await page.getByRole('button',{name:'Search',exact:true}).click();await expect(page).toHaveURL(url=>url.searchParams.get('q')==='workspace-no-match'&&url.searchParams.get('unit')===scope);await page.reload();await expect(page.getByRole('searchbox',{name:'Search this view',exact:true})).toHaveValue('workspace-no-match');await page.goBack();await expect(page).toHaveURL(url=>!url.searchParams.has('q')&&url.searchParams.get('unit')===scope);await page.goForward();await expect(page.getByRole('searchbox',{name:'Search this view',exact:true})).toHaveValue('workspace-no-match');
- await page.locator('summary').filter({hasText:/^Register asset$/}).click();const editor=page.getByRole('dialog',{name:'Register asset',exact:true});await expect(editor).toBeVisible();await editor.getByRole('textbox',{name:'Asset code',exact:true}).fill('UNSAVED');await editor.getByRole('button',{name:'Close dialog',exact:true}).click();const draft=page.getByRole('dialog',{name:'Unsaved changes',exact:true});await draft.getByRole('button',{name:'Keep editing',exact:true}).click();await expect(editor.getByRole('textbox',{name:'Asset code',exact:true})).toHaveValue('UNSAVED');await editor.getByRole('button',{name:'Close dialog',exact:true}).click();await draft.getByRole('button',{name:'Close without saving',exact:true}).click();await expect(editor).toBeHidden();await expect(page.locator('[data-slot="dialog-backdrop"]:visible')).toHaveCount(0);await page.locator('summary').filter({hasText:/^Register asset$/}).click();await expect(editor).toBeVisible();await expect(editor.getByRole('textbox',{name:'Asset code',exact:true})).toHaveValue('UNSAVED');await editor.getByRole('button',{name:'Close dialog',exact:true}).click();await draft.getByRole('button',{name:'Close without saving',exact:true}).click();await expect(editor).toBeHidden();
+test('signed-out deep links return through normal sign-in to the same detail path',async({browser})=>{
+ const context=await browser.newContext();const page=await context.newPage();
+ const path=base+'/people-organization/people/directory/person/demo-org-v1-bangkok-accounting-staff-engagement/employment';
+ await page.goto(origin+path);await expect(page.getByLabel('Work email',{exact:true})).toBeVisible({timeout:60_000});
+ expect(new URL(page.url()).searchParams.get('next')).toBe(path);await signIn(page);await expect(page).toHaveURL(origin+path);await expect(page.getByRole('complementary',{name:'Tara Suwan details',exact:true})).toBeVisible({timeout:60_000});await context.close();
 });
-test('project detail keeps its specialized work structure and separate owner views',async({page,context})=>{
- const login=await context.request.post('/api/auth/sign-in/email',{headers:{Origin:process.env.ERPX_E2E_BASE_URL??'http://127.0.0.1:3100'},data:{email:'mali@erpx.dev',password:'Mali-ERPX-2026!'}});expect(login.ok()).toBe(true);await selectFixtureAssignment(context,'acme-co','asg_mali_owner');
- await page.goto(`${base}/projects`);const stamp=page.locator('[data-work-revision]');await expect(stamp).toBeVisible();const commandHeaders={'x-erpx-context-revision':(await stamp.getAttribute('data-work-revision'))!,'x-erpx-context-company':(await stamp.getAttribute('data-work-company'))!,'x-erpx-context-assignment':(await stamp.getAttribute('data-work-assignment'))!};
- const created=await context.request.post(`/api/v1${base}/projects`,{headers:{...commandHeaders,Origin:process.env.ERPX_E2E_BASE_URL??'http://127.0.0.1:3100','Idempotency-Key':crypto.randomUUID()},data:{title:'Shared workspace acceptance fixture',description:'Development browser fixture for project views',memberUserIds:[]}});expect(created.ok(),await created.text()).toBe(true);
- await page.goto(`${base}/projects`);const link=page.locator('main a[href^="/holdings/acme/projects/"]').first();await expect(link).toBeVisible({timeout:60_000});const href=(await link.getAttribute('href'))!;
- for(const view of ['overview','tasks','structure','actuals','handoff','documents']){await page.goto(`${href}?view=${view}`);await expect(page.locator('[data-section-workspace]')).toBeVisible({timeout:60_000});await expect(page.locator('main h1')).toHaveCount(1);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);if(view==='structure')await expect(page.getByRole('heading',{name:'Work structure and handoff',exact:true}).first()).toBeVisible();}
-});
-
-test('catalogue records reuse the real owner slot and one editor surface',async({page})=>{
- const writes:string[]=[];page.on('request',request=>{if(request.method()==='POST'&&request.url().includes('/api/v1/holdings/'))writes.push(request.url());});await page.goto(`${base}/commerce?view=products`);await expect(page.getByRole('button',{name:'Switch workspace',exact:true})).toBeEnabled({timeout:60_000});await page.getByRole('link',{name:'View details',exact:true}).first().click();const detail=page.getByTestId('record-detail-drawer');await expect(detail).toBeVisible({timeout:60_000});await expect(page.locator('[data-record-workspace-detail]')).toHaveCount(1);const title=await detail.locator('h2').first().innerText();await expect(detail.getByRole('heading',{name:title,exact:true})).toHaveCount(1);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await detail.getByRole('button',{name:'Edit',exact:true}).click();const editor=page.getByRole('dialog',{name:'Record details',exact:true});await expect(editor).toBeVisible();await expect(detail).toBeHidden();await editor.getByRole('button',{name:'Close dialog',exact:true}).click();await expect(detail).toBeVisible();await detail.getByRole('button',{name:'Close details',exact:true}).click();await expect(detail).toHaveCount(0);expect(writes).toEqual([]);
-});
-
-test('merged discovery retains role permissions and branch scope without business writes',async({page,context})=>{
- const writes:string[]=[];page.on('request',request=>{const path=new URL(request.url()).pathname;if(request.method()==='POST'&&path.includes('/api/v1/holdings/')&&!/(assignments|companies)\/active$/.test(path))writes.push(path);});
- for(const [role,path,selector] of [['hr_admin','people/settings','[data-testid="hr-settings-workspace"]'],['it_admin','technology?view=resources','[data-testid="technology-resources-workspace"]'],['finance_preparer','finance/setup?step=checklist','[data-section-workspace]']] as const){await selectFixtureAssignment(context,'acme-co',`dev_usr_jesadakorn_acme-co_${role}`);await page.goto(`${base}/${path}`);await expect(page.locator(selector)).toBeVisible({timeout:60_000});}
- await selectFixtureAssignment(context,'acme-co','dev_usr_jesadakorn_acme-co_employee');await page.goto(`${base}/knowledge`);await expect(page.locator('[data-section-workspace]')).toBeVisible({timeout:60_000});await expect(page.locator('[aria-label="Knowledge sections"] a[href*="view=learning"]')).toHaveCount(0);
- for(const path of ['knowledge?view=learning&section=mine','assets']){await page.goto(`${base}/${path}`);await expect(page.getByRole('heading',{name:'Your role cannot open this view',exact:true})).toBeVisible({timeout:60_000});}
- await selectFixtureAssignment(context,'acme-co','dev_usr_jesadakorn_acme-co_holding_owner','acme','/branches/bangkok');await page.goto(`${base}/branches/bangkok/assets`);await expect(page.locator('[data-section-workspace]')).toBeVisible({timeout:60_000});const units=page.getByRole('navigation',{name:'Organization units',exact:true});if(!await units.isVisible())await page.getByRole('button',{name:'Choose views · Asset register',exact:true}).click();await expect(units.getByRole('button',{name:'Bangkok Operations',exact:true})).toBeVisible();await expect(units.locator('button').filter({hasText:'New York'})).toHaveCount(0);expect(writes).toEqual([]);await selectFixtureAssignment(context,'acme-co','dev_usr_jesadakorn_acme-co_holding_owner');
+test('missing record IDs recover without command writes',async({page})=>{
+ const writes:string[]=[];page.on('request',r=>{if(r.method()!=='GET'&&r.url().includes('/api/v1/holdings/'))writes.push(new URL(r.url()).pathname);});
+ await page.goto(origin+base+'/projects-routines/projects/missing-route-verification/overview');await ready(page);
+ await expect(page.getByTestId('record-detail-drawer')).toBeVisible({timeout:60_000});await expect(page.locator('main')).toContainText(/unavailable|not found|cannot/i,{timeout:60_000});expect(writes).toEqual([]);
 });

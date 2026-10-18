@@ -808,6 +808,282 @@
       "file": "tests/e2e/pms/demo-hospitality-setup.spec.ts",
       "title": "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
       "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated work Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated work Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Work host creates, recovers and cancels a service request draft through Account and Apps",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Work host creates, recovers and cancels a service request draft through Account and Apps",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated pos Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated pos Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated pms Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated pms Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated finance Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated finance Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated people Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated people Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated sales Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated sales Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated supply Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated supply Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated assets Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated assets Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated projects Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated projects Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated recruit Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated recruit Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated learn Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated learn Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated support Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated support Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated service Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated service Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated legal Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated legal Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated manufacturing Account Apps SSO reaches its actual owner landing and API",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated manufacturing Account Apps SSO reaches its actual owner landing and API",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "asset register UI observations native drawer geometry, focus and Escape at five widths and all appearance modes",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "asset register UI observations native drawer geometry, focus and Escape at five widths and all appearance modes",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "asset register native state observations real native records, filters, validation, pending and draft guards across the appearance matrix",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "asset register native denial observations the existing Employee role cannot read or mount the Asset owner at any required width or appearance",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Assets native drawer and dirty product switch observations across the appearance matrix",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "asset register native state observations real native records, filters, validation, pending and draft guards across the appearance matrix",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "asset register native denial observations the existing Employee role cannot read or mount the Asset owner at any required width or appearance",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Assets native drawer and dirty product switch observations across the appearance matrix",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "asset register original command recovery observations a committed response lost in transit retries its exact original request and preserves the newer native draft",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "asset register original command recovery observations a committed response lost in transit retries its exact original request and preserves the newer native draft",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "Finance invoice drawer observations native prepared invoice drawers retain dirty work and keyboard focus across the appearance matrix",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+      "title": "Finance invoice drawer observations native prepared invoice drawers retain dirty work and keyboard focus across the appearance matrix",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
+      "project": "mobile"
     }
   ]
 }

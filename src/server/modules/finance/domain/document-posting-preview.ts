@@ -3,6 +3,7 @@ export type PostingPreviewLine = { id: string; debit: number; credit: number };
 export type PostingPreviewConfiguration = { inventory_account_id: string; variance_account_id: string };
 export type DocumentPostingPreview =
   | { state: "voided" }
+  | { state: "no-charge-confirmed" }
   | { state: "configuration-required" }
   | { state: "ready"; posted: boolean; accounts: PostingPreviewRow[]; lines: PostingPreviewLine[]; debit: number; credit: number };
 

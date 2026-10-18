@@ -3,7 +3,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextArea } from "@/components/ui/foundation";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useState } from "react";
 import styles from "@/components/platform_administration/platform-migration-run.module.css";

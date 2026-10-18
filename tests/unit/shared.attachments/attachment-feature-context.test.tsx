@@ -71,9 +71,9 @@ it("allows attachment mutations only in enabled mode with domain authorization",
 
 it("wraps attachment-only cards and consoles in the global feature surface", () => {
   for (const path of [
-    "src/app/holdings/[holdingSlug]/planning/page.tsx",
-    "src/app/holdings/[holdingSlug]/quality/page.tsx",
-    "src/app/holdings/[holdingSlug]/ecommerce/page.tsx",
+    "src/app/holdings/[holdingSlug]/_presenters/planning/screen.tsx",
+    "src/app/holdings/[holdingSlug]/_presenters/quality/screen.tsx",
+    "src/app/holdings/[holdingSlug]/_presenters/ecommerce/screen.tsx",
     "src/components/support/support-incident-console.tsx",
   ]) {
     expect(readFileSync(path, "utf8"), path).toContain(

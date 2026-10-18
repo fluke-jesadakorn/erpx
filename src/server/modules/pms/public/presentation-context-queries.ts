@@ -1,1 +1,1 @@
-export { bookingPresentationQueries } from "../adapters/presentation-context-queries";
+export { bookingPresentationQueries, bookingPaymentPresentationQueries } from "../adapters/presentation-context-queries";

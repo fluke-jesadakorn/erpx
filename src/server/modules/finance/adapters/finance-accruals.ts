@@ -1,3 +1,4 @@
+import { withFinancePurchasedCommand, withFinancePurchasedRead } from "./purchase-boundary";
 import { createAccruals } from '../application/accruals';
 import { accrualScheduleSchema, accrualScheduleDecisionSchema, accrualRunPostSchema, type AccrualRow } from '../domain/accruals';
 import "server-only";
@@ -11,16 +12,16 @@ import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types"
 export { accrualScheduleSchema, accrualScheduleDecisionSchema, accrualRunPostSchema } from '../domain/accruals';
 async function hash(value: unknown) { const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value))); return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join(""); }
 function accountSql(write: SqlDatabase, actor: WorkContext, input: z.infer<typeof accrualScheduleSchema>) { return write.prepare(`SELECT a.id,a.chart_id,a.currency,a.status,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id IN (?,?) AND a.company_id=? AND a.status='active'`).bind(input.debitAccountId, input.creditAccountId, actor.companyId); }
-export async function accrualSchedulePage(actor: WorkContext) { return accrualService().accrualSchedulePage(actor); }
-export async function createAccrualSchedule(actor: WorkContext, input: z.infer<typeof accrualScheduleSchema>, key: string) { return accrualService().createAccrualSchedule(actor, input, key); }
-export async function decideAccrualSchedule(actor: WorkContext, scheduleId: string, input: z.infer<typeof accrualScheduleDecisionSchema>, action: "approve" | "cancel", key: string) { return accrualService().decideAccrualSchedule(actor, scheduleId, input, action, key); }
-export async function prepareAccrualRun(actor: WorkContext, scheduleId: string, key: string) { return accrualService().prepareAccrualRun(actor, scheduleId, key); }
-export async function postAccrualRun(actor: WorkContext, runId: string, input: z.infer<typeof accrualRunPostSchema>, key: string) { return accrualService().postAccrualRun(actor, runId, input, key); }
+export async function accrualSchedulePage(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>accrualService(db).accrualSchedulePage(actor)); }
+export async function createAccrualSchedule(actor: WorkContext, input: z.infer<typeof accrualScheduleSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.accrual.create",purpose:"new-work"},tx=>accrualService(tx).createAccrualSchedule(actor, input, key)); }
+export async function decideAccrualSchedule(actor: WorkContext, scheduleId: string, input: z.infer<typeof accrualScheduleDecisionSchema>, action: "approve" | "cancel", key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.accrual.${action}`,purpose:"settle-existing"},tx=>accrualService(tx).decideAccrualSchedule(actor, scheduleId, input, action, key)); }
+export async function prepareAccrualRun(actor: WorkContext, scheduleId: string, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.accrual.prepare",purpose:"settle-existing"},tx=>accrualService(tx).prepareAccrualRun(actor, scheduleId, key)); }
+export async function postAccrualRun(actor: WorkContext, runId: string, input: z.infer<typeof accrualRunPostSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.accrual.post",purpose:"settle-existing"},tx=>accrualService(tx).postAccrualRun(actor, runId, input, key)); }
 /** Read by ID independently of the register's page limits. */
-export async function accrualRecordDetail(actor: WorkContext, kind: "schedule" | "run", id: string) { return accrualService().accrualRecordDetail(actor, kind, id); }
-function accrualService() {
+export async function accrualRecordDetail(actor: WorkContext, kind: "schedule" | "run", id: string) { return withFinancePurchasedRead(actor,db=>accrualService(db).accrualRecordDetail(actor, kind, id)); }
+function accrualService(provided?:SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
-    const db = (actor: WorkContext) => pending ??= holdingResources(actor.holdingId).then(r => r.write);
+    const db = (actor: WorkContext) => provided ? Promise.resolve(provided) : pending ??= holdingResources(actor.holdingId).then(r => r.write);
     return createAccruals({ error: (...args) => new ApiError(...args), permission: requirePermission, ready: async (actor) => { await db(actor); }, now: Date.now, hash, replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), schedules: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(`SELECT s.*,da.code debit_code,da.name debit_name,ca.code credit_code,ca.name credit_name FROM finance_accrual_schedules s JOIN finance_accounts da ON da.id=s.debit_account_id JOIN finance_accounts ca ON ca.id=s.credit_account_id WHERE s.company_id=? ORDER BY s.created_at DESC LIMIT 100`).bind(actor.companyId).all<AccrualRow>()).results; }, runs: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(`SELECT r.*,s.description FROM finance_accrual_schedule_runs r JOIN finance_accrual_schedules s ON s.id=r.schedule_id WHERE r.company_id=? ORDER BY r.period_start DESC,r.id DESC LIMIT 200`).bind(actor.companyId).all<AccrualRow>()).results; }, activeAccounts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT id,code,name,currency FROM finance_accounts WHERE company_id=? AND status='active' ORDER BY code").bind(actor.companyId).all<AccrualRow>()).results; }, accounts: async (facts) => { const { actor, input } = facts; const write = await db(actor); return (await accountSql(write, actor, input).all<{
             id: string;
             chart_id: string;

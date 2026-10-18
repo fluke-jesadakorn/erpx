@@ -1,1 +1,1 @@
-export {peopleEvaluationLearningFacts} from '../adapters/people-evaluation-facts';
+export {peopleEvaluationLearningFacts,peopleEvaluationLearningSourceLocks,peopleEvaluationLearningSourceImage} from '../adapters/people-evaluation-facts';

@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RequestValidation } from "@/components/workplace/request-validation";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -10,9 +11,9 @@ import type { ReviewDecision } from "@/lib/work_projection/work-review";
 import { RequestSteps, RoutePreview } from "./request-experience";
 import type { RequestPreview } from "@/lib/work_projection/request-preview";
 import { workFetch } from "@/lib/work_projection/work-fetch";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRecoverableDraft } from "@/components/ui/use-recoverable-draft";
 import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/shared/ai/guided-intake";
@@ -261,7 +262,7 @@ export function RequestEditor({
       draft.clear();
       if (!request)
         router.push(
-          `${base}/requests/${saved.id}${returnTo ? `?${new URLSearchParams({ return: returnTo })}` : ""}`,
+          canonicalUiHref(`${base}/requests/${saved.id}${returnTo ? `?${new URLSearchParams({ return: returnTo })}` : ""}`),
         );
       else {
         setFiles([]);
@@ -320,7 +321,7 @@ export function RequestEditor({
       {saveError && <InlineNotice tone="danger" role="alert">{saveError}</InlineNotice>}
       {createdId && (
         <p>
-          <Link href={`${base}/requests/${createdId}`}>Open saved draft</Link> · Retry uploads below
+          <Link href={canonicalUiHref(`${base}/requests/${createdId}`)}>Open saved draft</Link> · Retry uploads below
           without creating another request.
         </p>
       )}
@@ -628,7 +629,7 @@ export function RequestEditor({
       {command.error && (
         <InlineNotice tone="danger" role="alert">
           {command.error}{" "}
-          <Link href={`${base}/people?member=${request?.requester_user_id ?? options.userId}`}>
+          <Link href={canonicalUiHref(`${base}/people?member=${request?.requester_user_id ?? options.userId}`)}>
             Review People setup
           </Link>
         </InlineNotice>

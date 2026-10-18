@@ -2,7 +2,7 @@
 import { Field, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { hospitalityFutureFeatures } from "@/data/hospitality-future-features";
 
 export function FutureFeatures({ pilotSetupHref }: { pilotSetupHref?: string }) {

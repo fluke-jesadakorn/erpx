@@ -1,3 +1,5 @@
+import {withLegalPurchasedCommand,legalPurchaseControls,requireLegalItemPurchasedRead,inLegacyLegalOperationsUnit} from '../purchases';
+import {legalPackageEnforcementMode} from '../../../commercial/public/purchase-command-boundary';
 import "server-only";
 import {samePerson} from "@/lib/identity_access/iam";
 import type {SqlDatabase,SqlStatement} from "../../../runtime/public/runtime/types";
@@ -32,5 +34,9 @@ event:(id,action,note,version,identifier,now)=>stage(db.prepare("INSERT INTO leg
 replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),
 commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_REPOSITORY_MISMATCH");return statement;})),
 }});}
-export function governanceView(db:SqlDatabase,a:WorkContext,id?:string){return application(db,a).governanceView(id);}
-export function governanceCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).governanceCommand(raw,key);}
+export async function governanceView(db:SqlDatabase,a:WorkContext,id?:string){if(await legalPackageEnforcementMode()==="disabled")return application(db,a).governanceView(id);if(id)await requireLegalItemPurchasedRead(db,a,await access(db,a,id),["legal.access","legal.documents"]);const purchases=await legalPurchaseControls(db,a),data=await application(db,a).governanceView(id);return {...data,...(purchases?.["legal.matters"]?.history===false?{forms:[]}:{}),purchases};}
+export async function governanceCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){
+ const input=(raw&&typeof raw==='object'?raw:{}) as Record<string,unknown>,action=String(input.action),form=action.startsWith('form.');
+ if(!form&&await legalPackageEnforcementMode()==='disabled')return inLegacyLegalOperationsUnit(db,a.companyId,tx=>application(tx,a).governanceCommand(raw,key));
+ return withLegalPurchasedCommand(db,a,{key,id:form?undefined:typeof input.id==='string'?input.id:undefined,operation:action,purpose:['form.create','intake.apply','authority.create'].includes(action)?'new-work':'settle-existing',permission:form?'legal.manage':action==='authority.approve'?'legal.approve':'legal.edit',additional:form||action==='intake.apply'?['legal.matters']:['legal.access','legal.documents'],ownerSource:form?{table:'legal_intake_forms',id:action==='form.create'?key:String(input.formId)}:undefined},tx=>application(tx,a).governanceCommand(raw,key));
+}

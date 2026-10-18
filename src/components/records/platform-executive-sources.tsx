@@ -1,6 +1,6 @@
 "use client";
-import {useSearchParams} from 'next/navigation';
-import Link from 'next/link';
+import { useSearchParams } from "@/lib/shared/destination-search";
+import Link from "@/components/workplace/workspace-link";
 import {RecordCollectionDrawer,RecordFacts} from './record-collection';
 import {Table,TableFrame} from '@/components/ui/table';
 import {TimeText} from "@/components/people_payroll/time/time-preference-context";

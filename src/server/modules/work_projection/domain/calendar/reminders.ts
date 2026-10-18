@@ -3,6 +3,7 @@ export type Row = {
     id: string;
     company_id: string;
     title: string;
+    version: number;
     starts_at: number;
     ends_at: number;
     timezone: string;

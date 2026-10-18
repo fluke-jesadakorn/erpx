@@ -20,7 +20,7 @@ beforeEach(() => {
 it("preserves the scoped destination when sign-in is required", async () => {
   await expect(pageError(new Error("UNAUTHENTICATED"), "acme")).rejects.toThrow("redirect:/login?");
   const url = new URL(mocks.redirect.mock.calls[0][0], "https://erpx.invalid");
-  expect(url.searchParams.get("next")).toBe("/holdings/acme/branches/bangkok/departments/operations/people/organization");
+  expect(url.searchParams.get("next")).toBe("/holdings/acme/branches/bangkok/departments/operations/people-organization/people/organization");
   expect(url.searchParams.get("reason")).toBe("sign_in");
 });
 it("retains the requested query when a session expires", async () => {

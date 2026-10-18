@@ -1,8 +1,11 @@
 "use client";
+import { useFinanceActionAllowed } from "./purchase-context";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { useContext, useState } from "react";
 import { EmbeddedRecord } from "@/components/records/record-context";
 import { recordCanonicalHref } from "@/lib/records/record-drawer";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import type { z } from "zod";
 import type {
   groupReportEditionSchema,
@@ -41,6 +44,7 @@ function ReportEditor({
   run: (path: string, input: unknown) => Promise<void>;
   busy: boolean;
 }) {
+  const draftScope=useFinanceDraftScope();
   const old = initial
       ? (JSON.parse(String(initial.content_json)) as Definition)
       : null,
@@ -69,7 +73,7 @@ function ReportEditor({
     ].filter((c) => c !== currency);
   const periodsFor=(companyId:string)=>chosenPeriods[companyId]??financeReportPeriods(data.periods.filter(p=>p.company_id===companyId).map(p=>({id:String(p.id),start_date:String(p.start_date),end_date:String(p.end_date),state:String(p.state)})),start,end);
   return (
-    <FormLayout
+    <FormLayout data-finance-draft={draftScope}
       className="ui-form-grid"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -513,6 +517,7 @@ function OwnershipEditor({
   run: (path: string, input: unknown) => Promise<void>;
   busy: boolean;
 }) {
+  const draftScope=useFinanceDraftScope();
   const old = initial?.source_json
     ? (JSON.parse(String(initial.source_json)).input as Record<
         string,
@@ -520,7 +525,7 @@ function OwnershipEditor({
       >)
     : null;
   return (
-    <FormLayout
+    <FormLayout data-finance-draft={draftScope}
       className="ui-form-grid"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -645,6 +650,7 @@ function AcquisitionEditor({
   run: (path: string, input: unknown) => Promise<void>;
   busy: boolean;
 }) {
+  const draftScope=useFinanceDraftScope();
   const old = initial?.source_json
     ? (JSON.parse(String(initial.source_json)).input as Record<
         string,
@@ -652,7 +658,7 @@ function AcquisitionEditor({
       >)
     : null;
   return (
-    <FormLayout
+    <FormLayout data-finance-draft={draftScope}
       className="ui-form-grid"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -760,26 +766,35 @@ export function FinanceGroupEditionControls({
   canApprove: boolean;
   userId: string;
 }) {
+  const draftScope=useFinanceDraftScope();
+  const [hasAttempt,setHasAttempt]=useState(false);
   const recordOnly = useContext(EmbeddedRecord),
     router = useRouter(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    api = `${base.replace("/holdings/", "/api/v1/holdings/")}/finance`;
+    api = `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance`;
+  const canPrepare = useFinanceActionAllowed("new-work","finance.advanced"), canSettle = useFinanceActionAllowed("settle-existing","finance.advanced");
   async function run(path: string, input: unknown) {
+    const completion=captureFinanceForm(),url=`${api}/${path}`,payload=JSON.stringify(input);
+    if (!(["ownership-editions","acquisition-editions"].includes(path) ? canPrepare : canSettle) && !workFetch.hasAttempt(url,payload)) { setError("This group action is unavailable for the current package."); return; }
+
+    setHasAttempt(true);
     setBusy(true);
     setError("");
     try {
-      const r = await workFetch(`${api}/${path}`, {
+      const r = await workFetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Idempotency-Key": crypto.randomUUID(),
           },
-          body: JSON.stringify(input),
+          body: payload,
         }),
         b = await r.json();
       if (!r.ok)
         throw new Error(b.error?.message ?? "Group Finance command failed.");
+      if (b.data === undefined) throw new Error("Group acknowledgement is missing. Retry the same action.");
+      acknowledgeFinanceForm(completion);setHasAttempt(false);
       window.dispatchEvent(new Event("erpx:work-changed"));
       router.refresh();
     } catch (e) {
@@ -799,7 +814,7 @@ export function FinanceGroupEditionControls({
       approveAction="approve"
       canApprove={canApprove}
       userId={userId}
-      busy={busy}
+      busy={busy || (!canSettle && !hasAttempt)}
       run={run}
     />
   );
@@ -824,7 +839,7 @@ export function FinanceGroupEditionControls({
             drawerTitle="Prepare group reporting edition"
           >
             <summary>Prepare group edition</summary>
-            <ReportEditor data={data} run={run} busy={busy} />
+            <ReportEditor data={data} run={run} busy={busy || (!canSettle && !hasAttempt)} />
           </FormDisclosure>
         )}
       </Card>
@@ -835,21 +850,21 @@ export function FinanceGroupEditionControls({
             drawerTitle="Prepare ownership evidence"
           >
             <summary>Ownership and control</summary>
-            <OwnershipEditor data={data} run={run} busy={busy} />
+            <OwnershipEditor data={data} run={run} busy={busy || (!canPrepare && !hasAttempt)} />
           </FormDisclosure>
           <FormDisclosure error={error}
             appearance="standard"
             drawerTitle="Prepare acquisition evidence"
           >
             <summary>Acquisition and goodwill</summary>
-            <AcquisitionEditor data={data} run={run} busy={busy} />
+            <AcquisitionEditor data={data} run={run} busy={busy || (!canPrepare && !hasAttempt)} />
           </FormDisclosure>
           <FormDisclosure error={error}
             appearance="standard"
             drawerTitle="Pair intercompany posted documents"
           >
             <summary>Pair original documents</summary>
-            <FormLayout
+            <FormLayout data-finance-draft={draftScope}
               className="ui-form-grid"
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -916,7 +931,7 @@ export function FinanceGroupEditionControls({
                 appearance="standard"
                 clientManaged
                 type="submit"
-                disabled={busy}
+                disabled={busy || (!canSettle && !hasAttempt)}
               >
                 Prepare document pair
               </Button>
@@ -957,7 +972,7 @@ export function FinanceGroupEditionControls({
                   data={data}
                   initial={o}
                   run={run}
-                  busy={busy}
+                  busy={busy || (!canSettle && !hasAttempt)}
                 />
               </FormDisclosure>
             )}
@@ -1002,7 +1017,7 @@ export function FinanceGroupEditionControls({
                   data={data}
                   initial={a}
                   run={run}
-                  busy={busy}
+                  busy={busy || (!canSettle && !hasAttempt)}
                 />
               </FormDisclosure>
             )}
@@ -1077,7 +1092,7 @@ export function FinanceGroupEditionControls({
           {canApprove &&
             p.prepared_by !== userId &&
             ["draft", "confirmed"].includes(String(p.status)) && (
-              <FormLayout
+              <FormLayout data-finance-draft={draftScope}
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const f = new FormData(
@@ -1110,7 +1125,7 @@ export function FinanceGroupEditionControls({
                     name="action"
                     value={a}
                     key={a}
-                    disabled={busy}
+                    disabled={busy || (!canSettle && !hasAttempt)}
                   >
                     {a} document pair
                   </Button>
@@ -1226,7 +1241,7 @@ export function FinanceGroupEditionControls({
                 drawerTitle="Revise retained group edition"
               >
                 <summary>Prepare revised edition</summary>
-                <ReportEditor data={data} initial={e} run={run} busy={busy} />
+                <ReportEditor data={data} initial={e} run={run} busy={busy || (!canSettle && !hasAttempt)} />
               </FormDisclosure>
             )}
           </Card>

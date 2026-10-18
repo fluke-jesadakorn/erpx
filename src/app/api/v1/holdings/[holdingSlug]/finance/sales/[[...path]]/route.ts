@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
@@ -10,9 +11,9 @@ export async function GET(request: Request, context: Context) {
   try {
     const { holdingSlug, path = [] } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug), "finance.read");
-    if (!path.length) return Response.json({ data: await salesWorkspace(actor, Object.fromEntries(new URL(request.url).searchParams)) }, { headers });
-    if (path[0] === "defaults" && path.length === 1) return Response.json({ data: await salesDefaultsWorkspace(actor) }, { headers });
-    if (path[0] === "receipts" && path[1] && path.length === 2) return Response.json({ data: await customerReceiptDetail(actor, path[1]) }, { headers });
+    if (!path.length) return Response.json(canonicalDestinationLinks({ data: await salesWorkspace(actor, Object.fromEntries(new URL(request.url).searchParams)) }), { headers });
+    if (path[0] === "defaults" && path.length === 1) return Response.json(canonicalDestinationLinks({ data: await salesDefaultsWorkspace(actor) }), { headers });
+    if (path[0] === "receipts" && path[1] && path.length === 2) return Response.json(canonicalDestinationLinks({ data: await customerReceiptDetail(actor, path[1]) }), { headers });
     if (path[0] === "receipts" && path[1] && path[2] === "export" && path.length === 3) {
       const result = await customerReceiptExport(actor, path[1]);
       return new Response(result.content, { headers: { ...headers, "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'", "X-Content-Type-Options": "nosniff", "X-Document-SHA256": result.sha256 } });
@@ -32,7 +33,7 @@ export async function POST(request: Request, context: Context) {
     else if (path[0] === "invoices" && path.length === 1) data = await createSalesInvoiceDraft(actor, input, key);
     else if (path[0] === "receipts" && path.length === 3 && path[2] === "issue") data = await issueCustomerReceipt(actor, path[1], key);
     else throw new ApiError(404, "NOT_FOUND", "Sales command not found.");
-    return Response.json({ data }, { headers });
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (error) { return failure(error); }
 }
 function failure(error: unknown) {

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { attestAttachmentSetSanitized } from "@/server/modules/files/public/attachments/service";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -27,7 +28,7 @@ export async function POST(
     if (!parsed.success)
       throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Confirm the sanitized-evidence review.");
     const { write } = await holdingResources(actor.holdingId);
-    return Response.json({ data: await attestAttachmentSetSanitized(write, actor, setId, parsed.data, key) });
+    return Response.json(canonicalDestinationLinks({ data: await attestAttachmentSetSanitized(write, actor, setId, parsed.data, key) }));
   } catch (error) {
     return errorResponse(error);
   }

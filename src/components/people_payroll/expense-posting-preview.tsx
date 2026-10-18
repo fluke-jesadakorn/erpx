@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { InlineNotice } from "@/components/ui/foundation";
 import { Table } from "@/components/ui/foundation";
@@ -43,7 +44,7 @@ export async function ExpensePostingPreview({
             ))}
           </tbody>
         </Table></TableFrame>
-        <Link href={`${base}/finance/journals/${expense.journal_id}`}>Open posted journal</Link>
+        <Link href={canonicalUiHref(`${base}/finance/journals/${expense.journal_id}`)}>Open posted journal</Link>
       </Card>
     );
   }
@@ -95,7 +96,7 @@ export async function ExpensePostingPreview({
         </tfoot>
       </Table></TableFrame>
       {expense.journal_id ? (
-        <Link href={`${base}/finance/journals/${expense.journal_id}`}>Open posted journal</Link>
+        <Link href={canonicalUiHref(`${base}/finance/journals/${expense.journal_id}`)}>Open posted journal</Link>
       ) : (
         <ExpensePosting
           base={base}

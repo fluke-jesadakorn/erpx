@@ -3,7 +3,7 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Field, TextInput } from "@/components/ui/foundation";
 
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import {
   ArrowDown,
   ArrowUp,

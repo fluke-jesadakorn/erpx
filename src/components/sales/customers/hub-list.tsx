@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import type { ReactNode } from "react";
 import { ActionLink, Button, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 import { hubHref, queryValue, type HubQuery } from "@/server/modules/sales/public/rules/navigation";

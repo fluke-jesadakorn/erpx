@@ -1,4 +1,6 @@
 "use client";
+import WorkspaceLink from '@/components/workplace/workspace-link';
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { FormDisclosure } from "@/components/ui/form-disclosure";
@@ -90,9 +92,9 @@ export function LegalGovernance({
         </Button>
         {references.map((r) => (
           <p key={`${r.kind}:${r.id}`}>
-            <a href={`${base}/${r.path}`}>
+            <WorkspaceLink href={canonicalUiHref(`${base}/${r.path}`)}>
               {r.kind} · {r.label} · v{r.version}
-            </a>
+            </WorkspaceLink>
           </p>
         ))}
         <form

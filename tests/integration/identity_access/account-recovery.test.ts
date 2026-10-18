@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { beforeAll, expect, it } from "vitest";
+import { beforeAll, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
   deliverAccountRecovery,
@@ -196,4 +196,35 @@ it("records bounded provider failure and immutable completion evidence", async (
   await expect(
     db.prepare("DELETE FROM account_recovery_events WHERE id=?").bind(eventId).run(),
   ).rejects.toThrow(/Immutable IAM evidence/);
+});
+
+
+it("moves a queued Console recovery delivery to Account without replacing its token, ciphertext, expiry or verification", async () => {
+  const account = await user(), token = "migration-recovery-" + crypto.randomUUID();
+  const keys = ["ERPX_ENVIRONMENT", "ERPX_PUBLIC_ORIGIN", "ERPX_PRODUCT_ENVIRONMENT", "ERPX_PRODUCT_ROUTING", "ERPX_PRODUCT_SSO"];
+  const previous = keys.map(key => process.env[key]);
+  try {
+    vi.stubEnv("ERPX_ENVIRONMENT", "local");
+    vi.stubEnv("ERPX_PUBLIC_ORIGIN", "https://console-dev-erpx.jesadakorn.com");
+    vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT", "development");
+    vi.stubEnv("ERPX_PRODUCT_ROUTING", "disabled");
+    vi.stubEnv("ERPX_PRODUCT_SSO", "enabled");
+    await verification(account.id, token);
+    const original = `https://console-dev-erpx.jesadakorn.com/api/auth/reset-password/${token}?callbackURL=` + encodeURIComponent("https://console-dev-erpx.jesadakorn.com/reset-password");
+    await queueAccountRecovery(db, configuration, account, original, token, now);
+    const before = await db.prepare("SELECT id,verification_identifier,url_ciphertext,expires_at FROM account_recovery_delivery_jobs WHERE user_id=?").bind(account.id).first();
+    vi.stubEnv("ERPX_PRODUCT_ROUTING", "enabled");
+    const sent: string[] = [];
+    expect(await deliverAccountRecovery(db, configuration, async (_env, _to, _subject, link) => { sent.push(link); return "migrated-recovery-fixture"; }, now + 1)).toBe(true);
+    expect(sent).toHaveLength(1);
+    const link = new URL(sent[0]);
+    expect(link.origin).toBe("https://account-dev-erpx.jesadakorn.com");
+    expect(link.pathname).toBe(`/api/auth/reset-password/${token}`);
+    expect(link.searchParams.get("callbackURL")).toBe("https://account-dev-erpx.jesadakorn.com/reset-password");
+    expect(await db.prepare("SELECT id,verification_identifier,url_ciphertext,expires_at FROM account_recovery_delivery_jobs WHERE user_id=?").bind(account.id).first()).toEqual(before);
+    expect(await db.prepare("SELECT value FROM verification WHERE identifier=?").bind(`reset-password:${token}`).first("value")).toBe(account.id);
+    expect(await db.prepare('SELECT count(*)::int n FROM session WHERE "userId"=?').bind(account.id).first("n")).toBe(0);
+  } finally {
+    keys.forEach((key, index) => previous[index] === undefined ? delete process.env[key] : process.env[key] = previous[index]);
+  }
 });

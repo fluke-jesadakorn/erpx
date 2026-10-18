@@ -1,0 +1,47 @@
+/* Owner-level Backoffice presentation. Native POS widget, cart, keyboard,
+   barcode, receipt and print CSS stays in its original specialized owners. */
+.workspace { display: grid; gap: 22px; padding: 24px; min-width: 0; color: var(--ui-ink); }
+.workspace > * { min-width: 0; }
+.header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+.header h2 { margin: 0 0 8px; font-size: var(--ui-type-section); }
+.muted { color: var(--ui-muted); font-size: var(--ui-type-meta); }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.button { min-height: 44px; white-space: normal; }
+.secondary { min-width: 0; }
+.navigation { min-width: 0; }
+.sections { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.section { display: flex; align-items: flex-start; gap: 12px; min-width: 0; min-height: 72px; padding: 16px; text-align: left; white-space: normal; justify-content: flex-start; }
+.section[aria-current="page"] { border-color: var(--ui-brand); background: var(--ui-brand-soft); color: var(--ui-brand-strong); }
+.section svg { flex: 0 0 auto; }
+.section span { display: grid; gap: 4px; min-width: 0; }
+.section strong { font-size: var(--ui-type-body); }
+.section small { font-size: var(--ui-type-meta); color: var(--ui-muted); font-weight: 400; }
+.picker { display: none; }
+.panel { min-width: 0; }
+.panel h2 { font-size: var(--ui-type-card); }
+.empty { padding: 48px 16px; color: var(--ui-muted); text-align: center; }
+.alert { padding: 16px; border-radius: var(--ui-radius-md); border: 1px solid var(--ui-amber); background: var(--ui-amber-soft); color: var(--ui-amber); }
+.error { border-color: var(--ui-red); background: var(--ui-red-soft); color: var(--ui-red); }
+.success { border-color: var(--ui-green); background: var(--ui-green-soft); color: var(--ui-green); }
+.successNotice { position: fixed; right: max(20px,env(safe-area-inset-right)); bottom: max(20px,env(safe-area-inset-bottom)); z-index: 120; width: fit-content; max-width: min(420px,calc(100vw - 40px)); padding: 10px 14px; box-shadow: var(--ui-shadow-md); font-size: var(--ui-type-meta); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--ui-line); flex-wrap: wrap; }
+.row strong { display: block; }
+.form { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,185px),1fr)); align-items: end; gap: 16px; }
+.form > * { min-width: 0; }
+.readiness { grid-column: 1/-1; }
+.readiness header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.readiness h2 { margin: 0; font-size: var(--ui-type-card); }
+.readiness ul { display: grid; gap: 12px; padding: 0; margin: 16px 0 0; list-style: none; }
+.readiness li { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: start; gap: 12px; }
+.readiness p { margin: 4px 0 0; color: var(--ui-muted); font-size: var(--ui-type-meta); }
+@media (max-width:720px) {
+ .workspace { gap: 16px; padding: 18px 16px; }
+ .picker { display: flex; justify-content: space-between; width: 100%; min-height: 56px; }
+ .picker span { display: grid; gap: 4px; text-align: left; }
+ .picker small { color: var(--ui-muted); font-weight: 400; }
+ .sections { grid-template-columns: repeat(2,minmax(0,1fr)); margin-top: 8px; }
+ .navigation[data-expanded="false"] .sections { display: none; }
+ .section { min-height: 64px; padding: 12px; }
+ .form { grid-template-columns: minmax(0,1fr); }
+}
+@media print { .navigation,.actions,.successNotice { display: none; } .workspace { color: #111; background: #fff; padding: 0; } }

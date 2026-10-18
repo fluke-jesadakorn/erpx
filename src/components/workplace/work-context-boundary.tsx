@@ -5,6 +5,22 @@ import { useEffect, useRef, useState } from "react";
 import { useContextSwitch } from "./context-switch-provider";
 import { type UiAppearance } from "@/components/ui/foundation";
 
+/** Minimal public SSR identity for deduplicating this mount only. It is never
+ * command authority, a session token, IAM data or a cross-request cache. */
+export type InitialWorkContextSnapshot = {
+  version: 1;
+  base: string;
+  userId: string;
+  companyId: string;
+  assignmentId: string;
+  revision: number;
+  checkedAt: number;
+  frontApp?: "pos" | "pms";
+  frontLocation?: string;
+  frontRoleEndpoint?: string;
+};
+const initialSnapshotMaxAgeMs = 30_000;
+
 export function WorkContextBoundary({ appearance = "legacy",
   base,
   userId,
@@ -14,6 +30,7 @@ export function WorkContextBoundary({ appearance = "legacy",
   frontApp,
   frontLocation,
   frontRoleEndpoint,
+  initialCurrent,
   children,
 }: ({
   base: string;
@@ -24,11 +41,13 @@ export function WorkContextBoundary({ appearance = "legacy",
   frontApp?: "pos" | "pms";
   frontLocation?: string;
   frontRoleEndpoint?: string;
+  initialCurrent?: InitialWorkContextSnapshot;
   children: React.ReactNode;
 }) & { appearance?: UiAppearance }) {
   const { busy, switchContext } = useContextSwitch();
   const [stale, setStale] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const initialSnapshot = useRef(initialCurrent);
   useEffect(() => {
     let active = true;
     const channel =
@@ -75,7 +94,22 @@ export function WorkContextBoundary({ appearance = "legacy",
     channel?.addEventListener("message", check);
     window.addEventListener("focus", check);
     window.addEventListener("erpx:work-context-changed", check);
-    void check();
+    // Only the original mount snapshot may suppress a duplicate read. Later
+    // SSR props cannot clear stale state or reset the live dirty form tracking.
+    const initial = initialSnapshot.current, now = Date.now();
+    const matchesInitial = initial?.version === 1 && !!userId &&
+      initial.base === base && initial.userId === userId &&
+      initial.companyId === companyId && initial.assignmentId === assignmentId &&
+      initial.revision === revision && initial.frontApp === frontApp &&
+      initial.frontLocation === frontLocation && initial.frontRoleEndpoint === frontRoleEndpoint &&
+      Number.isSafeInteger(initial.checkedAt) && initial.checkedAt > 0 &&
+      now >= initial.checkedAt && now - initial.checkedAt <= initialSnapshotMaxAgeMs;
+    if (!matchesInitial) {
+      // A rejected seed can never become eligible again in this mounted
+      // lifetime, even if the user/source returns to its original values.
+      initialSnapshot.current = undefined;
+      void check();
+    }
     const node = root.current;
     const editedForms = new Set<HTMLFormElement>();
     let nonFormEdits = false;
@@ -119,7 +153,7 @@ export function WorkContextBoundary({ appearance = "legacy",
       removedForms.disconnect();
       window.removeEventListener("erpx:record-command-saved", saved);
     };
-  }, [base, userId, companyId, assignmentId, revision, frontRoleEndpoint, frontLocation]);
+  }, [base, userId, companyId, assignmentId, revision, frontApp, frontRoleEndpoint, frontLocation]);
   return (
     <div data-ui-appearance={appearance}
       ref={root}

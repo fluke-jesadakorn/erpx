@@ -17,6 +17,7 @@ import {
   drainAttachmentScans,
   bindRecordAttachmentSet,
   listAttachmentSets,
+  attachmentContent,
 } from "../../../src/server/modules/files/public/attachments/service";
 import { sha256 } from "../../../src/server/modules/runtime/adapters/crypto";
 import {
@@ -135,6 +136,7 @@ it("binds actually scanned File Sources before independent review, preserves exa
     ),
   ).rejects.toMatchObject({ code: "FINANCE_FILE_EVIDENCE_NOT_READY" });
   await bindRecordAttachmentSet(db, f.owner, set.id, 1, key());
+  expect(Buffer.from(await (await attachmentContent(db,env.H001_FILES,f.manager,reserved.attachmentLinkId,"original")).object.arrayBuffer())).toEqual(png);
   await expect(
     decideFinancePlan(
       f.manager,
@@ -446,10 +448,12 @@ it.each(["book", "contract", "lease"] as const)(
         .first("version"),
     ).toBe(1);
     await bindRecordAttachmentSet(db, f.owner, set.id, 1, key());
+  expect(Buffer.from(await (await attachmentContent(db,env.H001_FILES,f.manager,reserved.attachmentLinkId,"original")).object.arrayBuffer())).toEqual(png);
     await expect(decide(1, key())).rejects.toThrow();
     const command = key();
     await decide(2, command);
     await decide(2, command);
+    expect(Buffer.from(await (await attachmentContent(db,env.H001_FILES,f.manager,reserved.attachmentLinkId,"original")).object.arrayBuffer())).toEqual(png);
     const proof = await db
       .prepare(
         "SELECT target_type,target_version,manifest_json,manifest_sha256 FROM finance_expansion_review_files WHERE command_id=?",

@@ -1,3 +1,5 @@
+import {withExpensePurchasedCommand} from "./expense-purchases";
+import {peoplePackageEnforcementMode} from "../../commercial/public/purchase-command-boundary";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "../../commerce/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "../../files/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "../../finance/public/hospitality-owner-projection-sources";
@@ -64,7 +66,7 @@ export function nativeExpenseWorkflowFields(db: SqlDatabase, readApproval?: (act
 export async function expenseWorkflowFields(db: SqlDatabase, actor: WorkContext, row: ExpenseRow, readApproval?: (actor:WorkContext,id:string)=>ReturnType<typeof approvalView>): Promise<ExpenseRow> {
   return nativeExpenseWorkflowFields(db, readApproval)(actor, row);
 }
-export function nativeExpenseAccounting(write: SqlDatabase) {
+function originalNativeExpenseAccounting(write: SqlDatabase) {
   return createSaveExpenseAccounting({
     ...expenseCommandPort(write),
     authority: actor => expenseAuthoritySnapshot(write, actor.companyId),
@@ -144,9 +146,9 @@ export function nativeExpenseAccounting(write: SqlDatabase) {
 }
 export async function saveExpenseAccounting(actor: WorkContext, id: string, input: z.infer<typeof expenseAccountingSchema>, key: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpenseAccounting(write)(actor, id, input, key);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:"settle-existing"}, tx => nativeExpenseAccounting(tx)(actor, id, input, key));
 }
-export function nativeExpenseTransitions(write: SqlDatabase) {
+function originalNativeExpenseTransitions(write: SqlDatabase) {
   return createTransitionExpenseV2({
     ...expenseCommandPort(write),
     now: Date.now,
@@ -295,5 +297,9 @@ export function nativeExpenseTransitions(write: SqlDatabase) {
 }
 export async function transitionExpenseV2(actor: WorkContext, row: ExpenseRow, action: "submit" | "approve" | "reject" | "cancel", input: { expectedVersion: number; reason?: string; override?: boolean }, key: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpenseTransitions(write)(actor, row, action, input, key);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:action === "submit" ? "new-work" : "settle-existing"}, async tx => nativeExpenseTransitions(tx)(actor, await peoplePackageEnforcementMode() === "disabled" ? row : await expenseFromDatabase(tx, actor, String(row.id)), action, input, key));
 }
+
+export function nativeExpenseAccounting(database: SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseAccounting>>)=>withExpensePurchasedCommand(database,args[0],{key:args[3],purpose:"settle-existing"},transaction=>originalNativeExpenseAccounting(transaction)(...args));}
+
+export function nativeExpenseTransitions(database: SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseTransitions>>)=>withExpensePurchasedCommand(database,args[0],{key:args[4],purpose:args[2] === "submit" ? "new-work" : "settle-existing"},transaction=>originalNativeExpenseTransitions(transaction)(...args));}

@@ -8,17 +8,26 @@ import {
 } from "../../../src/app/api/v1/holdings/[holdingSlug]/calendar/route";
 import { GET as hierarchy } from "../../../src/app/api/v1/holdings/[holdingSlug]/calendar/[...path]/route";
 let actor: WorkContext;
+const resourcesObserved=vi.hoisted(()=>vi.fn());
 vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({
   requireWorkContext: async () => actor,
 }));
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
-  holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
+  holdingResources: async () => {resourcesObserved();return { write: env.H001_DB, files: env.H001_FILES };},
   runtimeEnv: async () => env,
 }));
 beforeAll(async () => {
   await applyMigrations(env.H001_DB, env.STAFF_TEST_MIGRATIONS);
 });
 const context = { params: Promise.resolve({ holdingSlug: "test" }) };
+it("rejects a manual Calendar command on People before acquiring its Holding database",async()=>{
+ const f=await seedExpenseCompany(env.H001_DB,env.H001_FILES);actor=f.claimant;
+ vi.stubEnv("ERPX_PRODUCT_ROUTING","enabled");vi.stubEnv("ERPX_PRODUCT_SSO","enabled");vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT","development");vi.stubEnv("ERPX_ENVIRONMENT","local");resourcesObserved.mockClear();
+ try{
+  const response=await POST(new Request("https://people-dev-erpx.jesadakorn.com/api/v1/holdings/test/calendar",{method:"POST",headers:{host:"people-dev-erpx.jesadakorn.com",origin:"https://people-dev-erpx.jesadakorn.com","Content-Type":"application/json","Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({action:"announcement.save",title:"Foreign owner command"})}),context);
+  expect(response.status).toBe(404);expect(await response.json()).toMatchObject({error:{code:"NOT_FOUND"}});expect(resourcesObserved).not.toHaveBeenCalled();
+ }finally{vi.unstubAllEnvs();}
+});
 it("checks command keys, origin and input at the API boundary", async () => {
   const f = await seedExpenseCompany(env.H001_DB, env.H001_FILES);
   actor = f.claimant;

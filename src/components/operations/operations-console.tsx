@@ -3,7 +3,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import {useRef,useState} from "react";
-import {useRouter} from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import {Button,Field,Select,TextArea,TextInput} from "@/components/ui/foundation";
 import {workFetch} from "@/lib/work_projection/work-fetch";
 import type {operationsWorkspace,operationsExceptionDetail} from "@/server/modules/operations/public/operations-exceptions";

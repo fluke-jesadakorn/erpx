@@ -21,6 +21,7 @@ export type EcommerceRepository = {
   cart(id: string, lock: boolean): Promise<Row | null>;
   listing(id: string): Promise<Row | null>;
   addCartLine(command: EcommerceCommand<CartLineInput>, cart: Row, listing: Row, lineId: string, now: number, lineCreatedAt: number): Promise<Record<string, unknown>>;
+  abandonCart(command:EcommerceCommand<EcommerceAction>,now:number):Promise<Record<string,unknown>>;
   cartLines(id: string): Promise<Row[]>;
   saveSalesOrder(actor: WorkContext, input: { kind: "sales"; partyId: unknown; warehouseId: unknown; orderDate: string; dueDate: string; note: string; lines: { productId: unknown; quantity: string; price: string; taxBps: number }[] }, key: string): Promise<Record<string, unknown>>;
   transitionSalesOrder(actor: WorkContext, id: string, input: { action: "submit" | "approve"; expectedVersion: number }, key: string): Promise<unknown>;
@@ -99,6 +100,11 @@ export function createEcommerceApplication(ports: {
     const input = actionSchema.parse(raw), repository = current ?? await ports.repository();
     if (!current && repository.transaction) return repository.transaction(transaction => changeEcommerce(kind, id, raw, key, transaction));
     const command = { input, key, id, operation: `ecommerce.${kind}.${input.action}` }, prior = await repository.replay(command); if (prior) return prior;
+    if(kind==='cart'){
+      if(input.action!=='abandon')return fail(422,'INVALID_ECOMMERCE_TRANSITION','Use the retained cart abandonment command.');
+      const cart=await repository.cart(id,true);if(!cart)return fail(404,'CART_NOT_FOUND','Cart not found.');if(cart.status!=='open'||Number(cart.version)!==input.expectedVersion)return fail(409,'ECOMMERCE_SOURCE_CHANGED','Only the current open cart can be abandoned.');
+      return repository.abandonCart(command,ports.clock.now());
+    }
     if (kind !== "checkout") {
       const row = await repository.reviewRecord(kind, id);
       if (!row) return fail(404, "ECOMMERCE_RECORD_NOT_FOUND", "Record not found.");

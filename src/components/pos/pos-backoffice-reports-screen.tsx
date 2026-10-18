@@ -1,19 +1,20 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import dynamic from "next/dynamic";
 import { RecordLink } from "@/components/records/record-link";
 import { recordCanonicalHref } from "@/lib/records/record-drawer";
 import { Button as UiButton, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 import { FeatureWidget as FeatureWidgetBase } from "@/components/shared/features/feature-page";
 import type { PosRow } from "@/server/modules/pos/public/pos-core";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { type ComponentProps, type FormEvent, type ReactNode } from "react";
 import styles from "./pos.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePosConsoleContext} from "./pos-backoffice-console";
+import type {BackofficePosConsoleContext} from "./standard-pos-backoffice-console";
 
 
-const PosDayClosePanel = dynamic(() => import("./pos-closing").then(module => module.PosDayClosePanel));
+const PosDayClosePanel = dynamic(() => import("./standard-pos-closing").then(module => module.StandardPosDayClosePanel));
 
 
 type Row = PosRow;
@@ -372,7 +373,7 @@ export function BackofficePosConsoleReportsScreen({context}: {context: Backoffic
                           )}
                         {st.bank_transaction_id && <span>Bank reconciled</span>}
                         {st.journal_id && (
-                          <Link href={`${base}/finance/journals/${st.journal_id}`}>
+                          <Link href={canonicalUiHref(`${base}/finance/journals/${st.journal_id}`)}>
                             View ledger
                           </Link>
                         )}

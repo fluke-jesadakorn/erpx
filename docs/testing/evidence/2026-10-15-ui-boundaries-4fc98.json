@@ -1,0 +1,729 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "4fc98d4e2a041456179d43e8e850a6106395610cfb37427dd22af88214b3c975",
+  "verificationFingerprint": "c8be8bef9617f78f694ac74b4d2f9d3a4e22cbddc2c584bf22c031691d8bf8a2",
+  "createdAt": "2026-10-14T19:14:20.179863+00:00",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit",
+    "apps:all-company-branch-department-product-selection"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment."
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it."
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Signed read-only per-Company comparison; expected versions, fresh Platform MFA and normal Commercial applyIn grant/audit/review transaction. The source owns its first snapshot and complete IAM/Organization/People predicates, tracks future eligibility boundaries and verifies source/current Platform authority after the final batch receipt before COMMIT. Six actual old-source late-receipt failures now roll back. Stale-directory review, future HR appointment, committed replay and transaction confinement are covered."
+    },
+    {
+      "workflow": "apps:all-company-branch-department-product-selection",
+      "implementation": [
+        "src/server/modules/work_projection/application/product-launcher.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/app/choose-work-role/page.tsx"
+      ],
+      "behavior": "Enumerates all Company/Branch/Department choices, checks each applicable role independently using purchased entry capabilities/release/owner menu predicates, preserves the live selection and uses explicit versioned same-origin role selection. Assignment rows and original Module IDs remain unchanged. Positive installed-Company acceptance remains open."
+    }
+  ],
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "release": {
+    "id": "2026-10-14T19-01-38-071Z",
+    "sourceFingerprint": "4fc98d4e2a041456179d43e8e850a6106395610cfb37427dd22af88214b3c975"
+  },
+  "previousImplementation": "docs/testing/evidence/2026-10-15-support-obligations-f6bdd.json",
+  "uiBoundaryDelta": {
+    "callers": 206,
+    "legacy": 14,
+    "standard": 192,
+    "ordinaryBoundaryViolationsBefore": 467,
+    "ordinaryBoundaryViolationsAfter": 0,
+    "remainingFrozenDifferences": 36,
+    "frozenCheckerRegistersAndExistingAssertionsChanged": false,
+    "newRegressionCases": 6,
+    "originalGuardCases": 14,
+    "nativeViewportStates": 45,
+    "additionalSystemMediaStates": 6,
+    "keyboardFocusCases": 3,
+    "initialServerDocuments": 3,
+    "baselineManifest": ".scratch/dev/product-ui-boundaries-current/baseline.json",
+    "baselineRoot": ".scratch/dev/product-ui-boundaries-current/before",
+    "candidateSourceManifest": ".scratch/dev/product-ui-boundaries-current/candidate-source-manifest.json"
+  },
+  "checks": {
+    "unit": {
+      "files": 214,
+      "cases": 2862,
+      "result": "passed"
+    },
+    "focusedPostgres": {
+      "files": 5,
+      "cases": 26,
+      "result": "passed"
+    },
+    "cssSource": {
+      "result": "passed",
+      "identicalWorkspaceIsolated": true,
+      "bytes": 56623,
+      "sha256": "2e1056d46f3d0a9a36e3285e92917cdac33ec97360833e290f5bdbda65286141"
+    },
+    "completeUiGate": {
+      "observedAt": "2026-10-14T19:09:40.524631+00:00",
+      "exitCode": 1,
+      "boundaryConsumers": 0,
+      "frozenDifferences": 36,
+      "summary": {
+        "routes": 1174,
+        "components": 569,
+        "pendingRoutes": 954,
+        "pendingSources": 1736
+      },
+      "completionMessages": [
+        "Completion blocked: 3 retired boundaries require specialized browser acceptance.",
+        "Completion blocked: 1736 component/page sources lack current state acceptance.",
+        "Completion blocked: 954 routes lack current browser acceptance."
+      ],
+      "logSha256": "d39cf14598d917f34ac9512662671f638f1c62944b72a34b562b424e624fcb64"
+    },
+    "transport": {
+      "passed": 44,
+      "scope": "22 development health/icon/TLS probes"
+    }
+  },
+  "limits": [
+    "Implementation-only; no owner workflow verified/enabled phase or product-host cutover accepted",
+    "All 36 frozen differences, three pending retirements, 1736 pending source states and 954 pending routes remain completion failures",
+    "Two already changed frozen root index files now also carry the deliberate explicit appearance prop; the parent byte-identical inherited-diff claim is not renewed for those files",
+    "Three representative indexes and common adapter checks do not certify every route/caller, specialized widget, form/drawer/dirty state, owner/public workflow or compiled performance",
+    "High-level screenshot API images with nonmatching pixel dimensions and the initial viewport-target mismatch are excluded; exact-size native PNGs supply passing image evidence",
+    "An incomplete first document-event interval and a nested keyboard-locator timeout are retained diagnostics; complete response/loading intervals and unambiguous real anchor actions supply passing observations",
+    "The first candidate failed lint on a new test children-prop style; the repaired final candidate preserves its assertions and passes lint",
+    "No same-candidate full PostgreSQL lane, complete owner enforcement/lifecycle, Account/SSO propagation, public workflow, compiled performance or populated business/private-file rollback acceptance claimed",
+    "No installed grants, assignments, rollout, schema, prices, live collection, staging access or production deployment changed; theme preferences and temporary browser overrides restored"
+  ],
+  "artifacts": [
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/verification-final.json",
+      "sha256": "b2ffbb5f3f1be64c82852ffaf8a7b8578dfcff1fec11bdf91e130e59e5d47af3"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/verify-final.py",
+      "sha256": "33310fdeac106d5851430d7a37ab483332154b46752572a6dac25499d51d4b63"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/verification.json",
+      "sha256": "746bce1a6a9b58e09312c1624135a24263284673c0c1e1592a913992b7f40a3a"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/verify.py",
+      "sha256": "d69a4cdd23d4146f87dd2af1890755f3d034db6c5534cfa5a3aa0791ccba16ab"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/first-checks.json",
+      "sha256": "c68545cf64fe01c09450ca09a94000be70b0a22b4d53714bf21b3256636a1f2b"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/unit-first.log",
+      "sha256": "702c2a83dd677e2887ec0c001a0fb88418895883ba215b902d0bb609252932f9"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/typecheck-first.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/ui-guard-first.log",
+      "sha256": "2995e0373aa4a3137c603b859ca3af7aa09cdd6490d62af9074eacf9132e6ab0"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/current-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/current-lint.log",
+      "sha256": "5eb60ce98ba73c84b85ec91bf3804bd214b6bf02b38c43d5fe360409405e8d13"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/baseline.json",
+      "sha256": "7b25798c9cd276ce920353c07676596b59f7fc734aa2e90a013fad48d9ccf689"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/callers.json",
+      "sha256": "7e9c9f83d109f826cd199a579efc3ffc5da932e14579b4055d83056e9922fe67"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/caller-verification.json",
+      "sha256": "994150d116f0f0b6069a19f7e50b484e99af684d24e83cb195d42906ba84bfa5"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/candidate-source-manifest.json",
+      "sha256": "8f370e71a05acfc14c2043affe90ae0e350f0ce1e2af93f72eb76d474350028d"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/protected-files.json",
+      "sha256": "4179c77b10cc38983cc5f89ef797e7daaf1039dd82321b8dd246b10ab6a31ec7"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/ui-complete.json",
+      "sha256": "57a75dfee8633d86a337f6e45095d04069db848fdbb581a926c3b785827fcf39"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/ui-complete.log",
+      "sha256": "d39cf14598d917f34ac9512662671f638f1c62944b72a34b562b424e624fcb64"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/grant-counts.json",
+      "sha256": "cda36007de65a59a95dbb30f0dbe1e18e75ad4b531c723ff34eef3d40aba67ae"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/transport/receipt.json",
+      "sha256": "570a94e6c7109bc1fa1779fa29e63c19221ac1aec52247bb69aa163d2648ae63"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/availability.json",
+      "sha256": "f7ea9470d1f52cb80e6b6584bbb19b89cd37f49910220a57cc7392f1802bf928"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-catalogue.log",
+      "sha256": "f81538adeed8d8c36fa81914f6f1ab1d3d727a8004dd06cd6825c00f2f67c675"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-documentation.log",
+      "sha256": "9cc414cc5265f082fba4c6b08c3f89066fe7e97ea88d9612b61829c6dd46e97b"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-products.log",
+      "sha256": "dccdd861f3d91d35282eb0a5b965e04d97d1023ebaed3dad13d83455ab5df5fa"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-unit.log",
+      "sha256": "df19422a53fb83b6f2f2ca617416ae3dfa21bde97a4a15c71fd46ccca08c1eda"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-focused-postgres.log",
+      "sha256": "93befed85f058be97014b96850a2bc455caca3734bed65660663a46a578706c0"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-css-source.log",
+      "sha256": "c8198b953e35e3b3d7fb8f296f18ef6d7c68da1e1360902fb243325baa28f43c"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/final-build.log",
+      "sha256": "e71f5471b41653aa2a797cb0193e7df574e1f65e5fd20db2b4dddf4301844fe0"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/browser-protocol.js",
+      "sha256": "44c0964ca8804fc98f86a6f6cdae008fa7d88c81e59bea35c6285e328f67922d"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-dark-1024.png",
+      "sha256": "8f8b9accaf6400bcdc7982b8644fb408f5efaf71b4fe27b8836374373f88675f"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-dark-1440.png",
+      "sha256": "30df9b72b068149ce82e792b6275223ee2cb8a8e21312f8c7d402354545863b3"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-dark-320.png",
+      "sha256": "13dcba97e0f3a48600223a3c8aac63b11ba70ef636ecff2a835867b2c36aea4b"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-dark-390.png",
+      "sha256": "7e9f174042169d60459f9c696906c28974821672baa8f0d0a5f61f1be51f7b67"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-dark-768.png",
+      "sha256": "f9a320c26ecadd7469e2c75c2334c6e6713001c085cab5376da25980a136a012"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-light-1024.png",
+      "sha256": "55001cb85ab27b9a420d60e931bcd5bb74d66f89a8df01c2ec8af865c23dfe3f"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-light-1440.png",
+      "sha256": "2cd35a37f4ed1c5ebc85b07a56fd0d1ae8f5857ab1c7af5315dc013918e96c64"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-light-320.png",
+      "sha256": "0bf7f01817529342262c23926514b635e9d77644c06e1f02a0e15fb1ad56ad09"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-light-390.png",
+      "sha256": "27454a58b62744239f21660bb93f6e0cf37c90e8b9f2e838129553f80d6661ca"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-light-768.png",
+      "sha256": "0c508917c6c37f5a7a2b0b98c1eaaee2cbd3c762b4957a9a08757dfefdd0c1af"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-system-1024.png",
+      "sha256": "815dc6201106a81cda505caad58a440db0bfcb04c4fbf3005a45d636de7084c5"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-system-1440.png",
+      "sha256": "9236f567db2d1dbe6728143b7ac2cef8d27a063b4958da29f30515ebedbcf1fd"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-system-320.png",
+      "sha256": "13dcba97e0f3a48600223a3c8aac63b11ba70ef636ecff2a835867b2c36aea4b"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-system-390.png",
+      "sha256": "7e9f174042169d60459f9c696906c28974821672baa8f0d0a5f61f1be51f7b67"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-office-system-768.png",
+      "sha256": "00dedd8e9870c4979a53665546c00d1fd0c9cf1d499857ca2713ba6f3e348839"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-dark-1024.png",
+      "sha256": "f9010fd3cfbf55d78d01a636771ac05145fcbb18eb054b49fc54b1558ee2c877"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-dark-1440.png",
+      "sha256": "5dd2c76f1340dc86ab9cf4c78a49b08b4ac918e74713e298b9d6e5f84734464f"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-dark-320.png",
+      "sha256": "d3b443fc2b09b0434b3d2e15f269653ad2796355f24500e319a415d46bc39500"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-dark-390.png",
+      "sha256": "498c9bb58e49aaa3802d7e6572737c2c77762e41dd46b823e9848961c4e976fd"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-dark-768.png",
+      "sha256": "cf723f45f4f2cc66555f2d1431eb8fdabffba5f2e5a6b3a65ce6bff59b74dcd2"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-light-1024.png",
+      "sha256": "3f9db03d9fe72de5e4a502b834c503e29241ac3f4b5df1ef5611bcd91d7c44a0"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-light-1440.png",
+      "sha256": "ad30482586133835667f92a003e67cc95f8a65f7109c44d067037653c627dd15"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-light-320.png",
+      "sha256": "8732f7011852b9462e2736356588166069095dc6909390aa27df8e0098c554e1"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-light-390.png",
+      "sha256": "022b131fc234062debf7589c5c32b3facb6d88da264147d89f9f2a5caed67bce"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-light-768.png",
+      "sha256": "bacd2ee1d171ad1f0be07758bab9a58e22c555a19734036ddf384a89e9cd5b50"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-system-1024.png",
+      "sha256": "f9010fd3cfbf55d78d01a636771ac05145fcbb18eb054b49fc54b1558ee2c877"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-system-1440.png",
+      "sha256": "f1fb4ddcea3748d2766d1c22f70efc034152ab4af0cec957b31201375910a216"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-system-320.png",
+      "sha256": "d3b443fc2b09b0434b3d2e15f269653ad2796355f24500e319a415d46bc39500"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-system-390.png",
+      "sha256": "498c9bb58e49aaa3802d7e6572737c2c77762e41dd46b823e9848961c4e976fd"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pms-system-768.png",
+      "sha256": "cf723f45f4f2cc66555f2d1431eb8fdabffba5f2e5a6b3a65ce6bff59b74dcd2"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-dark-1024.png",
+      "sha256": "e948352dcac5f3527312aec33b72cfc7849364eafb0a26b09dc2d932132db76e"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-dark-1440.png",
+      "sha256": "574528e12933e5b1f51d15f999a0a52164739e127dc497a70e8664a019f0ee35"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-dark-320.png",
+      "sha256": "4f1ca9ffac3d41490f2e87b54e19c825069fb4bb83ab06b3970ccc81f2794bee"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-dark-390.png",
+      "sha256": "f2f89d1f6d86a124cd2cba72020c26da536666ce31a8f1bc8b4f43aedfad5fa1"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-dark-768.png",
+      "sha256": "d193d2d3dde67a970f4d0911d6028305ab957cd89dc75b59781d0c530c4ebea0"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-light-1024.png",
+      "sha256": "7d9cc1c4de13b44ac03a92fb1e62a76017dcd8d0ba6c61ae729b6efae2963f4f"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-light-1440.png",
+      "sha256": "b2bf3dbb67c449c536ce5c1fa0c0485a897d94b9a0655eb05ab2a617d097b4f9"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-light-320.png",
+      "sha256": "ca88636280eeef6618226632629dbc083df049ef326af71d78411ea57de4aedc"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-light-390.png",
+      "sha256": "5a4944833edbbef670d43046450aeae4c7ef0f0908f864cf3118c6c0ff57c7f9"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-light-768.png",
+      "sha256": "f9eab2328901a3fecd0fb55dbd4589b9ae104423f43244da8ad802f7c75aa1a0"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-system-1024.png",
+      "sha256": "372287e5321e6063ef56ed7fde8526ea7b1fe51ed85bf2c8dd1434b37422e37d"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-system-1440.png",
+      "sha256": "c57e3b00af526d78ef6b6a15b428b4aabc143801564ecc661a12db867a4ec528"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-system-320.png",
+      "sha256": "4f1ca9ffac3d41490f2e87b54e19c825069fb4bb83ab06b3970ccc81f2794bee"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-system-390.png",
+      "sha256": "f2f89d1f6d86a124cd2cba72020c26da536666ce31a8f1bc8b4f43aedfad5fa1"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-pos-system-768.png",
+      "sha256": "d193d2d3dde67a970f4d0911d6028305ab957cd89dc75b59781d0c530c4ebea0"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-system-media-office-dark.png",
+      "sha256": "7e9f174042169d60459f9c696906c28974821672baa8f0d0a5f61f1be51f7b67"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-system-media-office-light.png",
+      "sha256": "73c4ca258482c34dc2f4d17a0fd41f1191ac13388b605e0a948e16fd0822369a"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-system-media-pms-dark.png",
+      "sha256": "498c9bb58e49aaa3802d7e6572737c2c77762e41dd46b823e9848961c4e976fd"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-system-media-pms-light.png",
+      "sha256": "5a570374ddf62a3ced3edc512b7e65e6fc2d4bbf632b9317386b652c8adbd734"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-system-media-pos-dark.png",
+      "sha256": "f2f89d1f6d86a124cd2cba72020c26da536666ce31a8f1bc8b4f43aedfad5fa1"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/cdp-system-media-pos-light.png",
+      "sha256": "3ecf65c5d2d67a8e66c83d8df0a75ad937a7d6cd1806b6843b32d42258780937"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/invalid-viewport-probe.json",
+      "sha256": "d2ad9408424674a0e6b13da9d4c9a752dcd65b269967afa5d6ef5eae84e52aee"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/keyboard.json",
+      "sha256": "88a2dadd004aefbf6ab2e16dcc38c423df87ba489329b48ee21dd52f3f3686fe"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/native-image-validation.json",
+      "sha256": "8ab4a015424384c545380819cea5072374c17717781949e9e9ad409f69971fd2"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/native-matrix.json",
+      "sha256": "f0b87c52ac56d20f9aecf0f26c2e8b755e702480eda49357271d01d8cac3980d"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/office-native-contact.jpg",
+      "sha256": "490ce043a29e598434a84d1735ec9daf0345218d6f859ea15ea6a1e136cf4a40"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/office-system-dark-390.jpg",
+      "sha256": "91445ccb4b76d084d9832b6204bbfbb9b42fdb2bb3264321d85acf4b3802ed61"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/office-system-light-390.jpg",
+      "sha256": "bccbc1ca35e9319fddac1bfb0c17634b08c6a786d5bf14163d397439289f6617"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/pms-light-320-cdp-probe.png",
+      "sha256": "8732f7011852b9462e2736356588166069095dc6909390aa27df8e0098c554e1"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/pms-native-contact.jpg",
+      "sha256": "0447b8972a5a91dd09fa4982935380a270f9e8a3adff6cace5d151e83da2f498"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/pms-system-dark-390.jpg",
+      "sha256": "1aae2002750585e00c2f074ed80497196494dc2f283a8d9949312f440f1f036e"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/pms-system-light-390.jpg",
+      "sha256": "f648691944bb36c6f2627f0f842be0917d36603b707f1d7727463f8dbc48f094"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/pos-native-contact.jpg",
+      "sha256": "773eceab25f4a31e43e7f01adee867e2603c5d05bfa57db4cedd7886122eaa7e"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/pos-system-dark-390.jpg",
+      "sha256": "fea6517e38c70bffb5ac70379fe18619c578d6b0683730eec72e8eaeacbd619e"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/pos-system-light-390.jpg",
+      "sha256": "c98238310b683937042fbbab8a8c47068ccc4466001c66528dbf9f51c766d5a9"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/restoration.json",
+      "sha256": "950268b6848b38fde10e4fabb24b63e2999288234316e0d20bd4c77b440c8f89"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/diagnostic.json",
+      "sha256": "98022cc3ed0db5683cd56bdcf7d3181d69c12483ef958bbb9111e60356db062d"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-dark-1024.png",
+      "sha256": "b211f70c5ede3ee3d460502849122e6ebd24d515c2dfa9a8798663af4275ce85"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-dark-1440.png",
+      "sha256": "84f3e4aa08d66ead30f95abab0a7396bd2b57ec173e6752123624b591d6e26e5"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-dark-320.png",
+      "sha256": "8a611df67e8b359566911a64ae9caa3270044fb4158b82cd5bd90d89b6d045be"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-dark-390.png",
+      "sha256": "55aee147206f6ed587af9bf79e4f839325defe16ff50e08d22e4c90bfe1481fd"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-dark-768.png",
+      "sha256": "fa9b248064e139e02674d32af3c6e46deead7d0b675de9f8b8554a9d914c25af"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-light-1024.png",
+      "sha256": "8868bf3bedff0b9ceffbf958bb47f539debd6138154158ae0521543ce64992d5"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-light-1440.png",
+      "sha256": "a41274e349f6a8b1e1fb8781484e7d9929bf46d3a822694f747f5a8c84c0c5d7"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-light-320.png",
+      "sha256": "f087198f1c31b1dc2e9bc52cd2f3267f2d2c3d7966c1598cb6e551ed71ef931e"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-light-390.png",
+      "sha256": "e98562f0de1b53ff3cccebe583d0ce802cc81208cbf222c63f6ae4930cb80da0"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-light-768.png",
+      "sha256": "7d49b603118de7825d1797e9839ccb1192118a39f42fb8dd0bb837971d4ae990"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-system-1024.png",
+      "sha256": "b211f70c5ede3ee3d460502849122e6ebd24d515c2dfa9a8798663af4275ce85"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-system-1440.png",
+      "sha256": "82273958510b03c6d68ffde23dc18f7a8f044cc6b259a502f5fe0a18b95eca1b"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-system-320.png",
+      "sha256": "ef5065609e44278a966bb7c5b43d4d8cbce7baeb01946cdb45a33919b59a8f77"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-system-390.png",
+      "sha256": "ab523426cf2e7dc1808e91f9aeda3b5e78577cfa48b99e12c47070bd9a9f8593"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/office-system-768.png",
+      "sha256": "53b80d36f503f2c47c9c4cc9c81d9945d87d330499bdfc607f981a30157a0ebd"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/original-matrix.json",
+      "sha256": "e9d5d571746718b4c204332562790dec88a9aedf6ef350e5f172c7cf4940499a"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-dark-1024.png",
+      "sha256": "f6edff819198d6c7c42e6fbb4bf35a792bb89fa80ef8121bb71bc08a9ea9ef96"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-dark-1440.png",
+      "sha256": "cb05333b32397ec4b233ff3ff39309645eab75f55e583fcac8b1e144e5fb7729"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-dark-320.png",
+      "sha256": "10df826fa7b936e826576d42ad555fa1e37ced0a870ebe45f3db3d9545160825"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-dark-390.png",
+      "sha256": "199b8a47339075983151d4155573c048604ac9ffb391091101b7108b7c466576"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-dark-768.png",
+      "sha256": "14f83c299f880ddf2a2742731161e6133c098bb4a6747799e62cde93397ddc5b"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-light-1024.png",
+      "sha256": "57ad21065f3b73e8d4f532971b624587c18663818ab5fb3afc3690b7b0243bba"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-light-1440.png",
+      "sha256": "9d782b74eb9197ee68382fa4140cae8ad79b6c39ee9e38695486f77909c3efef"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-light-320.png",
+      "sha256": "8344f53a8b4f0eefaccaf72b8b5b62b930826bf0be9384b700a90f313367ca7a"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-light-390.png",
+      "sha256": "31401f9eab1198de86d8b8f72a0db8db9d514c504d97cef10738694d5bba9ec3"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-light-768.png",
+      "sha256": "8a1f3ee430b56a47fc3c4bb53eadae2c74a270be0829f25524897cc017bbe3ba"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-system-1024.png",
+      "sha256": "630fa6e3febe672a6423e60832303f9be0b455f781ee0c6a6e27fab098d41fbc"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-system-1440.png",
+      "sha256": "b4cab11a8f4919d926c8e470d093b90feb0eaf1ca792b278fe8d1d44feadc7c7"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-system-320.png",
+      "sha256": "83666be365d1f44f1dbca74234e8b3443679abfc1389b53cc80117588458e341"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-system-390.png",
+      "sha256": "a809e46bfefdc52b626f9651abe62274bdb3ee4985d852412d11fcd8ce313bfd"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pms-system-768.png",
+      "sha256": "4ae947aacce006e4b0fbac0115d1578528280a2a608c88501740de9a7dbf4c79"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-dark-1024.png",
+      "sha256": "b2f9c0f891751a87eb7f97f1f769625d0a6f4bc25ef3c3d627afc042ece1f2e6"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-dark-1440.png",
+      "sha256": "6f6451592ed862f373f07ee34fd260664f9140b184edd497756e389ec6bf14e1"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-dark-320.png",
+      "sha256": "3819c54fb9c0e4d14c9fcae8691af026e3043597dd2119139ba0a1d126127f3d"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-dark-390.png",
+      "sha256": "a8b0de30958e54354f3916a55cdfd030467e031d9e107eb5858d3df3bf96d9ab"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-dark-768.png",
+      "sha256": "383371a9860459009f67c3f25c4c04b7b8c97b239bcf5d997f375c958503a8ef"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-light-1024.png",
+      "sha256": "148dc7077d830b2006a8136f7fb362c0d6a71ac716e140f6de89009179300e90"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-light-1440.png",
+      "sha256": "59ba3e5ff74860472c933c23d2359a7afc63a6bd1757067a222f723f121c40e3"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-light-320.png",
+      "sha256": "b37fe1fcb62d6f2109a564dddf44759e1aebc3c55dce611f4b4aaf595e87b680"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-light-390.png",
+      "sha256": "32a3d68264cbe39c3c534d75e13981d1c45c7501f994fa6f8836b48dc921d6a3"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-light-768.png",
+      "sha256": "d4a83103080884a062d86d22f063d2dbe71e621a442bbda14b44522e4dc65a65"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-system-1024.png",
+      "sha256": "d7ddecb6aff0978e730a159167849404b015d64d65f359c284480755f415ec83"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-system-1440.png",
+      "sha256": "c7a16e389b0214741c4d4c09ae2ddf53fa2a4d6a4cccc4126439762bbdc39b3c"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-system-320.png",
+      "sha256": "624f03ba461c346b12f9a79cf2d32a51469213ac9d55d994be686f53ef3de8a5"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-system-390.png",
+      "sha256": "d9922300c97ea0f336c66667f0163d05fe93fa10bf05df7e250f1100d82f7db3"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/scaled-browser-api/pos-system-768.png",
+      "sha256": "5857b5f1ad5a7a6ba6cec6e21548739ec03e0b03877fdd57ac2ae8d6e8d88998"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/server-content-diagnostic.json",
+      "sha256": "75e28a64a9418a6aee95cdacb3a4b585a625786027c412f88fc045307b781f00"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/server-content.json",
+      "sha256": "090412fcbe7e2b3a1c1de1952071752af4eaf17742cd670fd202e78fc0198731"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/system-media-native.json",
+      "sha256": "cbe1574357f99189f08a825cb6204e73b035e3b065d4b192e226d606d072df2f"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/system-media.json",
+      "sha256": "1833980d36281e897ad3caa62c5e66fd13caa64092cb342f87ebf858d8d005d3"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/system-native-contact.jpg",
+      "sha256": "b7385e44232ee0dcfb17e2b226e25630ae76164a8248920636b510ecac16d844"
+    },
+    {
+      "path": ".scratch/dev/product-ui-boundaries-current/browser/visual-review.json",
+      "sha256": "36e21aeccd6f250b3729fb52cdc3debed714e9ea32b1c89f84a2418379a92913"
+    }
+  ]
+}

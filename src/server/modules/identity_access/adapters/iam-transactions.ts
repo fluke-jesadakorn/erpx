@@ -7,7 +7,17 @@ import {requireFreshMfa} from "@/server/modules/identity_access/public/iam-mfa";
 import {iamDb} from "@/server/modules/identity_access/public/iam-db";
 import type {IamActor} from "../domain/iam-actor";
 import {createIamCommand} from "../application/iam-command";
-export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:string,operation:string,payload:unknown,permission:string,action:(client:PoolClient)=>Promise<T>):Promise<T>{db=iamDb(db);return createIamCommand<T>({error:(status,code,message)=>new ApiError(status,code,message),now:Date.now,digest:value=>createHash('sha256').update(value).digest('hex'),transaction:async(actor,run)=>{const client=await db.pool.connect();try{await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');const table=actor.platform?'platform_assignments':'assignments',recoveryQuery=`SELECT 1 FROM iam_members m JOIN ${table} a ON a.user_id=m.user_id ${actor.platform ? "" : "AND a.company_id=m.company_id"} WHERE m.company_id=$1 AND m.status='active' AND m.login_policy='emergency' AND a.role=$2 AND iam_assignment_active(a.id,$3) LIMIT 1`;const result=await run({assignment:async actor=>(
+/** Owner extensions are registered only on this command's original client.
+ * They run after the complete IAM decision, receipt and audit, before commit. */
+const ownerChecks = new WeakMap<PoolClient, (() => Promise<void>)[]>();
+export function assertIamOwnerTransaction(client: PoolClient) {
+ if (!ownerChecks.has(client)) throw new ApiError(503, "IAM_OWNER_COMPOSITION_REQUIRED", "This operation requires its complete owned IAM transaction.");
+}
+export function deferIamOwnerCheck(client: PoolClient, check: () => Promise<void>) {
+ assertIamOwnerTransaction(client); ownerChecks.get(client)!.push(check);
+}
+export type IamOwnerPreparation = (client: PoolClient) => Promise<(() => Promise<void>) | undefined>;
+export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:string,operation:string,payload:unknown,permission:string,action:(client:PoolClient)=>Promise<T>,prepareOwner?:IamOwnerPreparation):Promise<T>{db=iamDb(db);return createIamCommand<T>({error:(status,code,message)=>new ApiError(status,code,message),now:Date.now,digest:value=>createHash('sha256').update(value).digest('hex'),transaction:async(actor,run)=>{const client=await db.pool.connect();try{await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');ownerChecks.set(client,[]);const capture=await prepareOwner?.(client);const table=actor.platform?'platform_assignments':'assignments',recoveryQuery=`SELECT 1 FROM iam_members m JOIN ${table} a ON a.user_id=m.user_id ${actor.platform ? "" : "AND a.company_id=m.company_id"} WHERE m.company_id=$1 AND m.status='active' AND m.login_policy='emergency' AND a.role=$2 AND iam_assignment_active(a.id,$3) LIMIT 1`;const result=await run({assignment:async actor=>(
       await client.query(
         `SELECT * FROM ${table} WHERE id=$1 AND user_id=$2 ${actor.platform ? "" : "AND company_id=$3"} FOR SHARE`,
         actor.platform
@@ -52,7 +62,7 @@ export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:strin
         actor.platform ? "platform_admin" : "holding_owner",
         now,
       ])
-    ).rowCount),perform:()=>action(client),freshMfa:requireFreshMfa,recordReceipt:async(request,result,now)=>{const{actor,key,digest}=request;await client.query("INSERT INTO iam_receipts VALUES($1,$2,$3,$4,$5,$6)", [
+    ).rowCount),perform:async()=>{const result=await action(client);await capture?.();return result;},freshMfa:requireFreshMfa,recordReceipt:async(request,result,now)=>{const{actor,key,digest}=request;await client.query("INSERT INTO iam_receipts VALUES($1,$2,$3,$4,$5,$6)", [
       key,
       actor.companyId,
       actor.userId,
@@ -77,4 +87,4 @@ export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:strin
         }),
         now(),
       ],
-    );}});await client.query('COMMIT');return result;}catch(error){await client.query('ROLLBACK');if(['40001','40P01','23505'].includes((error as{code?:string}).code??''))throw new ApiError(409,'IAM_CONFLICT','Access changed. Refresh and review before retrying.');throw error;}finally{client.release();}}})(actor,key,operation,payload,permission);}
+    );}});for(const check of ownerChecks.get(client)!)await check();await client.query('COMMIT');return result;}catch(error){await client.query('ROLLBACK');if(['40001','40P01','23505'].includes((error as{code?:string}).code??''))throw new ApiError(409,'IAM_CONFLICT','Access changed. Refresh and review before retrying.');throw error;}finally{ownerChecks.delete(client);client.release();}}})(actor,key,operation,payload,permission);}

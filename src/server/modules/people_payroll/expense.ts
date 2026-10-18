@@ -4,3 +4,5 @@ export { canAccountExpenses, canPostExpenses, canEditExpense, canReviewExpense, 
 export { saveExpenseAccounting, expenseAccountingSchema } from "@/server/modules/people_payroll/adapters/expense-workflow";
 export { createExpensePayment, saveExpensePayment, confirmExpensePayment, revokePaymentSlip, expensePaymentSchema } from "@/server/modules/people_payroll/adapters/expense-payments";
 export { queueExpenseAi } from "@/server/modules/people_payroll/adapters/expense-ai";
+
+export {cancelExpensePayment,expensePaymentCancellationSchema,type ExpensePaymentCancellationInput,type ExpensePaymentCancellationResult} from "./adapters/expense-payment-cancellation";

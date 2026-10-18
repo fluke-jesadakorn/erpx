@@ -5,7 +5,7 @@ import { requirePermission } from "@/server/modules/identity_access/public/iam-p
 import { pmsWorkspace } from "@/server/modules/pms/public/pms";
 import { pmsHome, pmsHotelSources } from "@/server/modules/pms/public/pms/home";
 import { postAction, postComments, postView, postDraftSchema, publishPost, savePostDraft } from "@/server/modules/collaboration/public/social-home";
-import { acknowledgeHandover, handoverAcknowledgement, publishHandover } from "@/server/modules/operations/public/handover";
+import { acknowledgeHandover,acknowledgeHandoverVersion, handoverAcknowledgement, publishHandover } from "@/server/modules/operations/public/handover";
 import { textSuggestions, mentionsSchema } from "@/server/modules/collaboration/public/social-text";
 import { readablePost } from "@/server/modules/collaboration/public/social-source";
 import { createPmsHomeApi, type PmsHomeApiRepository } from "../../application/home-api";
@@ -21,6 +21,7 @@ const application = createPmsHomeApi({ require: requirePermission, postDraft: ra
             publishPost: (...args) => publishPost(write, ...args),
             publishHandover: (...args) => publishHandover(write, ...args),
             acknowledgeHandover: (...args) => acknowledgeHandover(write, ...args),
+            acknowledgeHandoverVersion: (...args) => acknowledgeHandoverVersion(write, ...args),
             postAction: (...args) => postAction(write, ...args)
         };
         return repository;

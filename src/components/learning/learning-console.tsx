@@ -1,80 +1,43 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import {RecordLink as Link} from "@/components/records/record-link";
+import {learningPurchased,learningResultPurchased,type LearningConsoleData,type LearningConsoleDetail} from "@/lib/learning/purchase-controls";
+import {useLearningCommand} from "./use-learning-command";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import type { learningAssignmentDetail, learningWorkspace } from "@/server/modules/learning/public/learning";
+import { useState } from "react";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/files/attachment-panel";
 import { FormLayout } from "@/components/ui/foundation";
-function useCommand(base: string) {
-  const router = useRouter(),
-    last = useRef<{ key: string; body: string } | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function send(input: unknown) {
-    const form=document.activeElement?.closest("form"),formEditVersion=form?.getAttribute("data-erpx-edit-version");
-    const body = JSON.stringify(input);
-    if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/learning`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": last.current.key,
-          },
-          body,
-        }),
-        result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(result.error?.message ?? "Unable to update learning.");
-      }
-      last.current = null;
-      if(form&&formEditVersion&&form.getAttribute('data-erpx-edit-version')===formEditVersion)window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form,formEditVersion}}));
-      const current=new URL(window.location.href);
-      const entity=input&&typeof input==='object'&&'entity' in input?String(input.entity):null;
-      if(current.pathname===`${base}/knowledge`){if(entity==='assignment'||entity===null){current.searchParams.set('detailKind','learning_assignment');current.searchParams.set('detailId',String(result.data.id));}router.push(current.pathname+current.search,{scroll:false});}
-      else {
-      router.push(
-        `${base}/learning${input && typeof input === "object" && "entity" in input && input.entity === "course" ? "" : `/${result.data.id}`}`,
-      );
-      }
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry this action.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return { send, busy, error };
-}
 export function LearningConsole({ recordOnly=false, section, embedded=false,
   base,
   data,
   detail,
 }: { recordOnly?:boolean; section?:"courses"|"assignments"; embedded?:boolean;
   base: string;
-  data?: Awaited<ReturnType<typeof learningWorkspace>>;
-  detail?: Awaited<ReturnType<typeof learningAssignmentDetail>>;
+  data?: LearningConsoleData;
+  detail?: LearningConsoleDetail;
 }) {
-  const source = data ?? detail!,
-    { send, busy, error } = useCommand(base),
-    a = detail?.assignment,
-    [completionFiles, setCompletionFiles] = useState<AttachmentPanelChange | null>(null);
+  const source=data??detail!,a=detail?.assignment,purchases=source.purchases;
+  const courseNew=source.canWrite&&learningPurchased(purchases,'learn.courses','newWork'),courseSettle=source.canWrite&&learningPurchased(purchases,'learn.courses','settleExisting'),assignNew=source.canWrite&&source.canReview&&learningPurchased(purchases,'learn.assignments','newWork')&&learningPurchased(purchases,'learn.courses','newWork')&&learningPurchased(purchases,'people.learner-reference','newWork'),assignmentSettle=source.canWrite&&learningPurchased(purchases,'learn.assignments','settleExisting'),own=!!a&&a.learner_id===source.actorId&&Number(a.learner_eligible)>0,resultSettle=assignmentSettle&&learningResultPurchased(purchases,a?.required_for);
+  const [open,setOpen]=useState({course:false,assignment:false,result:false}),[generation,setGeneration]=useState({course:0,assignment:0,result:0}),[completionFiles,setCompletionFiles]=useState<AttachmentPanelChange|null>(null);
+  function allowed(input:Record<string,unknown>){if(!source.canWrite)return false;if(input.entity==='course')return typeof input.id!=='string'?courseNew:source.canReview&&(input.action==='publish'?courseNew:courseSettle);if(typeof input.id!=='string')return assignNew;return input.action==='start'?own&&assignmentSettle:input.action==='complete'?own&&resultSettle:source.canReview&&(input.action==='waive'?resultSettle:assignmentSettle);}
+  const {send,retry,retryAttempt,busy,error,notice,uncertain,savedDraft,clearSaved}=useLearningCommand(base,allowed,attempt=>{const input=attempt.input,review=input.entity==='course'?typeof input.id==='string':typeof input.id!=='string'||['waive','cancel'].includes(String(input.action));return source.canWrite&&learningPurchased(purchases,input.entity==='course'?'learn.courses':'learn.assignments','history')&&(review?source.canReview:input.entity==='course'||a?.learner_id===source.actorId);});
+  const locked=busy||uncertain,disabled=busy||!!savedDraft;
+  function discard(kind:keyof typeof open){setOpen(value=>({...value,[kind]:false}));setGeneration(value=>({...value,[kind]:value[kind]+1}));if(kind==='result')setCompletionFiles(null);clearSaved();}
   return (
     <div className="ui-stack" data-owner-embedded={embedded||undefined}>
+      {notice&&<InlineNotice tone="info" role="status">{notice}</InlineNotice>}
+      {savedDraft&&<p><Link href={canonicalUiHref(savedDraft.entity==='course'?`${base}/knowledge/learning/courses?detailKind=learning_course&detailId=${encodeURIComponent(savedDraft.id)}`:`${base}/learning/${savedDraft.id}`)}>Review the saved {savedDraft.entity}</Link> before submitting newer details.</p>}
+      {retryAttempt&&source.canWrite&&<Button appearance="standard" variant="secondary" disabled={disabled} onClick={()=>void retry()}>Retry submitted Learning action</Button>}
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {section!=="assignments" && data?.canWrite && (
-        (!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft course</summary><FormLayout
+      {section!=="assignments" && data?.canWrite && (courseNew||open.course) && (
+        (!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" open={open.course} onToggle={event=>{const expanded=event.currentTarget.open;setOpen(value=>({...value,course:expanded}));}} onDiscard={()=>discard("course")} error={error} dismissDisabled={locked}><summary>Draft course</summary><FormLayout key={generation.course}
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -84,7 +47,7 @@ export function LearningConsole({ recordOnly=false, section, embedded=false,
               entity: "course",
               durationMinutes: Number(f.durationMinutes),
               requiredFor: f.requiredFor || null,
-            });
+            },e.currentTarget);
           }}
         >
           <h2>Draft course</h2>
@@ -108,14 +71,14 @@ export function LearningConsole({ recordOnly=false, section, embedded=false,
             Eligibility code
             <TextInput appearance="standard" name="requiredFor" />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={disabled||!courseNew}>
             Draft course
           </Button>
         </FormLayout></FormDisclosure>)
       )}
       {section!=="assignments" && data?.canReview &&
         data.courses
-          .filter((x) => x.status === "draft")
+          .filter((x) => ["draft","published"].includes(String(x.status))&&x.created_by!==source.actorId&&(x.status==="draft"?(courseNew||courseSettle):courseSettle))
           .map((x) => (
             <FormLayout
               className="ui-panel ui-form-grid"
@@ -128,34 +91,35 @@ export function LearningConsole({ recordOnly=false, section, embedded=false,
                   entity: "course",
                   id: x.id,
                   expectedVersion: Number(x.version),
-                });
+                },e.currentTarget);
               }}
             >
-              <h2>Review · {String(x.title)}</h2>
+              <h2>{x.status==='published'?'Retire':'Review'} · {String(x.title)}</h2>
               <Field appearance="standard">
                 Decision
                 <Select appearance="standard" name="action">
-                  <option value="publish">Publish</option>
-                  <option value="reject">Reject</option>
+                  {x.status==='draft'&&courseNew&&<option value="publish">Publish</option>}
+                  {x.status==='draft'&&courseSettle&&<option value="reject">Reject</option>}
+                  {x.status==='published'&&courseSettle&&<option value="retire">Retire</option>}
                 </Select>
               </Field>
               <Field appearance="standard">
                 Reason
                 <TextArea appearance="standard" name="reason" required minLength={3} />
               </Field>
-              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={disabled}>
                 Record review
               </Button>
             </FormLayout>
           ))}
-      {section!=="courses" && data?.canReview && (
-        (!recordOnly && <FormDisclosure appearance="standard" dismissDisabled={busy} error={error} drawerTitle="Assign course"><summary>Assign course</summary><FormLayout
+      {section!=="courses" && data?.canReview && (assignNew||open.assignment) && (
+        (!recordOnly && <FormDisclosure appearance="standard" open={open.assignment} onToggle={event=>{const expanded=event.currentTarget.open;setOpen(value=>({...value,assignment:expanded}));}} onDiscard={()=>discard("assignment")} dismissDisabled={locked} error={error} drawerTitle="Assign course"><summary>Assign course</summary><FormLayout key={generation.assignment}
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             const f = Object.fromEntries(new FormData(e.currentTarget)),
               course = data.courses.find((x) => x.id === f.courseId);
-            void send({ ...f, courseVersion: Number(course?.version) });
+            void send({ ...f, courseVersion: Number(course?.version) },e.currentTarget);
           }}
         >
           <h2>Assign course</h2>
@@ -189,12 +153,12 @@ export function LearningConsole({ recordOnly=false, section, embedded=false,
             Reason
             <TextArea appearance="standard" name="reason" required minLength={3} />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={disabled||!assignNew}>
             Assign course
           </Button>
         </FormLayout></FormDisclosure>)
       )}
-      {a && a.status === "assigned" && (
+      {a && a.status === "assigned" && own&&assignmentSettle && (
         (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
@@ -204,7 +168,7 @@ export function LearningConsole({ recordOnly=false, section, embedded=false,
               action: "start",
               expectedVersion: Number(a.version),
               reason: String(new FormData(e.currentTarget).get("reason")),
-            });
+            },e.currentTarget);
           }}
         >
           <h2>Start course</h2>
@@ -212,13 +176,13 @@ export function LearningConsole({ recordOnly=false, section, embedded=false,
             Reason
             <TextArea appearance="standard" name="reason" required minLength={3} />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={disabled}>
             Start
           </Button>
         </FormLayout>)
       )}
-      {a && a.status === "in_progress" && (
-        (!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Record attendance and result</summary><FormLayout
+      {a && a.status === "in_progress" && own&&(resultSettle||open.result) && (
+        (!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" open={open.result} onToggle={event=>{const expanded=event.currentTarget.open;setOpen(value=>({...value,result:expanded}));}} onDiscard={()=>discard("result")} error={error} dismissDisabled={locked}><summary>Record attendance and result</summary><FormLayout key={generation.result}
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -235,7 +199,7 @@ export function LearningConsole({ recordOnly=false, section, embedded=false,
                 completionFiles?.setId && completionFiles.readyCount > 0 && completionFiles.bindable
                   ? [completionFiles.setId]
                   : [],
-            });
+            },e.currentTarget);
           }}
         >
           <h2>Record attendance and result</h2>
@@ -273,25 +237,25 @@ export function LearningConsole({ recordOnly=false, section, embedded=false,
             visibility="Only the learner and authorized Learning document managers can access these files."
             onChange={setCompletionFiles}
           />
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={disabled||!resultSettle}>
             Complete course
           </Button>
         </FormLayout></FormDisclosure>)
       )}
-      {a && ["assigned", "in_progress"].includes(String(a.status)) && source.canReview && (
+      {a && ["assigned", "in_progress"].includes(String(a.status)) && source.canReview&&assignmentSettle && (
         (!recordOnly && <FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
             const f = Object.fromEntries(new FormData(e.currentTarget));
-            void send({ ...f, id: a.id, expectedVersion: Number(a.version) });
+            void send({ ...f, id: a.id, expectedVersion: Number(a.version) },e.currentTarget);
           }}
         >
           <h2>Reviewer exception</h2>
           <Field appearance="standard">
             Action
             <Select appearance="standard" name="action">
-              <option value="waive">Waive</option>
+              {resultSettle&&<option value="waive">Waive</option>}
               <option value="cancel">Cancel</option>
             </Select>
           </Field>
@@ -299,7 +263,7 @@ export function LearningConsole({ recordOnly=false, section, embedded=false,
             Reason
             <TextArea appearance="standard" name="reason" required minLength={3} />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={disabled}>
             Record exception
           </Button>
         </FormLayout>)

@@ -1,4 +1,1 @@
-import { Skeleton } from "@/components/ui/primitives";
-export default function Loading() {
-  return <Skeleton />;
-}
+export default function Loading(){return <div className="content-stack" role="status" aria-live="polite"><p>Loading your workspace…</p><div className="ui-card" aria-hidden="true" style={{minHeight:160}} /></div>;}

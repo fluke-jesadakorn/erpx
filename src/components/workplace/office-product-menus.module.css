@@ -1,0 +1,10 @@
+.menus { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.menus > button { min-width: 0; flex-shrink: 1; }
+.label { display: block; min-width: 0; max-width: 17rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account { flex-shrink: 0; padding: .5rem; color: var(--ui-ink); }
+.account:focus-visible, .options a:focus-visible { outline: 2px solid var(--ui-brand); outline-offset: 2px; }
+.options { display: grid; gap: .5rem; }
+.options a { display: grid; gap: .25rem; padding: .75rem; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-sm); color: var(--ui-ink); overflow-wrap: anywhere; }
+.options a:hover { background: var(--ui-card-2); }
+.options span { color: var(--ui-muted); }
+@media (max-width: 767px) { .menus { flex-wrap: wrap; } .label { max-width: 12rem; } }

@@ -1,0 +1,12 @@
+.workspace { display: grid; gap: 20px; min-width: 0; color: var(--ui-ink); }
+.workspace > * { min-width: 0; }
+.workspace > p { margin: 0; max-width: 90ch; line-height: 1.6; }
+.section { display: grid; gap: 16px; }
+.section > h2,.section > p { margin: 0; }
+.batchHeader { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.batchHeader h2 { margin: 0; font-size: var(--ui-type-card); }
+.batchHeader > span { color: var(--ui-muted); font-size: var(--ui-type-meta); }
+.field { min-width: 0; }
+.field textarea { font-family: var(--font-mono),monospace; }
+.workspace button { justify-self: start; }
+@media (max-width:720px) { .workspace button { max-width: 100%; white-space: normal; } }

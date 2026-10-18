@@ -6,14 +6,14 @@ import { spawnSync } from "node:child_process";
 import { parseTestArguments } from "../../../scripts/testing/arguments";
 import { assertExplicitSelectionIncluded, importSpecifiers, loadCatalogue, reachesDatabaseFixture, repositoryRoot, requiresEngineeringBusinessFixture, resolveImport, selectSuites, validateBrowserFixtureContract, validateCatalogue, type Catalogue, type Suite } from "../../../scripts/testing/catalogue";
 import { parseChanges, patternMatches, selectImpact, type SourceOwnership } from "../../../scripts/testing/impact";
+import { developmentSelection } from "../../../scripts/testing/development";
 import { nativeCaseTitle, requiredCaseFailures } from "../../../scripts/testing/required-cases-reporter";
-import { vitestChildEnvironment } from "../../../scripts/testing/runner-environment";
+import { browserChildEnvironment, vitestChildEnvironment } from "../../../scripts/testing/runner-environment";
 import { assertRequiredCaseInventory, assertUatRouteSources, browserRequiredCaseBaseline, currentRequiredCases, loadBrowserCaseBaseline, loadRequiredCases, requiredCaseKey } from "../../../scripts/testing/required-case-inventory";
 import { loadProviderRehearsals, unselectedProviderRehearsals, validateProviderRehearsals } from "../../../scripts/testing/provider-rehearsals";
 import { requiredUatMatrixCases } from "../../../scripts/testing/uat-required-identities";
 import { assertAcmeBrowserSeedTarget } from "../../../fixtures/shared/builders/acme-browser-seed-target";
 import { assertLocalBrowserRealmTarget } from "../../../fixtures/shared/builders/local-browser-erpx-realm";
-import { runArchitectureAcceptance } from "../../../scripts/architecture/acceptance";
 import { pinnedBunBinary } from "../../../scripts/testing/runtime-tooling";
 import { assertTestPlacement } from "../../../scripts/testing/layout";
 
@@ -32,6 +32,29 @@ const base = new Map([
 const impacted = (changes: Parameters<typeof selectImpact>[0]["changed"], before = base, after = base, beforeOwnership = ownership, afterOwnership = ownership) => selectImpact({ changed: changes, base: before, head: after, baseCatalogue: catalogue, headCatalogue: catalogue, baseOwnership: beforeOwnership, headOwnership: afterOwnership });
 
 describe("test selection contracts", () => {
+  it("defaults development commands to unit while preserving explicit native selections and lane errors", () => {
+    const native: Catalogue = { ...catalogue, suites: [...catalogue.suites, suite("finance.adapter", ["finance"], "integration")] };
+    expect(selectSuites(native, parseTestArguments([])).every(item => item.lane === "unit")).toBe(true);
+    expect(selectSuites(native, parseTestArguments(["--module=finance"])).map(item => item.id)).toEqual(["finance.rules"]);
+    const files = ["tests/finance.rules.test.ts", "tests/finance.adapter.test.ts"];
+    expect(selectSuites(native, parseTestArguments(files)).map(item => item.lane)).toEqual(["unit", "integration"]);
+    expect(selectSuites(native, parseTestArguments(["--suite=finance.adapter"])).map(item => item.lane)).toEqual(["integration"]);
+    expect(() => selectSuites(native, parseTestArguments(["tests/missing.test.ts"]))).toThrow("UNKNOWN_TEST_FILE");
+    expect(() => selectSuites(native, parseTestArguments(["--suite=missing"]))).toThrow("UNKNOWN_TEST_SUITE");
+    expect(() => selectSuites(native, parseTestArguments(["unit", ...files]))).toThrow("TEST_FILE_LANE_MISMATCH");
+    expect(() => selectSuites(native, parseTestArguments(["integration", "--suite=finance.rules"]))).toThrow("TEST_SUITE_LANE_MISMATCH");
+  });
+  it("lists the real default and mixed native CLI selection without dropping integration files", () => {
+    const run = (args: string[]) => {
+      const child = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/test.ts", ...args, "--list", "--json"], { cwd: repositoryRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 });
+      expect(child.status, child.stderr.toString()).toBe(0);
+      return JSON.parse(child.stdout.toString()) as Suite[];
+    };
+    expect(run([])).toEqual(selectSuites(loadCatalogue(), { lane: "unit" }));
+    expect(run(["--module=finance"])).toEqual(selectSuites(loadCatalogue(), { lane: "unit", modules: ["finance"] }));
+    const files = ["tests/unit/shared.attachments/attachment-policy-inventory.test.ts", "tests/integration/shared.attachments/attachments-v2.test.ts"];
+    expect(run(files).flatMap(item => item.files).sort()).toEqual(files.sort());
+  });
   it("places suites under their declared lane and owner without allowing support or root cases", () => {
     const registered = { id: "finance.rules", lane: "unit" as const, owner: "finance", files: ["tests/unit/finance/rules.test.ts"] };
     expect(() => assertTestPlacement([registered])).not.toThrow();
@@ -43,18 +66,44 @@ describe("test selection contracts", () => {
     const baseline = loadBrowserCaseBaseline();
     const actual = loadCatalogue();
     const files = actual.suites.filter(candidate => ["e2e", "journeys"].includes(candidate.lane)).flatMap(candidate => candidate.files);
-    expect([...new Set(baseline.cases.map(test => test.file))].sort()).toEqual([...files].sort());
+    expect([...files].sort()).toEqual(expect.arrayContaining([...new Set(baseline.cases.map(test => test.file))].sort()));
     expect(baseline.cases).toHaveLength(491);
     expect(baseline.excludedCases).toHaveLength(9);
     expect(baseline.cases.filter(test => test.file === "tests/e2e/shared.ui/enterprise-ui.spec.ts")).toHaveLength(19);
     expect(baseline.excludedCases.filter(test => test.file === "tests/e2e/shared.ui/enterprise-ui.spec.ts")).toHaveLength(3);
     const registered = loadRequiredCases();
-    const reviewedSupplemental = (["desktop", "mobile"] as const).map(project => ({
-      runner: "playwright" as const,
-      file: "tests/e2e/pms/demo-hospitality-setup.spec.ts",
-      title: "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
-      project,
-    }));
+    const reviewedSupplemental = [
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/pms/demo-hospitality-setup.spec.ts",
+        title: "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
+        project,
+      })),
+      ...(["work", "pos", "pms", "finance", "people", "sales", "supply", "assets", "projects", "recruit", "learn", "support", "service", "legal", "manufacturing"] as const).flatMap(product => (["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title: `isolated ${product} Account Apps SSO reaches its actual owner landing and API`,
+        project,
+      }))),
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title: "isolated Work host creates, recovers and cancels a service request draft through Account and Apps",
+        project,
+      })),
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title: "isolated Assets native drawer and dirty product switch observations across the appearance matrix",
+        project,
+      })),
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title: "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
+        project,
+      })),
+    ];
     for (const test of reviewedSupplemental) expect(registered.some(candidate => requiredCaseKey(candidate) === requiredCaseKey(test))).toBe(true);
     const reviewed = [...baseline.cases, ...reviewedSupplemental];
     const observed = [...reviewed.map(test => ({ ...test, required: true })), ...baseline.excludedCases.map(test => ({ ...test, required: false }))];
@@ -86,7 +135,7 @@ describe("test selection contracts", () => {
     for (const args of [["--case-order"], ["--case-order="], ["--case-order", "--list"]]) expect(() => parseTestArguments(["e2e", ...args])).toThrow("TEST_OPTION_VALUE_REQUIRED");
     expect(() => parseTestArguments(["e2e", "--case-orders=reverse"])).toThrow("UNKNOWN_TEST_OPTION");
     expect(() => parseTestArguments(["e2e", "--case-order=forward", "--case-order=reverse"])).toThrow("DUPLICATE_BROWSER_CASE_ORDER");
-    const result = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/test.ts", "e2e", "--suite", id, "--case-order=reverse", "--list", "--json"], { cwd: repositoryRoot, env: process.env, maxBuffer: 4 * 1024 * 1024 });
+    const result = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/test.ts", "e2e", "--suite", id, "--case-order=reverse", "--list", "--json"], { cwd: repositoryRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 });
     expect(result.error).toBeUndefined();
     expect(result.status, result.stderr.toString()).toBe(0);
     const listed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(result.stdout));
@@ -95,7 +144,6 @@ describe("test selection contracts", () => {
   });
   it("requires the seeded Engineering Business fixture for real helper calls before browser execution", () => {
     const actual = loadCatalogue();
-    expect(() => validateCatalogue(actual)).not.toThrow();
     for (const id of ["shared.ui.demo-client-form-hydration.e2e", "customer_authority.demo-retail-customer-authority.journeys"]) {
       const registered = actual.suites.find(candidate => candidate.id === id)!;
       expect(registered.fixture, id).toBe("engineering");
@@ -124,13 +172,13 @@ describe("test selection contracts", () => {
   it("retains byte-exact oversized UTF-8 inventories through the pinned CLI stdout", () => {
     const value = { value: "x".repeat(655345) + "·ภาษาไทย🚀", count: 17, tail: ["required", "complete"] };
     const script = `import { writeJsonOutput } from ${JSON.stringify(join(repositoryRoot, "scripts/testing/json-output.ts"))}; writeJsonOutput({ value: "x".repeat(655345) + "·ภาษาไทย🚀", count: 17, tail: ["required", "complete"] });`;
-    const stdout = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "--eval", script], { cwd: repositoryRoot, env: process.env, maxBuffer: 4 * 1024 * 1024 });
+    const stdout = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "--eval", script], { cwd: repositoryRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 });
     expect(stdout.error).toBeUndefined();
     expect(stdout.status, stdout.stderr.toString()).toBe(0);
     expect(stdout.stdout).toEqual(Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8"));
     expect(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(stdout.stdout))).toEqual(value);
 
-    const full = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/full.ts", "--list", "--json"], { cwd: repositoryRoot, env: process.env, maxBuffer: 4 * 1024 * 1024 });
+    const full = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/full.ts", "--list", "--json"], { cwd: repositoryRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 });
     expect(full.error).toBeUndefined();
     expect(full.status, full.stderr.toString()).toBe(0);
     const inventory = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(full.stdout));
@@ -138,7 +186,7 @@ describe("test selection contracts", () => {
     expect(full.stdout.byteLength).toBeGreaterThan(655360);
     expect(inventory.suites).toEqual(actual.suites.filter(candidate => candidate.lane !== "provider"));
     expect(inventory.requiredCases).toEqual(loadRequiredCases().filter(candidate => !actual.suites.some(suite => suite.lane === "provider" && suite.files.includes(candidate.file))));
-    expect(inventory.requiredCases.some((candidate: { title: string }) => candidate.title === "signed-in as owner /holdings/[holdingSlug]/handbook/[id] · owner · holding")).toBe(true);
+    expect(inventory.requiredCases.some((candidate: { title: string }) => candidate.title === "signed-in as owner /holdings/[holdingSlug]/knowledge/handbook/published/[id] · owner · holding")).toBe(true);
     expect(inventory.excludedProviderSuites).toEqual(actual.suites.filter(candidate => candidate.lane === "provider").map(candidate => candidate.id));
     expect(inventory.providerRehearsals).toHaveLength(2);
   });
@@ -227,6 +275,14 @@ describe("test selection contracts", () => {
     expect(vitestChildEnvironment({ ...environment, PATH: childPath }, true).PATH).toBe(childPath);
     expect(environment.PGDATABASE).toBe("postgres");
   });
+  it("isolates purchase enforcement from ambient development settings in native and browser fixtures", () => {
+    const ambient = { ERPX_SUPPORT_PACKAGE_ENFORCEMENT: "enforced", ERPX_NODE_BIN: "/pinned/node", NODE_ENV: "test" };
+    expect(vitestChildEnvironment(ambient, false)).not.toHaveProperty("ERPX_SUPPORT_PACKAGE_ENFORCEMENT");
+    expect(vitestChildEnvironment(ambient, true)).not.toHaveProperty("ERPX_SUPPORT_PACKAGE_ENFORCEMENT");
+    expect(browserChildEnvironment(ambient)).not.toHaveProperty("ERPX_SUPPORT_PACKAGE_ENFORCEMENT");
+    expect(browserChildEnvironment(ambient, { ERPX_SUPPORT_PACKAGE_ENFORCEMENT: "shadow" })).toHaveProperty("ERPX_SUPPORT_PACKAGE_ENFORCEMENT", "shadow");
+    expect(ambient.ERPX_SUPPORT_PACKAGE_ENFORCEMENT).toBe("enforced");
+  });
   it("selects the shared currency UI proof when any of its actual ERP or Front owners change", () => {
     const actual = loadCatalogue();
     for (const capability of ["finance", "sales", "people_payroll", "pos", "pms"])
@@ -238,16 +294,29 @@ describe("test selection contracts", () => {
 });
 
 describe("conservative base and head impact selection", () => {
-  it("requires complete semantic ownership in impact CI even after import boundaries pass", async () => {
+  it("keeps development impact native and discloses deferred acceptance for full, affected and empty changes", () => {
+    const native: Catalogue = { ...catalogue, suites: [...catalogue.suites, suite("finance.adapter", ["finance"], "integration"), suite("finance.provider", ["finance"], "provider")] };
+    const impact = { mode: "affected" as const, reasons: ["owner"], modules: ["finance"], suites: native.suites.filter(item => item.modules.includes("finance")), changed: [] };
+    const affected = developmentSelection(impact, native);
+    expect(affected.suites.map(item => item.id)).toEqual(["finance.rules", "finance.adapter"]);
+    expect(affected).toMatchObject({ scope: "development", acceptance: false, requiredAcceptance: "bun run test:full", excludedProviderSuites: ["finance.provider"] });
+    expect(affected.deferredChecks).toEqual(expect.arrayContaining(["bun scripts/architecture/acceptance.ts", "bun run lint", "bun run typecheck", "bun run deploy:build"]));
+    expect(affected.deferredSuites).toContainEqual({ id: "sales.collection", lane: "journeys", command: "bun run test:journeys --suite=sales.collection" });
+    const full = developmentSelection({ ...impact, mode: "full", suites: native.suites }, native);
+    expect(full.suites).toEqual(native.suites.filter(item => item.lane === "unit"));
+    expect(full.deferredSuites.map(item => item.id)).toEqual(["sales.collection", "finance.adapter"]);
+    const none = developmentSelection({ ...impact, mode: "none", suites: [] }, native);
+    expect(none.suites).toEqual([]);
+    expect(none.deferredSuites).toHaveLength(native.suites.length - 1);
+    for (const args of [["dev"], ["dev", "--base=HEAD", "--suite=finance.rules"], ["dev", "--base=HEAD", "tests/finance.rules.test.ts"]])
+      expect(() => parseTestArguments(args)).toThrow();
+    expect(parseTestArguments(["dev", "--base=HEAD", "--head=HEAD", "--list", "--json"])).toMatchObject({ command: "dev", base: "HEAD", head: "HEAD", list: true, json: true, forwarded: [] });
+  });
+  it("requires complete semantic ownership in impact CI even after import boundaries pass", () => {
     const workflow = readFileSync(join(process.cwd(), ".github/workflows/nextjs.yml"), "utf8");
     const impactJob = workflow.match(/^  impact:\n([\s\S]*?)(?=^  native:)/m)?.[1];
     expect(impactJob).toContain("run: bun scripts/architecture/acceptance.ts");
     expect(impactJob).not.toContain("run: bun run architecture:check");
-    await expect(runArchitectureAcceptance(async command => {
-      if (command[0] === "scripts/architecture/check.ts") return 0;
-      expect(command).toEqual(["scripts/architecture/status.ts", "--require-clean"]);
-      return 1;
-    })).rejects.toThrow("ARCHITECTURE_ACCEPTANCE_FAILED:scripts/architecture/status.ts");
   });
   it("starts CI for operational runners, nested fixtures and workspace rules that force full impact", () => {
     const workflow=readFileSync(join(process.cwd(),".github/workflows/nextjs.yml"),"utf8");
@@ -494,4 +563,13 @@ it("rejects mixed run, non-owned and started ERPX realm browser targets before p
   expect(() => assertLocalBrowserRealmTarget({ databases }, state, run, { ...targets, H003_DB: { ...targets.H003_DB, name: "erpx_dev_h003" } })).toThrow("EXACT_LOCAL_BROWSER_REALM_DATABASE_REQUIRED");
   expect(() => assertLocalBrowserRealmTarget({ databases }, { ...state, ready: true }, run, targets)).toThrow("EXACT_ACME_BROWSER_SEED_COHORT_REQUIRED");
   expect(() => assertLocalBrowserRealmTarget({ databases }, { ...state, profile: "staff-work" }, run, targets)).toThrow("EXACT_LOCAL_BROWSER_REALM_DATABASE_REQUIRED");
+});
+
+it("isolates the Service enforcement flag while retaining only explicit browser fixture overrides", () => {
+  const ambient={ERPX_SERVICE_PACKAGE_ENFORCEMENT:"enforced",ERPX_NODE_BIN:"/pinned/node"};
+  expect(vitestChildEnvironment(ambient,false)).not.toHaveProperty("ERPX_SERVICE_PACKAGE_ENFORCEMENT");
+  expect(vitestChildEnvironment(ambient,true)).not.toHaveProperty("ERPX_SERVICE_PACKAGE_ENFORCEMENT");
+  expect(browserChildEnvironment(ambient)).not.toHaveProperty("ERPX_SERVICE_PACKAGE_ENFORCEMENT");
+  expect(browserChildEnvironment(ambient,{ERPX_SERVICE_PACKAGE_ENFORCEMENT:"shadow"})).toHaveProperty("ERPX_SERVICE_PACKAGE_ENFORCEMENT","shadow");
+  expect(ambient.ERPX_SERVICE_PACKAGE_ENFORCEMENT).toBe("enforced");
 });

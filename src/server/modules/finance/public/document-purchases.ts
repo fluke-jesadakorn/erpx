@@ -1,0 +1,1 @@
+export {financeProductDocumentEntry,requireFinanceDocumentHistory,requireFinanceWorkspaceHistory,withFinanceFlowAssignment,financeFlowAccess,financeWorkspaceSearchScope,financeNotificationReadScope,withFinanceDocumentPost,financeDocumentPostAccess,financeSourceDocumentReadLocks,type FinanceDocumentKind} from "../adapters/document-purchases";

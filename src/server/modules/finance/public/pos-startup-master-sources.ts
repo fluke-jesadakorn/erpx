@@ -1,0 +1,1 @@
+export {posStartupBootstrapFinanceReferences,posStartupMasterFinanceLeases,posStartupMasterFinanceSource,posStartupProductMoneySource,posStartupProductMoneyMatches,type PosStartupProductMoney} from '../adapters/pos-startup-master-sources';

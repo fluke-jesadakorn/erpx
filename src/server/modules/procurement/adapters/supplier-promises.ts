@@ -17,15 +17,16 @@ import {ApiError} from "../../runtime/public/http";
 import {BusinessRuleError} from "../../shared";
 import {createSupplierPromiseApplication,type SupplierPromisePorts,type PromiseMutation} from "../application/supplier-promises";
 import type {PromiseRow as Row} from "../domain/supplier-promises";
+import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcurementPurchasedCommand} from "./purchases";
 export {supplierPromiseSchema} from "../domain/supplier-promises";
 type Evidence=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
 const scope="o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)";
 function scopeArgs(a:WorkContext){return [a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];}
-function application(a:WorkContext){
- let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);
+function application(a:WorkContext,provided?:SqlDatabase){
+ let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=holdingResources(a.holdingId).then(x=>x.write);
  const ports:SupplierPromisePorts<Evidence>={canRead:hasPermission(a,"commerce.read"),canPurchase:hasPermission(a,"commerce.purchase"),clock:{now:()=>Date.now()},
  async authorizeRead(){requirePermission(a,"commerce.read");},async authorizePurchase(){requirePermission(a,"commerce.purchase");},
- order:async(id)=>{return (await database()).prepare(`SELECT o.*,p.name supplier_name FROM (${commercePlatformSources.commerce_orders}) o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.party_id WHERE o.id=? AND o.kind='purchase' AND ${scope}`).bind(id,...scopeArgs(a)).first<Row>();},sourceLines:async(id)=>(await getOrder(a,id)).lines,
+ order:async(id)=>{return (await database()).prepare(`SELECT o.*,p.name supplier_name FROM (${commercePlatformSources.commerce_orders}) o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.party_id WHERE o.id=? AND o.kind='purchase' AND ${scope}`).bind(id,...scopeArgs(a)).first<Row>();},sourceLines:async(id)=>(await getOrder(a,id,provided)).lines,
  detail:async(id)=>{const write=await database();const [lines,history,schedule]=await Promise.all([
  write.prepare(`SELECT l.*,p.sku FROM (${commercePlatformSources.commerce_order_lines}) l JOIN (${commercePlatformSources.commerce_products}) p ON p.id=l.product_id WHERE l.order_id=? ORDER BY l.ordinal`).bind(id).all<Row>(),
  write.prepare('SELECT * FROM procurement_delivery_promises WHERE order_id=? ORDER BY order_version DESC').bind(id).all<Row>(),
@@ -52,7 +53,8 @@ async function commit<Result>(write:SqlDatabase,a:WorkContext,m:PromiseMutation<
  stageSupplierPromiseOrderVersion(write,id,now),...(attachmentBinding?.steps??[]),stageSupplierPromiseNotifications(write,key,id)
  ],{companyId:a.companyId,branchId:String(order.branch_id),departmentId:order.department_id?String(order.department_id):null});}
 async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
-export const getSupplierPromiseOrder=(a:WorkContext,id:string)=>invoke(()=>application(a).order(id));
-export const supplierPromiseDetail=(a:WorkContext,id:string)=>invoke(()=>application(a).detail(id));
-export const recordSupplierPromise=(a:WorkContext,id:string,raw:unknown,key:string)=>invoke(()=>application(a).record(id,raw,key));
-export const supplierPromiseWork=(a:WorkContext)=>invoke(()=>application(a).work());
+async function readPurchase(a:WorkContext){return requireProcurementPurchasedRead((await holdingResources(a.holdingId)).write,a);}
+export const getSupplierPromiseOrder=(a:WorkContext,id:string)=>invoke(async()=>{await readPurchase(a);return application(a).order(id);});
+export const supplierPromiseDetail=(a:WorkContext,id:string)=>invoke(async()=>{const access=await readPurchase(a),data=await application(a).detail(id);return {...data,canRecord:data.canRecord&&(access?.settleExisting??true),purchase:access?{newWork:access.newWork,settleExisting:access.settleExisting,history:access.history,revision:access.revision}:undefined};});
+export const recordSupplierPromise=(a:WorkContext,id:string,raw:unknown,key:string)=>invoke(()=>withProcurementPurchasedCommand(a,{key,operation:"procurement.promise.record",target:{kind:"purchase",id},purpose:"settle-existing",permissions:["commerce.read","commerce.purchase"]},database=>application(a,database).record(id,raw,key)));
+export const supplierPromiseWork=(a:WorkContext)=>invoke(async()=>{if(!hasPermission(a,"commerce.read"))return [];const access=await procurementPurchaseAccess((await holdingResources(a.holdingId)).write,a);if(access&&!access.history)return [];const items=await application(a).work();return access&&!access.settleExisting?items.map(item=>({...item,canAct:false,queue:"waiting" as const})):items;});

@@ -1,3 +1,4 @@
+import {legalMetricReadScope} from "./metric-purchases";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
@@ -24,8 +25,8 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }): Promise<{
             rows: LegalEvidenceRow[] | LegalHoldEvidenceRow[];
         }> {
-            const visibility = legalVisibility(actor);
-            const conditions = [visibility.sql, isObligation
+            const visibility = legalVisibility(actor),purchase=await legalMetricReadScope(db,actor,isObligation?"active-legal-obligations":"active-legal-holds");
+            const conditions = [visibility.sql,purchase.where, isObligation
                     ? activeSchedulePredicate()
                     : "h.state IN ('active','release_requested')"];
             const values: unknown[] = [...visibility.values];
@@ -52,17 +53,17 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }, async factsReadLegalEvidence(actor: WorkContext, isObligation: boolean, recordId: string): Promise<{
             row: LegalEvidenceRow | LegalHoldEvidenceRow | null;
         }> {
-            const visibility = legalVisibility(actor);
+            const visibility = legalVisibility(actor),purchase=await legalMetricReadScope(db,actor,isObligation?"active-legal-obligations":"active-legal-holds");
             const row = isObligation
                 ? await db.prepare(`SELECT s.id,s.item_id,s.title,s.category,s.due_date,s.state,s.version,
           i.title item_title,i.kind item_kind,i.version item_version
         FROM legal_obligation_schedule s JOIN legal_items i ON i.id=s.item_id
-        WHERE s.id=? AND ${visibility.sql} AND ${activeSchedulePredicate()}`)
+        WHERE s.id=? AND ${visibility.sql} AND ${purchase.where} AND ${activeSchedulePredicate()}`)
                     .bind(recordId, ...visibility.values).first<LegalEvidenceRow>()
                 : await db.prepare(`SELECT h.id,h.item_id,h.state,h.created_at,
           i.title item_title,i.kind item_kind,i.version item_version
         FROM legal_holds h JOIN legal_items i ON i.id=h.item_id
-        WHERE h.id=? AND ${visibility.sql} AND h.state IN ('active','release_requested')`)
+        WHERE h.id=? AND ${visibility.sql} AND ${purchase.where} AND h.state IN ('active','release_requested')`)
                     .bind(recordId, ...visibility.values).first<LegalHoldEvidenceRow>();
             return { row };
         } };

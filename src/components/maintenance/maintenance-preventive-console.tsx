@@ -1,23 +1,18 @@
 "use client";
+import WorkspaceLink from "@/components/workplace/workspace-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import { FormDisclosure } from "@/components/ui/form-disclosure";
-import {useRef,useState} from 'react';
-import {useRouter} from 'next/navigation';
+import {AssetEditor,AssetRecoveryBoundary} from "@/components/assets/asset-editor";
+import {useAssetCommand} from "@/components/assets/use-asset-command";
+import {assetCommandAllowed} from "@/lib/assets/command";
 import {Button,Field,Select,TextArea,TextInput} from "@/components/ui/foundation";
 import {PreferredDateTimeField} from "@/components/people_payroll/time/preferred-date-time-field";
-import {workFetch} from "@/lib/work_projection/work-fetch";
 import type {maintenanceWorkspace} from "@/server/modules/maintenance/public/asset-maintenance";
 import type {preventivePlanDetail} from "@/server/modules/maintenance/public/maintenance-preventive";
 import { FormLayout } from "@/components/ui/foundation";
 
 export function MaintenancePreventiveConsole({base,data,detail}:{base:string;data?:Awaited<ReturnType<typeof maintenanceWorkspace>>;detail?:Awaited<ReturnType<typeof preventivePlanDetail>>}){
- const router=useRouter(),last=useRef<{body:string;key:string}|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),p=detail?.plan;
- async function send(input:unknown){if(busy)return;setBusy(true);setError('');const body=JSON.stringify(input);if(last.current?.body!==body)last.current={body,key:crypto.randomUUID()};try{
-  const response=await workFetch(`/api/v1${base}/maintenance/plans`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':last.current.key},body}),result=await response.json();
-  if(!response.ok){if(response.status<500)last.current=null;throw new Error(result.error?.message??'Unable to update the preventive plan.');}
-  last.current=null;router.push(`${base}/maintenance/plans/${result.data.id}`);router.refresh();
- }catch(cause){setError(cause instanceof Error?cause.message:'Retry the preventive action.');}finally{setBusy(false);}}
+ const purchases=detail?.purchases??data?.purchases,{send,retry,busy,error,notice,saved,uncertain}=useAssetCommand(base,"maintenance/plans",purchases,detail?.plan),p=detail?.plan;
  const canEdit=detail?detail.canWrite&&['draft','paused'].includes(p!.status)&&(p!.created_by===detail.actorId||detail.canReview):Boolean(data?.canCreate);
  const people=detail?.people??data?.people??[];
  const actions:Array<[string,string]>=[];
@@ -27,9 +22,9 @@ export function MaintenancePreventiveConsole({base,data,detail}:{base:string;dat
   if(detail.canReview&&p.status==='active')actions.push(['pause','Pause for revision']);
   if(detail.canReview)actions.push(['cancel','Cancel future occurrences']);
  }
- return <>{error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{canEdit&&<FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>{p?'Revise preventive definition':'Create preventive plan'}</summary><FormLayout className="ui-panel ui-form-grid" onSubmit={event=>{
+ return <AssetRecoveryBoundary recovery={{retry,busy,uncertain,notice,saved}}>{error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{notice&&<InlineNotice role="status">{notice}</InlineNotice>}{saved&&<p>Saved original: <WorkspaceLink href={saved.href}>{saved.id}</WorkspaceLink></p>}{uncertain&&<Button appearance="standard" type="button" disabled={busy} onClick={()=>void retry()}>Retry submitted change</Button>}<AssetEditor title={p?"Revise preventive definition":"Create preventive plan"} busy={busy} error={error} visible={canEdit} disabled={!assetCommandAllowed("maintenance/plans",{},purchases)}><FormLayout className="ui-panel ui-form-grid" onSubmit={event=>{
   event.preventDefault();const values=Object.fromEntries(new FormData(event.currentTarget)),asset=data?.assets.find(a=>a.id===values.assetId);
-  void send({...values,...(p?{id:p.id,assetId:p.asset_id,expectedVersion:Number(p.version)}:{}),assetVersion:detail?.assetVersion??Number(asset?.version),firstDueAt:new Date(String(values.firstDueAt)).getTime(),intervalDays:Number(values.intervalDays),leadDays:Number(values.leadDays)});
+  void send({...values,...(p?{id:p.id,assetId:p.asset_id,expectedVersion:Number(p.version)}:{}),assetVersion:detail?.assetVersion??Number(asset?.version),firstDueAt:new Date(String(values.firstDueAt)).getTime(),intervalDays:Number(values.intervalDays),leadDays:Number(values.leadDays)},event.currentTarget);
  }}><h2>{p?'Revise preventive definition':'Create preventive plan'}</h2>
   {!p&&<Field appearance="standard">Asset<Select appearance="standard" name="assetId" required>{data?.assets.map(asset=><option key={String(asset.id)} value={String(asset.id)}>{String(asset.code)} · {String(asset.name)}</option>)}</Select></Field>}
   <Field appearance="standard">Inspection or service<TextInput appearance="standard" name="title" defaultValue={p?.title} required minLength={3}/></Field>
@@ -41,10 +36,10 @@ export function MaintenancePreventiveConsole({base,data,detail}:{base:string;dat
   <Field appearance="standard">Planning window in days<TextInput appearance="standard" name="leadDays" type="number" min="0" max="60" defaultValue={p?.lead_days??7} required/></Field>
   <p className="muted">The schedule keeps its local time. A clock change that removes that time moves that occurrence to the next available minute.</p>
   <Field appearance="standard">Reason<TextArea appearance="standard" name="reason" minLength={3} required/></Field><Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>{p?'Save definition':'Create plan'}</Button>
- </FormLayout></FormDisclosure>}
- {p&&actions.length>0&&<FormLayout className="ui-panel ui-form-grid" onSubmit={event=>{event.preventDefault();const values=Object.fromEntries(new FormData(event.currentTarget));void send({...values,id:p.id,expectedVersion:Number(p.version)});}}>
+ </FormLayout></AssetEditor>
+ {p&&<AssetEditor title="Plan action" busy={busy} error={error} visible={actions.length>0} disabled={actions.every(([action])=>!assetCommandAllowed("maintenance/plans",{id:p.id,action},purchases))}><FormLayout className="ui-panel ui-form-grid" onSubmit={event=>{event.preventDefault();const values=Object.fromEntries(new FormData(event.currentTarget));void send({...values,id:p.id,expectedVersion:Number(p.version)},event.currentTarget);}}>
   <h2>Plan action</h2><Field appearance="standard">Action<Select appearance="standard" name="action">
-   {actions.map(([value,label])=><option key={value} value={value}>{label}</option>)}
+   {actions.map(([value,label])=><option key={value} value={value} disabled={!assetCommandAllowed("maintenance/plans",{id:p!.id,action:value},purchases)}>{label}</option>)}
   </Select></Field><Field appearance="standard">Review evidence<TextArea appearance="standard" name="reason" minLength={3} required/></Field><Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>Record action</Button>
- </FormLayout>}</>;
+ </FormLayout></AssetEditor>}</AssetRecoveryBoundary>;
 }

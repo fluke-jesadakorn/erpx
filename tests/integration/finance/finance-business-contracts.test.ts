@@ -1,3 +1,6 @@
+import {prepareCollectionCase,decideCollectionCase,collectionWorkspace,cashDueForecast} from "../../../src/server/modules/finance/public/finance-collections";
+import { afterEach } from "vitest";
+import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
@@ -6,6 +9,7 @@ import {
   key,
 } from "../../support/helpers/expense-fixture";
 import {
+  businessContractWorkspace,
   prepareBusinessContract,
   decideBusinessContract,
   prepareBusinessBilling,
@@ -477,4 +481,48 @@ it("restores the retained invoice and billing edition on final revision outbox f
  expect(Number(await db.prepare('SELECT count(*) n FROM finance_business_billing_runs WHERE parent_run_id=?').bind(original.id).first('n'))).toBe(1);
  expect(Number(await db.prepare('SELECT count(*) n FROM finance_invoices WHERE company_id=?').bind(f.company).first('n'))).toBe(2);
  for(const table of ['command_receipts','audit_events','outbox_events'])for(const receipt of [command,`${command}-invoice`])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(receipt).first('n'))).toBe(1);
+});
+
+afterEach(()=>vi.unstubAllEnvs());
+
+it("purchased business billing denies unpurchased contracts and source readers while shadow preserves the original owner",async()=>{
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ for(const read of [()=>businessContractWorkspace(f.owner),()=>collectionWorkspace(f.owner,"2026-10-15"),()=>cashDueForecast(f.owner,{chartId:f.chart,asOf:"2026-10-15"})])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await expect(prepareBusinessContract(f.owner,input(),key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ expect(await db.prepare("SELECT count(*) n FROM finance_business_contracts WHERE company_id=?").bind(f.company).first("n")).toBe(0);
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","shadow");const telemetry=vi.spyOn(console,"info").mockImplementation(()=>{});
+ try{expect(await active()).toMatchObject({id:expect.any(String)});expect(telemetry.mock.calls.some(args=>String(args[0]).includes("PACKAGE_REQUIRED"))).toBe(true);}finally{telemetry.mockRestore();}
+});
+it("Finance-only draining bills a retained agreement, recognizes and reverses service, and reviews a real overdue collection",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const c=await active();
+ await setFinanceCompanyTool(f.owner,{tool:"collections",enabled:true,expectedVersion:0,reason:"Reviewed preexisting collection capability"},key());
+ await reviewedFinanceGrant(db,f.company,"finance","draining");await expect(prepareBusinessContract(f.owner,input(),key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});
+ const bill=await prepareBusinessBilling(f.owner,c.id,{expectedVersion:2,month:"2026-09",invoiceDate:"2026-09-16",dueDate:"2026-09-30"},key());
+ await postInvoice(f.manager,String(bill.invoiceId),{expectedVersion:1,periodId:f.period,entryDate:"2026-09-30"},key());
+ const recognition=await prepareRecognitionRun(f.owner,{billingRunId:String(bill.id),itemKey:"support:2026-09-30",periodId:f.period,entryDate:"2026-09-30",reason:"Retained delivered September service"},key());
+ await decideRecognitionRun(f.manager,String(recognition.id),{expectedVersion:1,reason:"Independent retained service approval"},"post",key());
+ await reverseRecognitionRun(f.manager,String(recognition.id),{expectedVersion:2,periodId:f.period,entryDate:"2026-09-30",reason:"Retained service correction and original journal reversal"},key());
+ const request={invoiceId:String(bill.invoiceId),expectedVersion:2,asOf:"2026-10-15"},collection=await prepareCollectionCase(f.owner,request,key());
+ const review={expectedVersion:1,reason:"Independent original overdue amount review"};await decideCollectionCase(f.manager,String(collection.id),review,"approve",key());
+ expect((await collectionWorkspace(f.owner,request.asOf)).cases.map(row=>row.id)).toContain(collection.id);
+ const deliveryInput={expectedVersion:2,reason:"Verify retained message only through the isolated test adapter"},deliveryKey=key(),delivered=await decideCollectionCase(f.owner,String(collection.id),deliveryInput,"test-deliver",deliveryKey);
+ expect(delivered).toMatchObject({status:"test_delivered",adapter:"test"});expect(await decideCollectionCase(f.owner,String(collection.id),deliveryInput,"test-deliver",deliveryKey)).toEqual(delivered);
+ expect(await db.prepare("SELECT adapter,count(*) n FROM finance_collection_deliveries WHERE case_id=? GROUP BY adapter").bind(collection.id).first()).toEqual({adapter:"test",n:1});
+ expect((await businessContractWorkspace(f.owner)).recognitions.find(row=>row.id===recognition.id)).toMatchObject({status:"reversed"});
+ expect(await db.prepare("SELECT count(*) n FROM command_assertions").first("n")).toBe(0);
+});
+it("purchased due billing rolls back invoice and queued completion after late delegated revocation then retries the retained source",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const c=await active();
+ const scheduled=await scheduleFinanceDraft(f.owner,{kind:"billing",sourceId:c.id,runOn:"2026-09-16",input:{expectedVersion:2,month:"2026-09",invoiceDate:"2026-09-16",dueDate:"2026-09-30"},reason:"Retain delegated billing preparation"},key());
+ const id=String(scheduled.id),trigger=`due_purchase_${key().replaceAll("-","")}`,now=new Date("2026-09-16T12:00:00Z");
+ await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.owner.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER UPDATE ON finance_due_drafts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.id='${id}' AND NEW.status='prepared') EXECUTE FUNCTION ${trigger}()`);
+ try{
+  expect(await drainFinanceDueDrafts(db,f.owner.holdingId,now)).toBe(0);
+  expect(await db.prepare("SELECT status,result_json FROM finance_due_drafts WHERE id=?").bind(id).first()).toMatchObject({status:"blocked",result_json:null});
+  expect(await db.prepare("SELECT count(*) n FROM finance_invoices WHERE company_id=?").bind(f.company).first("n")).toBe(0);
+  expect(await db.prepare("SELECT command_id FROM command_receipts WHERE command_id=?").bind(`${id}:draft`).first()).toBeNull();
+  expect(await db.prepare("SELECT revoked_at FROM assignments WHERE id=?").bind(f.owner.assignmentId).first("revoked_at")).toBeNull();
+ }finally{await db.exec(`DROP TRIGGER ${trigger} ON finance_due_drafts;DROP FUNCTION ${trigger}()`);}
+ await decideFinanceDueDraft(f.owner,id,{expectedVersion:2,reason:"Retry retained input after late authority fault"},"retry",key());
+ expect(await drainFinanceDueDrafts(db,f.owner.holdingId,now)).toBe(1);expect(await drainFinanceDueDrafts(db,f.owner.holdingId,now)).toBe(0);
 });

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -12,7 +13,7 @@ async function resources(context:Context) {
   return {actor,write,control:CONTROL_DB};
 }
 export async function GET(_request:Request,context:Context) {
-  try{const {actor,write,control}=await resources(context);return Response.json({data:await listExternalConnections(control,write,actor)},{headers});}catch(e){return errorResponse(e);}
+  try{const {actor,write,control}=await resources(context);return Response.json(canonicalDestinationLinks({data:await listExternalConnections(control,write,actor)}),{headers});}catch(e){return errorResponse(e);}
 }
 export async function POST(request:Request,context:Context) {
   try {
@@ -26,6 +27,6 @@ export async function POST(request:Request,context:Context) {
     const data=raw&&typeof raw==="object"&&"revokeId" in raw
       ? await revokeExternalConnection(control,write,actor,z.object({revokeId:z.string().uuid()}).strict().parse(raw).revokeId)
       : await createExternalConnection(control,write,actor,raw,commandKey);
-    return Response.json({data},{headers});
+    return Response.json(canonicalDestinationLinks({data}),{headers});
   }catch(e){return errorResponse(e);}
 }

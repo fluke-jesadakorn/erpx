@@ -8,7 +8,7 @@ The [capability report](../status/capability-delivery-matrix.md) projects this d
 
 ## Run and inspect
 
-Use pinned Node 24.20.0 and Bun 1.2.17. `bun run test -- <test-files>` runs the selected native lane according to the strict catalogue. `bun run completion:inventory` inspects the scenario register; the completion integration/verification commands perform the actual engineering work. See [E2E cases](e2e-specification.md), [isolated browser setup](isolated-browser-simulation.md), [working demo](working-demo-company.md) and [source-route inventory](uat-route-inventory.md) for their separate boundaries. Reuse development on 3100; isolate fixtures and avoid reserved 3000/3001/8080. Builds use `bun run deploy:build` rather than dev's output directory.
+Use pinned Node 26.11.1 and Bun 1.4.3. `bun run test -- <test-files>` runs the selected native lane according to the strict catalogue. `bun run completion:inventory` inspects the scenario register; the completion integration/verification commands perform the actual engineering work. See [E2E cases](e2e-specification.md), [isolated browser setup](isolated-browser-simulation.md), [working demo](working-demo-company.md) and [source-route inventory](uat-route-inventory.md) for their separate boundaries. Reuse development on 3100; isolate fixtures and avoid reserved 3000/3001/8080. Builds use `bun run deploy:build` rather than dev's output directory.
 
 ## Evidence retention
 
@@ -21,6 +21,9 @@ Other reports in this directory retain their recorded findings. Their implementa
 The [service boundary contract](../contracts/next/service-boundaries.md) describes semantic ports and shared transactions. The [service registry](../../src/server/modules/ownership.json) maps production source owners; the [suite manifest](../../tests/catalogue/suite-manifest.json) maps every executable test to its lane, affected modules, fixture profile and jobs/scanner prerequisites. Discovery rejects an unregistered, duplicate or missing test. The module list must match all 33 registry entries. An explicit selection with an unknown name, wrong lane or excluded file fails before execution.
 
 ```bash
+bun run test                              # unit only
+bun run test --module=people_payroll      # unit only
+bun run test:dev --base=<verified-sha>    # affected native tests; full impact falls back to unit
 bun run test:unit --module=people_payroll
 bun run test:integration --suite=people_payroll.expense.integration
 bun run test:e2e --module=people_payroll --list
@@ -29,6 +32,10 @@ bun run test:e2e --module=people_payroll --case-order=reverse
 bun run test:impact --base=<verified-sha> --list
 bun run test:full
 ```
+
+`bun run test` and module-only selections default to unit. Explicit files or suites retain their catalogue unit/integration lane, including mixed selections; explicit lane commands reject wrong-lane files and suites. `demo:verify` runs the purchase-to-payment integration workflow.
+
+`test:dev --base=<verified-sha>` uses the same base/head impact mapping as `test:impact`. Affected changes run the related unit/integration suites. Full-impact changes run unit only; documentation-only changes run no tests. `--list --json` previews the development selection and every deferred internal suite. Execution writes a private receipt with `scope: development`, `acceptance: false`, selected suites, deferred suite/check commands and source fingerprints under `.scratch/dev/test-suites/development/`. It never invokes or claims full acceptance. Run the reported checks or `bun run test:full` intentionally; `test:impact`, CI and full acceptance retain their existing coverage and failure rules.
 
 Unit tests have no PostgreSQL setup. Integration and contract tests use the guarded local administrator and disposable databases. Browser lanes prepare their own fixture profile; every executed case receives fresh databases/files and normal sign-in/assignment selection. Module E2E and journeys run sequentially on 3102; UAT uses 3104 and the full runner verifies its compiled candidate with scanner/jobs. Sandbox/live-provider checks require explicit `test:provider` selection and their prerequisites; the internal full receipt does not attest to live providers.
 

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {z} from "zod";
 import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
 import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
@@ -80,12 +81,12 @@ export async function POST(
       if(!componentRef)throw new ApiError(422,"ATTACHMENT_CONTEXT_UNSUPPORTED","This legacy file owner has no active domain binding context.");
       const set=await createAttachmentSet(write,actor,{targetType:parsed.data.ownerType,targetId:parsed.data.ownerId,componentKind:mapped.componentKind,componentRef,purposeKey:mapped.purposeKey,expectedTargetVersion},`${commandKey}:set`,{compatibilityAdapter:true});
       const reserved=await reserveAttachmentFile(write,actor,set.id,{filename:parsed.data.filename,mediaType:parsed.data.mediaType,bytes:parsed.data.bytes},`${commandKey}:file`,{compatibilityAdapter:true});
-      return Response.json({data:{
+      return Response.json(canonicalDestinationLinks({data:{
         id:reserved.uploadIntentId,
         ...reserved,
         attachmentSetId:set.id,
         expectedTargetVersion,
-      }},{status:201});
+      }}),{status:201});
     }
     throw new ApiError(503,"ATTACHMENTS_READ_ONLY","Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.");
   } catch (error) {

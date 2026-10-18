@@ -1,0 +1,1488 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+  "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d",
+  "createdAt": "2026-10-15T03:50:04.731124+00:00",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit",
+    "apps:all-company-branch-department-product-selection"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+          "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+        },
+        "scope": "Fresh complete 215-file unit and 239-file PostgreSQL invocation includes five-file / 45-case Admin/SSO/role regression. Installed Apply, positive purchased-product browser and whole workflow acceptance remain open."
+      }
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+          "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+        },
+        "scope": "Fresh complete 215-file unit and 239-file PostgreSQL invocation includes five-file / 45-case Admin/SSO/role regression. Installed Apply, positive purchased-product browser and whole workflow acceptance remain open."
+      }
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Signed read-only per-Company comparison; expected versions, fresh Platform MFA and normal Commercial applyIn grant/audit/review transaction. The source owns its first snapshot and complete IAM/Organization/People predicates, tracks future eligibility boundaries and verifies source/current Platform authority after the final batch receipt before COMMIT. The current full invocation verifies late-receipt rollback. Stale-directory review, future HR appointment, committed replay and transaction confinement are covered.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+          "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+        },
+        "scope": "Fresh complete 215-file unit and 239-file PostgreSQL invocation includes five-file / 45-case Admin/SSO/role regression. Installed Apply, positive purchased-product browser and whole workflow acceptance remain open."
+      }
+    },
+    {
+      "workflow": "apps:all-company-branch-department-product-selection",
+      "implementation": [
+        "src/server/modules/work_projection/application/product-launcher.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/app/choose-work-role/page.tsx"
+      ],
+      "behavior": "Enumerates all Company/Branch/Department choices, checks each applicable role independently using purchased entry capabilities/release/owner menu predicates, preserves the live selection and uses explicit versioned same-origin role selection. Assignment rows and original Module IDs remain unchanged. Positive installed-Company acceptance remains open.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+          "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+        },
+        "scope": "Fresh complete 215-file unit and 239-file PostgreSQL invocation includes five-file / 45-case Admin/SSO/role regression. Installed Apply, positive purchased-product browser and whole workflow acceptance remain open."
+      }
+    }
+  ],
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "release": {
+    "id": "2026-10-15T03-38-56-873Z",
+    "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d"
+  },
+  "previousImplementation": "docs/testing/evidence/2026-10-15-service-references-0d48d-corrected.json",
+  "previousImplementationSha256": "dbf81dd5c1a4e8aba65e12dcaacae79d6de1eac9b15a5fcee80e8ae35199cbb4",
+  "checks": {
+    "staticUnitFullNativeBuild": {
+      "startedAt": "2026-10-15T03:04:39.682992+00:00",
+      "pid": 38367,
+      "candidate": {
+        "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+        "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+      },
+      "phases": [
+        {
+          "name": "typecheck",
+          "startedAt": "2026-10-15T03:04:40.151104+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T03:05:37.573944+00:00",
+          "log": ".scratch/dev/product-history-entry-current/accepted/final-typecheck.log",
+          "logSha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+          "sourceAfter": {
+            "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+            "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+          }
+        },
+        {
+          "name": "lint",
+          "startedAt": "2026-10-15T03:05:38.331265+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T03:06:43.966866+00:00",
+          "log": ".scratch/dev/product-history-entry-current/accepted/final-lint.log",
+          "logSha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+          "sourceAfter": {
+            "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+            "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+          }
+        },
+        {
+          "name": "architecture",
+          "startedAt": "2026-10-15T03:06:44.571652+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T03:06:54.771881+00:00",
+          "log": ".scratch/dev/product-history-entry-current/accepted/final-architecture.log",
+          "logSha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+          "sourceAfter": {
+            "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+            "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+          }
+        },
+        {
+          "name": "catalogue",
+          "startedAt": "2026-10-15T03:06:55.174981+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T03:06:55.802568+00:00",
+          "log": ".scratch/dev/product-history-entry-current/accepted/final-catalogue.log",
+          "logSha256": "639cf407bb405b179e0a0f5bee4a41ba9d943b66f4cf35af710f94fb6ef4b0ac",
+          "sourceAfter": {
+            "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+            "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+          }
+        },
+        {
+          "name": "documentation",
+          "startedAt": "2026-10-15T03:06:56.281217+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T03:06:56.568799+00:00",
+          "log": ".scratch/dev/product-history-entry-current/accepted/final-documentation.log",
+          "logSha256": "9db37d24d1a451155d15fc12fa3506e88059a4409c408ef0ee97d8d49255f16c",
+          "sourceAfter": {
+            "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+            "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+          }
+        },
+        {
+          "name": "unit",
+          "startedAt": "2026-10-15T03:06:56.943731+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T03:07:38.681636+00:00",
+          "log": ".scratch/dev/product-history-entry-current/accepted/final-unit.log",
+          "logSha256": "2da0388ad4eada14a9cd9021613227404799379162763ba6f755ae9b72fba6e5",
+          "sourceAfter": {
+            "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+            "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+          }
+        },
+        {
+          "name": "full-postgres",
+          "startedAt": "2026-10-15T03:07:39.387865+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T03:38:53.632286+00:00",
+          "log": ".scratch/dev/product-history-entry-current/accepted/final-full-postgres.log",
+          "logSha256": "c88c24cb69ad9502889f2973e44e191edb283c131c82ada46e918a805510f754",
+          "sourceAfter": {
+            "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+            "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+          }
+        },
+        {
+          "name": "css-source",
+          "startedAt": "2026-10-15T03:38:54.475990+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T03:38:56.282926+00:00",
+          "log": ".scratch/dev/product-history-entry-current/accepted/final-css-source.log",
+          "logSha256": "c8198b953e35e3b3d7fb8f296f18ef6d7c68da1e1360902fb243325baa28f43c",
+          "sourceAfter": {
+            "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+            "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+          }
+        },
+        {
+          "name": "build",
+          "startedAt": "2026-10-15T03:38:56.774992+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T03:42:46.505780+00:00",
+          "log": ".scratch/dev/product-history-entry-current/accepted/final-build.log",
+          "logSha256": "4002268b57118c1f376bc1796eea3eecf551076251a21a4775aa0945b8e85f84",
+          "sourceAfter": {
+            "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+            "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+          }
+        }
+      ],
+      "status": "commercial-apps-static-unit-full-native-build-passed-full-product-acceptance-open",
+      "release": {
+        "id": "2026-10-15T03-38-56-873Z",
+        "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d"
+      },
+      "endedAt": "2026-10-15T03:42:47.359738+00:00"
+    },
+    "unit": {
+      "files": 215,
+      "cases": 2893
+    },
+    "fullPostgres": {
+      "files": 239,
+      "cases": 2281
+    },
+    "adminSsoRoleFilesIncluded": {
+      "files": 5,
+      "cases": 45
+    },
+    "wholeUiGate": {
+      "candidate": {
+        "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+        "verificationFingerprint": "9d9ce368206093a87ccf2d0d4632b7f606f150ba4911bc5c9e7391677ca6524d"
+      },
+      "exitCode": 1,
+      "frozenDifferences": 36,
+      "retirementsPending": 3,
+      "sourceStatesPending": 1737,
+      "routesPending": 954,
+      "protectedChecksChanged": false,
+      "scope": "Current derived UI dependency inventory; inherited failures remain exposed",
+      "result": "failed"
+    }
+  },
+  "commercialSettlement": {
+    "normalZeroObligationWithdrawalReview": true,
+    "drainingDependencyValidation": true,
+    "deferredAndLateOwnEffectRecheck": true,
+    "unchangedCommittedReplayPreserved": true,
+    "registeredOwnerScope": "Support base version 1 only",
+    "generalLifecycleApiUiAccepted": false,
+    "unsafePreRepairWriterApprovedForRollback": false
+  },
+  "appsHistoryEntry": {
+    "oneCompanyPurchaseHistorySnapshot": true,
+    "purposeFollowsActualRoleCapability": true,
+    "noAutomaticRoleSelection": true,
+    "newPersonalAuthority": false,
+    "rawGrantsHistoryIamClientProps": false,
+    "positiveInstalledProductBrowserAccepted": false,
+    "ownerCommandEnforcementAccepted": false
+  },
+  "assertionReview": {
+    "coreAndCustomerOriginalMatcherCallsRetained": true,
+    "intentionallySuperseded": "The old deny-all-after-Marketing-drain expectation becomes explicit settlement/history entry; revocation, unchanged assignments and the live Finance role remain asserted.",
+    "protectedUiInputsUnchanged": 5
+  },
+  "browser": {
+    "frames": 40,
+    "surfaces": [
+      "Apps migration recovery",
+      "Office no-purchase role entry"
+    ],
+    "widths": [
+      320,
+      390,
+      768,
+      1024,
+      1440
+    ],
+    "modes": [
+      "light",
+      "dark",
+      "system-light",
+      "system-dark"
+    ],
+    "initialDocumentsAndBoundedZeroApiTrace": true,
+    "privateFieldChecks": [
+      {
+        "surface": "apps",
+        "origin": "https://apps-dev-erpx.jesadakorn.com",
+        "path": "/",
+        "documentStatus": 200,
+        "documentBytes": 40395,
+        "initialContent": true,
+        "currentDom": true,
+        "ready": "complete",
+        "networkQuiet": true,
+        "observedMs": 3489,
+        "apiRequests": [],
+        "privateFields": [],
+        "truncated": false
+      },
+      {
+        "surface": "role",
+        "origin": "https://finance-dev-erpx.jesadakorn.com",
+        "path": "/choose-work-role",
+        "documentStatus": 200,
+        "documentBytes": 28115,
+        "initialContent": true,
+        "currentDom": true,
+        "ready": "complete",
+        "networkQuiet": true,
+        "observedMs": 3457,
+        "apiRequests": [],
+        "privateFields": [],
+        "truncated": false
+      }
+    ],
+    "consoleServiceDrawerSmoke": true,
+    "settingsRestored": true,
+    "priorSourceAdminPreviewDiagnosticAccepted": false,
+    "positivePurchasedWorkflowAccepted": false,
+    "keyboardAccepted": false,
+    "allSharedMountGetCriterionAccepted": false,
+    "compiledPerformanceAccepted": false
+  },
+  "transport": {
+    "developmentHealthIconTlsChecks": 44,
+    "requiredHealthStatuses": [
+      200,
+      200,
+      200
+    ],
+    "detachedPinnedDev": true,
+    "postgresReady": true,
+    "stagingAccessed": false,
+    "productionDeployed": false
+  },
+  "installedDevelopment": {
+    "newSchemaMigration": false,
+    "commercialRowsZero": true,
+    "supportEnforcement": "disabled",
+    "serviceEnforcement": "disabled"
+  },
+  "excludedInvocations": [
+    "The ac63430d full PostgreSQL invocation fails on two Support setups and is deliberately interrupted at exit 130.",
+    "The 6e3cd1e8 full PostgreSQL invocation fails on the Customer timeline fixture under immutable 1048 and is deliberately interrupted at exit 130.",
+    "Initial deferred Support fixture assignment diagnostics and private Apps setup/command-selection diagnostics are retained, not passing acceptance.",
+    "The prior a8d8ab5 Admin input diagnostic and earlier Console smoke do not certify current interaction.",
+    "Initial entry traces stop at interactive/non-quiet state; only browser-entry-traces-final.json supplies the complete-load interval.",
+    "Private Account profile/preferences code, 0035, checks and forms are unmerged and excluded from this source/build/receipt."
+  ],
+  "scopeLimits": [
+    "All 203 workflow acceptances remain open; no verified/enabled promotion.",
+    "General lifecycle UI/API, remaining owner obligation/source fences and cross-surface purchase enforcement remain required.",
+    "Installed legacy Company/role parity, normal reviewed Apply and package-only/shadow activation are unaccepted.",
+    "Positive purchased/history role interaction, full SSO/public/product workflows, complete UI, comparable compiled performance and populated business/private-file rollback remain open.",
+    "The complete UI gate remains failed without frozen fingerprint or guard/assertion changes."
+  ],
+  "declaredSources": [
+    {
+      "path": "docs/contracts/next/product-separation.md",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/docs/contracts/next/product-separation.md",
+      "sha256": "041e65c901b6a6f353d1537cc2edea347807072b416a469fbc1a91fbe30dd944"
+    },
+    {
+      "path": "docs/testing/commercial-apps-settlement-2026-10-15.md",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/docs/testing/commercial-apps-settlement-2026-10-15.md",
+      "sha256": "8355547c9fbbe8b640afb304a0157c2702f6bed11c6d7349e15fa6dc60bd46dc"
+    },
+    {
+      "path": "docs/testing/uat-route-inventory.md",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/docs/testing/uat-route-inventory.md",
+      "sha256": "76ae3f2c525cebee1ad791ef519b7083d79a55bdf5b3f3748825d64f31e8af8d"
+    },
+    {
+      "path": "ops/macos/commercial-development-migration.md",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/ops/macos/commercial-development-migration.md",
+      "sha256": "d847d57d53c9d546fa715aeb17356156c1241e226541453ce221a2217f0d5c62"
+    },
+    {
+      "path": "src/app/choose-work-role/page.tsx",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/app/choose-work-role/page.tsx",
+      "sha256": "0bba8a9dd96e1146612b6cd122e74c3c878db59da83dcf23ec474aee230780af"
+    },
+    {
+      "path": "src/app/product-entry/page.tsx",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/app/product-entry/page.tsx",
+      "sha256": "cf8f46c73e61e7de368629c619053a082efc1a7952fe9d41057a96959539eb13"
+    },
+    {
+      "path": "src/server/modules/commercial/adapters/owner-package-obligations.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/adapters/owner-package-obligations.ts",
+      "sha256": "d73281ebf499cc8f84702f7ea564fce60b52737a332fc9a49e7835ec5a6982d0"
+    },
+    {
+      "path": "src/server/modules/commercial/application/package-grants.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/application/package-grants.ts",
+      "sha256": "a2dfa8cdb05d761f5c66844a224bfd6e73ac61a93c08ed931de61b1a5b319c38"
+    },
+    {
+      "path": "src/server/modules/commercial/domain/package-dependencies.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/domain/package-dependencies.ts",
+      "sha256": "5e48e4e0831b015ea1eb4585e3bbf7a5911824be44de5d0dc2d28733eaf5e93e"
+    },
+    {
+      "path": "src/server/modules/commercial/domain/packages.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/domain/packages.ts",
+      "sha256": "516a64faf14a71b83b3d78141f89b6f9be0adb5f321f347a477ba8fc06e976a9"
+    },
+    {
+      "path": "src/server/modules/commercial/public/packages.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/public/packages.ts",
+      "sha256": "29d36240a447e96f301a4ca230f7a738957ce591531871b377559ad84f37c3a6"
+    },
+    {
+      "path": "src/server/modules/commercial/public/rules/packages.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/public/rules/packages.ts",
+      "sha256": "40c96af920eaa5e459b030e5e8980a97159fdc8bb2773f4fa8497eb1dca7e4af"
+    },
+    {
+      "path": "src/server/modules/identity_access/adapters/product-workspace.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/identity_access/adapters/product-workspace.ts",
+      "sha256": "bd31b5d6168966e6788adc3491152970f31e1ab99ffe7753dbff674cbc8fe047"
+    },
+    {
+      "path": "src/server/modules/identity_access/application/product-workspace.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/identity_access/application/product-workspace.ts",
+      "sha256": "e92a8141957c98a90d2dfe26a5b3872180b9f073e1a855eab2c2088917c7bdf5"
+    },
+    {
+      "path": "src/server/modules/work_projection/adapters/product-launcher.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/work_projection/adapters/product-launcher.ts",
+      "sha256": "3434e694dd11c283e9e40565c7f79f79c69a5837b3b6d1ead10b4d45d41a2bac"
+    },
+    {
+      "path": "src/server/modules/work_projection/application/product-launcher.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/src/server/modules/work_projection/application/product-launcher.ts",
+      "sha256": "407a3473b1c558414f82dbb5af591cb29eecb518884e05f69ce74851cfeb91fc"
+    },
+    {
+      "path": "tests/catalogue/uat-route-inventory.json",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/catalogue/uat-route-inventory.json",
+      "sha256": "a616d9f53a6995693a579099649f823300d0e7caa576d16ddfafc63f33761bef"
+    },
+    {
+      "path": "tests/integration/commercial/package-grants.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/integration/commercial/package-grants.test.ts",
+      "sha256": "981c203f2c11ab5aece4c36c6a721ac220b7367f3b81564e9014b0f79ff26558"
+    },
+    {
+      "path": "tests/integration/commercial/package-history-migration.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/integration/commercial/package-history-migration.test.ts",
+      "sha256": "d0322c55ac5283cc6e689799d3f9ab18f3286c812c4df133e8647bf750d878e6"
+    },
+    {
+      "path": "tests/integration/commercial/package-history.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/integration/commercial/package-history.test.ts",
+      "sha256": "5b6e3d081da8605436a6aa9986217939e363bcb4e79947f06df9a6e06d78b1da"
+    },
+    {
+      "path": "tests/integration/customer_360/customer-timeline.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/integration/customer_360/customer-timeline.test.ts",
+      "sha256": "f23bb9408d679247f6bf35e7c92ebc1b230cf4d20eb1fd6e4880d56249e284a3"
+    },
+    {
+      "path": "tests/integration/identity_access/product-workspace.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/integration/identity_access/product-workspace.test.ts",
+      "sha256": "2c86986bd5775ec0d2b1cbe2cddbc34286ea256719d28495bf88e6cd8a43e6df"
+    },
+    {
+      "path": "tests/integration/support/package-obligations.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/integration/support/package-obligations.test.ts",
+      "sha256": "2215800423c5920ba736997b91051ce4ce56b39c43fabe8473c7f90124a7492a"
+    },
+    {
+      "path": "tests/integration/support/package-surfaces.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/integration/support/package-surfaces.test.ts",
+      "sha256": "60b73895c672fb028e98659944eb746beeb097b7c367019de290d9dc61a75ba3"
+    },
+    {
+      "path": "tests/unit/commercial/packages.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/unit/commercial/packages.test.ts",
+      "sha256": "73b6e8a937babf1b541382c96e137b9b862ddabf3d12bfe99d62bc76775fde2c"
+    },
+    {
+      "path": "tests/unit/identity_access/product-workspace.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/unit/identity_access/product-workspace.test.ts",
+      "sha256": "57ff984c0932e83f64be7b6e0aa9591de37bda500d153beec3c796f88403837f"
+    },
+    {
+      "path": "tests/unit/shared.ui/product-launcher.test.ts",
+      "snapshot": ".scratch/dev/product-history-entry-current/source/tests/unit/shared.ui/product-launcher.test.ts",
+      "sha256": "4236eb52a05a40b76c637d823f5a42ba7cd64657b6b08c5db0e43cc6a3c61b0f"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/final-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/final-build.log",
+      "sha256": "4002268b57118c1f376bc1796eea3eecf551076251a21a4775aa0945b8e85f84",
+      "bytes": 111844
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/final-catalogue.log",
+      "sha256": "639cf407bb405b179e0a0f5bee4a41ba9d943b66f4cf35af710f94fb6ef4b0ac",
+      "bytes": 82
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/final-css-source.log",
+      "sha256": "c8198b953e35e3b3d7fb8f296f18ef6d7c68da1e1360902fb243325baa28f43c",
+      "bytes": 143
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/final-documentation.log",
+      "sha256": "9db37d24d1a451155d15fc12fa3506e88059a4409c408ef0ee97d8d49255f16c",
+      "bytes": 192
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/final-full-postgres.log",
+      "sha256": "c88c24cb69ad9502889f2973e44e191edb283c131c82ada46e918a805510f754",
+      "bytes": 365135
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/final-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+      "bytes": 167872
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/final-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/final-unit.log",
+      "sha256": "2da0388ad4eada14a9cd9021613227404799379162763ba6f755ae9b72fba6e5",
+      "bytes": 58787
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted/verification.json",
+      "sha256": "33db6b0721afcd534c5ee6b94018e090a9857a5afafb54ba7f57c0c45e2d9456",
+      "bytes": 5993
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/accepted-launch.log",
+      "sha256": "d79ef753eaffe6b5bb99da64311418bb92e2d638bfc059015037a7dfc3cff428",
+      "bytes": 411
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/apps-assertion-review.json",
+      "sha256": "c4b9c8b578d5742d93498a6a0e43dc5529f82d2117cbcfbeabb7f63e06b53d78",
+      "bytes": 1256
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/availability-final.json",
+      "sha256": "91ebc3a88ea747f0faead844c0200e55c5dce327c7027d48445cedaef95a120f",
+      "bytes": 1331
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/docs/testing/uat-route-inventory.md",
+      "sha256": "01f499cfff44804c5ed1db41e088d9ec5cb9e8bb1433175fd0135b1bad0ea0cf",
+      "bytes": 179122
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/src/app/choose-work-role/page.tsx",
+      "sha256": "3cad367b70b18107ed83f36dc1a656672f45b33b77d7d0db21f30180bd57000e",
+      "bytes": 4665
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/src/app/product-entry/page.tsx",
+      "sha256": "3f2258c8556298120d40a88e418cc34c9e3cc395de630ab33edf62459c29bf2b",
+      "bytes": 6330
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/src/server/modules/commercial/domain/packages.ts",
+      "sha256": "ceda145931cdf883e179885e6b23704d7461142b6595f5280aaeaffad8771d37",
+      "bytes": 11712
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/src/server/modules/commercial/public/packages.ts",
+      "sha256": "429e7d2a79508db801bc7b885f998766693547067d242b006da4aedb14306535",
+      "bytes": 300
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/src/server/modules/commercial/public/rules/packages.ts",
+      "sha256": "780f7f93c6cc4222aadf629a81942be6f735725688cd7cef324e618526d25871",
+      "bytes": 290
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/src/server/modules/identity_access/adapters/product-workspace.ts",
+      "sha256": "ba883743381d3a9bb853ac9d1caf23e53cc4eb49a5f97b8f958feb965cc65af8",
+      "bytes": 6575
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/src/server/modules/identity_access/application/product-workspace.ts",
+      "sha256": "66459e2cc2204583eebf58b96a0fc96ae56a90e489fb70909a6318f653774aa8",
+      "bytes": 6956
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/src/server/modules/work_projection/adapters/product-launcher.ts",
+      "sha256": "85131b566cc827f2c96474325b6bef88a9a82ba5079335c0bdba960b8fa254ff",
+      "bytes": 3410
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/src/server/modules/work_projection/application/product-launcher.ts",
+      "sha256": "e829eb3b86a3ba30b6494eaf1771fb5d37907fbb6ef34b0b818581a24e439276",
+      "bytes": 6751
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/tests/catalogue/uat-route-inventory.json",
+      "sha256": "a9541ad33fecec0407c2793a8aaee7a80fc9b58a2b8a2788ee6518a4a5b84842",
+      "bytes": 509812
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/tests/integration/identity_access/product-workspace.test.ts",
+      "sha256": "39d87a31c44843824daaccaa20d06916b4489ddd716ebf9b43ff2773e5de0eae",
+      "bytes": 9093
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/tests/unit/commercial/packages.test.ts",
+      "sha256": "37d416168117cb62b4dd33f22b977c8c069d0855002495039bcb242830bd85b1",
+      "bytes": 13809
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/tests/unit/identity_access/product-workspace.test.ts",
+      "sha256": "7794918f949697716d4de728035027532a2d95732a37aa6342eee50fcc067dc6",
+      "bytes": 9576
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/before/tests/unit/shared.ui/product-launcher.test.ts",
+      "sha256": "88a3b70a863882219db8092624df129a702a10c4fcb0cf8893bf1ac77b5e2248",
+      "bytes": 8861
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-current.png",
+      "sha256": "3179bc8313bf2d11b2beee2fd11d2493437f95bf16649471bb85e1191ad97168",
+      "bytes": 49049
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-dark-1024.png",
+      "sha256": "2c10b873d01aec0833f2f4772836d013b146e18e62a744bf2fe6d16670c6bda4",
+      "bytes": 41275
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-dark-1440.png",
+      "sha256": "e759dca8094f556d550417bdd63e7e94a2452e2d48058a8f29ff9c5cde46d9ad",
+      "bytes": 47046
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-dark-320.png",
+      "sha256": "22a6da7ed2c0a97583d80eb7db21486f9157ca23397dd0548bf4026a2bbc383c",
+      "bytes": 27146
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-dark-390.png",
+      "sha256": "60c2219a8ddb8a26f25e85f0f3888acdb306ca0b143ab6f1d8ba93e7150197fa",
+      "bytes": 30114
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-dark-768.png",
+      "sha256": "bb102d6e3a0dc7560de972ea45a227f15fca73169fd93fa1ded9ba395f6312f2",
+      "bytes": 38333
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-light-1024.png",
+      "sha256": "c8cdc2464243e66299dca291d2cb44ac93d41c7094528ab1c698ba3f92cb65a8",
+      "bytes": 40275
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-light-1440.png",
+      "sha256": "eb19251070d2facf03acfcdce6299db6b8405e5b3c60eb7b1780e09d7fe03696",
+      "bytes": 45710
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-light-320.png",
+      "sha256": "7d8a31de0769ebd0c6e7ce058d69ef5ead1db1f119a83c72569ec02762964671",
+      "bytes": 26029
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-light-390.png",
+      "sha256": "81d437c057645bfa5e7867416397fe289aeb7d25c30175e1706203fa919a39cd",
+      "bytes": 28941
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-light-768.png",
+      "sha256": "4c6a06d5557f611029deb56ef696be41bbda2f6769e998ca26303d8bc247ea8e",
+      "bytes": 37660
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-dark-1024.png",
+      "sha256": "2c10b873d01aec0833f2f4772836d013b146e18e62a744bf2fe6d16670c6bda4",
+      "bytes": 41275
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-dark-1440.png",
+      "sha256": "e759dca8094f556d550417bdd63e7e94a2452e2d48058a8f29ff9c5cde46d9ad",
+      "bytes": 47046
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-dark-320.png",
+      "sha256": "22a6da7ed2c0a97583d80eb7db21486f9157ca23397dd0548bf4026a2bbc383c",
+      "bytes": 27146
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-dark-390.png",
+      "sha256": "60c2219a8ddb8a26f25e85f0f3888acdb306ca0b143ab6f1d8ba93e7150197fa",
+      "bytes": 30114
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-dark-768.png",
+      "sha256": "bb102d6e3a0dc7560de972ea45a227f15fca73169fd93fa1ded9ba395f6312f2",
+      "bytes": 38333
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-light-1024.png",
+      "sha256": "c8cdc2464243e66299dca291d2cb44ac93d41c7094528ab1c698ba3f92cb65a8",
+      "bytes": 40275
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-light-1440.png",
+      "sha256": "eb19251070d2facf03acfcdce6299db6b8405e5b3c60eb7b1780e09d7fe03696",
+      "bytes": 45710
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-light-320.png",
+      "sha256": "7d8a31de0769ebd0c6e7ce058d69ef5ead1db1f119a83c72569ec02762964671",
+      "bytes": 26029
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-light-390.png",
+      "sha256": "81d437c057645bfa5e7867416397fe289aeb7d25c30175e1706203fa919a39cd",
+      "bytes": 28941
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/apps-system-light-768.png",
+      "sha256": "4c6a06d5557f611029deb56ef696be41bbda2f6769e998ca26303d8bc247ea8e",
+      "bytes": 37660
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/console-service-current.png",
+      "sha256": "c16ca9c67da077335712e057fed9193e42118286cfa251eb91294ab0f8719c33",
+      "bytes": 81329
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-dark-1024.png",
+      "sha256": "a96db29bcf9d5f8695cb680fb3fc8fe38c6ff1d8d674a36cd94bba4345b1e930",
+      "bytes": 21569
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-dark-1440.png",
+      "sha256": "a8a99f8f4c4e6c483c33224e670b4c5c26d0121acff798b649ac990170b23750",
+      "bytes": 25619
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-dark-320.png",
+      "sha256": "c117dbd6a2d19b4c947b05b14a7f03a116208bac8509047eb89abfa048cb6685",
+      "bytes": 14078
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-dark-390.png",
+      "sha256": "ad38cd07d2ff8475d3313af303805a69032e0bc940939fb4db2d16a99c5ba847",
+      "bytes": 14792
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-dark-768.png",
+      "sha256": "9ed54de9b537e8093578537127c3f217d1ec092e7dc9c5cca5bf231180d58f6f",
+      "bytes": 19673
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-light-1024.png",
+      "sha256": "c4cbde9feb98e4068c0e68fdd2f5b61a5d93a2ce5549824dafe41bf06efd6e92",
+      "bytes": 21183
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-light-1440.png",
+      "sha256": "991ea613f487c869b2b6634a0d2aa88aa314367af18e592b656db14156b65e9f",
+      "bytes": 25056
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-light-320.png",
+      "sha256": "df2d37aa2d2e88537a7b623b70d96fa54a14fd343b8f92f7be490a55f03ef681",
+      "bytes": 13883
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-light-390.png",
+      "sha256": "9aaef02ae0e1b1817fe9bc174364528c9a0b153ac677b0a20a6e90364141d9d3",
+      "bytes": 14617
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-light-768.png",
+      "sha256": "e53368ff5fc6f7182521544241daa5ff53b3aeeea7f1a66fd3d40fb1cc22b343",
+      "bytes": 19419
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-no-purchase-current.png",
+      "sha256": "8394f20e98486f4f950c3618afe3f952a127f396da9747a81b75c939d5945be2",
+      "bytes": 27178
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-dark-1024.png",
+      "sha256": "a96db29bcf9d5f8695cb680fb3fc8fe38c6ff1d8d674a36cd94bba4345b1e930",
+      "bytes": 21569
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-dark-1440.png",
+      "sha256": "a8a99f8f4c4e6c483c33224e670b4c5c26d0121acff798b649ac990170b23750",
+      "bytes": 25619
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-dark-320.png",
+      "sha256": "c117dbd6a2d19b4c947b05b14a7f03a116208bac8509047eb89abfa048cb6685",
+      "bytes": 14078
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-dark-390.png",
+      "sha256": "ad38cd07d2ff8475d3313af303805a69032e0bc940939fb4db2d16a99c5ba847",
+      "bytes": 14792
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-dark-768.png",
+      "sha256": "9ed54de9b537e8093578537127c3f217d1ec092e7dc9c5cca5bf231180d58f6f",
+      "bytes": 19673
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-light-1024.png",
+      "sha256": "c4cbde9feb98e4068c0e68fdd2f5b61a5d93a2ce5549824dafe41bf06efd6e92",
+      "bytes": 21183
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-light-1440.png",
+      "sha256": "991ea613f487c869b2b6634a0d2aa88aa314367af18e592b656db14156b65e9f",
+      "bytes": 25056
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-light-320.png",
+      "sha256": "df2d37aa2d2e88537a7b623b70d96fa54a14fd343b8f92f7be490a55f03ef681",
+      "bytes": 13883
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-light-390.png",
+      "sha256": "9aaef02ae0e1b1817fe9bc174364528c9a0b153ac677b0a20a6e90364141d9d3",
+      "bytes": 14617
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser/role-system-light-768.png",
+      "sha256": "e53368ff5fc6f7182521544241daa5ff53b3aeeea7f1a66fd3d40fb1cc22b343",
+      "bytes": 19419
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser-console-current.json",
+      "sha256": "5376b2c45a6d35a95d20e7dfa941c976b451f7287ec507b9ff73ab06966dd2ce",
+      "bytes": 639
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser-entry-frames.json",
+      "sha256": "030d86ac034eca78b8ef747f0c4fe82a73ab49a724c2242e5ec8629c0b8c8c9f",
+      "bytes": 22305
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser-entry-traces-final.json",
+      "sha256": "c58ccffe75d8bfa252007ea58b074ad24a5e690a13f71f751d0446cf2884ab23",
+      "bytes": 1237
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser-entry-traces-initial.json",
+      "sha256": "fea948d9744936517ec745fbf17b1a353cc4672ded43fdfd99b8252adeeadf3a",
+      "bytes": 1396
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser-entry-traces.json",
+      "sha256": "fea948d9744936517ec745fbf17b1a353cc4672ded43fdfd99b8252adeeadf3a",
+      "bytes": 1396
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/browser-settings-restored.json",
+      "sha256": "1f604165d0fa4c442746c6e5096a5e2a44827fb8aedc4de71be842ad178a0bba",
+      "bytes": 550
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/candidate.json",
+      "sha256": "0d8e25e1938ace4d4bc041dbe0e4c1bd5b738863d8475428e1dafb2e157fe880",
+      "bytes": 182
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/core-assertion-preservation.json",
+      "sha256": "33b7fdeffe6abad2973a0355cb6feed1b12c9c2156abc8b369b33f9ae176a51d",
+      "bytes": 1178
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/core-assertion-preservation.log",
+      "sha256": "6e925d26a63134084fadb8acd88fbcb91c0122fc868db54251a194af92d3c65c",
+      "bytes": 695
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/dev-launch.json",
+      "sha256": "366828320606533f37c5d8cab82b968af7f7f59ee549bf1f0f666280db6be900",
+      "bytes": 189
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/end-checks-final.log",
+      "sha256": "f2d294d95f015d8b08add128847d05b8404267fd9235196bfb25923094e2c260",
+      "bytes": 209
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/end-checks.log",
+      "sha256": "f2d294d95f015d8b08add128847d05b8404267fd9235196bfb25923094e2c260",
+      "bytes": 209
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/end-checks.py",
+      "sha256": "ce268e743cd1cdc99bfa0f71e0e2d192bd7260dfc1aebbc660da20798efb984a",
+      "bytes": 4974
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/fingerprint-final.json",
+      "sha256": "7dbf571b07b610d19d3f2d81873d97cccf7a16b0317faf5ac51ccf2463cbf610",
+      "bytes": 191
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/installed-commercial-final.json",
+      "sha256": "df8b863e58e8de07b92a6b2f8c315310557534284781c8e18a9ab488f03d66a7",
+      "bytes": 1773
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/merge.json",
+      "sha256": "bb83515b787ccdb2f48a0634cfe9a914a51e7af53f98100ce1d03f04080a1dd1",
+      "bytes": 4824
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/parent-integrity.json",
+      "sha256": "01e3fc44f562e3527f851a9cb185ddfc4bf8ceb7ac687566745b28bc3b5a39af",
+      "bytes": 685
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/private-apps-verification.json",
+      "sha256": "44dbe9202bbac25b41fa0b63f295641f02d239c02845b3dbfb4c5b2bd6dc354b",
+      "bytes": 8292
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/product-manifest.log",
+      "sha256": "327927803966a0d76ba36e7c5997ffcecb751c9f3bf858ad45019002036d179d",
+      "bytes": 317
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/protected-files.json",
+      "sha256": "cf334bc700f992762269f264c8a95e3dec6146ad03d2f8b7f1feb9a347ea5fb6",
+      "bytes": 952
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/docs/contracts/next/product-separation.md",
+      "sha256": "041e65c901b6a6f353d1537cc2edea347807072b416a469fbc1a91fbe30dd944",
+      "bytes": 40331
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/docs/testing/commercial-apps-settlement-2026-10-15.md",
+      "sha256": "8355547c9fbbe8b640afb304a0157c2702f6bed11c6d7349e15fa6dc60bd46dc",
+      "bytes": 5932
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/docs/testing/uat-route-inventory.md",
+      "sha256": "76ae3f2c525cebee1ad791ef519b7083d79a55bdf5b3f3748825d64f31e8af8d",
+      "bytes": 179122
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/ops/macos/commercial-development-migration.md",
+      "sha256": "d847d57d53c9d546fa715aeb17356156c1241e226541453ce221a2217f0d5c62",
+      "bytes": 18541
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/app/choose-work-role/page.tsx",
+      "sha256": "0bba8a9dd96e1146612b6cd122e74c3c878db59da83dcf23ec474aee230780af",
+      "bytes": 4939
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/app/product-entry/page.tsx",
+      "sha256": "cf8f46c73e61e7de368629c619053a082efc1a7952fe9d41057a96959539eb13",
+      "bytes": 6724
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/adapters/owner-package-obligations.ts",
+      "sha256": "d73281ebf499cc8f84702f7ea564fce60b52737a332fc9a49e7835ec5a6982d0",
+      "bytes": 3123
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/application/package-grants.ts",
+      "sha256": "a2dfa8cdb05d761f5c66844a224bfd6e73ac61a93c08ed931de61b1a5b319c38",
+      "bytes": 3253
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/domain/package-dependencies.ts",
+      "sha256": "5e48e4e0831b015ea1eb4585e3bbf7a5911824be44de5d0dc2d28733eaf5e93e",
+      "bytes": 1535
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/domain/packages.ts",
+      "sha256": "516a64faf14a71b83b3d78141f89b6f9be0adb5f321f347a477ba8fc06e976a9",
+      "bytes": 12412
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/public/packages.ts",
+      "sha256": "29d36240a447e96f301a4ca230f7a738957ce591531871b377559ad84f37c3a6",
+      "bytes": 350
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/commercial/public/rules/packages.ts",
+      "sha256": "40c96af920eaa5e459b030e5e8980a97159fdc8bb2773f4fa8497eb1dca7e4af",
+      "bytes": 368
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/identity_access/adapters/product-workspace.ts",
+      "sha256": "bd31b5d6168966e6788adc3491152970f31e1ab99ffe7753dbff674cbc8fe047",
+      "bytes": 6623
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/identity_access/application/product-workspace.ts",
+      "sha256": "e92a8141957c98a90d2dfe26a5b3872180b9f073e1a855eab2c2088917c7bdf5",
+      "bytes": 7525
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/work_projection/adapters/product-launcher.ts",
+      "sha256": "3434e694dd11c283e9e40565c7f79f79c69a5837b3b6d1ead10b4d45d41a2bac",
+      "bytes": 3417
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/src/server/modules/work_projection/application/product-launcher.ts",
+      "sha256": "407a3473b1c558414f82dbb5af591cb29eecb518884e05f69ce74851cfeb91fc",
+      "bytes": 7675
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/catalogue/uat-route-inventory.json",
+      "sha256": "a616d9f53a6995693a579099649f823300d0e7caa576d16ddfafc63f33761bef",
+      "bytes": 509812
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/integration/commercial/package-grants.test.ts",
+      "sha256": "981c203f2c11ab5aece4c36c6a721ac220b7367f3b81564e9014b0f79ff26558",
+      "bytes": 18646
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/integration/commercial/package-history-migration.test.ts",
+      "sha256": "d0322c55ac5283cc6e689799d3f9ab18f3286c812c4df133e8647bf750d878e6",
+      "bytes": 7040
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/integration/commercial/package-history.test.ts",
+      "sha256": "5b6e3d081da8605436a6aa9986217939e363bcb4e79947f06df9a6e06d78b1da",
+      "bytes": 9539
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/integration/customer_360/customer-timeline.test.ts",
+      "sha256": "f23bb9408d679247f6bf35e7c92ebc1b230cf4d20eb1fd6e4880d56249e284a3",
+      "bytes": 12123
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/integration/identity_access/product-workspace.test.ts",
+      "sha256": "2c86986bd5775ec0d2b1cbe2cddbc34286ea256719d28495bf88e6cd8a43e6df",
+      "bytes": 14743
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/integration/support/package-obligations.test.ts",
+      "sha256": "2215800423c5920ba736997b91051ce4ce56b39c43fabe8473c7f90124a7492a",
+      "bytes": 22785
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/integration/support/package-surfaces.test.ts",
+      "sha256": "60b73895c672fb028e98659944eb746beeb097b7c367019de290d9dc61a75ba3",
+      "bytes": 42792
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/unit/commercial/packages.test.ts",
+      "sha256": "73b6e8a937babf1b541382c96e137b9b862ddabf3d12bfe99d62bc76775fde2c",
+      "bytes": 14736
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/unit/identity_access/product-workspace.test.ts",
+      "sha256": "57ff984c0932e83f64be7b6e0aa9591de37bda500d153beec3c796f88403837f",
+      "bytes": 12065
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/source/tests/unit/shared.ui/product-launcher.test.ts",
+      "sha256": "4236eb52a05a40b76c637d823f5a42ba7cd64657b6b08c5db0e43cc6a3c61b0f",
+      "bytes": 13041
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/transport-final.json",
+      "sha256": "3ae0c7e6894fe3edb3197f3a9c911be27142613d6aae76a2bc19a275cf920488",
+      "bytes": 7666
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/uat-route-check.log",
+      "sha256": "6e9034889b642e26fefa9e89337a92bf45599096cc6070cc80c5d64c26cb6386",
+      "bytes": 110
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/ui-complete.json",
+      "sha256": "bc72ed13ebdbb8e540a70b9028c3c2c152d3f89a66026549bdc868c7b504de88",
+      "bytes": 488
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/ui-complete.log",
+      "sha256": "0446efa1470739247aaa5713b281f976b56ac40f5667c2976644d5eac6f07fb7",
+      "bytes": 3584
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/ui-coverage.log",
+      "sha256": "560b23ab57ea0f918cdc4d8c977ec252591a95cd14f8cdf800ec64d9432ab2bf",
+      "bytes": 105
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-current/visual-inspection.json",
+      "sha256": "dac25bd0edc993d715465193fd9f759bd99c1190f27e0f3e5c66b9031d129fe9",
+      "bytes": 649
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/assertion-preservation.json",
+      "sha256": "33b7fdeffe6abad2973a0355cb6feed1b12c9c2156abc8b369b33f9ae176a51d",
+      "bytes": 1178
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/assertion-preservation.ts",
+      "sha256": "bea432fc988a622f3ac875d650e5ab835853b439eb034abe38e3e5459aeecbaa",
+      "bytes": 1750
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/availability-final.json",
+      "sha256": "320b7a8f03d08b7d4cc218fc6c65ec27cb8ec10d3d84d350739cf4c8286cb35d",
+      "bytes": 1331
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/baseline.json",
+      "sha256": "4034a52ff80736db70994ae62bb326cd850317e9ffec8ab1b53849b5a5314f59",
+      "bytes": 1312
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/src/server/modules/commercial/adapters/owner-package-obligations.ts",
+      "sha256": "b1178fb482317fe99193692bb0922f596069da0431a44209d5dfb3c92a66407a",
+      "bytes": 2045
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/src/server/modules/commercial/application/package-grants.ts",
+      "sha256": "43e0e1558e3be61e01a52914e2852b5736aa2f46d570ef12a8e76845aa9044b0",
+      "bytes": 2964
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/src/server/modules/commercial/domain/package-dependencies.ts",
+      "sha256": "083b63e3455c1e04f3f398f545bcb6c373b7824e81bc99e43cc5daacc80ef0f6",
+      "bytes": 1282
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/src/server/modules/commercial/domain/packages.ts",
+      "sha256": "5b3c1554ada8f4947df39c3847ee685f58091cc18a8de0ca0adb5ff30352cf99",
+      "bytes": 10780
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/tests/integration/commercial/package-grants.test.ts",
+      "sha256": "e3624eda18278f951685cc609d39f8c81580e9a57554cb47ca4701dbf3c7b4dc",
+      "bytes": 16102
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/tests/integration/commercial/package-history-migration.test.ts",
+      "sha256": "9582d39c4c78b8a18c13592750a0ba5a7df63166516df59c225a5c2d63c0dc65",
+      "bytes": 6907
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/tests/integration/commercial/package-history.test.ts",
+      "sha256": "8e5c7da7de9bfb1a9d0f206e5108aa9c9de02ca30932022f8697502dd2636d20",
+      "bytes": 9462
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/tests/integration/customer_360/customer-timeline.test.ts",
+      "sha256": "381a8beba29eeb85245897433a75785cc8e670221b8e7e505d202bf617a01e63",
+      "bytes": 12079
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/tests/integration/support/package-obligations.test.ts",
+      "sha256": "e2bcf35badcf4d2d953deb52ef08a6e4edeb259ccd4acd0fb07b930d7d6fc447",
+      "bytes": 16021
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/tests/integration/support/package-surfaces.test.ts",
+      "sha256": "d4f128a8229090f7f2649a58eaeac8094456266ee2a176ee8f17103277646cd5",
+      "bytes": 39508
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/before/tests/unit/commercial/packages.test.ts",
+      "sha256": "92ea10c94f5f4fc988f468dc99d29ccdb7a5e2296a8489768d85c15ea956277d",
+      "bytes": 11221
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/browser/admin-preview-input-diagnostic.png",
+      "sha256": "e9f40b3adda685d2b0daa8ca2de82111b159e8c0db09dd3334318feb3faaf562",
+      "bytes": 52102
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/browser/service-drawer-current.png",
+      "sha256": "c16ca9c67da077335712e057fed9193e42118286cfa251eb91294ab0f8719c33",
+      "bytes": 81329
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/browser-admin-incomplete.json",
+      "sha256": "07b6fbd7171436c31729cc3767ad78b98b2a8b52ba075f31a60bff48f3c41285",
+      "bytes": 645
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/browser-current.json",
+      "sha256": "6964fa3ae47b580ae38af6b20d5e0d14af903805ac324d1e543bfea25f9e81ea",
+      "bytes": 736
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/candidate.json",
+      "sha256": "8a8210bb77cb960ff94332f9641155a4aa4520eb5aaec1c11e76aba5bdb98dc2",
+      "bytes": 191
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/corrected-surface-green.log",
+      "sha256": "02c3e7321af368bf908e2f598f0192fd54e9b565a4fac9e0dee7c9b1307ef261",
+      "bytes": 2812
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/customer-timeline-corrected.log",
+      "sha256": "ca20befe9c62937d245c19e5deaf0338368b068cb7a593afc03d79190fbb228f",
+      "bytes": 1589
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/customer-timeline-diagnostic.log",
+      "sha256": "07fc669e623c9fe8153364ee0c077c3a16d779e45e32b48fd9936d184b25cb2e",
+      "bytes": 3510
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/dependency-red-candidate.json",
+      "sha256": "df03208087425b5637379a8ac2b7240fd5300d65f6bc52f96c728c08f5587bbe",
+      "bytes": 182
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/dependency-red-native.log",
+      "sha256": "45905dd55736c47fcd93c84e35ffadae5568dd3bc92542ddb61f2c4226f751b0",
+      "bytes": 6569
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/dependency-red.log",
+      "sha256": "589ff942ad7d5f3ea7c567ccc0f281fddf4f36df4ab0ec19e50eb558c7ea6d3f",
+      "bytes": 5292
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/dev-launch.json",
+      "sha256": "366828320606533f37c5d8cab82b968af7f7f59ee549bf1f0f666280db6be900",
+      "bytes": 189
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/end-checks.log",
+      "sha256": "f2d294d95f015d8b08add128847d05b8404267fd9235196bfb25923094e2c260",
+      "bytes": 209
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/end-checks.py",
+      "sha256": "8c65980d35316d665e9f24d7f17271f8c857ad51a0d25ca2da69d2639626cd7e",
+      "bytes": 4974
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/expanded-green-retry.log",
+      "sha256": "0ae36f64af7604e4f3b67f1f8f48639ce01685b7bb6a25596686724a5e77914a",
+      "bytes": 4263
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/expanded-green.log",
+      "sha256": "362a653ea491db961c6a757491cb3cf831ea20e4877f24916eeab8dd42eca2c8",
+      "bytes": 6791
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/final/final-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/final/final-catalogue.log",
+      "sha256": "639cf407bb405b179e0a0f5bee4a41ba9d943b66f4cf35af710f94fb6ef4b0ac",
+      "bytes": 82
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/final/final-documentation.log",
+      "sha256": "9db37d24d1a451155d15fc12fa3506e88059a4409c408ef0ee97d8d49255f16c",
+      "bytes": 192
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/final/final-full-postgres.log",
+      "sha256": "ca993454ab8290977aae5fc537baa273b0832855c354ea72c6411efa6b1fba24",
+      "bytes": 178006
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/final/final-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+      "bytes": 167872
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/final/final-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/final/final-unit.log",
+      "sha256": "964cf125488a7a160333fdebf5a956b55a46f9005772e0327aa6db68426bbde6",
+      "bytes": 58781
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/final/verification.json",
+      "sha256": "aa7c7cdbc46a01340f2e94c699712d63bed143778499121ba476307b620325b4",
+      "bytes": 4506
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/full-native-interruption.json",
+      "sha256": "d6c0d8f90fb7b5a3c986ba01ed9b08eca73fbb7aaea570c559ca63f913b348f1",
+      "bytes": 581
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/full-native-retry-interruption.json",
+      "sha256": "b357a031c8c628f3fab4eca54b51ddb751d96abe81c095871885963a0ac0e8fa",
+      "bytes": 618
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/initial-green.log",
+      "sha256": "d1c99378cb740b5ad9195c81854a7ad475f0e2bd6e9b2ff8c31e19a2bc69617c",
+      "bytes": 7906
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/installed-commercial-final.json",
+      "sha256": "47a8ac1cdc5ee311251cab16e013f2b69e4a15e1a16b4452a2c2b9bedcac23db",
+      "bytes": 1773
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/product-manifest.log",
+      "sha256": "327927803966a0d76ba36e7c5997ffcecb751c9f3bf858ad45019002036d179d",
+      "bytes": 317
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/protected-files.json",
+      "sha256": "c57fe4981a63ed2728464f4e05f94e3ebaff78717b39cfff004849c6a145ef4f",
+      "bytes": 952
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/red-candidate.json",
+      "sha256": "bf9e6e630a1c8800112ce0d168b07b50258a66f7c80adc54f380535fa7a1bb3b",
+      "bytes": 182
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/red-native.log",
+      "sha256": "222a0d4f43388c93c9da481020c2b5c0341ff2cfa3a0cf10b1b13fa6e073035f",
+      "bytes": 9495
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/red.log",
+      "sha256": "76b95138ddebdb222281ce0d575a5bbdf445568408fbf4c5666d3bbc6c6ef476",
+      "bytes": 4982
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/retry/final-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/retry/final-catalogue.log",
+      "sha256": "639cf407bb405b179e0a0f5bee4a41ba9d943b66f4cf35af710f94fb6ef4b0ac",
+      "bytes": 82
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/retry/final-documentation.log",
+      "sha256": "9db37d24d1a451155d15fc12fa3506e88059a4409c408ef0ee97d8d49255f16c",
+      "bytes": 192
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/retry/final-full-postgres.log",
+      "sha256": "ddd46ea6fd443098eca6587960a0c1c922b7d04ea80d97eebcc7fa0235dac2c9",
+      "bytes": 342911
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/retry/final-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+      "bytes": 167872
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/retry/final-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/retry/final-unit.log",
+      "sha256": "a911b2cae1f9dbcde14e2b22890074aaca7d205a0e99073218af7e96e9d22b61",
+      "bytes": 58769
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/retry/verification.json",
+      "sha256": "15f47489c3bb3b11fb6cf91d06621c945660e14b700978acbf00922a9598b5cb",
+      "bytes": 4506
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/support-surface-diagnostic.log",
+      "sha256": "54f7d07df96a055ba7a9f7c7009521fb73ce7af6d895d8b910f804d1c9058427",
+      "bytes": 7116
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/transport-final.json",
+      "sha256": "dcf4abca2d6f1612bdf72fe57e979c58bb79cd3eaa76d73ebb69b6855ace6434",
+      "bytes": 7663
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/ui-complete-current.log",
+      "sha256": "0446efa1470739247aaa5713b281f976b56ac40f5667c2976644d5eac6f07fb7",
+      "bytes": 3584
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/ui-complete-final.log",
+      "sha256": "0446efa1470739247aaa5713b281f976b56ac40f5667c2976644d5eac6f07fb7",
+      "bytes": 3584
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/ui-complete.json",
+      "sha256": "2ddcada3f3764aa16f4974c6bcfbf4619154d4a1e6d5e1db3f976939ed6a4a48",
+      "bytes": 506
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/ui-coverage.log",
+      "sha256": "560b23ab57ea0f918cdc4d8c977ec252591a95cd14f8cdf800ec64d9432ab2bf",
+      "bytes": 105
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/verify-launch.log",
+      "sha256": "919d439b4a18133a46ff93eff8799c467280ce265c58d5459899c4fb0592e218",
+      "bytes": 261
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/verify-retry-launch.log",
+      "sha256": "919d439b4a18133a46ff93eff8799c467280ce265c58d5459899c4fb0592e218",
+      "bytes": 261
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/verify-retry.py",
+      "sha256": "b0d008681536ad8601d44ad7ed5bcb1e70577a157e9a04e2c0b3fd086e0e2835",
+      "bytes": 2873
+    },
+    {
+      "path": ".scratch/dev/commercial-settlement-current/verify.py",
+      "sha256": "06a7f92db979fc045fd4c967ce50f7a0ae3fcf46ecc657d3ace1825bc167a395",
+      "bytes": 2873
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-draft/review/typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-draft/review/lint.log",
+      "sha256": "10de6f94590568b8777f0a3a413a60e8e8948d856934422c090935ba08e65818",
+      "bytes": 187429
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-draft/review/architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-draft/review/catalogue.log",
+      "sha256": "639cf407bb405b179e0a0f5bee4a41ba9d943b66f4cf35af710f94fb6ef4b0ac",
+      "bytes": 82
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-draft/review/documentation.log",
+      "sha256": "9db37d24d1a451155d15fc12fa3506e88059a4409c408ef0ee97d8d49255f16c",
+      "bytes": 192
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-draft/review/unit.log",
+      "sha256": "b939e1cb289748c95e46b9ae48773505f35327fa8ed7e24e5fed6d632e161a70",
+      "bytes": 58815
+    },
+    {
+      "path": ".scratch/dev/product-history-entry-draft/review/iam-admin-native.log",
+      "sha256": "b9bfd536201beea8e7e868c1237ae0866045dc40148a9f24023a9fa709286078",
+      "bytes": 3298
+    }
+  ]
+}

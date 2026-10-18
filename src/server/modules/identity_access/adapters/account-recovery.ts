@@ -11,6 +11,7 @@ type RecoveryEnv = BetaEnvironment & {
 type RecoverySender = (env: RecoveryEnv, to: string, subject: string, url: string, key?: string) => Promise<string | null | void>;
 import { createAccountRecoveryApplication, type AccountRecoveryRepository, type AccountRecoveryPorts } from '../application/account-recovery';
 import type { RecoveryDeliveryJob } from '../domain/account-recovery';
+import { accountRecoveryDeliveryUrl } from "@/lib/runtime/application-origins";
 function encryptionKey(secret: string) {
     return createHash("sha256")
         .update(secret)
@@ -62,7 +63,7 @@ function repository(control: SqlDatabase): AccountRecoveryRepository {
     };
 }
 function application(control: SqlDatabase, env: RecoveryEnv, send: RecoverySender, now: number) {
-    const ports: AccountRecoveryPorts = { repository: repository(control), clock: { now: () => now }, identifiers: { next: () => crypto.randomUUID() }, productOrigins: { pms: process.env.ERPX_FRONT_PMS_ORIGIN, pos: process.env.ERPX_FRONT_POS_ORIGIN }, cryptography: { recoveryId: token => `account-recovery-${createHmac('sha256', env.BETTER_AUTH_SECRET).update(token).digest('hex').slice(0, 40)}`, sealLink: url => seal(env.BETTER_AUTH_SECRET, url), openLink: ciphertext => open(env.BETTER_AUTH_SECRET, ciphertext) }, send: (to, subject, url, key) => send(env, to, subject, url, key) };
+    const ports: AccountRecoveryPorts = { repository: repository(control), clock: { now: () => now }, identifiers: { next: () => crypto.randomUUID() }, productOrigins: { pms: process.env.ERPX_FRONT_PMS_ORIGIN, pos: process.env.ERPX_FRONT_POS_ORIGIN }, cryptography: { recoveryId: token => `account-recovery-${createHmac('sha256', env.BETTER_AUTH_SECRET).update(token).digest('hex').slice(0, 40)}`, sealLink: url => seal(env.BETTER_AUTH_SECRET, accountRecoveryDeliveryUrl(url)), openLink: ciphertext => accountRecoveryDeliveryUrl(open(env.BETTER_AUTH_SECRET, ciphertext)) }, send: (to, subject, url, key) => send(env, to, subject, url, key) };
     return createAccountRecoveryApplication(ports);
 }
 export async function queueAccountRecovery(control: SqlDatabase, env: RecoveryEnv, user: User, url: string, token: string, now = Date.now()) { await application(control, env, sendBetaEmail, now).queue(user.id, url, token); }

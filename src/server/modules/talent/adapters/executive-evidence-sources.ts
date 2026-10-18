@@ -1,3 +1,4 @@
+import {talentMetricSource} from "./metric-purchases";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -6,7 +7,8 @@ import { inputSchema, type RequisitionCursor, type ApplicationCursor, type Talen
 export function executiveEvidenceSources(database: SqlDatabase) {
     const db = database;
     return { async searchRows0(actor: WorkContext, input: z.infer<typeof inputSchema>, cursor: ReturnType<typeof parseCursor>): Promise<TalentEvidenceRow[]> {
-            const values: unknown[] = [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId];
+            const source=await talentMetricSource(db,actor,input.metric);
+            const values: unknown[] = [...source.args,actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId];
             const where = [
                 "r.company_id=?", "(?::text IS NULL OR r.branch_id=?)", "(?::text IS NULL OR r.department_id=?)",
             ];
@@ -24,7 +26,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     values.push(requisitionCursor.jobTitle, requisitionCursor.jobTitle, requisitionCursor.id);
                 }
                 rows = (await db.prepare(`SELECT r.id,r.job_title,r.target_start_date,r.status,r.version,r.updated_at,r.branch_id,r.department_id
-      FROM talent_requisitions r WHERE ${where.join(" AND ")}
+      FROM (${source.sql}) r WHERE ${where.join(" AND ")}
       ORDER BY r.job_title,r.id LIMIT ?`)
                     .bind(...values, input.limit + 1).all<TalentEvidenceRow>()).results;
             }
@@ -43,7 +45,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     values.push(applicationCursor.updatedAt, applicationCursor.updatedAt, applicationCursor.id);
                 }
                 rows = (await db.prepare(`SELECT a.id,a.requisition_id,a.status,a.version,a.updated_at,r.job_title,r.branch_id,r.department_id
-      FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id
+      FROM (${source.sql}) a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id
       WHERE ${where.join(" AND ")}
       ORDER BY a.updated_at DESC,a.id DESC LIMIT ?`)
                     .bind(...values, input.limit + 1).all<TalentEvidenceRow>()).results;

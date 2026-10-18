@@ -1,5 +1,7 @@
+import {configuredProductHandoff} from '@/lib/runtime/product-hosts';
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Suspense, type ReactNode } from "react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { workAttention } from "@/lib/work_projection/work-attention";
 import { WorkAttention } from "@/components/workplace/work-attention";
 import { StartActions } from "@/components/work_projection/today/start-actions";
@@ -8,8 +10,8 @@ import { HomeVisualPrototype } from "@/components/work_projection/home/home-visu
 import { TodayTools, HomePriorities, MobileAttentionCount, MobileAttentionNotice } from "@/components/collaboration/social-home-controls";
 import styles from "@/components/collaboration/social.module.css";
 
-export function SocialHomeShell({ base, name, single, calendarEnabled, contextKey, canRequestLegal, children }: {
-  base: string; name: string; single: boolean; calendarEnabled: boolean;
+export function SocialHomeShell({ base, name, single, sourceOnly=false, calendarEnabled, contextKey, canRequestLegal, children }: {
+  base: string; name: string; single: boolean; sourceOnly?:boolean; calendarEnabled: boolean;
   contextKey?: string; canRequestLegal: boolean; children: ReactNode;
 }) {
   return (
@@ -18,7 +20,7 @@ export function SocialHomeShell({ base, name, single, calendarEnabled, contextKe
         <header className="beta-heading">
           <div>
             <span className="beta-hero-kicker">
-              Your workspace <span aria-hidden="true">/</span> Today
+              {sourceOnly?"Included conversation":<>Your workspace <span aria-hidden="true">/</span> Today</>}
             </span>
             <h1>{single ? "Team conversation" : "Today"}</h1>
             <p>
@@ -32,14 +34,14 @@ export function SocialHomeShell({ base, name, single, calendarEnabled, contextKe
             <span className="beta-hero-pane beta-hero-pane-back" />
             <span className="beta-hero-pane beta-hero-pane-front" />
           </div>
-          {single ? <Link href={`${base}/home`}>Back to Today</Link> : null}
+          {single ? <Link href={sourceOnly?configuredProductHandoff("apps")??"/":canonicalUiHref(`${base}/home`)}>{sourceOnly?"Back to Apps":"Back to Today"}</Link> : null}
         </header>
         {!single && <Suspense><MobileAttentionNotice base={base} /></Suspense>}
         <div className={single ? styles.singleLayout : styles.homeLayout}>
           {!single && (
-            <TodayTools summary={<><Link href={`${base}/work?view=actions`}>Needs you <strong>
+            <TodayTools summary={<><Link href={canonicalUiHref(`${base}/work?view=actions`)}>Needs you <strong>
               <Suspense fallback="…"><MobileAttentionCount /></Suspense></strong></Link>
-              {calendarEnabled && <Link href={`${base}/calendar`}>Calendar</Link>}</>}>
+              {calendarEnabled && <Link href={canonicalUiHref(`${base}/calendar`)}>Calendar</Link>}</>}>
               <Suspense fallback={<WorkAttention base={base} attention={workAttention([])} compact rail loading />}>
                 <HomePriorities base={base} />
               </Suspense>

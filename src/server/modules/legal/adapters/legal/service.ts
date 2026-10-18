@@ -1,3 +1,8 @@
+import {legalWorkspaceSnapshot} from "@/lib/legal/workspace-snapshot";
+import {legalPackageEnforcementMode} from '../../../commercial/public/purchase-command-boundary';
+import {legalCorePermission,type LegalPurchaseCapability} from '../../domain/purchases';
+import {legalReadScope,withLegalPurchasedCommand,inLegalOwnerUnit} from '../purchases';
+import {parseItem} from '../../domain/model';
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "../../../identity_access/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "../../../workflow/public/final-root-owner-projection-sources";
 import {legalHoldNotificationInsert} from "../../../collaboration/public/legal-hold-notifications";
@@ -16,7 +21,8 @@ import {legalPeople} from "./assignees";
 import type {LegalItem,LegalDetail,DocumentVersion} from "../../domain/model";
 import {createLegalRegisterApplication,type LegalWrite,type LegalListQuery} from "../../application/service";
 export const hash=(value:string|Uint8Array)=>createHash("sha256").update(value).digest("hex");
-function application(db:SqlDatabase,a:WorkContext){
+function application(db:SqlDatabase,a:WorkContext,readScope?:Promise<Awaited<ReturnType<typeof legalReadScope>>>){
+ let readObservation=readScope;const purchasedRead=()=>readObservation??=legalReadScope(db,a);
 const v=visibility(a),linkScope=visibility(a,"t"),holdScope=visibility(a,"source"),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();
 const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 function listScope(q:LegalListQuery){
@@ -36,19 +42,19 @@ function listScope(q:LegalListQuery){
   ];
 return {clause,args};}
 return createLegalRegisterApplication({actor:a,clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},require:permission=>requirePermission(a,permission),can:permission=>hasPermission(a,permission),samePerson:userId=>samePerson(a,userId),permissionCatalog,error:(status,code,message)=>new ApiError(status,code,message),hash,utf8Length:value=>Buffer.byteLength(value),access:(id,permission)=>access(db,a,id,permission),eligible:(id,scope,permission)=>eligible(db,a,id,scope,permission),people:()=>legalPeople(db,a),repository:{
-items:(query:LegalListQuery)=>{const {clause,args}=listScope(query);return db
+items:async(query:LegalListQuery)=>{const {clause,args}=listScope(query),purchase=await purchasedRead();return db
       .prepare(
-        `SELECT i.* FROM legal_items i WHERE ${clause} ORDER BY i.updated_at DESC,i.id LIMIT 30 OFFSET ?`,
+        `SELECT i.* FROM legal_items i WHERE ${clause} AND ${purchase.where} ORDER BY i.updated_at DESC,i.id LIMIT 30 OFFSET ?`,
       )
       .bind(...args, (query.page - 1) * 30)
       .all<LegalItem>();},
-total:(query:LegalListQuery)=>{const {clause,args}=listScope(query);return db
-      .prepare(`SELECT count(*)::int n FROM legal_items i WHERE ${clause}`)
+total:async(query:LegalListQuery)=>{const {clause,args}=listScope(query),purchase=await purchasedRead();return db
+      .prepare(`SELECT count(*)::int n FROM legal_items i WHERE ${clause} AND ${purchase.where}`)
       .bind(...args)
       .first<{ n: number }>();},
-counts:()=>{return db
+counts:async()=>{const purchase=await purchasedRead();return db
       .prepare(
-        `SELECT i.state,count(*)::int count FROM legal_items i WHERE ${v.sql} GROUP BY i.state`,
+        `SELECT i.state,count(*)::int count FROM legal_items i WHERE ${v.sql} AND ${purchase.where} GROUP BY i.state`,
       )
       .bind(...v.values)
       .all<{ state: string; count: number }>();},
@@ -185,6 +191,15 @@ event:(id,action,note,version,identifier,now)=>stage(db.prepare("INSERT INTO leg
 replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),
 commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_WRITE_REPOSITORY_MISMATCH");return statement;})),
 }});}
-export function legalData(db:SqlDatabase,a:WorkContext,query:Record<string,unknown>={}){return application(db,a).legalData(query);}
-export function detail(db:SqlDatabase,a:WorkContext,id:string){return application(db,a).detail(id);}
-export function legalCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).legalCommand(raw,key);}
+export async function legalData(db:SqlDatabase,a:WorkContext,query:Record<string,unknown>={}){const scope=await legalReadScope(db,a);const data=await application(db,a,Promise.resolve(scope)).legalData(query);return {...data,purchases:scope.purchases};}
+export async function legalRecordData(db:SqlDatabase,a:WorkContext){const scope=await legalReadScope(db,a);const data=await application(db,a,Promise.resolve(scope)).legalRecordData();return {...data,purchases:scope.purchases};}
+export async function detail(db:SqlDatabase,a:WorkContext,id:string){const scope=await legalReadScope(db,a);const data=await application(db,a,Promise.resolve(scope)).detail(id),purchases=scope.purchases;return {...data,purchases,...(purchases?.["legal.documents"]?.history===false?{documents:[],submissions:[],envelopes:[]}:{}),...(purchases?.["legal.access"]?.history===false?{shares:[],members:[]}: {})};}
+export async function legalCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){
+ if(await legalPackageEnforcementMode()==='disabled')return inLegalOwnerUnit(db,a.companyId,tx=>application(tx,a).legalCommand(raw,key));
+ const input=(raw&&typeof raw==='object'?raw:{}) as Record<string,unknown>,action=String(input?.action??''),creating=action==='create',configuration=action==='settings',kind=creating?parseItem(input.item).kind:undefined,id=creating?key:configuration?undefined:typeof input.id==='string'?input.id:undefined;
+ const additional:LegalPurchaseCapability[]=['document','approve'].includes(action)?['legal.documents']:['member','share','share.revoke'].includes(action)?['legal.access']:action.startsWith('hold.')?['legal.obligations']:[];
+ const purpose=action.startsWith('hold.')?'history':configuration&&input.enabled===true||['create','update','document','share','link','assign'].includes(action)?'new-work':'settle-existing';
+ return withLegalPurchasedCommand(db,a,{key,operation:`legal.${action}`,id,createKind:kind,purpose,permission:configuration?'legal.manage':creating?'legal.create':legalCorePermission(a.role,action,input.state),additional,configuration,ownerSource:configuration?{table:"legal_settings",id:a.companyId}:undefined},tx=>application(tx,a).legalCommand(raw,key));
+}
+
+export async function legalWorkspaceDetail(db:SqlDatabase,a:WorkContext,id:string){return legalWorkspaceSnapshot(await detail(db,a,id));}

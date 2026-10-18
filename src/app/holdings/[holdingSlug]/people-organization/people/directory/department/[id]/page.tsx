@@ -1,0 +1,3 @@
+import Screen from '@/app/holdings/[holdingSlug]/people-organization/people/directory/_collection';
+import {notFound} from 'next/navigation';
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;id:string;explorerSection?:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){const p={...await params,explorerSection:"overview"};if(!["overview","people","positions","approvals"].includes(p.explorerSection))notFound();return <Screen params={Promise.resolve({holdingSlug:p.holdingSlug})} searchParams={Promise.resolve({...await searchParams,department:p.id,tab:p.explorerSection,view:'internal',status:'current'})}/>;}

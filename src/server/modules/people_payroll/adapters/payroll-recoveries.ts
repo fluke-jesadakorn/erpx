@@ -1,3 +1,4 @@
+import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "./payroll-purchases";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -75,12 +76,12 @@ async function invoke<Result>(run: () => Promise<Result>) {
         throw error;
     }
 }
-export async function requestPayrollRecovery(actor: WorkContext, runId: string, input: z.infer<typeof payrollRecoveryRequestSchema>, key: string) { return invoke(() => application().requestPayrollRecovery(actor, runId, input, key)); }
-export async function consentPayrollRecovery(actor: WorkContext, id: string, input: z.infer<typeof payrollRecoveryConsentSchema>, key: string) { return invoke(() => application().consentPayrollRecovery(actor, id, input, key)); }
-export async function reviewPayrollRecovery(actor: WorkContext, id: string, input: z.infer<typeof payrollRecoveryReviewSchema>, key: string) { return invoke(() => application().reviewPayrollRecovery(actor, id, input, key)); }
-export async function recognizePayrollRecovery(actor: WorkContext, id: string, input: z.infer<typeof payrollRecoveryRecognizeSchema>, key: string) { return invoke(() => application().recognizePayrollRecovery(actor, id, input, key)); }
-export async function payrollRecoveryPage(actor: WorkContext) { return invoke(() => application().payrollRecoveryPage(actor)); }
-export async function payrollRecoveryAgreement(actor: WorkContext, id: string) { return invoke(() => application().payrollRecoveryAgreement(actor, id)); }
+export async function requestPayrollRecovery(actor: WorkContext, runId: string, input: z.infer<typeof payrollRecoveryRequestSchema>, key: string) { return withPayrollPurchasedCommand(actor, {key,operation:"people.payroll-recovery.request",purpose:"settle-existing"}, tx => invoke(() => application(tx).requestPayrollRecovery(actor, runId, input, key))); }
+export async function consentPayrollRecovery(actor: WorkContext, id: string, input: z.infer<typeof payrollRecoveryConsentSchema>, key: string) { return withPayrollPurchasedCommand(actor, {key,operation:"people.payroll-recovery.consent",purpose:"settle-existing"}, tx => invoke(() => application(tx).consentPayrollRecovery(actor, id, input, key))); }
+export async function reviewPayrollRecovery(actor: WorkContext, id: string, input: z.infer<typeof payrollRecoveryReviewSchema>, key: string) { return withPayrollPurchasedCommand(actor, {key,operation:"people.payroll-recovery.review",purpose:"settle-existing"}, tx => invoke(() => application(tx).reviewPayrollRecovery(actor, id, input, key))); }
+export async function recognizePayrollRecovery(actor: WorkContext, id: string, input: z.infer<typeof payrollRecoveryRecognizeSchema>, key: string) { return withPayrollPurchasedCommand(actor, {key,operation:"people.payroll-recovery.recognize",purpose:"settle-existing"}, tx => invoke(() => application(tx).recognizePayrollRecovery(actor, id, input, key))); }
+export async function payrollRecoveryPage(actor: WorkContext) { return withPayrollPurchasedRead(actor, tx => invoke(() => application(tx).payrollRecoveryPage(actor))); }
+export async function payrollRecoveryAgreement(actor: WorkContext, id: string) { return withPayrollPurchasedRead(actor, tx => invoke(() => application(tx).payrollRecoveryAgreement(actor, id))); }
 export async function assertPayrollRecoveryDeductionLimits(db: SqlDatabase, run: {
     id: string;
     company_id: string;

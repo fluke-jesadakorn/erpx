@@ -11,6 +11,7 @@ export type PortalRepository = {
   replay(key: string): Promise<PortalActionRow | null>;
   binding(id: string, email: string): Promise<PortalBinding | null>;
   identity(bindingId: string, actor: CustomerPortalSessionActor): Promise<boolean>;
+  authorize?(actor:CustomerPortalSessionActor,binding:PortalBinding,purpose:'settle-existing'|'history'):Promise<()=>Promise<void>>;
   existing(bindingId: string, action: string): Promise<PortalActionRow | null>;
   evidence(command: PortalCommand, actor: WorkContext): Promise<PortalEvidence>;
   record(command: PortalCommand, evidence: PortalEvidence | null): Promise<void>;
@@ -34,16 +35,16 @@ export function createCustomerPortalApplication(ports: { repository: PortalRepos
   async function customerPortalCommand(actor: CustomerPortalSessionActor, raw: unknown, key: string) {
     if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(key)) return fail(422, "COMMAND_KEY_REQUIRED", "Use a valid Idempotency-Key for this action.");
     const input = portalCommandSchema.parse(raw), requestHash = ports.hash(JSON.stringify({ actor: actor.userId, email: actor.email, input })), id = `customer-portal-action-${ports.identifiers.next()}`, now = ports.clock.now();
-    try {
-      return await ports.repository.transaction(async repository => {
+    const execute=async(repository:PortalRepository)=>{
         const prior = await repository.replay(key);
-        if (prior) return replayResult(prior, actor, requestHash);
         const binding = await repository.binding(input.bindingId, actor.email.toLowerCase());
         if (!binding) return fail(403, "CUSTOMER_PORTAL_BINDING_UNAVAILABLE", "This customer document is not available to your account.");
-        if (binding.status !== "approved" || Number(binding.expires_at) <= now) return fail(403, "CUSTOMER_PORTAL_BINDING_EXPIRED", "This customer access has expired or was revoked.");
-        if (Number(binding.binding_version) !== input.expectedBindingVersion) return fail(409, "CUSTOMER_PORTAL_BINDING_CHANGED", "The customer document access changed. Refresh before submitting.");
+        if (binding.status !== "approved" || Number(binding.expires_at) <= ports.clock.now()) return fail(403, "CUSTOMER_PORTAL_BINDING_EXPIRED", "This customer access has expired or was revoked.");
+        if (!prior&&Number(binding.binding_version) !== input.expectedBindingVersion) return fail(409, "CUSTOMER_PORTAL_BINDING_CHANGED", "The customer document access changed. Refresh before submitting.");
         if (!["confirmed", "converted", "partially_fulfilled", "fulfilled"].includes(binding.state)) return fail(409, "CUSTOMER_PORTAL_SOURCE_UNAVAILABLE", "This customer document is no longer available for portal actions.");
         if (!await repository.identity(binding.binding_id, actor)) return fail(403, "CUSTOMER_PORTAL_IDENTITY_REQUIRED", "Open the approved document once before submitting a customer action.");
+        const finish='authorize' in repository&&repository.authorize?await repository.authorize(actor,binding,prior?'history':'settle-existing'):null;
+        if (prior) {const result=replayResult(prior,actor,requestHash);await finish?.();return result;}
         if (await repository.existing(binding.binding_id, input.action)) return fail(409, "CUSTOMER_PORTAL_ACTION_ALREADY_RECORDED", "This customer action has already been recorded.");
         if (input.action !== "request_support" && input.attachmentSetIds.length) return fail(422, "CUSTOMER_PORTAL_ATTACHMENT_ACTION", "Files may be attached only to a support request.");
         if (input.attachmentSetIds.length && (!actor.holdingId || !actor.holdingSlug || !actor.holdingName)) return fail(503, "CUSTOMER_PORTAL_ATTACHMENT_CONTEXT", "Reload the customer portal before attaching files.");
@@ -54,13 +55,16 @@ export function createCustomerPortalApplication(ports: { repository: PortalRepos
         await repository.notify(command, input.action === "request_support" ? "Customer requested support on an order; review and contact the customer." : "Customer acknowledged delivery; review the order and fulfillment record.");
         await repository.audit(command, ports.identifiers.next());
         await repository.outbox(command, ports.identifiers.next(), evidence?.manifest ?? []);
+        await finish?.();
         return { id, bindingId: binding.binding_id, orderId: binding.order_id, action: input.action, status: "recorded", createdAt: now };
-      });
+    };
+    try {
+      return await ports.repository.transaction(execute);
     } catch (error) {
       if (ports.repository.uniqueConflict(error)) {
-        const prior = await ports.repository.replay(key);
-        if (prior) return replayResult(prior, actor, requestHash);
-        return fail(409, "CUSTOMER_PORTAL_ACTION_ALREADY_RECORDED", "This customer action has already been recorded.");
+        // A raced receipt still enters the original source transaction and
+        // reauthorizes the current binding and verified account identity.
+        return ports.repository.transaction(execute);
       }
       throw error;
     }

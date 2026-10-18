@@ -1,0 +1,54 @@
+import 'server-only';
+import {projectWorkerCommandEvidence as workflow} from '../../workflow/public/project-worker-startup-evidence';
+import {projectWorkerAppliedEvidence as applied} from '../../identity_access/public/project-worker-startup-subject';
+export const projectWorkerCapabilities=['projects.wbs','people.worker-reference'] as const;
+export const projectWorkerMarker='_projectWorkerStartup';
+export const projectWorkerPlacementMarker='_projectWorkerPlacement';
+export type ProjectWorkerStartupProof={kind:'project-worker-startup'|'learning-worker-startup';companyId:string;accountId:string;personId:string;engagementId:string;commandId:string;operation:'people.directory.create'|'people.directory.update';mode:'create'|'link';resultVersion:number};
+export type ProjectWorkerPlacementProof={kind:'project-worker-placement'|'learning-worker-placement';companyId:string;accountId:string;personId:string;engagementId:string;starterCommandId:string;starterRequestHash:string;caseId:string;commandId:string;authorizingAssignmentId:string;definition:Record<string,unknown>;reviewSnapshot:Record<string,unknown>};
+/** Existing original tables only, including before1063. Markers select strict
+ * ownership; malformed known markers never fall back to general People. Native
+ * reciprocal constraints guarantee the immutable additive relation after1063. */
+export const projectWorkerSourceRows=`SELECT p.id person_id,p.company_id,e.id engagement_id,r.command_id,r.request_hash,r.result_json::jsonb->'${projectWorkerMarker}' proof,r.result_json::jsonb->'${projectWorkerMarker}'->>'accountId' account_id
+ FROM command_receipts r JOIN hr_people p ON p.id=r.record_id AND p.company_id=r.authority_json::jsonb->>'companyId'
+ JOIN hr_engagements e ON e.id=r.result_json::jsonb->'${projectWorkerMarker}'->>'engagementId' AND e.person_id=p.id AND e.company_id=p.company_id
+ WHERE to_regclass('people_project_worker_starters') IS NOT NULL AND r.operation IN ('people.directory.create','people.directory.update') AND jsonb_exists(r.result_json::jsonb,'${projectWorkerMarker}')
+ AND jsonb_typeof(r.result_json::jsonb->'${projectWorkerMarker}'->'resultVersion')='number' AND r.result_json::jsonb->'${projectWorkerMarker}'->>'resultVersion'~'^[1-9][0-9]*$'
+ AND r.result_json::jsonb->>'id'=p.id AND r.result_json::jsonb->>'version'=r.result_json::jsonb->'${projectWorkerMarker}'->>'resultVersion'
+ AND r.result_json::jsonb->'${projectWorkerMarker}'->>'kind'='project-worker-startup' AND r.result_json::jsonb->'${projectWorkerMarker}'->>'personId'=p.id AND r.result_json::jsonb->'${projectWorkerMarker}'->>'companyId'=p.company_id AND r.result_json::jsonb->'${projectWorkerMarker}'->>'commandId'=r.command_id AND r.result_json::jsonb->'${projectWorkerMarker}'->>'operation'=r.operation
+ AND ((r.operation='people.directory.create' AND r.result_json::jsonb->'${projectWorkerMarker}'->>'mode'='create' AND p.id='person-'||r.command_id AND e.id='eng-'||r.command_id) OR (r.operation='people.directory.update' AND r.result_json::jsonb->'${projectWorkerMarker}'->>'mode'='link'))`;
+export const projectWorkerMarkedRows=`SELECT record_id person_id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE jsonb_exists(result_json::jsonb,'${projectWorkerMarker}')`;
+export const projectWorkerPlacementRows=`SELECT c.id,c.company_id,c.person_id,c.engagement_id,starter.account_id,starter.command_id starter_command_id,r.command_id,r.request_hash,r.result_json::jsonb->'${projectWorkerPlacementMarker}' proof
+ FROM people_lifecycle_cases c JOIN command_receipts r ON r.record_id=c.id AND r.operation='people.lifecycle.submit' AND r.actor_id=c.created_by AND r.authority_json::jsonb->>'companyId'=c.company_id
+ JOIN (${projectWorkerSourceRows}) starter ON starter.person_id=c.person_id AND starter.engagement_id=c.engagement_id AND starter.company_id=c.company_id AND starter.command_id=r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'starterCommandId' AND starter.request_hash=r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'starterRequestHash'
+ WHERE to_regclass('people_project_worker_placements') IS NOT NULL AND jsonb_exists(r.result_json::jsonb,'${projectWorkerPlacementMarker}') AND c.id='lifecycle-'||r.command_id AND c.workflow='placement' AND c.kind='onboarding' AND c.package_id IS NULL AND c.package_revision IS NULL
+ AND r.result_json::jsonb->>'id'=c.id AND r.result_json::jsonb->>'status'='scheduled' AND r.result_json::jsonb->>'version'='1'
+ AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'kind'='project-worker-placement' AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'caseId'=c.id AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'commandId'=r.command_id
+ AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'companyId'=c.company_id AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'personId'=c.person_id AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'engagementId'=c.engagement_id AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'accountId'=starter.account_id
+ AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'authorizingAssignmentId'=c.authorizing_assignment_id AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->'definition'=c.definition AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->'reviewSnapshot'=c.review_snapshot
+ AND r.authority_json::jsonb->>'assignmentId'=c.authorizing_assignment_id AND c.definition->>'kind'='onboarding' AND c.definition->>'personId'=c.person_id AND c.definition->>'engagementId'=c.engagement_id AND c.definition->>'expectedVersion'='0' AND c.definition->>'effectiveAt'=c.effective_at::text
+ AND c.definition->>'acceptRecommendedPay'='false' AND c.definition->>'acceptRecommendedLeave'='false'`;
+export const projectWorkerPlacementMarkedRows=`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE jsonb_exists(result_json::jsonb,'${projectWorkerPlacementMarker}')`;
+
+/** Completion/cancellation is proved by original immutable owner evidence,
+ * without depending on the worker's later employment or account lifecycle. */
+export const projectWorkerPlacementTerminalRows=`SELECT c.id,c.company_id FROM people_lifecycle_cases c WHERE
+ (c.status='completed' AND EXISTS(SELECT 1 FROM (${applied}) a JOIN (${workflow.outbox}) o ON o.id='event-applied-'||c.id AND o.command_id='system-apply-'||c.id AND o.event_type='people.lifecycle.applied' AND o.aggregate_id=c.id AND o.aggregate_version=c.version
+ WHERE a.id='applied-'||c.id AND a.company_id=c.company_id AND a.target_id=c.id AND a.action='people.lifecycle.applied' AND a.actor_id='system:people-lifecycle' AND a.assignment_id='system:people-lifecycle' AND a.evidence->>'personId'=c.person_id AND a.evidence->>'kind'=c.kind AND a.evidence->>'effectiveAt'=c.effective_at::text AND o.payload_json::jsonb->>'companyId'=c.company_id AND o.payload_json::jsonb->>'personId'=c.person_id AND o.payload_json::jsonb->>'state'='completed'))
+ OR (c.status='cancelled' AND EXISTS(SELECT 1 FROM (${workflow.receipts}) r JOIN (${workflow.audit}) a ON a.command_id=r.command_id AND a.action='people.lifecycle.cancel' AND a.record_id=c.id AND a.record_version=c.version JOIN (${workflow.outbox}) o ON o.command_id=r.command_id AND o.event_type='people.lifecycle.cancel' AND o.aggregate_id=c.id AND o.aggregate_version=c.version WHERE r.operation='people.lifecycle.cancel' AND r.record_id=c.id AND r.authority_json::jsonb->>'companyId'=c.company_id AND r.result_json::jsonb->>'id'=c.id AND r.result_json::jsonb->>'status'='cancelled'))`;
+
+/** Two fixed foundation consumers. No public command accepts a capability,
+ * source kind, marker or table selector supplied by its caller. */
+export type WorkerStartupConsumer='projects'|'learn';
+const learningSource=(sql:string)=>sql.replaceAll('_projectWorkerStartup','_learningWorkerStartup').replaceAll('_projectWorkerPlacement','_learningWorkerPlacement').replaceAll('project-worker-startup','learning-worker-startup').replaceAll('project-worker-placement','learning-worker-placement').replaceAll('people_project_worker_starters','people_learning_worker_starters').replaceAll('people_project_worker_placements','people_learning_worker_placements');
+export const learningWorkerSourceRows=learningSource(projectWorkerSourceRows),learningWorkerMarkedRows=`SELECT r.record_id person_id,COALESCE(p.company_id,r.authority_json::jsonb->>'companyId') company_id FROM command_receipts r LEFT JOIN hr_people p ON p.id=r.record_id WHERE jsonb_exists(r.result_json::jsonb,'_learningWorkerStartup')`,learningWorkerPlacementRows=learningSource(projectWorkerPlacementRows),learningWorkerPlacementMarkedRows=`SELECT r.record_id id,COALESCE(c.company_id,r.authority_json::jsonb->>'companyId') company_id FROM command_receipts r LEFT JOIN people_lifecycle_cases c ON c.id=r.record_id WHERE jsonb_exists(r.result_json::jsonb,'_learningWorkerPlacement')`;
+export const workerStartupMarkedRows=`${projectWorkerMarkedRows} UNION ALL ${learningWorkerMarkedRows}`;
+export const workerPlacementMarkedRows=`${projectWorkerPlacementMarkedRows} UNION ALL ${learningWorkerPlacementMarkedRows}`;
+export const workerPlacementSourceRows=`SELECT source.*,'projects'::text consumer FROM (${projectWorkerPlacementRows}) source UNION ALL SELECT source.*,'learn'::text consumer FROM (${learningWorkerPlacementRows}) source`;
+export function workerStartupSourcePolicy(consumer:WorkerStartupConsumer){
+ switch(consumer){
+  case 'projects':return {consumer,capabilities:projectWorkerCapabilities,releases:['projects','people_payroll'] as const,sourceRows:projectWorkerSourceRows,placementRows:projectWorkerPlacementRows,markedRows:projectWorkerMarkedRows,placementMarkedRows:projectWorkerPlacementMarkedRows,terminalRows:projectWorkerPlacementTerminalRows,starterTable:'people_project_worker_starters',placementTable:'people_project_worker_placements',startupKind:'project-worker-startup',placementKind:'project-worker-placement',startupMarker:'_projectWorkerStartup',placementMarker:'_projectWorkerPlacement',errorPrefix:'PROJECT_WORKER_'} as const;
+  case 'learn':return {consumer,capabilities:['learn.assignments','people.learner-reference'] as const,releases:['learning','people_payroll'] as const,sourceRows:learningWorkerSourceRows,placementRows:learningWorkerPlacementRows,markedRows:learningWorkerMarkedRows,placementMarkedRows:learningWorkerPlacementMarkedRows,terminalRows:projectWorkerPlacementTerminalRows,starterTable:'people_learning_worker_starters',placementTable:'people_learning_worker_placements',startupKind:'learning-worker-startup',placementKind:'learning-worker-placement',startupMarker:'_learningWorkerStartup',placementMarker:'_learningWorkerPlacement',errorPrefix:'LEARNING_WORKER_'} as const;
+  default:throw Error('WORKER_STARTUP_CONSUMER_REQUIRED');
+ }
+}

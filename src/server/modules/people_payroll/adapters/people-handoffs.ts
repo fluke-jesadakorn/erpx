@@ -1,3 +1,4 @@
+import {withTalentPurchasedRead,withTalentHirePurchasedCommand,withTalentPrivacyPurchasedCommand} from "../../talent/public/purchases";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -15,7 +16,7 @@ import { peopleHirePlacementFacts } from '../../organization/public/people-hire-
 import { hireConsumptionSchema, candidatePrivacySchema } from '../domain/people-handoffs';
 import { createPeopleHandoffApplication, type PeopleHandoffRepository } from '../application/people-handoffs';
 export { hireConsumptionSchema, candidatePrivacySchema } from '../domain/people-handoffs';
-function application() {
+function application(provided?:SqlDatabase) {
     let database: SqlDatabase;
     const repository: PeopleHandoffRepository<SqlStatement> = { readHireSourceRow(...args) { return peopleHireHandoffFacts(database).readHireSourceRow(...args); },
         readHireHandoffQueueEffect(...args) { return peopleHireHandoffFacts(database).readHireHandoffQueueEffect(...args); },
@@ -55,7 +56,7 @@ function application() {
         stageChangeCandidatePrivacyEffect2(...args) { return peopleHireHandoffFacts(database).stageChangeCandidatePrivacyEffect2(...args); },
         stageChangeCandidatePrivacyEffect3(...args) { return peopleHireHandoffFacts(database).stageChangeCandidatePrivacyEffect3(...args); },
         stageChangeCandidatePrivacyEffect4(...args) { return peopleHireHandoffFacts(database).stageChangeCandidatePrivacyEffect4(...args); } };
-    return createPeopleHandoffApplication({ repository, clock: { now: Date.now }, hash: sha256, authorize: requirePermission, prepare: async (holding) => { database = (await holdingResources(holding)).write; }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, money: (actor, input) => snapshotMoney(database, actor, input) });
+    return createPeopleHandoffApplication({ repository, clock: { now: Date.now }, hash: sha256, authorize: requirePermission, prepare: async (holding) => { database = provided??(await holdingResources(holding)).write; }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, money: (actor, input) => snapshotMoney(database, actor, input) });
 }
 async function invoke<Result>(run: () => Promise<Result>) { try {
     return await run();
@@ -65,6 +66,6 @@ catch (error) {
         throw new ApiError(error.status, error.code, error.message);
     throw error;
 } }
-export async function hireHandoffQueue(actor: WorkContext) { return invoke(() => application().hireHandoffQueue(actor)); }
-export async function consumeHireHandoff(actor: WorkContext, input: z.infer<typeof hireConsumptionSchema>, key: string) { return invoke(() => application().consumeHireHandoff(actor, input, key)); }
-export async function changeCandidatePrivacy(actor: WorkContext, candidateId: string, input: z.infer<typeof candidatePrivacySchema>, key: string) { return invoke(() => application().changeCandidatePrivacy(actor, candidateId, input, key)); }
+export async function hireHandoffQueue(actor: WorkContext) { return withTalentPurchasedRead(actor,["recruit.offers"],db=>invoke(() => application(db).hireHandoffQueue(actor)),undefined,["people.manage"]); }
+export async function consumeHireHandoff(actor: WorkContext, input: z.infer<typeof hireConsumptionSchema>, key: string) { return withTalentHirePurchasedCommand(actor,input.handoffId,key,db=>invoke(() => application(db).consumeHireHandoff(actor, input, key))); }
+export async function changeCandidatePrivacy(actor: WorkContext, candidateId: string, input: z.infer<typeof candidatePrivacySchema>, key: string) { return withTalentPrivacyPurchasedCommand(actor,candidateId,input,key,db=>invoke(() => application(db).changeCandidatePrivacy(actor, candidateId, input, key))); }

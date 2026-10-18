@@ -26,12 +26,12 @@ it("removes revoked accounts for ordinary staff and retains HR historical access
   expect((await companyMembers(hr)).some(row => row.id === fixture.owner.userId)).toBe(true);
 });
 
-it("uses reviewed identity links before email and allows email fallback only in beta HR", async () => {
+it("omits unlinked employee accounts, preserves reviewed links and allows display email fallback only in beta HR", async () => {
   const hr = await fixture.member("directory-hr", "hr_admin");
   const person = await env.H001_DB.prepare("SELECT id FROM hr_people WHERE company_id=? AND user_id=?").bind(fixture.company, fixture.claimant.userId).first<string>("id");
   if (!person) throw new Error("DIRECTORY_PERSON_FIXTURE_REQUIRED");
   await env.H001_DB.prepare("UPDATE hr_people SET user_id=NULL,email=? WHERE id=?").bind(`${fixture.claimant.userId}@example.test`, person).run();
-  expect((await companyMembers(hr)).find(row => row.id === fixture.claimant.userId)?.personId).toBeNull();
+  expect((await companyMembers(hr)).some(row => row.id === fixture.claimant.userId)).toBe(false);
   expect((await companyMembers({ ...hr, beta: true })).find(row => row.id === fixture.claimant.userId)?.personId).toBe(person);
   await env.H001_DB.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,person_id) VALUES(?,?,?,?)").bind(fixture.company, fixture.claimant.userId, `local:${fixture.claimant.userId}`, person).run();
   expect((await companyMembers(hr)).find(row => row.id === fixture.claimant.userId)?.personId).toBe(person);

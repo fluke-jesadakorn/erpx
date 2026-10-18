@@ -1,1 +1,1 @@
-export {readExecutiveMetricProjection} from '../adapters/executive-metric-projections';
+export {readExecutiveMetricProjection,supportMetricHistoryAccess} from '../adapters/executive-metric-projections';

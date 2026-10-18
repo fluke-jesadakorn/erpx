@@ -1,4 +1,7 @@
 "use client";
+import { useFinanceActionAllowed } from "./purchase-context";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -15,7 +18,7 @@ import {
 
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { Stack, Card, FormLayout } from "@/components/ui/foundation";
 
 export type FinanceChart = {
@@ -54,6 +57,8 @@ const categories = [
 const controls = ["none", "receivable", "payable", "bank"] as const;
 
 function useFinanceSetupCommand(base: string) {
+  const allowedNew = useFinanceActionAllowed("new-work"), allowedSettle = useFinanceActionAllowed("settle-existing");
+  const [hasAttempt, setHasAttempt] = useState(false);
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -63,17 +68,20 @@ function useFinanceSetupCommand(base: string) {
     input: unknown,
     redirect?: string | ((data: { id?: string | number }) => string),
   ) {
-    setPending(true);
-    setError("");
+    const fingerprint = `${path}:${JSON.stringify(input)}`;
+    const settlement = path.endsWith("/status") && (input as {status?:unknown}).status === "inactive";
+    if (!(settlement ? allowedSettle : allowedNew) && retryKey.current?.fingerprint !== fingerprint) { setError("This Finance action is unavailable. Your draft is retained."); return null; }
+    const completion = captureFinanceForm();
+    setPending(true); setError("");
     try {
-      const fingerprint = `${path}:${JSON.stringify(input)}`;
       const key =
         retryKey.current?.fingerprint === fingerprint
           ? retryKey.current.value
           : crypto.randomUUID();
       retryKey.current = { fingerprint, value: key };
+      setHasAttempt(true);
       const response = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
+        `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/${path}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "Idempotency-Key": key },
@@ -84,8 +92,8 @@ function useFinanceSetupCommand(base: string) {
         data?: { id?: string | number };
         error?: { message?: string };
       };
-      if (!response.ok) throw new Error(body.error?.message ?? "Unable to save finance setup.");
-      retryKey.current = null;
+      if (!response.ok || !body.data || typeof body.data !== "object") throw new Error(body.error?.message ?? "Unable to save finance setup.");
+      acknowledgeFinanceForm(completion); retryKey.current = null; setHasAttempt(false);
       if (redirect)
         router.push(typeof redirect === "function" ? redirect(body.data ?? {}) : redirect);
       else router.refresh();
@@ -97,7 +105,7 @@ function useFinanceSetupCommand(base: string) {
       setPending(false);
     }
   }
-  return { pending, error, send };
+  return { pending, error, send, canCreate: allowedNew || hasAttempt, canSettle: allowedSettle || hasAttempt };
 }
 
 function parseCsvLine(line: string): { cells: string[]; error?: string } {
@@ -195,7 +203,8 @@ export function FinanceChartControls({
   charts: FinanceChart[];
   accounts: FinanceAccount[];
 }) {
-  const { pending, error, send } = useFinanceSetupCommand(base);
+  const { pending, error, send, canCreate, canSettle } = useFinanceSetupCommand(base);
+  const draftScope = useFinanceDraftScope();
   const [csv, setCsv] = useState(
     `code,name,category,currency,controlKind\n1100,Operating bank,asset,${chart?.base_currency ?? ""},bank\n1200,Trade receivables,asset,${chart?.base_currency ?? ""},receivable`,
   );
@@ -219,7 +228,7 @@ export function FinanceChartControls({
         </div>
         <FormDisclosure error={error} appearance="standard">
           <summary>Create a chart</summary>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(event) => {
               event.preventDefault();
@@ -233,8 +242,8 @@ export function FinanceChartControls({
                 },
                 (data) =>
                   data.id
-                    ? `${base}/finance/setup?step=chart&chart=${encodeURIComponent(String(data.id))}`
-                    : `${base}/finance/setup?step=chart`,
+                    ? canonicalUiHref(`${base}/finance/setup?step=chart&chart=${encodeURIComponent(String(data.id))}`)
+                    : canonicalUiHref(`${base}/finance/setup?step=chart`),
               );
             }}
           >
@@ -264,7 +273,7 @@ export function FinanceChartControls({
                 placeholder="Confirmed Company accounting basis"
               />
             </Field>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !canCreate}>
               {pending ? "Saving…" : "Create chart"}
             </Button>
           </FormLayout>
@@ -292,7 +301,7 @@ export function FinanceChartControls({
             </div>
             <FormDisclosure error={error} appearance="standard">
               <summary>Add an account</summary>
-              <FormLayout
+              <FormLayout data-finance-draft={draftScope}
                 className="ui-form-grid"
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -345,7 +354,7 @@ export function FinanceChartControls({
                     ))}
                   </Select>
                 </Field>
-                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
+                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !canCreate}>
                   {pending ? "Saving…" : "Add account"}
                 </Button>
               </FormLayout>
@@ -369,7 +378,7 @@ export function FinanceChartControls({
                     const nextStatus = status === "active" ? "inactive" : "active";
                     return (
                       <tr key={String(account.id)}>
-                        <td><RecordLink href={`${base}/record-details/finance_account/${encodeURIComponent(String(account.id))}`}>{String(account.code)}</RecordLink></td>
+                        <td><RecordLink href={canonicalUiHref(`${base}/record-details/finance_account/${encodeURIComponent(String(account.id))}`)}>{String(account.code)}</RecordLink></td>
                         <td>{String(account.name)}</td>
                         <td>{String(account.category)}</td>
                         <td>{String(account.currency ?? chart.base_currency)}</td>
@@ -378,7 +387,7 @@ export function FinanceChartControls({
                         <td>
                           <details>
                             <summary>Change status</summary>
-                            <form
+                            <form data-finance-draft={draftScope}
                               className="ui-form-actions"
                               onSubmit={(event) => {
                                 event.preventDefault();
@@ -401,7 +410,7 @@ export function FinanceChartControls({
                                 placeholder="Reason"
                                 aria-label={`Reason for ${String(account.code)}`}
                               />
-                              <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending}>
+                              <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending || !(nextStatus === "active" ? canCreate : canSettle)}>
                                 {pending
                                   ? "Saving…"
                                   : nextStatus === "active"
@@ -420,7 +429,7 @@ export function FinanceChartControls({
           </Card>
           <FormDisclosure error={error} appearance="standard" className="ui-panel" drawerTitle="Import account list">
             <summary>Import account list</summary>
-            <FormLayout layout="stack" onSubmit={event => {
+            <FormLayout data-finance-draft={draftScope} layout="stack" onSubmit={event => {
               event.preventDefault();
               void send("charts/import", {
                 chartId: String(chart.id),
@@ -457,7 +466,7 @@ export function FinanceChartControls({
               clientManaged
               type="submit"
               variant="primary"
-              disabled={pending || !parsed.rows.length || parsed.errors.length > 0}
+              disabled={pending || !canCreate || !parsed.rows.length || parsed.errors.length > 0}
             >
               {pending ? "Importing…" : "Import validated accounts"}
             </Button>
@@ -465,7 +474,7 @@ export function FinanceChartControls({
           </FormDisclosure>
           <FormDisclosure error={error} appearance="standard" className="ui-panel">
             <summary>Add accounting period</summary>
-            <FormLayout
+            <FormLayout data-finance-draft={draftScope}
               className="ui-form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -489,7 +498,7 @@ export function FinanceChartControls({
                 End date
                 <TextInput appearance="standard" name="endDate" type="date" required />
               </Field>
-              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !canCreate}>
                 Add period
               </Button>
             </FormLayout>

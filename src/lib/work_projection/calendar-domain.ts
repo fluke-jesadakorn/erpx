@@ -143,6 +143,7 @@ export type CalendarItem = {
   };
 };
 export type CalendarData = {
+  purchase?:import('./calendar-purchases').CalendarPurchaseControls;
   query: CalendarQuery;
   from: string;
   to: string;

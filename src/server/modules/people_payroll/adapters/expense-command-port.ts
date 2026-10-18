@@ -1,3 +1,4 @@
+import {requireExpensePortUnit} from "./expense-purchases";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
 import { executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
@@ -19,9 +20,10 @@ export function expenseStatements(mutation: ExpenseMutation): SqlStatement[] {
 /** Each port is bound to one database/owned transaction; it never resolves runtime. */
 export function expenseCommandPort<Actor extends ExpenseCommandActor = WorkContext>(database: SqlDatabase): ExpenseCommandPort<Actor> {
   return {
-    replay: (actor, key, operation, id, input) => replayCommand(database, actor, key, operation, id, input),
+    replay: async (actor, key, operation, id, input) => { await requireExpensePortUnit(database, actor,key,operation); return replayCommand(database, actor, key, operation, id, input); },
     error: violation => new ApiError(violation.status, violation.code, violation.message),
     async commit(actor, key, operation, input, id, version, mutation, scope) {
+      await requireExpensePortUnit(database, actor,key,operation);
       // executeCommand preserves guards, receipt, audit and outbox in the same
       // committing batch. PostgreSQL checks that every statement owns this DB.
       return executeCommand(database, actor, key, operation, input, id, version, mutation.result, expenseStatements(mutation), scope ?? actor);

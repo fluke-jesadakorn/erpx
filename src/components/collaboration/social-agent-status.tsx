@@ -1,9 +1,12 @@
 "use client";
+import WorkspaceLink from '@/components/workplace/workspace-link';
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button } from "@/components/ui/foundation";
 
 import { useState } from "react";
+import type {SocialPurchase} from "@/server/modules/collaboration/public/rules/social-presentation";
+import {SocialCommandRecovery} from "./social-command-recovery";
 import { useSocialCommand } from "@/components/collaboration/social-command";
 import { SocialTextBody } from "@/components/collaboration/social-text-body";
 import type { RichContent } from "@/lib/shared/home-rich-content";
@@ -25,6 +28,7 @@ export function SocialAgentStatus({
   answer,
   aiName,
   settingsUrl,
+  purchase,
 }: {
   reply: AgentReply;
   api: string;
@@ -33,8 +37,9 @@ export function SocialAgentStatus({
   answer?: { body: string; richContent: RichContent | null; author_name: string };
   aiName: string;
   settingsUrl?: string;
+  purchase?:SocialPurchase;
 }) {
-  const { run, send, busy, message } = useSocialCommand();
+  const command=useSocialCommand();const {run,send,busy,message}=command;
   const [retrying, setRetrying] = useState(false);
   if (reply.state === "completed")
     return answer ? (
@@ -86,7 +91,7 @@ export function SocialAgentStatus({
             <Button appearance="standard"
               variant="ghost"
               type="button"
-              disabled={busy || retrying}
+              disabled={busy || retrying||purchase?.settleExisting===false||!!command.retryAttempt}
               onClick={() => {
                 setRetrying(true);
                 void run(async () => {
@@ -104,13 +109,14 @@ export function SocialAgentStatus({
             </Button>
           )}
           {settingsUrl && (
-            <a href={settingsUrl}>
+            <WorkspaceLink href={settingsUrl}>
               <Settings2 size={15} aria-hidden="true" />
               ตั้งค่า AI
-            </a>
+            </WorkspaceLink>
           )}
         </div>
       )}
+      <SocialCommandRecovery command={command} history={purchase?.history!==false}/>
       {message && <small className="beta-agent-status-feedback">{message}</small>}
     </InlineNotice>
   );

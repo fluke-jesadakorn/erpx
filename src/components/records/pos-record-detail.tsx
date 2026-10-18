@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 const PosPendingTransfer = dynamic(() => import("@/components/pos/pos-pending-transfer").then(module => module.PosPendingTransfer));
 const PosReceipt = dynamic(() => import("@/components/pos/pos-receipt").then(module => module.PosReceipt));
-const PosSaleWorkspace = dynamic(() => import("@/components/pos/pos-sales").then(module => module.PosSaleWorkspace));
+const PosSaleWorkspace = dynamic(() => import("@/components/pos/standard-pos-sale-workspace").then(module => module.StandardPosSaleWorkspace));
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 

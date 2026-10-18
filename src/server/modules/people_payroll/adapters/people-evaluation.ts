@@ -1,3 +1,4 @@
+import {requirePerformanceHistory,withPerformancePurchasedRead,performanceDefinitionPurpose,withPerformancePurchasedCommand,performancePurchaseControls} from './performance-purchases';
 import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "../../organization/public/people-payroll-final-owner-projections";
 const organizationFinalSources=organizationFinalOwnerProjections();
 import {peopleEvaluationStaffWorkFacts} from '../../operations/public/people-evaluation-work-facts';
@@ -17,7 +18,8 @@ import { BusinessRuleError } from '../../shared';
 import { type Row, type AssessmentRow, type EvaluationEmployee, createEvaluationQuerySchema } from '../domain/people-evaluation';
 import { createPeopleEvaluationApplication, type PeopleEvaluationRepository } from '../application/people-evaluation';
 export type { EvaluationQuery, EvaluationEmployee, EvaluationRow } from '../domain/people-evaluation';
-export type { EvaluationWorkspace } from '../application/people-evaluation';
+import type {EvaluationWorkspace as NativeEvaluationWorkspace} from '../application/people-evaluation';
+export type EvaluationWorkspace=NativeEvaluationWorkspace&{purchase?:{newWork:boolean;settleExisting:boolean;history:boolean;revision:string}};
 import { peopleEvaluationWorkflowFacts } from '../../workflow/public/people-evaluation-facts';
 import { peopleEvaluationOrganizationFacts } from '../../organization/public/people-evaluation-facts';
 import { peopleEvaluationOperationsFacts } from '../../operations/public/people-evaluation-facts';
@@ -199,7 +201,7 @@ function application(provided?: SqlDatabase) {
     return createPeopleEvaluationApplication({ repository, clock: { now: Date.now }, ids: { newId: () => crypto.randomUUID() }, authorize: requirePermission, prepare: async (holding) => {
             if (!provided)
                 database = (await holdingResources(holding)).write;
-        }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, querySchema: evaluationQuerySchema, batch: effects => database.batch(effects), captureAuthority: (...args) => fromNative(() => captureJobAuthority(database, ...args)), authorityGuards: (...args) => iamMutationGuards(database, ...args), snapshotMoney: (...args) => fromNative(() => snapshotMoney(database, ...args)), attachmentLinkStatus: (...args) => fromNative(() => attachmentLinkStatus(database, ...args)) });
+        }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, querySchema: evaluationQuerySchema, batch: effects => database.batch(effects), purchasedHistory: actor=>fromNative(()=>requirePerformanceHistory(database,actor)), captureAuthority: (...args) => fromNative(() => captureJobAuthority(database, ...args)), authorityGuards: (...args) => iamMutationGuards(database, ...args), snapshotMoney: (...args) => fromNative(() => snapshotMoney(database, ...args)), attachmentLinkStatus: (...args) => fromNative(() => attachmentLinkStatus(database, ...args)) });
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {
@@ -222,21 +224,21 @@ async function invoke<Result>(run: () => Promise<Result>) {
     }
 }
 export async function evaluationAuthority(db: SqlDatabase, actor: WorkContext, permission = "people.read") { return invoke(() => application(db).evaluationAuthority(actor, permission)); }
-export async function evaluationEmployees(db: SqlDatabase, actor: WorkContext) { return invoke(() => application(db).evaluationEmployees(actor)); }
-export async function evaluationEmployee(db: SqlDatabase, actor: WorkContext, engagementId: string) { return invoke(() => application(db).evaluationEmployee(actor, engagementId)); }
-export async function evaluationDefinition(db: SqlDatabase, actor: WorkContext, id: string, kind: DefinitionKind, v?: number) { return invoke(() => application(db).evaluationDefinition(actor, id, kind, v)); }
-export async function saveEvaluationDefinition(actor: WorkContext, raw: unknown, key: string) { return invoke(() => application().saveEvaluationDefinition(actor, raw, key)); }
-export async function evaluationWorkspace(actor: WorkContext, raw: unknown = {}) { return invoke(() => application().evaluationWorkspace(actor, raw)); }
-export async function importEvaluationMarket(actor: WorkContext, raw: unknown, key: string) { return invoke(() => application().importEvaluationMarket(actor, raw, key)); }
-export async function evaluationAssessment(db: SqlDatabase, actor: WorkContext, assessmentId: string) { return invoke(() => application(db).evaluationAssessment(actor, assessmentId)); }
-export async function createEvaluationAssessment(actor: WorkContext, raw: unknown, key: string) { return invoke(() => application().createEvaluationAssessment(actor, raw, key)); }
-export async function saveEvaluationAssessment(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return invoke(() => application().saveEvaluationAssessment(actor, assessmentId, raw, key)); }
-export async function transitionEvaluationAssessment(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return invoke(() => application().transitionEvaluationAssessment(actor, assessmentId, raw, key)); }
-export async function evaluationDetail(actor: WorkContext, assessmentId: string) { return invoke(() => application().evaluationDetail(actor, assessmentId)); }
-export async function evaluationEvidenceSources(db: SqlDatabase, actor: WorkContext, employee: EvaluationEmployee, sourceId: string | null = null) { return invoke(() => application(db).evaluationEvidenceSources(actor, employee, sourceId)); }
-export async function addEvaluationEvidence(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return invoke(() => application().addEvaluationEvidence(actor, assessmentId, raw, key)); }
-export async function readEvaluationEvidence(actor: WorkContext, evidenceId: string) { return invoke(() => application().readEvaluationEvidence(actor, evidenceId)); }
-export async function confirmEvaluationPayBasis(actor: WorkContext, engagementId: string, raw: unknown, key: string) { return invoke(() => application().confirmEvaluationPayBasis(actor, engagementId, raw, key)); }
-export async function createEvaluationCompensationDraft(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return invoke(() => application().createEvaluationCompensationDraft(actor, assessmentId, raw, key)); }
-export async function approveEvaluationCompensation(actor: WorkContext, draftId: string, raw: unknown, key: string) { return invoke(() => application().approveEvaluationCompensation(actor, draftId, raw, key)); }
-export async function cancelEvaluationCompensation(actor: WorkContext, draftId: string, raw: unknown, key: string) { return invoke(() => application().cancelEvaluationCompensation(actor, draftId, raw, key)); }
+export async function evaluationEmployees(db: SqlDatabase, actor: WorkContext) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationEmployees(actor)),db); }
+export async function evaluationEmployee(db: SqlDatabase, actor: WorkContext, engagementId: string) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationEmployee(actor, engagementId)),db); }
+export async function evaluationDefinition(db: SqlDatabase, actor: WorkContext, id: string, kind: DefinitionKind, v?: number) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationDefinition(actor, id, kind, v)),db); }
+export async function saveEvaluationDefinition(actor: WorkContext, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.criteria.save',purpose:database=>performanceDefinitionPurpose(database,actor,raw)},(database,current)=>invoke(()=>application(database).saveEvaluationDefinition(current, raw, key))); }
+export async function evaluationWorkspace(actor: WorkContext, raw: unknown = {},provided?:SqlDatabase):Promise<EvaluationWorkspace> { return withPerformancePurchasedRead(actor,async database=>{const workspace=await invoke(()=>application(database).evaluationWorkspace(actor, raw)),purchase=await performancePurchaseControls(actor,database);return purchase?{...workspace,purchase}:workspace;},provided); }
+export async function importEvaluationMarket(actor: WorkContext, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.market.import',purpose:'new-work'},(database,current)=>invoke(()=>application(database).importEvaluationMarket(current, raw, key))); }
+export async function evaluationAssessment(db: SqlDatabase, actor: WorkContext, assessmentId: string) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationAssessment(actor, assessmentId)),db); }
+export async function createEvaluationAssessment(actor: WorkContext, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.assessment.create',purpose:'new-work'},(database,current)=>invoke(()=>application(database).createEvaluationAssessment(current, raw, key))); }
+export async function saveEvaluationAssessment(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.assessment.save',purpose:'new-work'},(database,current)=>invoke(()=>application(database).saveEvaluationAssessment(current, assessmentId, raw, key))); }
+export async function transitionEvaluationAssessment(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.assessment.transition',purpose:raw&&typeof raw==='object'&&'action' in raw&&raw.action==='reopen'?'new-work':'settle-existing'},(database,current)=>invoke(()=>application(database).transitionEvaluationAssessment(current, assessmentId, raw, key))); }
+export async function evaluationDetail(actor: WorkContext, assessmentId: string,provided?:SqlDatabase) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationDetail(actor, assessmentId)),provided); }
+export async function evaluationEvidenceSources(db: SqlDatabase, actor: WorkContext, employee: EvaluationEmployee, sourceId: string | null = null) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationEvidenceSources(actor, employee, sourceId)),db); }
+export async function addEvaluationEvidence(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.evidence.add',purpose:'settle-existing'},(database,current)=>invoke(()=>application(database).addEvaluationEvidence(current, assessmentId, raw, key))); }
+export async function readEvaluationEvidence(actor: WorkContext, evidenceId: string,provided?:SqlDatabase) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).readEvaluationEvidence(actor, evidenceId)),provided); }
+export async function confirmEvaluationPayBasis(actor: WorkContext, engagementId: string, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.basis.confirm',purpose:'new-work'},(database,current)=>invoke(()=>application(database).confirmEvaluationPayBasis(current, engagementId, raw, key))); }
+export async function createEvaluationCompensationDraft(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.compensation.create',purpose:'new-work'},(database,current)=>invoke(()=>application(database).createEvaluationCompensationDraft(current, assessmentId, raw, key))); }
+export async function approveEvaluationCompensation(actor: WorkContext, draftId: string, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.compensation.approve',purpose:'settle-existing'},(database,current)=>invoke(()=>application(database).approveEvaluationCompensation(current, draftId, raw, key))); }
+export async function cancelEvaluationCompensation(actor: WorkContext, draftId: string, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.compensation.cancel',purpose:'settle-existing'},(database,current)=>invoke(()=>application(database).cancelEvaluationCompensation(current, draftId, raw, key))); }

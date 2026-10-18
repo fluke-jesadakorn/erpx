@@ -1,12 +1,13 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {FinanceEvidenceDocuments} from "./finance-evidence-documents";
 import {FinanceBillingRevision} from "./finance-billing-revision";
 import {FinancePrepareOn,financeDraftCommand} from "./finance-prepare-on";
 import { useState,useContext } from "react";
 import {EmbeddedRecord} from "@/components/records/record-context";
 import {recordCanonicalHref} from "@/lib/records/record-drawer";
-import { useRouter } from "next/navigation";
-import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
+import { useFinanceCommand } from "./use-finance-command";
+import { useFinanceDraftScope } from "./finance-draft-boundary";
 import { financeCsvRows } from "@/lib/finance/finance-csv";
 import type {
   BusinessContractInput,
@@ -48,6 +49,7 @@ function ContractEditor({
   onSave: (input: unknown) => Promise<void>;
   busy: boolean;
 }) {
+  const draftScope=useFinanceDraftScope();
   const original = initial
     ? (JSON.parse(String(initial.content_json)) as BusinessContractInput)
     : null;
@@ -85,7 +87,7 @@ function ContractEditor({
     );
   }
   return (
-    <FormLayout
+    <FormLayout data-finance-draft={draftScope}
       className="ui-form-grid"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -427,39 +429,14 @@ export function FinanceBusinessContractControls({
   userId: string;
 }) {
   const recordOnly=useContext(EmbeddedRecord);
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+  const {send,busy,error,setError,draftScope,canPrepare,canSettle}=useFinanceCommand(base);
   async function run(path: string, input: unknown) {
-    setBusy(true);
-    setError("");
-    try {
-      if (input && typeof input === "object" && "csvError" in input)
-        throw new Error(String(input.csvError));
-      const r = await workFetch(
-          `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Idempotency-Key": crypto.randomUUID(),
-            },
-            body: JSON.stringify(input),
-          },
-        ),
-        body = await r.json();
-      if (!r.ok)
-        throw new Error(body.error?.message ?? "Finance action failed");
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Finance action failed");
-    } finally {
-      setBusy(false);
-    }
+    if(input&&typeof input==="object"&&"csvError" in input){setError(String(input.csvError));return;}
+    await send(path,input,path==="business-contracts"?"new-work":"settle-existing");
   }
   function decision(path: string, row: Row, actions: string[]) {
     return (
-      <FormLayout
+      <FormLayout data-finance-draft={draftScope}
         className="ui-form-grid"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -490,7 +467,7 @@ export function FinanceBusinessContractControls({
             value={a}
             type="submit"
             clientManaged
-            disabled={busy}
+            disabled={busy || !canSettle}
           >
             {a}
           </Button>
@@ -516,7 +493,7 @@ export function FinanceBusinessContractControls({
             <ContractEditor
               data={data}
               onSave={(i) => run("business-contracts", i)}
-              busy={busy}
+              busy={busy || !canPrepare}
             />
           </FormDisclosure>
         )}
@@ -548,7 +525,7 @@ export function FinanceBusinessContractControls({
                     drawerTitle={`Bill ${c.number}`}
                   >
                     <summary>Prepare invoice</summary>
-                    <FormLayout
+                    <FormLayout data-finance-draft={draftScope}
                       className="ui-form-grid"
                       onSubmit={async (e) => {
                         e.preventDefault();
@@ -608,7 +585,7 @@ export function FinanceBusinessContractControls({
                         appearance="standard"
                         clientManaged
                         type="submit"
-                        disabled={busy}
+                        disabled={busy || !canSettle}
                       >
                         Prepare draft invoice
                       </Button>
@@ -625,7 +602,7 @@ export function FinanceBusinessContractControls({
                       data={data}
                       initial={c}
                       onSave={(i) => run("business-contracts", i)}
-                      busy={busy}
+                      busy={busy || !canPrepare}
                     />
                   </FormDisclosure>
                 )}
@@ -660,7 +637,7 @@ export function FinanceBusinessContractControls({
               className="ui-panel"
             >
               <h3>
-                {b.invoice_id ? <RecordLink href={`${base}/finance/invoices/${b.invoice_id}`}>
+                {b.invoice_id ? <RecordLink href={canonicalUiHref(`${base}/finance/invoices/${b.invoice_id}`)}>
                   {String(b.invoice_number)}
                 </RecordLink> : <>Zero usage · no charge</>}{" "}
                 · {String(b.invoice_status)} <RecordLink record={{kind:"finance_business_bill",id:String(b.id)}} href={recordCanonicalHref(base,{kind:"finance_business_bill",id:String(b.id)})}>View billing plan</RecordLink>
@@ -670,9 +647,9 @@ export function FinanceBusinessContractControls({
                 {result.subtotal}, VAT {result.tax}
               </p>
               <p>Billing edition {Number(b.bill_edition??1)} {b.is_current===0?'· retained earlier edition':''} {b.parent_run_id&&<RecordLink record={{kind:'finance_business_bill',id:String(b.parent_run_id)}} href={recordCanonicalHref(base,{kind:'finance_business_bill',id:String(b.parent_run_id)})}>Previous billing edition</RecordLink>}{b.revision_reason&&<> · {String(b.revision_reason)}</>}</p>
-              {canWrite&&b.is_current!==0&&(!b.invoice_id||['draft','voided'].includes(String(b.invoice_status)))&&b.effective_contract_content_json&&<FinanceBillingRevision bill={b} accounts={data.accounts} busy={busy} onSave={input=>run(`business-bills/${b.id}/revisions`,input)}/>}
-              {canWrite&&b.is_current!==0&&['posted','partially_paid','paid'].includes(String(b.invoice_status))&&!(data.corrections??[]).some(c=>c.billing_run_id===b.id&&c.status!=='rejected')&&<FinanceBillingRevision bill={b} accounts={data.accounts} periods={data.periods} posted busy={busy} onSave={input=>run(`business-bills/${b.id}/corrections`,input)}/>}
-              {(data.corrections??[]).filter(c=>c.billing_run_id===b.id).map(c=><div key={String(c.id)}><h4>Credit {String(c.number)} · {String(c.status)}</h4><p>{String(c.entry_date)} · {String(c.reason)}</p><FinanceEvidenceDocuments base={base} row={c} targetType="finance_billing_correction" canWrite={canWrite}/>{c.credit_journal_id&&<RecordLink href={`${base}/finance/journals/${c.credit_journal_id}`}>Credit journal</RecordLink>}{c.replacement_bill_id&&<RecordLink record={{kind:"finance_business_bill",id:String(c.replacement_bill_id)}} href={recordCanonicalHref(base,{kind:"finance_business_bill",id:String(c.replacement_bill_id)})}>Replacement billing edition</RecordLink>}{Number(c.refund_minor)>0&&<RecordLink href={`${base}/finance/refunds/refund-${c.id}`}>Review refund</RecordLink>}{canApprove&&c.prepared_by!==userId&&c.status==='draft'&&decision('billing-corrections',c,['post','reject'])}</div>)}
+              {canWrite&&b.is_current!==0&&(!b.invoice_id||['draft','voided'].includes(String(b.invoice_status)))&&b.effective_contract_content_json&&<FinanceBillingRevision commandError={error} bill={b} accounts={data.accounts} busy={busy || !canSettle} onSave={input=>run(`business-bills/${b.id}/revisions`,input)}/>}
+              {canWrite&&b.is_current!==0&&['posted','partially_paid','paid'].includes(String(b.invoice_status))&&!(data.corrections??[]).some(c=>c.billing_run_id===b.id&&c.status!=='rejected')&&<FinanceBillingRevision commandError={error} bill={b} accounts={data.accounts} periods={data.periods} posted busy={busy || !canSettle} onSave={input=>run(`business-bills/${b.id}/corrections`,input)}/>}
+              {(data.corrections??[]).filter(c=>c.billing_run_id===b.id).map(c=><div key={String(c.id)}><h4>Credit {String(c.number)} · {String(c.status)}</h4><p>{String(c.entry_date)} · {String(c.reason)}</p><FinanceEvidenceDocuments base={base} row={c} targetType="finance_billing_correction" canWrite={canWrite}/>{c.credit_journal_id&&<RecordLink href={canonicalUiHref(`${base}/finance/journals/${c.credit_journal_id}`)}>Credit journal</RecordLink>}{c.replacement_bill_id&&<RecordLink record={{kind:"finance_business_bill",id:String(c.replacement_bill_id)}} href={recordCanonicalHref(base,{kind:"finance_business_bill",id:String(c.replacement_bill_id)})}>Replacement billing edition</RecordLink>}{Number(c.refund_minor)>0&&<RecordLink href={canonicalUiHref(`${base}/finance/refunds/refund-${c.id}`)}>Review refund</RecordLink>}{canApprove&&c.prepared_by!==userId&&c.status==='draft'&&decision('billing-corrections',c,['post','reject'])}</div>)}
               {!b.invoice_id && <><p>Reviewed usage evidence: {String((JSON.parse(String(b.input_json)) as {usageEvidence:string}).usageEvidence)}</p><FinanceEvidenceDocuments base={base} row={{...b,status:b.is_current===0?'superseded':b.no_charge_status}} targetType="finance_business_bill" canWrite={canWrite&&b.is_current!==0}/>{canApprove && b.created_by!==userId && b.no_charge_status==='draft' && b.is_current!==0 && decision("zero-usage-bills",b,["approve","reject"])}</>}
               <TableFrame appearance="standard" label="Recognition plan">
                 <Table>
@@ -710,7 +687,7 @@ export function FinanceBusinessContractControls({
                                 drawerTitle={`Recognize ${item.name}`}
                               >
                                 <summary>Prepare recognition</summary>
-                                <FormLayout
+                                <FormLayout data-finance-draft={draftScope}
                                   className="ui-form-grid"
                                   onSubmit={async (e) => {
                                     e.preventDefault();
@@ -766,7 +743,7 @@ export function FinanceBusinessContractControls({
                                     appearance="standard"
                                     clientManaged
                                     type="submit"
-                                    disabled={busy}
+                                    disabled={busy || !canSettle}
                                   >
                                     Prepare recognition
                                   </Button>
@@ -803,13 +780,13 @@ export function FinanceBusinessContractControls({
               · {String(r.reason)}
             </p>
             {r.journal_id && (
-              <RecordLink href={`${base}/finance/journals/${r.journal_id}`}>
+              <RecordLink href={canonicalUiHref(`${base}/finance/journals/${r.journal_id}`)}>
                 Posted journal
               </RecordLink>
             )}
             {r.reversal_journal_id && (
               <RecordLink
-                href={`${base}/finance/journals/${r.reversal_journal_id}`}
+                href={canonicalUiHref(`${base}/finance/journals/${r.reversal_journal_id}`)}
               >
                 Reversal journal
               </RecordLink>
@@ -827,7 +804,7 @@ export function FinanceBusinessContractControls({
                   drawerTitle="Reverse with retained evidence"
                 >
                   <summary>Reverse recognition</summary>
-                  <FormLayout
+                  <FormLayout data-finance-draft={draftScope}
                     className="ui-form-grid"
                     onSubmit={async (e) => {
                       e.preventDefault();
@@ -873,7 +850,7 @@ export function FinanceBusinessContractControls({
                       appearance="standard"
                       clientManaged
                       type="submit"
-                      disabled={busy}
+                      disabled={busy || !canSettle}
                     >
                       Reverse
                     </Button>

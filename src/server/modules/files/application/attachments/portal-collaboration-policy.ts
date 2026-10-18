@@ -35,6 +35,8 @@ export function createPortalAttachmentPolicy<Effect>(ports: {
         const row = await db.readPortalBinding({ external, values: external ? [actor.userId, actor.email.toLowerCase(), targetId, actor.companyId, now] : [targetId, actor.companyId, now] });
         if (!row)
             throw ports.error(404, "PORTAL_ATTACHMENT_TARGET_NOT_FOUND", "Customer evidence is unavailable.");
+        if (!external && (actor.branchId && actor.branchId !== row.branch_id || actor.departmentId && actor.departmentId !== row.department_id))
+            throw ports.error(404, "PORTAL_ATTACHMENT_TARGET_NOT_FOUND", "Customer evidence is unavailable in this selected work scope.");
         return {
             companyId: row.company_id,
             branchId: row.branch_id,

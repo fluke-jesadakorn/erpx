@@ -21,7 +21,10 @@ it('preserves populated canonical receipts, referencing evidence, cache revision
   const originalMetadata=await metadata();
   const revisions=async()=>(await db.pool.query('SELECT table_name,revision::text revision FROM work_cache_revisions ORDER BY table_name')).rows;
   const originalRevisions=await revisions();
-  await migrateDatabase(db,'holding-write');
+  // Isolate 1040: later IAM migrations intentionally change roles and cache revisions.
+  // Keep the exact pre/post cache assertion for the partition migration itself.
+  await cp('migrations/postgres/holding-write/1040_command_receipt_hash_partitions.sql',join(root,'holding-write','1040_command_receipt_hash_partitions.sql'));
+  await migrateDatabase(db,'holding-write',root);
   expect(await rows('command_receipts')).toEqual(facts);expect(await rows('command_receipts_before_partition')).toEqual(facts);
   expect(await foreignKeys()).toEqual(fks);expect(await metadata()).toEqual(originalMetadata);expect(await revisions()).toEqual(originalRevisions);
   expect((await db.pool.query("SELECT attacl::text acl FROM pg_attribute WHERE attrelid='command_receipts'::regclass AND attname='result_json'")).rows[0].acl).toContain('=w/');
@@ -33,7 +36,7 @@ it('preserves populated canonical receipts, referencing evidence, cache revision
   expect((await db.pool.query("SELECT count(*) n FROM pg_inherits WHERE inhparent='command_receipts'::regclass")).rows[0].n).toBe(32);
   expect((await db.pool.query("SELECT work_cache_tracks('command_receipts_before_partition') baseline,work_cache_tracks('command_receipts_partition_31') child")).rows[0]).toEqual({baseline:false,child:false});
   const receipts=(await db.pool.query('SELECT name,checksum FROM erpx_migrations ORDER BY name')).rows;
-  await migrateDatabase(db,'holding-write');expect((await db.pool.query('SELECT name,checksum FROM erpx_migrations ORDER BY name')).rows).toEqual(receipts);
+  await migrateDatabase(db,'holding-write',root);expect((await db.pool.query('SELECT name,checksum FROM erpx_migrations ORDER BY name')).rows).toEqual(receipts);
   expect(await rows('command_receipts')).toEqual(facts);expect(await revisions()).toEqual(originalRevisions);
  }finally{await rm(root,{recursive:true,force:true});}
 },90_000);

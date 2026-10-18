@@ -8,7 +8,7 @@ import { type ReactNode } from "react";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePmsWorkspaceContext} from "./pms-backoffice-workspace";
+import type {BackofficePmsWorkspaceRoomsHousekeepingScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
 
 
 const field = (

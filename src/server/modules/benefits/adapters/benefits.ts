@@ -12,15 +12,17 @@ import { prepareAttachmentBinding } from "@/server/modules/files/public/attachme
 import { prepareLearningBenefitConsumption, validateBenefitLearning } from "@/server/modules/learning/public/learning-eligibility";
 import { BusinessRuleError } from "../../shared";
 import { createBenefitsApplication, type BenefitsPorts, type BenefitMutation } from "../application/benefits";
-import type { BenefitRow, BenefitRecordKind } from "../domain/benefits";
+import {benefitElectionSchema,benefitTransitionSchema,type BenefitRow,type BenefitRecordKind} from "../domain/benefits";
+import {withBenefitPurchasedRead,withBenefitPurchasedCommand} from "./purchases";
+import {benefitPresentationContext} from "./presentation";
 export { createBenefitPlan } from "./plan";
 type LearningPrepared={guards:SqlStatement[];certificateId?:string;receipt?:SqlStatement};
 type EvidencePrepared=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
 const tables={plan:"benefit_plans",window:"benefit_enrollment_windows",dependent:"benefit_dependents",election:"benefit_elections"} as const;
 const events={plan:"benefit_plan_events",window:"benefit_window_events",dependent:"benefit_dependent_events",election:"benefit_election_events"} as const;
 function access(a:WorkContext,write=false){requirePermission(a,write?"records.write":"records.read");if(!hasModuleAccess(a.modules,"benefits"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Benefits.");}
-function application(a:WorkContext){
- let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);
+function application(a:WorkContext,provided?:SqlDatabase){
+ let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=holdingResources(a.holdingId).then(x=>x.write);
  const person=async()=>activeBenefitPerson(await database(),a.companyId,a.userId);
  const rows=async(sql:string,...bind:(string|number|boolean|null)[])=>((await database()).prepare(sql).bind(...bind).all<BenefitRow>()).then(x=>x.results);
  const ports:BenefitsPorts<LearningPrepared,EvidencePrepared>={
@@ -182,10 +184,10 @@ case "transition":{const i=m.input,kind=m.kind,table=tables[kind],eventTable=eve
  }
 }
 async function translated<Result>(action:()=>Promise<Result>):Promise<Result>{try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
-export function benefitsWorkspace(a:WorkContext,personal=false){return translated(()=>application(a).workspace(personal));}
-export function createBenefitWindow(a:WorkContext,raw:unknown,key:string){return translated(()=>application(a).createWindow(raw,key));}
-export function createBenefitDependent(a:WorkContext,raw:unknown,key:string){return translated(()=>application(a).createDependent(raw,key));}
-export function createBenefitElection(a:WorkContext,raw:unknown,key:string){return translated(()=>application(a).createElection(raw,key));}
-export function changeBenefitRecord(a:WorkContext,kind:BenefitRecordKind,id:string,raw:unknown,key:string){return translated(()=>application(a).change(kind,id,raw,key));}
-export function benefitDetail(a:WorkContext,id:string){return translated(()=>application(a).detail(id));}
-export function benefitWork(a:WorkContext){return translated(()=>application(a).work());}
+export function benefitsWorkspace(a:WorkContext,personal=false){return translated(()=>withBenefitPurchasedRead(a,async(database,live,purchase)=>({...await application(live,database).workspace(personal),workContext:benefitPresentationContext(live),...(purchase?{purchase}:{})})));}
+export function createBenefitWindow(a:WorkContext,raw:unknown,key:string){return translated(()=>withBenefitPurchasedCommand(a,{key,operation:"benefits.window.create",target:{kind:"window",id:`benefit-window-${key}`},purpose:"new-work",review:true},database=>application(a,database).createWindow(raw,key)));}
+export function createBenefitDependent(a:WorkContext,raw:unknown,key:string){return translated(()=>withBenefitPurchasedCommand(a,{key,operation:"benefits.dependent.create",target:{kind:"dependent",id:`benefit-dependent-${key}`},purpose:"new-work",employee:true},database=>application(a,database).createDependent(raw,key)));}
+export function createBenefitElection(a:WorkContext,raw:unknown,key:string){return translated(()=>{const input=benefitElectionSchema.parse(raw);return withBenefitPurchasedCommand(a,{key,operation:"benefits.election.create",target:{kind:"election",id:`benefit-election-${key}`},purpose:"new-work",employee:true,references:{planId:input.planId,windowId:input.windowId,dependentIds:input.dependentIds}},database=>application(a,database).createElection(input,key));});}
+export function changeBenefitRecord(a:WorkContext,kind:BenefitRecordKind,id:string,raw:unknown,key:string){return translated(()=>{const input=benefitTransitionSchema.parse(raw);return withBenefitPurchasedCommand(a,{key,operation:`benefits.${kind}.${input.action}`,target:{kind,id},purpose:["publish","open"].includes(input.action)?"new-work":"settle-existing",existing:true,review:kind!=="election"||input.action!=="submit"},database=>application(a,database).change(kind,id,input,key));});}
+export function benefitDetail(a:WorkContext,id:string){return translated(()=>withBenefitPurchasedRead(a,async(database,live,purchase)=>({...await application(live,database).detail(id),canWrite:hasPermission(live,"records.write"),workContext:benefitPresentationContext(live),...(purchase?{purchase}:{})})));}
+export function benefitWork(a:WorkContext){return translated(()=>withBenefitPurchasedRead(a,async(database,live,purchase)=>(await application(live,database).work()).map(item=>purchase&&!purchase.settleExisting?{...item,canAct:false,queue:"waiting" as const,relationships:item.relationships?.filter(value=>value!=="approval")}:item),()=>[]));}

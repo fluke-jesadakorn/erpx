@@ -128,3 +128,50 @@ describe('Workplace and Platform File Sources owner intake',()=>{
   expect(await listAttachmentSets(db,foreignActor,{targetType:'legal_item',targetId:owner.id})).toEqual([]);await expect(attachmentContent(db,env.H001_FILES,foreignActor,linkId,'original')).rejects.toMatchObject({status:404});await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),actor.assignmentId).run();await expect(attachmentContent(db,env.H001_FILES,actor,linkId,'original')).rejects.toMatchObject({status:404});await expect(listAttachmentSets(db,actor,{targetType:'legal_item',targetId:owner.id})).rejects.toMatchObject({status:404});expect(await attachmentBindingState(db,setId)).toMatchObject({set_state:'bound',link_state:'bound',bound_command_id:command});
  });
 });
+
+const foundationTargets=['organization_node','organization_change','iam_review','iam_migration','company_release_acceptance','company_provisioning'] as const;
+async function foundationPrivateEvidence(target:typeof foundationTargets[number]){
+ const tuple=tuples.find(row=>row.targetType===target&&(row.componentKind==='record'||target==='organization_change'))!;
+ const owner=await workplaceAttachmentOwner(tuple),actor=owner.actor;
+ // These are Company foundation records. A valid original Company assignment
+ // with no product modules or purchases still retains its own evidence.
+ await db.prepare("UPDATE assignments SET modules_json='[]' WHERE id=?").bind(actor.assignmentId).run();actor.modules=[];actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role,actor.authority?.sessionId);
+ const set=await createAttachmentSet(db,actor,{targetType:target,targetId:owner.targetId,purposeKey:tuple.purposeKey,componentKind:tuple.componentKind,componentRef:owner.componentRef??undefined,expectedTargetVersion:owner.version},key()),reserved=await reserveAttachmentFile(db,actor,set.id,{filename:'sanitized-foundation-evidence.png',mediaType:'image/png',bytes:png.byteLength,caption:'Reviewed synthetic Company foundation artifact.'},key()),uploaded=await completeAttachmentUpload(db,env.H001_FILES,actor,reserved.uploadIntentId,Uint8Array.from(png).buffer);
+ await drainAttachmentScans(db,env.H001_FILES,uploaded.sourceId);
+ if(requiresSanitizedEvidenceAttestation(target))await attestAttachmentSetSanitized(db,actor,set.id,{confirmed:true,note:'Reviewed actual synthetic artifact: no secrets, credentials, private keys or configuration/database dumps.'},key());
+ const command=key(),bind=async(transaction:import('../../../src/server/modules/runtime/public/runtime/types').SqlDatabase)=>{
+  if(target==='organization_change'){const {decideOrganizationNodeChange}=await import('../../../src/server/modules/organization/public/organization');return decideOrganizationNodeChange(transaction,actor,owner.targetId,{expectedVersion:owner.version,decision:'approve',reason:'Independent original Company review of the synthetic branch',attachmentSetIds:[set.id]},command);}
+  return bindRecordAttachmentSet(transaction,actor,set.id,owner.version,command);
+ };
+ return {owner,actor,target,tuple,set,reserved,sourceId:uploaded.sourceId,linkId:reserved.attachmentLinkId,bind};
+}
+for(const target of foundationTargets){
+ it(`fresh foundation private bytes preserve ${target} Company authority without products and reject late native source or IAM changes`,async()=>{
+  const file=await foundationPrivateEvidence(target),{owner,actor}=file;await file.bind(db);await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(file.sourceId).run();
+  const identity=owner.idColumn??'id',nativeBefore=await db.prepare(`SELECT * FROM ${owner.table} WHERE ${identity}=?`).bind(owner.targetId).first(),objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key'));let consumed=0;
+  const files:import('../../../src/server/modules/runtime/public/runtime/types').FileStore={get:async(...args)=>{const object=await env.H001_FILES.get(...args);return object?{...object,arrayBuffer:async()=>{consumed++;return object.arrayBuffer();}}:null;},put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args)};
+  const code=target.startsWith('organization_')?'ORGANIZATION_FILE_READ_CHANGED':target.startsWith('iam_')?'IAM_FILE_READ_CHANGED':target==='company_release_acceptance'?'COMPANY_RELEASE_FILE_READ_CHANGED':'COMPANY_PROVISIONING_FILE_READ_CHANGED',transactionCode=code.replace('_CHANGED','_TRANSACTION_REQUIRED');
+  try{
+   for(const mode of ['disabled','enforced']){
+    for(const flag of ['ERPX_WORK_PACKAGE_ENFORCEMENT','ERPX_PEOPLE_PACKAGE_ENFORCEMENT','ERPX_FINANCE_PACKAGE_ENFORCEMENT'])vi.stubEnv(flag,mode);
+    expect(Buffer.from(await(await attachmentContent(db,files,actor,file.linkId,'original')).object.arrayBuffer())).toEqual(png);
+    await expect(db.transaction(transaction=>attachmentContent(transaction,files,actor,file.linkId,'original'))).rejects.toMatchObject({code:transactionCode});
+    for(const fault of ['native','iam'] as const){
+     const trigger=`foundation_byte_${key().replaceAll('-','')}`,effect=fault==='iam'?`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${actor.assignmentId}'`:target==='iam_migration'?`UPDATE iam_connections SET name=name||' late mutation' WHERE id=(SELECT connection_id FROM iam_migrations WHERE id='${owner.targetId}')`:target==='company_release_acceptance'?`UPDATE company_release_revisions SET revision=revision+1 WHERE company_id='${actor.companyId}'`:`UPDATE ${owner.table} SET ${owner.versionColumn}=${owner.versionColumn}+1 WHERE ${identity}='${owner.targetId}'`;
+     const beforeAudits=Number(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='allowed'").bind(file.linkId).first('n'));
+     await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${trigger}()`);
+     try{await expect(attachmentContent(db,files,actor,file.linkId,'original')).rejects.toMatchObject({code});}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_access_events;DROP FUNCTION ${trigger}()`);}
+     expect(await db.prepare(`SELECT * FROM ${owner.table} WHERE ${identity}=?`).bind(owner.targetId).first()).toEqual(nativeBefore);expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(actor.assignmentId).first()).toEqual({revoked_at:null,version:1});expect(Number(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='allowed'").bind(file.linkId).first('n'))).toBe(beforeAudits);
+    }
+   }
+  }finally{vi.unstubAllEnvs();}
+  expect(consumed).toBe(6);expect(await db.prepare('SELECT count(*) n FROM company_package_grants WHERE company_id=?').bind(actor.companyId).first('n')).toBe(0);expect(actor.modules).toEqual([]);
+  await env.H001_FILES.delete(objectKey);await expect(attachmentContent(db,files,actor,file.linkId,'original')).rejects.toMatchObject({status:503,code:'FILE_UNAVAILABLE'});expect(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='denied' AND reason='FILE_UNAVAILABLE'").bind(file.linkId).first('n')).toBe(1);await env.H001_FILES.put(objectKey,png,{httpMetadata:{contentType:'image/png'}});
+  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(actor.assignmentId).run();await expect(attachmentContent(db,files,actor,file.linkId,'original')).rejects.toMatchObject({status:404,code:'ATTACHMENT_TARGET_NOT_FOUND'});expect(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='denied' AND reason='ATTACHMENT_TARGET_NOT_FOUND'").bind(file.linkId).first('n')).toBe(1);expect(consumed).toBe(6);expect(await db.prepare('SELECT legal_hold,revoked_at FROM attachments WHERE id=?').bind(file.sourceId).first()).toEqual({legal_hold:1,revoked_at:null});expect(Buffer.from(await(await env.H001_FILES.get(objectKey))!.arrayBuffer())).toEqual(png);
+ });
+ it(`fresh foundation private bytes see actual disabled ${target} native File binding before the first source snapshot`,async()=>{
+  const file=await foundationPrivateEvidence(target),{owner,actor}=file,{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),trigger=`foundation_snapshot_${key().replaceAll('-','')}`;
+  await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF(SELECT ${owner.versionColumn} FROM ${owner.table} WHERE ${owner.idColumn??'id'}='${owner.targetId}')<>${owner.version+1} THEN RAISE EXCEPTION 'FOUNDATION_FILE_STALE_FIRST_SNAPSHOT';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${trigger}()`);
+  try{const observed=await measureReads(()=>committedSourceVisibility(db,transaction=>file.bind(transaction),()=>attachmentContent(db,env.H001_FILES,actor,file.linkId,'original')));expect(Buffer.from(await observed.result.object.arrayBuffer())).toEqual(png);expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_access_events;DROP FUNCTION ${trigger}()`);}
+ });
+}

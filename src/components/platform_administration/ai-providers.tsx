@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
@@ -19,7 +20,7 @@ import {
 } from "lucide-react";
 import styles from "@/components/platform_administration/ai-providers.module.css";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { Dialog } from "@/components/ui/dialog";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import type { AiConnectionView, AiProviderOverview } from "@/server/modules/agent/public/ai-providers";
@@ -424,7 +425,7 @@ export function AiProviders({
               ))
             )}
             {canBilling && (
-              <Link className={styles.billingLink} href={`${base}/settings?section=usage`}>
+              <Link className={styles.billingLink} href={canonicalUiHref(`${base}/settings?section=usage`)}>
                 Usage & billing <ArrowUpRight size={15} />
               </Link>
             )}

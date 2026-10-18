@@ -1,0 +1,13 @@
+import {z} from 'zod';
+import {profileSchema,reviewSchema} from './accounting';
+const contextKey=z.string().regex(/^[a-f0-9]{64}$/);
+export const manufacturingPostingProfileSchema=z.object({contextKey,input:profileSchema.strict()}).strict();
+export const manufacturingPostingProfileDecisionSchema=z.object({contextKey,input:reviewSchema.strict()}).strict();
+export type ManufacturingPostingProfileInput=z.infer<typeof manufacturingPostingProfileSchema>;
+export type ManufacturingPostingProfileDecisionInput=z.infer<typeof manufacturingPostingProfileDecisionSchema>;
+export type ManufacturingPostingProfilesView={companyId:string;available:boolean;contextKey:string|null;canPrepare:boolean;unsupportedExistingMapping:boolean;currency:'THB'|null;chartId:string|null;
+ charts:{id:string;name:string;baseCurrency:string}[];
+ accounts:{id:string;chartId:string;code:string;name:string;category:string;currency:string;controlKind:string;status:string}[];
+ profiles:{id:string;status:'draft'|'approved'|'rejected'|'retired';version:number;chartId:string;currency:string;inventoryAccountId:string;wipAccountId:string;laborAccountId:string;overheadAccountId:string;scrapAccountId:string;canApprove:boolean;canReject:boolean;canRetire:boolean}[];
+ unavailableReason:'authority-required'|'purchase-required'|'posting-mapping-required'|'unsupported-existing-mapping'|null;
+};

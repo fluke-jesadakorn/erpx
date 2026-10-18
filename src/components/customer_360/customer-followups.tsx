@@ -1,59 +1,22 @@
 "use client";
-import { InlineNotice } from "@/components/ui/foundation";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import {CRMCommandFeedback,CRMCommandState,CRMDraftBoundary,CRMForm,useCRMSnapshot} from "@/components/crm/draft-boundary";
+import {useCRMCommand} from "@/components/crm/use-crm-command";
+import type {FollowupPurchaseControls} from "@/lib/sales/followup-purchases";
+import { useRouter } from "@/lib/shared/destination-router";
 import { hubResultHref } from "@/lib/shared/hub-result";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { Row } from "@/server/modules/commerce/public/commerce";
 import type { customerFollowupDetail } from "@/server/modules/sales/public/customer-followups";
-import { Card, FormLayout } from "@/components/ui/foundation";
-export function CustomerFollowupForm({
-  base,
-  order,
-  recipients,
-  detail,
-}: {
-  base: string;
-  order?: Row | null;
-  recipients: { id: string; name: string }[];
-  detail?: Awaited<ReturnType<typeof customerFollowupDetail>>;
-}) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    last = useRef<{ fingerprint: string; key: string } | null>(null);
-  async function send(input: unknown) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const fingerprint = JSON.stringify(input);
-    if (last.current?.fingerprint !== fingerprint)
-      last.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const r = await workFetch(`/api/v1${base}/customer-followups`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body: JSON.stringify(input),
-        }),
-        result = await r.json();
-      if (!r.ok) {
-        if (r.status < 500) last.current = null;
-        throw new Error(result.error?.message ?? "Unable to save follow-up.");
-      }
-      last.current = null;
-      window.dispatchEvent(new Event("erpx:hub-saved"));
-      window.dispatchEvent(new Event("erpx:record-saved"));
-      router.push(hubResultHref(window.location.href, base, `${base}/customer-followups/${result.data.id}`) ?? `${base}/customer-followups/${result.data.id}`, { scroll: false });
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry this command.");
-    } finally {
-      setBusy(false);
-    }
-  }
+import { Card } from "@/components/ui/foundation";
+type FollowupProps={base:string;order?:Row|null;recipients:{id:string;name:string}[];detail?:Awaited<ReturnType<typeof customerFollowupDetail>>;purchase?:FollowupPurchaseControls;inlineCreate?:boolean};
+export function CustomerFollowupForm(props:FollowupProps){
+ const captured=useCRMSnapshot(props),{base,order,recipients,detail,inlineCreate}=captured.snapshot,router=useRouter(),purchase=props.purchase??props.detail?.purchase;
+ const allowed=(input:unknown)=>{if(!input||typeof input!=='object')return false;const value=input as {id?:unknown;action?:unknown};return value.id?(!purchase||purchase.settleExisting)&&(value.action==='complete'?!!props.detail?.canComplete:value.action==='reassign'?!!props.detail?.canManage:value.action==='cancel'?!!props.detail?.canComplete||!!props.detail?.canManage:false):(!purchase||purchase.newWork);};
+ const command=useCRMCommand(base,'customer-followups',allowed,receipt=>{const destination=canonicalUiHref(`${base}/customer-followups/${receipt.id}`);router.push(hubResultHref(window.location.href,base,destination)??destination,{scroll:false});}),{send,busy}=command;
+ const version=props.detail?.row.version??props.order?.version;
   const owners = (
     <Field appearance="standard">
       Responsible colleague
@@ -68,13 +31,13 @@ export function CustomerFollowupForm({
     </Field>
   );
   return (
-    <>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+    <CRMDraftBoundary><div {...captured.rootProps}><CRMCommandState {...command}><CRMCommandFeedback/>
       {order && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Schedule customer follow-up</h2>
-          <FormLayout
+          <CRMForm inline={inlineCreate} allowed={!purchase||purchase.newWork} editorTitle="Schedule customer follow-up"
             className="ui-form-grid"
+            sourceVersion={typeof version==='number'||typeof version==='string'?version:undefined}
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
@@ -99,7 +62,7 @@ export function CustomerFollowupForm({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !recipients.length}>
               Assign follow-up
             </Button>
-          </FormLayout>
+          </CRMForm>
           {!recipients.length && (
             <p>
               No eligible sales colleague. Ask the Company administrator to restore role coverage.
@@ -113,8 +76,9 @@ export function CustomerFollowupForm({
           <p>
             This records what you did; it does not send an email or change the customer’s order.
           </p>
-          <FormLayout
+          <CRMForm allowed={(!purchase||purchase.settleExisting)&&!!props.detail?.canComplete} editorTitle="Record contact outcome"
             className="ui-form-grid"
+            sourceVersion={typeof version==='number'||typeof version==='string'?version:undefined}
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
@@ -140,14 +104,15 @@ export function CustomerFollowupForm({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Record outcome
             </Button>
-          </FormLayout>
+          </CRMForm>
         </Card>
       )}
       {detail?.canManage && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Manage responsibility</h2>
-          <FormLayout
+          <CRMForm allowed={(!purchase||purchase.settleExisting)&&!!props.detail?.canManage} editorTitle="Manage responsibility"
             className="ui-form-grid"
+            sourceVersion={typeof version==='number'||typeof version==='string'?version:undefined}
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
@@ -178,9 +143,10 @@ export function CustomerFollowupForm({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Record management decision
             </Button>
-          </FormLayout>
-          <FormLayout
+          </CRMForm>
+          <CRMForm allowed={(!purchase||purchase.settleExisting)&&!!props.detail?.canManage} editorTitle="Cancel customer follow-up"
             className="ui-form-grid"
+            sourceVersion={typeof version==='number'||typeof version==='string'?version:undefined}
             onSubmit={(e) => {
               e.preventDefault();
               void send({
@@ -198,9 +164,9 @@ export function CustomerFollowupForm({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Cancel this follow-up
             </Button>
-          </FormLayout>
+          </CRMForm>
         </Card>
       )}
-    </>
+    </CRMCommandState></div></CRMDraftBoundary>
   );
 }

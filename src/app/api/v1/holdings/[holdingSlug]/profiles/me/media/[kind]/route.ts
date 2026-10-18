@@ -1,9 +1,10 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {requireWorkContext} from '@/server/modules/identity_access/public/authorization';
 import {requestPublicOrigin} from '@/server/modules/manage_erpx/public/public-origin';
 import {ApiError, errorResponse} from '@/server/modules/runtime/public/http';
 import {readBoundedUploadBody} from '@/server/modules/files/public/attachments/upload';
 import {uploadMemberProfileMedia, removeMemberProfileMedia} from '@/server/modules/organization/public/profile-media-command';
-const response = (data: unknown) => Response.json({data}, {headers: {'Cache-Control': 'private, no-store'}});
+const response = (data: unknown) => Response.json(canonicalDestinationLinks({data}), {headers: {'Cache-Control': 'private, no-store'}});
 export async function POST(request: Request, context: RouteContext<'/api/v1/holdings/[holdingSlug]/profiles/me/media/[kind]'>) {
   try {
     const origin = request.headers.get('origin');

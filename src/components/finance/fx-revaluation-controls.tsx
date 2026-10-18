@@ -1,10 +1,11 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import { FormLayout, FormGrid, Stack, Card } from "@/components/ui/foundation";
 
@@ -12,7 +13,7 @@ type Row = Record<string, string | number | null>;
 type Workspace = { period: Row; currencies: Row[]; accounts: Row[]; runs: Row[] };
 
 function apiBase(base: string) {
-  return base.replace("/holdings/", "/api/v1/holdings/");
+  return base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/");
 }
 
 function ErrorMessage({ message }: { message: string }) {

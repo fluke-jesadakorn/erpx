@@ -8,6 +8,8 @@ type Tail<A extends unknown[]> = A extends [
     ...infer Rest
 ] ? Rest : never;
 export interface StaffNotificationPorts {
+    handbookNotificationTarget(actor:WorkContext,id:string):Promise<{href:string;version:number}>;
+    financeNotificationTarget(actor:WorkContext,kind:"invoice"|"journal",id:string):Promise<{href:string;version:number}>;
     repository: {
         notificationRows(companyId: string, userId: string): Promise<{
             results: Omit<StaffNotification, "href">[];
@@ -85,6 +87,13 @@ export function createStaffNotificationApplication(ports: StaffNotificationPorts
         const visible: StaffNotification[] = [];
         for (const row of rows) {
             try {
+                if(row.record_type==='handbook'||row.record_type==='handbook_article'){
+                    const target=await ports.handbookNotificationTarget(actor,row.record_id);visible.push({...row,href:target.href,source:{kind:'handbook_article',id:row.record_id,version:target.version,href:target.href,label:sourceRecordLabel('handbook_article')}});continue;
+                }
+                if(row.record_type==="invoice"||row.record_type==="journal"){
+                    const target=await ports.financeNotificationTarget(actor,row.record_type,row.record_id);
+                    visible.push({...row,href:target.href,source:{kind:row.record_type,id:row.record_id,version:target.version,href:target.href,label:sourceRecordLabel(row.record_type)}});continue;
+                }
                 if (row.record_type === "organization_change") {
                     const href = await ports.organizationChangeNotificationTarget(actor, row.record_id);
                     if (href)

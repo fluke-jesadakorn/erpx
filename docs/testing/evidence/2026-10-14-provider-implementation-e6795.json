@@ -1,0 +1,85 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment."
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it."
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Read-only per-Company comparison, signed five-minute review, expected Company/member versions, fresh MFA, same normal Commercial transaction and immutable per-grant/batch/review audit; stale policy and replay guards implemented."
+    },
+    {
+      "implementation": [
+        "src/components/workplace/product-navigation-boundary.tsx",
+        "src/lib/work_projection/context-switch.ts"
+      ],
+      "behavior": "Standard bilingual product navigation confirmation preserves Company, fields, filter, reviewed checkbox and comparison on Keep editing/Escape; explicit discard navigates without a duplicate native prompt. Browser exercises fifteen width/theme states and fifteen Company previews; no live Apply."
+    }
+  ],
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "limits": [
+    "No live Company grants applied or enforcement activated",
+    "Browser Apply/MFA completion and whole product/owner acceptance remain required",
+    "Full PostgreSQL lane is running; this is implementation-only evidence, not its result"
+  ],
+  "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266",
+  "createdAt": "2026-10-14T16:05:39.700722+00:00",
+  "release": {
+    "id": "2026-10-14T16-00-51-662Z",
+    "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db"
+  },
+  "previousImplementation": "docs/testing/evidence/2026-10-14-provider-implementation-dfaba.json",
+  "artifacts": [
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/provider-verification.json",
+      "sha256": "3cb95be342a95b97c58d5ef84aef93f3042ae17c2e451e960fdf11f24e3178e5"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dirty-actions.json",
+      "sha256": "c9dc83f99219edd9578e1193ef0eb691133ba2d1a00f933e21bcb0e3861fc476"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/observations.json",
+      "sha256": "a51a7ffcc74b00878c66d9e2f97f50593bb76495174183a72acdb5a02441e933"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/company-previews.json",
+      "sha256": "ada98fcf6e321b358349327a7f8ca9eabec3afbfd3b3176639d143c6192b50c8"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/grant-counts.json",
+      "sha256": "8964c2a5aa17bef55311f3fa94d9fef2ff91dd21c96b808ba61a7e4a5d0ebcdf"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/ui-guard.log",
+      "sha256": "0e2a394e92476c4c793c2527b757d13d06311a0339d9f2a92a526e30c89516aa"
+    }
+  ]
+}

@@ -12,7 +12,7 @@ import dynamic from "next/dynamic";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {FrontPmsDailyContext} from "./pms-front-workspace";
+import type {FrontPmsDailyContext} from "./standard-pms-front-workspace";
 
 
 const PmsOperationsCalendar = dynamic(() => import("./operations-calendar").then(module => module.PmsOperationsCalendar));

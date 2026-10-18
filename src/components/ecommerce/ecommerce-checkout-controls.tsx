@@ -1,59 +1,28 @@
 "use client";
-import { InlineNotice } from "@/components/ui/foundation";
+import {CRMForm as FormLayout,CRMCommandState,CRMCommandFeedback,CRMDraftBoundary,useCRMSnapshot} from '@/components/crm/draft-boundary';
+import {useCRMCommand} from '@/components/crm/use-crm-command';
+import {ecommerceCommandAllowed} from '@/lib/ecommerce/purchase-controls';
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { ecommerceDetail } from "@/server/modules/ecommerce/public/ecommerce";
 import { Card } from "@/components/ui/foundation";
 
 export function EcommerceCheckoutControls({
   base,
-  data,
+  data:currentData,
 }: {
   base: string;
   data: Awaited<ReturnType<typeof ecommerceDetail>>;
 }) {
-  const router = useRouter(),
-    last = useRef<{ body: string; key: string } | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function send(input: unknown) {
-    const body = JSON.stringify(input);
-    if (last.current?.body !== body) last.current = { body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/ecommerce`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": last.current.key,
-        },
-        body,
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(result.error?.message ?? "Unable to update checkout.");
-      }
-      last.current = null;
-      router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Retry this action.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const {snapshot:data,rootProps}=useCRMSnapshot(currentData),purchase=currentData.purchase,command=useCRMCommand(base,'ecommerce',input=>ecommerceCommandAllowed(purchase,input)),{send,busy}=command,sourceVersion=JSON.stringify([currentData.checkout.version,currentData.order.fulfillments.map(row=>[row.id,row.version])]);
   const checkout = data.checkout;
   return (
-    <Card as="section" appearance="standard" className="ui-panel ui-form-grid">
+    <CRMCommandState {...command}><CRMDraftBoundary><div {...rootProps}><Card as="section" appearance="standard" className="ui-panel ui-form-grid">
       <h2>Owner actions</h2>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <CRMCommandFeedback/>
       {checkout.status === "submitted" && (
-        <form
+        <FormLayout sourceVersion={sourceVersion} allowed={purchase?.newWork!==false&&purchase?.canReview!==false}
           onSubmit={(event) => {
             event.preventDefault();
             void send({
@@ -72,10 +41,10 @@ export function EcommerceCheckoutControls({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Approve order and reserve stock
           </Button>
-        </form>
+        </FormLayout>
       )}
-      {checkout.status !== "submitted" && (
-        <form
+      {(checkout.status !== "submitted"||purchase?.newWork===false) && (
+        <FormLayout sourceVersion={sourceVersion} allowed={purchase?.settleExisting!==false}
           onSubmit={(event) => {
             event.preventDefault();
             void send({
@@ -94,13 +63,13 @@ export function EcommerceCheckoutControls({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Sync Sales fulfillment
           </Button>
-        </form>
+        </FormLayout>
       )}
       {data.order.fulfillments.flatMap((fulfillment) =>
         data.order.fulfillmentLines
           .filter((line) => line.fulfillment_id === fulfillment.id)
           .map((line) => (
-            <form
+            <FormLayout sourceVersion={sourceVersion} allowed={purchase?.settleExisting!==false}
               key={String(line.id)}
               onSubmit={(event) => {
                 event.preventDefault();
@@ -143,9 +112,9 @@ export function EcommerceCheckoutControls({
               <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                 Request return
               </Button>
-            </form>
+            </FormLayout>
           )),
       )}
-    </Card>
+    </Card></div></CRMDraftBoundary></CRMCommandState>
   );
 }

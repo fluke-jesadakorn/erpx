@@ -43,6 +43,7 @@ export const actionSchema = z.object({
     "approve-order",
     "sync-fulfillment",
     "request-return",
+    "abandon",
   ]),
   expectedVersion: version,
   reason,
@@ -60,7 +61,7 @@ export type CartInput = z.infer<typeof cartSchema>;
 export type CartLineInput = z.infer<typeof lineSchema>;
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export type EcommerceAction = z.infer<typeof actionSchema>;
-export type EcommerceRecordKind = "channel" | "listing" | "checkout";
+export type EcommerceRecordKind = "channel" | "listing" | "checkout" | "cart";
 
 export function cartLineCurrent(cart: Record<string, unknown>, listing: Record<string, unknown>, input: CartLineInput) {
  return cart.status === "open" && Number(cart.version) === input.expectedVersion && listing.status === "published" && listing.channel_status === "active" && Number(listing.version) === input.listingVersion && cart.channel_id === listing.channel_id && cart.currency === listing.currency;

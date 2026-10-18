@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -15,7 +16,7 @@ export async function GET(_request: Request, context: Context) {
   try {
     const actor = await requireWorkContext((await context.params).holdingSlug);
     return Response.json(
-      { data: await supplierInvoicePolicy(actor) },
+      canonicalDestinationLinks({ data: await supplierInvoicePolicy(actor) }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
@@ -33,7 +34,7 @@ export async function POST(request: Request, context: Context) {
       throw new ApiError(422, "COMMAND_KEY_REQUIRED", "Idempotency-Key is required.");
     const actor = await requireWorkContext((await context.params).holdingSlug);
     const input = supplierInvoicePolicySchema.parse(await request.json());
-    return Response.json({ data: await saveSupplierInvoicePolicy(actor, input, key) });
+    return Response.json(canonicalDestinationLinks({ data: await saveSupplierInvoicePolicy(actor, input, key) }));
   } catch (error) {
     if (error instanceof z.ZodError)
       return errorResponse(new ApiError(422, "VALIDATION_FAILED", error.issues[0]?.message ?? "Invalid input."));

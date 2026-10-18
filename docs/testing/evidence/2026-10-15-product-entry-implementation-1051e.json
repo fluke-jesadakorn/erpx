@@ -1,0 +1,240 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "1051e2968b2391cb48fb73fbfad70aa69db4c09d9c3fc35c5c3f9bb94b709f2e",
+  "verificationFingerprint": "dca13b5a8cd49118f7e0c2c0141923cda830c585969728f4efaa3be3c801b172",
+  "createdAt": "2026-10-14T17:32:04.851584+00:00",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit",
+    "apps:all-company-branch-department-product-selection"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment."
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it."
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Read-only per-Company comparison, signed five-minute review, expected Company/member versions, fresh MFA, same normal Commercial transaction and immutable per-grant/batch/review audit; stale policy and replay guards implemented."
+    },
+    {
+      "workflow": "apps:all-company-branch-department-product-selection",
+      "implementation": [
+        "src/server/modules/work_projection/application/product-launcher.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/app/choose-work-role/page.tsx"
+      ],
+      "behavior": "Enumerates all Company/Branch/Department choices, checks each applicable role independently using purchased entry capabilities/release/owner menu predicates, preserves the live selection and uses explicit versioned same-origin role selection. Assignment rows and original Module IDs remain unchanged. Positive installed-Company acceptance remains open."
+    }
+  ],
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "release": {
+    "id": "2026-10-14T17-19-37-877Z",
+    "sourceFingerprint": "1051e2968b2391cb48fb73fbfad70aa69db4c09d9c3fc35c5c3f9bb94b709f2e"
+  },
+  "previousImplementation": "docs/testing/evidence/2026-10-14-provider-implementation-e6795.json",
+  "limits": [
+    "Implementation-only; no workflow verification or activation accepted",
+    "Company grants remain zero; no Apply/enforcement, staging, production deployment, prices or live collection changed",
+    "Temporal legacy-source eligibility and concrete owner obligation/enforcement adapters remain required before cutover",
+    "Positive installed-Company entry, all owner/public workflows, global UI guard, compiled performance and whole-workflow recovery remain open",
+    "Full PostgreSQL lane is running; its result is not claimed",
+    "Truncated long network intervals and invalid viewport-target captures are excluded from passing browser observations"
+  ],
+  "artifacts": [
+    {
+      "path": ".scratch/dev/product-entry-identity-current/verification.json",
+      "sha256": "3b807a34901a9a467fbab4d61569c3400e816bf7436d24b95616210fd912d675"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/account-identity-red.log",
+      "sha256": "f6f3b21f6a1e4a047a00d5719620914ef61885f6ad8eaa30c4ffcd453143ed1a"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/merge.json",
+      "sha256": "2ddcea53e80de49d36a2e6ec1b3c87c2d14cf80fb6d3c4ba1736327a58d30b97"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/current-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/current-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/current-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/current-catalogue.log",
+      "sha256": "ba72d778e91119958f8815fd0a960fa8953076db08512d8f073689f1ffbe3374"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/current-documentation.log",
+      "sha256": "c288f9ae56b9ca4759a6a8ffba73a76eee0e0c3e3d296505c2ec0ec6e254200b"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/current-products.log",
+      "sha256": "dccdd861f3d91d35282eb0a5b965e04d97d1023ebaed3dad13d83455ab5df5fa"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/current-unit.log",
+      "sha256": "12b83a7366d90db2f79808bc4ac0693a1bf9914be941ee02f130be18b03399a1"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/current-focused-postgres.log",
+      "sha256": "031822f693925102c51c5c2372852f921f058e168ab39439eb49491f0a9ae243"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/current-build.log",
+      "sha256": "298c6e39d77b1af6d410c56ce7969169ed810c8551f6c598d637bd9894951ca3"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-observations.json",
+      "sha256": "9769cae719995fb5d68abb0b02328dda2082b92b13da10557ac3aa81d91caa29"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-network-navigation.json",
+      "sha256": "c1ff0fc782c27965abf7e20d5348c37a963d6b8b5edf38d5d617c6579f9dbbbd"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-server-content.json",
+      "sha256": "c6cdff3426e04ad033fd56b7b265ad9ee158e9822f1bd5621648bbf9046a1acf"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-network.json",
+      "sha256": "8e13ec2a3666969c13a5d6a61ee8ab1bb087840e3c463756b039b02404088099"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/invalid-viewport-observations.json",
+      "sha256": "5b31a2f5a0dee1468e177efa11b7b8a9f7765f03abba20e9e5c2e67788edc6f0"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/admin-hydration.json",
+      "sha256": "1f98b6dd0b2ca65a4f50a2357dde1e2bdbebe8794fbc76949c9fffa296410d8c"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/admin-server-content.json",
+      "sha256": "f2b5aa285c9aa4ccdbe32e557f147173675470d451e4909f157f1f4d2f98a396"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/dirty-actions.json",
+      "sha256": "e07a074c84c07f94c9f5080cfd99e1a62c88a9f46f7451abe60f44b12e4f5d02"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/console-home.json",
+      "sha256": "1b1274792cf359396321178b580ca16ef074fd5779a3fa93bb2d662d8b7c92f6"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/console-home.jpg",
+      "sha256": "aa0acd07eeac431885d4328300552643d8ad65cfd7731b33040ffa7519591a42"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/grant-counts.json",
+      "sha256": "073a12a369ab5da37862ae603b31236191fd03cadd48b184e2ff476ae0a53bfa"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/ui-guard.log",
+      "sha256": "a02bd93a555ac4ed35a6e3077e890b237e171996542758f592c404bd288c9769"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/transport/receipt.json",
+      "sha256": "0134e0dd80476621b42c1925059069536eadf1349c45f414acfd5f6ea867d6d3"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/availability.json",
+      "sha256": "f37ba0ed97b00fb4e210d00efbbaa633f91f1ba413384c41008b5272af23cd4d"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/full-postgres-start.json",
+      "sha256": "2f3ca2fb932ffec6f60ef0d4bc721ed8e9875eec7173c1ad13abd381d348e9d6"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/cancelled-first-coordinator/reason.json",
+      "sha256": "9d72c16b91bb5af94135d8e21d2c51b357652f725ce79d6e9c35f472015a2fbf"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-320-light.jpg",
+      "sha256": "f85b6cb6ac7a4dc694931b0045da64f04c9057d888cb35a4d871075de5c92d6a"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-390-light.jpg",
+      "sha256": "b16abc6c59f7ca47af25cb2b5789f2d69128792d23cccd366de41a8d6a0edd31"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-768-light.jpg",
+      "sha256": "b25bb7f4c1dc48d4e8c235456c4f350ef48883c959e22639df3516098fcfebad"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-1024-light.jpg",
+      "sha256": "322865f52c5620de50d1ea63ef2667969596e63629ebbc2855b7247b50556c47"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-1440-light.jpg",
+      "sha256": "a1730f9bdb282178f6087980d36e70e28b877e44527b457ffa74909a93d9b14e"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-320-dark.jpg",
+      "sha256": "829dd6c9edd567ec3c8e477b6bd71cb4be0fa88edee9eea7108739345b3f7da8"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-390-dark.jpg",
+      "sha256": "3c2a497528b7e4927f568648f8f8f36fbb9a9372b044a8483ba547e7cd1f5d6a"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-768-dark.jpg",
+      "sha256": "0ce479c26dd9227c28a24284bb5a78d81612dcec913c06f1544e17029b365f83"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-1024-dark.jpg",
+      "sha256": "8741f3eafa6317266e60011957438269bd8f27c5e8d61799c82f41cbd8171bb4"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-1440-dark.jpg",
+      "sha256": "9a7438d895de1a1b0dcdbc464a598a6adca0f07b0d3514eaa74b8adb2b71ff84"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-320-system.jpg",
+      "sha256": "829dd6c9edd567ec3c8e477b6bd71cb4be0fa88edee9eea7108739345b3f7da8"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-390-system.jpg",
+      "sha256": "57b1f4a4355fdf5e86d4ddd15340db8b08407be687d366756ade89b1482a5406"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-768-system.jpg",
+      "sha256": "a5f5b9114020a40daaae834f4b7f146e2a09a4a309d911a8e92288b1b723cc4b"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-1024-system.jpg",
+      "sha256": "8741f3eafa6317266e60011957438269bd8f27c5e8d61799c82f41cbd8171bb4"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/browser/entry-1440-system.jpg",
+      "sha256": "9a7438d895de1a1b0dcdbc464a598a6adca0f07b0d3514eaa74b8adb2b71ff84"
+    }
+  ]
+}

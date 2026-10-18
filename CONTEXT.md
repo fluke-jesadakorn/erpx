@@ -6,6 +6,14 @@ Business language for ERPX, independent of implementation. Current delivery scop
 
 **Stock Item**: A saleable item whose delivery changes inventory quantity and value. A Stock Item can share a sales document with a Service Item.
 
+**Physical Stock Count**: A dated, independently reviewed observation of the quantities physically held in a Company's warehouse. Differences from the recorded stock are Stock Count Variances.
+
+**Initial Physical Stock Count**: The first Physical Stock Count for warehouse items without earlier recorded stock movements. It does not establish an Opening Stock Balance.
+
+**Stock Count Variance**: The quantity and value difference recognized when a Physical Stock Count changes recorded stock. It belongs to the count's accounting period.
+
+**Opening Stock Balance**: Stock owned at the start of an accounting period whose quantity and carrying value belong to the reviewed opening books. It is distinct from a Stock Count Variance recognized during that period.
+
 **Service Item**: A saleable service whose completion makes its agreed quantity available for invoicing without an inventory movement.
 
 **Service Completion**: A dated confirmation that an agreed service quantity has been performed for a Sales Order.
@@ -125,6 +133,10 @@ Business language for ERPX, independent of implementation. Current delivery scop
 - **Post Audience** — The people or organizational scope a poster chooses for one publication; it is bounded by each linked Source Record's own access rules. _Avoid_: Inherited audience from the previous post.
 - **Feed** — The team conversations visible in the chosen context, ordered by recency or following. System milestones summarize linked work in their own context.
 - **Get Help** — An entry point to describe a problem, affected people, and work context, then confirm the responsible team and owning workflow.
+**Support Portal Binding**:
+An independently approved publication of one Support ticket's selected information to an explicitly identified external Account. Its response acknowledgement records receipt, while the ticket's resolution and closure remain the responsibility of Support.
+_Avoid_: Sales order access, ticket closure.
+
 - **Internal Service Request** — A colleague's request for help or equipment from a responsible internal team, with the requester confirming completion or reopening the matter.
 - **Workflow Guide** — Instructions and effective company policies used to carry out work. Reading a guide is distinct from completing a course.
 - **Learning Assignment** — A course or training activity assigned to a person, with its own participation, assessment, and completion evidence.
@@ -179,6 +191,11 @@ Business language for ERPX, independent of implementation. Current delivery scop
 - **Retirement Clearance** — The attributable HR, handover, asset, directory, Payroll, and Finance checks associated with a retirement case. Completing a check records a review; it does not approve an obligation, post a journal, or release a payment.
 - **Not Required** — A clearance result explaining why a particular check does not apply, recorded by its authorized owner.
 - **Active Staff** — Employees and contractors with one current active Engagement and an active linked account in the Company. Personal requests and assigned work belong to staff independently of their selected business role.
+
+**Worker Preparation**:
+Company HR's explicit preparation or linking of a Person's employment to an existing Account authorized for that Company so the person can participate in work requiring an active Engagement. The result is an employment reference, distinct from access authority or Project membership.
+_Avoid_: account provisioning, automatic membership.
+
 - **Staff Level** — A Company-wide classification of seniority with a code, name, and level number; smaller numbers mean greater seniority, starting with Level 1 for CEO. An Engagement has one current level and retains its level-change history; a level alone grants no application permissions or approval authority.
 - **Position** — A Company-defined job in an organizational unit, with a title, default Staff Level, expected reporting Position, and whether its occupants require a weekly Roster. It exists independently of its occupants and may be vacant or shared by multiple staff.
 - **Roster-required Position** — A Position whose active occupants must receive at least one assignment in each working week, except when approved leave covers every working day. This obligation is separate from Business Role and pay type.
@@ -273,6 +290,31 @@ Business language for ERPX, independent of implementation. Current delivery scop
 
 ## Commercial & platform
 
+**Product / ผลิตภัณฑ์**: An ERPX workspace organized around a person's daily work, such as Hotel, Finance or Learning. Several Products may use the same Module without changing that Module's ownership.
+_Avoid_: Module, Commercial Package when describing a workspace.
+
+**Commercial Package / แพ็กเกจ**: A versioned set of purchased capabilities, including the foundations needed to complete its supported workflows. A package does not confer a person's authority or certify a release.
+
+**Module / โมดูล**: The owner of a business process and its records, policies and transitions. A Module may support several Products or be shared without a separate Product.
+
+**Company Package Grant**: A time-bounded, evidenced entitlement of a Company to a specific version of a Commercial Package. Its lifecycle is active, draining and inactive.
+
+**Draining Package**: A package that accepts no new work while its existing obligations are settled under their owners' policies. Expiry does not erase history, outstanding liabilities or Legal holds.
+
+**Retained Package History Right**: A Company's continuing entitlement to read and export a capability's records after that package has taken effect. Renewal, expiry or inactivation preserves this entitlement under current personal authority and record policy; a future purchase that never takes effect creates no retained right.
+
+**Effective Capability**: A Company capability available for a stated purpose only while its package entitlement, release readiness, current actor authority and record policy all permit that purpose.
+
+**Package Obligation**: Unfinished work or a liability that its Module must settle before a Company's package can become inactive. Record history, retention and Legal holds keep their own authority after the package becomes inactive.
+
+**Legacy Grant Migration**: An evidenced transition from a Company's previously usable capabilities to Commercial Package Grants, preserving its role scopes, rollout decisions, record authority and historical obligations.
+
+**Company Package Change Set**: A reviewed group of package-grant changes for one Company, accepted as one Commercial decision. It does not change the roles assigned to that Company's users.
+
+**Product Session**: A login to one ERPX Product or shared workspace, descended from an Account Workspace login. Switching Products preserves the original authentication time and does not renew identity assurance.
+
+**Account Workspace / พื้นที่บัญชีผู้ใช้**: The ERPX area for a person's central sign-in, profile and eligible package information. It is distinct from the Company-owned CRM Account.
+
 - **Commercial Catalog Revision** — An effective-dated version of Hosted pricing. The historical Support catalog and target system-plus-usage catalog remain distinct so past periods keep their agreed terms.
 - **Entitlement** — Right to use a capability, allocation-booked.
 - **Billing Lifecycle** — Progress of an issued invoice and its payment, with Stripe as the authority for payment outcomes.
@@ -284,6 +326,15 @@ Business language for ERPX, independent of implementation. Current delivery scop
 - **Rated Charge** — An immutable result of applying one effective price revision to complete measured usage and verified costs. It is not an issued invoice.
 - **Cost Completeness** — An explicit confirmation that all known meters, provider costs, statement reconciliations, and approved extras for a Service Period were reviewed; absence of records does not imply completeness.
 - **Sandbox Finance Ledger** — The isolated test Company ledger in ERPX Holding that mirrors confirmed Stripe Sandbox receivables, revenue, receipts, and reversals without entering real Company reports.
+
+## Field service
+
+**Service Agreement**: Independently approved terms for a customer’s on-site visits and their charges over a coverage period.
+
+**Field Service Intake**: A customer’s request for an on-site visit under an active Service Agreement. Its case and visit remain linked through cancellation, customer confirmation and independent billing review.
+
+**Service No-Charge Confirmation**: An independent Finance decision that a completed, fully warranted Service visit has no customer amount to collect, while retaining its billing handoff and financial history.
+_Avoid_: Payment, invoice cancellation, debt forgiveness.
 
 ## Projects, routines & compliance
 

@@ -6,7 +6,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { agentWorkspace } from "@/server/modules/agent/public/agent-governance";
 import { FormLayout, Card } from "@/components/ui/foundation";

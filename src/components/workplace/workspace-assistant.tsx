@@ -18,7 +18,7 @@ export function WorkspaceAssistant(props: Omit<ComponentProps<typeof Content>, "
     return () => window.removeEventListener("erpx:open-assistant", open);
   }, []);
   return intent ? <Suspense fallback={<p role="status">Opening work assistant…</p>}><Content {...props} initialIntent={intent} /></Suspense> :
-    <div data-app-chrome><Button appearance="standard" type="button" variant="primary" disabled={!ready}
+    <div data-app-chrome className={styles.entry}><Button appearance="standard" type="button" variant="primary" disabled={!ready}
       style={{ "--ui-brand": "#3458db", "--ui-brand-strong": "#2947b8", "--ui-on-brand": "#fff" } as CSSProperties}
       className={styles.launcher} onClick={() => setIntent({})} aria-label="Open work assistant">
       <Sparkles size={19} /><span>Ask ERPX</span>

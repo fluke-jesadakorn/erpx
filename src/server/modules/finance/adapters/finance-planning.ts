@@ -1,3 +1,4 @@
+import { withFinancePurchasedCommand, withFinancePurchasedRead } from "./purchase-boundary";
 import {financeCommandReceipts} from "../../workflow/public/finance-command-receipts";
 import { fiscalCloseSourceSql } from "@/server/modules/finance/public/finance-fiscal-close-source";
 import { financeTransaction } from "@/server/modules/finance/public/finance-transactions";
@@ -193,8 +194,8 @@ recordRow:async(actor,id)=>write.prepare('SELECT * FROM finance_plan_editions WH
 budgetSources:async(actor,chartId,accountId,month,dims,page)=>(await write.prepare(`SELECT jl.*,j.id journal_id,j.journal_number,j.entry_date,j.currency,j.status FROM finance_journal_lines jl JOIN finance_journals j ON j.id=jl.journal_id WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND NOT ${fiscalCloseSourceSql()} AND jl.account_id=? AND left(j.entry_date,7)=? AND jl.dimension_json::jsonb @> ?::jsonb ORDER BY j.entry_date,j.id,jl.ordinal LIMIT 31 OFFSET ?`).bind(actor.companyId,chartId,accountId,month,dims,(page-1)*30).all()).results,
 sourceSnapshot:async(actor,id)=>write.prepare('SELECT s.*,p.content_json,p.chart_id FROM finance_report_snapshots s JOIN finance_plan_editions p ON p.id=s.definition_id WHERE s.id=? AND s.company_id=? AND p.company_id=?').bind(id,actor.companyId,actor.companyId).first<{result_json:string;content_json:string;source_hash:string;chart_id:string;start_date:string;end_date:string}>(),
 sourceJournals:async(actor,selected)=>(await write.prepare(`SELECT id journal_id,journal_number,entry_date,currency,status,(SELECT SUM(l.base_debit_minor) FROM finance_journal_lines l WHERE l.journal_id=finance_journals.id) base_debit_minor,(SELECT SUM(l.base_credit_minor) FROM finance_journal_lines l WHERE l.journal_id=finance_journals.id) base_credit_minor FROM finance_journals WHERE company_id=? AND id IN (${selected.map(()=>'?').join(',')}) ORDER BY entry_date,id`).bind(actor.companyId,...selected).all()).results}}
-function nativePlanning(provided?:SqlDatabase){const database=async(actor:WorkContext)=>provided??(await holdingResources(actor.holdingId)).write;return createFinancePlanning({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,read:async actor=>nativePlanningRepository(await database(actor)),transaction:async(actor,run)=>financeTransaction(await database(actor),db=>run(nativePlanningRepository(db))),snapshotTransaction:async(actor,run)=>{const write=await database(actor);if(!isTransactionalSqlDatabase(write))throw new ApiError(503,'TRANSACTION_REQUIRED','Report snapshots require PostgreSQL.');return financeTransaction(write,db=>run(nativePlanningRepository(db)))}})}
-export const prepareBudgetEdition=(actor: WorkContext,input: z.input<typeof budgetEditionSchema>,key: string)=>nativePlanning().prepareBudgetEdition(actor,input,key);
+function nativePlanning(provided?:SqlDatabase,owned=false){const database=async(actor:WorkContext)=>provided??(await holdingResources(actor.holdingId)).write;return createFinancePlanning({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,read:async actor=>nativePlanningRepository(await database(actor)),transaction:async(actor,run)=>owned?run(nativePlanningRepository(await database(actor))):financeTransaction(await database(actor),db=>run(nativePlanningRepository(db))),snapshotTransaction:async(actor,run)=>{const write=await database(actor);if(owned)return run(nativePlanningRepository(write));if(!isTransactionalSqlDatabase(write))throw new ApiError(503,'TRANSACTION_REQUIRED','Report snapshots require PostgreSQL.');return financeTransaction(write,db=>run(nativePlanningRepository(db)))}})}
+export const prepareBudgetEdition=(actor: WorkContext,input: z.input<typeof budgetEditionSchema>,key: string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.budget.prepare",purpose:"new-work"},tx=>nativePlanning(tx,Boolean(tx)).prepareBudgetEdition(actor,input,key));
 export const importBudgetCsv=(actor: WorkContext,input: {
     chartId: string;
     name: string;
@@ -202,14 +203,14 @@ export const importBudgetCsv=(actor: WorkContext,input: {
     csv: string;
     parentId?: string;
     expectedVersion?: number;
-  },key: string)=>nativePlanning().importBudgetCsv(actor,input,key);
-export const prepareForecastEdition=(actor: WorkContext,input: z.input<typeof forecastEditionSchema>,key: string)=>nativePlanning().prepareForecastEdition(actor,input,key);
-export const prepareFinancialReport=(actor: WorkContext,input: z.input<typeof financialReportSchema>,key: string)=>nativePlanning().prepareFinancialReport(actor,input,key);
-export const decideFinancePlan=(actor: WorkContext,id: string,input: z.infer<typeof financeReviewSchema>,action: "approve" | "reject",key: string)=>nativePlanning().decideFinancePlan(actor,id,input,action,key);
-export const financePlanningWorkspace=(actor: WorkContext,chartId: string)=>nativePlanning().financePlanningWorkspace(actor,chartId);
-export const budgetActuals=(actor: WorkContext,id: string)=>nativePlanning().budgetActuals(actor,id);
-export const snapshotFinancialReport=(actor: WorkContext,id: string,input: { startDate: string; endDate: string },key: string)=>nativePlanning().snapshotFinancialReport(actor,id,input,key);
-export const exportFinancialReport=(actor:WorkContext,id:string)=>nativePlanning().exportFinancialReport(actor,id);
-export const financePlanRecord=(actor:WorkContext,id:string)=>nativePlanning().financePlanRecord(actor,id);
-export const budgetSourceRecords=(actor:WorkContext,id:string,index:number,page=1)=>nativePlanning().budgetSourceRecords(actor,id,index,page);
-export const financialReportSourceRecords=(actor:WorkContext,id:string,args:Record<string,string>,page=1)=>nativePlanning().financialReportSourceRecords(actor,id,args,page);
+  },key: string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.budget.prepare",purpose:"new-work"},tx=>nativePlanning(tx,Boolean(tx)).importBudgetCsv(actor,input,key));
+export const prepareForecastEdition=(actor: WorkContext,input: z.input<typeof forecastEditionSchema>,key: string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.forecast.prepare",purpose:"new-work"},tx=>nativePlanning(tx,Boolean(tx)).prepareForecastEdition(actor,input,key));
+export const prepareFinancialReport=(actor: WorkContext,input: z.input<typeof financialReportSchema>,key: string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.report.prepare",purpose:"new-work"},tx=>nativePlanning(tx,Boolean(tx)).prepareFinancialReport(actor,input,key));
+export const decideFinancePlan=(actor: WorkContext,id: string,input: z.infer<typeof financeReviewSchema>,action: "approve" | "reject",key: string)=>withFinancePurchasedCommand(actor,{key,operation:`finance.plan.${action}`,purpose:"settle-existing"},tx=>nativePlanning(tx,Boolean(tx)).decideFinancePlan(actor,id,input,action,key));
+export const financePlanningWorkspace=(actor: WorkContext,chartId: string)=>withFinancePurchasedRead(actor,db=>nativePlanning(db).financePlanningWorkspace(actor,chartId));
+export const budgetActuals=(actor: WorkContext,id: string)=>withFinancePurchasedRead(actor,db=>nativePlanning(db).budgetActuals(actor,id));
+export const snapshotFinancialReport=(actor: WorkContext,id: string,input: { startDate: string; endDate: string },key: string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.report.snapshot",purpose:"settle-existing"},tx=>nativePlanning(tx,Boolean(tx)).snapshotFinancialReport(actor,id,input,key));
+export const exportFinancialReport=(actor:WorkContext,id:string)=>withFinancePurchasedRead(actor,db=>nativePlanning(db).exportFinancialReport(actor,id));
+export const financePlanRecord=(actor:WorkContext,id:string)=>withFinancePurchasedRead(actor,db=>nativePlanning(db).financePlanRecord(actor,id));
+export const budgetSourceRecords=(actor:WorkContext,id:string,index:number,page=1)=>withFinancePurchasedRead(actor,db=>nativePlanning(db).budgetSourceRecords(actor,id,index,page));
+export const financialReportSourceRecords=(actor:WorkContext,id:string,args:Record<string,string>,page=1)=>withFinancePurchasedRead(actor,db=>nativePlanning(db).financialReportSourceRecords(actor,id,args,page));

@@ -206,7 +206,7 @@ prepareOperationEvent(value:string,id:string,operationId:string,next:number,labo
         .bind(value, id, operationId, next, laborMinutes, machineMinutes, reason, userId, now);},
 prepareReservationRelease(id:string){return db
         .prepare(
-          "UPDATE manufacturing_material_reservations SET released_milli=quantity_milli-consumed_milli,release_reason='Manufacturing order cancelled' WHERE order_id=?",
+          "UPDATE manufacturing_material_reservations SET released_milli=quantity_milli-consumed_milli WHERE order_id=?",
         )
         .bind(id);},
 prepareOrderTransition(status:string,now:number,id:string){return db

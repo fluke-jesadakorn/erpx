@@ -1,7 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { FrontLocalizedTree } from "@/components/front/front-language";
-import type {BackofficePmsWorkspaceContext} from "./pms-backoffice-workspace";
+import type {BackofficePmsWorkspaceSettingsScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
 
 
 const PmsSettingsPanel=dynamic(()=>import("./settings-panel").then(module=>module.PmsSettingsPanel));

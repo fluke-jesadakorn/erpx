@@ -1,12 +1,12 @@
 "use client";
 import { FeatureWidget } from "@/components/shared/features/feature-page";
 import { BedDouble, CalendarDays, ClipboardCheck, Hotel, Wallet } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { type ReactNode } from "react";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {FrontPmsDailyContext} from "./pms-front-workspace";
+import type {FrontPmsDailyContext} from "./standard-pms-front-workspace";
 
 
 const Badge = ({ children, tone = "" }: { children: ReactNode; tone?: string }) => {

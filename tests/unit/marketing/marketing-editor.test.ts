@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it,vi } from "vitest";
 import { marketingAssetDraft, marketingAssetEditorSchema } from "../../../src/lib/collaboration/marketing-editor";
+import {createPublicMarketingCommand,validPublicMarketingReceipt,publicMarketingAttemptCurrent,publicMarketingAcknowledgementCurrent} from '../../../src/lib/marketing/public-form-command';
+import {PublicMarketingForm} from '../../../src/components/marketing/public-marketing-form';
+import {createElement} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
 
 describe("novice marketing asset editor", () => {
   it("creates a consented public form from readable fields", () => {
@@ -22,4 +26,32 @@ describe("novice marketing asset editor", () => {
     expect(marketingAssetEditorSchema.safeParse({ kind: "domain", name: "Launch review",
       reference: "", summary: "Ready for independent review" }).success).toBe(false);
   });
+});
+
+describe('public Forms exact submission acknowledgement',()=>{
+ const context=JSON.stringify(['tenant','reviewed-form',2]),body=JSON.stringify({formVersion:2,contactName:'Declared visitor',brief:'Original consented request'});
+ it('renders the actual clean public form and fields on the server without a mount discovery request or premature retry/success notice',()=>{const fetch=vi.spyOn(globalThis,'fetch');try{const html=renderToStaticMarkup(createElement(PublicMarketingForm,{holdingSlug:'tenant',formId:'reviewed-form',formVersion:2}));for(const name of ['name','detail','brief','consent'])expect(html).toContain(`name="${name}"`);expect(html).toContain('data-marketing-public-draft');expect(html).toContain('Send request');expect(html).not.toContain('Thank you');expect(html).not.toContain('Retry submitted request');expect(fetch).not.toHaveBeenCalled();}finally{fetch.mockRestore();}});
+ it('retains an identical uncertain body, captured revision and key after a malformed200 instead of declaring success',async()=>{
+  const commands=createPublicMarketingCommand(()=> 'exact-public-form-key'),attempt=commands.select(body,context,4,7),requests:Array<{body:string;key:string}>=[];
+  await expect(commands.execute(attempt,async captured=>{requests.push({body:captured.body,key:captured.key});return Response.json({});},()=>true)).rejects.toThrow('acknowledgement is incomplete');expect(commands.retry()).toBe(attempt);expect(commands.select(body,context,4,7)).toBe(attempt);
+  expect(await commands.execute(attempt,async captured=>{requests.push({body:captured.body,key:captured.key});return Response.json({data:{id:'marketing-candidate-native',status:'pending'}});},()=>true)).toEqual({id:'marketing-candidate-native',status:'pending'});expect(requests).toEqual([{body,key:'exact-public-form-key'},{body,key:'exact-public-form-key'}]);expect(commands.retry()).toBeNull();
+ });
+ it('does not send newer details under an uncertain key and permits only explicit retry of the original frozen request',async()=>{
+  const commands=createPublicMarketingCommand(()=> 'captured-form-key'),attempt=commands.select(body,context,1,3);await expect(commands.execute(attempt,async()=>{throw Error('Response lost after actual submit');},()=>true)).rejects.toThrow('Response lost');expect(Object.isFrozen(attempt)).toBe(true);
+  expect(()=>commands.select(body+'changed',context,1,4)).toThrow('newer details are still here');expect(()=>commands.select(body,'another-tenant-form',1,3)).toThrow('original form');expect(()=>commands.select(body,context,2,3)).toThrow('original form');expect(commands.retry()).toBe(attempt);expect(attempt.body).toBe(body);
+ });
+ it('accepts only the original native pending receipt shape and keeps invalid or truncated responses uncertain',async()=>{
+  expect(validPublicMarketingReceipt({id:'marketing-candidate-native',status:'pending'})).toBe(true);for(const value of [null,{},[],{id:'',status:'pending'},{id:'native',status:'active'},{id:12,status:'pending'},{data:{id:'native',status:'pending'}}])expect(validPublicMarketingReceipt(value)).toBe(false);
+  const commands=createPublicMarketingCommand(()=> 'truncated-key'),attempt=commands.select(body,context,0,0);await expect(commands.execute(attempt,async()=>new Response('{"data":', {status:200,headers:{'Content-Type':'application/json'}}),()=>true)).rejects.toThrow();expect(commands.retry()).toBe(attempt);
+ });
+ it('keeps an actual success uncertain if its original context changes while the response is in flight',async()=>{
+  const commands=createPublicMarketingCommand(()=> 'stale-context-key'),attempt=commands.select(body,context,3,8);let current=true;
+  await expect(commands.execute(attempt,async()=>{current=false;return Response.json({data:{id:'native',status:'pending'}});},()=>current)).rejects.toThrow('context changed');expect(commands.retry()).toBe(attempt);let sends=0;await expect(commands.execute(attempt,async()=>{sends++;return Response.json({data:{id:'native',status:'pending'}});},()=>false)).rejects.toThrow('original form');expect(sends).toBe(0);
+ });
+ it('clears only the captured unchanged edit acknowledgement while retaining any later contact or consent edits',()=>{
+  const attempt=createPublicMarketingCommand(()=> 'ack-key').select(body,context,5,10);expect(publicMarketingAttemptCurrent(attempt,context,5)).toBe(true);expect(publicMarketingAcknowledgementCurrent(attempt,context,5,10)).toBe(true);expect(publicMarketingAcknowledgementCurrent(attempt,context,5,11)).toBe(false);expect(publicMarketingAcknowledgementCurrent(attempt,'other-form',5,10)).toBe(false);expect(publicMarketingAcknowledgementCurrent(attempt,context,6,10)).toBe(false);
+ });
+ it('releases a definitely refused fresh request for correction while retaining unknown server outcomes',async()=>{
+  const commands=createPublicMarketingCommand(()=> 'refused-key'),attempt=commands.select(body,context,0,0);await expect(commands.execute(attempt,async()=>Response.json({error:{message:'Review these fields.'}},{status:422}),()=>true)).rejects.toThrow('Review these fields.');expect(commands.retry()).toBeNull();expect(commands.select(body+'corrected',context,0,1).body).toBe(body+'corrected');await expect(commands.execute(attempt,async()=>Response.json({error:{message:'Unknown server result'}},{status:500}),()=>true)).rejects.toThrow('Unknown server result');expect(commands.retry()).toBe(attempt);
+ });
 });

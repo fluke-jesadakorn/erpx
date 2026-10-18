@@ -1,0 +1,212 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "f6bdd60f7bab0b4f01cfc3fac08df37c68b9150f36426c6237b010c7993c7a99",
+  "verificationFingerprint": "3ae59fa9d80cb05ba47d2af441aa970dfad235413db94086fc2c301e122edb41",
+  "createdAt": "2026-10-14T18:43:36.085395+00:00",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit",
+    "apps:all-company-branch-department-product-selection"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment."
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it."
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Signed read-only per-Company comparison; expected versions, fresh Platform MFA and normal Commercial applyIn grant/audit/review transaction. The source owns its first snapshot and complete IAM/Organization/People predicates, tracks future eligibility boundaries and verifies source/current Platform authority after the final batch receipt before COMMIT. Six actual old-source late-receipt failures now roll back. Stale-directory review, future HR appointment, committed replay and transaction confinement are covered."
+    },
+    {
+      "workflow": "apps:all-company-branch-department-product-selection",
+      "implementation": [
+        "src/server/modules/work_projection/application/product-launcher.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/app/choose-work-role/page.tsx"
+      ],
+      "behavior": "Enumerates all Company/Branch/Department choices, checks each applicable role independently using purchased entry capabilities/release/owner menu predicates, preserves the live selection and uses explicit versioned same-origin role selection. Assignment rows and original Module IDs remain unchanged. Positive installed-Company acceptance remains open."
+    }
+  ],
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "release": {
+    "id": "2026-10-14T18-37-31-191Z",
+    "sourceFingerprint": "f6bdd60f7bab0b4f01cfc3fac08df37c68b9150f36426c6237b010c7993c7a99"
+  },
+  "previousImplementation": "docs/testing/evidence/2026-10-15-commercial-temporal-da983.json",
+  "concreteOwnerReader": {
+    "module": "support",
+    "packageId": "support",
+    "packageVersion": 1,
+    "implementation": [
+      "src/server/modules/support/adapters/package-obligations.ts",
+      "src/server/modules/commercial/adapters/owner-package-obligations.ts"
+    ],
+    "behavior": "Source-owned first snapshot; normal Commercial batch Preview/Apply blocks inactivation for nonterminal tickets/incidents, unexpired temporary sessions and outstanding SLA escalation, including breaches before job drain. Preserves history; refuses unprotected/foreign/closed units and unsupported owners/scopes.",
+    "nativeCases": 7,
+    "ownerWorkflowAccepted": false
+  },
+  "checks": {
+    "unit": {
+      "files": 213,
+      "cases": 2856,
+      "result": "passed"
+    },
+    "focusedPostgres": {
+      "files": 9,
+      "cases": 78,
+      "result": "passed"
+    },
+    "globalUiGuard": {
+      "result": "failed",
+      "frozenBoundaries": 36,
+      "legacyAdapterMentions": 467
+    },
+    "transport": {
+      "passed": 44,
+      "scope": "22 development health/icon/TLS probes"
+    },
+    "browser": "Authenticated current Console Support presenter read-only; no editor/workflow/product-host acceptance"
+  },
+  "limits": [
+    "Implementation-only; no workflow verification or activation accepted",
+    "Helpdesk base package is the only concrete obligation source registered; Portal add-on, Service source-ticket scope and every other owner still reject",
+    "General provider lifecycle UI/API and purchased-capability enforcement/shadow parity remain unimplemented; no installed Company grants or policies changed",
+    "No schema migration, role assignment, rollout, price, live collection, staging access or production deployment changed",
+    "No final-candidate full PostgreSQL lane, complete owner/public responsive UI, compiled performance or populated business/private-file rollback acceptance claimed",
+    "First native implementation failed on an invalid FOR SHARE against the revision view; final source owns the first snapshot instead. This is a retained implementation diagnostic, not an old-source RED regression certificate",
+    "Cold browser navigation/focus timeouts recovered; an invalid button-locator observation/click is excluded, and the actual settled New service case link is separately recorded",
+    "Closed ticket and immutable ticket-event equality is bounded native preservation proof, not complete private-file/Legal-hold recovery acceptance"
+  ],
+  "artifacts": [
+    {
+      "path": ".scratch/dev/product-support-obligations-current/verification.json",
+      "sha256": "685f86084645043c3b6b158435f036e89bffaa613a6221c20c3bf319f15f3b1f"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/verify.py",
+      "sha256": "c156be413c41324aa7eebe82f1b2ad18d4d2c9523a18203ea7972d9facdf09b5"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/first-checks.json",
+      "sha256": "ed0ede5475f5f827f3b943b7c2040c71cd640f6db04bd937eac159afbad606af"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/native-first.log",
+      "sha256": "bfb5ea0a700098956e4e9c1861285591ab059fe2ae9c0084127030f6f0d4ef79"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/native-second.log",
+      "sha256": "8697476006f036874e2c0e987324c6e20645d54a498684c1dd2dd765f6875028"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/grant-counts.json",
+      "sha256": "32054b832aa0cf8e7ec7d16fed08d1ce9f28b7d4d203cb04bc94b5b9b60f8e3d"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/ui-guard.json",
+      "sha256": "9e05b012a0793fa096bb26a2a970dd0b3b3b1b02476f7060a37e3c5c26f5868a"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/ui-guard.log",
+      "sha256": "a02bd93a555ac4ed35a6e3077e890b237e171996542758f592c404bd288c9769"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/transport/receipt.json",
+      "sha256": "7671b31976cd2da4eb217549a6cb0223db30020212e9b7eebf53c627a3cbe14a"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/availability.json",
+      "sha256": "75ada101625cfb73c37d2e28c7087355a2093dc418e62d7df355b018db1fadc4"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/browser/support-cases.json",
+      "sha256": "67f520c0824cf8c02ab6916d75af14247305cc8fbcef59cf3e51f0020cff2a79"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/browser/support-cases-initial-observation.json",
+      "sha256": "58333a53e2323617f7164d7d316f86130fbfb4a19077fcc1028dcca630b533d8"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/browser/support-cases.jpg",
+      "sha256": "7e12eb0ecd7444dbc40d507b3f0395b1ad245c19996bd4aa74fdf0efdb81833c"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/current-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/current-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/current-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/current-catalogue.log",
+      "sha256": "3dd84bea212b41ec26ead035b09241a4b1c5235ee3154a5603727e0e6c1af57b"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/current-documentation.log",
+      "sha256": "2b87570ed3b41659af8f071d6e3770fbe5d8cac60ea0107cbf8ad80c564d61fe"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/current-products.log",
+      "sha256": "dccdd861f3d91d35282eb0a5b965e04d97d1023ebaed3dad13d83455ab5df5fa"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/current-unit.log",
+      "sha256": "98d90d6ff8306e026cee69319bc7e4cd39bfbb6df49dcfd39916f21a2c5593dd"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/current-focused-postgres.log",
+      "sha256": "a2b069a276d68a963318fcb864ac1f0c30c2cd808571b1cf13b07641086cd5e5"
+    },
+    {
+      "path": ".scratch/dev/product-support-obligations-current/current-build.log",
+      "sha256": "5750f984032b2983eeb426cda75526ab6a80e36e442e2481d0a13eb7be19214b"
+    },
+    {
+      "path": "src/server/modules/support/adapters/package-obligations.ts",
+      "sha256": "b5ead162d438872b8393779aa195806f90154ebe183b7e9609e3e6ac885a4c7f"
+    },
+    {
+      "path": "src/server/modules/support/public/package-obligations.ts",
+      "sha256": "b56f5615711afc5baac2f3b64286ac7752cc8c7ae14c6e0750c02406a656a30a"
+    },
+    {
+      "path": "src/server/modules/commercial/adapters/owner-package-obligations.ts",
+      "sha256": "b1178fb482317fe99193692bb0922f596069da0431a44209d5dfb3c92a66407a"
+    },
+    {
+      "path": "src/server/modules/commercial/public/owner-package-obligations.ts",
+      "sha256": "dd3e0feb693ec2c746fc0dd9cfd26406d31a639c19b571a47774e03042284e6c"
+    },
+    {
+      "path": "tests/integration/support/package-obligations.test.ts",
+      "sha256": "e2bcf35badcf4d2d953deb52ef08a6e4edeb259ccd4acd0fb07b930d7d6fc447"
+    }
+  ]
+}

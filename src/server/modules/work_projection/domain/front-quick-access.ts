@@ -40,8 +40,8 @@ export function frontActionItems(app: FrontAppKind, actor: WorkContext, frontHre
       tone: action.tone,
       meta: app.toUpperCase(),
       href: app === "pos"
-        ? frontHref + "?tab=" + action.id
-        : action.id === "dashboard" ? frontHref : frontHref + action.id,
+        ? frontHref + action.id
+        : frontHref + (action.id === "dashboard" ? "today" : action.id),
     }));
 }
 

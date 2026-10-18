@@ -17,11 +17,13 @@ export interface PublicMarketingSubmissionPorts {
  clock:Clock;identifiers:IdentifierSource;hash(value:string):string;
  transaction<Result>(run:(unit:PublicMarketingSubmissionUnit)=>Promise<Result>):Promise<Result>;
 }
-export function createPublicMarketingSubmissionApplication(ports:PublicMarketingSubmissionPorts){return {
- async submit(form:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string):Promise<PublicMarketingReceipt>{
+export function createPublicMarketingSubmissionApplication(ports:PublicMarketingSubmissionPorts){
+ async function submit(form:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string,versioned:boolean):Promise<PublicMarketingReceipt>{
   const requestHash=ports.hash(JSON.stringify({formId:form.id,formVersion:form.version,body})),rateKey=ports.hash(`${form.id}:${ip}`);
   return ports.transaction(async unit=>{
    const prior=await unit.receipt(key);if(prior){if(prior.request_hash!==requestHash)throw new BusinessRuleError(409,'IDEMPOTENCY_CONFLICT','This submission key belongs to a different form.');return {id:prior.candidate_id,status:'pending'};}
+   if(versioned&&body.formVersion===undefined)throw new BusinessRuleError(422,'FORM_VERSION_REQUIRED','Reload the approved form before submitting your request.');
+   if(body.formVersion!==undefined&&body.formVersion!==form.version)throw new BusinessRuleError(409,'FORM_CHANGED','The approved form changed. Reload before consenting and submitting.');
    if(!await unit.current(form))throw new BusinessRuleError(409,'FORM_CHANGED','The approved form changed. Reload before submitting.');
    await unit.presentation(key,form);
    const bucket=Math.floor(ports.clock.now()/60000),limit=await unit.limit(rateKey,bucket);if(Number(limit?.count)>5)throw new BusinessRuleError(429,'FORM_RATE_LIMIT','Too many submissions. Try again later.');
@@ -35,4 +37,5 @@ export function createPublicMarketingSubmissionApplication(ports:PublicMarketing
    return {id,status:'pending'};
   });
  }
-};}
+ return {submit:(form:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string)=>submit(form,body,key,ip,false),submitVersioned:(form:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string)=>submit(form,body,key,ip,true)};
+}

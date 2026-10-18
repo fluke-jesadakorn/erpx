@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { SectionHeader, Card } from "@/components/ui/foundation";
 
 import { InlineNotice } from "@/components/ui/foundation";
@@ -7,7 +8,9 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { RecordLink as Link } from "@/components/records/record-link";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import {
@@ -281,7 +284,7 @@ function ProposalCard({
         <div>
           <p className="eyebrow">{financeAiLabels[proposal.kind]}</p>
           <h3>
-            <Link href={`${base}/${proposal.href}`}>{proposal.sourceLabel}</Link>
+            <Link href={canonicalUiHref(`${base}/${proposal.href}`)}>{proposal.sourceLabel}</Link>
           </h3>
         </div>
         <span className={styles.status}>{proposal.state}</span>
@@ -321,7 +324,7 @@ function ProposalCard({
           {result.bankPaymentId && (
             <p>
               Suggested compatible payment:{" "}
-              <Link href={`${base}/finance/payments/${encodeURIComponent(result.bankPaymentId)}`}>
+              <Link href={canonicalUiHref(`${base}/finance/payments/${encodeURIComponent(result.bankPaymentId)}`)}>
                 {result.bankPaymentId}
               </Link>
               . Review the bank evidence before reconciliation.
@@ -529,7 +532,7 @@ export function FinanceAiPanel({
             {!data.policy.enabled && data.canManage && (
               <p>
                 Enable selected preparations in{" "}
-                <Link href={`${base}/finance/setup?step=ai`}>Finance AI policy</Link>. All workflows
+                <Link href={canonicalUiHref(`${base}/finance/setup?step=ai`)}>Finance AI policy</Link>. All workflows
                 remain available manually.
               </p>
             )}
@@ -552,7 +555,7 @@ export function FinanceAiPanel({
                     </Button>
                   ))}
                   {data.canManage && (
-                    <Link href={`${base}/finance/setup?step=ai`}>Company AI policy</Link>
+                    <Link href={canonicalUiHref(`${base}/finance/setup?step=ai`)}>Company AI policy</Link>
                   )}
                 </div>
                 {visible.length === 0 && (
@@ -682,7 +685,7 @@ function PolicyForm({ data, base, saved }: { data: Workspace; base: string; save
         <InlineNotice tone="info" role="status">
           {data.unavailable}{" "}
           {data.canManage && (
-            <Link href={`${base}/settings?section=ai`}>Review AI connections</Link>
+            <Link href={canonicalUiHref(`${base}/settings?section=ai`)}>Review AI connections</Link>
           )}
         </InlineNotice>
       )}

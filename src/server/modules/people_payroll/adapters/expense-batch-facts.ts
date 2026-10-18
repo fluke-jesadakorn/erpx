@@ -1,5 +1,6 @@
 import "server-only";
 import type {SqlDatabase} from "../../runtime/public/runtime/types";
+import type {StaffActor} from "../../operations/public/staff-policy";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import {hospitalityOwnerProjectionSources as identitySources} from "../../identity_access/public/hospitality-owner-projection-sources";
 import {hospitalityOwnerProjectionSources as workflowSources} from "../../workflow/public/hospitality-owner-projection-sources";
@@ -10,9 +11,9 @@ import {nativeExpenseEmployment, nativeExpenseRequirements} from "./expense-draf
 import type {ExpenseRow} from "./expenses";
 
 export interface ExpenseBatchFacts {
-  auditReader(actor:WorkContext,row:ExpenseRow):Promise<boolean>;
-  participant(actor:WorkContext,row:ExpenseRow):Promise<boolean>;
-  approval(actor:WorkContext,id:string):Promise<ApprovalView>;
+  auditReader(actor:StaffActor,row:ExpenseRow):Promise<boolean>;
+  participant(actor:StaffActor,row:ExpenseRow):Promise<boolean>;
+  approval(actor:StaffActor,id:string):Promise<ApprovalView>;
   requirements(row:ExpenseRow):Promise<string[]>;
 }
 /** Facts are bounded to this candidate list and actor; commands never use this snapshot. */
@@ -42,7 +43,7 @@ export async function expenseBatchFacts(db:SqlDatabase, actor:WorkContext, rows:
     if(!result){result=readEmployment(row);employment.set(key,result);}
     return result;
   });
-  function guard(context:WorkContext,id:string) {
+  function guard(context:StaffActor,id:string) {
     if(context.companyId!==actor.companyId || context.userId!==actor.userId || context.assignmentId!==actor.assignmentId || context.role!==actor.role || !requested.has(id)) throw new Error("EXPENSE_BATCH_SCOPE_MISMATCH");
   }
   return {

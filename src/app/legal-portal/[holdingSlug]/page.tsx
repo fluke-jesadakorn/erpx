@@ -1,10 +1,11 @@
-import { legalPortalPresentationQueries } from "@/server/modules/legal/public/presentation-context-queries";
+import {legalPortalSharesDisplay,legalPortalPreferenceDisplay} from '@/lib/legal/portal-display';
+import {legalPortalSnapshot} from '@/lib/legal/portal-snapshot';
+import {legalPortalPresentationSnapshot} from '@/server/modules/legal/public/presentation-context-queries';
 
 import { LegalPortal } from "@/components/legal/legal-portal";
 import { legalPortalQuickAccess } from "@/server/modules/work_projection/public/portal-quick-access";
-import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
-import { holdingBindingBySlug } from "@/server/modules/runtime/public/runtime";
 import { redirect } from "next/navigation";
+import {ApiError} from '@/server/modules/runtime/public/http';
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -13,30 +14,26 @@ export default async function Page({
   params: Promise<{ holdingSlug: string }>;
   searchParams: Promise<{ share?: string | string[] }>;
 }) {
-  const { holdingSlug } = await params,
-    { queries, actor } = await legalPortalPresentationQueries(holdingSlug).catch((error) => {
-      if (error instanceof Error && error.message === "UNAUTHENTICATED")
+  const { holdingSlug } = await params,requestedShare=(await searchParams).share,initialShareId=typeof requestedShare==='string'?requestedShare:undefined,returnPath=`/legal-portal/${encodeURIComponent(holdingSlug)}`+(initialShareId?'?'+new URLSearchParams({share:initialShareId}):''),
+    {initial,initialDetail:detail,preferences,commandScope}=await legalPortalPresentationSnapshot(holdingSlug,initialShareId).catch((error) => {
+      if (error instanceof Error && error.message === "UNAUTHENTICATED"||error instanceof ApiError&&error.status===401)
         redirect(
-          `/login?next=${encodeURIComponent(`/legal-portal/${holdingSlug}`)}`,
+          `/login?next=${encodeURIComponent(returnPath)}`,
         );
       throw error;
     });
-  const [binding, initial] = await Promise.all([
-    holdingBindingBySlug(holdingSlug),
-    queries.portalList(actor),
-  ]);
   const items = legalPortalQuickAccess(holdingSlug, initial);
-  const preferences = await readQuickAccessPreferences(actor.userId, "legal_portal", binding.id);
-  const requestedShare = (await searchParams).share;
-  const initialShareId = typeof requestedShare === "string" ? requestedShare : undefined;
+  const initialDetail=detail?legalPortalSnapshot(detail):undefined;
   return (
     <LegalPortal
-      key={initialShareId ?? "shared-documents"}
+      key={`${commandScope}:${initialShareId ?? "shared-documents"}`}
       slug={holdingSlug}
-      initial={initial}
+      commandScope={commandScope}
+      initial={legalPortalSharesDisplay(initial)}
       initialShareId={initialShareId}
+      initialDetail={initialDetail}
       quickAccessItems={items}
-      quickAccessPreferences={preferences}
+      quickAccessPreferences={legalPortalPreferenceDisplay(preferences)}
     />
   );
 }

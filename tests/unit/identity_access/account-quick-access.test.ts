@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "../../../src/server/modules/runtime/adapters/http";
 import { GET, POST } from "../../../src/app/api/v1/account/quick-access/[area]/route";
+import type { SqlDatabase } from "../../../src/server/modules/runtime/public/runtime/types";
 
 const state = vi.hoisted(() => ({
   userId: "account-user",
@@ -9,13 +10,23 @@ const state = vi.hoisted(() => ({
   rejectRole: false,
   read: vi.fn(),
   save: vi.fn(),
+  preferenceUnit: vi.fn(),
+  database: {
+    prepare() { throw new Error("Unexpected SQL outside the preference port fixture."); },
+    batch() { throw new Error("Unexpected SQL outside the preference port fixture."); },
+    exec() { throw new Error("Unexpected SQL outside the preference port fixture."); },
+  } satisfies SqlDatabase,
 }));
 
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({
+vi.mock("../../../src/server/modules/identity_access/adapters/authorization", () => ({
   currentSession: async () => {
     if (state.rejectSession) throw new Error("UNAUTHENTICATED");
-    return { session: { user: { id: state.userId } } };
+    return { session: { user: { id: state.userId }, session: { id: "account-session" } },
+      requestHeaders: new Headers({ host: "localhost:3100" }) };
   },
+}));
+vi.mock("../../../src/server/modules/identity_access/adapters/private-session-preferences", () => ({
+  withCurrentSelfAccountPreferences: state.preferenceUnit,
 }));
 vi.mock("../../../src/server/modules/organization/public/workspace-choices", () => ({ workspaceChoices: async () => state.choices }));
 vi.mock("../../../src/server/modules/work_projection/public/work-role-options", () => ({
@@ -24,10 +35,15 @@ vi.mock("../../../src/server/modules/work_projection/public/work-role-options", 
     return { access: { userId: state.userId }, options: [{ id: "assignment" }] };
   },
 }));
-vi.mock("../../../src/server/modules/work_projection/public/quick-access-preferences", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../../src/server/modules/work_projection/public/quick-access-preferences")>(),
-  readQuickAccessPreferences: state.read,
-  saveQuickAccessPreferences: state.save,
+vi.mock("../../../src/server/modules/work_projection/public/quick-access-session-preferences", () => ({
+  readSessionQuickAccessPreferences: (database: SqlDatabase, ...args: [string, string, string]) => {
+    expect(database).toBe(state.database);
+    return state.read(...args);
+  },
+  saveSessionQuickAccessPreferences: (database: SqlDatabase, input: object) => {
+    expect(database).toBe(state.database);
+    return state.save(input);
+  },
 }));
 
 const route = (area: string) => ({ params: Promise.resolve({ area }) });
@@ -40,12 +56,23 @@ beforeEach(() => {
   state.rejectRole = false;
   state.read.mockReset().mockResolvedValue({ pinnedIds: null, version: 0 });
   state.save.mockReset().mockResolvedValue({ pinnedIds: ["access"], version: 1 });
+  state.preferenceUnit.mockReset().mockImplementation(async (
+    _actor: { userId: string; sessionId: string; audience: string | null },
+    work: (database: SqlDatabase) => Promise<unknown>, assertContext: () => void,
+  ) => {
+    assertContext();
+    const result = await work(state.database);
+    assertContext();
+    return result;
+  });
 });
 
 it("scopes work-role preferences to the authorized workspace from the return path", async () => {
   const from = "/holdings/acme/branches/east/home";
   const get = await GET(new Request(url("work-role", from)), route("work-role"));
   expect(get.status).toBe(200);
+  expect(state.preferenceUnit).toHaveBeenCalledWith({ userId: "account-user", sessionId: "account-session", audience: null },
+    expect.any(Function), expect.any(Function));
   expect(state.read).toHaveBeenCalledWith("account-user", "account-work-role", "/holdings/acme/branches/east");
   const response = await POST(new Request(url("work-role", from), {
     method: "POST",
@@ -80,4 +107,5 @@ it("rejects invalid contexts and unauthenticated preference reads", async () => 
   state.rejectSession = true;
   expect((await GET(new Request(url("security")), route("security"))).status).toBe(401);
   expect(state.read).not.toHaveBeenCalled();
+  expect(state.preferenceUnit).not.toHaveBeenCalled();
 });

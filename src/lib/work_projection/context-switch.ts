@@ -9,10 +9,13 @@ export function registerUnsavedWork(check: () => boolean) {
   return () => { dirtyChecks.delete(check); };
 }
 
-export function confirmContextSwitch() {
-  const dirty = [...dirtyChecks].some(check => check()) ||
+export function hasUnsavedWork() {
+  return [...dirtyChecks].some(check => check()) ||
     !!document.querySelector('[data-work-dirty="true"]');
-  return !dirty || window.confirm("Change account or role and discard unsaved changes?");
+}
+
+export function confirmContextSwitch() {
+  return !hasUnsavedWork() || window.confirm("Change account or role and discard unsaved changes?");
 }
 
 export function contextGeneration() { return generation; }

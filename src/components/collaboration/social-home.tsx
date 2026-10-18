@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Select } from "@/components/ui/foundation";
@@ -7,8 +8,8 @@ import { Button, Select } from "@/components/ui/foundation";
 import { AnnouncementFeed } from "@/components/work_projection/calendar/announcement-feed";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useNavigationState } from "@/components/workplace/navigation-counts";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import Link from "@/components/workplace/workspace-link";
 import { ComposerLauncher, HandoverLauncher } from "@/components/work_projection/home/tool-launchers";
 import { DeferredRegion } from "@/components/work_projection/home/deferred-region";
 import { lazy, useCallback, useEffect, useRef, useState } from "react";
@@ -32,8 +33,10 @@ export function SocialHome({
   branchId,
   canModerate,
   initialPosts,
+  purchase,
   initialMeta,
   single = false,
+  sourceOnly = false,
   calendarEnabled = false,
 }: {
   base: string;
@@ -42,8 +45,10 @@ export function SocialHome({
   branchId: string | null;
   canModerate: boolean;
   initialPosts: HomePost[];
+  purchase?:import("@/server/modules/collaboration/public/rules/social-presentation").SocialPurchase;
   initialMeta: Meta;
   single?: boolean;
+  sourceOnly?:boolean;
   calendarEnabled?: boolean;
 }) {
   const alive = useRef(true);
@@ -136,7 +141,7 @@ export function SocialHome({
     };
   }, [api, query, posts, single]);
   const loadMeta = useCallback(() => {
-    if (metaLoaded.current) return Promise.resolve();
+    if (sourceOnly||metaLoaded.current) return Promise.resolve();
     if (!metaRequest.current) {
       metaRequest.current = betaFetch<Meta>(`${api}/beta/meta`)
         .then((nextMeta) => {
@@ -150,7 +155,7 @@ export function SocialHome({
         });
     }
     return metaRequest.current;
-  }, [api, setMeta]);
+  }, [api, setMeta,sourceOnly]);
   async function refresh() {
     if (!single) void refreshPriorities();
     const rows = await betaFetch<HomePost[]>(`${api}/beta/home?${query}&limit=${feedPageSize}`);
@@ -206,7 +211,7 @@ export function SocialHome({
     <>
           {!single && (
             <div className={styles.feedControls}>
-              <div id="compose">
+              {purchase?.newWork!==false?<div id="compose">
                 <ComposerLauncher
                   api={api}
                   name={name}
@@ -218,11 +223,11 @@ export function SocialHome({
                   }}
                   onPublished={refresh}
                 />
-              </div>
+              </div>:<InlineNotice tone="info">New team updates are unavailable. Existing conversations remain available according to their original source access.</InlineNotice>}
               <HandoverLauncher base={base} onPublished={refresh} />
               {tag && (
                 <p>
-                  Hashtag: #{tag} · <Link href={`${base}/home`}>Clear hashtag</Link>
+                  Hashtag: #{tag} · <Link href={canonicalUiHref(`${base}/home`)}>Clear hashtag</Link>
                 </p>
               )}
               <nav className="beta-filters" aria-label="Filter conversations">

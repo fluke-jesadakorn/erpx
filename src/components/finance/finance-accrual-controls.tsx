@@ -1,29 +1,18 @@
 "use client";
+import {useState} from "react";
+import {useFinanceCommand} from "./use-finance-command";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { RecordDocumentDrawer } from "@/components/files/record-document-drawer";
 import { Card, FormLayout } from "@/components/ui/foundation";
 type Row = Record<string, unknown>;
 type Data = { schedules: Row[]; runs: Row[]; accounts: Row[] };
-async function command(base: string, path: string, input: unknown) {
-  const response = await workFetch(
-    `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
-      body: JSON.stringify(input),
-    },
-  );
-  const body = (await response.json()) as { error?: { message: string } };
-  if (!response.ok) throw new Error(body.error?.message ?? "Finance action failed.");
-}
 export function AccrualScheduleConsole({
   base,
   data,
@@ -35,21 +24,9 @@ export function AccrualScheduleConsole({
   canWrite: boolean;
   canApprove: boolean;
 }) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const run = async (path: string, input: unknown) => {
-    setBusy(true);
-    setError("");
-    try {
-      await command(base, path, input);
-      router.refresh();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Finance action failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+  const [revision,setRevision]=useState(0);
+  const {send, busy, error, draftScope, canPrepare, canSettle}=useFinanceCommand(base);
+  async function run(path:string,input:unknown){await send(path,input,path==="accrual-schedules"?"new-work":"settle-existing");}
   return (
     <Card as="section" appearance="standard" className="ui-panel" id="finance-accruals">
       <h2>Recurring accrual schedules</h2>
@@ -58,8 +35,9 @@ export function AccrualScheduleConsole({
         period into the open ledger period. Every run keeps its source schedule and amount evidence.
       </p>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {canWrite && (
-        <FormLayout
+      {canWrite && canPrepare && (
+        <FormDisclosure appearance="standard" error={error} drawerTitle="Prepare recurring accrual schedule" onDiscard={()=>setRevision(value=>value+1)}><summary>Prepare recurring accrual schedule</summary>
+        <FormLayout key={revision} data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -130,6 +108,7 @@ export function AccrualScheduleConsole({
             Save draft schedule
           </Button>
         </FormLayout>
+        </FormDisclosure>
       )}
       <TableFrame appearance="standard"
         label="Records"
@@ -153,7 +132,7 @@ export function AccrualScheduleConsole({
             {data.schedules.map((schedule) => (
               <tr key={String(schedule.id)}>
                 <td>
-                  <RecordLink href={`${base}/record-details/accrual_schedule/${encodeURIComponent(String(schedule.id))}`}>{String(schedule.description)}</RecordLink>
+                  <RecordLink href={canonicalUiHref(`${base}/record-details/accrual_schedule/${encodeURIComponent(String(schedule.id))}`)}>{String(schedule.description)}</RecordLink>
                   <br />
                   <small>{String(schedule.frequency)}</small>
                 </td>
@@ -171,7 +150,7 @@ export function AccrualScheduleConsole({
                     targetType="finance_accrual_schedule"
                     targetId={String(schedule.id)}
                     expectedTargetVersion={Number(schedule.version)}
-                    editable={canWrite}
+                    editable={canWrite&&canSettle}
                     title={`${String(schedule.description)} · accrual support`}
                     triggerLabel="Documents"
                     purposes={[
@@ -183,7 +162,7 @@ export function AccrualScheduleConsole({
                       },
                     ]}
                   />
-                  {schedule.status === "draft" && canApprove && (
+                  {schedule.status === "draft" && canApprove && canSettle && (
                     <Button appearance="standard"
                       type="submit"
                       variant="secondary"
@@ -198,7 +177,7 @@ export function AccrualScheduleConsole({
                       Approve
                     </Button>
                   )}
-                  {["draft", "active"].includes(String(schedule.status)) && canWrite && (
+                  {["draft", "active"].includes(String(schedule.status)) && canWrite && canSettle && (
                     <Button appearance="standard"
                       type="submit"
                       variant="secondary"
@@ -213,7 +192,7 @@ export function AccrualScheduleConsole({
                       Cancel
                     </Button>
                   )}
-                  {schedule.status === "active" && canWrite && (
+                  {schedule.status === "active" && canWrite && canSettle && (
                     <Button appearance="standard"
                       type="submit"
                       variant="secondary"
@@ -251,7 +230,7 @@ export function AccrualScheduleConsole({
           <tbody>
             {data.runs.map((item) => (
               <tr key={String(item.id)}>
-                <td><RecordLink href={`${base}/record-details/accrual_run/${encodeURIComponent(String(item.id))}`}>{String(item.description)}</RecordLink></td>
+                <td><RecordLink href={canonicalUiHref(`${base}/record-details/accrual_run/${encodeURIComponent(String(item.id))}`)}>{String(item.description)}</RecordLink></td>
                 <td>
                   {String(item.period_start)} → {String(item.period_end)}
                 </td>
@@ -260,7 +239,7 @@ export function AccrualScheduleConsole({
                 </td>
                 <td>{String(item.status)}</td>
                 <td>
-                  {item.status === "prepared" && canApprove && (
+                  {item.status === "prepared" && canApprove && canSettle && (
                     <Button appearance="standard"
                       type="submit"
                       variant="primary"

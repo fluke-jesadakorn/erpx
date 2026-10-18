@@ -1,3 +1,4 @@
+import {withFinancePurchasedCommand,withFinancePurchasedRead} from "./purchase-boundary";
 import { financeOwnerDecisionEffects } from "../../workflow/public/finance-owner-decision-effects";
 import {financeTaxSourceVersion} from "../../commerce/public/finance-tax-source-version";
 import {financeOwnedSnapshotSources as commerceSnapshotSources} from "../../commerce/public/finance-owned-snapshot-sources";
@@ -69,8 +70,8 @@ function insertTaxEntry(write: SqlDatabase, actor: WorkContext, p: VatTaxEntryPl
 async function originalVatEntry(write: SqlDatabase, actor: WorkContext, source: TaxRow) {
     return write.prepare("SELECT * FROM finance_current_tax_entries WHERE company_id=? AND source_type='invoice' AND source_id=? AND status='approved'").bind(actor.companyId, source.invoice_id).first<TaxRow>();
 }
-export async function prepareVatEntry(actor: WorkContext, raw: z.infer<typeof vatEntrySchema>, key: string) { return vatService().prepareVatEntry(actor, raw, key); }
-export async function reviewVatEntry(actor: WorkContext, id: string, action: "approve" | "reject", raw: z.infer<typeof taxReviewSchema>, key: string) { return vatService().reviewVatEntry(actor, id, action, raw, key); }
+export async function prepareVatEntry(actor: WorkContext, raw: z.infer<typeof vatEntrySchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.tax.prepare",purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).prepareVatEntry(actor, raw, key)); }
+export async function reviewVatEntry(actor: WorkContext, id: string, action: "approve" | "reject", raw: z.infer<typeof taxReviewSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:`finance.tax.${action}`,purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).reviewVatEntry(actor, id, action, raw, key)); }
 const familyEvidenceSql = `jsonb_build_object(
   'returns',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'version',r.version,'status',r.status,'journal',r.credit_journal_id) ORDER BY r.id) ${commerceSnapshotSources().finance_tax_register_commerce_returns_r_from} WHERE r.company_id=? AND r.invoice_id=?),'[]'::jsonb),
   'billingCredits',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'version',r.version,'status',r.status,'journal',r.credit_journal_id) ORDER BY r.id) FROM finance_billing_corrections r WHERE r.company_id=? AND r.invoice_id=?),'[]'::jsonb),
@@ -82,8 +83,8 @@ async function familyEvidence(write: SqlDatabase, actor: WorkContext, familyId: 
 function familyGuard(write: SqlDatabase, actor: WorkContext, key: string, familyId: string, json: string) {
     return assertion(write, key, "vat-correction-family", `(${familyEvidenceSql})::jsonb=?::jsonb`, [actor.companyId, familyId, actor.companyId, familyId, actor.companyId, familyId, actor.companyId, familyId, actor.companyId, familyId, json]);
 }
-export async function prepareVatCorrection(actor: WorkContext, entryId: string, raw: z.infer<typeof vatCorrectionSchema>, key: string) { return vatService().prepareVatCorrection(actor, entryId, raw, key); }
-export async function reviewVatCorrection(actor: WorkContext, id: string, action: "approve" | "reject", raw: z.infer<typeof taxReviewSchema>, key: string) { return vatService().reviewVatCorrection(actor, id, action, raw, key); }
+export async function prepareVatCorrection(actor: WorkContext, entryId: string, raw: z.infer<typeof vatCorrectionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.vat-correction.prepare",purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).prepareVatCorrection(actor, entryId, raw, key)); }
+export async function reviewVatCorrection(actor: WorkContext, id: string, action: "approve" | "reject", raw: z.infer<typeof taxReviewSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:`finance.vat-correction.${action}`,purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).reviewVatCorrection(actor, id, action, raw, key)); }
 // The hash covers the complete reviewed register for the month. List limits in
 // the workspace do not truncate calculation or source-change checks.
 const registerJson = `COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND t.chart_id=? AND t.claim_month=?),'[]'::jsonb)::text`;
@@ -127,19 +128,19 @@ function registerGuard(write: SqlDatabase, actor: WorkContext, key: string, p: T
 function packageEvent(write: SqlDatabase, actor: WorkContext, key: string, id: string, version: number, action: string, evidence: unknown) {
     return write.prepare("INSERT INTO finance_statutory_package_events VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, key, version, action, actor.userId, JSON.stringify(evidence), Date.now());
 }
-export async function prepareVatPackage(actor: WorkContext, raw: z.infer<typeof vatPackageSchema>, key: string) { return vatService().prepareVatPackage(actor, raw, key); }
-export async function approveVatPackage(actor: WorkContext, id: string, raw: z.infer<typeof taxReviewSchema>, key: string) { return vatService().approveVatPackage(actor, id, raw, key); }
-export async function exportVatWorkpaper(actor: WorkContext, id: string, raw: z.infer<typeof taxReviewSchema>, key: string) { return vatService().exportVatWorkpaper(actor, id, raw, key); }
-export async function recordVatFiling(actor: WorkContext, id: string, raw: z.infer<typeof vatFilingSchema>, key: string) { return vatService().recordVatFiling(actor, id, raw, key); }
-export async function supersedeVatPackage(actor: WorkContext, id: string, raw: z.infer<typeof taxReviewSchema>, key: string) { return vatService().supersedeVatPackage(actor, id, raw, key); }
+export async function prepareVatPackage(actor: WorkContext, raw: z.infer<typeof vatPackageSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.vat-package.prepare",purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).prepareVatPackage(actor, raw, key)); }
+export async function approveVatPackage(actor: WorkContext, id: string, raw: z.infer<typeof taxReviewSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.vat-package.approve",purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).approveVatPackage(actor, id, raw, key)); }
+export async function exportVatWorkpaper(actor: WorkContext, id: string, raw: z.infer<typeof taxReviewSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.vat-package.export",purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).exportVatWorkpaper(actor, id, raw, key)); }
+export async function recordVatFiling(actor: WorkContext, id: string, raw: z.infer<typeof vatFilingSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.vat-package.file",purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).recordVatFiling(actor, id, raw, key)); }
+export async function supersedeVatPackage(actor: WorkContext, id: string, raw: z.infer<typeof taxReviewSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.vat-package.supersede",purpose:"settle-existing",capability:"finance.tax"},tx=>vatService(tx).supersedeVatPackage(actor, id, raw, key)); }
 export async function vatWorkspace(actor: WorkContext, query: {
     chartId?: string;
     filingMonth?: string;
-} = {}) { return vatService().vatWorkspace(actor, query); }
-export async function vatCorrectionDetail(actor: WorkContext, id: string) { return vatService().vatCorrectionDetail(actor, id); }
-export async function taxEntryDetail(actor: WorkContext, id: string) { return vatService().taxEntryDetail(actor, id); }
-export async function vatPackageDetail(actor: WorkContext, id: string) { return vatService().vatPackageDetail(actor, id); }
-export async function vatPackageExport(actor: WorkContext, id: string) { return vatService().vatPackageExport(actor, id); }
+} = {}) { return withFinancePurchasedRead(actor,db=>vatService(db).vatWorkspace(actor, query),"finance.tax"); }
+export async function vatCorrectionDetail(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>vatService(db).vatCorrectionDetail(actor, id),"finance.tax"); }
+export async function taxEntryDetail(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>vatService(db).taxEntryDetail(actor, id),"finance.tax"); }
+export async function vatPackageDetail(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>vatService(db).vatPackageDetail(actor, id),"finance.tax"); }
+export async function vatPackageExport(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>vatService(db).vatPackageExport(actor, id),"finance.tax"); }
 function vatService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
     const db = (actor: WorkContext) => provided ? Promise.resolve(provided) : pending ??= holdingResources(actor.holdingId).then(r => r.write);

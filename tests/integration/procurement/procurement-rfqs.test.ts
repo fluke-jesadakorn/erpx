@@ -1,12 +1,16 @@
-import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
+import {verifyProcurementProjections,verifyRfqFiles} from "../../support/helpers/procurement-sources";
+import {recordSupplierPromise} from "../../../src/server/modules/procurement/public/supplier-promises";
+import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {createRfq,actRfq,rfqDetail,rfqWork} from "../../../src/server/modules/procurement/public/procurement-rfqs";
 import {saveMaster,saveOrder,orderSchema,getOrder,transitionOrder} from "../../../src/server/modules/commerce/public/commerce";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
+import {packageGrantStore,readCompanyPackageGrants} from "../../../src/server/modules/commercial/public/package-grants";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,warehouse:string,product:string,suppliers:string[];
 beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+afterEach(()=>vi.unstubAllEnvs());
 beforeEach(async()=>{f=await expenseFixture();f.head.role='purchasing_manager';f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,'purchasing_manager');warehouse=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'RFQ warehouse'},key())).id);product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'RFQ product',price:'10'},key())).id);suppliers=[];for(let i=0;i<2;i++)suppliers.push(String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:`RFQ supplier ${i}`},key())).id));});
 async function create(){return String((await createRfq(f.owner,{title:'Demand for customer order',warehouseId:warehouse,neededDate:'2026-10-01',demandEvidence:'Reviewed shortage for customer delivery',lines:[{productId:product,quantity:'3'}]},key())).id);}
 async function offer(id:string,version:number,index=0,price='10',attachmentSetIds:string[]=[]){const d=await rfqDetail(f.owner,id);return actRfq(f.owner,id,{action:'offer',expectedVersion:version,attachmentSetIds,supplierId:suppliers[index],reference:`SUPPLIER-QUOTE-${version}`,evidence:'Supplier quotation with price and delivery terms',arrivalDate:'2026-10-02',validUntil:'2099-12-31',lines:d.lines.map(l=>({lineId:String(l.id),price,taxBps:700}))},key());}
@@ -33,4 +37,125 @@ it('rolls back the purchase order, RFQ handoff and command evidence when its fin
  expect((await rfqDetail(f.owner,id)).rfq).toMatchObject({status:'ordered',version:6,order_id:po.id});
  expect(await db.prepare("SELECT count(*) n FROM commerce_orders WHERE company_id=? AND note='Awarded RFQ'").bind(f.company).first('n')).toBe(1);
  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(1);
+});
+
+it('uses only Supply for independent RFQ award and the actual PO handoff, fences deferred source changes, and retains bounded cancellation while draining',async()=>{
+ vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');
+ await expect(create()).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});expect(await rfqWork(f.owner)).toEqual([]);
+ const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-procurement-provider'}),obligations:async()=>{throw new Error('No Procurement inactive witness is invented');}}),grant={companyId:f.company,packageId:'supply',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Actual Supply-only RFQ handoff',evidence:'test:procurement-purchase-source'};
+ await store.apply({expectedVersion:0,idempotencyKey:key(),grant});const {id,input}=await approved(),cancel=await create(),command=key(),fault=`rfq_late_source_${key().replaceAll('-','')}`;
+ expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['supply']);
+ const tables=['procurement_rfqs','procurement_rfq_events','commerce_orders','commerce_order_lines','command_receipts','audit_events','outbox_events','staff_notifications'],snapshot=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await snapshot();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE procurement_rfqs SET needed_date='2026-10-04' WHERE id='${id}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
+ try{let failure:unknown;try{await saveOrder(f.owner,null,input,command);}catch(error){failure=error;}expect(failure).toBeInstanceOf(Error);expect(failure).toMatchObject({status:409,code:'PROCUREMENT_SOURCE_CHANGED'});expect((failure as {cause?:unknown}).cause??failure).toMatchObject({code:'23514',detail:expect.stringContaining('rfq-handoff-source')});expect(await snapshot()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${fault} ON audit_events;DROP FUNCTION ${fault}()`);}
+ const po=await saveOrder(f.owner,null,input,command);expect(await saveOrder(f.owner,null,input,command)).toEqual(po);expect((await rfqDetail(f.owner,id)).rfq).toMatchObject({order_id:po.id,status:'ordered',version:6});
+ await transitionOrder(f.owner,String(po.id),{action:'submit',expectedVersion:1},key());await expect(transitionOrder(f.owner,String(po.id),{action:'approve',expectedVersion:2},key())).rejects.toMatchObject({code:'INDEPENDENT_APPROVER_REQUIRED'});await transitionOrder(f.head,String(po.id),{action:'approve',expectedVersion:2},key());
+ await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:'draining',version:2}});await expect(create()).rejects.toMatchObject({code:'PACKAGE_DRAINING'});expect((await rfqDetail(f.owner,cancel)).purchase).toMatchObject({newWork:false,settleExisting:true,history:true});expect((await rfqWork(f.owner)).every(row=>!row.canAct)).toBe(true);
+ const cancelKey=key(),cancelInput={action:'cancel',expectedVersion:1,reason:'Discharge the existing unawarded demand'};const cancelled=await actRfq(f.owner,cancel,cancelInput,cancelKey);expect(await actRfq(f.owner,cancel,cancelInput,cancelKey)).toEqual(cancelled);
+ await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.owner.assignmentId).run();await expect(actRfq(f.owner,cancel,cancelInput,cancelKey)).rejects.toMatchObject({code:'PROCUREMENT_ACCESS_CHANGED'});
+});
+
+
+it('keeps actual RFQ and supplier promise projections behind purchase and current source authority before shared cursor limits',async()=>{
+ const rfqId=await create(),po=await saveOrder(f.owner,null,orderSchema.parse({kind:'purchase',partyId:suppliers[0],warehouseId:warehouse,orderDate:'2026-09-20',dueDate:'2026-10-01',lines:[{productId:product,quantity:'3',price:'10',taxBps:0}]}),key()),id=String(po.id);await transitionOrder(f.owner,id,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,id,{action:'approve',expectedVersion:2},key());const line=String((await getOrder(f.owner,id)).lines[0].id);await recordSupplierPromise(f.owner,id,{expectedVersion:3,kind:'confirmed',confirmationDate:'2026-09-21',supplierReference:'Projection promise',evidence:'Actual supplier commitment used by source Calendar',lines:[{orderLineId:line,quantity:'3',promisedDate:'2026-10-02'}]},key());
+ await verifyProcurementProjections(f,rfqId,id);
+});
+it('keeps actual RFQ Files and held private bytes through final source and authority rollback and draining history',async()=>{await verifyRfqFiles(f,await create());});
+
+
+async function purchaseSourceCohort(){
+ const grant={companyId:f.company,packageId:'supply',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Original isolated Supply source fence',evidence:'test:supply-owner-source'};
+ await packageGrantStore(db,{authorize:async()=>({userId:'isolated-supply-source-provider'}),obligations:async()=>{throw Error('SOURCE_CASE_CANNOT_CERTIFY_WITHDRAWAL');}}).apply({expectedVersion:0,idempotencyKey:key(),grant});
+ vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');
+}
+async function deferredOfferChild(rfqId:string,command:string,probe:string){
+ await db.exec(`CREATE FUNCTION ${probe}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+ INSERT INTO procurement_rfq_offers(id,rfq_id,supplier_id,rfq_version,reference,evidence,arrival_date,valid_until,currency,subtotal_minor,tax_minor,recorded_by,created_at)
+ SELECT '${probe}',id,'${suppliers[0]}',9999,'Late source child','Actual deferred immutable supplier quote','2026-10-02','2099-12-31',currency,0,0,created_by,created_at FROM procurement_rfqs WHERE id='${rfqId}';
+ RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${probe} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${probe}()`);
+}
+const sourceSnapshot=()=>Promise.all(['procurement_rfqs','procurement_rfq_lines','procurement_rfq_offers','procurement_rfq_offer_lines','procurement_rfq_events','commerce_orders','commerce_order_lines','command_receipts','audit_events','outbox_events','staff_notifications'].map(async table=>(await db.prepare(`SELECT row_to_json(source)::text row FROM ${table} source ORDER BY row_to_json(source)::text`).all()).results));
+it('rolls back a deferred immutable RFQ child even when the original parent image is unchanged, then recovers the exact original cancellation',async()=>{
+ await purchaseSourceCohort();const id=await create(),command=key(),probe=`rfq_child_${key().replaceAll('-','')}`,input={action:'cancel',expectedVersion:1,reason:'Discharge the actual original unawarded demand'},before=await sourceSnapshot();
+ await deferredOfferChild(id,command,probe);
+ try{await expect(actRfq(f.owner,id,input,command)).rejects.toMatchObject({code:'PROCUREMENT_SOURCE_CHANGED'});expect(await sourceSnapshot()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${probe} ON audit_events;DROP FUNCTION ${probe}()`);}
+ const cancelled=await actRfq(f.owner,id,input,command);expect(await actRfq(f.owner,id,input,command)).toEqual(cancelled);expect((await rfqDetail(f.owner,id)).rfq).toMatchObject({status:'cancelled',version:2});expect(await db.prepare('SELECT count(*) n FROM procurement_rfq_offers WHERE rfq_id=?').bind(id).first('n')).toBe(0);
+});
+it('rejects an altered immutable award child after the complete Commerce handoff and leaves no orphan purchase or evidence',async()=>{
+ await purchaseSourceCohort();const {id,input}=await approved(),command=key(),probe=`rfq_award_child_${key().replaceAll('-','')}`,before=await sourceSnapshot();await deferredOfferChild(id,command,probe);
+ try{await expect(saveOrder(f.owner,null,input,command)).rejects.toMatchObject({code:'PROCUREMENT_SOURCE_CHANGED'});expect(await sourceSnapshot()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${probe} ON audit_events;DROP FUNCTION ${probe}()`);}
+ const order=await saveOrder(f.owner,null,input,command);expect(await saveOrder(f.owner,null,input,command)).toEqual(order);expect((await rfqDetail(f.owner,id)).rfq).toMatchObject({status:'ordered',order_id:order.id,version:6});expect(await db.prepare('SELECT count(*) n FROM procurement_rfq_offers WHERE rfq_id=?').bind(id).first('n')).toBe(2);
+});
+it('waits for a real committed product writer before the first Procurement snapshot without serialization, deadlock or automatic retry',async()=>{
+ await purchaseSourceCohort();const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),name='Committed original Supply product source';
+ const observed=await committedSourceVisibility(db,tx=>tx.prepare('UPDATE commerce_products SET name=?,version=version+1 WHERE id=?').bind(name,product).run(),()=>measureReads(()=>create()));
+ expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);expect((await rfqDetail(f.owner,observed.result)).lines[0].description).toBe(name);
+});
+
+
+async function rawProcurementSupply(companyId=f.company){
+ const {withPackageSettlementSources}=await import('../../../src/server/modules/commercial/public/package-settlement-sources'),{lockSupplyProcurementPackageObligationSources,supplyProcurementPackageObligations}=await import('../../../src/server/modules/procurement/public/package-obligations');
+ return withPackageSettlementSources(db,companyId,[lock=>lockSupplyProcurementPackageObligationSources(db,lock)],database=>supplyProcurementPackageObligations(db,database,{companyId,packageId:'supply',packageVersion:1,moduleId:'procurement',now:Date.now()}));
+}
+it('reads unfiltered original Supply duty only through minted current owner source leases and accepts real RFQ cancellation without deleting standing references',async()=>{
+ const {supplyProcurementPackageObligations}=await import('../../../src/server/modules/procurement/public/package-obligations');await expect(db.transaction(database=>supplyProcurementPackageObligations(db,database,{companyId:f.company,packageId:'supply',packageVersion:1,moduleId:'procurement',now:Date.now()}))).rejects.toThrow('SUPPLY_PROCUREMENT_PACKAGE_OBLIGATION_SOURCE_REQUIRED');
+ const first=await rawProcurementSupply();expect(first.outstanding).toBe(0);const id=await create();expect((await rawProcurementSupply()).outstanding).toBe(1);await actRfq(f.owner,id,{action:'cancel',expectedVersion:1,reason:'The original business demand is no longer required'},key());expect((await rawProcurementSupply()).outstanding).toBe(0);expect((await rawProcurementSupply()).revision).not.toBe(first.revision);expect((await rfqDetail(f.owner,id)).rfq.status).toBe('cancelled');
+ const {bindRecordAttachmentSet}=await import('../../../src/server/modules/files/public/attachments/service'),files=await seedAttachmentSet(db,f.owner,{targetType:'procurement_rfq',targetId:id,purposeKey:'supplier_quotation',componentKind:'record',expectedTargetVersion:2});
+ await bindRecordAttachmentSet(db,f.owner,files.setId,2,key());expect((await rawProcurementSupply()).outstanding).toBe(0);
+ await db.prepare('UPDATE procurement_rfqs SET version=version+1 WHERE id=?').bind(id).run();expect((await rawProcurementSupply()).outstanding).toBe(1);
+ expect(await db.prepare('SELECT count(*) n FROM commerce_products WHERE id=?').bind(product).first('n')).toBe(1);
+});
+it('recognizes the exact original independently awarded RFQ and cancelled PO lineage as settled while a false terminal label remains unresolved',async()=>{
+ const {id,input}=await approved(),order=await saveOrder(f.owner,null,input,key());expect((await rawProcurementSupply()).outstanding).toBe(1);await transitionOrder(f.owner,String(order.id),{action:'cancel',expectedVersion:1},key());expect((await rawProcurementSupply()).outstanding).toBe(0);expect((await rfqDetail(f.owner,id)).rfq).toMatchObject({status:'ordered',order_id:order.id});
+ const forged=await create();await db.prepare("UPDATE procurement_rfqs SET status='cancelled',version=version+1 WHERE id=?").bind(forged).run();expect((await rawProcurementSupply()).outstanding).toBe(1);
+});
+
+const supplySettlementInput=()=>({companyId:f.company,packageId:'supply',packageVersion:1});
+async function supplySettlement(){
+ const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations');
+ return withOwnerPackageObligations(db,supplySettlementInput(),database=>readOwnerPackageObligations(db,database,{...supplySettlementInput(),now:Date.now()}));
+}
+async function supplyWithdrawal(){
+ const {packageGrantRevision}=await import('../../../src/server/modules/commercial/public/package-grants'),grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==='supply')!;
+ return {companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Actual original Supply duties are independently discharged',evidence:'test:supply-normal-owner-withdrawal'}}]};
+}
+async function reviewSupplyWithdrawal(request:Awaited<ReturnType<typeof supplyWithdrawal>>,apply=false){
+ const {withOwnerPackageObligations,ownerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-original-Supply-provider'}),obligations:(database,companyId,packageId)=>ownerPackageObligations(db,database,companyId,packageId)});
+ return withOwnerPackageObligations(db,supplySettlementInput(),database=>apply?store.batch.applyIn(database,request,async()=>{}):store.batch.previewIn(database,request));
+}
+async function drainingSupply(){
+ const current=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='supply')!;
+ await packageGrantStore(db,{authorize:async()=>({userId:'isolated-original-Supply-provider'}),obligations:async()=>{throw Error('DRAINING_CANNOT_CERTIFY_INACTIVE');}}).apply({expectedVersion:current.version,idempotencyKey:key(),grant:{...current,state:'draining',version:current.version+1,reason:'Retain original Supply settlement obligations',evidence:'test:supply-normal-owner-draining'}});
+}
+it('withdraws Supply through all four actual owner readers only after original RFQ settlement and preserves exact cancellation history without expanding authority',async()=>{
+ await purchaseSourceCohort();const id=await create(),before=await supplySettlement();expect(before.observations.map(row=>row.moduleId)).toEqual(['procurement','inventory','quality','finance']);expect(before.total).toBe(1);
+ await drainingSupply();await expect(reviewSupplyWithdrawal(await supplyWithdrawal())).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
+ const command=key(),input={action:'cancel',expectedVersion:1,reason:'Original Supply demand is cancelled during retained settlement'},result=await actRfq(f.owner,id,input,command);
+ expect((await supplySettlement()).total).toBe(0);
+ const request=await supplyWithdrawal(),preview=await reviewSupplyWithdrawal(request),applied=await reviewSupplyWithdrawal(request,true);
+ expect(applied).toEqual(preview);expect(await reviewSupplyWithdrawal(request,true)).toEqual(applied);
+ expect(await actRfq(f.owner,id,input,command)).toEqual(result);expect((await rfqDetail(f.owner,id)).purchase).toMatchObject({newWork:false,settleExisting:false,history:true});
+ expect((await readCompanyPackageGrants(db,f.company)).map(row=>[row.packageId,row.state])).toEqual([['supply','inactive']]);
+ await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.owner.assignmentId).run();
+ await expect(actRfq(f.owner,id,input,command)).rejects.toMatchObject({code:'PROCUREMENT_ACCESS_CHANGED'});
+});
+it('rolls back the entire normal Supply withdrawal when a deferred original RFQ duty appears and then retries the same reviewed change set',async()=>{
+ await purchaseSourceCohort();const id=await create();await actRfq(f.owner,id,{action:'cancel',expectedVersion:1,reason:'Original reviewed source has no unfinished demand'},key());await drainingSupply();
+ const request=await supplyWithdrawal(),preview=await reviewSupplyWithdrawal(request),probe=`supply_withdrawal_${key().replaceAll('-','')}`,newId=`late-supply-${key()}`;
+ const snapshot=()=>Promise.all(['company_package_grants','company_package_grant_events','company_package_history_rights','company_package_change_sets','company_package_revisions','company_package_review_evidence','procurement_rfqs'].map(async table=>(await db.prepare(`SELECT row_to_json(row)::text image FROM ${table} row ORDER BY row_to_json(row)::text`).all()).results)),before=await snapshot();
+ await db.exec(`CREATE FUNCTION ${probe}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO procurement_rfqs SELECT (jsonb_populate_record(NULL::procurement_rfqs,to_jsonb(source)||jsonb_build_object('id','${newId}','status','collecting','version',1,'order_id',NULL))).* FROM procurement_rfqs source WHERE source.id='${id}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${probe} AFTER UPDATE ON company_package_grants DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.company_id='${f.company}' AND NEW.package_id='supply' AND NEW.state='inactive') EXECUTE FUNCTION ${probe}()`);
+ try{await expect(reviewSupplyWithdrawal(request,true)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');expect(await snapshot()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${probe} ON company_package_grants;DROP FUNCTION ${probe}()`);}
+ expect(await reviewSupplyWithdrawal(request,true)).toEqual(preview);expect(await reviewSupplyWithdrawal(request,true)).toEqual(preview);
+});
+
+it('fresh RFQ private bytes retain the actual supplier quotation and Stock source under Supply-only draining with deferred source and IAM rollback',async()=>{
+ const {attachmentContent}=await import('../../../src/server/modules/files/public/attachments/service'),id=await create(),file=await seedAttachmentSet(db,f.owner,{targetType:'procurement_rfq',targetId:id,purposeKey:'supplier_quotation',componentRef:'supplier-offer',expectedTargetVersion:1});await offer(id,1,0,'10',[file.setId]);const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key')),bytes='Original RFQ supplier private quotation';await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:'application/pdf'}});await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(file.sourceId).run();
+ vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await expect(attachmentContent(db,env.H001_FILES,f.owner,file.linkId,'original')).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});const grant={companyId:f.company,packageId:'supply',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Original RFQ private supplier source only',evidence:'test:rfq-private-source'},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-rfq-files-provider'}),obligations:async()=>{throw Error('RFQ_FILE_FIXTURE_CANNOT_INACTIVATE');}});await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:'draining',version:2}});
+ let consumed=0;const files:import('../../../src/server/modules/runtime/public/runtime/types').FileStore={get:async(...args)=>{const object=await env.H001_FILES.get(...args);return object?{...object,arrayBuffer:async()=>{consumed++;return object.arrayBuffer();}}:null;},put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args)};expect(await(await attachmentContent(db,files,f.owner,file.linkId,'original')).object.text()).toBe(bytes);await expect(db.transaction(tx=>attachmentContent(tx,files,f.owner,file.linkId,'original'))).rejects.toMatchObject({code:'PROCUREMENT_FILE_READ_TRANSACTION_REQUIRED'});
+ for(const fault of ['rfq','supplier','product','iam'] as const){const trigger=`rfq_byte_${key().replaceAll('-','')}`,effect=fault==='rfq'?`UPDATE procurement_rfqs SET title=title||' unexpected edit' WHERE id='${id}'`:fault==='supplier'?`UPDATE finance_parties SET name=name||' unexpected edit' WHERE id='${suppliers[0]}'`:fault==='product'?`UPDATE commerce_products SET name=name||' unexpected edit' WHERE id='${product}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.owner.assignmentId}'`;await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${trigger}()`);try{await expect(attachmentContent(db,files,f.owner,file.linkId,'original')).rejects.toMatchObject({code:fault==='iam'?'ATTACHMENT_FILE_READ_CHANGED':'PROCUREMENT_FILE_READ_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_access_events;DROP FUNCTION ${trigger}()`);}expect(await db.prepare('SELECT title FROM procurement_rfqs WHERE id=?').bind(id).first('title')).toBe('Demand for customer order');expect(await db.prepare('SELECT name FROM finance_parties WHERE id=?').bind(suppliers[0]).first('name')).toBe('RFQ supplier 0');expect(await db.prepare('SELECT name FROM commerce_products WHERE id=?').bind(product).first('name')).toBe('RFQ product');expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.owner.assignmentId).first()).toEqual({revoked_at:null,version:1});}
+ expect(consumed).toBe(5);expect(Number(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='allowed'").bind(file.linkId).first('n'))).toBe(1);expect(await(await attachmentContent(db,files,f.owner,file.linkId,'original')).object.text()).toBe(bytes);expect(await db.prepare('SELECT legal_hold,revoked_at FROM attachments WHERE id=?').bind(file.sourceId).first()).toEqual({legal_hold:1,revoked_at:null});expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['supply']);
+ await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.owner.assignmentId).run();await expect(attachmentContent(db,files,f.owner,file.linkId,'original')).rejects.toMatchObject({status:404,code:'ATTACHMENT_TARGET_NOT_FOUND'});expect(consumed).toBe(6);expect(await db.prepare("SELECT reason FROM attachment_access_events WHERE link_id=? AND outcome='denied' ORDER BY created_at DESC LIMIT 1").bind(file.linkId).first('reason')).toBe('ATTACHMENT_TARGET_NOT_FOUND');
+});
+it('fresh Procurement private bytes observe a committed normal disabled File binder before their first RFQ source snapshot without database retries',async()=>{
+ const {bindRecordAttachmentSet,attachmentContent}=await import('../../../src/server/modules/files/public/attachments/service'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),id=await create(),file=await seedAttachmentSet(db,f.owner,{targetType:'procurement_rfq',targetId:id,purposeKey:'supplier_quotation',componentKind:'record',expectedTargetVersion:1}),objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key'));await env.H001_FILES.put(objectKey,'Actually concurrently bound original RFQ record document',{httpMetadata:{contentType:'application/pdf'}});const trigger=`rfq_snapshot_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF(SELECT version FROM procurement_rfqs WHERE id='${id}')<>2 THEN RAISE EXCEPTION 'PROCUREMENT_FILE_STALE_FIRST_SNAPSHOT';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${trigger}()`);try{const measured=await measureReads(()=>committedSourceVisibility(db,tx=>bindRecordAttachmentSet(tx,f.owner,file.setId,1,key()),()=>attachmentContent(db,env.H001_FILES,f.owner,file.linkId,'original')));expect(await measured.result.object.text()).toBe('Actually concurrently bound original RFQ record document');expect(measured.metrics.deadlockFailures??0).toBe(0);expect(measured.metrics.serializationFailures??0).toBe(0);expect(measured.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_access_events;DROP FUNCTION ${trigger}()`);}
 });

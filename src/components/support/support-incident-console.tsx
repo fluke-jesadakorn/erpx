@@ -1,10 +1,11 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { incidentDetail } from "@/server/modules/support/public/support-incidents";
 import {
@@ -62,7 +63,7 @@ export function SupportIncidentConsole({
         throw new Error(result.error?.message ?? "Unable to record incident action.");
       }
       last.current = null;
-      router.push(`${base}/support/incidents/${result.data.id}`);
+      router.push(canonicalUiHref(`${base}/support/incidents/${result.data.id}`));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this action.");
@@ -241,7 +242,7 @@ export function SupportIncidentConsole({
       {detail?.canManage &&
         status === "mitigated" &&
         form("reject", "Request further investigation")}
-      {detail?.canManage && status === "closed" && form("reopen", "Reopen incident")}
+      {detail?.canReopen && status === "closed" && form("reopen", "Reopen incident")}
       {detail?.canManage && ["open", "investigating", "mitigated"].includes(status) && (
         <>
           {form(

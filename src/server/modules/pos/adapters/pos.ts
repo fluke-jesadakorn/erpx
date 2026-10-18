@@ -10,6 +10,9 @@ import { requirePermission } from "@/server/modules/identity_access/public/iam-p
 import { all, one } from "@/server/modules/pos/public/pos-core";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { ApiError } from "@/server/modules/runtime/public/http";
+import { readPurchasedAccesses, posPackageEnforcementMode, type PurchasedAccess } from "../../commercial/public/purchase-command-boundary";
+import { requirePosReportingPurchase } from "./purchase-boundary";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { posCustomers } from "@/server/modules/pos/public/pos-daily";
 import type { SqlStatement } from "../../runtime/public/runtime/types";
 import { createPosRead, type PosReadUnit, type PosExecutiveEvidenceMetric } from "../application/pos";
@@ -281,18 +284,41 @@ function unit(db: SqlDatabase): PosReadUnit<SqlStatement> {
     };
 }
 const application = createPosRead<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), environment: key => process.env[key], require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write) });
-export function posWorkspace(actor: WorkContext, saleId?: string, historyQuery = '', section?: string, cursor?: string, frontMode = false, financeMode = false) { return application.posWorkspace(actor, saleId, historyQuery, section, cursor, frontMode, financeMode); }
-export function posExecutiveEvidenceRow(db: SqlDatabase, actor: WorkContext, metric: PosExecutiveEvidenceMetric, recordId: string, filters: {
+export async function posWorkspace(actor: WorkContext, saleId?: string, historyQuery = '', section?: string, cursor?: string, frontMode = false, financeMode = false) {
+    requirePermission(actor, financeMode ? "finance.read" : "pos.read");
+    const mode = await posPackageEnforcementMode();
+    const purchases = mode === "disabled" ? undefined : await readPurchasedAccesses(async () => (await holdingResources(actor.holdingId)).write, mode, actor.companyId,
+      ["pos.sales", "pos.payments", "pos.refunds", "pos.shifts", "pos.restaurant", "pos.kitchen", "pos.hotel-charge", "inventory.stock-core", "finance.pos-posting", "finance.accounting", "finance.hotel-posting", "pms.guest-accounts"]);
+    const allowed = financeMode ? purchases?.["finance.accounting"].history || purchases?.["finance.pos-posting"].history
+      : purchases?.[section === "kitchen" ? "pos.kitchen" : section === "shifts" ? "pos.shifts" : "pos.sales"].history;
+    if (purchases && !allowed) throw new ApiError(403, "PACKAGE_REQUIRED", "This package does not permit the requested POS workspace.");
+    const data: Awaited<ReturnType<typeof application.posWorkspace>> & { purchases?: Record<string, PurchasedAccess> } = await application.posWorkspace(actor, saleId, historyQuery, section, cursor, frontMode, financeMode);
+    if (purchases) {
+      data.purchases = purchases;
+      data.roomChargeEnabled = data.roomChargeEnabled && purchases["pos.hotel-charge"].newWork && purchases["pms.guest-accounts"].newWork && purchases["finance.hotel-posting"].newWork;
+      if (!data.roomChargeEnabled) data.roomChargeStays = [];
+      if (!purchases["pos.kitchen"].history) data.kitchen = [];
+    }
+    return data;
+}
+export async function posExecutiveEvidenceRow(db: SqlDatabase, actor: WorkContext, metric: PosExecutiveEvidenceMetric, recordId: string, filters: {
     from: string;
     to: string;
     currency: string;
-}) { return application.posExecutiveEvidenceRow(unit(db), actor, metric, recordId, filters); }
-export async function posWork(actor: WorkContext) { return [...await application.posWork(actor),...await roomChargeReversalWork(actor,"pos")]; }
-export function posReportReceipts(actor: WorkContext, group: {
+}) { requirePermission(actor, "pos.reports"); await requirePosReportingPurchase(db, actor); return application.posExecutiveEvidenceRow(unit(db), actor, metric, recordId, filters); }
+export async function posWork(actor: WorkContext): Promise<import("@/lib/work_projection/work-item").WorkItem[]> {
+    if (!hasPermission(actor, "pos.approve") || actor.departmentId) return [];
+    const mode = await posPackageEnforcementMode(), access = mode === "disabled" ? undefined
+      : (await readPurchasedAccesses(async () => (await holdingResources(actor.holdingId)).write, mode, actor.companyId, ["pos.sales"]))["pos.sales"];
+    if (access && !access.history) return [];
+    const rows = [...await application.posWork(actor), ...await roomChargeReversalWork(actor, "pos")];
+    return access && !access.settleExisting ? rows.map(row => ({ ...row, canAct: false, queue: "waiting" })) : rows;
+}
+export async function posReportReceipts(actor: WorkContext, group: {
     businessDate: string;
     registerId: string;
     shiftId: string;
     currency: string;
-}, page = 1) { return application.posReportReceipts(actor, group, page); }
+}, page = 1) { requirePermission(actor, "pos.reports"); await requirePosReportingPurchase((await holdingResources(actor.holdingId)).write, actor); return application.posReportReceipts(actor, group, page); }
 export type PosWorkspace = Awaited<ReturnType<typeof posWorkspace>>;
 export type { PosExecutiveEvidenceMetric };

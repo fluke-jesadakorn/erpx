@@ -79,3 +79,8 @@ describe('Finance immutable instrument and depreciation policy detail projection
  it('falls back to retained posting month or generic asset label and loads policy runs',async()=>{expect(await expansion({assetPolicyWorkspace:async()=>({retained:'policy',assets:[]})}).run.financeExpansionRecord(actor,'finance_asset_policy_run','run')).toMatchObject({row:{name:'Fixed asset · Depreciation 2026-10'}});const c=expansion({row:async()=>({id:'policy',asset_id:'asset'})});expect(await c.run.financeExpansionRecord(actor,'finance_asset_policy','policy')).toMatchObject({row:{name:'FA-001 · Depreciation policy'},assetPolicyData:{runs:[{id:'monthly'}]}});expect(c.ports.assetPolicy).not.toHaveBeenCalled()});
  it('rejects a missing retained edition or policy rather than using workspace current state',async()=>{await expect(expansion({instrumentEdition:async()=>null}).run.financeExpansionRecord(actor,'finance_instrument_run','run')).rejects.toMatchObject({code:'FINANCE_RECORD_NOT_FOUND'});await expect(expansion({assetPolicy:async()=>null}).run.financeExpansionRecord(actor,'finance_asset_policy_run','run')).rejects.toMatchObject({code:'FINANCE_RECORD_NOT_FOUND'})});
 });
+
+it('shows an actual nonmonetary confirmation without inventing a posted zero ledger or querying account and Procurement configuration',async()=>{
+ const c=postingPreview({invoice:async()=>({status:'no_charge_confirmed',kind:'receivable',total_minor:0,journal_id:null})});expect(await c.run('original-company','invoice','covered-original')).toEqual({state:'no-charge-confirmed'});
+ for(const port of [c.ports.accounts,c.ports.journalLines,c.ports.matchedInvoiceLines,c.ports.stockConfiguration,c.ports.stockDeltas])expect(port).not.toHaveBeenCalled();
+});

@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 
 export type AttachmentComponentKind =
@@ -135,7 +136,7 @@ export function attachmentApiBase(base: string) {
     return (base.startsWith('/api/v1/')?'': '/api/v1')+base.replace(/\/$/,'');
   if (base.startsWith("/api/v1/holdings/") || /^\/api\/customer-portal\/[^/]+\/attachments\/?$/.test(base))
     return base.replace(/\/$/, "");
-  if (!base.startsWith("/holdings/"))
+  if (!base.startsWith(canonicalUiHref("/holdings/")))
     throw new Error("AttachmentPanel requires a holding workspace base path.");
   return `/api/v1${base.replace(/\/$/, "")}`;
 }

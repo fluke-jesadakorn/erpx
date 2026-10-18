@@ -1,6 +1,6 @@
 "use client";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import Link from "@/components/workplace/workspace-link";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import { type HTMLAttributes } from "react";
 import { RecordDrawer } from "./record-drawer";
 

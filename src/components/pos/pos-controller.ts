@@ -1,6 +1,8 @@
 "use client";
-import {useCallback,useEffect,useRef,useState,useSyncExternalStore} from "react";
-import {useSearchParams} from "next/navigation";
+import {posReceiptHref} from "@/lib/pos/receipt-route";
+import {useRouter} from "@/lib/shared/destination-router";
+import {useCallback,useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} from "react";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import {useMoneyFormatter} from "@/components/finance/money/currency-provider";
 import {useFrontLanguage} from "@/components/front/front-language";
 import {frontText} from "@/lib/shared/front-language";
@@ -9,6 +11,10 @@ import {createLatestRead} from "@/lib/shared/latest-read";
 import {createPosSeedReadGate, isLivePosTab, posReadKey, type PosInitialRead} from "@/lib/pos/pos-read-identity";
 import type {PosWorkspace} from "@/server/modules/pos/public/pos";
 import type {PosRow} from "@/server/modules/pos/public/pos-core";
+import {posCommandPurchases} from "@/server/modules/pos/public/rules/package-commands";
+import {createPosDeviceDraftCommands,type PosDeviceDraftReference,type PosDeviceSource} from '@/lib/pos/device-cart-command';
+import type {PosWorkspaceCommandSource,PosWorkspaceCompletion} from '@/lib/pos/workspace-command';
+import {announceWorkChange} from '@/lib/work_projection/work-refresh';
 const s=(row:PosRow,key:string)=>String(row[key]??"");
 type Row=PosRow;
 function subscribePosConnectivity(onChange:()=>void){ window.addEventListener("online",onChange);window.addEventListener("offline",onChange);return()=>{window.removeEventListener("online",onChange);window.removeEventListener("offline",onChange);}; }
@@ -16,6 +22,7 @@ const posConnectivitySnapshot=()=>navigator.onLine;
 const posServerConnectivitySnapshot=()=>true;
 export type PosConsoleProps = { initial: PosWorkspace; base: string; erpBase?: string; initialTab?: string; frontMode?: boolean; commandScopeKey?: string; frontHref?: string; recordOnly?: boolean; financeMode?: boolean; initialRead?: PosInitialRead; };
 export function usePosController({initial,base,initialTab,frontMode=false,commandScopeKey=base,financeMode=false,initialRead,recordOnly=false}:PosConsoleProps){
+  const router=useRouter();
   const formatSelectedMoney = useMoneyFormatter();
   const online = useSyncExternalStore(
     subscribePosConnectivity,
@@ -35,7 +42,7 @@ export function usePosController({initial,base,initialTab,frontMode=false,comman
     requestedTab === "sale"
       ? maySell
       : requestedTab === "kitchen"
-        ? mayKitchen || maySell
+        ? (mayKitchen || maySell) && (initial.purchases?.["pos.kitchen"].history ?? true)
         : requestedTab === "shifts"
           ? maySell || mayReview
           : requestedTab === "history";
@@ -55,7 +62,7 @@ export function usePosController({initial,base,initialTab,frontMode=false,comman
     const url = new URL(window.location.href);
     url.searchParams.set("tab", value);
     url.searchParams.delete("cursor");
-    window.history.pushState(null, "", url);
+    router.push(url.pathname+url.search,{scroll:false});
   };
   const [data, setData] = useState(initial),
     [loadedTab, setLoadedTab] = useState(tab),
@@ -75,11 +82,8 @@ export function usePosController({initial,base,initialTab,frontMode=false,comman
   const setSelected = (value: string) => {
     if (value !== selected) setLoadedTab("");
     setSelectedState(value);
-    if (frontMode) {
-      const url = new URL(window.location.href);
-      if (value) url.searchParams.set("sale", value);
-      else url.searchParams.delete("sale");
-      window.history.replaceState(null, "", url);
+    if (frontMode && value) {
+      router.replace(posReceiptHref(window.location.href,value),{scroll:false});
     }
   };
   const requestedSale = searchParams.get("detailKind") === "pos_sale" ? searchParams.get("detailId") : searchParams.get("sale"),
@@ -135,28 +139,6 @@ export function usePosController({initial,base,initialTab,frontMode=false,comman
     loadingRef = useRef(false);
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const commandStorageKey = "pos-command:" + data.userId + ":" + base + ":" + commandScopeKey;
-  useEffect(() => {
-    queueMicrotask(() => {
-      try {
-        const prior = JSON.parse(sessionStorage.getItem(commandStorageKey) ?? "null");
-        if (
-          prior &&
-          typeof prior.op === "string" &&
-          typeof prior.key === "string" &&
-          "input" in prior
-        ) {
-          commandRef.current = prior;
-          setPendingCommand(prior);
-        } else {
-          commandRef.current = null;
-          setPendingCommand(null);
-        }
-      } catch {
-        commandRef.current = null;
-        setPendingCommand(null);
-      }
-    });
-  }, [commandStorageKey]);
   const cursor = recordOnly ? initialRead?.cursor ?? "" : searchParams.get("cursor") ?? "",
     historyQuery = recordOnly ? initialRead?.q ?? "" : searchParams.get("q") ?? "";
   const [reads] = useState(() => createLatestRead<PosWorkspace>());
@@ -169,6 +151,44 @@ export function usePosController({initial,base,initialTab,frontMode=false,comman
   }
   const api = `/api/v1${base}/pos`,
     currency = data.currency;
+  // A render-local mounted source, separate from the durable original body.
+  // The native device branch below retains its existing owner and storage.
+  const renderedAssignment=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]')?.dataset.workAssignment;
+  const genericSource = useRef<PosWorkspaceCommandSource|null>(null);
+  const genericProtocol = useRef<{key:string;commands:ReturnType<typeof import('@/lib/pos/workspace-command').createPosWorkspaceCommands>}|null>(null);
+  useLayoutEffect(() => {
+    genericSource.current={api,scope:commandScopeKey,userId:data.userId,companyId:data.companyId,branchId:data.branchId,registerId,selection:selected,tab,cursor,q:historyQuery,finance:financeMode,frontMode,recordOnly,data};
+    return()=>{genericSource.current=null;};
+  },[api,commandScopeKey,data,registerId,selected,tab,cursor,historyQuery,financeMode,frontMode,recordOnly]);
+  const [deviceOwner] = useState(() => {
+    let readSource:()=>PosDeviceSource|null=()=>null;
+    return {commands:createPosDeviceDraftCommands(()=>readSource()),bind(next:()=>PosDeviceSource|null){readSource=next;}};
+  });
+  const deviceCommands=deviceOwner.commands;
+  useLayoutEffect(() => {
+    const source={api, scope:commandScopeKey, userId:data.userId, companyId:data.companyId, branchId:data.branchId, registerId, canSell:Boolean(data.permissions['pos.sell'])};
+    deviceOwner.bind(()=>({...source,selection:selectionRef.current}));
+    return () => {deviceOwner.bind(()=>null);};
+  }, [deviceOwner, api, commandScopeKey, data.userId, data.companyId, data.branchId, data.permissions, registerId]);
+  useEffect(() => {
+    let live=true;
+    queueMicrotask(() => {
+      if(!live)return;
+      try {
+        const prior=JSON.parse(sessionStorage.getItem(commandStorageKey)??'null');
+        const device=deviceCommands.pending()??deviceCommands.restore(prior);
+        const pending=prior&&typeof prior.op==='string'&&typeof prior.key==='string'&&'input' in prior
+          ? device&&device.key===prior.key?device:prior
+          : device;
+        commandRef.current=pending;setPendingCommand(pending);
+        if(pending&&!device&&(prior?.kind!=='pos-workspace-command'||prior?.version!==1))setError('This saved POS command has no verified original Company and role. Its original bytes are preserved; it cannot safely be retried under the currently selected Company.');
+      } catch(cause) {
+        // An unreadable durable submission cannot be replaced with a fresh add.
+        setError(cause instanceof Error?cause.message:'Keep the original saved device cart before retrying.');
+      }
+    });
+    return()=>{live=false;};
+  }, [commandStorageKey,deviceCommands,registerId]);
   const money = (value: number, recordCurrency: string | null = currency, date?: string) =>
     formatSelectedMoney(value, recordCurrency || currency || "USD", date, 2);
   const saleMoney = (value: number) =>
@@ -249,7 +269,7 @@ export function usePosController({initial,base,initialTab,frontMode=false,comman
       document.removeEventListener("visibilitychange", reload);
     };
   }, [refresh, tab]);
-  async function send(op: string, input: unknown, select = false) {
+  async function send(op: string, input: unknown, select = false, deviceDraft?:PosDeviceDraftReference, completion?:PosWorkspaceCompletion) {
     if (!navigator.onLine) {
       setError(
         language === "th"
@@ -258,83 +278,104 @@ export function usePosController({initial,base,initialTab,frontMode=false,comman
       );
       return undefined;
     }
+    let retainedDevice:ReturnType<typeof deviceCommands.pending>;
+    try { retainedDevice=deviceCommands.pending()??deviceCommands.restore(commandRef.current); if(retainedDevice&&!commandRef.current){commandRef.current=retainedDevice;setPendingCommand(retainedDevice);} }
+    catch(cause){setError(cause instanceof Error?cause.message:'Keep the original device cart before adding more items.');return;}
+    // A saved command can already have committed. Keep its retry path and let
+    // the owner recover its receipt under current history/authority checks.
+    let durableCommand=false;try{durableCommand=sessionStorage.getItem(commandStorageKey)!==null;}catch{durableCommand=true;}
+    if (!commandRef.current && !durableCommand && data.purchases) {
+      const register = data.registers.find(row => row.id === registerId);
+      const denied = posCommandPurchases(op, register?.mode === "restaurant").some(scope => {
+        const access = data.purchases?.[scope.capability];
+        return !access || !(scope.purpose === "new-work" ? access.newWork : access.settleExisting);
+      });
+      if (denied) {
+        setError(language === "th" ? "แพ็กเกจปัจจุบันไม่รองรับคำสั่งนี้ ตรวจงานค้างหรือกลับ Apps เพื่อเลือกผลิตภัณฑ์" : "The current package does not permit this action. Review existing work or return to Apps.");
+        return undefined;
+      }
+    }
     if (op === "sale.create")
       input = {
         ...(input as Record<string, unknown>),
         currency: (input as Record<string, unknown>).currency ?? data.currency,
       };
     if (busyRef.current) return;
+    if(retainedDevice&&commandRef.current&&commandRef.current.key!==retainedDevice.key){setError('Two original POS submissions are retained. Recover their original keys without replacing either saved request.');return;}
+    if (deviceDraft || retainedDevice) {
+      if(op!=='sale.add'||commandRef.current&&commandRef.current.fingerprint!==op+JSON.stringify(input)){
+        setError('Recover the original device add before sending a different command.');return;
+      }
+      let captured:NonNullable<typeof retainedDevice>;
+      try { captured=retainedDevice??deviceCommands.prepare(input,deviceDraft!); }
+      catch(cause){setError(cause instanceof Error?cause.message:'Keep the original device add.');return;}
+      commandRef.current=captured;setPendingCommand(captured);
+      try{sessionStorage.setItem(commandStorageKey,JSON.stringify(captured));}catch{}
+      busyRef.current=true;reads.cancel();setBusy(true);setError('');setNotice('');
+      try {
+        const completed=await deviceCommands.run(captured);completed.assertCurrent();reads.cancel();
+        const acknowledged=await completed.acknowledge();completed.assertCurrent();if(!acknowledged)return;
+        commandRef.current=null;setPendingCommand(null);try{sessionStorage.removeItem(commandStorageKey);}catch{}
+        selectionRef.current=String(completed.receipt.id);setSelected(String(completed.receipt.id));
+        setData(completed.view);setLoadedTab('sale');setTab('sale');
+        setNotice(acknowledged.newer?(language==='th'?'เพิ่มร่างเดิมแล้ว เก็บรายการที่แก้ไขใหม่ไว้ในร่าง':'Original item added. Your newer draft is retained.'):'Saved');
+        announceWorkChange();return completed.receipt;
+      } catch(cause) {
+        if(deviceCommands.isPending(captured)){commandRef.current=captured;setPendingCommand(captured);try{sessionStorage.setItem(commandStorageKey,JSON.stringify(captured));}catch{}}
+        else {commandRef.current=null;setPendingCommand(null);try{sessionStorage.removeItem(commandStorageKey);}catch{}}
+        setError(cause instanceof Error?cause.message:'The original device add was not confirmed.');return;
+      } finally {busyRef.current=false;setBusy(false);}
+    }
     const fingerprint = op + JSON.stringify(input);
     if (commandRef.current && commandRef.current.fingerprint !== fingerprint) {
-      setError("มีคำสั่งที่ยังไม่ทราบผล กรุณาตรวจผลคำสั่งเดิมก่อนทำรายการต่อ");
+      setError("Recover the original POS command before submitting newer entries.");
       return;
     }
-    const pending = commandRef.current ?? {
-      op,
-      input,
-      select,
-      fingerprint,
-      key: crypto.randomUUID(),
-    };
-    commandRef.current = pending;
+    // Loading the closed generic protocol is itself asynchronous. Bind this
+    // actual click before that await; a context change and return still refuses.
+    const clicked=genericSource.current;
+    if(!clicked||clicked.userId!==data.userId||clicked.companyId!==data.companyId||clicked.branchId!==data.branchId||clicked.api!==api||clicked.scope!==commandScopeKey||renderedAssignment!==document.querySelector<HTMLElement>('[data-work-revision]')?.dataset.workAssignment){setError('The POS source changed. Review the current owner before sending.');return;}
+    const snapshot=()=>JSON.stringify([genericSource.current,window.location.origin,window.location.pathname,window.location.search,document.querySelector<HTMLElement>('[data-work-revision]')?.dataset,document.querySelector<HTMLElement>('[data-front-app]')?.dataset]);
+    const clickedForm=completion?.form??document.activeElement?.closest<HTMLFormElement>('form');
+    const clickedCompletion:PosWorkspaceCompletion=clickedForm?{...completion,captured:true,form:clickedForm,formEditVersion:clickedForm.getAttribute('data-erpx-edit-version'),fields:JSON.stringify(Array.from(new FormData(clickedForm),([key,value])=>[key,typeof value==='string'?value:{name:value.name,size:value.size,type:value.type,lastModified:value.lastModified}]))}:{...completion,captured:true};
+    const stamp=snapshot();let contextChanged=false;
+    const contextChange=()=>{contextChanged=true;};
+    window.addEventListener('erpx:context-switch-started',contextChange);
+    window.addEventListener('erpx:work-context-changed',contextChange);
+    const current=()=>{if(contextChanged||genericSource.current!==clicked||snapshot()!==stamp||document.documentElement.dataset.workSwitching==='true')throw Error('The POS source or work role changed. Keep the original request.');};
+    busyRef.current=true;reads.cancel();setBusy(true);setError('');setNotice('');
+    let protocol:ReturnType<typeof import('@/lib/pos/workspace-command').createPosWorkspaceCommands>|undefined;
+    let receiptResult:Record<string,unknown>|undefined,afterAcknowledged:(()=>void|Promise<unknown>)|undefined;
     try {
-      sessionStorage.setItem(commandStorageKey, JSON.stringify(pending));
-    } catch {}
-    busyRef.current = true;
-    // A pre-command poll must not publish or satisfy the post-command refresh.
-    reads.cancel();
-    setBusy(true);
-    setError("");
-    setNotice("");
-    const clear = () => {
-      commandRef.current = null;
-      setPendingCommand(null);
-      try {
-        sessionStorage.removeItem(commandStorageKey);
-      } catch {}
-    };
-    try {
-      const r = await workFetch(`${api}/${pending.op.replace(".", "/")}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": pending.key },
-          body: JSON.stringify(pending.input),
-        }),
-        body = await r.json();
-      if (!r.ok) {
-        if (r.status < 500) clear();
-        throw new Error(body.error?.message ?? "Save failed");
-      }
-      // Explicit refreshes may have started while the command was committing.
-      reads.cancel();
-      clear();
-      if (body.data.url) {
-        window.location.assign(body.data.url);
-        return;
-      }
-      if (pending.select) {
-        selectionRef.current = body.data.id;
-        setSelected(body.data.id);
-        setTab("sale");
-      }
-      await refresh(pending.select ? body.data.id : selectionRef.current).catch((e) =>
-        setError(e.message),
-      );
-      if (op === "settings.bootstrap" && typeof body.data.registerId === "string")
-        setRegisterId(body.data.registerId);
-      setNotice(
-        op === "settings.bootstrap"
-          ? `${body.data.mode === "restaurant" ? "Restaurant" : "Retail"} POS is set up. Open a cash session to start selling.`
-          : "Saved",
-      );
-      return body.data;
-    } catch (e) {
-      if (commandRef.current) setPendingCommand(commandRef.current);
-      setError(e instanceof Error ? e.message : "Save failed");
+      const commandsModule=await import('@/lib/pos/workspace-command');current();
+      if(!genericProtocol.current||genericProtocol.current.key!==commandStorageKey)genericProtocol.current={key:commandStorageKey,commands:commandsModule.createPosWorkspaceCommands(()=>genericSource.current,commandStorageKey)};
+      protocol=genericProtocol.current.commands;
+      const result=protocol.run(op,input,select,clickedCompletion);
+      try{const pending=protocol.pending();commandRef.current=pending;setPendingCommand(pending);}catch{/* The run below reports the preserved invalid record without an unhandled rejection. */}
+      const completed=await result;completed.assertCurrent();reads.cancel();
+      const acknowledged=completed.acknowledge();if(!acknowledged)return;
+      commandRef.current=null;setPendingCommand(null);
+      if(completed.view){setData(completed.view);setLoadedTab(tab);}
+      if(completed.receipt.url){window.location.assign(String(completed.receipt.url));return completed.receipt;}
+      if(select){selectionRef.current=String(completed.receipt.id);setSelected(String(completed.receipt.id));setTab('sale');}
+      else if(op==='sale.create'){selectionRef.current=String(completed.receipt.id);setSelectedState(String(completed.receipt.id));}
+      if(op==='settings.bootstrap'&&typeof completed.receipt.registerId==='string')setRegisterId(completed.receipt.registerId);
+      setNotice(acknowledged.newer?'Original command saved. Your newer entries are retained.':op==='settings.bootstrap'?`${completed.receipt.mode==='restaurant'?'Restaurant':'Retail'} POS is set up. Open a cash session to start selling.`:'Saved');
+      receiptResult=completed.receipt;afterAcknowledged=acknowledged.afterAcknowledged;
+    } catch(cause) {
+      try{const retained=protocol?.pending();if(retained){commandRef.current=retained;setPendingCommand(retained);}else if(protocol){commandRef.current=null;setPendingCommand(null);}}catch{/* Unbound legacy bytes stay preserved; no inferred owner or new key. */}
+      if(genericSource.current)setError(genericSource.current===clicked&&snapshot()===stamp?(cause instanceof Error?cause.message:'The original POS command was not confirmed.'):'The original POS command is retained. Return to its original Company and role to recover it.');
       return undefined;
     } finally {
-      busyRef.current = false;
-      setBusy(false);
+      window.removeEventListener('erpx:context-switch-started',contextChange);
+      window.removeEventListener('erpx:work-context-changed',contextChange);
+      busyRef.current=false;if(genericSource.current)setBusy(false);
     }
+    // A completed customer constructor may have an original dependent action.
+    // Its first receipt stays acknowledged; the next normal send owns a new
+    // independently retained attempt and never repeats that constructor.
+    if(afterAcknowledged)try{await afterAcknowledged();}catch(cause){if(genericSource.current)setError(cause instanceof Error?cause.message:'The original command was saved. Review its remaining dependent action.');}
+    return receiptResult;
   }
 
 return {online,language,tr,searchParams,tab,setTab,data,loadedTab,registerId,setRegisterId,error,setError,notice,busy,search,setSearch,category,setCategory,product,setProduct,printing,setPrinting,kitchenStation,setKitchenStation,paymentMethod,setPaymentMethod,setSelected,pendingCommand,cursor,historyQuery,api,currency,money,saleMoney,refresh,send};

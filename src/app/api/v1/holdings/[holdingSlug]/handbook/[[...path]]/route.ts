@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -41,7 +42,7 @@ export async function GET(request: Request, context: Context) {
             );
     else throw new ApiError(404, "NOT_FOUND", "Handbook route not found.");
     return Response.json(
-      { data },
+      canonicalDestinationLinks({ data }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -87,7 +88,7 @@ export async function POST(request: Request, context: Context) {
         key,
       );
     else throw new ApiError(404, "NOT_FOUND", "Handbook action not found.");
-    return Response.json({ data });
+    return Response.json(canonicalDestinationLinks({ data }));
   } catch (e) {
     return errorResponse(e);
   }

@@ -53,6 +53,7 @@ export function flowCommandTarget(operation: string, id: string, input: unknown)
         return null;
     if (["record.archive", "record.mention", "record.reference", "record.suggestion", "record.suggestion.decide"].includes(operation))
         return null;
+    if(operation==="finance.service-no-charge.confirm")return {kind:"invoice",id,action:"post"};
     const rules: [
         string,
         FlowKind

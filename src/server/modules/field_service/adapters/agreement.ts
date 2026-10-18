@@ -1,3 +1,5 @@
+import { servicePurchaseRuntime, executeServiceCommand } from "./purchase-boundary";
+import { fieldServiceAssetReferencePredicate } from "../../assets/public/field-service-references";
 import { finalRootOwnerProjectionSources as assetsProjectionSources } from "../../assets/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as financeProjectionSources } from "../../finance/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as organizationProjectionSources } from "../../organization/public/final-root-owner-projection-sources";
@@ -7,17 +9,23 @@ import type {SqlDatabase} from "@/server/modules/runtime/public/runtime/types";
 import {holdingResources} from "@/server/modules/runtime/public/runtime";
 import {requirePermission} from "@/server/modules/identity_access/public/iam-permissions";
 import {hasModuleAccess} from "@/data/module-access";
-import {assertion,executeCommand,replayCommand} from "@/server/modules/workflow/public/commands";
+import {assertion} from "@/server/modules/workflow/public/commands";
 import {ApiError} from "@/server/modules/runtime/public/http";
 import {BusinessRuleError} from "../../shared";
 import {createAgreementApplication, type AgreementPorts} from "../application/agreement";
 import {snapshotMoney} from "@/server/modules/finance/public/company-money";
+import {withServicePurchasedCommand} from "./purchases";
+import {createAgreementSchema} from "../domain/agreement";
 export async function createAgreement(a:WorkContext,raw:unknown,key:string){
-let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=(holdingResources(a.holdingId).then(x=>x.write));
-const ports:AgreementPorts={clock:{now:()=>Date.now()},branchId:a.branchId,departmentId:a.departmentId,async authorize(){requirePermission(a,"records.write");if(!hasModuleAccess(a.modules,"field_service"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Field Service.");},
-async replay(key,op,id,input){return replayCommand(await database(),a,key,op,id,input);},
+return withServicePurchasedCommand(a,()=>({key,operation:"field.agreement.create",target:{kind:"agreement",id:`service-agreement-${key}`},creating:true,asset:Boolean(createAgreementSchema.parse(raw).assetId)}),provided=>createAgreementIn(a,raw,key,provided));
+}
+async function createAgreementIn(a:WorkContext,raw:unknown,key:string,provided?:SqlDatabase){
+let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=(holdingResources(a.holdingId).then(x=>x.write));
+const purchase = servicePurchaseRuntime(a, database);
+const ports:AgreementPorts={clock:{now:()=>Date.now()},branchId:a.branchId,departmentId:a.departmentId,async authorize(){requirePermission(a,"records.write");if(!hasModuleAccess(a.modules,"field_service"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Field Service.");await purchase.requireCurrentRead();await purchase.requirePurchase("service.agreements");},
+replay:purchase.replay,
 async persist(command){const write=await database();const {key,id,operation:op,input,branch,department,now}=command;const money=await snapshotMoney(write,a,{sourceType:"field_service_agreement",sourceId:id,amountKind:"visit_rate",transactionDate:input.startDate,currency:input.currency,currencyScale:2,amountUnits:String(input.visitRateMinor)});
-  return executeCommand(
+  return executeServiceCommand(
     write,
     a,
     key,
@@ -59,8 +67,8 @@ async persist(command){const write=await database();const {key,id,operation:op,i
               write,
               key,
               "asset",
-              `EXISTS(SELECT 1 FROM (${assetsProjectionSources.operational_assets}) operational_assets WHERE id=? AND company_id=? AND branch_id=? AND lifecycle_status<>'retired')`,
-              [input.assetId, a.companyId, branch],
+              `EXISTS(SELECT 1 FROM (${assetsProjectionSources.operational_assets}) a WHERE a.id=? AND a.company_id=? AND a.branch_id=? AND ${fieldServiceAssetReferencePredicate()})`,
+              [input.assetId, a.companyId, branch, a.departmentId, a.departmentId],
             ),
           ]
         : []),
@@ -91,6 +99,7 @@ async persist(command){const write=await database();const {key,id,operation:op,i
         )
         .bind(`service-agreement-event-${key}`, id, a.userId, now),
     ],
+    Boolean(input.assetId),
   );
 }
 };try{return await createAgreementApplication(ports)(raw,key);}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}

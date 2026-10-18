@@ -4,8 +4,8 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "@/components/workplace/workspace-link";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { InboxItem } from "@/server/modules/collaboration/public/inbox";
 import styles from "@/components/collaboration/messaging/inbox-updates.module.css";
@@ -19,9 +19,12 @@ type SentNotice = {
   delivered_count: number;
   created_at: number;
 };
-export function InboxUpdates({ base, canBroadcast }: { base: string; canBroadcast: boolean }) {
-  const [items, setItems] = useState<InboxItem[]>([]),
-    [cursor, setCursor] = useState<string | null>(null),
+export type InitialInboxUpdates={items:InboxItem[];nextCursor:string|null;unread:number};
+export function InboxUpdates({ base, canBroadcast,notificationsOnly=false,initial }: { base: string; canBroadcast: boolean;notificationsOnly?:boolean;initial?:InitialInboxUpdates }) {
+  const initialKey=JSON.stringify({base,view:"unread",category:"",query:""});
+  const [loadedKey,setLoadedKey]=useState(initial?initialKey:""),generation=useRef(0);
+  const [items, setItems] = useState<InboxItem[]>(initial?.items??[]),
+    [cursor, setCursor] = useState<string | null>(initial?.nextCursor??null),
     [view, setView] = useState("unread"),
     [category, setCategory] = useState(""),
     [search, setSearch] = useState(""),
@@ -32,10 +35,12 @@ export function InboxUpdates({ base, canBroadcast }: { base: string; canBroadcas
     [error, setError] = useState(""),
     [status, setStatus] = useState(""),
     [busy, setBusy] = useState(false),
-    [unread, setUnread] = useState(0);
-  const api = `/api/v1${base}/inbox`;
+    [unread, setUnread] = useState(initial?.unread??0);
+  const invalidateRead=useCallback(()=>{++generation.current;},[]);
+  const api = `/api/v1${base}/inbox`,readKey=JSON.stringify({base,view,category,query});
   const load = useCallback(
     async (next?: string | null, append = false) => {
+      const request=++generation.current;
       const params = new URLSearchParams({
         view,
         ...(category ? { category } : {}),
@@ -45,21 +50,24 @@ export function InboxUpdates({ base, canBroadcast }: { base: string; canBroadcas
       const response = await workFetch(`${api}/notifications?${params}`, { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error?.message ?? "Could not load updates.");
-      setItems((old) => (append ? [...old, ...json.data.items] : json.data.items));
-      setCursor(json.data.nextCursor);
       const summary = await workFetch(`${api}/summary`, { cache: "no-store" });
-      if (summary.ok) setUnread((await summary.json()).data.unread);
+      const counts=summary.ok?await summary.json():null;
+      if(request!==generation.current)return;
+      setItems((old) => (append ? [...old, ...json.data.items] : json.data.items));
+      setCursor(json.data.nextCursor);setLoadedKey(readKey);
+      if(counts)setUnread(counts.data.unread);
     },
-    [api, view, category, query],
+    [api, view, category, query,readKey],
   );
   useEffect(() => {
+    if(loadedKey===readKey)return invalidateRead;
     const timer = window.setTimeout(() => {
       void load().catch((cause) =>
         setError(cause instanceof Error ? cause.message : "Could not load updates."),
       );
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, [load]);
+    return () => {window.clearTimeout(timer);invalidateRead();};
+  }, [load,loadedKey,readKey,invalidateRead]);
   useEffect(() => {
     const refresh = () => {
       if (document.visibilityState === "visible") void load().catch(() => {});
@@ -72,6 +80,7 @@ export function InboxUpdates({ base, canBroadcast }: { base: string; canBroadcas
     };
   }, [load]);
   useEffect(() => {
+    if(notificationsOnly)return;
     void workFetch(`${api}/people`)
       .then((r) => r.json())
       .then((j) => setPeople(Array.isArray(j.data) ? j.data : []))
@@ -92,7 +101,7 @@ export function InboxUpdates({ base, canBroadcast }: { base: string; canBroadcas
           ),
         )
         .catch(() => {});
-  }, [api, base, canBroadcast]);
+  }, [api, base, canBroadcast,notificationsOnly]);
   async function state(id: string, patch: { read?: boolean; archived?: boolean }) {
     setError("");
     const response = await workFetch(`${api}/notifications/${id}/state`, {
@@ -231,7 +240,7 @@ export function InboxUpdates({ base, canBroadcast }: { base: string; canBroadcas
           Load more updates
         </Button>
       )}
-      <FormDisclosure appearance="standard" className={styles.compose}>
+      {!notificationsOnly&&<FormDisclosure appearance="standard" className={styles.compose}>
         <summary>Send a notice</summary>
         <form onSubmit={send}>
           <Field appearance="standard">
@@ -270,8 +279,8 @@ export function InboxUpdates({ base, canBroadcast }: { base: string; canBroadcas
             {busy ? "Sending…" : "Send notice"}
           </Button>
         </form>
-      </FormDisclosure>
-      {sent.length > 0 && (
+      </FormDisclosure>}
+      {!notificationsOnly&&sent.length > 0 && (
         <details className={styles.compose}>
           <summary>Sent notices</summary>
           <div className={styles.list}>

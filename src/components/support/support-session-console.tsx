@@ -1,11 +1,12 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea } from "@/components/ui/foundation";
 
 import { PreferredDateTimeField } from "@/components/people_payroll/time/preferred-date-time-field";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { supportSessionDetail, supportSessionWorkspace } from "@/server/modules/support/public/support-sessions";
 import { FormLayout } from "@/components/ui/foundation";
@@ -41,7 +42,7 @@ export function SupportSessionConsole({
         throw new Error(result.error?.message ?? "Unable to record support access.");
       }
       last.current = null;
-      router.push(`${base}/support/sessions/${result.data.id}`);
+      router.push(canonicalUiHref(`${base}/support/sessions/${result.data.id}`));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this action.");
@@ -113,9 +114,9 @@ export function SupportSessionConsole({
           </Button>
         </FormLayout>
       )}
-      {r?.canReview && form("approve", "Approve temporary session")}
+      {r?.canApprove && form("approve", "Approve temporary session")}
       {r?.canReview && form("reject", "Reject temporary session")}
-      {r?.canManage &&
+      {r?.canIssueCapability &&
         form(
           "issue-capability",
           "Issue capability",

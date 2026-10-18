@@ -1,0 +1,1249 @@
+{
+  "version": 1,
+  "status": "foundation-implementation-not-accepted",
+  "environment": "development",
+  "zone": "jesadakorn.com",
+  "tunnel": {
+    "name": "erpx-local",
+    "uuid": null,
+    "accountVerified": false
+  },
+  "tls": {
+    "status": "not-verified",
+    "advancedCertificateManager": "purchase-declined",
+    "totalTls": "do-not-enable",
+    "requestedSANs": [
+      "jesadakorn.com",
+      "*.jesadakorn.com"
+    ]
+  },
+  "hosts": [
+    {
+      "key": "work",
+      "origin": "https://work-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-work.erpx.com",
+      "futureProductionOrigin": "https://work.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "pos",
+      "origin": "https://pos-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-pos.erpx.com",
+      "futureProductionOrigin": "https://pos.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "pms",
+      "origin": "https://pms-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-pms.erpx.com",
+      "futureProductionOrigin": "https://pms.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "finance",
+      "origin": "https://finance-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-finance.erpx.com",
+      "futureProductionOrigin": "https://finance.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "people",
+      "origin": "https://people-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-people.erpx.com",
+      "futureProductionOrigin": "https://people.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "sales",
+      "origin": "https://sales-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-sales.erpx.com",
+      "futureProductionOrigin": "https://sales.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "supply",
+      "origin": "https://supply-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-supply.erpx.com",
+      "futureProductionOrigin": "https://supply.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "assets",
+      "origin": "https://assets-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-assets.erpx.com",
+      "futureProductionOrigin": "https://assets.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "projects",
+      "origin": "https://projects-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-projects.erpx.com",
+      "futureProductionOrigin": "https://projects.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "recruit",
+      "origin": "https://recruit-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-recruit.erpx.com",
+      "futureProductionOrigin": "https://recruit.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "learn",
+      "origin": "https://learn-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-learn.erpx.com",
+      "futureProductionOrigin": "https://learn.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "support",
+      "origin": "https://support-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-support.erpx.com",
+      "futureProductionOrigin": "https://support.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "service",
+      "origin": "https://service-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-service.erpx.com",
+      "futureProductionOrigin": "https://service.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "legal",
+      "origin": "https://legal-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-legal.erpx.com",
+      "futureProductionOrigin": "https://legal.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "manufacturing",
+      "origin": "https://manufacturing-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-manufacturing.erpx.com",
+      "futureProductionOrigin": "https://manufacturing.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "apps",
+      "origin": "https://apps-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-apps.erpx.com",
+      "futureProductionOrigin": "https://apps.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "account",
+      "origin": "https://account-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-account.erpx.com",
+      "futureProductionOrigin": "https://account.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "admin",
+      "origin": "https://admin-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-admin.erpx.com",
+      "futureProductionOrigin": "https://admin.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "booking",
+      "origin": "https://booking-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-booking.erpx.com",
+      "futureProductionOrigin": "https://booking.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "portal",
+      "origin": "https://portal-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-portal.erpx.com",
+      "futureProductionOrigin": "https://portal.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "legal-portal",
+      "origin": "https://legal-portal-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-legal-portal.erpx.com",
+      "futureProductionOrigin": "https://legal-portal.erpx.com",
+      "futureOriginsTrusted": false
+    },
+    {
+      "key": "forms",
+      "origin": "https://forms-dev-erpx.jesadakorn.com",
+      "service": "http://127.0.0.1:3100",
+      "published": false,
+      "dnsVerified": false,
+      "tlsVerified": false,
+      "browserAccepted": false,
+      "futureDevelopmentOrigin": "https://dev-forms.erpx.com",
+      "futureProductionOrigin": "https://forms.erpx.com",
+      "futureOriginsTrusted": false
+    }
+  ],
+  "preservedAliases": [
+    "console-dev-erpx.jesadakorn.com",
+    "dev-pos.jesadakorn.com",
+    "dev-pms.jesadakorn.com"
+  ],
+  "products": [
+    {
+      "id": "work",
+      "label": {
+        "en": "Work",
+        "th": "งาน"
+      },
+      "icon": "BriefcaseBusiness",
+      "shell": "office",
+      "landing": "home",
+      "destinations": [
+        "work",
+        "calendar",
+        "knowledge",
+        "home",
+        "inbox",
+        "insights/executive",
+        "projects-routines/tasks",
+        "projects-routines/routines",
+        "projects-routines/operations"
+      ],
+      "modules": [
+        "operations",
+        "collaboration"
+      ]
+    },
+    {
+      "id": "pos",
+      "label": {
+        "en": "POS",
+        "th": "ขายหน้าร้าน"
+      },
+      "icon": "ShoppingCart",
+      "shell": "front",
+      "landing": "sale",
+      "destinations": [
+        "pos",
+        "sale",
+        "kitchen",
+        "history",
+        "shifts"
+      ],
+      "modules": [
+        "pos"
+      ]
+    },
+    {
+      "id": "pms",
+      "label": {
+        "en": "Hotel",
+        "th": "โรงแรม"
+      },
+      "icon": "Hotel",
+      "shell": "front",
+      "landing": "front-desk",
+      "destinations": [
+        "pms",
+        "front-desk",
+        "reservations",
+        "rooms",
+        "housekeeping",
+        "guest-accounts",
+        "cashier",
+        "night-audit"
+      ],
+      "modules": [
+        "pms"
+      ]
+    },
+    {
+      "id": "finance",
+      "label": {
+        "en": "Finance",
+        "th": "การเงิน"
+      },
+      "icon": "Landmark",
+      "shell": "office",
+      "landing": "finance/documents",
+      "destinations": [
+        "finance"
+      ],
+      "modules": [
+        "finance"
+      ]
+    },
+    {
+      "id": "people",
+      "label": {
+        "en": "People",
+        "th": "บุคลากร"
+      },
+      "icon": "Users",
+      "shell": "office",
+      "landing": "people-organization/people/directory/current",
+      "destinations": [
+        "people-organization/people",
+        "people-organization/benefits"
+      ],
+      "modules": [
+        "people_payroll",
+        "benefits"
+      ]
+    },
+    {
+      "id": "sales",
+      "label": {
+        "en": "Sales",
+        "th": "การขาย"
+      },
+      "icon": "Handshake",
+      "shell": "office",
+      "landing": "customers-sales/sales/pipeline",
+      "destinations": [
+        "customers-sales/sales",
+        "customers-sales/customers/directory",
+        "customers-sales/customers/contacts",
+        "customers-sales/customers/prospects",
+        "customers-sales/customers/reviews",
+        "customers-sales/marketing",
+        "customers-sales/ecommerce"
+      ],
+      "modules": [
+        "crm",
+        "sales",
+        "marketing",
+        "ecommerce",
+        "customer_360",
+        "customer_authority"
+      ]
+    },
+    {
+      "id": "supply",
+      "label": {
+        "en": "Supply",
+        "th": "จัดซื้อและคลัง"
+      },
+      "icon": "Package",
+      "shell": "office",
+      "landing": "purchasing/orders",
+      "destinations": [
+        "purchasing",
+        "inventory-quality"
+      ],
+      "modules": [
+        "procurement",
+        "inventory",
+        "quality"
+      ]
+    },
+    {
+      "id": "assets",
+      "label": {
+        "en": "Assets & Maintenance",
+        "th": "ทรัพย์สินและซ่อมบำรุง"
+      },
+      "icon": "Wrench",
+      "shell": "office",
+      "landing": "services/assets/register",
+      "destinations": [
+        "services/assets"
+      ],
+      "modules": [
+        "assets",
+        "maintenance"
+      ]
+    },
+    {
+      "id": "projects",
+      "label": {
+        "en": "Projects",
+        "th": "โครงการ"
+      },
+      "icon": "Network",
+      "shell": "office",
+      "landing": "projects-routines/projects",
+      "destinations": [
+        "projects-routines"
+      ],
+      "modules": [
+        "projects"
+      ]
+    },
+    {
+      "id": "recruit",
+      "label": {
+        "en": "Recruitment",
+        "th": "สรรหาบุคลากร"
+      },
+      "icon": "UserPlus",
+      "shell": "office",
+      "landing": "people-organization/talent",
+      "destinations": [
+        "people-organization/talent"
+      ],
+      "modules": [
+        "talent"
+      ]
+    },
+    {
+      "id": "learn",
+      "label": {
+        "en": "Learning",
+        "th": "การเรียนรู้"
+      },
+      "icon": "GraduationCap",
+      "shell": "office",
+      "landing": "knowledge/learning",
+      "destinations": [
+        "knowledge/learning"
+      ],
+      "modules": [
+        "learning"
+      ]
+    },
+    {
+      "id": "support",
+      "label": {
+        "en": "Helpdesk",
+        "th": "ศูนย์ช่วยเหลือ"
+      },
+      "icon": "LifeBuoy",
+      "shell": "office",
+      "landing": "customers-sales/customers/service/cases",
+      "destinations": [
+        "customers-sales/customers/service",
+        "services/desk"
+      ],
+      "modules": [
+        "support"
+      ]
+    },
+    {
+      "id": "service",
+      "label": {
+        "en": "Field Service",
+        "th": "บริการภาคสนาม"
+      },
+      "icon": "Route",
+      "shell": "office",
+      "landing": "services/field-service",
+      "destinations": [
+        "services/field-service"
+      ],
+      "modules": [
+        "field_service"
+      ]
+    },
+    {
+      "id": "legal",
+      "label": {
+        "en": "Legal",
+        "th": "กฎหมาย"
+      },
+      "icon": "Scale",
+      "shell": "office",
+      "landing": "services/legal/mine",
+      "destinations": [
+        "services/legal"
+      ],
+      "modules": [
+        "legal"
+      ]
+    },
+    {
+      "id": "manufacturing",
+      "label": {
+        "en": "Manufacturing",
+        "th": "การผลิต"
+      },
+      "icon": "Factory",
+      "shell": "office",
+      "landing": "production/manufacturing",
+      "destinations": [
+        "production"
+      ],
+      "modules": [
+        "manufacturing",
+        "planning"
+      ]
+    }
+  ],
+  "modulePlacement": {
+    "brand": "admin",
+    "commercial": "account",
+    "identity_access": "admin",
+    "organization": "admin",
+    "platform_administration": "provider",
+    "manage_erpx": "provider",
+    "customer_360": "shared",
+    "customer_authority": "shared",
+    "support": "support",
+    "finance": "finance",
+    "pos": "pos",
+    "pms": "pms",
+    "sales": "sales",
+    "crm": "sales",
+    "assets": "assets",
+    "maintenance": "assets",
+    "inventory": "supply",
+    "procurement": "supply",
+    "quality": "supply",
+    "operations": "work",
+    "collaboration": "work",
+    "legal": "legal",
+    "people_payroll": "people",
+    "benefits": "people",
+    "marketing": "sales",
+    "ecommerce": "sales",
+    "manufacturing": "manufacturing",
+    "planning": "manufacturing",
+    "projects": "projects",
+    "learning": "learn",
+    "talent": "recruit",
+    "field_service": "service",
+    "agent": "shared"
+  },
+  "packages": [
+    {
+      "id": "work",
+      "version": 1,
+      "productId": "work",
+      "kind": "base",
+      "visibleCapabilities": [
+        "work.today",
+        "work.actions",
+        "work.calendar",
+        "work.handbook"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "pos",
+      "version": 1,
+      "productId": "pos",
+      "kind": "base",
+      "visibleCapabilities": [
+        "pos.sales",
+        "pos.payments",
+        "pos.refunds",
+        "pos.shifts"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "inventory.stock-core",
+        "finance.pos-posting"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "pms",
+      "version": 1,
+      "productId": "pms",
+      "kind": "base",
+      "visibleCapabilities": [
+        "pms.reservations",
+        "pms.front-desk",
+        "pms.rooms",
+        "pms.housekeeping",
+        "pms.guest-accounts",
+        "pms.night-audit"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "inventory.stock-core",
+        "finance.hotel-posting"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "finance",
+      "version": 1,
+      "productId": "finance",
+      "kind": "base",
+      "visibleCapabilities": [
+        "finance.accounting",
+        "finance.receivables",
+        "finance.payables",
+        "finance.banking",
+        "finance.tax",
+        "finance.close"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "people",
+      "version": 1,
+      "productId": "people",
+      "kind": "base",
+      "visibleCapabilities": [
+        "people.directory",
+        "people.lifecycle"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "sales",
+      "version": 1,
+      "productId": "sales",
+      "kind": "base",
+      "visibleCapabilities": [
+        "sales.crm",
+        "sales.customers",
+        "sales.quotes",
+        "sales.orders"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "inventory.stock-core",
+        "finance.sales-posting"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "supply",
+      "version": 1,
+      "productId": "supply",
+      "kind": "base",
+      "visibleCapabilities": [
+        "supply.purchasing",
+        "supply.receiving",
+        "supply.stock",
+        "supply.transfers",
+        "supply.counts"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "finance.inventory-valuation"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "assets",
+      "version": 1,
+      "productId": "assets",
+      "kind": "base",
+      "visibleCapabilities": [
+        "assets.register",
+        "assets.custody",
+        "assets.maintenance",
+        "assets.downtime"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "finance.asset-recognition",
+        "finance.asset-disposal"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "projects",
+      "version": 1,
+      "productId": "projects",
+      "kind": "base",
+      "visibleCapabilities": [
+        "projects.wbs",
+        "projects.tasks",
+        "projects.board",
+        "projects.time",
+        "projects.handover"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "people.worker-reference"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "recruit",
+      "version": 1,
+      "productId": "recruit",
+      "kind": "base",
+      "visibleCapabilities": [
+        "recruit.positions",
+        "recruit.candidates",
+        "recruit.applications",
+        "recruit.offers"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "learn",
+      "version": 1,
+      "productId": "learn",
+      "kind": "base",
+      "visibleCapabilities": [
+        "learn.courses",
+        "learn.assignments",
+        "learn.results",
+        "learn.certificates"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "people.learner-reference"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "support",
+      "version": 1,
+      "productId": "support",
+      "kind": "base",
+      "visibleCapabilities": [
+        "support.tickets",
+        "support.sla",
+        "support.incidents",
+        "support.evidence"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "service",
+      "version": 1,
+      "productId": "service",
+      "kind": "base",
+      "visibleCapabilities": [
+        "service.agreements",
+        "service.orders",
+        "service.dispatch",
+        "service.visits",
+        "service.billing"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "support.source-ticket",
+        "finance.service-invoice"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "legal",
+      "version": 1,
+      "productId": "legal",
+      "kind": "base",
+      "visibleCapabilities": [
+        "legal.contracts",
+        "legal.documents",
+        "legal.matters",
+        "legal.obligations",
+        "legal.access"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "manufacturing",
+      "version": 1,
+      "productId": "manufacturing",
+      "kind": "base",
+      "visibleCapabilities": [
+        "manufacturing.bom",
+        "manufacturing.materials",
+        "manufacturing.execution",
+        "manufacturing.quality",
+        "manufacturing.costs"
+      ],
+      "includedCapabilities": [
+        "foundation.identity",
+        "foundation.organization",
+        "foundation.files",
+        "foundation.audit",
+        "foundation.approvals",
+        "foundation.notifications",
+        "planning.basic",
+        "quality.production",
+        "inventory.stock-core",
+        "finance.production-costing"
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "work-social",
+      "version": 1,
+      "productId": "work",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "work.social"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "work"
+      ]
+    },
+    {
+      "id": "work-messages",
+      "version": 1,
+      "productId": "work",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "work.messages"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "work"
+      ]
+    },
+    {
+      "id": "work-routines",
+      "version": 1,
+      "productId": "work",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "work.advanced-routines"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "work"
+      ]
+    },
+    {
+      "id": "pos-restaurant",
+      "version": 1,
+      "productId": "pos",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "pos.restaurant",
+        "pos.kitchen"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "pos"
+      ]
+    },
+    {
+      "id": "pos-hotel-charge",
+      "version": 1,
+      "productId": "pos",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "pos.hotel-charge"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "pos"
+      ]
+    },
+    {
+      "id": "pms-minibar-linen",
+      "version": 1,
+      "productId": "pms",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "pms.minibar",
+        "pms.linen"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "pms"
+      ]
+    },
+    {
+      "id": "finance-advanced",
+      "version": 1,
+      "productId": "finance",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "finance.advanced"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "finance"
+      ]
+    },
+    {
+      "id": "people-workforce",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.workforce"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "people-payroll",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.payroll"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "people-expenses",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.expenses"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "people-performance",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.performance"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "people-benefits",
+      "version": 1,
+      "productId": "people",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "people.benefits"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "people"
+      ]
+    },
+    {
+      "id": "sales-marketing",
+      "version": 1,
+      "productId": "sales",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "sales.marketing"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "sales"
+      ]
+    },
+    {
+      "id": "sales-ecommerce",
+      "version": 1,
+      "productId": "sales",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "sales.ecommerce"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "sales"
+      ]
+    },
+    {
+      "id": "sales-portal",
+      "version": 1,
+      "productId": "sales",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "sales.portal"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "sales"
+      ]
+    },
+    {
+      "id": "supply-quality",
+      "version": 1,
+      "productId": "supply",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "supply.quality"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "supply"
+      ]
+    },
+    {
+      "id": "supply-advanced",
+      "version": 1,
+      "productId": "supply",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "supply.advanced-inventory"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "supply"
+      ]
+    },
+    {
+      "id": "assets-preventive",
+      "version": 1,
+      "productId": "assets",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "assets.preventive"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "assets"
+      ]
+    },
+    {
+      "id": "assets-parts-costs",
+      "version": 1,
+      "productId": "assets",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "assets.parts-costs"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "assets"
+      ]
+    },
+    {
+      "id": "projects-costs",
+      "version": 1,
+      "productId": "projects",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "projects.costs"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "projects"
+      ]
+    },
+    {
+      "id": "support-portal",
+      "version": 1,
+      "productId": "support",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "support.portal"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "support"
+      ]
+    },
+    {
+      "id": "service-parts-assets",
+      "version": 1,
+      "productId": "service",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "service.parts-assets"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "service"
+      ]
+    },
+    {
+      "id": "manufacturing-mrp",
+      "version": 1,
+      "productId": "manufacturing",
+      "kind": "addon",
+      "visibleCapabilities": [
+        "planning.advanced-mrp"
+      ],
+      "includedCapabilities": [],
+      "dependencies": [
+        "manufacturing"
+      ]
+    }
+  ]
+}

@@ -6,13 +6,13 @@ import { FeatureWidget } from "@/components/shared/features/feature-page";
 import { AttachmentFeatureSurface } from "@/components/files/attachment-feature-context";
 import { type RecordDocumentPurpose } from "@/components/files/record-document-panel";
 import { Hotel } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePmsWorkspaceContext} from "./pms-backoffice-workspace";
+import type {BackofficePmsWorkspaceFrontDeskScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
 
 
 const PmsOperationsCalendar = dynamic(() => import("./operations-calendar").then(module => module.PmsOperationsCalendar));

@@ -1,3 +1,4 @@
+import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "./payroll-purchases";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -51,7 +52,7 @@ export async function preparePayslipIssue(db: SqlDatabase, actor: WorkContext, r
 export async function listPayslips(actor: WorkContext, { runId, ownOnly = true }: {
     runId?: string;
     ownOnly?: boolean;
-} = {}) { return invoke(() => application().listPayslips(actor, { runId, ownOnly })); }
-export async function getPayslip(actor: WorkContext, id: string) { return invoke(() => application().getPayslip(actor, id)); }
-export async function getPayslipExport(actor: WorkContext, id: string) { return invoke(() => application().getPayslipExport(actor, id)); }
-export async function issuePostedPayslips(actor: WorkContext, runId: string, input: z.infer<typeof issuePayslipSchema>, commandId: string) { return invoke(() => application().issuePostedPayslips(actor, runId, input, commandId)); }
+} = {}) { return withPayrollPurchasedRead(actor, tx => invoke(() => application(tx).listPayslips(actor, { runId, ownOnly }))); }
+export async function getPayslip(actor: WorkContext, id: string) { return withPayrollPurchasedRead(actor, tx => invoke(() => application(tx).getPayslip(actor, id))); }
+export async function getPayslipExport(actor: WorkContext, id: string) { return withPayrollPurchasedRead(actor, tx => invoke(() => application(tx).getPayslipExport(actor, id))); }
+export async function issuePostedPayslips(actor: WorkContext, runId: string, input: z.infer<typeof issuePayslipSchema>, commandId: string) { return withPayrollPurchasedCommand(actor, { key: commandId, operation: "people.payroll.payslips.issue", purpose: "history" }, tx => invoke(() => application(tx).issuePostedPayslips(actor, runId, input, commandId))); }

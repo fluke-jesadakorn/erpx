@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 
 import type { PurchaseRequestProgress as Progress } from "@/server/modules/procurement/public/purchase-request-progress";
 import styles from "./purchase-request-progress.module.css";

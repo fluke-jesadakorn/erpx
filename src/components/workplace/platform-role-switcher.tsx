@@ -7,7 +7,7 @@ import { Select } from "@/components/ui/input";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 
 import { useState } from "react";
-import type { WorkAssignment } from "@/server/modules/identity_access/public/authorization";
+import type {PlatformRoleDisplayChoice} from "@/lib/identity_access/work-role-display";
 import { useContextSwitch } from "./context-switch-context";
 
 export function PlatformRoleSwitcher({
@@ -15,7 +15,7 @@ export function PlatformRoleSwitcher({
   assignments,
 }: {
   activeAssignmentId: string;
-  assignments: WorkAssignment[];
+  assignments: readonly PlatformRoleDisplayChoice[];
 }) {
   const { switchContext, busy } = useContextSwitch();
   const [error, setError] = useState("");

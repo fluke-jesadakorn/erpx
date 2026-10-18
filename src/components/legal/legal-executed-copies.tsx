@@ -4,9 +4,11 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef,useState } from "react";
 import type { ExecutedCopy, LegalDetail } from "@/server/modules/legal/public/rules/model";
 import { workFetch } from "@/lib/work_projection/work-fetch";
+import {acknowledgeLegalCommand} from '@/lib/shared/legal/command-completion';
+import {legalDocumentUploadAcknowledged} from '@/lib/legal/document-upload-client';
 import { LegalEvidenceFields } from "./legal-evidence-fields";
 import s from "./legal.module.css";
 
@@ -18,6 +20,7 @@ const checks = [
   ["authorityVerified", "Signatory authority evidence is complete and valid"],
 ] as const;
 type Copy = ExecutedCopy & { document_name: string; document_version: number; reviews: unknown[] };
+type ImportAttempt={key:string;version:number;metadata:string;checksum:string;filename:string;mediaType:string;uncertain?:boolean};
 export function LegalExecutedCopies({
   detail,
   api,
@@ -25,6 +28,7 @@ export function LegalExecutedCopies({
   command,
   busy,
   userId,
+  contextKey,
   canReview,
   onRefresh,
 }: {
@@ -34,6 +38,7 @@ export function LegalExecutedCopies({
   command: (body: Record<string, unknown>) => Promise<boolean>;
   busy: boolean;
   userId: string;
+  contextKey:string;
   canReview: boolean;
   onRefresh: () => Promise<void>;
 }) {
@@ -41,6 +46,9 @@ export function LegalExecutedCopies({
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [signerCount, setSignerCount] = useState(1);
+  const [pendingImport,setPendingImport]=useState(false),attemptRef=useRef<ImportAttempt|null>(null),uploadingRef=useRef(false),storageKey=`${contextKey}:executed:${detail.item.id}`;
+  const settlement=!detail.purchases||detail.purchases['legal.contracts']?.settleExisting===true&&detail.purchases['legal.documents']?.settleExisting===true;
+  useEffect(()=>{const frame=requestAnimationFrame(()=>{try{setPendingImport(Boolean(attemptRef.current||sessionStorage.getItem(storageKey)));}catch{setPendingImport(Boolean(attemptRef.current));}});return()=>cancelAnimationFrame(frame);},[storageKey]);
   useEffect(() => {
     let active = true;
     call(`/items/${detail.item.id}/executed-copies`)
@@ -55,11 +63,12 @@ export function LegalExecutedCopies({
     };
   }, [call, detail.item.id, detail.item.version]);
   async function upload(form: HTMLFormElement) {
+    if(uploadingRef.current||busy)return;if(!settlement&&!pendingImport){setError('The retained executed-copy action is currently unavailable. Your draft is retained.');return;}uploadingRef.current=true;
     const values = new FormData(form);
     const completion = { form, formEditVersion: form.getAttribute("data-erpx-edit-version") };
     setError("");
     setUploading(true);
-    try {
+    let acknowledged=false;try {
       const file = values.get("file");
       if (!(file instanceof File) || !file.size || file.size > 10 * 1024 * 1024)
         throw new Error("Choose a signed PDF or scanned image up to 10 MB.");
@@ -82,17 +91,9 @@ export function LegalExecutedCopies({
         new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())),
         (byte) => byte.toString(16).padStart(2, "0"),
       ).join("");
-      const storageKey = `erpx:legal-executed:${api}:${userId}:${detail.item.id}`;
-      let attempt: {
-        key: string;
-        version: number;
-        metadata: string;
-        checksum: string;
-        filename: string;
-        mediaType: string;
-      } | null = null;
+      let attempt=attemptRef.current;
       try {
-        attempt = JSON.parse(sessionStorage.getItem(storageKey) ?? "null");
+        attempt ??= JSON.parse(sessionStorage.getItem(storageKey) ?? "null");
       } catch {}
       const text = JSON.stringify(metadata);
       if (
@@ -113,6 +114,8 @@ export function LegalExecutedCopies({
         filename: file.name,
         mediaType: file.type,
       };
+      attempt.uncertain=true;
+      attemptRef.current=attempt;setPendingImport(true);
       try {
         sessionStorage.setItem(storageKey, JSON.stringify(attempt));
       } catch {}
@@ -124,30 +127,35 @@ export function LegalExecutedCopies({
         method: "POST",
         headers: { "Idempotency-Key": attempt.key },
         body,
-      }, completion);
+      }, completion,'caller');
       const result = await response.json();
       if (!response.ok) {
         if (
           response.status >= 400 &&
           response.status < 500 &&
-          ![408, 429].includes(response.status)
+          ![408, 429].includes(response.status)&&!(attempt.uncertain&&[401,403,404,409].includes(response.status))
         ) {
           try {
             sessionStorage.removeItem(storageKey);
           } catch {}
+          attemptRef.current=null;setPendingImport(false);
         }
         throw new Error(
           result.error?.message ?? "Unable to import the signed copy. Retry the same file.",
         );
       }
+      if(!legalDocumentUploadAcknowledged(result?.data,{id:detail.item.id,version:attempt.version},true))throw new Error('The response did not acknowledge this exact signed original. Retry the same file and signing details.');
+      acknowledged=true;acknowledgeLegalCommand(completion);
+      attemptRef.current=null;setPendingImport(false);
       try {
         sessionStorage.removeItem(storageKey);
       } catch {}
       if (completion.formEditVersion === form.getAttribute("data-erpx-edit-version")) form.reset();
       await onRefresh();
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Signed-copy import failed.");
+      setError(`${acknowledged?'The signed original was saved, but its refreshed view is unavailable. ':''}${error instanceof Error ? error.message : "Signed-copy import failed."}`);
     } finally {
+      uploadingRef.current=false;
       setUploading(false);
     }
   }
@@ -226,7 +234,7 @@ export function LegalExecutedCopies({
                 clientManaged type="submit"
                 variant="ghost"
                 className={s.button}
-                disabled={busy || uploading}
+                disabled={busy || uploading||!settlement}
               >
                 Record independent copy review
               </Button>
@@ -235,7 +243,7 @@ export function LegalExecutedCopies({
         </article>
       ))}
       {["approved", "executed", "active"].includes(detail.item.state) && (
-        <FormDisclosure appearance="standard" className={s.event}>
+        <FormDisclosure appearance="standard" className={s.event} dismissDisabled={busy||uploading} error={error}>
           <summary>Import a signed original or corrected revision</summary>
           <form
             className={s.detail}
@@ -324,7 +332,7 @@ export function LegalExecutedCopies({
               clientManaged type="submit"
               variant="ghost"
               className={s.button}
-              disabled={busy || uploading || !detail.documents.some((document) => document.locked)}
+              disabled={busy || uploading || !settlement&&!pendingImport || !detail.documents.some((document) => document.locked)}
             >
               {uploading ? "Importing…" : "Import for independent review"}
             </Button>

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -12,6 +13,6 @@ export async function GET(request: Request, {params}: {params:Promise<{holdingSl
     if (!input.success) throw new ApiError(422, "INVALID_HR_SETTING", "Choose one HR settings topic or staff record.");
     const actor = await requireWorkContext((await params).holdingSlug);
     const data = input.data.editor ? await peopleNewPersonData(actor) : input.data.impact ? await peopleMoveWorkImpact(actor,input.data.impact) : input.data.engagement ? await peopleWorkingTimeData(actor, input.data.engagement) : input.data.position ? await peoplePositionWorkingTimeData(actor, input.data.position) : await peopleHrSettingsData(actor, input.data.topic);
-    return Response.json({data}, {headers:{"Cache-Control":"private, no-store"}});
+    return Response.json(canonicalDestinationLinks({data}), {headers:{"Cache-Control":"private, no-store"}});
   } catch (error) { return errorResponse(error); }
 }

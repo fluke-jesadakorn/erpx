@@ -13,7 +13,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "brand": {
     "stage": 6,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/settings/page.tsx; src/components/brand/brand-identity-console.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/settings/screen.tsx; src/components/brand/brand-identity-console.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/brand/route.ts",
     "service": "src/server/modules/brand/public/brand-identity.ts",
     "schema": "migrations/postgres/holding-write/0025_workspace_branding.sql; migrations/postgres/holding-write/0964_brand_identity_lifecycle.sql",
@@ -31,7 +31,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "commercial": {
     "stage": 6,
     "status": "sandbox_verified",
-    "ui": "src/app/platform/billing/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/erpx-management/billing/page.tsx",
     "api": "src/app/api/v1/platform/billing/[[...path]]/route.ts",
     "service": "src/server/modules/billing/public/billing.ts",
     "schema": "migrations/postgres/control/0009_billing.sql",
@@ -59,7 +59,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "identity_access": {
     "stage": 2,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/iam/[[...section]]/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/iam/[[...section]]/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
     "service": "src/server/modules/identity_access/public/account-access.ts",
     "schema": "migrations/postgres/control/0012_account_invitation_delivery.sql; migrations/postgres/control/0017_sandbox_email_deliveries.sql",
@@ -101,7 +101,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "organization": {
     "stage": 2,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/people/organization/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/people/organization/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
     "service": "src/server/modules/organization/public/organization.ts; src/server/modules/organization/public/company-business-acceptance.ts; src/server/modules/manage_erpx/public/beta-onboarding.ts",
     "schema": "migrations/postgres/holding-write/0257_organization_node_changes.sql; migrations/postgres/holding-write/0272_company_business_acceptance.sql; migrations/postgres/holding-write/0273_company_provisioning_receipts.sql; migrations/postgres/holding-write/0274_organization_archive_relocation.sql",
@@ -125,7 +125,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "platform_administration": {
     "stage": 6,
     "status": "flow_accepted",
-    "ui": "src/app/platform/[destination]/page.tsx; src/components/platform_administration/platform-holding-provisioning.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/erpx-management/page.tsx; src/components/platform_administration/platform-holding-provisioning.tsx",
     "api": "src/app/api/v1/platform/operations/provision/route.ts",
     "service": "src/server/modules/platform_administration/public/platform-operations.ts",
     "schema": "migrations/postgres/control/0016_platform_holding_provisioning.sql",
@@ -133,20 +133,20 @@ const delivery: Record<string, ModuleDelivery> = {
     "gap": "Recorded 2026-10-03 engineering acceptance covers: Validate approved Holding slot and provision; Replay activation and inspect durable history. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
     "overrides": {
       "feature-holdings": {
-        "ui": "src/app/platform/[destination]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/erpx-management/page.tsx",
         "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Provision available Holding resource slot; Inspect current binding and runtime operational state. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-connectors": {
-        "ui": "src/app/platform/[destination]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/erpx-management/page.tsx",
         "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
         "test": "tests/integration/shared.evidence/engineering-platform-access.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Register and transition platform connectors. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-infrastructure": {
-        "ui": "src/app/platform/[destination]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/erpx-management/page.tsx",
         "api": "ops/macos/erpxctl.py",
         "service": "ops/macos/erpxctl.py",
         "schema": "migrations/postgres/control",
@@ -154,7 +154,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Read control and Holding health/queue state; Inspect unavailable Holding and preserve actionable failure. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-backup-recovery": {
-        "ui": "src/app/platform/[destination]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/erpx-management/page.tsx",
         "api": "ops/macos/erpxctl.py",
         "service": "ops/macos/erpxctl.py",
         "schema": "migrations/postgres/control",
@@ -162,14 +162,14 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Create isolated database/file/secret backup with encrypted offsite copy; Restore and refuse corrupt or undecryptable artifact. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-projections-events": {
-        "ui": "src/app/platform/[destination]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/erpx-management/page.tsx",
         "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
         "test": "tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect durable event projections and dead letters; Review/retry current failed event once. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-migration-runs": {
-        "ui": "src/app/platform/[destination]/page.tsx; src/components/platform_administration/platform-migration-run.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/erpx-management/page.tsx; src/components/platform_administration/platform-migration-run.tsx",
         "api": "src/app/api/v1/platform/operations/migrate/route.ts",
         "service": "src/server/modules/platform_administration/public/platform-operations.ts; src/server/modules/runtime/adapters/runtime/migrations.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/holding-write/0275_migration_receipts.sql; migrations/postgres/holding-read/0002_migration_receipts.sql",
@@ -185,7 +185,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Request, approve and revoke audited access. Off-machine durability, production RPO/RTO and physical provisioning acceptance require separate operational evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-platform-audit": {
-        "ui": "src/app/platform/[destination]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/erpx-management/page.tsx",
         "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
         "test": "tests/integration/identity_access/iam.test.ts; tests/integration/platform_administration/platform-operations.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
@@ -196,7 +196,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "customer_360": {
     "stage": 3,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/customers/page.tsx; src/app/holdings/[holdingSlug]/customers/[id]/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/customers/screen.tsx; src/app/holdings/[holdingSlug]/_presenters/customers/[id]/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
     "service": "src/server/modules/customer_360/public/customer-timeline.ts; src/server/modules/sales/public/customer-notes.ts",
     "schema": "migrations/postgres/holding-write/0001_baseline.sql",
@@ -226,7 +226,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "customer_authority": {
     "stage": 3,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/customer-duplicates/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/customer-duplicates/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/customer-duplicates/route.ts",
     "service": "src/server/modules/customer_authority/public/customer-duplicates.ts",
     "schema": "migrations/postgres/holding-write/0222_customer_duplicate_reviews.sql, migrations/postgres/holding-write/0264_customer_duplicate_merge.sql, migrations/postgres/holding-write/0265_customer_duplicate_reconciliation.sql",
@@ -234,7 +234,7 @@ const delivery: Record<string, ModuleDelivery> = {
     "gap": "Recorded 2026-10-03 engineering acceptance covers: Review an ordered suspected duplicate pair independently; Choose the canonical identity; Merge safe source references and reload lineage/balances. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
     "overrides": {
       "access-history": {
-        "ui": "src/app/holdings/[holdingSlug]/customer-access/[id]/page.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/customer-access/[id]/screen.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts, src/app/api/customer-portal/[holdingSlug]/route.ts",
         "service": "src/server/modules/customer_360/public/customer-portal.ts",
         "schema": "migrations/postgres/holding-write/0221_customer_access.sql, migrations/postgres/holding-write/0267_customer_portal_actions.sql",
@@ -242,7 +242,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Independently approve portal authority; Bind the first verified identity; Read allowlisted documents and attempt a second account. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-authority-bindings": {
-        "ui": "src/app/holdings/[holdingSlug]/customer-access/page.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/customer-access/screen.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts, src/app/api/customer-portal/[holdingSlug]/route.ts",
         "service": "src/server/modules/customer_authority/public/customer-access.ts, src/server/modules/customer_360/public/customer-portal.ts",
         "schema": "migrations/postgres/holding-write/0221_customer_access.sql, migrations/postgres/holding-write/0267_customer_portal_actions.sql",
@@ -250,7 +250,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare and independently approve authority; Revoke the current grant; Attempt portal reads and stale review decisions. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-identity-changes": {
-        "ui": "src/app/holdings/[holdingSlug]/customer-identity/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/customer-identity/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/customer-identity/route.ts",
         "service": "src/server/modules/customer_authority/public/customer-identity-changes.ts",
         "schema": "migrations/postgres/holding-write/0223_customer_identity_changes.sql, migrations/postgres/holding-write/0266_customer_contact_identity.sql",
@@ -262,7 +262,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "support": {
     "stage": 3,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/support/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/support/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/support/route.ts",
     "service": "src/server/modules/support/public/support.ts",
     "schema": "migrations/postgres/holding-write/0216_support_tickets.sql",
@@ -270,7 +270,7 @@ const delivery: Record<string, ModuleDelivery> = {
     "gap": "Recorded 2026-10-03 engineering acceptance covers: Open, triage, reply and resolve customer tickets. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
     "overrides": {
       "sla-watch": {
-        "ui": "src/app/holdings/[holdingSlug]/support/sla/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/support/sla/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/support/sla/route.ts",
         "service": "src/server/modules/support/public/support-sla.ts",
         "schema": "migrations/postgres/holding-write/0217_support_sla.sql",
@@ -278,7 +278,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Prioritize tickets nearing their response target; Drain native queues under current Company production rules, recheck enrollment and authority before each result, and retain human review. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "incidents": {
-        "ui": "src/app/holdings/[holdingSlug]/support/incidents/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/support/incidents/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/support/incidents/route.ts",
         "service": "src/server/modules/support/public/support-incidents.ts",
         "schema": "migrations/postgres/holding-write/0219_support_incidents.sql",
@@ -286,7 +286,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Open incidents, add timeline events and broadcast status. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-support-sessions": {
-        "ui": "src/app/holdings/[holdingSlug]/support/sessions/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/support/sessions/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/support/sessions/route.ts",
         "service": "src/server/modules/support/public/support-sessions.ts",
         "schema": "migrations/postgres/holding-write/0224_support_sessions.sql",
@@ -294,7 +294,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Request, approve and revoke customer sessions. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-capabilities": {
-        "ui": "src/app/holdings/[holdingSlug]/support/sessions/[id]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/support/sessions/[id]/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/support/sessions/route.ts",
         "service": "src/server/modules/support/public/support-sessions.ts",
         "schema": "migrations/postgres/holding-write/0224_support_sessions.sql",
@@ -314,7 +314,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "finance": {
     "stage": 1,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/finance/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
     "service": "src/server/modules/finance/public/finance.ts",
     "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql; migrations/postgres/holding-write/0280_finance_consolidation_eliminations.sql",
@@ -326,19 +326,19 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Create or revise the complete native supplier invoice lines and immutable source snapshots; Independently post the bill and review actual supplier income withholding; Use distinct Treasury approval and exact net bank evidence; retain immediate50tawi copies; Prepare, independently review and remit an ordinary monthly source workpaper; record actual recovery before source cancellation. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-chart-of-accounts": {
-        "ui": "src/app/holdings/[holdingSlug]/finance/setup/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/finance/setup/screen.tsx",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/integration/finance/thai-accounting-foundation.test.ts; tests/integration/finance/finance-opening-balances.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Import a chart, add accounts and change status. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-payments": {
-        "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx, src/app/holdings/[holdingSlug]/finance/payments/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/finance/screen.tsx, src/app/holdings/[holdingSlug]/_presenters/finance/payments/screen.tsx",
         "schema": "migrations/postgres/holding-write/0255_finance_multi_currency.sql",
         "test": "tests/integration/finance/finance-generic-payments.test.ts; tests/integration/finance/finance-withholding.test.ts; tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts; tests/integration/sales/commerce-foreign-goods.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Create, approve and release payments. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-receivables-aging": {
-        "ui": "src/app/holdings/[holdingSlug]/finance/invoices/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/finance/invoices/screen.tsx",
         "schema": "migrations/postgres/holding-write/0256_finance_fx_revaluation.sql",
         "test": "tests/integration/finance/thai-accounting-foundation.test.ts; tests/integration/sales/commerce-foreign-goods.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Inspect customer balances and aging. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
@@ -349,20 +349,20 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Import CSV, review matches and reconcile. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-reports": {
-        "ui": "src/app/holdings/[holdingSlug]/finance/reports/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/finance/reports/screen.tsx",
         "service": "src/server/modules/finance/public/ledger.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/integration/finance/finance-reporting.test.ts; tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Select the independently approved Company NPAEs profile and explicitly classify ledger accounts; Prepare current and comparative position, income, equity changes and note disclosures from posted records; A different Finance approver issues a versioned retained export; Amend a later correction into a new edition while retaining the earlier export and source history. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-period-close": {
-        "ui": "src/app/holdings/[holdingSlug]/finance/close/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/finance/close/screen.tsx",
         "schema": "migrations/postgres/holding-write/0256_finance_fx_revaluation.sql",
         "test": "tests/integration/finance/finance-close-reconciliation.test.ts; tests/integration/finance/finance-reporting.test.ts; tests/integration/shared.money-people-journeys/engineering-finance-close-fixture.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Reconcile actual source GL and dated AR/AP/bank evidence; Prepare and independently approve two consecutive monthly closes; Prepare and independently post the reviewed complete fiscal result into retained earnings; Close the final accounting period and require another Finance approver for reopening. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-opening-balances": {
-        "ui": "src/app/holdings/[holdingSlug]/finance/setup/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/finance/setup/screen.tsx",
         "schema": "migrations/postgres/holding-write/0253_finance_control_account_kinds.sql",
         "test": "tests/integration/finance/finance-opening-balances.test.ts; tests/integration/shared.money-people-journeys/engineering-finance-close-fixture.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Import and verify the opening trial balance. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
@@ -372,7 +372,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "pos": {
     "stage": 5,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/pos/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/pos/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/pos/[...path]/route.ts",
     "service": "src/server/modules/pos/public/pos.ts",
     "schema": "migrations/postgres/holding-write/0030_pos.sql",
@@ -397,7 +397,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "sales": {
     "stage": 1,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/commerce/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
     "service": "src/server/modules/commerce/public/commerce.ts",
     "schema": "migrations/postgres/holding-write/0001_baseline.sql",
@@ -426,7 +426,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "assets": {
     "stage": 4,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/assets/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/assets/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/assets/route.ts",
     "service": "src/server/modules/assets/public/asset-maintenance.ts",
     "schema": "migrations/postgres/holding-write/0225_asset_maintenance.sql",
@@ -452,7 +452,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "inventory": {
     "stage": 1,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/commerce/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
     "service": "src/server/modules/commerce/public/commerce.ts",
     "schema": "migrations/postgres/holding-write/0239_inventory_lot_serial.sql",
@@ -460,7 +460,7 @@ const delivery: Record<string, ModuleDelivery> = {
     "gap": "Recorded 2026-10-03 engineering acceptance covers: Create competing approved Sales demand for the last unit; Reserve concurrently using source versions; Reload shared physical and available quantities. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
     "overrides": {
       "reservations": {
-        "ui": "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen.tsx",
         "service": "src/server/modules/inventory/public/inventory-reservation-alerts.ts",
         "schema": "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
         "test": "tests/integration/inventory/stock-reservations.test.ts; tests/integration/manufacturing/business-scheduled-production.test.ts",
@@ -475,7 +475,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Approve sourced procurement demand; Receive six units then the remaining four; Reload receipt sources, inventory and consolidated invoice. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-issues-movements": {
-        "ui": "src/app/holdings/[holdingSlug]/stock-transit/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/stock-transit/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts",
         "service": "src/server/modules/inventory/public/inventory-transit.ts",
         "schema": "migrations/postgres/holding-write/0207_inventory_transit.sql",
@@ -487,7 +487,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "maintenance": {
     "stage": 4,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/maintenance/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/maintenance/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/maintenance/route.ts; src/app/api/v1/holdings/[holdingSlug]/maintenance/plans/route.ts",
     "service": "src/server/modules/assets/public/asset-maintenance.ts; src/server/modules/maintenance/public/maintenance-preventive.ts",
     "schema": "migrations/postgres/holding-write/0225_asset_maintenance.sql",
@@ -515,7 +515,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "operations": {
     "stage": 4,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/operations/page.tsx; src/components/operations/operations-console.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/operations/screen.tsx; src/components/operations/operations-console.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/operations/route.ts",
     "service": "src/server/modules/operations/public/operations-exceptions.ts",
     "schema": "migrations/postgres/holding-write/0263_staff_task_delegations.sql; migrations/postgres/holding-write/0271_staff_task_delegation_history.sql",
@@ -544,7 +544,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "procurement": {
     "stage": 1,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/requests/[id]/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/requests/[id]/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/requests/[[...path]]/route.ts",
     "service": "src/server/modules/records/public/employee-requests.ts",
     "schema": "migrations/postgres/holding-write/0238_split_requisition_uom.sql",
@@ -552,28 +552,28 @@ const delivery: Record<string, ModuleDelivery> = {
     "gap": "Recorded 2026-10-03 engineering acceptance covers: Independently approve ten-unit demand; Compare supplier offers and release an approved purchase order; Receive six and four units, match one AP invoice, post and pay against imported bank evidence. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
     "overrides": {
       "purchase-orders": {
-        "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/commerce/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
         "service": "src/server/modules/commerce/public/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/integration/procurement/purchase-to-payment.test.ts; tests/e2e/procurement/demo-purchase-request-rfq.spec.ts; tests/integration/sales/commerce-foreign-goods.test.ts"
       },
       "goods-receipts": {
-        "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/commerce/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
         "service": "src/server/modules/commerce/public/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/integration/procurement/purchase-to-payment.test.ts; tests/e2e/procurement/demo-purchase-request-rfq.spec.ts; tests/integration/sales/commerce-foreign-goods.test.ts"
       },
       "feature-invoice-match": {
-        "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/commerce/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
         "service": "src/server/modules/commerce/public/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/integration/procurement/purchase-to-payment.test.ts; tests/e2e/procurement/demo-purchase-request-rfq.spec.ts; tests/integration/sales/commerce-foreign-goods.test.ts"
       },
       "feature-supplier-history": {
-        "ui": "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/commerce/orders/[id]/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/supplier-promises/[id]/route.ts",
         "service": "src/server/modules/procurement/public/supplier-promises.ts",
         "schema": "migrations/postgres/holding-write/0208_supplier_promises.sql",
@@ -585,7 +585,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "quality": {
     "stage": 4,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/quality/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/quality/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
     "service": "src/server/modules/quality/public/quality.ts; src/server/modules/quality/public/quality-alerts.ts",
     "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql; migrations/postgres/holding-write/0281_quality_partial_disposition.sql; migrations/postgres/holding-write/0282_quality_partial_stock_guard.sql; migrations/postgres/holding-write/0283_quality_whole_hold_error.sql; migrations/postgres/holding-write/0284_quality_hold_alerts.sql",
@@ -609,7 +609,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "legal": {
     "stage": 4,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/legal/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/legal/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route.ts",
     "service": "src/server/modules/legal/public/legal/service.ts",
     "schema": "migrations/postgres/holding-write",
@@ -637,7 +637,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "people_payroll": {
     "stage": 2,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/people/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/people/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
     "service": "src/server/modules/people_payroll/public/people-payroll.ts",
     "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
@@ -658,7 +658,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Create and decide expense claims. Thai rule-pack/employee evidence readiness remains required; external statutory/business certification is separate. Fixtures do not certify bank delivery. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-payroll-runs": {
-        "ui": "src/app/holdings/[holdingSlug]/people/page.tsx, src/app/holdings/[holdingSlug]/people/payroll/[id]/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/people/screen.tsx, src/app/holdings/[holdingSlug]/_presenters/people/payroll/[id]/screen.tsx",
         "schema": "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
         "test": "tests/integration/people_payroll/payroll-statutory.test.ts; tests/integration/people_payroll/payroll-core.test.ts; tests/journeys/shared.money-people-journeys/demo-engineering-thai-payroll.spec.ts; tests/integration/people_payroll/payroll-cancellation.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Prepare source-dated monthly/day/hour/final-pay payroll from reviewed compensation, time, OT, bonus, service charge and actualYTD; Calculate, independently approve and post the retained run revision and balanced GL; Issue an immutable employee-own payslip in the posting transaction; export reviewed payment instructions and match exact bank delivery; Preserve original reviewed and issued bytes through later correction revisions and deny other employee/Company/revoked reads; Post and settle original source run; Prepare/source-review separately paid adjustment or employee-owned recovery agreement; Independently review and Finance post; Independently approve/export/bank-settle positive cash or collect reviewed recovery in later statutory payroll; Reload source history and reject stale/concurrent/reopened source use. Thai rule-pack/employee evidence readiness remains required; external statutory/business certification is separate. Fixtures do not certify bank delivery. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
@@ -668,7 +668,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "crm": {
     "stage": 3,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/crm/page.tsx; src/app/holdings/[holdingSlug]/crm/[id]/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/crm/screen.tsx; src/app/holdings/[holdingSlug]/_presenters/crm/[id]/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/crm/route.ts; src/app/api/v1/holdings/[holdingSlug]/crm/activities/route.ts",
     "service": "src/server/modules/crm/public/crm.ts; src/server/modules/crm/public/crm-activities.ts",
     "schema": "migrations/postgres/holding-write/0001_baseline.sql",
@@ -696,7 +696,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "marketing": {
     "stage": 5,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/marketing/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/marketing/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/marketing/route.ts",
     "service": "src/server/modules/marketing/public/marketing.ts",
     "schema": "migrations/postgres/holding-write/0232_marketing.sql",
@@ -721,7 +721,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "manufacturing": {
     "stage": 4,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/manufacturing/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/manufacturing/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/production/route.ts",
     "service": "src/server/modules/manufacturing/public/production.ts",
     "schema": "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
@@ -751,7 +751,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "planning": {
     "stage": 4,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/planning/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/planning/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/production/route.ts",
     "service": "src/server/modules/manufacturing/public/production.ts",
     "schema": "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
@@ -777,7 +777,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "projects": {
     "stage": 4,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/projects/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/projects/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/projects/[[...path]]/route.ts; src/app/api/v1/holdings/[holdingSlug]/projects/[id]/structure/route.ts",
     "service": "src/server/modules/operations/public/staff-tasks.ts; src/server/modules/projects/public/project-structure.ts",
     "schema": "migrations/postgres/holding-write/0001_baseline.sql",
@@ -809,7 +809,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "ecommerce": {
     "stage": 5,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/ecommerce/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/ecommerce/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/ecommerce/route.ts",
     "service": "src/server/modules/ecommerce/public/ecommerce.ts",
     "schema": "migrations/postgres/holding-write/0234_ecommerce.sql",
@@ -835,7 +835,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "benefits": {
     "stage": 6,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/benefits/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/benefits/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/benefits/route.ts",
     "service": "src/server/modules/benefits/public/benefits.ts",
     "schema": "migrations/postgres/holding-write/0229_benefits.sql",
@@ -861,7 +861,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "learning": {
     "stage": 6,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/learning/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/learning/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/learning/route.ts",
     "service": "src/server/modules/learning/public/learning.ts",
     "schema": "migrations/postgres/holding-write/0228_learning.sql",
@@ -889,7 +889,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "talent": {
     "stage": 6,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/talent/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts",
     "service": "src/server/modules/talent/public/talent.ts",
     "schema": "migrations/postgres/holding-write/0230_talent.sql",
@@ -917,7 +917,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "field_service": {
     "stage": 4,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/field-service/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/field-service/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
     "service": "src/server/modules/field_service/public/field-service.ts",
     "schema": "migrations/postgres/holding-write/0226_field_service.sql, migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql, migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
@@ -944,7 +944,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "agent": {
     "stage": 7,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/agents/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/agents/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/agents/route.ts",
     "service": "src/server/modules/agent/public/agent-governance.ts",
     "schema": "migrations/postgres/holding-write/0231_agent_governance.sql",
@@ -978,7 +978,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "collaboration": {
     "stage": 2,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/home/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/home/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/feed/route.ts",
     "service": "src/server/modules/collaboration/public/social.ts",
     "schema": "migrations/postgres/holding-write/0001_baseline.sql",
@@ -990,28 +990,28 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Select eligible scoped mention target; Publish and deliver only to current readable recipients; Drain native queues under current Company production rules, recheck enrollment and authority before each result, and retain human review. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-comments-moderation": {
-        "ui": "src/app/holdings/[holdingSlug]/feed/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/feed/screen.tsx",
         "test": "tests/integration/collaboration/social-beta.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Reply, edit and tombstone comments. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-following-reactions": {
-        "ui": "src/app/holdings/[holdingSlug]/feed/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/feed/screen.tsx",
         "test": "tests/integration/collaboration/social-beta.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Follow work and add non-decision signals. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-topics-feed": {
-        "ui": "src/app/holdings/[holdingSlug]/feed/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/feed/screen.tsx",
         "test": "tests/integration/collaboration/social-beta.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Publish posts and follow governed hashtags. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-attachments": {
-        "ui": "src/app/holdings/[holdingSlug]/inbox/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/inbox/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
         "service": "src/server/modules/collaboration/public/messaging-files.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Quarantine owned draft files and bind once into authorized content; Revoke membership and recheck original download. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-action-cards": {
-        "ui": "src/app/holdings/[holdingSlug]/collaboration/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/collaboration/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
         "service": "src/server/modules/collaboration/public/collaboration-work.ts",
         "schema": "migrations/postgres/holding-write/0227_collaboration_work.sql",
@@ -1019,7 +1019,7 @@ const delivery: Record<string, ModuleDelivery> = {
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Propose and confirm reviewed actions. Verification covers the named owner/source adapters; it does not promise arbitrary field linking or universal relation-graph coverage. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "feature-record-relations": {
-        "ui": "src/app/holdings/[holdingSlug]/collaboration/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/collaboration/screen.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
         "service": "src/server/modules/collaboration/public/collaboration-work.ts",
         "schema": "migrations/postgres/holding-write/0227_collaboration_work.sql",
@@ -1031,7 +1031,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "pms": {
     "stage": 5,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/pms/[[...section]]/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/pms/[[...section]]/screen.tsx",
     "api": "src/app/api/v1/holdings/[holdingSlug]/pms/route.ts",
     "service": "src/server/modules/pms/public/pms.ts",
     "schema": "migrations/postgres/holding-write/0031_pms.sql",
@@ -1086,7 +1086,7 @@ const delivery: Record<string, ModuleDelivery> = {
   "manage_erpx": {
     "stage": 6,
     "status": "flow_accepted",
-    "ui": "src/app/holdings/[holdingSlug]/manage-erpx/page.tsx",
+    "ui": "src/app/holdings/[holdingSlug]/_presenters/manage-erpx/screen.tsx",
     "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
     "service": "src/server/modules/platform_administration/public/platform-operations.ts",
     "schema": "migrations/postgres/control",
@@ -1094,21 +1094,21 @@ const delivery: Record<string, ModuleDelivery> = {
     "gap": "Recorded 2026-10-03 engineering acceptance covers: Read source-backed Platform and Holding runtime overview. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision.",
     "overrides": {
       "billing": {
-        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/billing/page.tsx; src/components/billing/billing-console.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/manage-erpx/billing/screen.tsx; src/components/billing/billing-console.tsx",
         "api": "src/app/api/v1/platform/billing/[[...path]]/route.ts",
         "service": "src/server/modules/billing/public/billing-api.ts; src/server/modules/billing/public/billing.ts; src/server/modules/billing/public/billing-stripe.ts",
         "test": "tests/integration/commercial/billing.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts; tests/integration/commercial/billing-api.test.ts; tests/unit/commercial/billing-stripe-errors.test.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Review metered monthly costs and reconcile Sandbox invoice recovery. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "iam": {
-        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/iam/[[...section]]/page.tsx; src/components/iam/iam-console.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/manage-erpx/iam/[[...section]]/screen.tsx; src/components/iam/iam-console.tsx",
         "api": "src/app/api/v1/platform/iam/[[...path]]/route.ts",
         "service": "src/server/modules/identity_access/public/iam-api.ts; src/server/modules/identity_access/public/iam-service.ts; src/server/modules/identity_access/public/authorization.ts",
         "test": "tests/integration/identity_access/iam.test.ts; tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Review current IAM matrix and durable scope-specific evidence. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       },
       "executive": {
-        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/executive/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/_presenters/manage-erpx/executive/screen.tsx",
         "api": "src/app/api/v1/platform/executive/route.ts",
         "service": "src/server/modules/platform_administration/public/platform-executive.ts",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Read executive operational aggregates from control-plane projections. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."

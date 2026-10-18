@@ -7,7 +7,7 @@ import { Button, Field, Select, TextArea } from "@/components/ui/foundation";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { PreferredDateTimeField } from "@/components/people_payroll/time/preferred-date-time-field";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { CustomerNotesView } from "@/server/modules/sales/public/customer-notes";
 import { Card, FormGrid } from "@/components/ui/foundation";

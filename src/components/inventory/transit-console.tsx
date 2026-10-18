@@ -3,15 +3,23 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import { useState,type ComponentPropsWithRef,type FormEvent } from "react";
+import {useTransferCommand} from "./use-transfer-command";
+import {TransferDisclosure,TransferForm} from "./transfer-draft-boundary";
 import type { transitDetail } from "@/server/modules/inventory/public/inventory-transit";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/files/attachment-panel";
-import { Stack, Card, FormLayout } from "@/components/ui/foundation";
+import { Stack, Card } from "@/components/ui/foundation";
+function TransitForm({title,version,onDiscard,onCommand,pending,children,...props}:Omit<ComponentPropsWithRef<"form">,"onSubmit">&{title:string;version:number;onDiscard:()=>void;pending:boolean;onCommand:(event:FormEvent<HTMLFormElement>)=>Promise<boolean>}){
+ const [open,setOpen]=useState(false),[sourceVersion,setSourceVersion]=useState(version),[generation,setGeneration]=useState(0);
+ const changed=sourceVersion!==version;
+ return <TransferDisclosure dismissDisabled={pending} drawerTitle={title} open={open} onOpenChange={setOpen} onBeforeOpen={()=>setSourceVersion(version)} onDiscard={()=>{onDiscard();setGeneration(value=>value+1);}}><summary>{title}</summary>
+  {changed&&<p role="status">The transport changed while this draft was open. Your draft is retained. Review the current record before making another change.</p>}
+  <TransferForm {...props} key={generation} onSubmit={event=>{event.preventDefault();if(changed)return;void onCommand(event).then(saved=>{if(saved){setOpen(false);onDiscard();setGeneration(value=>value+1);}});}}><input type="hidden" name="sourceVersion" value={sourceVersion}/><fieldset disabled={changed} className="ui-stack">{children}</fieldset></TransferForm>
+ </TransferDisclosure>;
+}
 export function TransitConsole({
   base,
   data,
@@ -24,41 +32,15 @@ export function TransitConsole({
         Number(l.quantity_milli) >
         Number(l.received_milli) + Number(l.lost_milli) + Number(l.pending_loss_milli),
     ),
-    router = useRouter(),
-    [pending, setPending] = useState(false),
-    [error, setError] = useState(""),
-    last = useRef<{ fingerprint: string; key: string } | null>(null),
+    command=useTransferCommand(base,"stock-transit"),
+    {pending,error,notice,uncertain,retry,canPrepare,canSettle,purchase}=command,
     d = data.transit,
     [lineId, setLineId] = useState(String(receivableLines[0]?.id ?? "")),
     [kind, setKind] = useState<"receive" | "loss">("receive"),
     [lotQuantities, setLotQuantities] = useState<Record<string, string>>({}),
     [attachmentSets, setAttachmentSets] = useState<Record<string, AttachmentPanelChange>>({});
-  async function send(action: string, input: unknown) {
-    if (pending) return;
-    setPending(true);
-    setError("");
-    const fingerprint = JSON.stringify({ action, input });
-    if (last.current?.fingerprint !== fingerprint)
-      last.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/stock-transit/${d.id}/${action}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body: JSON.stringify(input),
-        }),
-        body = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(body.error?.message ?? "Transport action failed.");
-      }
-      last.current = null;
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry to recover the same command.");
-    } finally {
-      setPending(false);
-    }
-  }
+  const send=(action:string,input:unknown)=>command.send(`/${d.id}/${action}`,input);
+  const resetReceiving=()=>{setLineId(String(receivableLines[0]?.id??""));setKind("receive");setLotQuantities({});setAttachmentSets({});};
   const expectedVersion = Number(d.version),
     date = () => (
       <Field appearance="standard">
@@ -101,7 +83,8 @@ export function TransitConsole({
           {error}
         </InlineNotice>
       )}
-      {data.canDispatch && (
+      {notice&&<p role="status">{notice}</p>}{uncertain&&<Button appearance="standard" type="button" variant="secondary" disabled={pending} onClick={()=>void retry()}>Retry submitted transport change</Button>}
+      {data.canDispatch && (canPrepare || canSettle) && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Record source dispatch</h2>
           <p>
@@ -109,13 +92,13 @@ export function TransitConsole({
             approved document. If stock changed, cancel this unshipped transport and prepare a new
             transfer for review.
           </p>
-          <FormLayout
+          <TransitForm title="Record source dispatch" version={expectedVersion} pending={pending} onDiscard={()=>setAttachmentSets({})}
             className="ui-form-grid"
-            onSubmit={(e) => {
+            onCommand={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
-              void send("dispatch", {
-                expectedVersion,
+              return send("dispatch", {
+                expectedVersion:Number(f.get("sourceVersion")),
                 attachmentSetIds: setIds("dispatch"),
                 date: f.get("date"),
                 trackingReference: f.get("tracking"),
@@ -144,17 +127,18 @@ export function TransitConsole({
                 setAttachmentSets((current) => ({ ...current, dispatch: change }))
               }
             />
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !canPrepare}>
               Confirm physical dispatch
             </Button>
-          </FormLayout>
-          <FormLayout
+          </TransitForm>
+          <TransitForm title="Cancel unshipped transport" version={expectedVersion} pending={pending} onDiscard={()=>undefined}
             className="ui-form-grid"
-            onSubmit={(e) => {
+            onCommand={(e) => {
               e.preventDefault();
-              void send("cancel", {
-                expectedVersion,
-                reason: new FormData(e.currentTarget).get("reason"),
+              const f=new FormData(e.currentTarget);
+              return send("cancel", {
+                expectedVersion:Number(f.get("sourceVersion")),
+                reason: f.get("reason"),
               });
             }}
           >
@@ -162,13 +146,13 @@ export function TransitConsole({
               Cancellation reason
               <TextArea appearance="standard" name="reason" required minLength={5} maxLength={2000} />
             </Field>
-            <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending}>
+            <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending || !canSettle}>
               Cancel before dispatch
             </Button>
-          </FormLayout>
+          </TransitForm>
         </Card>
       )}
-      {data.canReceive && (
+      {data.canReceive && canSettle && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Record actual receiving outcome</h2>
           <p>
@@ -176,9 +160,9 @@ export function TransitConsole({
             handled at the receiving bay. A loss report reserves the selected disputed balance until
             independent Finance review.
           </p>
-          <FormLayout
+          <TransitForm title="Record actual receiving outcome" version={expectedVersion} pending={pending} onDiscard={resetReceiving}
             className="ui-form-grid"
-            onSubmit={(e) => {
+            onCommand={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget),
                 quantity = tracked ? String(selectedQuantity) : String(f.get("quantity")),
@@ -193,8 +177,8 @@ export function TransitConsole({
                     : [],
                 ),
                 attachmentKey = `${kind}:${lineId}`;
-              void send(kind === "receive" ? "receive" : "loss", {
-                expectedVersion,
+              return send(kind === "receive" ? "receive" : "loss", {
+                expectedVersion:Number(f.get("sourceVersion")),
                 attachmentSetIds: setIds(attachmentKey),
                 date: f.get("date"),
                 evidence: f.get("evidence"),
@@ -305,14 +289,14 @@ export function TransitConsole({
             <Button appearance="standard"
               clientManaged type="submit"
               variant="primary"
-              disabled={pending || (tracked && selectedQuantity <= 0)}
+              disabled={pending || !canSettle || (tracked && selectedQuantity <= 0)}
             >
               Record receiving outcome
             </Button>
-          </FormLayout>
+          </TransitForm>
         </Card>
       )}
-      {data.canReviewLoss &&
+      {data.canReviewLoss && canSettle &&
         data.events
           .filter((e) => e.kind === "loss_requested" && !e.resolution && Number(e.can_review) > 0)
           .map((p) => (
@@ -322,13 +306,13 @@ export function TransitConsole({
                 {Number(p.quantity_milli) / 1000} units · reported by {String(p.actor_id)}
               </p>
               <p>{String(p.evidence)}</p>
-              <FormLayout
+              <TransitForm title="Independent discrepancy decision" version={expectedVersion} pending={pending} onDiscard={()=>undefined}
                 className="ui-form-grid"
-                onSubmit={(e) => {
+                onCommand={(e) => {
                   e.preventDefault();
                   const f = new FormData(e.currentTarget);
-                  void send("decide-loss", {
-                    expectedVersion,
+                  return send("decide-loss", {
+                    expectedVersion:Number(f.get("sourceVersion")),
                     proposalId: p.id,
                     decision: f.get("decision"),
                     date: f.get("date"),
@@ -342,7 +326,7 @@ export function TransitConsole({
                   Decision
                   <Select appearance="standard" name="decision">
                     <option value="reject">Reject — return to receiving team</option>
-                    <option value="approve">Approve loss and post accounting</option>
+                    <option value="approve" disabled={purchase?.lossSettleExisting===false}>Approve loss and post accounting</option>
                   </Select>
                 </Field>
                 {date()}
@@ -369,10 +353,10 @@ export function TransitConsole({
                   </Select>
                 </Field>
                 {proof()}
-                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
+                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !canSettle}>
                   Record independent decision
                 </Button>
-              </FormLayout>
+              </TransitForm>
             </Card>
           ))}
     </Stack>

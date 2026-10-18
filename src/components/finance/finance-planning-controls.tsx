@@ -1,10 +1,11 @@
 "use client";
+import {useFinanceCommand} from "./use-finance-command";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {FinanceEvidenceDocuments} from "./finance-evidence-documents";
 import {EmbeddedRecord} from "@/components/records/record-context";
 import {RecordLink} from "@/components/records/record-link";
 import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { useContext,useState } from "react";
-import { useRouter } from "next/navigation";
 import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import { financeCsvRows } from "@/lib/finance/finance-csv";
 import { minorToDecimal } from "@/lib/finance/finance-money";
@@ -62,37 +63,16 @@ export function FinancePlanningControls({
   userId: string;
 }) {
   const recordOnly=useContext(EmbeddedRecord);
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
+  const {send,pending,error:commandError,setError,draftScope,canPrepare,canSettle}=useFinanceCommand(base);
+  const [readBusy,setBusy]=useState(false),busy=pending||readBusy,error=commandError,
     [output, setOutput] = useState<{ rows: Row[]; snapshotId?: string;planId?:string;cashFlow?:Record<string,string>|null } | null>(
       null,
     ),
     [editor, setEditor] = useState<EditorRow[]>([blank()]);
-  const api = `${base.replace("/holdings/", "/api/v1/holdings/")}/finance`;
-  async function run(path: string, input: unknown) {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await workFetch(`${api}/${path}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": crypto.randomUUID(),
-          },
-          body: JSON.stringify(input),
-        }),
-        body = await r.json();
-      if (!r.ok)
-        throw new Error(body.error?.message ?? "Finance action failed");
-      if (body.data.rows)
-        setOutput({ rows: body.data.rows, snapshotId: body.data.id,cashFlow:body.data.cashFlow });
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Finance action failed");
-    } finally {
-      setBusy(false);
-    }
+  const api = `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance`;
+  async function run(path:string,input:unknown){
+    const result=await send(path,input,["budget-revisions/import","forecasts","report-definitions"].includes(path)?"new-work":"settle-existing");
+    if(result?.rows)setOutput({rows:result.rows,snapshotId:result.id,cashFlow:result.cashFlow});
   }
   async function actuals(id: string) {
     setBusy(true);
@@ -164,13 +144,13 @@ export function FinancePlanningControls({
           {error}
         </InlineNotice>
       )}
-      {canWrite && (
+      {canWrite && canPrepare && (
         (!recordOnly && <FormDisclosure error={error}
           appearance="standard"
           drawerTitle="Prepare a budget edition"
         >
           <summary>Prepare budget</summary>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -237,13 +217,13 @@ export function FinancePlanningControls({
           </FormLayout>
         </FormDisclosure>)
       )}
-      {canWrite && (
+      {canWrite && canPrepare && (
         (!recordOnly && <FormDisclosure error={error}
           appearance="standard"
           drawerTitle="Prepare a twelve-month forecast"
         >
           <summary>Prepare forecast</summary>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -311,13 +291,13 @@ export function FinancePlanningControls({
           </FormLayout>
         </FormDisclosure>)
       )}
-      {canWrite && (
+      {canWrite && canPrepare && (
         (!recordOnly && <FormDisclosure error={error}
           appearance="standard"
-          drawerTitle="Build a financial report"
+          drawerTitle="Build a financial report" onDiscard={()=>setEditor([blank()])}
         >
           <summary>Build report</summary>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
@@ -545,11 +525,11 @@ export function FinancePlanningControls({
                       </ul>
                     )}
                   </details>
-                  <FinanceEvidenceDocuments base={base} row={r} targetType="finance_plan_edition" canWrite={canWrite}/>
-                  {canApprove &&
+                  <FinanceEvidenceDocuments base={base} row={r} targetType="finance_plan_edition" canWrite={canWrite&&canSettle}/>
+                  {canApprove && canSettle &&
                     r.status === "draft" &&
                     r.prepared_by !== userId && (
-                      <FormLayout
+                      <FormLayout data-finance-draft={draftScope}
                         onSubmit={(e) => {
                           e.preventDefault();
                           const f = new FormData(e.currentTarget);
@@ -595,10 +575,10 @@ export function FinancePlanningControls({
                       Budget vs actual
                     </Button>
                   )}
-                  {canWrite &&
+                  {canWrite && canSettle &&
                     r.status === "approved" &&
                     r.kind === "report" && (
-                      <FormLayout
+                      <FormLayout data-finance-draft={draftScope}
                         className="ui-form-grid"
                         onSubmit={(e) => {
                           e.preventDefault();

@@ -40,3 +40,52 @@ describe('Quality alert recovery',()=>{
  test('revoked acknowledgement authority is checked before replay',async()=>{const repository:QualityAlertRepository={async alerts(){return [alert];},async replay(){throw new Error('must not replay');},async acknowledge(){throw new Error('must not mutate');}};const app=createQualityAlertApplication({departmentScope:false,userId:'user',authorizeRead(){},can:()=>false,clock:{now:()=>42},async repository(){return repository;}});await expect(app.acknowledgeQualityAlert('alert',{expectedVersion:1,reason:'Take responsibility'},'key')).rejects.toMatchObject({code:'QUALITY_ALERT_PERMISSION_REQUIRED'});});
  test('completed and recipient-revoked escalations retain their source but cannot act',async()=>{const repository:QualityAlertRepository={async alerts(){return [{...alert,can_ack:0,recipients:0},{...alert,id:'released',status:'released'}];},async replay(){return null;},async acknowledge(){throw new Error('must not mutate');}};const app=createQualityAlertApplication({departmentScope:false,userId:'user',authorizeRead(){},can:()=>true,clock:{now:()=>42},async repository(){return repository;}});expect(await app.qualityAlertWork()).toEqual([expect.objectContaining({queue:'waiting',canAct:false,blocker:expect.stringContaining('No eligible Quality recipient'),source:expect.objectContaining({id:'hold',version:2})}),expect.objectContaining({queue:'completed',canAct:false,status:'acknowledged'})]);});
 });
+
+import {afterEach,vi} from 'vitest';
+import {createElement} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {qualityCommandAllowed,type QualityPurchaseControls} from '../../../src/lib/quality/quality-purchase-controls';
+import {createQualityCommandFetch,qualityFormUnchanged,validQualityAcknowledgement} from '../../../src/lib/quality/quality-command-fetch';
+import {createQualityCommandAttempt,type QualityCommandAttempt} from '../../../src/lib/quality/quality-command-attempt';
+import {QualityPurchaseProvider} from '../../../src/components/quality/quality-purchase-context';
+import {QualityConsole} from '../../../src/components/quality/quality-console';
+vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/acme/quality',useSearchParams:()=>new URLSearchParams()}));
+afterEach(()=>vi.unstubAllGlobals());
+const activeQuality:QualityPurchaseControls={newWork:true,settleExisting:true,history:true,revision:'opaque'},drainingQuality={...activeQuality,newWork:false},historyQuality={...drainingQuality,settleExisting:false};
+test('Quality keeps manual/spec work active while existing source inspection, independent decisions and cancellation settle',()=>{
+ for(const path of ['', '/specifications','/specifications/spec'])expect(qualityCommandAllowed(drainingQuality,path)).toBe(false);
+ expect(qualityCommandAllowed(drainingQuality,'/specifications/spec',{action:'activate'})).toBe(false);expect(qualityCommandAllowed(drainingQuality,'/specifications/spec',{action:'cancel'})).toBe(true);
+ for(const path of ['/hold/inspect','/hold/release','/hold/disposition','/hold/cancel','/alert/acknowledge']){expect(qualityCommandAllowed(drainingQuality,path)).toBe(true);expect(qualityCommandAllowed(historyQuality,path)).toBe(false);}
+ expect(qualityCommandAllowed(activeQuality,'/hold/foreign-action')).toBe(false);expect(qualityCommandAllowed(undefined,'')).toBe(true);
+});
+test('Quality uncertain acknowledgement keeps exact key until a parsed actual id and positive version',async()=>{
+ const keys:string[]=[],request=createQualityCommandFetch(async(_url,init)=>{keys.push(new Headers(init?.headers).get('Idempotency-Key')!);if(keys.length===1)throw Error('Lost inspection response');if(keys.length===2)return new Response('truncated');if(keys.length===3)return Response.json({data:{id:'hold'}});if(keys.length===4)return Response.json({data:{id:'hold',version:0}});return Response.json({data:{id:'hold',version:2}});}),input={method:'POST',body:'{"expectedVersion":1,"result":"fail"}'};
+ await expect(request('/quality/hold/inspect',input)).rejects.toThrow('Lost inspection response');for(let i=0;i<3;i++)await request('/quality/hold/inspect',input);expect(request.hasAttempt('/quality/hold/inspect',input.body)).toBe(true);await request('/quality/hold/inspect',input);expect(request.hasAttempt('/quality/hold/inspect',input.body)).toBe(false);await request('/quality/hold/inspect',input);expect(new Set(keys.slice(0,5)).size).toBe(1);expect(keys[5]).not.toBe(keys[0]);
+});
+test('Quality command identities separate Company, role assignment and changed physical evidence',async()=>{
+ const dataset={workUser:'inspector',workRevision:'1',workCompany:'A',workAssignment:'inspection-A'};vi.stubGlobal('document',{querySelector:()=>({dataset})});const keys:string[]=[],request=createQualityCommandFetch(async(_url,init)=>{keys.push(new Headers(init?.headers).get('Idempotency-Key')!);return new Response('unavailable',{status:503});});await request('/inspect',{body:'submitted'});await request('/inspect',{body:'submitted'});await request('/inspect',{body:'newer evidence'});dataset.workAssignment='manager-A';await request('/inspect',{body:'submitted'});dataset.workCompany='B';await request('/inspect',{body:'submitted'});expect(keys[1]).toBe(keys[0]);expect(new Set([keys[0],...keys.slice(2)]).size).toBe(4);
+});
+test('Quality unknown physical outcome blocks newer drafts and reuses the original captured inspection revision',()=>{
+ const commands=createQualityCommandAttempt(),completion={form:{} as HTMLFormElement,formEditVersion:'original'},original:QualityCommandAttempt={path:'/hold/inspect',body:'submitted original measurements',context:'company-inspector',create:false,completion};commands.unresolved(original);expect(()=>commands.select({...original,body:'changed measurement'},original.context)).toThrow('Retry the submitted quality change first');expect(()=>commands.select(original,'company-manager')).toThrow('workspace changed');expect(commands.select({...original,completion:{...completion,formEditVersion:'later'}},original.context)).toBe(original);expect(commands.retry()?.completion?.formEditVersion).toBe('original');commands.resolved(original);expect(commands.select({...original,body:'changed measurement'},original.context).body).toBe('changed measurement');
+});
+test('Quality parsed acknowledgement leaves newer measurements or evidence dirty',async()=>{
+ const form={isConnected:true,getAttribute:()=> 'later-measurement'} as unknown as HTMLFormElement,completion={form,formEditVersion:'submitted'},events:Event[]=[];vi.stubGlobal('window',{dispatchEvent:(event:Event)=>{events.push(event);return true;}});await createQualityCommandFetch(async()=>Response.json({data:{id:'hold',version:2}}))('/inspect',{body:'original'},completion);const saved=events.find(event=>event.type==='erpx:record-command-saved') as CustomEvent;expect(saved.detail.qualityAcknowledged).toBe(true);expect(saved.detail.formEditVersion).toBe('submitted');expect(qualityFormUnchanged(saved.detail)).toBe(false);for(const value of [null,[],{id:''},{id:'hold'},{id:'hold',version:0},{id:'hold',version:1.5}])expect(validQualityAcknowledgement(value)).toBe(false);
+});
+const uiWorkspace={holds:[],stock:[],lots:[],products:[],specifications:[],specMetrics:[],canHold:true,canManageSpecs:true};
+const uiDetail={hold:baseHold,inspections:[],cancellations:[],dispositions:[],specMetrics:[],measurements:[],attachments:[],canCancel:true,canReviewCancellation:false,canInspect:true,canRelease:false,canDisposition:false};
+function renderQuality(props:Parameters<typeof QualityConsole>[0],purchase?:QualityPurchaseControls){return renderToStaticMarkup(createElement(QualityPurchaseProvider,{purchase},createElement(QualityConsole,props)));}
+test('Quality current-page long manual/spec/inspection editors disclose guarded drawers with no initial inline fields',()=>{
+ const workspace=renderQuality({base:'/holdings/acme',data:uiWorkspace},activeQuality);expect(workspace).toContain('Quarantine stock');expect(workspace).toContain('Prepare product inspection specification');expect(workspace).not.toContain('name="metrics"');expect(workspace).not.toContain('name="dueDate"');const source=renderQuality({base:'/holdings/acme',detail:uiDetail},drainingQuality);expect(source).toContain('Record inspection');expect(source).toContain('Request cancellation');expect(source).not.toContain('name="evidence"');
+});
+test('Quality retained history suppresses mutation tools while original independent role flags still decide eligible source actions',()=>{
+ expect(renderQuality({base:'/holdings/acme',data:uiWorkspace},drainingQuality)).not.toContain('Quarantine stock');const history=renderQuality({base:'/holdings/acme',detail:uiDetail},historyQuality);expect(history).not.toContain('Record inspection');expect(history).not.toContain('Request cancellation');expect(renderQuality({base:'/holdings/acme',detail:{...uiDetail,canInspect:false,canCancel:false}},activeQuality)).not.toContain('Record inspection');for(const secret of ['company_package_grants','assignment_permissions','source_witness'])expect(history).not.toContain(secret);
+});
+
+import {qualitySourceEntry} from "../../../src/server/modules/quality/public/rules/product-entry";
+describe('existing Quality/Count product source destinations',()=>{
+ test('parses only canonical exact source detail identities',()=>{
+  expect(qualitySourceEntry('inventory-quality/quality/quality-return-123-0')).toEqual({kind:'hold',id:'quality-return-123-0'});
+  expect(qualitySourceEntry('inventory-quality/counts/quality-scrap-123/overview')).toEqual({kind:'count',id:'quality-scrap-123'});
+  for(const path of ['inventory-quality/quality','inventory-quality/counts','inventory-quality/counts/new','inventory-quality/quality/..','inventory-quality/quality/id/edit','inventory-quality/quality/id?companyId=other','inventory-quality/quality/id#extra','inventory-quality/quality/id\\escape','inventory-quality/quality/id\u0000','quality/id','inventory-quality/transfers/id'])expect(qualitySourceEntry(path)).toBeNull();
+ });
+});

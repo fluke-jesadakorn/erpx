@@ -3,12 +3,16 @@ import type {PortalScope,PortalAttachment} from "../domain/portal-attachments";
 export type PortalMediaType="application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";
 export type PortalAttachmentWrite={owner:"files"};
 export type PortalAttachmentRows<Row>={results:Row[]};
+export type PortalAttachmentStageScope={sourceId:string;companyId:string;itemId:string;shareId:string;actorId:string;setId:string;linkId:string;uploadId:string;commandId:string;objectKey:string;name:string};
+export type PortalAttachmentStagedSource={object_key:string;checksum_sha256:string;media_type:string;bytes:number;expected_target_version:number|null;scope_matches:number};
+export type PortalAttachmentRecoverySource=PortalAttachmentStagedSource&{recovery_draft:number;image:string};
 export type PortalAttachmentUnit={
-existing(facts:{sourceId:string;companyId:string;}):Promise<{ object_key: string; checksum_sha256: string; media_type: string; bytes: number; } | null>;
+existing(facts:PortalAttachmentStageScope):Promise<PortalAttachmentStagedSource|null>;
+recoverySource(facts:PortalAttachmentStageScope):Promise<PortalAttachmentRecoverySource|null>;
 usedStorage(facts:{companyId:string;}):Promise<number|null>;
 pendingStorage(facts:{companyId:string;now:number;}):Promise<number|null>;
 storageAllowance(facts:{companyId:string;}):Promise<{ storage_bytes: number; } | null>;
-raced(facts:{sourceId:string;}):Promise<{ checksum_sha256: string; } | null>;
+raced(facts:PortalAttachmentStageScope):Promise<PortalAttachmentStagedSource|null>;
 draftSet(facts:{setId:string;companyId:string;branchId:string | null;departmentId:string | null;fact4:"legal_item";itemId:string;fact6:"action";commandId:string;PORTAL_PURPOSE:"legal_portal_submission";itemVersion:number;version:number;classification:"public"|"internal"|"confidential"|"restricted";fact12:string;retentionPolicyKey:string | null;requiredCount:number;maxFiles:number;actorId:string;now:number;now2:number;}):PortalAttachmentWrite;
 draftLink(facts:{linkId:string;setId:string;actorId:string;now:number;fact4:number;}):PortalAttachmentWrite;
 uploadedIntent(facts:{uploadId:string;fact1:"legal_item";itemId:string;PORTAL_PURPOSE:"legal_portal_submission";name:string;mediaType:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";byteLength:number;byteLength2:number;checksum:string;objectKey:string;objectKey2:string;actorId:string;fact12:number;now:number;now2:number;itemVersion:number;setId:string;linkId:string;companyId:string;mediaType2:"application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/heic" | "image/heif" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "text/csv";objectKey3:string;}):PortalAttachmentWrite;
@@ -60,18 +64,16 @@ async function stagePortalAttachment(
   const uploadId = `attachment-upload-legal-portal-${commandId}`;
   const sourceId = `attachment-${uploadId}`;
   const objectKey = `legal/${scope.companyId}/${scope.itemId}/quarantine/${uploadId}/original`;
-  const existing = await ports.repository.existing({sourceId:sourceId,companyId:scope.companyId});
-  if (
-    existing &&
-    (existing.checksum_sha256 !== checksum ||
-      existing.media_type !== mediaType ||
-      Number(existing.bytes) !== bytes.byteLength)
-  )
-    throw ports.error(
-      409,
-      "IDEMPOTENCY_CONFLICT",
-      "This upload key was already used for another file.",
-    );
+  const stagedScope={sourceId,companyId:scope.companyId,itemId:scope.itemId,shareId:scope.shareId,actorId,setId,linkId,uploadId,commandId,objectKey,name};
+  function stagedVersion(existing:PortalAttachmentStagedSource):number {
+    if(existing.checksum_sha256!==checksum||existing.media_type!==mediaType||Number(existing.bytes)!==bytes.byteLength||existing.scope_matches!==1||typeof existing.expected_target_version!=="number"||!Number.isSafeInteger(existing.expected_target_version))
+      throw ports.error(409,"IDEMPOTENCY_CONFLICT","This upload key was already used for another file.");
+    if(existing.expected_target_version!==scope.itemVersion)
+      throw ports.error(409,"LEGAL_VERSION_CONFLICT","The legal record changed after this upload was staged. Upload it again with a new key.");
+    return existing.expected_target_version;
+  }
+  const existing = await ports.repository.existing(stagedScope);
+  let expectedTargetVersion=existing?stagedVersion(existing):scope.itemVersion;
 
   if (!existing) {
     const used = Number(
@@ -104,16 +106,10 @@ async function stagePortalAttachment(
     }
 
     const now = ports.clock.now();
-    await ports.repository.transaction(async (tx) => {
-      const raced = await tx.raced({sourceId:sourceId});
+    expectedTargetVersion=await ports.repository.transaction(async (tx) => {
+      const raced = await tx.raced(stagedScope);
       if (raced) {
-        if (raced.checksum_sha256 !== checksum)
-          throw ports.error(
-            409,
-            "IDEMPOTENCY_CONFLICT",
-            "This upload key was already used for another file.",
-          );
-        return;
+        return stagedVersion(raced);
       }
       await tx.batch([
         tx.draftSet({setId:setId,companyId:scope.companyId,branchId:scope.branchId,departmentId:scope.departmentId,fact4:"legal_item",itemId:scope.itemId,fact6:"action",commandId:commandId,PORTAL_PURPOSE:PORTAL_PURPOSE,itemVersion:scope.itemVersion,version:policy.version,classification:policy.classification,fact12:JSON.stringify({
@@ -134,6 +130,7 @@ async function stagePortalAttachment(
               portalShareId: scope.shareId,
             }),now:now}),
       ]);
+      return scope.itemVersion;
     });
   }
 
@@ -156,7 +153,7 @@ async function stagePortalAttachment(
     checksum,
     mediaType,
     bytes: bytes.byteLength,
-    expectedTargetVersion: scope.itemVersion,
+    expectedTargetVersion,
   };
 }
 

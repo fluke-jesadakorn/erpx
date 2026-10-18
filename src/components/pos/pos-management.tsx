@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button as UiButton, Field, Select, TextInput } from "@/components/ui/foundation";
@@ -8,7 +9,7 @@ import { posCommerceAccountDefaults, posGeneratedAccountSpecs } from "@/lib/pos/
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { PosWorkspace } from "@/server/modules/pos/public/pos";
 import type { PosRow } from "@/server/modules/pos/public/pos-core";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
 import styles from "./pos.module.css";
 import { useFrontLanguage } from "@/components/front/front-language";
@@ -681,13 +682,16 @@ function RetailSetup({
             Commerce and Finance.
           </p>
           <div className={styles.actions}>
-            <UiActionLink variant="primary" className={styles.button} href={`${base}/commerce`}>
+            <UiActionLink variant="primary" className={styles.button} href={`${base}/pos/settings/startup`}>
+              Prepare POS accounts and catalogue
+            </UiActionLink>
+            <UiActionLink variant="secondary" className={styles.button} href={canonicalUiHref(`${base}/commerce`)}>
               Open Commerce setup
             </UiActionLink>
             <UiActionLink
               variant="secondary"
               className={`${styles.button} ${styles.secondary}`}
-              href={`${base}/finance/setup`}
+              href={canonicalUiHref(`${base}/finance/setup`)}
             >
               Open Finance setup
             </UiActionLink>
@@ -836,14 +840,14 @@ function RetailSetup({
               <UiActionLink
                 variant="secondary"
                 className={`${styles.button} ${styles.secondary}`}
-                href={`${base}/commerce`}
+                href={canonicalUiHref(`${base}/commerce`)}
               >
                 Review Commerce
               </UiActionLink>
               <UiActionLink
                 variant="secondary"
                 className={`${styles.button} ${styles.secondary}`}
-                href={`${base}/finance/setup`}
+                href={canonicalUiHref(`${base}/finance/setup`)}
               >
                 Review Finance
               </UiActionLink>
@@ -1019,7 +1023,7 @@ export function Settings({
       </div>
       {data.products.length === 0 && (
         <p className={styles.notice}>
-          Add products in <Link href={`${base}/commerce`}>Commerce</Link> before the first sale.
+          Add products in <Link href={canonicalUiHref(`${base}/commerce`)}>Commerce</Link> before the first sale.
         </p>
       )}
     </section>
@@ -1173,7 +1177,7 @@ export function Settings({
               {!data.accounts.some((row) => s(row, "chart_id") === chartId) && (
                 <p className={styles.mappingNotice}>
                   No active accounts are available in this chart. Add or activate accounts in{" "}
-                  <Link href={`${base}/finance/accounting`}>Finance</Link> first.
+                  <Link href={canonicalUiHref(`${base}/finance/accounting`)}>Finance</Link> first.
                 </p>
               )}
             </div>
@@ -1257,7 +1261,7 @@ export function Settings({
             </form>
             {!data.warehouses.length && (
               <p className={styles.muted}>
-                Add a warehouse in <Link href={`${base}/commerce`}>Commerce</Link> first.
+                Add a warehouse in <Link href={canonicalUiHref(`${base}/commerce`)}>Commerce</Link> first.
               </p>
             )}
           </section>
@@ -1325,7 +1329,7 @@ export function Settings({
             <section className={styles.panel}>
               <h2>No active products</h2>
               <p>
-                Add products in <Link href={`${base}/commerce`}>Commerce</Link> before configuring
+                Add products in <Link href={canonicalUiHref(`${base}/commerce`)}>Commerce</Link> before configuring
                 barcode details or a restaurant menu.
               </p>
             </section>

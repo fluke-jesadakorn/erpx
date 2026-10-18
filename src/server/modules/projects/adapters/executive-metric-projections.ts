@@ -1,3 +1,4 @@
+import {projectMetricSource} from "./metric-purchases";
 import { inventoryExecutiveOwnerProjections as financeProjectionSources } from "../../finance/public/inventory-executive-owner-projections";
 import { inventoryExecutiveOwnerProjections as people_payrollProjectionSources } from "../../people_payroll/public/inventory-executive-owner-projections";
 import { readMetricSources } from '@/server/modules/runtime/public/executive/metric-sources';
@@ -10,9 +11,10 @@ import { specs } from '@/server/modules/runtime/public/executive/metric-projecti
 import type { MetricSnapshot, RawMetricRow } from '@/server/modules/runtime/public/executive/metric-projection-contract';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
+    const projectSource=await projectMetricSource(sourceDb,a,id);
     let sql = '', values: unknown[] = [], referenceAtOverride: number | null = null;
     if (id === "projects") {
-        sql = `SELECT to_char(to_timestamp(p.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') label,count(*)::text value FROM staff_projects p WHERE ${scopedAlias("p")} AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?)) AND p.created_at>=? AND p.created_at<? GROUP BY 1 ORDER BY 1`;
+        sql = `SELECT to_char(to_timestamp(p.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') label,count(*)::text value FROM (${projectSource.sql}) p WHERE ${scopedAlias("p")} AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?)) AND p.created_at>=? AND p.created_at<? GROUP BY 1 ORDER BY 1`;
         values = [...scopeArgs, a.userId, a.userId, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     if (id === "overdue-project-milestones") {
@@ -27,7 +29,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const cohort = projectMilestoneOverdueCohort(a, f, referenceAtOverride);
         const grouped = breakdown === "default" ? "" : `GROUP BY ${group}`;
         sql = `SELECT min(${label}) label,count(*)::text value FROM staff_project_milestones m
-      JOIN staff_projects p ON p.id=m.project_id AND p.company_id=m.company_id
+      JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
       LEFT JOIN (${people_payrollProjectionSources.hr_people}) h ON h.company_id=m.company_id AND h.user_id=m.owner_user_id AND h.merged_into_id IS NULL
       WHERE ${cohort.sql} ${grouped} ORDER BY 1 LIMIT 101`;
         values = cohort.values;
@@ -37,7 +39,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const cohort = projectDependencyBlockerCohort(a, f);
         const grouping = breakdown === "project" ? "GROUP BY p.id" : "";
         sql = `SELECT min(${label}) label,count(*)::text value,count(*)::text count_value
-      FROM staff_project_milestones m JOIN staff_projects p ON p.id=m.project_id AND p.company_id=m.company_id
+      FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
       WHERE ${cohort.sql} ${grouping} ORDER BY 1 LIMIT 101`;
         values = cohort.values;
     }
@@ -48,7 +50,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "project" ? "p.id" : null;
         const grouping = group ? `GROUP BY ${group}` : "";
         sql = `SELECT min(${label}) label,(sum(l.minutes::numeric)*60000)::text value,count(*)::text count_value
-      FROM staff_project_work_logs l JOIN staff_projects p ON p.id=l.project_id AND p.company_id=l.company_id
+      FROM staff_project_work_logs l JOIN (${projectSource.sql}) p ON p.id=l.project_id AND p.company_id=l.company_id
       WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
         AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))
         AND l.state='approved' AND l.work_date BETWEEN ? AND ?
@@ -62,7 +64,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "project" ? "p.id" : null;
         const grouping = group ? `GROUP BY ${group}` : "";
         sql = `SELECT min(${label}) label,sum(a.amount_minor::numeric)::text value,count(*)::text count_value
-      FROM staff_project_cost_allocations a JOIN staff_projects p ON p.id=a.project_id AND p.company_id=a.company_id
+      FROM staff_project_cost_allocations a JOIN (${projectSource.sql}) p ON p.id=a.project_id AND p.company_id=a.company_id
       JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
       JOIN (${financeProjectionSources.finance_accounts}) ac ON ac.id=l.account_id
       WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
@@ -72,6 +74,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
       ${grouping} ORDER BY 1 LIMIT 101`;
         values = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId, a.userId, a.userId, f.currency, f.from, f.to];
     }
+    values=[...projectSource.args,...values];
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;
-    return { raw, referenceAtOverride, source: (group, reported) => readMetricSources(sourceDb, id, sql, values, group, raw, `${spec.dateBasis} · ${f.from} to ${f.to} · ${f.currency}`, reported), watermarks: async () => [] };
+    return { raw, referenceAtOverride, source: async (group, reported) => {await projectMetricSource(sourceDb,a,id);return readMetricSources(sourceDb, id, sql, values, group, raw, `${spec.dateBasis} · ${f.from} to ${f.to} · ${f.currency}`, reported);}, watermarks: async () => [] };
 }

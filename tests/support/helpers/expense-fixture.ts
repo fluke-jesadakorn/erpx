@@ -11,8 +11,9 @@ import {
 import { saveExpenseAccounting } from "../../../src/server/modules/people_payroll/public/expense-workflow";
 export const expenseDb = env.H001_DB,
   key = () => crypto.randomUUID();
-export async function expenseFixture(mapped = true, withMoneyQuote = true) {
-  const f = await seedExpenseCompany(expenseDb, env.H001_FILES, withMoneyQuote);
+export async function expenseFixture(mapped = true, withMoneyQuote = true, withFinancialReferences = true) {
+  if (mapped && !withFinancialReferences) throw new Error("SPENDING_MAP_REQUIRES_FINANCIAL_REFERENCES");
+  const f = await seedExpenseCompany(expenseDb, env.H001_FILES, withMoneyQuote, withFinancialReferences);
   if(mapped)await mapSpendingOrganization(f);
   const {
     db,

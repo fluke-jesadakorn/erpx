@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, RecordList, RecordListItem } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
@@ -63,7 +64,7 @@ export function WorkList({
           }
           action={
             !filtered && !incomplete && queue === "todo" && waiting > 0 ? (
-              <UiActionLink appearance="standard" variant="secondary" href={`${base}/work?view=waiting`}>
+              <UiActionLink appearance="standard" variant="secondary" href={canonicalUiHref(`${base}/work?view=waiting`)}>
                 View waiting work
               </UiActionLink>
             ) : undefined

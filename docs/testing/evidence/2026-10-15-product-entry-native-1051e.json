@@ -1,0 +1,43 @@
+{
+  "schema": "erpx-product-migration-native/v1",
+  "createdAt": "2026-10-14T18:02:03.084226+00:00",
+  "sourceFingerprint": "1051e2968b2391cb48fb73fbfad70aa69db4c09d9c3fc35c5c3f9bb94b709f2e",
+  "verificationFingerprint": "dca13b5a8cd49118f7e0c2c0141923cda830c585969728f4efaa3be3c801b172",
+  "result": "passed",
+  "files": 232,
+  "cases": 2162,
+  "scope": "Complete isolated PostgreSQL integration invocation for the frozen product-entry source. Does not certify later temporal-lease implementation or all product/UI/performance/recovery acceptance.",
+  "run": {
+    "startedAt": "2026-10-14T17:27:26.322766+00:00",
+    "candidate": {
+      "sourceFingerprint": "1051e2968b2391cb48fb73fbfad70aa69db4c09d9c3fc35c5c3f9bb94b709f2e",
+      "verificationFingerprint": "dca13b5a8cd49118f7e0c2c0141923cda830c585969728f4efaa3be3c801b172"
+    },
+    "status": "passed",
+    "runnerPid": 37652,
+    "scope": "Full isolated PostgreSQL integration lane; no product workflow/browser/performance acceptance inferred.",
+    "childPid": 37654,
+    "exitCode": 0,
+    "endedAt": "2026-10-14T17:59:43.277813+00:00",
+    "sourceAfter": {
+      "sourceFingerprint": "1051e2968b2391cb48fb73fbfad70aa69db4c09d9c3fc35c5c3f9bb94b709f2e",
+      "verificationFingerprint": "dca13b5a8cd49118f7e0c2c0141923cda830c585969728f4efaa3be3c801b172"
+    },
+    "log": ".scratch/dev/product-entry-identity-current/full-postgres.log",
+    "logSha256": "913e288789957e1fb9fca251558e4d505a774842fe5d140684eb3f2f521434c6"
+  },
+  "artifacts": [
+    {
+      "path": ".scratch/dev/product-entry-identity-current/full-postgres.json",
+      "sha256": "dd5e698b6f318e82ec828547346a275f086cfc61e8c1cdd55cb507358eeb1e47"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/full-postgres.log",
+      "sha256": "913e288789957e1fb9fca251558e4d505a774842fe5d140684eb3f2f521434c6"
+    },
+    {
+      "path": ".scratch/dev/product-entry-identity-current/full-postgres-runner.py",
+      "sha256": "5b0787ae8227296a29d2c1b50ef601c9ff6c5f468fab3200437a0a8a19af9532"
+    }
+  ]
+}

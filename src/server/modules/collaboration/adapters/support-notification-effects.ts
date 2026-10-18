@@ -8,7 +8,7 @@ ticketReopened:()=>db.prepare(`INSERT INTO staff_notifications(id,company_id,use
 ticketCreated:()=>db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)${ticketCreatedNotificationSource()}`),
 ticketUpdated:()=>db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)${ticketUpdatedNotificationSource()}`),
 ticketReviewers:()=>db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)${ticketReviewersNotificationSource()} ON CONFLICT DO NOTHING`),
-slaBreached:()=>db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)${slaBreachedNotificationSource()} ON CONFLICT DO NOTHING`),
+slaBreached:(purchased = "TRUE")=>db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)${slaBreachedNotificationSource(purchased)} ON CONFLICT DO NOTHING`),
 sessionReviewers:()=>db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)${sessionReviewersNotificationSource()} ON CONFLICT DO NOTHING`),
 sessionUpdated:()=>db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)${sessionUpdatedNotificationSource()}`),
 policyReviewers:()=>db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)${policyReviewersNotificationSource()} ON CONFLICT DO NOTHING`),

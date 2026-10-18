@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {identitySnapshotSources as manageerpxSnapshotSources} from '../../manage_erpx/public/identity-snapshot-sources';
 import {identitySnapshotSources as organizationSnapshotSources} from '../../organization/public/identity-snapshot-sources';
 const manageerpxSources=manageerpxSnapshotSources();
@@ -87,12 +88,12 @@ export async function iamAccountApi(request: Request, path: string[]) {
     if (request.method === "GET") {
       if (path.join("/") === "emergency/active")
         return Response.json(
-          { data: await listEmergencyAccess(actor) },
+          canonicalDestinationLinks({ data: await listEmergencyAccess(actor) }),
           { headers: { "Cache-Control": "no-store" } },
         );
       const env = await runtimeEnv();
       return Response.json(
-        {
+        canonicalDestinationLinks({
           data: {
             mfaEnabled: !!(await env.CONTROL_DB.prepare(
               "SELECT 1 FROM iam_mfa WHERE user_id=? AND enabled",
@@ -108,36 +109,36 @@ export async function iamAccountApi(request: Request, path: string[]) {
             ).results,
             currentSessionId: actor.sessionId,
           },
-        },
+        }),
         { headers: { "Cache-Control": "no-store" } },
       );
     }
     const input = await request.json();
     if (path.join("/") === "emergency/activate")
-      return Response.json({
+      return Response.json(canonicalDestinationLinks({
         data: await activateEmergency(
           actor,
           recoveryInput.parse(input),
           request.headers.get("Idempotency-Key") ?? "",
         ),
-      });
+      }));
     if (path.join("/") === "emergency/revoke")
-      return Response.json({
+      return Response.json(canonicalDestinationLinks({
         data: await revokeEmergency(
           actor,
           emergencyRevocationInput.parse(input),
           request.headers.get("Idempotency-Key") ?? "",
         ),
-      });
+      }));
     if (path.join("/") === "mfa/enroll")
-      return Response.json({ data: await beginMfa(actor) });
+      return Response.json(canonicalDestinationLinks({ data: await beginMfa(actor) }));
     if (path.join("/") === "mfa/verify")
-      return Response.json({
+      return Response.json(canonicalDestinationLinks({
         data: await verifyMfa(
           actor,
           z.object({ code: z.string() }).parse(input).code,
         ),
-      });
+      }));
     if (path.join("/") === "sessions/revoke") {
       await requireFreshMfa(actor);
       const id = z.object({ id: z.string().min(1) }).parse(input).id;
@@ -169,7 +170,7 @@ export async function iamAccountApi(request: Request, path: string[]) {
       )
         .bind(id, actor.userId)
         .run();
-      return Response.json({ data: { revoked: true } });
+      return Response.json(canonicalDestinationLinks({ data: { revoked: true } }));
     }
     throw new ApiError(404, "NOT_FOUND", "Account action not found.");
   } catch (error) {
@@ -193,18 +194,18 @@ export async function iamApi(
       route = path.join("/"),
       key = request.headers.get("Idempotency-Key") ?? "";
     if (request.method === "GET") {
-      if (route === "people-access") return Response.json({ data: await peopleAccessSnapshot(db, actor) }, { headers: { "Cache-Control": "no-store" } });
+      if (route === "people-access") return Response.json(canonicalDestinationLinks({ data: await peopleAccessSnapshot(db, actor) }), { headers: { "Cache-Control": "no-store" } });
       if (route === "audit") {
         const params = new URL(request.url).searchParams;
         return Response.json(
-          {
+          canonicalDestinationLinks({
             data: await iamAuditHistory(
               db,
               actor,
               params.get("search") ?? "",
               params.get("cursor") ?? undefined,
             ),
-          },
+          }),
           { headers: { "Cache-Control": "no-store" } },
         );
       }
@@ -277,18 +278,18 @@ export async function iamApi(
         for (const k of Object.keys(params))
           if (params[k] === "") delete params[k];
         return Response.json(
-          {
+          canonicalDestinationLinks({
             data: await inspectIamAccess(
               raw,
               actor,
               inspectorInput.parse(params),
             ),
-          },
+          }),
           { headers: { "Cache-Control": "no-store" } },
         );
       }
       return Response.json(
-        { data },
+        canonicalDestinationLinks({ data }),
         { headers: { "Cache-Control": "no-store" } },
       );
     }
@@ -672,7 +673,7 @@ export async function iamApi(
         },
       );
     } else throw new ApiError(404, "NOT_FOUND", "IAM action not found.");
-    return Response.json({ data: result });
+    return Response.json(canonicalDestinationLinks({ data: result }));
   } catch (error) {
     return errorResponse(error);
   }

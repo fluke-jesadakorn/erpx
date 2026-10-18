@@ -1,11 +1,12 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { supportSlaWorkspace } from "@/server/modules/support/public/support-sla";
 import { Card, FormLayout } from "@/components/ui/foundation";
@@ -64,7 +65,7 @@ export function SupportSlaConsole({
   return (
     <>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {data?.canManage && (
+      {data?.canCreate && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Draft a resolution-time policy</h2>
           <FormLayout
@@ -143,7 +144,7 @@ export function SupportSlaConsole({
             Breached <TimeText appearance="standard" value={Number(r.breached_at)} /> ·{" "}
             {r.acknowledged_by ? "Follow-up responsibility recorded" : "Awaiting Support manager"}
           </p>
-          <a href={`${base}/support/${r.ticket_id}`}>Open source case</a>
+          <a href={canonicalUiHref(`${base}/support/${r.ticket_id}`)}>Open source case</a>
           {r.reason && <p>{r.reason}</p>}
           {!r.acknowledged_by && !Number(r.recipients) && (
             <InlineNotice tone="danger" role="alert">

@@ -1,3 +1,5 @@
+import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from './project-worker-startup-binding';
+import {withPeoplePurchasedCommand} from "./people-purchases";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { z } from "zod";
@@ -5,7 +7,7 @@ import type { WorkContext } from "@/server/modules/identity_access/public/author
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { levelChangeStatements } from "@/server/modules/operations/public/staff-settings";
-import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
+import { assertion } from "@/server/modules/workflow/public/commands";
 import { requireCompanyAuthority, authorityGuard } from "@/server/modules/operations/public/staff-policy";
 import { organizationGuard, validateStaffOrganization } from "@/server/modules/organization/public/organization";
 import { rosterPositionExitStatements } from "@/server/modules/people_payroll/public/roster-position-exit";
@@ -90,7 +92,7 @@ function application(provided?: SqlDatabase) {
     return createPeopleDirectoryApplication({ repository, clock: { now: Date.now }, authorize: requirePermission, prepare: async (holding) => {
             if (!provided)
                 database = (await holdingResources(holding)).write;
-        }, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, levelChangeStatements: (...args) => levelChangeStatements(database, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), authorityGuard: (...args) => authorityGuard(database, ...args), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), rosterPositionExitStatements: (...args) => rosterPositionExitStatements(database, ...args), recommendationStatements: (...args) => fromNative(() => recommendationStatements(database, ...args)) });
+        }, commands: projectWorkerNativeCommands(database), levelChangeStatements: (...args) => levelChangeStatements(database, ...args), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), authorityGuard: (...args) => authorityGuard(database, ...args), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), rosterPositionExitStatements: (...args) => rosterPositionExitStatements(database, ...args), recommendationStatements: (...args) => fromNative(() => recommendationStatements(database, ...args)) });
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {
@@ -114,6 +116,10 @@ async function invoke<Result>(run: () => Promise<Result>) {
 }
 export async function directoryOptions(actor: WorkContext) { return invoke(() => application().directoryOptions(actor)); }
 export async function directoryPerson(actor: WorkContext, personId: string, engagementId?: string, provided?: SqlDatabase) { return invoke(() => application(provided).directoryPerson(actor, personId, engagementId)); }
-export async function saveDirectoryPerson(actor: WorkContext, personId: string | null, input: z.infer<typeof directoryUpdateSchema>, commandId: string) { return invoke(() => application().saveDirectoryPerson(actor, personId, input, commandId)); }
-export async function setDirectoryStatus(actor: WorkContext, personId: string, input: z.infer<typeof directoryStatusSchema>, commandId: string) { return invoke(() => application().setDirectoryStatus(actor, personId, input, commandId)); }
+export async function saveDirectoryPerson(actor: WorkContext, personId: string | null, input: z.infer<typeof directoryUpdateSchema>, commandId: string) { return withPeoplePurchasedCommand(actor,{key:commandId,operation:personId?"people.directory.update":"people.directory.create",capability:"people.directory",purpose:"new-work",permission:"people.manage",...(personId?{target:{kind:"person" as const,id:personId}}:{resultKind:"person" as const})},tx=>invoke(()=>application(tx).saveDirectoryPerson(actor,personId,input,commandId))); }
+export async function setDirectoryStatus(actor: WorkContext, personId: string, input: z.infer<typeof directoryStatusSchema>, commandId: string) { return withPeoplePurchasedCommand(actor,{key:commandId,operation:"people.directory.status",capability:"people.directory",purpose:input.status==="active"?"new-work":"settle-existing",permission:"people.manage",target:{kind:"person",id:personId}},tx=>invoke(()=>application(tx).setDirectoryStatus(actor,personId,input,commandId))); }
 export async function personAccess(actor: WorkContext, personId: string) { return invoke(() => application().personAccess(actor, personId)); }
+
+/** Same-owner fixed Directory composition; no public arbitrary transaction port. */
+export async function saveProjectWorkerDirectoryOwned(database:SqlDatabase,actor:WorkContext,personId:string|null,input:z.infer<typeof directoryUpdateSchema>,key:string){requireProjectWorkerNativeCommand(database,actor,key,personId?'people.directory.update':'people.directory.create');return invoke(()=>application(database).saveDirectoryPerson(actor,personId,input,key));}
+export async function readProjectWorkerDirectoryOwned(database:SqlDatabase,actor:WorkContext,personId:string,engagementId?:string){requireProjectWorkerUnit(database,actor);return invoke(()=>application(database).directoryPerson(actor,personId,engagementId));}

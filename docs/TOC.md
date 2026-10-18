@@ -1,8 +1,24 @@
 # ERPX documentation index
 
-Reviewed 2026-10-03. This is the single entry point. [Production plan](production-plan.md) owns delivery scope; contracts own current behavior; recorded evidence identifies the source, environment and date it actually verified.
+Reviewed 2026-10-15. This is the single entry point. [Production plan](production-plan.md) owns delivery scope; contracts own current behavior; recorded evidence identifies the source, environment and date it actually verified.
 
 ## Current system
+
+- [Product separation: registry, packages and SSO implementation boundary](contracts/next/product-separation.md), [22-host desired-state manifest](contracts/next/product-registry.generated.json), [development rollout/rollback](../ops/macos/product-development.md)
+- [Development Commercial permission-evidence checkpoint](testing/commercial-compatibility-2026-10-14.md): exact-source native/build/browser evidence; implementation-only Admin receipts and remaining acceptance
+- [Development product navigation checkpoint](testing/product-navigation-2026-10-14.md): shared dirty confirmation, fifteen Company previews, exact-source full native lane and remaining migration gates
+- [Development product-entry checkpoint](testing/product-entry-2026-10-15.md): per-role landings, explicit role selection, private server time preferences and current verification limits
+- [Development Commercial temporal-source checkpoint](testing/commercial-temporal-2026-10-15.md): source-owned eligibility lease, actual late-receipt regressions and exact-candidate native/build/browser limits
+- [Development Helpdesk obligation checkpoint](testing/support-obligations-2026-10-15.md): concrete owner settlement reader, first-snapshot confinement and exact-source native/build/browser limits
+- [Development Commercial settlement and Apps history checkpoint](testing/commercial-apps-settlement-2026-10-15.md): final owner-source withdrawal guards, retained limited-purpose entry, exact-source full native/build and remaining migration gates
+- [Development Service reference checkpoint](testing/service-references-2026-10-15.md): typed owner references, currency/location/technician choices and current drawer error-state repair; [receipt attribution correction](testing/service-reference-receipt-correction-2026-10-15.md)
+- [Development Service intake checkpoint](testing/service-intake-2026-10-15.md): atomic Support case/Service order, installed 1048, current drawer repair and exact-source verification limits
+- [Development package history and owner projection checkpoint](testing/commercial-history-owner-2026-10-15.md): retained history, CRM/metric source authority, installed 1047 and exact-source verification limits
+- [Development Helpdesk surface purchase checkpoint](testing/support-surfaces-corrected-2026-10-15.md): owner controls/Work/files/jobs, Calendar/customer evidence, repaired GET alias and current native/build/browser limits
+- [Development Helpdesk command purchase checkpoint](testing/support-commands-2026-10-15.md): transaction purchase guards, shadow/expiry/replay/lock order and current full-native/build limits
+- [Development navigation boundary checkpoint](testing/ui-boundaries-2026-10-15.md): explicit caller appearance, preserved legacy scope, exact native viewport/theme/SSR proof and remaining frozen acceptance
+- [Product migration acceptance register: 33 modules, owner workflows and seven shared/public surfaces](status/product-migration-acceptance.json), [candidate receipts](status/product-migration-receipts.json)
+- [Development Company package Preview/Apply and rollback](../ops/macos/commercial-development-migration.md)
 
 - [Start and verify](../README.md), [developer instructions](../AGENTS.md), [local development seed](local-seed.md)
 - [Current owner contracts](contracts/next/README.md), [33-module catalogue workflows](contracts/next/catalogue.md), [route reference](contracts/next/route-table.md)
@@ -12,6 +28,9 @@ Reviewed 2026-10-03. This is the single entry point. [Production plan](productio
 - [Hospitality ownership and Guest Accounts](adr/ADR-040-hospitality-module-ownership-and-guest-accounts.md) · [development verification](testing/hospitality-boundaries-2026-10-08.md)
 - [Canonical receipt storage](adr/ADR-042-canonical-command-receipt-partitions.md)
 - [Command guard transaction scope](adr/ADR-041-transaction-local-command-assertions.md)
+- [Service no-charge confirmation](adr/ADR-046-service-no-charge-confirmation.md)
+- [Source-bound worker preparation foundation](adr/ADR-047-source-bound-worker-preparation-foundation.md)
+- [Ticket-bound Support Portal](adr/ADR-048-ticket-bound-support-portal.md)
 - [Business glossary](../CONTEXT.md), [architecture decisions](adr/README.md), [contract compatibility policy](../CONTRACT_POLICY.md)
 - [Operations](../ops/README.md), [private production runtime](../ops/macos/README.md), [incident](../ops/runbooks/nextjs-incident.md), [recovery](../ops/runbooks/nextjs-recovery.md)
 - [Workplace routes and handoffs](journeys/2026-09-26-workplace-journey-inventory.md), [UI components](ux-ui/component-inventory.md), [UI migration evidence](ux-ui/ui-migration-2026-10-02.md), [UI standardization status and coverage](ux-ui/ui-standardization.md)

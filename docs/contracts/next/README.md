@@ -3,6 +3,7 @@
 [Production plan](../../production-plan.md) owns scope and priorities. Contracts describe current Next.js/Node.js/PostgreSQL behavior and explicit limitations; they do not certify production readiness.
 
 - [All 33 modules: workflow/ownership/control catalogue](catalogue.md)
+- [Product separation, packages and host-bound SSO (foundation; cutover not accepted)](product-separation.md)
 - [Service boundaries, shared transactions and isolated verification](service-boundaries.md)
 - [Business readiness and release acceptance](business-readiness.md)
 - [PMS](pms.md), [POS](pos.md), [Finance](finance.md)

@@ -1,6 +1,7 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 
 import { PageContent } from "@/components/ui/patterns";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { notFound } from "next/navigation";
 import { publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/work_projection/workspace";
@@ -29,7 +30,7 @@ export async function BetaPeople({
           <Link
             className="ui-record-item"
             key={p.id}
-            href={`${base}/profiles/${encodeURIComponent(p.id)}`}
+            href={canonicalUiHref(`${base}/profiles/${encodeURIComponent(p.id)}`)}
           >
             <span className="avatar">{p.name.slice(0, 1)}</span>
             <strong>{p.name}</strong>

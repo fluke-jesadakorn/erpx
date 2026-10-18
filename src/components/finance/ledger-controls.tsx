@@ -1,4 +1,6 @@
 "use client";
+import { useFinanceDraftScope, useFinanceDraftClose, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Dialog, FormDrawer } from "@/components/ui/dialog";
@@ -7,45 +9,61 @@ import { Button, Field, Select, Table, TableFrame, TextInput } from "@/component
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import type { LedgerRow } from "@/server/modules/finance/public/ledger";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/files/attachment-panel";
 import { Card, Stack, FormGrid, FormLayout } from "@/components/ui/foundation";
-function useFinanceCommand(base: string) {
+import { useFinanceActionAllowed } from "./purchase-context";
+import {financeDocumentCommandAllowed, financeDocumentCommandContext, financeDocumentFormUnchanged, type FinanceDocumentPostControl} from "@/lib/finance/document-post-control";
+import {announceWorkChange} from "@/lib/work_projection/work-refresh";
+function useFinanceCommand(base: string, purpose: "new-work" | "settle-existing" = "settle-existing", capability = "finance.accounting", post?: FinanceDocumentPostControl) {
+  const allowed = useFinanceActionAllowed(purpose, capability);
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const attempt = useRef<{ input: string; key: string } | null>(null);
+  const [hasAttempt, setHasAttempt] = useState(false);
+  const [notice,setNotice] = useState("");
+  const pendingRef = useRef(false);
   async function send(path: string, input: unknown) {
-    const body = JSON.stringify(input);
-    if (attempt.current?.input !== path + body)
-      attempt.current = { input: path + body, key: crypto.randomUUID() };
+    if (pendingRef.current) return false;
+    const body = JSON.stringify(input), identity = JSON.stringify([financeDocumentCommandContext(),path,body]);
+    if (!financeDocumentCommandAllowed(allowed,path,post) && attempt.current?.input !== identity) {
+      setError("This Finance action is unavailable. Your draft is retained.");
+      return;
+    }
+    if (attempt.current?.input !== identity)
+      { attempt.current = { input: identity, key: crypto.randomUUID() }; setHasAttempt(true); }
+    const completion = captureFinanceForm();
     setPending(true);
-    setError("");
+    pendingRef.current = true; setNotice(""); setError("");
     try {
       const r = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
+        `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/${path}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
           body,
-        },
+        }, completion, "caller",
       );
       const result = (await r.json()) as { data: { id?: string }; error?: { message: string } };
-      if (!r.ok) throw new Error(result.error?.message ?? "Unable to save.");
+      if (!r.ok || !result.data || typeof result.data.id !== "string" || !result.data.id) throw new Error(result.error?.message ?? "Unable to save.");
+      acknowledgeFinanceForm(completion); announceWorkChange();
       attempt.current = null;
-      if (path === "journals") router.push(`${base}/finance/journals/${result.data.id}`);
+      setHasAttempt(false);
+      if (!financeDocumentFormUnchanged(completion)) {setNotice("Submitted change saved. Your newer draft is retained."); return false;}
+      if (path === "journals") router.push(canonicalUiHref(`${base}/finance/journals/${result.data.id}`));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save.");
     } finally {
-      setPending(false);
+      pendingRef.current = false; setPending(false);
     }
   }
-  return { send, pending, error };
+  return { send, pending, error, notice, canSend: allowed || hasAttempt, canPostSend: (post ? financeDocumentCommandAllowed(allowed,post.path,post) : allowed) || hasAttempt };
 }
 export function JournalEditor({
   base,
@@ -68,8 +86,10 @@ export function JournalEditor({
   draft?:LedgerRow;
   draftLines?:LedgerRow[];
 }) {
-  const { send, pending, error } = useFinanceCommand(base);
+  const draftScope = useFinanceDraftScope();
+  const { send, pending, error, canSend } = useFinanceCommand(base, "new-work");
   const [open, setOpen] = useState(initialOpen);
+  const closeEditor = useFinanceDraftClose(() => setOpen(false));
   const [lines, setLines] = useState<Array<{accountId:string;debit:string;credit:string;description?:string;dimensions?:Record<string,string>}>>(draft?draftLines.map(l=>({accountId:String(l.account_id),debit:minorToDecimal(Number(l.debit_minor)),credit:minorToDecimal(Number(l.credit_minor)),description:String(l.description??""),dimensions:JSON.parse(String(l.dimension_json??"{}"))})):[
     { accountId: "", debit: "0", credit: "0" },
     { accountId: "", debit: "0", credit: "0" },
@@ -79,7 +99,7 @@ export function JournalEditor({
       <div className="ui-section-header">
         <h2>{draft?"Edit manual draft":"Manual journal"}</h2>
         {!initialOpen && (
-          <Button appearance="standard" type="submit" variant="primary" onClick={() => setOpen(!open)}>
+          <Button appearance="standard" type="submit" variant="primary" disabled={!canSend} onClick={() => open ? closeEditor() : setOpen(true)}>
             {open ? "Close form" : draft?"Edit draft":"Create journal"}
           </Button>
         )}
@@ -90,7 +110,7 @@ export function JournalEditor({
         </InlineNotice>
       )}
       {open && (
-        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={() => setOpen(false)} title={draft?"Edit manual draft":"Create journal"} dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
+        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={closeEditor} title={draft?"Edit manual draft":"Create journal"} dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form data-finance-draft={draftScope}
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -203,7 +223,7 @@ export function JournalEditor({
             >
               Add line
             </Button>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || !canSend}>
               Save draft
             </Button>
             <span className="muted">
@@ -279,6 +299,7 @@ export function OpeningBalanceImport({
   periods: LedgerRow[];
   parties: LedgerRow[];
 }) {
+  const draftScope = useFinanceDraftScope();
   const router = useRouter(),
     form = useRef<HTMLFormElement>(null),
     attempt = useRef<{ body: string; key: string } | null>(null),
@@ -288,7 +309,7 @@ export function OpeningBalanceImport({
     [preview, setPreview] = useState<OpeningPreview | null>(null),
     [lines, setLines] = useState<OpeningLine[]>([blankOpeningLine(), blankOpeningLine()]),
     [items, setItems] = useState<OpeningItem[]>([]);
-  const endpoint = `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/opening-balances`;
+  const endpoint = `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/opening-balances`;
   const invalidateLines = (next: OpeningLine[]) => {
     setLines(next);
     setPreview(null);
@@ -308,6 +329,7 @@ export function OpeningBalanceImport({
       subledgerItems: items,
     };
   };
+  const closeEditor = useFinanceDraftClose(() => setOpen(false));
   async function requestPreview() {
     setBusy(true);
     setError("");
@@ -333,6 +355,7 @@ export function OpeningBalanceImport({
   }
   async function commit() {
     if (!preview) return;
+    const completion = captureFinanceForm();
     setBusy(true);
     setError("");
     const body = JSON.stringify({ ...preview.definition, previewToken: preview.previewToken });
@@ -344,10 +367,11 @@ export function OpeningBalanceImport({
           body,
         }),
         result = (await response.json()) as { data: { id: string }; error?: { message: string } };
-      if (!response.ok)
+      if (!response.ok || !result.data || typeof result.data.id !== "string" || !result.data.id)
         throw new Error(result.error?.message ?? "Unable to import opening balances.");
+      acknowledgeFinanceForm(completion);
       attempt.current = null;
-      router.push(`${base}/finance/journals/${result.data.id}`);
+      router.push(canonicalUiHref(`${base}/finance/journals/${result.data.id}`));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to import opening balances.");
@@ -366,7 +390,7 @@ export function OpeningBalanceImport({
             approval
           </p>
         </div>
-        <Button appearance="standard" variant="secondary" type="button" onClick={() => setOpen(!open)}>
+        <Button appearance="standard" variant="secondary" type="button" onClick={() => open ? closeEditor() : setOpen(true)}>
           {open ? "Close form" : "Import opening balances"}
         </Button>
       </div>
@@ -376,7 +400,7 @@ export function OpeningBalanceImport({
         </InlineNotice>
       )}
       {open && (
-        <Dialog appearance="standard" open={open} onClose={() => setOpen(false)} title="Import opening balances" presentation="form-drawer" dismissDisabled={busy}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
+        <Dialog appearance="standard" open={open} onClose={closeEditor} title="Import opening balances" presentation="form-drawer" dismissDisabled={busy}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form data-finance-draft={draftScope}
           ref={form}
           onSubmit={(e) => {
             e.preventDefault();
@@ -777,26 +801,29 @@ export function JournalAction({
   base,
   journal,
   canPost,
+  sourceCanPost,
   periods,
 }: {
   base: string;
   journal: LedgerRow;
   canPost: boolean;
+  sourceCanPost?: boolean;
   periods: LedgerRow[];
 }) {
-  const { send, pending, error } = useFinanceCommand(base);
+  const draftScope = useFinanceDraftScope();
+  const { send, pending, error, notice, canSend, canPostSend } = useFinanceCommand(base,"settle-existing","finance.accounting",{path:`journals/${journal.id}/post`,canPost:sourceCanPost});
   return (
     <section>
-      {error && (
+      {notice && <p role="status">{notice}</p>}{error && (
         <InlineNotice tone="danger" className="error" role="alert">
           {error}
         </InlineNotice>
       )}
-      {canPost && ["draft", "in_review"].includes(String(journal.status)) && (
+      {canPost && canPostSend && ["draft", "in_review"].includes(String(journal.status)) && (
         <Button appearance="standard"
           type="submit"
           variant="primary"
-          disabled={pending}
+          disabled={pending || !canPostSend}
           onClick={() =>
             void send(`journals/${journal.id}/post`, { expectedVersion: journal.version })
           }
@@ -807,7 +834,7 @@ export function JournalAction({
       {canPost &&
         journal.status === "posted" &&
         ["manual", "opening_import", "reversal"].includes(String(journal.source_type)) && (
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -844,7 +871,7 @@ export function JournalAction({
               Reason
               <TextInput appearance="standard" name="memo" required minLength={3} />
             </Field>
-            <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending}>
+            <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending || !canSend}>
               Post reversing journal
             </Button>
           </FormLayout>
@@ -869,7 +896,8 @@ export function PeriodControls({
   canApprove: boolean;
   userId?: string;
 }) {
-  const { send, pending, error } = useFinanceCommand(base),
+  const draftScope = useFinanceDraftScope();
+  const { send, pending, error, canSend } = useFinanceCommand(base,"settle-existing","finance.close"),
     blocked = Number(period.blockers ?? 0) > 0,
     [files, setFiles] = useState<AttachmentPanelChange | null>(null);
   return (
@@ -883,14 +911,14 @@ export function PeriodControls({
         <Button appearance="standard"
           type="submit"
           variant="secondary"
-          disabled={pending || blocked}
+          disabled={pending || !canSend || blocked}
           onClick={() => void send(`periods/${period.id}/begin-close`, {})}
         >
           {blocked ? "Resolve blockers before close" : "Check readiness and begin close"}
         </Button>
       ) : (
         canApprove && (
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -926,14 +954,14 @@ export function PeriodControls({
                 onChange={setFiles}
               />
             )}
-            <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending}>
+            <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending || !canSend}>
               {period.state === "closing" ? "Approve period close" : "Reopen period"}
             </Button>
           </FormLayout>
         )
       )}
       {period.state === "closing" && (canApprove || period.close_started_by === userId) && (
-        <FormLayout
+        <FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -947,7 +975,7 @@ export function PeriodControls({
             Reason to cancel close preparation
             <TextInput appearance="standard" name="reason" required minLength={3} maxLength={2000} />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending}>
+          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending || !canSend}>
             Cancel close preparation
           </Button>
           <p className="muted">

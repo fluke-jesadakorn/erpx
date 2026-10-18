@@ -1,0 +1,861 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641",
+  "verificationFingerprint": "e0ebb2f0c03e11e3c170e70620c3696bde20aa6a76bb78c8be0d926aeac9d672",
+  "createdAt": "2026-10-14T23:25:58.714880+00:00",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit",
+    "apps:all-company-branch-department-product-selection"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641",
+          "verificationFingerprint": "e0ebb2f0c03e11e3c170e70620c3696bde20aa6a76bb78c8be0d926aeac9d672"
+        },
+        "files": [
+          "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "tests/integration/identity_access/product-sso.test.ts"
+        ],
+        "scope": "Fresh implementation regression; installed Apply and all-product acceptance remain open."
+      }
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641",
+          "verificationFingerprint": "e0ebb2f0c03e11e3c170e70620c3696bde20aa6a76bb78c8be0d926aeac9d672"
+        },
+        "files": [
+          "tests/integration/commercial/provider-legacy-grants.test.ts"
+        ],
+        "scope": "Fresh implementation regression; installed Apply and all-product acceptance remain open."
+      }
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Signed read-only per-Company comparison; expected versions, fresh Platform MFA and normal Commercial applyIn grant/audit/review transaction. The source owns its first snapshot and complete IAM/Organization/People predicates, tracks future eligibility boundaries and verifies source/current Platform authority after the final batch receipt before COMMIT. The current full invocation verifies late-receipt rollback. Stale-directory review, future HR appointment, committed replay and transaction confinement are covered.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641",
+          "verificationFingerprint": "e0ebb2f0c03e11e3c170e70620c3696bde20aa6a76bb78c8be0d926aeac9d672"
+        },
+        "files": [
+          "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "tests/integration/commercial/legacy-module-preview.test.ts"
+        ],
+        "scope": "Fresh implementation regression; installed Apply and all-product acceptance remain open."
+      }
+    },
+    {
+      "workflow": "apps:all-company-branch-department-product-selection",
+      "implementation": [
+        "src/server/modules/work_projection/application/product-launcher.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/app/choose-work-role/page.tsx"
+      ],
+      "behavior": "Enumerates all Company/Branch/Department choices, checks each applicable role independently using purchased entry capabilities/release/owner menu predicates, preserves the live selection and uses explicit versioned same-origin role selection. Assignment rows and original Module IDs remain unchanged. Positive installed-Company acceptance remains open.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641",
+          "verificationFingerprint": "e0ebb2f0c03e11e3c170e70620c3696bde20aa6a76bb78c8be0d926aeac9d672"
+        },
+        "files": [
+          "tests/unit/shared.ui/product-launcher.test.ts",
+          "tests/integration/identity_access/product-workspace.test.ts"
+        ],
+        "scope": "Fresh implementation regression; installed Apply and all-product acceptance remain open."
+      }
+    }
+  ],
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "release": {
+    "id": "2026-10-14T23-20-00-780Z",
+    "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641"
+  },
+  "previousImplementation": "docs/testing/evidence/2026-10-15-support-surfaces-cbc0d-corrected.json",
+  "historyAndOwnerProjections": {
+    "candidate": {
+      "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641",
+      "verificationFingerprint": "e0ebb2f0c03e11e3c170e70620c3696bde20aa6a76bb78c8be0d926aeac9d672"
+    },
+    "phase": "implemented only; full product acceptance remains open",
+    "newUnitCases": 3,
+    "newNativeCases": 21,
+    "scope": [
+      "retained audited package history; no new operational rights",
+      "Company-scoped domain/SQL/effective/revision/shadow parity",
+      "normal-writer deferred observation and populated additive migration",
+      "actual private-file renewal and first-future-purchase HTTP cases",
+      "typed Support CRM and executive metric/catalogue/drilldown/evidence source authority",
+      "installed development 1047, coherent backups and all-old-table comparison",
+      "actual canonical Support SSR/hydration/drawer/alias and 22-host transport"
+    ],
+    "requiredOpen": [
+      "all 203 owner/shared/public workflow acceptances and Company/role migration parity",
+      "general lifecycle administration and period replacement that cannot strand settlement",
+      "Service/Portal and other concrete owner obligation readers",
+      "Service invoice issue/collection and included capability workflows; isolated draft is not deployed",
+      "remaining Portal/provider and all-product UI/API/files/search/Work/jobs enforcement",
+      "current release revision intersection and installed shadow/package-only acceptance",
+      "legacy normal reviewed Apply and activation after parity; installed grants remain zero",
+      "complete SSO/role/Company/account/directory/Push/tombstone regression",
+      "all-product specialized UI, initial-content and compiled comparable performance",
+      "populated business-command/private-file/session/provider restore and schema-compatible rollback",
+      "all-host deep-link/assets/cache/alias cutover acceptance and thirty-day compatibility clock"
+    ],
+    "diagnosticsExcluded": [
+      "actual CBC renewal RED",
+      "uncommitted intermediate period RED, fixed before installation",
+      "initial native JSON parser/future-file expectation/cache-registration diagnostics",
+      "two incorrect fixture role/scope cases corrected without owner-rule weakening",
+      "first typecheck failed on unknown id argument; exact log retained",
+      "initial backup identifier check rejected a camel-case table before dump; corrected backup validated",
+      "strict live-table comparison retains heartbeat differences; exact row/field qualification preserved",
+      "browser initial guessed route 404 and transient compilation timeouts; final canonical page separately verified",
+      "read-only geometry probe errors; corrected native screenshots only"
+    ]
+  },
+  "checks": {
+    "unit": {
+      "files": 215,
+      "cases": 2870,
+      "result": "passed"
+    },
+    "fullPostgres": {
+      "files": 238,
+      "cases": 2249,
+      "result": "passed"
+    },
+    "static": [
+      "typecheck",
+      "lint",
+      "architecture",
+      "catalogue",
+      "documentation",
+      "css-source"
+    ],
+    "build": "passed; isolated and undeployed",
+    "uiComplete": {
+      "candidate": {
+        "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641",
+        "verificationFingerprint": "e0ebb2f0c03e11e3c170e70620c3696bde20aa6a76bb78c8be0d926aeac9d672"
+      },
+      "exitCode": 1,
+      "frozenDifferences": 36,
+      "retirementsPending": 3,
+      "sourceStatesPending": 1736,
+      "routesPending": 954,
+      "protectedChecksChanged": false,
+      "scope": "Required whole-UI gate remains failed; no acceptance assertions were changed",
+      "result": "failed"
+    }
+  },
+  "browser": {
+    "canonicalPage": {
+      "observedAt": "2026-10-14T22:47:30.715Z",
+      "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/customers-sales/customers/service/cases",
+      "documentStatus": 200,
+      "documentComplete": true,
+      "initialServerContent": {
+        "search": true,
+        "newCase": true,
+        "emptyState": true,
+        "noPrivateHistoryTable": true
+      },
+      "hydrated": true,
+      "trace": {
+        "events": 165,
+        "truncated": false,
+        "supportApiGets": 0
+      },
+      "scope": "Default-disabled installed development page; no commercial activation or complete product/browser acceptance"
+    },
+    "drawerFrames": 20,
+    "dirtyAndKeyboard": "passed",
+    "alias": {
+      "observedAt": "2026-10-14T23:10:25.150Z",
+      "sourceFingerprint": "80b54b31dc2d68e74b57026fd07d9e5e3afb6d5a4fb751587de0d4d421180641",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/customers-sales/customers/service/cases?q=history&tag=one&tag=two#support-evidence",
+      "canonicalPath": true,
+      "duplicateTags": [
+        "one",
+        "two"
+      ],
+      "query": "history",
+      "fragment": "#support-evidence",
+      "heading": "Customers",
+      "hydrated": true,
+      "acceptedCutover": false
+    },
+    "allProductAcceptance": false
+  },
+  "transport": {
+    "developmentHosts": 22,
+    "healthIconTlsChecks": 44,
+    "passed": 44,
+    "allWorkflowAcceptance": false
+  },
+  "developmentMigration": {
+    "observedAt": "2026-10-14T22:43:40.721172+00:00",
+    "status": "passed-with-explicit-live-heartbeat-differences",
+    "schema": "1047_company_package_history_rights.sql",
+    "oldTablesCompared": 2496,
+    "unchangedBusinessAuthorityRolloutAndPriceRows": true,
+    "commercialGrantsEventsHistoryAndReviewsZero": true,
+    "allowedAdditionsPerHolding": [
+      "1047 migration receipt",
+      "company_package_history_rights cache baseline revision 2"
+    ],
+    "liveDifferences": [
+      {
+        "binding": "CONTROL_DB",
+        "table": "runtime_health",
+        "changes": [
+          {
+            "key": "billing",
+            "fields": [
+              "heartbeat_at"
+            ]
+          },
+          {
+            "key": "jobs",
+            "fields": [
+              "heartbeat_at"
+            ]
+          }
+        ]
+      },
+      {
+        "binding": "H001_DB",
+        "table": "legal_runtime_health",
+        "changes": [
+          {
+            "key": "sources",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "invitations",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "documents",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "ai",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "reminders",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          }
+        ]
+      },
+      {
+        "binding": "H001_DB",
+        "table": "work_cache_revision_baselines",
+        "changes": [
+          {
+            "key": "legal_runtime_health",
+            "fields": [
+              "revision"
+            ]
+          }
+        ]
+      },
+      {
+        "binding": "H002_DB",
+        "table": "legal_runtime_health",
+        "changes": [
+          {
+            "key": "sources",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "invitations",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "documents",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "ai",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "reminders",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          }
+        ]
+      },
+      {
+        "binding": "H002_DB",
+        "table": "work_cache_revision_baselines",
+        "changes": [
+          {
+            "key": "legal_runtime_health",
+            "fields": [
+              "revision"
+            ]
+          }
+        ]
+      },
+      {
+        "binding": "H003_DB",
+        "table": "legal_runtime_health",
+        "changes": [
+          {
+            "key": "sources",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "invitations",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "documents",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "ai",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          },
+          {
+            "key": "reminders",
+            "fields": [
+              "heartbeat_at",
+              "last_success_at"
+            ]
+          }
+        ]
+      },
+      {
+        "binding": "H003_DB",
+        "table": "work_cache_revision_baselines",
+        "changes": [
+          {
+            "key": "legal_runtime_health",
+            "fields": [
+              "revision"
+            ]
+          }
+        ]
+      }
+    ],
+    "rawStrictComparison": "installed-migration-comparison.json",
+    "privatePerRowProof": "heartbeat-drift-private.json",
+    "scope": "Development only; no source/build, complete restore or product acceptance"
+  },
+  "installedDevelopment": {
+    "grants": 0,
+    "grantEvents": 0,
+    "historyFacts": 0,
+    "changeSets": 0,
+    "reviewEvidence": 0,
+    "enforcement": "disabled"
+  },
+  "scopeLimits": [
+    "all 203 owner/shared/public workflow acceptances and Company/role migration parity",
+    "general lifecycle administration and period replacement that cannot strand settlement",
+    "Service/Portal and other concrete owner obligation readers",
+    "Service invoice issue/collection and included capability workflows; isolated draft is not deployed",
+    "remaining Portal/provider and all-product UI/API/files/search/Work/jobs enforcement",
+    "current release revision intersection and installed shadow/package-only acceptance",
+    "legacy normal reviewed Apply and activation after parity; installed grants remain zero",
+    "complete SSO/role/Company/account/directory/Push/tombstone regression",
+    "all-product specialized UI, initial-content and compiled comparable performance",
+    "populated business-command/private-file/session/provider restore and schema-compatible rollback",
+    "all-host deep-link/assets/cache/alias cutover acceptance and thirty-day compatibility clock"
+  ],
+  "artifacts": [
+    {
+      "path": ".scratch/dev/commercial-history-service-current/alias-http.json",
+      "sha256": "38c87ab06d5066ac8a3fa5069f39367c071793ea046a0747c96e147875678483",
+      "bytes": 473
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/availability-final-runner.log",
+      "sha256": "f33490f12cfa71e1583053f63abd1b15bdf8a48b28410789b55b7b8f490f7947",
+      "bytes": 209
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/availability-final.json",
+      "sha256": "3b21ccc8cbcb22b933bcad068033c54c7c682eb622532219f14a60198834434c",
+      "bytes": 1330
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/availability-first-runner.log",
+      "sha256": "f33490f12cfa71e1583053f63abd1b15bdf8a48b28410789b55b7b8f490f7947",
+      "bytes": 209
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/backup-before-1047-corrected.log",
+      "sha256": "2661f506f2b5fe339e9a4ef7d948ef5d95ab23f780f03ce74834025d49adc6a5",
+      "bytes": 668
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/backup-before-1047.log",
+      "sha256": "75e5f2aa13e507576e1492b9ab30a6ba4d253219facaff02c2d7da9b7213cd5c",
+      "bytes": 1289
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/backup-before-1047.mjs",
+      "sha256": "8f9e26a58046a19b23336d3af59028f9013e41eb69019d7ab2a31df94b890f4a",
+      "bytes": 3722
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/baseline.json",
+      "sha256": "ce5e71c6ee3b82d9db4f7b8d59c4b9630a702dc84e4518987dd74885939e5ac9",
+      "bytes": 5064
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/alias.json",
+      "sha256": "bebf5eb3666bbbf83777f4c6810036b251ed1534b8ca5e7de8ec1a09ef2ad8ed",
+      "bytes": 490
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-dark-1024.png",
+      "sha256": "8440b517e37cd498717aa9ea3379495b5aef08471cf864602f94cfbfd2521095",
+      "bytes": 60010
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-dark-1440.png",
+      "sha256": "54decb6372f21fe9e7d85534d65f6ba1ac2e07e00e3613fbd26e9efc0d755b53",
+      "bytes": 92343
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-dark-320.png",
+      "sha256": "56a0fde19f103c458ed3cc2d1653e15a38fb2e15076f72006e37f222c7e734e1",
+      "bytes": 34638
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-dark-390.png",
+      "sha256": "0a7dffd13f3885f62fa5af1f5400b0e653c1c61cb6546c720d18c2936ee81d27",
+      "bytes": 35072
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-dark-768.png",
+      "sha256": "74da30aa6f07b2a21a775c520eaae0786a16653720236f156ac56ecf7ff30894",
+      "bytes": 39484
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-light-1024.png",
+      "sha256": "fe7c8b867f49457246b34fc0f550e382e273652ea8a3720621f7d2c3450273ff",
+      "bytes": 59177
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-light-1440.png",
+      "sha256": "a7232a3a06de5af2bce7ce58e7092eb89bfd8560be7493d5072e208f3c0e5e12",
+      "bytes": 91402
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-light-320.png",
+      "sha256": "2a7c0eccecbc4e7f1dc92fe449d23ef68d5c12f177173394a5f01716721b9917",
+      "bytes": 33849
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-light-390.png",
+      "sha256": "9e961c91814d58274d5a9ce469f1b3d04155fa28829b688ad4f00cfcc371c10b",
+      "bytes": 34347
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-light-768.png",
+      "sha256": "41d8601a17a0724fc035ca1af1b05128ad5513f4dff26a44d5aa197b7bf31efe",
+      "bytes": 38659
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-dark-1024.png",
+      "sha256": "8440b517e37cd498717aa9ea3379495b5aef08471cf864602f94cfbfd2521095",
+      "bytes": 60010
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-dark-1440.png",
+      "sha256": "d8be615f92e719cd816022195bf8946c2dd59b62bede6e231962d844690ea454",
+      "bytes": 92380
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-dark-320.png",
+      "sha256": "106bc7dce9ee187f8fe16bc92a7f065e98c832e3139545033c508fb2d15700fd",
+      "bytes": 34614
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-dark-390.png",
+      "sha256": "0a7dffd13f3885f62fa5af1f5400b0e653c1c61cb6546c720d18c2936ee81d27",
+      "bytes": 35072
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-dark-768.png",
+      "sha256": "74da30aa6f07b2a21a775c520eaae0786a16653720236f156ac56ecf7ff30894",
+      "bytes": 39484
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-light-1024.png",
+      "sha256": "fe7c8b867f49457246b34fc0f550e382e273652ea8a3720621f7d2c3450273ff",
+      "bytes": 59177
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-light-1440.png",
+      "sha256": "40b528133460c8513efa3731b9d0f5f367aac9b3b9beb878fb8273e18916451c",
+      "bytes": 91497
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-light-320.png",
+      "sha256": "2a7c0eccecbc4e7f1dc92fe449d23ef68d5c12f177173394a5f01716721b9917",
+      "bytes": 33849
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-light-390.png",
+      "sha256": "17ac83f34cc6569cb81e322f169fc63c206609faaf5c421f790272e87b3ea293",
+      "bytes": 34350
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-system-light-768.png",
+      "sha256": "41d8601a17a0724fc035ca1af1b05128ad5513f4dff26a44d5aa197b7bf31efe",
+      "bytes": 38659
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/drawer-verification.json",
+      "sha256": "b10db55e68ad16dc5a03eeeb83e242b2f805a504dd914f48f219c195aee945c4",
+      "bytes": 10673
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/end-page.json",
+      "sha256": "017d9ed261f9e503f0a7bd55810984c5829f61521bc2dc7a4584e41e364789f1",
+      "bytes": 370
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/support-page.json",
+      "sha256": "20e5d715bb6f304d2e6367f3eb1b0a8da8e377f0d8039e8d721c605bf8a37398",
+      "bytes": 657
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/browser/support-page.png",
+      "sha256": "9f30c81d313f0e882f13bac402137b525bfb7f5185c04303f36126f379f3be52",
+      "bytes": 75278
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/candidate-source-manifest.json",
+      "sha256": "4c15e9adae209c12a906378762cf1d73f1c834c76396c31f3f4ef6b2beafb81b",
+      "bytes": 11243
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/checkpoint-scope.json",
+      "sha256": "358da9a1b8a066e8627d88cfbd232ef686c51cfca578ddd3b3f19fd14d3d15b1",
+      "bytes": 2685
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/compare-installed-1047.mjs",
+      "sha256": "c79bfbd9b4c42760d17c4a47695ada7fa550692b2c38cdc1cb05ef44b45d91e8",
+      "bytes": 3889
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/end-checks.py",
+      "sha256": "a19bcab55640254022056d919bef3d0f6325dd360f3bda691afd0f71f4fe2cc4",
+      "bytes": 4734
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/excluded-type-error-final-typecheck.log",
+      "sha256": "620c49fbe654d13f8c0864a391d0e2575553eaa69001444d46d7304efaf11d18",
+      "bytes": 218
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/excluded-type-error-verification.json",
+      "sha256": "e80c159d324d9e0417356e9d69ae2c1f799de7ae80e6d958c6bffa0b7ff9a3bd",
+      "bytes": 919
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/excluded-type-error-verify-runner.log",
+      "sha256": "97069ac34d9716bbb1b196c4b39072728a75687c3cf28cbfd9c2046ac7a61df0",
+      "bytes": 37
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/final-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/final-build.log",
+      "sha256": "b4e79aae57f560b502b4cba306c3f379100ebc66ad78060561e0dd60e3435d47",
+      "bytes": 111844
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/final-catalogue.log",
+      "sha256": "89ce52c98bb169fd775798fb8c6a6427a59748bff723cade135325805c709fb7",
+      "bytes": 82
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/final-css-source.log",
+      "sha256": "c8198b953e35e3b3d7fb8f296f18ef6d7c68da1e1360902fb243325baa28f43c",
+      "bytes": 143
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/final-documentation.log",
+      "sha256": "88524f83a19a53e571a45eabd8f872add8fa90953507d613e48f897b518e988d",
+      "bytes": 192
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/final-full-postgres.log",
+      "sha256": "ade989d8a2a3b8f0cc9beab4a47c674a308c056acc6af609457c4544de2b5191",
+      "bytes": 372429
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/final-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+      "bytes": 167872
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/final-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/final-unit.log",
+      "sha256": "92aa623457f410a294212d915b0092b7ed757c5bb4e1965e989d5604f6ecf312",
+      "bytes": 58886
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/generate-products-manifest.log",
+      "sha256": "327927803966a0d76ba36e7c5997ffcecb751c9f3bf858ad45019002036d179d",
+      "bytes": 317
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/generate-status-capabilities.log",
+      "sha256": "35d0b9edadf4f388f9bc50190f737dc4b2479fa433761efc0e05bd6bb6a78d0d",
+      "bytes": 117
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/generate-uat-route-inventory.log",
+      "sha256": "a68955eba73339f514d937275cdcc31ea43682a3bdf36866c10946796e492245",
+      "bytes": 161
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/heartbeat-drift-inspection.log",
+      "sha256": "f4c03862dd46de5974ee2e67292f740dbeb3d0fa02da06e86d4e705a85523752",
+      "bytes": 2045
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/heartbeat-drift-private.json",
+      "sha256": "a127ca98f648b5b812a4bf0257edf8c5ff8ea6b002dc579dcc98e4ef3d0e94ee",
+      "bytes": 12888
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/history-expanded-native.log",
+      "sha256": "9e756a441c630d016f714ae667d1d89003e5e575484bde64e28a8920f89c0942",
+      "bytes": 6407
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/history-facts-focused.log",
+      "sha256": "69efcdf2188ccd1b11d4a2aa38bbaefeefa37bb91db2f5a505141128ac1929cb",
+      "bytes": 5412
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/history-initial-native.log",
+      "sha256": "9d9137b545d4ee24e798e4bc88d7d712f54f05ae87fda3c4842b7fa9d3315e5e",
+      "bytes": 1785
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/history-migration-files.log",
+      "sha256": "b9e1ba4ab299f7fb750b02aa08abbc35fff8440f9caa9d96a68ab2a7fab95791",
+      "bytes": 1884
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/history-source-combined.log",
+      "sha256": "50c589870f1ca3c8a044af0517cf2ef5259e79f91b00fd1aca01b9fb5c38ea6e",
+      "bytes": 3059
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/inspect-heartbeat-drift.mjs",
+      "sha256": "2fa2c90e4f89449ab98bead6fbe75e89e4314e531c32b68e8be8498e98b23095",
+      "bytes": 2745
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/installed-commercial-final.json",
+      "sha256": "50f5526819875a2e07b290e742920ad502afb4a68790e853e21f4fdb966dedc3",
+      "bytes": 1733
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/installed-migration-1047.log",
+      "sha256": "8d2718be97f9d439907643ae285d618887444886c857ec023dbfb82d087746b2",
+      "bytes": 1743
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/installed-migration-comparison.json",
+      "sha256": "c5e075005830e48e015cb72cd9783994bf4a2147b6ad377de8c15aeeb588d740",
+      "bytes": 360694
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/installed-migration-comparison.log",
+      "sha256": "5610cc6e046f20db63d54ed061f2481027730bf0ee14721fc9b8538f2a64d876",
+      "bytes": 2832
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/installed-migration-qualified.json",
+      "sha256": "e8df2fc53e07a7ec9d373de29837b246838a33dda518a17df2c54a474b2d699e",
+      "bytes": 4145
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/pre1047/erpx_dev_control.dump",
+      "sha256": "11403abbd65d22fd15ba725e4100e273888b8761079082b2399e939d70a4844d",
+      "bytes": 574585
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/pre1047/erpx_dev_h001_write.dump",
+      "sha256": "5bb40c43ee4cfe8d0edb6575d35f8e8022dce0c4193096881924be3d75f6bf10",
+      "bytes": 8307992
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/pre1047/erpx_dev_h002_write.dump",
+      "sha256": "ccc5d86c49fbe8e8d464956c63516927e85ee7f03f98f011ea4c075df961d337",
+      "bytes": 4102819
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/pre1047/erpx_dev_h003_write.dump",
+      "sha256": "051c00ab7a1b332a64e935a44375b8c75065f4af62fb3e3fe10480390c6f263e",
+      "bytes": 3698078
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/pre1047/receipt.json",
+      "sha256": "2ca7cfe07e5bb52d40310f6ee1e7f7f1a4e0109dcf7e71af599c2eee87a52cae",
+      "bytes": 356824
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/protected-files.json",
+      "sha256": "09a185cd979af5ca7f6d937f6d194dc5802f84c27d25b954baeea60766908218",
+      "bytes": 952
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/renewal-red.log",
+      "sha256": "593c8723f9dd66e3c3d98a51bf3428d4d4c3a1004f92bb92dd04bf8329948f6c",
+      "bytes": 4141
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/support-crm-metrics-corrected.log",
+      "sha256": "0d856a2ba7b75f7263a798999e99287a4ba7b4c8db10cbfc23e10bd59c27bf84",
+      "bytes": 1942
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/support-crm-metrics-first.log",
+      "sha256": "baa14045f23b71f452723f3079c7c2072c4df5783a9af1845f992773fb49072a",
+      "bytes": 5772
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/transport-final.json",
+      "sha256": "e73fb601c17494f147d9df0eee454acaeebe7c0285e115b8dba07aa03a56f4be",
+      "bytes": 7670
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/transport-urls.json",
+      "sha256": "1eec95b232ef52db5fd8b1d8a3e2dd1d85c870deb55a3238e3581d1a6078c8f6",
+      "bytes": 3422
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/typecheck-in-progress.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/typecheck-owner-projections.log",
+      "sha256": "620c49fbe654d13f8c0864a391d0e2575553eaa69001444d46d7304efaf11d18",
+      "bytes": 218
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/ui-complete.json",
+      "sha256": "4d110107b0e9d4483ef8dc5c0622bddd33a655aaa03a8f7da2746ca28045f482",
+      "bytes": 490
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/ui-complete.log",
+      "sha256": "d39cf14598d917f34ac9512662671f638f1c62944b72a34b562b424e624fcb64",
+      "bytes": 3790
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/uncommitted-period-red.log",
+      "sha256": "bc38afd8a5069182ee5cbeea8b9b0d6be650f0fb6af1a0ad89beb080325c2594",
+      "bytes": 3519
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/verification.json",
+      "sha256": "d7d2a4f64b23bb0b695a28174a01b249cdc17974c1deeb01e082c5af4d690dea",
+      "bytes": 5964
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/verify-runner.log",
+      "sha256": "57260d5c5b802678cf5ba44c638021e3b52476255f0feee9326ce158439d3c51",
+      "bytes": 418
+    },
+    {
+      "path": ".scratch/dev/commercial-history-service-current/verify.py",
+      "sha256": "417f20e566d81cf666d43f0d0a2cabd64788773c9912cc71d9d7552efa9798d9",
+      "bytes": 3081
+    }
+  ]
+}

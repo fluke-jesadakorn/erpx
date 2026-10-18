@@ -1,3 +1,5 @@
+import { FinancePurchaseProvider } from "@/components/finance/purchase-context";
+import { financePurchaseControls } from "@/server/modules/finance/public/purchases";
 import type { ComponentProps } from "react";
 import { AgentGovernanceConsole } from "@/components/records/loaders/modules--agent-governance-console";
 import { FinanceGroupEditionControls } from "@/components/records/loaders/finance--finance-group-edition-controls";
@@ -42,7 +44,8 @@ export async function RecordSupplement({ holdingSlug, target, args }: { holdingS
   const current=await currentPagePath(holdingSlug);
   const page=('page' in data?data.page:1)??1;
   function pageHref(next:number) { const url=new URL(recordDrawerHref(current,{...target,args}),"https://erpx.invalid");url.searchParams.set('detailPage',String(next));return url.pathname+url.search; }
-  return <div className="ui-stack"><header><h1>{String(row.name??row.title??row.description??row.reference??row.sku??row.code??target.id)}</h1></header>
+  const purchases=["finance_plan","finance_asset_policy","finance_asset_policy_run","accrual_schedule","accrual_run","bank_profile","bank_match_group","finance_business_contract","finance_business_bill","finance_billing_correction","finance_recognition","finance_obligation","collection_case", "finance_instrument","finance_instrument_run","calculation_run","intercompany","consolidation","consolidation_elimination","finance_group_edition","finance_group_ownership","finance_group_acquisition","finance_group_pair","finance_group_source","finance_group_sources"].includes(target.kind)?await financePurchaseControls(actor):undefined;
+  return <FinancePurchaseProvider purchases={purchases}><div className="ui-stack"><header><h1>{String(row.name??row.title??row.description??row.reference??row.sku??row.code??target.id)}</h1></header>
    <dl className="ui-form-grid">{fields.filter(([key])=>row[key]!==null&&row[key]!==undefined).map(([key,label])=><div key={key}><dt className="muted">{label}</dt><dd>{key==='expires_at'?<TimeText appearance="standard" value={Number(row[key])}/>:String(row[`${key}_name`]??row[key])}</dd></div>)}</dl>
    {target.kind==='inventory_movement'&&<p>Quantity: {Number(row.quantity_milli)/1000} {String(row.unit??'')}</p>}
    {'related' in data&&data.related&&<section><h2>Related records</h2>{data.related.map(record=><p key={`${record.kind}:${record.id}`}><RecordLink href={recordCanonicalHref(base,record)} record={record}>{record.kind.replaceAll('_',' ')} · {record.id}</RecordLink></p>)}</section>}
@@ -56,7 +59,7 @@ export async function RecordSupplement({ holdingSlug, target, args }: { holdingS
    {'data' in data&&data.kind==='collection_case'&&<FinanceCollectionControls base={base} data={data.data} forecast={{currency:'',opening:'',basis:'',months:[]}} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
    {'data' in data&&data.kind==='finance_book'&&<FinanceBookControls base={base} data={data.data} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
    {'data' in data&&data.kind==='finance_plan'&&<FinancePlanningControls base={base} chartId={String(data.row.chart_id)} data={data.data} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')} userId={actor.userId}/>}
-   {'data' in data&&data.kind==='bank_transaction'&&hasPermission(actor,'finance.approve')&&row.match_status!=='matched'&&<BankMatch base={base} transaction={data.row} payments={data.data.payments}/>}
+   {'data' in data&&data.kind==='bank_transaction'&&hasPermission(actor,'finance.approve')&&hasPermission(actor,'finance.write')&&<BankMatch base={base} transaction={data.row} payments={data.data.payments} canWrite={hasPermission(actor,'finance.write')} canApprove={hasPermission(actor,'finance.approve')}/>}
    {'options' in data&&data.kind==='reorder_policy'&&<InventoryReorderConsole base={base} readerId={actor.userId} canPrepare={canPrepareCounts(actor)} canApprove={canApproveCounts(actor)} policies={[data.row]} warehouses={data.options.warehouses.map(r=>({id:String(r.id),name:String(r.name),status:String(r.status)}))} products={data.options.products.map(r=>({id:String(r.id),name:String(r.name),sku:String(r.sku),unit:String(r.unit),status:String(r.status)}))}/>}
    {'refundKind' in data&&data.refundKind==='booking'&&<BookingRefunds base={base} rows={[data.row as unknown as ComponentProps<typeof BookingRefunds>['rows'][number]]} canApprove={hasPermission(actor,'finance.approve')}/>}
    {'refundKind' in data&&data.refundKind==='counter'&&<CounterRefunds base={base} rows={[data.row as unknown as ComponentProps<typeof CounterRefunds>['rows'][number]]} canApprove={hasPermission(actor,'finance.approve')}/>}
@@ -85,7 +88,7 @@ export async function RecordSupplement({ holdingSlug, target, args }: { holdingS
     return <tr key={`${id}:${index}`}><td>{href?<RecordLink href={href}>{label}{r.code?` · ${r.name}`:''}</RecordLink>:label}</td><td>{String(r.business_date??r.transaction_date??r.entry_date??r.invoice_date??r.movement_date??r.pay_date??r.warehouse_name??(r.created_at?new Date(Number(r.created_at)).toISOString():'—'))}</td><td>{r.balance!==undefined?String(r.balance):r.quantity_milli!==undefined?`${Number(r.quantity_milli)/1000} ${String(r.unit??'')}`:r.available_milli!==undefined?`${Number(r.available_milli)/1000} ${String(r.unit??'')}`:r.base_debit_minor!==undefined?`${minorToDecimal(Number(r.base_debit_minor))} / ${minorToDecimal(Number(r.base_credit_minor))}`:[r.amount_minor,r.total_minor,r.outstanding_minor,r.net_minor,r.value_minor].some(value=>value!==undefined&&value!==null)?`${String(r.currency??row.currency??'')} ${minorToDecimal(Number(r.amount_minor??r.total_minor??r.outstanding_minor??r.net_minor??r.value_minor))}`:'—'}</td><td>{String(r.status??r.source_type??'')}</td></tr>;
    })}</tbody></Table></TableFrame>{!rows.length&&<p>No source records in this scope.</p>}<nav className="ui-form-actions" aria-label="Source record pages">{page>1&&<a href={pageHref(page-1)}>Previous</a>}{'hasNext' in data&&data.hasNext&&<a href={pageHref(page+1)}>Next</a>}</nav></section>}
    {'history' in data&&<section><h2>History</h2>{data.history.map((event,index)=><p key={index}>{String(event.action)} · <TimeText appearance="standard" value={Number(event.created_at)}/></p>)}{!data.history.length&&<p>No recorded changes.</p>}</section>}
-  </div>;
+  </div></FinancePurchaseProvider>;
 }
 
 function RecordValues({value}: {value: unknown}) {

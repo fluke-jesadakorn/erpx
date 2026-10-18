@@ -7,3 +7,6 @@ export const hospitalityOwnerProjectionSources = {
   commerce_settings: "SELECT \"company_id\",\"chart_id\",\"currency\",\"receivable_account_id\",\"payable_account_id\",\"revenue_account_id\",\"inventory_account_id\",\"clearing_account_id\",\"cogs_account_id\",\"input_tax_account_id\",\"output_tax_account_id\",\"cash_account_id\" FROM commerce_settings",
   commerce_warehouses: "SELECT \"id\",\"company_id\",\"branch_id\",\"code\",\"name\",\"status\",\"version\" FROM commerce_warehouses",
 } as const;
+
+/** Query-free source lease for actual hospitality Stock ownership joins. */
+export function hospitalitySettlementReferenceReadLocks(database:import("../../runtime/public/runtime/types").SqlDatabase){return [database.prepare("LOCK TABLE commerce_warehouses,commerce_products IN SHARE MODE")];}

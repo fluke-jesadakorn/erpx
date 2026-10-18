@@ -1,9 +1,14 @@
+import {workRoleDisplayChoices} from "@/lib/identity_access/work-role-display";
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { configuredProductHandoff, configuredProductOrigin, productHostForHost } from "@/lib/runtime/product-hosts";
+import { product } from "@/server/modules/commercial/public/product-registry";
+import { preferredAccountLanguage } from "@/server/modules/identity_access/public/account-preference-snapshot";
+import { AppearanceSwitcher } from "@/components/brand/appearance-switcher";
 import { AccountSwitcher } from "@/app/holdings/[holdingSlug]/account-switcher";
 import { ProductBrand } from "@/components/brand/product-brand";
-import { appearancePreference } from "@/lib/shared/appearance-preference";
+import { preferredAccountAppearance } from "@/server/modules/identity_access/public/account-preference-snapshot";
 import { parseHoldingWorkspace, workspaceBase } from "@/lib/work_projection/workspace";
 import type { CurrentWorkspaceChoice } from "@/lib/work_projection/workspace-choice";
 import {
@@ -30,6 +35,22 @@ function currentWorkspace(scope: Exclude<ResolvedWorkspaceScope, { kind: "platfo
 /** A layout can fail before WorkContext exists; recovery depends only on the signed-in account. */
 export async function ForbiddenRecoveryShell() {
   const from = await requestedPage();
+  const audience = productHostForHost((await headers()).get("host")), definition = audience && product(audience);
+  if (definition?.shell === "office") {
+    const { session } = await currentSession();
+    const cookieStore = await cookies(), language = await preferredAccountLanguage(cookieStore.get("erpx_language")?.value === "th" ? "th" : "en");
+    const th = language === "th";
+    return <div className={styles.shell}>
+      <header className={styles.header} data-app-chrome>
+        <ProductBrand appearance="standard" className={styles.brand} /><strong>{definition.label[language]}</strong>
+        <nav className={styles.controls} aria-label={th ? "บัญชีและผลิตภัณฑ์" : "Account and products"}>
+          <span>{session.user.name}</span><a data-product-switch href={configuredProductHandoff("apps")!}>Apps</a>
+          <a data-product-switch href={configuredProductHandoff("account")!}>{th ? "บัญชี" : "Account"}</a>
+          <AppearanceSwitcher appearance="standard" initialTheme={await preferredAccountAppearance(cookieStore.get("erpx_appearance")?.value)} />
+        </nav>
+      </header><main><ForbiddenPanel productLabel={definition.label[language]} language={language} /></main>
+    </div>;
+  }
   let parts: string[] = [];
   if (from) {
     try { parts = new URL(from, "https://erpx.invalid").pathname.split("/").filter(Boolean).map(decodeURIComponent); }
@@ -57,13 +78,14 @@ export async function ForbiddenRecoveryShell() {
       <div className={styles.controls}>
         <WorkspaceMenu appearance="standard" label={roles?.access.scope.holdingName ?? "Choose workspace"} choices={choices} current={current} canManageErpx={canManageErpx} />
         <AccountSwitcher
+          accountNavigation={configuredProductOrigin('account')!==null}
           workspaceBase={base}
           companyId={roles?.access.scope.companyId}
           activeUser={{ id: session.user.id, name: session.user.name, email: session.user.email }}
-          assignments={roles?.options ?? []}
+          assignments={workRoleDisplayChoices(roles?.options ?? [])}
           preferredAssignmentId={roles?.selected?.id}
           contextRevision={roles?.selection?.revision ?? 0}
-          theme={appearancePreference(cookieStore.get("erpx_appearance")?.value)}
+          theme={await preferredAccountAppearance(cookieStore.get("erpx_appearance")?.value)}
         />
       </div>
     </header>

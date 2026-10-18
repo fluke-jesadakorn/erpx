@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { errorResponse } from "@/server/modules/runtime/public/http";
 import { listCharts, listInvoices, listJournals, listPayments, statements } from "@/server/modules/finance/public/finance";
@@ -15,7 +16,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ hold
       listPayments(actor),
       statements(actor,undefined,chartId),
     ]);
-    return Response.json({ data: { charts, journals, invoices, payments, report } });
+    return Response.json(canonicalDestinationLinks({ data: { charts, journals, invoices, payments, report } }));
   } catch (error) {
     return errorResponse(error);
   }

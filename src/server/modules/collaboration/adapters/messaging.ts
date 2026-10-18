@@ -1,5 +1,5 @@
-import { messagingActiveAccountSql, messagingCurrentAccountSql, activeMessagingPeople } from '../../identity_access/public/collaboration-messaging-authorization';
-import { messagingManagedTeamSql, messagingRoomOrganizationSql } from '../../organization/public/collaboration-messaging-projections';
+import { messagingCurrentAccountSql, activeMessagingPeople } from '../../identity_access/public/collaboration-messaging-authorization';
+import { messagingManagedTeamSql } from '../../organization/public/collaboration-messaging-projections';
 import 'server-only';
 import { z } from 'zod';
 import { roomSchema, teamSchema, channelSchema, manageSchema, messageSchema } from '../domain/messaging';
@@ -16,6 +16,7 @@ import { sha256 } from '../../runtime/public/crypto';
 import { BusinessRuleError } from '../../shared';
 import { ApiError } from '../../runtime/public/http';
 import { createMessagingApplication, type MessagingRepository } from '../application/messaging';
+import {messagingPurchaseControls,requireMessagingCurrentAccount,requireMessagingPurchase,withMessagingPurchasedCommand} from './messaging-purchases';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -36,9 +37,9 @@ async function exposed<T>(action: () => Promise<T>) {
         throw error;
     }
 }
-const active = messagingActiveAccountSql('r');
-const access = `${active} AND ((r.organization_node_id IS NULL AND ((r.kind IN ('direct','group') AND EXISTS(SELECT 1 FROM messaging_room_members m WHERE m.room_id=r.id AND m.user_id=?)) OR (r.kind='channel' AND EXISTS(SELECT 1 FROM messaging_team_members t WHERE t.team_id=r.team_id AND t.user_id=?) AND (NOT r.private OR EXISTS(SELECT 1 FROM messaging_room_members m WHERE m.room_id=r.id AND m.user_id=?))))) OR (r.organization_node_id IS NOT NULL AND ${messagingRoomOrganizationSql("r", "?")}))`;
-function application(db: SqlDatabase) {
+import {messagingRoomAccessSql} from './messaging-source-policy';
+const access=messagingRoomAccessSql();
+function application(db: SqlDatabase,allowProvision=true) {
     const repository: MessagingRepository<SqlStatement> = { guardAccess(key: string, value: "messaging-access", roomId: string, companyId: string, value2: string[]) {
             return assertion(db, key, value, `EXISTS(SELECT 1 FROM messaging_rooms r WHERE r.id=? AND r.company_id=? AND ${access})`, [roomId, companyId, ...value2]);
         }, async room(id: string, companyId: string, value: string[]) {
@@ -169,19 +170,21 @@ function application(db: SqlDatabase) {
                 attachment_source_id: string | null;
             }>();
         }, ...organization(db) };
-    return createMessagingApplication({ repository, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, clock: { now: () => Date.now() }, digest: sha256, accountNames: async (ids) => messagingAccountNames((await runtimeEnv()).CONTROL_DB, ids), ensureOrganizationChannels: company => ensureOrganizationChannels(db, company), memberBinding(kind, id, user) { const table = kind === 'room' ? 'messaging_room_members' : 'messaging_team_members', column = kind === 'room' ? 'room_id' : 'team_id'; return db.prepare(`INSERT INTO ${table}(${column},user_id) VALUES(?,?) ON CONFLICT DO NOTHING`).bind(id, user); }, prepareAttachmentBinding: (...args) => inward(() => prepareAttachmentBinding(db, ...args)) });
+    return createMessagingApplication({ repository, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, clock: { now: () => Date.now() }, digest: sha256, accountNames: async (ids) => messagingAccountNames((await runtimeEnv()).CONTROL_DB, ids), ensureOrganizationChannels: company => allowProvision?ensureOrganizationChannels(db, company):Promise.resolve(), memberBinding(kind, id, user) { const table = kind === 'room' ? 'messaging_room_members' : 'messaging_team_members', column = kind === 'room' ? 'room_id' : 'team_id'; return db.prepare(`INSERT INTO ${table}(${column},user_id) VALUES(?,?) ON CONFLICT DO NOTHING`).bind(id, user); }, prepareAttachmentBinding: (...args) => inward(() => prepareAttachmentBinding(db, ...args)) });
 }
 export function messagingGuard(db: SqlDatabase, actor: WorkContext, key: string, roomId: string) { return application(db).messagingGuard(actor, key, roomId); }
-export async function messagingRoom(db: SqlDatabase, actor: WorkContext, id: string) { return exposed(() => application(db).messagingRoom(actor, id)); }
-export async function messagingPeople(db: SqlDatabase, actor: WorkContext, query = "", teamId?: string) { return exposed(() => application(db).messagingPeople(actor, query, teamId)); }
-export async function createMessagingRoom(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof roomSchema>, key: string) { return exposed(() => application(db).createMessagingRoom(actor, input, key)); }
-export async function createMessagingTeam(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof teamSchema>, key: string) { return exposed(() => application(db).createMessagingTeam(actor, input, key)); }
-export async function createMessagingChannel(db: SqlDatabase, actor: WorkContext, teamId: string, input: z.infer<typeof channelSchema>, key: string) { return exposed(() => application(db).createMessagingChannel(actor, teamId, input, key)); }
-export async function messagingMembers(db: SqlDatabase, actor: WorkContext, id: string, isTeam: boolean) { return exposed(() => application(db).messagingMembers(actor, id, isTeam)); }
-export async function manageMessaging(db: SqlDatabase, actor: WorkContext, id: string, isTeam: boolean, input: z.infer<typeof manageSchema>, key: string) { return exposed(() => application(db).manageMessaging(actor, id, isTeam, input, key)); }
-export async function messagingOverview(db: SqlDatabase, actor: WorkContext) { return exposed(() => application(db).messagingOverview(actor)); }
-export async function messagingHistory(db: SqlDatabase, actor: WorkContext, id: string, before?: number, after?: number) { return exposed(() => application(db).messagingHistory(actor, id, before, after)); }
-export async function sendMessagingMessage(db: SqlDatabase, actor: WorkContext, roomId: string, input: z.infer<typeof messageSchema>, key: string) { return exposed(() => application(db).sendMessagingMessage(actor, roomId, input, key)); }
-export async function readMessaging(db: SqlDatabase, actor: WorkContext, roomId: string, seq: number) { return exposed(() => application(db).readMessaging(actor, roomId, seq)); }
-export async function messagingFile(db: SqlDatabase, actor: WorkContext, id: string) { return exposed(() => application(db).messagingFile(actor, id)); }
+export async function messagingRoom(db:SqlDatabase,actor:WorkContext,id:string){await requireMessagingPurchase(db,actor,'history');return exposed(()=>application(db).messagingRoom(actor,id));}
+/** This original active-account picker is also Calendar's independent account
+ * foundation. Only a requested Messages team brings the add-on dependency. */
+export async function messagingPeople(db:SqlDatabase,actor:WorkContext,query='',teamId?:string){await requireMessagingCurrentAccount(db,actor);if(teamId)await requireMessagingPurchase(db,actor,'history');return exposed(()=>application(db).messagingPeople(actor,query,teamId));}
+export async function createMessagingRoom(db:SqlDatabase,actor:WorkContext,input:z.infer<typeof roomSchema>,key:string){const members=[...new Set([actor.userId,...input.members])].sort(),id=input.kind==='direct'?`dm-${await sha256(actor.companyId+':'+JSON.stringify(members))}`:`room-${key}`;return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.create',id,purpose:'new-work'},tx=>exposed(()=>application(tx).createMessagingRoom(actor,input,key)));}
+export async function createMessagingTeam(db:SqlDatabase,actor:WorkContext,input:z.infer<typeof teamSchema>,key:string){return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.team-create',id:`team-${key}`,team:true,purpose:'new-work'},tx=>exposed(()=>application(tx).createMessagingTeam(actor,input,key)));}
+export async function createMessagingChannel(db:SqlDatabase,actor:WorkContext,teamId:string,input:z.infer<typeof channelSchema>,key:string){return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.channel-create',id:`channel-${key}`,purpose:'new-work'},tx=>exposed(()=>application(tx).createMessagingChannel(actor,teamId,input,key)));}
+export async function messagingMembers(db:SqlDatabase,actor:WorkContext,id:string,isTeam:boolean){await requireMessagingPurchase(db,actor,'history');return exposed(()=>application(db).messagingMembers(actor,id,isTeam));}
+export async function manageMessaging(db:SqlDatabase,actor:WorkContext,id:string,isTeam:boolean,input:z.infer<typeof manageSchema>,key:string){return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.manage',id,team:isTeam,purpose:async tx=>{const original=await tx.prepare(`SELECT name FROM ${isTeam?'messaging_teams':'messaging_rooms'} WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<{name:string}>(),members=(await tx.prepare(`SELECT user_id FROM ${isTeam?'messaging_team_members':'messaging_room_members'} WHERE ${isTeam?'team_id':'room_id'}=?`).bind(id).all<{user_id:string}>()).results.map(row=>row.user_id);return original?.name===input.name&&input.members.every(user=>members.includes(user))?'settle-existing':'new-work';}},tx=>exposed(()=>application(tx).manageMessaging(actor,id,isTeam,input,key)));}
+export async function messagingOverview(db:SqlDatabase,actor:WorkContext){const purchase=await messagingPurchaseControls(db,actor);if(purchase&&!purchase.history)return {teams:[],rooms:[],purchase};return withMessagingPurchasedCommand(db,actor,{key:`messages-overview:${crypto.randomUUID()}`,operation:'messaging.overview',id:actor.companyId,companyScope:true,purpose:purchase?.newWork===true?'new-work':'history'},async tx=>({...await exposed(()=>application(tx,purchase?.newWork!==false).messagingOverview(actor)),...(purchase?{purchase}:{})}));}
+export async function messagingHistory(db:SqlDatabase,actor:WorkContext,id:string,before?:number,after?:number){await requireMessagingPurchase(db,actor,'history');return exposed(()=>application(db).messagingHistory(actor,id,before,after));}
+export async function sendMessagingMessage(db:SqlDatabase,actor:WorkContext,roomId:string,input:z.infer<typeof messageSchema>,key:string){return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.send',id:roomId,privateFiles:input.files.length>0,purpose:'new-work'},tx=>exposed(()=>application(tx).sendMessagingMessage(actor,roomId,input,key)));}
+export async function readMessaging(db:SqlDatabase,actor:WorkContext,roomId:string,seq:number){return withMessagingPurchasedCommand(db,actor,{key:`messages-read:${crypto.randomUUID()}`,operation:'messaging.read',id:roomId,purpose:'history'},tx=>exposed(()=>application(tx).readMessaging(actor,roomId,seq)));}
+export async function messagingFile(db:SqlDatabase,actor:WorkContext,id:string){await requireMessagingPurchase(db,actor,'history');return exposed(()=>application(db).messagingFile(actor,id));}
 export { roomSchema, teamSchema, channelSchema, manageSchema, messageSchema } from '../domain/messaging';

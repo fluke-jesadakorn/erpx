@@ -7,6 +7,8 @@ import { executePms, PmsError, type Effects } from "@/lib/pms/pms-engine";
 import { publicReservationSchema, type BookingEnv, type BookingPaymentRow, type PaymentAllocation } from "../domain/booking";
 import type { WorkContext } from "../../identity_access/public/authorization";
 import type { Clock } from "../../shared/application/ports";
+import type { CapabilityPurpose } from "../../commercial/public/rules/packages";
+import type { PmsPropertyPurchase, PmsPropertyPurchaseRequest } from "../domain/property-purchases";
 export type PmsBookingRows<Row> = {
     results: Row[];
 };
@@ -14,6 +16,10 @@ export type PmsBookingEffect = {
     run(): Promise<PmsBookingRows<Record<string, unknown>>>;
 };
 export type PmsBookingUnit<Effect extends PmsBookingEffect> = {
+    hydrateReceiptAllocationCredits(snapshot:Snapshot):Promise<void>;
+    purchaseAllowed(propertyId: string, purpose: CapabilityPurpose): Promise<boolean>;
+    purchaseFlags(propertyId: string): Promise<{ newWork: boolean; settleExisting: boolean; history: boolean }>;
+    requirePurchase(input: PmsPropertyPurchase): Promise<void>;
     readPmsProperties1(facts: {
         propertyId: string;
         lock: boolean;
@@ -278,6 +284,7 @@ export type PmsBookingUnit<Effect extends PmsBookingEffect> = {
         fact1: number;
         id: string;
     }): Promise<PmsBookingRows<Record<string, unknown>>>;
+    writePmsBookingEmailsBlocked(facts: { id: string; code: string; nextAt: number }): Promise<PmsBookingRows<Record<string, unknown>>>;
     readPmsRecords2(facts: {
         propertyId: string;
         fact1: Array<string>;
@@ -349,7 +356,7 @@ export type PmsBookingUnit<Effect extends PmsBookingEffect> = {
     confirmBookingChange(slug: string, token: string, proposal: string, key: string, env: BookingEnv, now: number): Promise<unknown>;
 };
 export type PmsBookingRepository<Effect extends PmsBookingEffect> = PmsBookingUnit<Effect> & {
-    transaction<Result>(work: (unit: PmsBookingUnit<Effect>) => Promise<Result>): Promise<Result>;
+    transaction<Result>(work: (unit: PmsBookingUnit<Effect>) => Promise<Result>, purchase?: PmsPropertyPurchaseRequest): Promise<Result>;
 };
 export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
     clock: Clock;
@@ -383,7 +390,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
         if (!row)
             throw ports.error(404, "PMS_NOT_FOUND", "Hotel not found");
         const raw = await db.readPmsRecords2({ propertyId: propertyId, fact1: (search ? [search.departure, search.arrival] : []), search: search });
-        return {
+        const snapshot:Snapshot = {
             property: {
                 id: row.id,
                 companyId: row.company_id,
@@ -402,6 +409,8 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                 updatedAt: Number(r.updated_at),
             })),
         };
+        if(records(snapshot,"entry").some(row=>row.data.kind==="adjustment"&&row.data.total<0&&row.data.originalId))await db.hydrateReceiptAllocationCredits(snapshot);
+        return snapshot;
     }
     function published(s: Snapshot) {
         if (!s.property.config.booking?.published)
@@ -434,7 +443,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             : catalog;
         return Promise.all(selected.map(async (hotel) => ({
             hotel,
-            offers: await db.transaction(async (tx) => bookingOffers(await bookingSnapshot(tx, hotel.id, search), search, true)),
+            offers: await db.transaction(async (tx) => bookingOffers(await bookingSnapshot(tx, hotel.id, search), search, true), { propertyId: hotel.id, purpose: "new-work", readOnly: true, hideUnavailable: true }),
         })));
     }
     function publicSelections(s: Snapshot, raw: unknown, now: number) {
@@ -466,7 +475,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             const s = await bookingSnapshot(tx, propertyId, search), quote = onlineQuote(bookingQuote(s, publicSelections(s, lines, now)));
             const payload = ports.encode(JSON.stringify({ quote, expires: now + 15 * 60 * 1000 }));
             return { quote, token: `${payload}.${ports.sign(env.secret, payload)}` };
-        });
+        }, { propertyId, purpose: "new-work", readOnly: true, hideUnavailable: true });
     }
     function onlineQuote(quote: ReturnType<typeof bookingQuote>) { return quote; }
     function readQuote(token: string, env: BookingEnv, now: number) {
@@ -627,7 +636,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             const response = { attemptId, managementToken };
             await tx.writePmsBookingReceipts2({ key: key, id: s.property.id, digest: digest, id2: result.id, now: now, fact5: JSON.stringify(response) });
             return response;
-        });
+        }, { propertyId: v.propertyId, purpose: "new-work", hideUnavailable: true, receipt: { kind: "reservation", id: key } });
         if (isSummaryReceipt(created))
             return created;
         return { ...await bookingCheckout(db, slug, created.attemptId, env, now), ...('managementToken' in created ? { managementToken: created.managementToken } : {}) };
@@ -642,6 +651,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             return bookingPaymentStatus(db, token, env, now);
         if (Number(row.expires_at) <= now)
             return bookingPaymentStatus(db, token, env, now);
+        await db.requirePurchase({ propertyId: row.property_id, purpose: "settle-existing" });
         let url = row.checkout_url;
         if (!row.checkout_id) {
             const guest = await db.readPmsRecords1({ reservation_id: row.reservation_id, property_id: row.property_id });
@@ -661,10 +671,12 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
         const [id, signature, extra] = token.split('.');
         if (extra || !id || !signature || !ports.same(signature, ports.sign(env.secret, `payment:${id}`)))
             throw ports.error(401, 'PMS_PAYMENT_TOKEN', 'Invalid booking payment token');
-        await reconcileBookingPayment(db, id, env, now);
-        const row = await db.readPmsBookingPayments1({ id: id });
+        let row = await db.readPmsBookingPayments1({ id: id });
         if (!row)
             throw ports.error(404, 'PMS_PAYMENT_NOT_FOUND', 'Booking payment not found');
+        await db.requirePurchase({ propertyId: row.property_id, purpose: "history" });
+        await reconcileBookingPayment(db, id, env, now);
+        row = (await db.readPmsBookingPayments1({ id: id }))!;
         const s = await bookingSnapshot(db, row.property_id);
         const receipt = await db.readPmsBookingReceipts2({ reservation_id: row.reservation_id, id: row.id });
         return { ...bookingSummary(s, row.reservation_id, now), state: row.status, refundState: row.refund_state, checkoutUrl: row.status === 'payment_pending' ? row.checkout_url : null, attemptToken: token, expiresAt: Number(row.expires_at), managementToken: receipt ? parseGuestAccountJson(receipt.response_json).managementToken : undefined };
@@ -673,6 +685,8 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
         const row = await db.readPmsBookingPayments1({ id: id });
         if (!row || !['payment_pending', 'expired'].includes(row.status))
             return;
+        const purchase: PmsPropertyPurchase = { propertyId: row.property_id, purpose: "settle-existing" };
+        await db.requirePurchase(purchase);
         let paid = false;
         let providerSucceededAt: number | null = null;
         let paymentIntentId: string | null = null;
@@ -769,7 +783,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                 await persist(tx, s, before);
                 await tx.writePmsBookingPayments7({ fact0: paid ? 'refund_review' : 'expired', fact1: paid ? 'requested' : null, fact2: paid ? now : null, now: now, id: id });
             }
-        });
+        }, purchase);
     }
     async function drainBookingPayments(db: PmsBookingRepository<Effect>, env: BookingEnv, now = ports.clock.now()) {
         const due = await db.readPmsBookingPayments6({ fact0: now - 300000, fact1: now - 30 * 86400000 });
@@ -803,8 +817,10 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
         const t = await db.readPmsBookingTokens1({ fact0: ports.hash(token), now: now });
         if (!t)
             throw ports.error(401, "PMS_LINK_EXPIRED", "Request a new booking access link");
+        const s = await bookingSnapshot(db, t.property_id, undefined, lock);
+        await db.requirePurchase({ propertyId: s.property.id, purpose: "history" });
         return {
-            s: await bookingSnapshot(db, t.property_id, undefined, lock),
+            s,
             id: t.reservation_id,
         };
     }
@@ -815,8 +831,9 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             const documents = (await tx.readPmsDocuments1({ id: s.property.id, id2: s.property.id, id3: id })).results;
             const pending = await tx.readPmsBookingPayments5({ id: id });
             const summary = bookingSummary(s, id, now);
-            return { ...summary, editableRates: records(s, "rate").filter(r => r.data.active && r.data.market === "public" && s.property.config.booking?.rateIds.includes(r.id)).map(r => ({ id: r.id, typeId: r.data.typeId, name: r.data.name, roomName: record(s, "room_type", r.data.typeId).data.name })), refundState: refunds[0]?.state ?? null, refunds, documents, dueAtHotel: Math.max(0, summary.total - summary.postedRoomTotal + summary.guestAccountDue - summary.advance), pendingChange: pending ? { attemptToken: paymentToken(pending.id, await ports.bookingEnv()), expiresAt: Number(pending.expires_at) } : null };
-        });
+            const purchases = await tx.purchaseFlags(s.property.id), oldRates = new Set(summary.rooms.map(room => room.rateId));
+            return { ...summary, purchases, editableRates: purchases.newWork || purchases.settleExisting ? records(s, "rate").filter(r => r.data.active && r.data.market === "public" && s.property.config.booking?.rateIds.includes(r.id) && (purchases.newWork || oldRates.has(r.id))).map(r => ({ id: r.id, typeId: r.data.typeId, name: r.data.name, roomName: record(s, "room_type", r.data.typeId).data.name })) : [], refundState: refunds[0]?.state ?? null, refunds, documents, dueAtHotel: Math.max(0, summary.total - summary.postedRoomTotal + summary.guestAccountDue - summary.advance), pendingChange: pending ? { attemptToken: paymentToken(pending.id, await ports.bookingEnv()), expiresAt: Number(pending.expires_at) } : null };
+        }, async () => ({ propertyId: (await authorizedBooking(db, token, now)).s.property.id, purpose: "history", readOnly: true }));
     }
     async function cancelPublicReservation(db: PmsBookingRepository<Effect>, slug: string, token: string, env: BookingEnv, now = ports.clock.now()) {
         const current = await manageBooking(db, token, now);
@@ -835,7 +852,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             .parse(raw);
         await db.transaction(async (tx) => {
             const matches = await tx.readPmsRecords3({ number: v.number, email: v.email });
-            if (matches[0]) {
+            if (matches[0] && await tx.purchaseAllowed(matches[0].property_id, "history")) {
                 const s = await bookingSnapshot(tx, matches[0].property_id);
                 await queueMail(tx, s, matches[0].id, slug, "access", env, now);
             }
@@ -856,6 +873,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             actor.beta ||
             !(await write.readPmsProperties2({ propertyId: propertyId, companyId: actor.companyId, fact2: (actor.branchId ? [actor.branchId] : []), actor: actor })))
             throw ports.error(404, "PMS_NOT_FOUND", "Hotel not found in this workspace");
+        await write.requirePurchase({ propertyId, purpose: "history", actor, permission: "pms.reservations" });
         if (operation === "availability") {
             const search = searchSchema.parse(input), s = await bookingSnapshot(write, propertyId, search);
             return bookingOffers(s, search, false, (input as {
@@ -892,6 +910,7 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
             if (!mail)
                 break;
             try {
+                await db.requirePurchase({ propertyId: mail.property_id, purpose: "history" });
                 // Keep the provider request body stable across retries, even if staff edit a guest.
                 await db.writePmsBookingTokens2({ fact0: now + 7 * 86400000, token_id: mail.token_id });
                 const response = await send("https://api.resend.com/emails", {
@@ -908,8 +927,11 @@ export function createPmsBooking<Effect extends PmsBookingEffect>(ports: {
                     throw new Error("EMAIL_DELIVERY_FAILED");
                 await db.writePmsBookingEmails2({ now: now, id: mail.id });
             }
-            catch {
-                await db.writePmsBookingEmails3({ fact0: mail.attempts >= 8 ? "failed" : "pending", fact1: now + Math.min(3600000, 1000 * 2 ** mail.attempts), id: mail.id });
+            catch (error) {
+                const code = ports.isBusinessError(error) ? error.code : "";
+                if (["PACKAGE_REQUIRED", "PACKAGE_INACTIVE", "PACKAGE_DRAINING", "DEPENDENCY_REQUIRED", "PACKAGE_CAPABILITY_CHANGED", "PACKAGE_ENFORCEMENT_ENVIRONMENT", "PACKAGE_ENFORCEMENT_CONFIGURATION"].includes(code))
+                    await db.writePmsBookingEmailsBlocked({ id: mail.id, code, nextAt: now + 60000 });
+                else await db.writePmsBookingEmails3({ fact0: mail.attempts >= 8 ? "failed" : "pending", fact1: now + Math.min(3600000, 1000 * 2 ** mail.attempts), id: mail.id });
             }
         }
     }

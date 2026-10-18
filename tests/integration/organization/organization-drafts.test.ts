@@ -1,13 +1,16 @@
-import { beforeAll, expect, it, vi } from "vitest";
+import { afterEach,beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
 import { installStaffLevels, positionSchema, savePosition, decideOrganizationNodeChange } from "../../../src/server/modules/organization/public/organization";
 import { openOrganizationDraft, saveOrganizationDraft, getOrganizationDraft, previewOrganizationDraft, submitOrganizationDraft, drainOrganizationDrafts } from "../../../src/server/modules/organization/public/organization-drafts";
 import { emptyDraft, draftDefinitionSchema, type DraftItem } from "../../../src/lib/organization/organization-draft";
 import { lifecycleInput } from "../../../src/lib/people_payroll/people-lifecycle";
-import { saveLifecycle, previewLifecycle } from "../../../src/server/modules/people_payroll/public/people-lifecycle";
+import { saveLifecycle, previewLifecycle,cancelLifecycle } from "../../../src/server/modules/people_payroll/public/people-lifecycle";
+import {changeAppointment} from "../../../src/server/modules/organization/public/department-authority";
+import {packageGrantStore} from "../../../src/server/modules/commercial/public/package-grants";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env }));
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);});
+afterEach(()=>vi.unstubAllEnvs());
 async function fixture(){
  const f=await expenseFixture(false),hr=await f.member('draft-hr','hr_admin');await installStaffLevels(db,f.owner,key());
  const level=(n:number)=>`org-level-${f.company}-${n}`;
@@ -26,6 +29,15 @@ it('persists one private draft, checks ownership and rejects stale saves',async(
  await expect(getOrganizationDraft(db,f.owner,saved.id)).rejects.toMatchObject({status:404});
  await expect(saveOrganizationDraft(db,f.hr,saved.id,1,saved.definition)).rejects.toMatchObject({code:'DRAFT_VERSION_CHANGED'});
  const preview=await previewOrganizationDraft(db,f.hr,saved.id,saved.version);expect(preview.ready).toBe(false);expect(preview.blockers.join()).toContain('parked');
+});
+it('People core composes legacy cancellation with the complete Organization draft and rolls late parent authority back atomically',async()=>{
+ const f=await fixture();await changeAppointment(db,f.owner,{kind:'hr',departmentId:null,positionId:null,personId:`person-${f.hr.userId}`,expectedVersion:0,reason:'Actual Company HR owns the composed lifecycle handoff'},key());const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-composed-people-provider'}),obligations:async()=>{throw Error('No inactive cutover witness');}});await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'people',packageVersion:1,state:'active',startsAt:0,endsAt:null,version:1,reason:'Actual People and Organization legacy handoff',evidence:'test:people-organization-owner-composition'}});vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
+ const input=lifecycleInput.parse({kind:'transfer',expectedVersion:0,personId:`person-${f.claimant.userId}`,engagementId:f.first,positionId:f.target,managerPersonId:`person-${f.owner.userId}`,effectiveAt:Date.now()+120000,timezone:'Asia/Bangkok',reason:'Preserved earlier access request'}),legacy=await saveLifecycle(db,f.hr,input,key(),false),unknown=key();await expect(db.transaction(tx=>cancelLifecycle(tx,f.hr,String(legacy.id),1,unknown))).rejects.toMatchObject({code:'PEOPLE_COMPOSITION_REQUIRED'});expect(await db.prepare('SELECT 1 FROM command_receipts WHERE command_id=?').bind(unknown).first()).toBeNull();
+ const draft=await f.draft([{kind:'person',id:f.first,parked:false,positionId:f.target,supersedeLegacyCase:{id:String(legacy.id),expectedVersion:1}}]),preview=await previewOrganizationDraft(db,f.hr,draft.id,draft.version);expect(preview.ready,preview.blockers.join()).toBe(true);const command=key(),fn=`composed_people_${key().replaceAll('-','')}`,prior=await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.hr.assignmentId).first();
+ await db.exec(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.hr.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fn}()`);
+ try{await expect(submitOrganizationDraft(db,f.hr,draft.id,draft.version,preview.token,command)).rejects.toMatchObject({code:'PEOPLE_ACCESS_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${fn} ON audit_events;DROP FUNCTION ${fn}()`);}
+ expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.hr.assignmentId).first()).toEqual(prior);expect(await db.prepare('SELECT status,version FROM people_lifecycle_cases WHERE id=?').bind(legacy.id).first()).toEqual({status:'draft',version:1});expect((await getOrganizationDraft(db,f.hr,draft.id)).draft!.state).toBe('draft');expect((await getOrganizationDraft(db,f.hr,draft.id)).requests).toHaveLength(0);for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=? OR (command_id LIKE 'draft-cancel-%' AND ${table==='outbox_events'?'aggregate_id':'record_id'}=?)`).bind(command,legacy.id).first('n')).toBe(0);
+ const result=await submitOrganizationDraft(db,f.hr,draft.id,draft.version,preview.token,command);expect(await submitOrganizationDraft(db,f.hr,draft.id,draft.version,preview.token,command)).toEqual(result);expect(await db.prepare('SELECT status FROM people_lifecycle_cases WHERE id=?').bind(legacy.id).first('status')).toBe('cancelled');expect((await getOrganizationDraft(db,f.hr,draft.id)).requests).toHaveLength(1);
 });
 it('applies a person leaving a moving position atomically; preserves salaries and replays submit',async()=>{
  const f=await fixture();const draft=await f.draft([{kind:'position',id:f.position,parked:false,departmentId:f.accountsDepartment},{kind:'person',id:f.first,parked:false,positionId:f.target}]);

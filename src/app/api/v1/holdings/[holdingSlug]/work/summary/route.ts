@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { getWorkSummary, getWorkPage } from "@/server/modules/work_projection/public/work-summary";
 import { errorResponse } from "@/server/modules/runtime/public/http";
@@ -16,7 +17,7 @@ export async function GET(
         tracking:params.get("tracking")??"all",
       }) : await getWorkSummary(actor);
     return Response.json(
-      { data: work },
+      canonicalDestinationLinks({ data: work }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {

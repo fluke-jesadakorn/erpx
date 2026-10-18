@@ -1,15 +1,21 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import { Dialog } from "@/components/ui/dialog";
+import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
 import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 
-import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "@/components/workplace/workspace-link";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { handoverSuggestion } from "@/lib/shared/handover";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { HandoverView } from "@/server/modules/operations/public/handover";
 import styles from "@/components/work_projection/today/handover-composer.module.css";
+import {createHandoverPublishCommands,handoverViewMatches,type HandoverInput,type HandoverPublishAttempt} from '@/lib/work_projection/handover-command';
+import {handoverReceiptContext} from '@/lib/work_projection/handover-acknowledgement';
+import {useSocialRenderedContext} from '@/components/collaboration/social-command-context';
+import {registerUnsavedWork,contextIsSwitching} from '@/lib/work_projection/context-switch';
+import {announceWorkChange} from '@/lib/work_projection/work-refresh';
 
 async function responseData<T>(response: Response): Promise<T> {
   const body = (await response.json()) as { data?: T; error?: { message?: string } };
@@ -43,53 +49,38 @@ export function HandoverComposer({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
   const [publishedId, setPublishedId] = useState<string | null>(null);
-  const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const renderedContext=useSocialRenderedContext(),rendered=useRef(renderedContext);useLayoutEffect(()=>{rendered.current=renderedContext;},[renderedContext]);
+  const commands=useRef(createHandoverPublishCommands()),editRevision=useRef(0),inFlight=useRef(false),sourceSnapshot=useRef<HandoverView|null>(null),draftContext=useRef<string|null>(null),storage=useRef<{draft:string;pending:string}|null>(null),form=useRef<HTMLFormElement>(null);
+  const [dirty,setDirty]=useState(false),[pending,setPending]=useState<HandoverPublishAttempt|null>(null),[notice,setNotice]=useState(''),[saved,setSaved]=useState(false),[sourceVersions,setSourceVersions]=useState(new Map<string,HandoverView['items'][number]>());
+  const context=()=>handoverReceiptContext(rendered.current?.token??'');
+  const markEdited=()=>{editRevision.current++;setDirty(true);};
+  useEffect(()=>registerUnsavedWork(()=>dirty||pending!==null||publishing),[dirty,pending,publishing]);
+  useEffect(()=>{if(!dirty&&!pending&&!publishing)return;const unload=(event:BeforeUnloadEvent)=>{if(!contextIsSwitching())event.preventDefault();};window.addEventListener('beforeunload',unload);return()=>window.removeEventListener('beforeunload',unload);},[dirty,pending,publishing]);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+    if(commands.current.pending()){setError('Retry the submitted handover before refreshing its source facts. Your draft is retained.');return;}
+    const captured=handoverReceiptContext(rendered.current?.token??'');
+    if(draftContext.current&&captured!==draftContext.current){setError('Return to the original account, Company and role to review this handover draft.');return;}
+    setLoading(true);setError('');
     try {
-      const response = await workFetch(`/api/v1${base}/handover`, { cache: "no-store" });
-      const next = await responseData<HandoverView>(response);
-      setView(next);
-      // A handover never inherits the audience from an earlier post or draft.
-      setRecipients([]);
-      let ids = next.defaultIds,
-        restoredBody: string | null = null;
-      try {
-        const saved = sessionStorage.getItem(draftKey(base, next.ownerKey, next.date));
-        if (saved) {
-          const draft = JSON.parse(saved) as { selected?: unknown; body?: unknown };
-          if (Array.isArray(draft.selected))
-            ids = draft.selected
-              .filter(
-                (id): id is string =>
-                  typeof id === "string" && next.items.some((item) => item.id === id),
-              )
-              .slice(0, 5);
-          if (typeof draft.body === "string" && draft.body.length <= 3000)
-            restoredBody = draft.body;
-        }
-      } catch {
-        /* Private in-tab backup is optional. */
-      }
-      setSelected(ids);
-      setBody(
-        restoredBody ??
-          handoverSuggestion(
-            next.date,
-            next.items.filter((item) => ids.includes(item.id)),
-          ),
-      );
-      setEdited(restoredBody !== null);
-      setReviewing(false);
-      attempt.current = null;
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The handover could not be loaded.");
-    } finally {
-      setLoading(false);
-    }
-  }, [base]);
+      const response=await workFetch(`/api/v1${base}/handover`,{cache:'no-store'}),next=await responseData<unknown>(response);
+      if(!handoverViewMatches(next))throw Error('The handover source snapshot is incomplete. Refresh before preparing a handover.');
+      if(captured!==handoverReceiptContext(rendered.current?.token??''))throw Error('Your account or role changed while the handover was loading.');
+      const previous=sourceSnapshot.current;sourceSnapshot.current=next;setView(next);setReviewing(false);
+      if(previous){setNotice('Source facts refreshed. Your message and recipients are retained; reselect any changed work before review.');return;}
+      draftContext.current=captured;storage.current={draft:draftKey(base,next.ownerKey,next.date),pending:`erpx:handover-submitted:${base}:${next.ownerKey}:${captured}`};
+      let ids=next.defaultIds,restoredBody:string|null=null;
+      try {const stored=sessionStorage.getItem(storage.current.draft);if(stored){const draft=JSON.parse(stored) as {selected?:unknown;body?:unknown};if(Array.isArray(draft.selected))ids=draft.selected.filter((id):id is string=>typeof id==='string'&&next.items.some(item=>item.id===id)).slice(0,5);if(typeof draft.body==='string'&&draft.body.length<=3000)restoredBody=draft.body;}}
+      catch{/* Private in-tab backup is optional. */}
+      let message=restoredBody??handoverSuggestion(next.date,next.items.filter(item=>ids.includes(item.id))),recipients:string[]=[];
+      const versions=new Map(next.items.filter(item=>ids.includes(item.id)).map(item=>[item.id,item]));
+      try {const stored=sessionStorage.getItem(storage.current.pending),restored=stored?commands.current.restore(JSON.parse(stored),`/api/v1${base}/handover`,captured):null;
+        if(restored){setPending(restored.attempt);const later=restoredBody!==null&&(restoredBody!==restored.input.body||JSON.stringify(ids)!==JSON.stringify(restored.input.sources.map(source=>source.id)));editRevision.current=restored.attempt.editRevision+(later?1:0);if(!later){message=restored.input.body;ids=restored.input.sources.map(source=>source.id);recipients=restored.input.recipientIds;for(const source of restored.input.sources){const item=next.items.find(item=>item.id===source.id);if(item)versions.set(source.id,{...item,sourceVersion:source.sourceVersion,sourceKind:source.kind});}}setNotice('The original submitted handover has an uncertain result. Retry that exact request before publishing another.');}}
+      catch{/* A malformed local value never creates command authority. */}
+      setSourceVersions(versions);setSelected(ids);setBody(message);setRecipients(recipients);setEdited(restoredBody!==null);setDirty(restoredBody!==null||commands.current.pending()!==null);
+    } catch(cause){setError(cause instanceof Error?cause.message:'The handover could not be loaded.');}
+    finally{setLoading(false);}
+  },[base]);
 
   useEffect(() => {
     const fromHash = () => {
@@ -123,12 +114,14 @@ export function HandoverComposer({
   }, [open, view]);
 
   function toggleSource(id: string) {
+    markEdited();
     const next = selected.includes(id)
       ? selected.filter((value) => value !== id)
       : selected.length < 5
         ? [...selected, id]
         : selected;
     setSelected(next);
+    setSourceVersions(prior=>{const versions=new Map(prior);if(next.includes(id)){const item=view?.items.find(item=>item.id===id);if(item)versions.set(id,item);}else versions.delete(id);return versions;});
     setReviewing(false);
     setError("");
     if (!edited && view)
@@ -140,45 +133,19 @@ export function HandoverComposer({
       );
   }
 
-  async function publish() {
-    if (!view || !selected.length || !recipients.length || !body.trim() || publishing) return;
-    const sources = selected.flatMap((id) => {
-      const item = view.items.find((candidate) => candidate.id === id);
-      return item
-        ? [{ id, sourceVersion: item.sourceVersion, kind: item.sourceKind ?? "staff_task" }]
-        : [];
-    });
-    const payload = JSON.stringify({ date: view.date, body, sources, recipientIds: recipients });
-    if (attempt.current?.signature !== payload)
-      attempt.current = { signature: payload, key: crypto.randomUUID() };
-    setPublishing(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/handover`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-        body: payload,
-      });
-      const result = await responseData<{ id: string }>(response);
-      try {
-        sessionStorage.removeItem(draftKey(base, view.ownerKey, view.date));
-      } catch {
-        /* Optional local backup. */
-      }
-      setPublishedId(result.id);
-      setReviewing(false);
-      setRecipients([]);
-      setView(null);
-      setOpen(false);
-      await onPublished().catch(() => {
-        /* The published post link remains available if the feed refresh fails. */
-      });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The handover could not be published.");
-    } finally {
-      setPublishing(false);
-    }
+  function discard(){if(inFlight.current||commands.current.pending())return;try{if(storage.current)sessionStorage.removeItem(storage.current.draft);}catch{/* Optional backup. */}sourceSnapshot.current=null;setSourceVersions(new Map());draftContext.current=null;storage.current=null;editRevision.current++;setDirty(false);setView(null);setBody('');setSelected([]);setRecipients([]);setSearch('');setEdited(false);setReviewing(false);setError('');setNotice('');setSaved(false);setOpen(false);}
+  async function execute(attempt:HandoverPublishAttempt){
+    if(inFlight.current)return;inFlight.current=true;setPublishing(true);setError('');
+    try{if(storage.current)sessionStorage.setItem(storage.current.pending,JSON.stringify(attempt));}catch{/* In-memory retry survives when optional storage is unavailable. */}
+    try {const {receipt,unchanged}=await commands.current.execute(attempt,context,()=>editRevision.current);setPending(null);try{if(storage.current)sessionStorage.removeItem(storage.current.pending);}catch{/* Optional backup. */}setPublishedId(receipt.id);announceWorkChange();
+      if(unchanged){if(form.current)window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form:form.current,formEditVersion:form.current.getAttribute('data-erpx-edit-version')}}));try{if(storage.current)sessionStorage.removeItem(storage.current.draft);}catch{/* Optional backup. */}sourceSnapshot.current=null;draftContext.current=null;storage.current=null;setDirty(false);setView(null);setRecipients([]);setReviewing(false);setOpen(false);}
+      else{setSaved(true);setReviewing(false);setNotice('Your submitted handover was published. Your newer draft remains here for review.');}
+      await onPublished().catch(()=>{/* The exact published post link remains available. */});
+    }catch(cause){const unresolved=commands.current.pending();setPending(unresolved);try{if(storage.current){if(unresolved)sessionStorage.setItem(storage.current.pending,JSON.stringify(unresolved));else sessionStorage.removeItem(storage.current.pending);}}catch{/* Exact in-memory recovery remains available. */}setError(cause instanceof Error?cause.message:'The handover was not acknowledged. Retry the submitted handover.');}
+    finally{inFlight.current=false;setPublishing(false);}
   }
+  async function publish(){if(!view||!selected.length||!recipients.length||!body.trim()||inFlight.current||saved)return;try{if(draftContext.current!==context())throw Error('Return to the original account, Company and role before publishing this handover.');const input:HandoverInput={date:view.date,body,sources:selected.flatMap(id=>{const item=sourceVersions.get(id);return item?[{id,sourceVersion:item.sourceVersion,kind:item.sourceKind??'staff_task'}]:[];}),recipientIds:recipients};if(input.sources.length!==selected.length)throw Error('Reselect the missing source before publishing.');const attempt=commands.current.prepare(`/api/v1${base}/handover`,input,context(),editRevision.current);await execute(attempt);}catch(cause){setError(cause instanceof Error?cause.message:'Review the original submitted handover.');}}
+  const staleSources=selected.some(id=>{const current=view?.items.find(item=>item.id===id),original=sourceVersions.get(id);return !current||!original||current.sourceVersion!==original.sourceVersion||current.sourceKind!==original.sourceKind;}),staleRecipients=recipients.some(id=>!view?.people.some(person=>person.id===id));
 
   const selectedPeople = view?.people.filter((person) => recipients.includes(person.id)) ?? [];
   const people =
@@ -207,22 +174,27 @@ export function HandoverComposer({
           type="button"
           aria-expanded={open}
           aria-controls="handover-editor"
-          onClick={() => setOpen((value) => !value)}
+          hidden={open}
+          onClick={() => setOpen(true)}
         >
           {open ? "Close" : "Draft handover"}
         </Button>
       </div>
       {publishedId && (
         <InlineNotice tone="info" className={styles.success} role="status">
-          Handover published. <Link href={`${base}/posts/${publishedId}`}>Open post</Link>
+          Handover published. <Link href={canonicalUiHref(`${base}/posts/${publishedId}`)}>Open post</Link>
         </InlineNotice>
       )}
-      <Dialog appearance="standard" open={open} onClose={() => setOpen(false)} title="Pass work to the next person" finalFocus={() => document.querySelector<HTMLButtonElement>("#handover button")} presentation="form-drawer" dismissDisabled={publishing}><div id="handover-editor" className={styles.editor}>
+      <DraftFormDrawer appearance="standard" open={open} dirty={dirty} onClose={()=>setOpen(false)} onDiscard={discard} title="Pass work to the next person" finalFocus={()=>document.querySelector<HTMLButtonElement>('#handover button')} dismissDisabled={publishing||pending!==null} retainFormContents={dirty||pending!==null}><form ref={form} id="handover-editor" className={styles.editor} data-handover-draft onSubmit={event=>event.preventDefault()}>
+        {pending&&<InlineNotice tone="warning"><p>The submitted handover has an uncertain result. Retry its original message, sources and recipients before publishing another. Your newer edits are retained.</p><Button appearance="standard" type="button" disabled={publishing} onClick={()=>void execute(pending)}>Retry submitted handover</Button></InlineNotice>}
+        {notice&&<InlineNotice tone="info" role="status">{notice}</InlineNotice>}
+        {saved&&<Button appearance="standard" type="button" onClick={()=>{setSaved(false);setNotice('Review your retained draft and current sources before publishing it.');}}>Review retained draft</Button>}
+        {(staleSources||staleRecipients)&&<InlineNotice tone="warning">Selected work or recipients changed. Your message is retained. Reselect the affected work and recipients before review.</InlineNotice>}
         {loading && <InlineNotice tone="info" role="status">Loading readable tasks…</InlineNotice>}
         {error && (
           <InlineNotice tone="danger" className={styles.error} role="alert">
             {error}{" "}
-            <Button appearance="standard" variant="ghost" type="button" onClick={() => void load()}>
+            <Button appearance="standard" variant="ghost" type="button" disabled={publishing||loading||pending!==null} onClick={() => void load()}>
               Refresh sources
             </Button>
           </InlineNotice>
@@ -238,6 +210,7 @@ export function HandoverComposer({
                 </p>
                 <fieldset className={styles.tasks}>
                   <legend>Work to include · {selected.length}/5</legend>
+                  {selected.filter(id=>!view.items.some(item=>item.id===id)).map(id=><Button appearance="standard" type="button" key={id} onClick={()=>toggleSource(id)}>Remove unavailable selected work</Button>)}
                   {view.items.map((item) => (
                     <Field appearance="standard" orientation="inline" key={item.id} className={styles.choice}>
                       <TextInput appearance="standard"
@@ -268,6 +241,7 @@ export function HandoverComposer({
                     maxLength={3000}
                     value={body}
                     onChange={(event) => {
+                      markEdited();
                       setBody(event.target.value);
                       setEdited(true);
                       setReviewing(false);
@@ -286,6 +260,7 @@ export function HandoverComposer({
                   {view.people.length === 0 && (
                     <p>No eligible colleagues are available in this work scope.</p>
                   )}
+                  {recipients.filter(id=>!view.people.some(person=>person.id===id)).map(id=><Button appearance="standard" type="button" key={id} onClick={()=>{markEdited();setRecipients(current=>current.filter(value=>value!==id));}}>Remove unavailable recipient</Button>)}
                   {people.map((person) => (
                     <Field appearance="standard" orientation="inline" key={person.id} className={styles.person}>
                       <TextInput appearance="standard"
@@ -293,6 +268,7 @@ export function HandoverComposer({
                         checked={recipients.includes(person.id)}
                         disabled={!recipients.includes(person.id) && recipients.length >= 20}
                         onChange={() => {
+                          markEdited();
                           setRecipients((current) =>
                             current.includes(person.id)
                               ? current.filter((id) => id !== person.id)
@@ -309,7 +285,7 @@ export function HandoverComposer({
                   <Button appearance="standard"
                     variant="ghost"
                     type="button"
-                    disabled={!selected.length || !recipients.length || !body.trim() || publishing}
+                    disabled={!selected.length || !recipients.length || !body.trim() || publishing || pending!==null || saved || staleSources || staleRecipients}
                     onClick={() => setReviewing(true)}
                   >
                     Review handover
@@ -344,7 +320,7 @@ export function HandoverComposer({
                   <Button appearance="standard"
                     variant="ghost"
                     type="button"
-                    disabled={publishing}
+                    disabled={publishing || pending!==null || saved || staleSources || staleRecipients}
                     onClick={() => void publish()}
                   >
                     {publishing ? "Publishing…" : "Publish handover"}
@@ -354,7 +330,7 @@ export function HandoverComposer({
             )}
           </>
         )}
-      </div></Dialog>
+      </form></DraftFormDrawer>
     </section>
   );
 }

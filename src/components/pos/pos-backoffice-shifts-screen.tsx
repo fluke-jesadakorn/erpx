@@ -7,10 +7,10 @@ import { type ComponentProps, type FormEvent, type ReactNode } from "react";
 import styles from "./pos.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePosConsoleContext} from "./pos-backoffice-console";
+import type {BackofficePosConsoleContext} from "./standard-pos-backoffice-console";
 
 
-const CashDenominationCount = dynamic(() => import("./pos-closing").then(module => module.CashDenominationCount));
+const CashDenominationCount = dynamic(() => import("./standard-pos-closing").then(module => module.StandardCashDenominationCount));
 
 
 type Row = PosRow;
@@ -168,7 +168,7 @@ export function BackofficePosConsoleShiftsScreen({context}: {context: Backoffice
                           required
                         />
                       </Field>
-                      <Button type="submit" disabled={busy || !can("pos.sell")}>
+                      <Button type="submit" disabled={busy || !can("pos.sell") || data.purchases && !data.purchases["pos.shifts"].newWork}>
                         Open cash session
                       </Button>
                     </form>

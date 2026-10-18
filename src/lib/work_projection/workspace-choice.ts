@@ -97,6 +97,7 @@ export function buildWorkspaceHoldingChoice(
   holdingLabel: string,
   assignments: readonly WorkspaceChoiceAssignment[],
   nodes: readonly WorkspaceChoiceNode[],
+  includeInheritedDepartments = false,
 ): WorkspaceHoldingChoice | null {
   const companies = new Map<string, WorkspaceCompanyChoice>();
   const companyAssignments = new Map<string, WorkspaceChoiceAssignment[]>();
@@ -133,8 +134,10 @@ export function buildWorkspaceHoldingChoice(
     );
     const fallbackDepartments = departmentNodes.filter(
       (department) =>
-        departmentGrantIds.has(department.id) &&
-        (!department.branchId || !visibleBranchIds.has(department.branchId)),
+        includeInheritedDepartments
+          ? holdingGrant || !!department.branchId && branchGrantIds.has(department.branchId) || departmentGrantIds.has(department.id)
+          : departmentGrantIds.has(department.id) &&
+            (!department.branchId || !visibleBranchIds.has(department.branchId)),
     );
     const fallbackBranchIds = new Set(
       fallbackDepartments

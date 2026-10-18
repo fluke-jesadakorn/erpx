@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -13,7 +14,7 @@ export async function GET(_request: Request, { params }: Context) {
     if (path.length > 1) throw new ApiError(404, 'NOT_FOUND', 'Release route not found.');
     const actor = await requireWorkContext(holdingSlug);
     const { write } = await holdingResources(actor.holdingId);
-    return Response.json({ data: await releaseAcceptance(write, actor, path[0]) }, { headers });
+    return Response.json(canonicalDestinationLinks({ data: await releaseAcceptance(write, actor, path[0]) }), { headers });
   } catch (error) { return errorResponse(error); }
 }
 
@@ -32,6 +33,6 @@ export async function POST(request: Request, { params }: Context) {
           : path.length===2&&path[1]==='evidence'?await bindReleaseEvidence(write,actor,path[0],input,key)
           : null;
     if (!data) throw new ApiError(404, 'NOT_FOUND', 'Release route not found.');
-    return Response.json({ data }, { headers });
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (error) { return errorResponse(error); }
 }

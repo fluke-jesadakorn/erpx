@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type { Option, Field } from "./workspace-types";
 import { CollectionRecordLink } from "@/components/records/record-collection";
 import { RecordSurface } from "@/components/records/record-surface";
@@ -8,13 +9,13 @@ import { FeatureWidget } from "@/components/shared/features/feature-page";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { Hotel } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePmsWorkspaceContext} from "./pms-backoffice-workspace";
+import type {BackofficePmsWorkspaceGuestAccountsScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
 
 
 const CounterRefunds = dynamic(() => import("./counter-refunds").then(module => module.CounterRefunds));
@@ -251,7 +252,7 @@ export function BackofficePmsWorkspaceGuestAccountsScreen({context}: {context: B
                           {propertyId && (
                             <UiActionLink
                               variant="secondary"
-                              href={`${erpBase}/pms/guest-accounts?property=${encodeURIComponent(propertyId)}&queue=corrections`}
+                              href={canonicalUiHref(`${erpBase}/pms/guest-accounts?property=${encodeURIComponent(propertyId)}&queue=corrections`)}
                             >
                               Manage guest account corrections
                             </UiActionLink>
@@ -404,7 +405,7 @@ export function BackofficePmsWorkspaceGuestAccountsScreen({context}: {context: B
                                               <p>
                                                 No exact imported bank row is available.{" "}
                                                 {crossLinks.finance && (
-                                                  <Link href={`${erpBase}/finance/bank`}>
+                                                  <Link href={canonicalUiHref(`${erpBase}/finance/bank`)}>
                                                     Review bank evidence in Finance
                                                   </Link>
                                                 )}
@@ -526,7 +527,7 @@ export function BackofficePmsWorkspaceGuestAccountsScreen({context}: {context: B
                       {can("pms.approve") && (
                         <UiActionLink
                           variant="secondary"
-                          href={`${erpBase}/pms/cashier?property=${propertyId}&queue=approval`}
+                          href={canonicalUiHref(`${erpBase}/pms/cashier?property=${propertyId}&queue=approval`)}
                         >
                           {tr("Review cashier shifts")}
                         </UiActionLink>
@@ -591,7 +592,7 @@ export function BackofficePmsWorkspaceGuestAccountsScreen({context}: {context: B
                           </RecordSurface>
                         ))}
                     </Panel>
-                    <RoomChargeReversalReviews base={frontMode ? base : erpBase} propertyId={propertyId}/>
+                    <RoomChargeReversalReviews base={frontMode ? base : erpBase} propertyId={propertyId} owner={{userId:data.userId,companyId:p.companyId,property:{id:p.id,companyId:p.companyId,branchId:p.branchId,version:p.version}}}/>
                     <Panel title="Guest Account charge corrections">
                       {data.chargeCorrections.map((item) => (
                         <RecordSurface as="article" recordId={item.id}
@@ -694,7 +695,7 @@ export function BackofficePmsWorkspaceGuestAccountsScreen({context}: {context: B
                           <Link
                             className={styles.line}
                             key={d.id}
-                            href={`${erpBase}/pms/documents/${d.id}?property=${p.id}`}
+                            href={canonicalUiHref(`${erpBase}/pms/documents/${d.id}?property=${p.id}`)}
                             target="_blank"
                           >
                             <span>

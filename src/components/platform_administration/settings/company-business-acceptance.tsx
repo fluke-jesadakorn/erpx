@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, TextArea } from "@/components/ui/foundation";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { Card, FormLayout } from "@/components/ui/foundation";
 

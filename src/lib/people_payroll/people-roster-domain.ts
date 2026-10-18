@@ -23,6 +23,7 @@ export type RosterRequest = { id: string; company_id: string; department_id: str
 export type RosterConflict = { shiftId: string; personId?: string; message: string };
 export type RosterHistory = { id: string; record_id: string; action: string; actor_name: string; reason: string; created_at: number };
 export type RosterData = {
+  purchase?: { newWork: boolean; settleExisting: boolean; history: boolean; revision: string };
   asOf: number;
   departments: RosterDepartment[]; departmentId: string | null; weekStart: string;
   week: RosterWeek | null; weeks: RosterWeek[]; templates: ShiftTemplate[];

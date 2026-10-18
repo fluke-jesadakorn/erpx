@@ -16,7 +16,8 @@ async function getWork(holdingId: string, context: WorkContext) {
   const rows = await Promise.all(
     result.results.map(async (row) => {
       const request = await write.leave(holdingId,row.id,context);
-      const actionable = request.permittedActions.some((a) =>
+      const actions=request.permittedActions.filter(action=>!request.purchase||(["save","submit"].includes(action)?request.purchase.newWork:request.purchase.settleExisting));
+      const actionable = actions.some((a) =>
         ["save", "submit", "approve", "reject", "approve_cancellation", "reject_cancellation"].includes(a),
       );
       const queue: "todo" | "waiting" | "completed" = actionable
@@ -27,7 +28,7 @@ async function getWork(holdingId: string, context: WorkContext) {
       return {
         ...row,
         queue,
-        isApproval: request.permittedActions.includes("approve") || request.permittedActions.includes("approve_cancellation"),
+        isApproval: actions.includes("approve") || actions.includes("approve_cancellation"),
         approvalStage: (request.cancellationApproval??request.approval).currentApprover?.authority ?? null,
         currentApprover:
           (request.cancellationApproval??request.approval).currentApprover?.approver_name ?? null,

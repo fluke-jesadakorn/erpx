@@ -1,9 +1,7 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { boundedBody } from "@/server/modules/legal/public/legal/body";
-import { customerPortalContext, customerPortalProjection } from "@/server/modules/customer_360/public/customer-portal";
-import { customerPortalQuickAccess } from "@/server/modules/work_projection/public/portal-quick-access";
-import { readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
-import { holdingBindingBySlug } from "@/server/modules/runtime/public/runtime";
+import {customerPortalQuickAccessRequest} from '@/server/modules/customer_360/public/portal-quick-access-request';
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 
@@ -18,10 +16,8 @@ const inputSchema = z.object({
 export async function GET(_request: Request, context: Context) {
   try {
     const { holdingSlug } = await context.params;
-    const binding = await holdingBindingBySlug(holdingSlug);
-    const { actor } = await customerPortalContext(holdingSlug);
-    const preference = await readQuickAccessPreferences(actor.userId, "customer_portal", binding.id);
-    return Response.json({ data: preference }, { headers });
+    const preference = await customerPortalQuickAccessRequest(holdingSlug);
+    return Response.json(canonicalDestinationLinks({ data: preference }), { headers });
   } catch (error) {
     return errorResponse(error);
   }
@@ -42,20 +38,8 @@ export async function POST(request: Request, context: Context) {
     }
     const { pinnedIds, expectedVersion } = inputSchema.parse(raw);
     const { holdingSlug } = await context.params;
-    const binding = await holdingBindingBySlug(holdingSlug);
-    const { write, actor } = await customerPortalContext(holdingSlug);
-    const projection = await customerPortalProjection(write, actor);
-    const availableIds = customerPortalQuickAccess(holdingSlug, projection.items).map((item) => item.id);
-    const preference = await saveQuickAccessPreferences({
-      userId: actor.userId,
-      surface: "customer_portal",
-      contextKey: binding.id,
-      pinnedIds,
-      expectedVersion,
-      availableIds,
-      requestKey,
-    });
-    return Response.json({ data: preference }, { headers });
+    const preference = await customerPortalQuickAccessRequest(holdingSlug,{pinnedIds,expectedVersion,requestKey});
+    return Response.json(canonicalDestinationLinks({ data: preference }), { headers });
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,4 +1,5 @@
 "use client";
+import { useFinanceDraftScope } from "./finance-draft-boundary";
 import type {ComponentProps} from "react";
 import {FinanceEvidenceDocuments} from "./finance-evidence-documents";
 import {
@@ -30,6 +31,7 @@ function FinanceReviewDecision({
   run: (path: string, input: unknown) => Promise<void>;
   periods?: Row[];
 }) {
+  const draftScope=useFinanceDraftScope();
   if (!canApprove) return null;
   if (
     row.prepared_by === userId &&
@@ -40,7 +42,7 @@ function FinanceReviewDecision({
     );
   if (row.status === "draft")
     return (
-      <FormLayout
+      <FormLayout data-finance-draft={draftScope}
         className="ui-form-grid"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -92,7 +94,7 @@ function FinanceReviewDecision({
         drawerTitle="Reverse retained posting"
       >
         <summary>Reverse posting</summary>
-        <FormLayout
+        <FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={async (e) => {
             e.preventDefault();

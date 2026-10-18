@@ -1,3 +1,4 @@
+import {captureReceiptAllocationCredit} from "@/lib/pms/pms-receipt-funding";
 import { canonicalGuestAccount, parseGuestAccountJson } from "@/lib/identity_access/guest-account-compat";
 import { z } from "zod";
 import { executePms, newProperty, PmsError, readiness, type Effects, type Posting } from "@/lib/pms/pms-engine";
@@ -147,6 +148,10 @@ export type PmsUnit<Effect extends PmsEffect> = {
         kind: string;
         created_at: number;
     }[]>;
+    readReceiptAllocationCredits(facts: {
+        companyId:string;propertyId:string;branchId:string;chartId:string;currency:string;
+        receivableAccountId:string;advanceAccountId:string;entries:Array<{id:string;date:string}>;
+    }):Promise<Array<{entryId:string;amount:number}>>;
     readFinanceJournalLines(facts: {
         id: string;
     }): Promise<{
@@ -933,7 +938,7 @@ export type PmsUnit<Effect extends PmsEffect> = {
         statement: Effect;
     }>;
     transactional: boolean;
-    transaction<Result>(work: (unit: PmsUnit<Effect>) => Promise<Result>,propertyLockId?:string): Promise<Result>;
+    transaction<Result>(work: (unit: PmsUnit<Effect>) => Promise<Result>,propertyLockId?:string, command?: { actor: WorkContext; operation: string; input: unknown; key: string }): Promise<Result>;
     batch(effects: Effect[]): Promise<unknown>;
     replay<Result extends object = Record<string, unknown>>(actor: WorkContext, key: string, operation: string, id: string, input: unknown): Promise<Result | null>;
     execute<Result extends object>(actor: WorkContext, key: string, operation: string, input: unknown, id: string, version: number, result: Result, effects: Effect[], scope?: {
@@ -1353,6 +1358,15 @@ export function createPmsApplication<Effect extends PmsEffect>(ports: {
                 : null,
         };
     }
+    /** Legacy and fresh command snapshots use the same actual native credit.
+     * Read only inside the existing locked PMS unit; no evidence is serialized. */
+    async function hydrateReceiptAllocationCredits(db:PmsUnit<Effect>,s:Snapshot){
+        const entries=records(s,"entry").filter(row=>row.data.kind==="adjustment"&&row.data.total<0&&row.data.originalId);
+        if(!entries.length)return;
+        const p=s.property,c=p.config;
+        const credits=await db.readReceiptAllocationCredits({companyId:p.companyId,propertyId:p.id,branchId:p.branchId,chartId:c.chartId,currency:c.currency,receivableAccountId:c.accounts.receivable,advanceAccountId:c.accounts.advance,entries:entries.map(row=>({id:row.id,date:row.data.date}))});
+        for(const credit of credits){const entry=entries.find(row=>row.id===credit.entryId);if(entry&&Number.isSafeInteger(credit.amount)&&credit.amount>0&&credit.amount<=-entry.data.total)captureReceiptAllocationCredit(s,entry.id,credit.amount);}
+    }
     async function validSetup(db: PmsUnit<Effect>, s: Snapshot) {
         const p = s.property, c = p.config;
         const chart = await db.readFinanceCharts2({ chartId: c.chartId, companyId: p.companyId, currency: c.currency });
@@ -1690,6 +1704,7 @@ export function createPmsApplication<Effect extends PmsEffect>(ports: {
                         const original = new Map(s.records.map(row => [row.id, JSON.stringify(row)]));
                         let outcome;
                         try {
+                            await hydrateReceiptAllocationCredits(tx,s);
                             outcome = executePms(s, "charge.reverse", { id: entry.id, reason: input.reason }, { userId: actor.userId, now, uuid: ports.uuid, independent: other => !samePerson(actor, other) });
                         }
                         catch (error) {
@@ -1876,6 +1891,7 @@ export function createPmsApplication<Effect extends PmsEffect>(ports: {
                         await tx.readPmsBookingPayments3({ reservationId: reservationId }))
                         throw ports.error(409, "PMS_BOOKING_REVISION_REQUIRED", "Review the booking change and its payment difference before confirming it");
                 }
+                await hydrateReceiptAllocationCredits(tx,s);
                 const outcome = op === "property.create"
                     ? {
                         id: s.property.id,
@@ -1971,7 +1987,7 @@ export function createPmsApplication<Effect extends PmsEffect>(ports: {
                     branchId: s.property.branchId,
                     departmentId: null,
                 });
-            },target);
+            },target,{ actor, operation: op, input: command.input, key });
         }
         catch (error) {
             if (error instanceof PmsError)
@@ -2044,6 +2060,7 @@ export function createPmsApplication<Effect extends PmsEffect>(ports: {
         const original = new Map(s.records.map((r) => [r.id, JSON.stringify(r)]));
         let outcome;
         try {
+            await hydrateReceiptAllocationCredits(tx,s);
             outcome = executePms(s, "charge.import_pos", {
                 guestAccountId: prepared.guestAccountId,
                 stayId: raw.stayId,
@@ -2087,6 +2104,7 @@ export function createPmsApplication<Effect extends PmsEffect>(ports: {
         const original = new Map(s.records.map((r) => [r.id, JSON.stringify(r)]));
         let outcome;
         try {
+            await hydrateReceiptAllocationCredits(tx,s);
             outcome = executePms(s, "charge.reverse", { id: entry.id, reason: input.reason }, {
                 userId: actor.userId, now: ports.clock.now(), uuid: ports.uuid,
                 independent: (other) => !samePerson(actor, other),
@@ -2252,5 +2270,5 @@ export function createPmsApplication<Effect extends PmsEffect>(ports: {
                 await capture(input.sourceType, input.sourceId, input.amountKind, row.data.total, row.data.date);
         }
     }
-    return { loadPms, pmsWorkspace, effects, pmsCommand, drainPms, pmsWork, applyPosRoomCharge, reversePosRoomCharge, persistPmsRecords, pmsPermissions };
+    return { hydrateReceiptAllocationCredits, loadPms, pmsWorkspace, effects, pmsCommand, drainPms, pmsWork, applyPosRoomCharge, reversePosRoomCharge, persistPmsRecords, pmsPermissions };
 }

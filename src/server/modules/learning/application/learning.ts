@@ -1,3 +1,4 @@
+import type {LearningPurchaseControls} from "../domain/purchase-controls";
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { hasPermission } from "@/lib/identity_access/permissions";
@@ -16,7 +17,7 @@ export interface LearningCommandPorts {
   replay(actor: WorkContext, key: string, operation: string, id: string, input: unknown): Promise<Record<string, unknown> | null>;
   commit(command: LearningCommand, mutation: LearningMutation): Promise<Record<string, unknown>>;
 }
-export type LearningWorkspace = { courses: LearningRow[]; assignments: LearningAssignment[]; people: LearningRow[]; canWrite: boolean; canReview: boolean; actorId: string };
+export type LearningWorkspace = { courses: LearningRow[]; assignments: LearningAssignment[]; people: LearningRow[]; canWrite: boolean; canReview: boolean; actorId: string; purchases?:LearningPurchaseControls };
 export function createLearningWorkspace(ports: { authorize: LearningCommandPorts["authorize"]; courses(actor: WorkContext): Promise<LearningRow[]>; assignments(actor: WorkContext, personal: boolean): Promise<LearningAssignment[]>; people(actor: WorkContext): Promise<LearningRow[]> }) {
   return async (actor: WorkContext, personal = false): Promise<LearningWorkspace> => {
     ports.authorize(actor);
@@ -66,11 +67,11 @@ export function createChangeLearningAssignment(ports: LearningCommandPorts & { a
     return ports.commit(command, await ports.prepare(command, input, facts));
   };
 }
-export function createLearningDetail(ports: { workspace(actor: WorkContext): Promise<LearningWorkspace>; error: LearningCommandPorts["error"]; history(id: string): Promise<LearningRow[]>; handoff(id: string): Promise<LearningRow | null>; certificate(id: string): Promise<LearningRow | null> }) {
+export function createLearningDetail(ports: { workspace(actor: WorkContext): Promise<LearningWorkspace>; error: LearningCommandPorts["error"]; history(id: string,includeResults?:boolean): Promise<LearningRow[]>; handoff(id: string): Promise<LearningRow | null>; certificate(id: string): Promise<LearningRow | null> }) {
   return async (actor: WorkContext, id: string) => {
     const data = await ports.workspace(actor), assignment = data.assignments.find(row => row.id === id);
     if (!assignment) throw ports.error({ status: 404, code: "LEARNING_ASSIGNMENT_NOT_FOUND", message: "Learning assignment not found." });
-    return { ...data, assignment, history: await ports.history(id), handoff: await ports.handoff(id), certificate: await ports.certificate(id) };
+    return { ...data, assignment, history: await ports.history(id,!data.purchases||data.purchases["learn.results"]?.history===true), handoff: !data.purchases||data.purchases["learn.certificates"]?.history===true?await ports.handoff(id):null, certificate: !data.purchases||data.purchases["learn.certificates"]?.history===true?await ports.certificate(id):null };
   };
 }
 export type LearningExecutiveEvidenceMetric = "learning-completions" | "overdue-required-learning";

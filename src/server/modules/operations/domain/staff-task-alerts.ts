@@ -3,6 +3,7 @@ export type StaffTaskAlertResult = {
     overdue: number;
 };
 export type TaskAlertRow = {
+    project_id?:string|null;
     id: string;
     company_id: string;
     title: string;

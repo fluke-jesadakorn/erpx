@@ -1,5 +1,6 @@
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "../../finance/public/hospitality-owner-projection-sources";
 import "server-only";
+import { pmsMetricHistoryAccess } from "./metric-purchases";
 import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
@@ -136,10 +137,11 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             id: string;
         } | null): Promise<{
             rows: HotelOccupancyEvidenceRow[];
-        }> { const rows = (await hotelOccupancyRows(db, actor, input.filters, input.metric, input.query, cursor ?? undefined, undefined, input.limit).all<HotelOccupancyEvidenceRow>()).results; return { rows }; }, async factsHotelNightRoomRevenue(propertyId: string, actor: WorkContext, businessDate: string): Promise<{
+        }> { if (!(await pmsMetricHistoryAccess(db, actor))[input.metric]) return { rows: [] }; const rows = (await hotelOccupancyRows(db, actor, input.filters, input.metric, input.query, cursor ?? undefined, undefined, input.limit).all<HotelOccupancyEvidenceRow>()).results; return { rows }; }, async factsHotelNightRoomRevenue(propertyId: string, actor: WorkContext, businessDate: string): Promise<{
             revenue_minor: string;
             invalid_revenue_count: string;
         } | null> {
+            if (!(await pmsMetricHistoryAccess(db, actor))["hotel-adr"]) return null;
             return db.prepare(`WITH RECURSIVE candidate_entries AS (
       SELECT e.id,e.property_id,e.data_json::jsonb->>'net' net_raw,
         e.data_json::jsonb->>'sourceKey' source_key,e.data_json::jsonb->>'originalId' original_id
@@ -170,7 +172,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             currency: string;
         }, metric: "hotel-occupancy" | "hotel-adr" | "hotel-revpar", recordId: string): Promise<{
             row: HotelOccupancyEvidenceRow | null;
-        }> { const row = await hotelOccupancyRows(db, actor, filters, metric, "", undefined, recordId, 1).first<HotelOccupancyEvidenceRow>(); return { row }; }, async factsSearchHotelGuestAccountBalanceEvidence(actor: WorkContext, input: {
+        }> { if (!(await pmsMetricHistoryAccess(db, actor))[metric]) return { row: null }; const row = await hotelOccupancyRows(db, actor, filters, metric, "", undefined, recordId, 1).first<HotelOccupancyEvidenceRow>(); return { row }; }, async factsSearchHotelGuestAccountBalanceEvidence(actor: WorkContext, input: {
             filters: {
                 from: string;
                 to: string;
@@ -185,13 +187,13 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             id: string;
         } | null): Promise<{
             rows: HotelGuestAccountBalanceEvidenceRow[];
-        }> { const rows = (await hotelGuestAccountBalanceRows(db, actor, input.filters, input.query, cursor ?? undefined, undefined, input.limit).all<HotelGuestAccountBalanceEvidenceRow>()).results; return { rows }; }, async factsReadHotelGuestAccountBalanceEvidence(actor: WorkContext, filters: {
+        }> { if (!(await pmsMetricHistoryAccess(db, actor))["hotel-guest-account-balance"]) return { rows: [] }; const rows = (await hotelGuestAccountBalanceRows(db, actor, input.filters, input.query, cursor ?? undefined, undefined, input.limit).all<HotelGuestAccountBalanceEvidenceRow>()).results; return { rows }; }, async factsReadHotelGuestAccountBalanceEvidence(actor: WorkContext, filters: {
             from: string;
             to: string;
             currency: string;
         }, recordId: string): Promise<{
             row: HotelGuestAccountBalanceEvidenceRow | null;
-        }> { const row = await hotelGuestAccountBalanceRows(db, actor, filters, "", undefined, recordId, 1).first<HotelGuestAccountBalanceEvidenceRow>(); return { row }; }, async factsSearchHotelNightAuditBlockerEvidence(actor: WorkContext, input: {
+        }> { if (!(await pmsMetricHistoryAccess(db, actor))["hotel-guest-account-balance"]) return { row: null }; const row = await hotelGuestAccountBalanceRows(db, actor, filters, "", undefined, recordId, 1).first<HotelGuestAccountBalanceEvidenceRow>(); return { row }; }, async factsSearchHotelNightAuditBlockerEvidence(actor: WorkContext, input: {
             filters: {
                 from: string;
                 to: string;
@@ -206,11 +208,11 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             id: string;
         } | null): Promise<{
             rows: HotelNightAuditBlockerEvidenceRow[];
-        }> { const rows = (await hotelNightAuditBlockerRows(db, actor, input.filters, input.query, cursor ?? undefined, undefined, input.limit).all<HotelNightAuditBlockerEvidenceRow>()).results; return { rows }; }, async factsReadHotelNightAuditBlockerEvidence(actor: WorkContext, filters: {
+        }> { if (!(await pmsMetricHistoryAccess(db, actor))["hotel-night-audit-blockers"]) return { rows: [] }; const rows = (await hotelNightAuditBlockerRows(db, actor, input.filters, input.query, cursor ?? undefined, undefined, input.limit).all<HotelNightAuditBlockerEvidenceRow>()).results; return { rows }; }, async factsReadHotelNightAuditBlockerEvidence(actor: WorkContext, filters: {
             from: string;
             to: string;
             currency: string;
         }, recordId: string): Promise<{
             row: HotelNightAuditBlockerEvidenceRow | null;
-        }> { const row = await hotelNightAuditBlockerRows(db, actor, filters, "", undefined, recordId, 1).first<HotelNightAuditBlockerEvidenceRow>(); return { row }; } };
+        }> { if (!(await pmsMetricHistoryAccess(db, actor))["hotel-night-audit-blockers"]) return { row: null }; const row = await hotelNightAuditBlockerRows(db, actor, filters, "", undefined, recordId, 1).first<HotelNightAuditBlockerEvidenceRow>(); return { row }; } };
 }

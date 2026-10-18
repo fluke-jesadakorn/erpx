@@ -5,18 +5,19 @@ import { Button } from "@/components/ui/foundation";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronRight, Plus, ShieldCheck } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { itemOnDate, type CalendarData, type CalendarItem } from "@/lib/work_projection/calendar";
 import { today } from "@/lib/work_projection/calendar-date";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { MonthGrid } from "@/components/work_projection/calendar/month-grid";
 import { MonthNavigation } from "@/components/work_projection/calendar/month-navigation";
-import type { leaveCalendarMonth, leaveSummary } from "@/server/modules/people_payroll/public/leave-self-service";
+import type { leaveCalendarMonth } from "@/server/modules/people_payroll/public/leave-self-service";
+import { leavePageRow, leavePageTeam, type LeavePageMonth, type LeavePageRow, type LeavePageSnapshot, type LeavePageSummary } from "@/lib/people_payroll/leave-page-snapshot";
 import styles from "@/components/people_payroll/leave/leave-self-service.module.css";
 
-type Summary = Awaited<ReturnType<typeof leaveSummary>>;
-type MonthData = Awaited<ReturnType<typeof leaveCalendarMonth>>;
-type LeaveRow = MonthData["requests"][number];
+type Summary = LeavePageSummary;
+type MonthData = LeavePageMonth;
+type LeaveRow = LeavePageRow;
 type ListFilter = "all" | "drafts" | "review" | "approved" | "closed";
 type RequestPage = { data: LeaveRow[]; hasMore: boolean; nextCursor: string | null };
 const filters: { id: ListFilter; label: string }[] = [
@@ -61,26 +62,29 @@ export function LeaveSelfService({
   initial,
   initialMonth,
   initialFilter,
+  snapshot,
 }: {
   base: string;
   initial: Summary;
   initialMonth: string;
   initialFilter: ListFilter;
+  snapshot?: LeavePageSnapshot;
 }) {
   const [month, setMonth] = useState(initialMonth);
   const [filter, setFilter] = useState(initialFilter);
-  const currentDate = today(initial.policy?.timezone ?? "Asia/Bangkok");
+  const currentDate = snapshot?.currentDate ?? today(initial.policy?.timezone ?? "Asia/Bangkok");
   const currentMonth = currentDate.slice(0, 7);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [calendar, setCalendar] = useState<MonthData | null>(null);
-  const [teamItems, setTeamItems] = useState<CalendarItem[]>([]);
-  const [calendarError, setCalendarError] = useState("");
-  const [teamError, setTeamError] = useState("");
-  const [calendarBusy, setCalendarBusy] = useState(true);
-  const [requests, setRequests] = useState<LeaveRow[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [listBusy, setListBusy] = useState(true);
-  const [listError, setListError] = useState("");
+  const matchingSnapshot = snapshot?.month === initialMonth && snapshot.filter === initialFilter ? snapshot : undefined;
+  const [calendar, setCalendar] = useState<MonthData | null>(matchingSnapshot?.calendar ?? null);
+  const [teamItems, setTeamItems] = useState<CalendarItem[]>(matchingSnapshot?.team ?? []);
+  const [calendarError, setCalendarError] = useState(matchingSnapshot?.calendarError ?? "");
+  const [teamError, setTeamError] = useState(matchingSnapshot?.teamError ?? "");
+  const [calendarBusy, setCalendarBusy] = useState(!matchingSnapshot);
+  const [requests, setRequests] = useState<LeaveRow[]>(matchingSnapshot?.requests ?? []);
+  const [nextCursor, setNextCursor] = useState<string | null>(matchingSnapshot?.nextCursor ?? null);
+  const [listBusy, setListBusy] = useState(!matchingSnapshot);
+  const [listError, setListError] = useState(matchingSnapshot?.listError ?? "");
   const [moreBusy, setMoreBusy] = useState(false);
   const [retryMonth, setRetryMonth] = useState(0);
   const [retryList, setRetryList] = useState(0);
@@ -88,6 +92,8 @@ export function LeaveSelfService({
   const filterRef = useRef(initialFilter);
   const monthSequence = useRef(0);
   const listSequence = useRef(0);
+  const seededMonth = useRef(!!matchingSnapshot);
+  const seededList = useRef(!!matchingSnapshot);
 
   const writeUrl = useCallback(
     (patch: { month?: string; filter?: ListFilter }, replace = false) => {
@@ -109,7 +115,8 @@ export function LeaveSelfService({
         const body = await response.json();
         if (!response.ok)
           throw new Error(body.error?.message ?? "Your leave calendar could not be loaded.");
-        return body.data as MonthData;
+        const data = body.data as Awaited<ReturnType<typeof leaveCalendarMonth>>;
+        return { month: data.month, requests: data.requests.map(leavePageRow), holidays: data.holidays };
       });
 
       const teamRequest = (async () => {
@@ -132,7 +139,7 @@ export function LeaveSelfService({
           if (!response.ok)
             throw new Error(body.error?.message ?? "Team availability could not be loaded.");
           const page = body.data as CalendarData;
-          accumulated.push(...page.items);
+          accumulated.push(...leavePageTeam(page.items));
           failedSource ||= page.sources.some(
             (source) => source.source === "leave" && source.status === "error",
           );
@@ -151,11 +158,7 @@ export function LeaveSelfService({
             : "Your leave calendar could not be loaded.",
         );
       if (teamResult.status === "fulfilled") {
-        setTeamItems(
-          teamResult.value.items.filter(
-            (item) => item.source === "leave" && item.status === "approved" && item.redacted,
-          ),
-        );
+        setTeamItems(teamResult.value.items);
         if (teamResult.value.failedSource)
           setTeamError(
             "Some approved team absences could not be loaded. Your requests and holidays are still available.",
@@ -201,12 +204,14 @@ export function LeaveSelfService({
   );
 
   useEffect(() => {
+    if (seededMonth.current) return;
     const timer = window.setTimeout(() => {
       void loadMonth(month);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [loadMonth, month, retryMonth]);
   useEffect(() => {
+    if (seededList.current) return;
     const timer = window.setTimeout(() => {
       void loadRequests(filter);
     }, 0);
@@ -225,6 +230,7 @@ export function LeaveSelfService({
         /^\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth) &&
         nextMonth !== monthRef.current
       ) {
+        seededMonth.current = false;
         monthRef.current = nextMonth;
         monthSequence.current += 1;
         setCalendarBusy(true);
@@ -235,6 +241,7 @@ export function LeaveSelfService({
         setMonth(nextMonth);
       }
       if (filters.some((item) => item.id === nextFilter) && nextFilter !== filterRef.current) {
+        seededList.current = false;
         filterRef.current = nextFilter!;
         listSequence.current += 1;
         setListBusy(true);
@@ -251,6 +258,7 @@ export function LeaveSelfService({
 
   function changeMonth(nextMonth: string) {
     if (nextMonth === monthRef.current) return;
+    seededMonth.current = false;
     monthRef.current = nextMonth;
     monthSequence.current += 1;
     setCalendarBusy(true);
@@ -264,6 +272,7 @@ export function LeaveSelfService({
   }
   function changeFilter(nextFilter: ListFilter) {
     if (nextFilter === filterRef.current) return;
+    seededList.current = false;
     filterRef.current = nextFilter;
     listSequence.current += 1;
     setListBusy(true);
@@ -302,9 +311,9 @@ export function LeaveSelfService({
           <h1>My leave</h1>
           <p>Plan time away, check your balance, and follow each request.</p>
         </div>
-        <Link data-slot="button" className={['ui-standard-control', ("button " + styles.requestAction)].filter(Boolean).join(' ')} href={base + "/leave/new"}>
+        {initial.purchase?.newWork!==false&&<Link data-slot="button" className={['ui-standard-control', ("button " + styles.requestAction)].filter(Boolean).join(' ')} href={base + "/leave/new"}>
           <Plus size={17} /> Request leave
-        </Link>
+        </Link>}
       </header>
 
       {initial.setupRequired && (
@@ -369,6 +378,7 @@ export function LeaveSelfService({
               variant="ghost"
               type="button"
               onClick={() => {
+                seededMonth.current = false;
                 setCalendarBusy(true);
                 setCalendarError("");
                 setTeamError("");
@@ -386,6 +396,7 @@ export function LeaveSelfService({
               variant="ghost"
               type="button"
               onClick={() => {
+                seededMonth.current = false;
                 setCalendarBusy(true);
                 setTeamError("");
                 setRetryMonth((value) => value + 1);
@@ -478,7 +489,7 @@ export function LeaveSelfService({
                   })}
                 </h3>
               </div>
-              {selectedIsEmpty && (
+              {selectedIsEmpty && initial.purchase?.newWork!==false && (
                 <Link
                   className={styles.dayRequestLink}
                   href={base + "/leave/new?date=" + selectedDate}
@@ -543,7 +554,7 @@ export function LeaveSelfService({
                 ))}
               </div>
             )}
-            {selectedIsEmpty && (
+            {selectedIsEmpty && initial.purchase?.newWork!==false && (
               <p className={styles.quietEmpty}>No requests or assigned holidays on this day.</p>
             )}
           </section>
@@ -577,6 +588,7 @@ export function LeaveSelfService({
               variant="ghost"
               type="button"
               onClick={() => {
+                seededList.current = false;
                 setListBusy(true);
                 setListError("");
                 setRetryList((value) => value + 1);
@@ -646,7 +658,7 @@ export function LeaveSelfService({
                   ? "Your saved drafts and submitted requests will appear here."
                   : "Try another filter to see more of your leave history."}
               </span>
-              {filter === "all" && <Link href={base + "/leave/new"}>Create a request</Link>}
+              {filter === "all" && initial.purchase?.newWork!==false && <Link href={base + "/leave/new"}>Create a request</Link>}
             </div>
           )
         )}

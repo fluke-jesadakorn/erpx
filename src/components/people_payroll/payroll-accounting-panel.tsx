@@ -1,15 +1,21 @@
 "use client";
+import {PayrollCommandRecovery} from "./payroll-command-recovery";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 
 import { RecordLink as Link } from "@/components/records/record-link";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { payrollErrorMessage, type PayrollApiError } from "@/lib/people_payroll/payroll-errors";
-import { Card, FormLayout } from "@/components/ui/foundation";
+import { Card } from "@/components/ui/foundation";
+import {usePayrollCommand} from "./use-payroll-command";
+import {PayrollForm} from "./payroll-draft-boundary";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
+import {capturePayrollForm, payrollFormUnchanged} from "@/lib/people_payroll/payroll-command-fetch";
+import type {WorkCommandCompletion} from "@/lib/work_projection/work-fetch";
 type Row = Record<string, unknown>;
 type Options = {
   charts: Row[];
@@ -73,7 +79,7 @@ export function PayrollAccountingPanel({
   options: Options | null;
   userId: string;
 }) {
-  const router = useRouter();
+  const {send, busy: commandBusy, error: commandError, setError: clearCommandError, notice, canSettle, recovery} = usePayrollCommand(base, `run:${run.id}:accounting`, JSON.stringify([run, options]));
   const approvedMapping = options?.mappings?.find(
     (mapping) =>
       String(mapping.pay_group_id) === String(run.pay_group_id) &&
@@ -86,14 +92,17 @@ export function PayrollAccountingPanel({
   const [preview, setPreview] = useState<{
     value: Preview;
     payload: Payload;
+    completion?: WorkCommandCompletion;
   } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [previewBusy, setBusy] = useState(false);
+  const busy = previewBusy || commandBusy;
+  const previewReads = useRef(0);
+  const [formRevision, setFormRevision] = useState(0);
   const [error, setError] = useState("");
-  const key = useRef<string | null>(null);
   if (!options)
     return (
       <Card as="section" appearance="standard" className="ui-panel">
-        <h2>{"Accounting preview"}</h2>
+        <h2>{"Accounting preview"}</h2><PayrollCommandRecovery {...recovery} appearance="standard"/>
         <InlineNotice tone="info" role="status">{"An active chart and open period are required."}</InlineNotice>
       </Card>
     );
@@ -120,6 +129,9 @@ export function PayrollAccountingPanel({
     return result;
   }
   async function showPreview(input: Payload) {
+    if (!canSettle) return;
+    const read = ++previewReads.current, completion = capturePayrollForm();
+    clearCommandError("");
     setBusy(true);
     setError("");
     setPreview(null);
@@ -130,7 +142,7 @@ export function PayrollAccountingPanel({
           method: "POST",
           headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
           body: JSON.stringify(input),
-        },
+        }, completion, "caller",
       );
       const body = (await response.json()) as {
         data?: Preview;
@@ -143,7 +155,8 @@ export function PayrollAccountingPanel({
           code: "PAYROLL_TOTALS_INVALID",
           message: "Journal debits and credits do not balance.",
         };
-      setPreview({ value: body.data, payload: input });
+      if (read !== previewReads.current || !payrollFormUnchanged(completion)) return;
+      setPreview({ value: body.data, payload: input, completion });
     } catch (cause) {
       setError(payrollErrorMessage(cause, "Accounting preview is unavailable."));
     } finally {
@@ -151,30 +164,7 @@ export function PayrollAccountingPanel({
     }
   }
   async function post() {
-    if (!preview) return;
-    setBusy(true);
-    setError("");
-    key.current ??= crypto.randomUUID();
-    try {
-      const response = await workFetch(
-        `/api/v1${base}/people/payroll/runs/${String(run.id)}/post`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": key.current },
-          body: JSON.stringify(preview.payload),
-        },
-      );
-      const body = (await response.json()) as {
-        error?: PayrollApiError;
-      };
-      if (!response.ok) throw body.error ?? { message: "Could not post payroll." };
-      key.current = null;
-      router.refresh();
-    } catch (cause) {
-      setError(payrollErrorMessage(cause, "Could not post payroll."));
-    } finally {
-      setBusy(false);
-    }
+    if (preview) await send(`payroll/runs/${String(run.id)}/post`, preview.payload, false, preview.completion);
   }
   return (
     <Card as="section" appearance="standard" className="ui-panel" aria-labelledby="payroll-accounting-heading">
@@ -198,7 +188,7 @@ export function PayrollAccountingPanel({
           <Button appearance="standard"
             type="submit"
             variant="primary"
-            disabled={busy}
+            disabled={busy || !canSettle}
             onClick={() =>
               void showPreview({
                 expectedVersion: Number(run.version),
@@ -211,6 +201,7 @@ export function PayrollAccountingPanel({
           <Button appearance="standard"
             variant="secondary"
             type="button"
+            disabled={!canSettle}
             onClick={() => {
               setManual(!manual);
               setPreview(null);
@@ -226,11 +217,11 @@ export function PayrollAccountingPanel({
           }
         </p>
       )}
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {(!approvedMapping || manual) && (
-        <FormLayout
+      <PayrollCommandRecovery {...recovery} appearance="standard"/>{(error || commandError) && <InlineNotice tone="danger" role="alert">{error || commandError}</InlineNotice>}{notice && <p role="status">{notice}</p>}
+      {canSettle && (!approvedMapping || manual) && (
+        <FormDisclosure appearance="standard" drawerTitle="Map this payroll journal" onDiscard={() => {setFormRevision(value => value + 1); setChartId(String(approvedMapping?.chart_id ?? options.charts[0]?.id ?? "")); setPreview(null); previewReads.current++;}}><summary>Map payroll journal</summary><PayrollForm key={formRevision}
           className="ui-form-grid"
-          onChange={() => setPreview(null)}
+          onChange={() => {previewReads.current++; setPreview(null);}}
           onSubmit={(event) => {
             event.preventDefault();
             void showPreview(payload(event.currentTarget));
@@ -291,9 +282,9 @@ export function PayrollAccountingPanel({
           >
             {"Preview journal"}
           </Button>
-        </FormLayout>
+        </PayrollForm></FormDisclosure>
       )}
-      {preview && (
+      {canSettle && preview && (
         <div className="stacked-list" aria-live="polite">
           <h3>{"Journal lines"}</h3>
           <TableFrame appearance="standard" label="Records" className="business-table-wrap">
@@ -340,8 +331,9 @@ export function PayrollAccountingPanel({
           </Button>
         </div>
       )}
+      {!canSettle && <p role="status">Payroll posting is available for retained history.</p>}
       <p className="muted">
-        {"Review posted evidence in"} <Link href={`${base}/finance`}>Finance</Link>
+        {"Review posted evidence in"} <Link href={canonicalUiHref(`${base}/finance`)}>Finance</Link>
       </p>
     </Card>
   );
@@ -357,7 +349,7 @@ export function PayrollAccountMappingSettings({
   options: Options;
   userId: string;
 }) {
-  const router = useRouter();
+  const {send, busy, error, notice, canPrepare, canSettle, recovery} = usePayrollCommand(base, "account-mappings", JSON.stringify([groups, options]));
   const [groupId, setGroupId] = useState(String(groups[0]?.id ?? ""));
   const [chartId, setChartId] = useState(
     String(
@@ -367,12 +359,6 @@ export function PayrollAccountMappingSettings({
         "",
     ),
   );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const attempt = useRef<{
-    body: string;
-    key: string;
-  } | null>(null);
   const accounts = options.accounts.filter(
     (account) =>
       String(account.chart_id) === chartId &&
@@ -382,37 +368,13 @@ export function PayrollAccountMappingSettings({
   const groupMappings = (options.mappings ?? []).filter(
     (mapping) => String(mapping.pay_group_id) === groupId,
   );
-  async function send(path: string, input: unknown) {
-    const body = JSON.stringify(input);
-    if (attempt.current?.body !== path + body)
-      attempt.current = { body: path + body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/people/${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-        body,
-      });
-      const result = (await response.json()) as {
-        error?: PayrollApiError;
-      };
-      if (!response.ok) throw result.error ?? { message: "Could not save mapping." };
-      attempt.current = null;
-      router.refresh();
-    } catch (cause) {
-      setError(payrollErrorMessage(cause, "Could not save mapping."));
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <Card as="section" appearance="standard" className="ui-panel" aria-labelledby="payroll-mapping-heading">
       <h2 id="payroll-mapping-heading">{"Payroll account mapping"}</h2>
       <p className="muted">
         {"One Finance user drafts the mapping; another approves before recurring use."}
       </p>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <PayrollCommandRecovery {...recovery} appearance="standard"/>{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{notice && <p role="status">{notice}</p>}
       <Field appearance="standard">
         {"Pay group"}
         <Select appearance="standard"
@@ -451,7 +413,7 @@ export function PayrollAccountMappingSettings({
               )}
             </span>
           </div>
-          {mapping.status === "draft" && mapping.created_by !== userId && (
+          {canSettle && mapping.status === "draft" && mapping.created_by !== userId && (
             <Button appearance="standard"
               type="submit"
               variant="primary"
@@ -467,8 +429,8 @@ export function PayrollAccountMappingSettings({
           )}
         </div>
       ))}
-      {groupId && (
-        <FormLayout
+      {canPrepare && groupId && (
+        <PayrollForm
           className="ui-form-grid"
           onSubmit={(event) => {
             event.preventDefault();
@@ -520,7 +482,7 @@ export function PayrollAccountMappingSettings({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !options.charts.length}>
             {"Save mapping draft"}
           </Button>
-        </FormLayout>
+        </PayrollForm>
       )}
     </Card>
   );

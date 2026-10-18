@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
 import { Dialog } from "@/components/ui/dialog";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { registerUnsavedWork } from "@/lib/work_projection/context-switch";
 import { Button } from "@/components/ui/foundation";
 import styles from "@/components/sales/customers/hub.module.css";
@@ -25,7 +25,11 @@ export function HubForm({ title, label, children, initialOpen = false, primary =
   useEffect(() => {
     latestUrl.current = window.location.href;
     latestHistoryState.current = window.history.state;
-    const saved = () => { setDirty(false); setOpen(false); setGeneration(value => value + 1); };
+    const saved = (event: Event) => {
+      const detail = (event as CustomEvent<{form?: HTMLFormElement; formEditVersion?: string | null}>).detail;
+      if (detail?.form && (!body.current?.contains(detail.form) || detail.formEditVersion !== detail.form.getAttribute("data-erpx-edit-version"))) return;
+      setDirty(false); setOpen(false); setGeneration(value => value + 1);
+    };
     const unload = (event: BeforeUnloadEvent) => { if (open && dirty) { event.preventDefault(); event.returnValue = ""; } };
     const back = (event: PopStateEvent) => {
       if (open && dirty && window.location.href !== latestUrl.current) {

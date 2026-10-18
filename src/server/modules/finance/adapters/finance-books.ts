@@ -1,3 +1,4 @@
+import { withFinancePurchasedRead, withFinancePurchasedCommand, withFinanceConfigurationCommand } from "./purchase-boundary";
 import {financeCommandReceipts} from "../../workflow/public/finance-command-receipts";
 import { financeTransaction } from "@/server/modules/finance/public/finance-transactions";
 import type { z } from "zod";
@@ -173,7 +174,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,rule,now,rows,
       },
       steps,
     );}}}
-function nativeBooks(provided?:SqlDatabase){let write:SqlDatabase;return createFinanceBooks({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write},now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,commandReplay:<Result>(actor:WorkContext,key:string,op:string,input:unknown)=>commandReplay<Result>(write,actor,key,op,input),moneyScale:(companyId,currency)=>requireFinanceMoneyScale(write,companyId,currency),opening:(companyId,chartId,date)=>opening(write,companyId,chartId,date),reviewTransaction:async(actor,run)=>{if(!isTransactionalSqlDatabase(write))throw new ApiError(503,'TRANSACTION_REQUIRED','Book approval requires PostgreSQL transactions.');return financeTransaction(write,db=>run(nativeBookReview(db)))},workspace:async(actor)=>{  const [definitions, values, rules, mappings, charts, accounts, periods] =
+function nativeBooks(provided?:SqlDatabase){let write:SqlDatabase;return createFinanceBooks({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write},now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,commandReplay:<Result>(actor:WorkContext,key:string,op:string,input:unknown)=>commandReplay<Result>(write,actor,key,op,input),moneyScale:(companyId,currency)=>requireFinanceMoneyScale(write,companyId,currency),opening:(companyId,chartId,date)=>opening(write,companyId,chartId,date),reviewTransaction:async(actor,run)=>{if(provided)return run(nativeBookReview(provided));if(!isTransactionalSqlDatabase(write))throw new ApiError(503,'TRANSACTION_REQUIRED','Book approval requires PostgreSQL transactions.');return financeTransaction(write,db=>run(nativeBookReview(db)))},workspace:async(actor)=>{  const [definitions, values, rules, mappings, charts, accounts, periods] =
     await Promise.all([
       write
         .prepare(
@@ -349,8 +350,8 @@ prepareCommit:async(facts)=>{const {actor,input,key,op,id,now,openingHash,rows}=
       ),
     ],
   );}})}
-export const financeBookWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>nativeBooks(provided).financeBookWorkspace(actor);
-export const createFinanceDimension=(actor:WorkContext,input:z.infer<typeof dimensionSchema>,key:string)=>nativeBooks().createFinanceDimension(actor,input,key);
-export const prepareBookRule=(actor:WorkContext,input:z.infer<typeof bookRuleSchema>,key:string)=>nativeBooks().prepareBookRule(actor,input,key);
-export const decideBookRule=(actor:WorkContext,id:string,input:z.infer<typeof financeReviewSchema>,action:'approve'|'reject',key:string)=>nativeBooks().decideBookRule(actor,id,input,action,key);
-export const financeBookRecord=(actor:WorkContext,id:string,provided?:SqlDatabase)=>nativeBooks(provided).financeBookRecord(actor,id);
+export const financeBookWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>provided?nativeBooks(provided).financeBookWorkspace(actor):withFinancePurchasedRead(actor,db=>nativeBooks(db).financeBookWorkspace(actor));
+export const createFinanceDimension=(actor:WorkContext,input:z.infer<typeof dimensionSchema>,key:string)=>withFinanceConfigurationCommand(actor,{key,operation:"finance.dimension.create",purpose:"new-work"},tx=>nativeBooks(tx).createFinanceDimension(actor,input,key));
+export const prepareBookRule=(actor:WorkContext,input:z.infer<typeof bookRuleSchema>,key:string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.book.prepare",purpose:"new-work"},tx=>nativeBooks(tx).prepareBookRule(actor,input,key));
+export const decideBookRule=(actor:WorkContext,id:string,input:z.infer<typeof financeReviewSchema>,action:'approve'|'reject',key:string)=>withFinancePurchasedCommand(actor,{key,operation:`finance.book.${action}`,purpose:"settle-existing"},tx=>nativeBooks(tx).decideBookRule(actor,id,input,action,key));
+export const financeBookRecord=(actor:WorkContext,id:string,provided?:SqlDatabase)=>provided?nativeBooks(provided).financeBookRecord(actor,id):withFinancePurchasedRead(actor,db=>nativeBooks(db).financeBookRecord(actor,id));

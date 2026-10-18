@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
@@ -8,9 +9,14 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
 import { RecordLink as Link } from "@/components/records/record-link";
 import styles from "@/components/procurement/supplier-batch.module.css";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import { useState } from "react";
+import {useRouter} from "@/lib/shared/destination-router";
+import {captureWorkCommandContext} from "@/lib/work_projection/command-context";
+import {useFinanceActionAllowed} from "@/components/finance/purchase-context";
+import {useSupplierBatchCommand} from "./use-supplier-batch-command";
+import {type SupplierBatchReceipt,type SupplierBatchOwner} from "@/lib/procurement/supplier-batch-owner-command";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
+import {FeatureWidget} from "@/components/shared/features/feature-widget";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { supplierBatchWorkspace } from "@/server/modules/procurement/public/supplier-payments";
 import {
@@ -19,66 +25,36 @@ import {
 } from "@/components/files/attachment-panel";
 import { Card, FormLayout, FormGrid } from "@/components/ui/foundation";
 type Workspace = Awaited<ReturnType<typeof supplierBatchWorkspace>>;
-export function SupplierBatchConsole({ base, data }: { base: string; data: Workspace }) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [selected, setSelected] = useState<string[]>([]),
-    [query, setQuery] = useState(""),
-    [exported, setExported] = useState<{ content: string; sha256: string } | null>(null),
-    [proofs, setProofs] = useState<Record<string, AttachmentPanelChange>>({}),
-    retry = useRef<{ fingerprint: string; key: string } | null>(null);
-  const b = data.batch,
-    canPay = !!b && data.canPay && data.userId !== b.created_by && data.userId !== b.approved_by;
-  async function send(path: string, input: unknown) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const fingerprint = JSON.stringify({ path, input });
-    if (retry.current?.fingerprint !== fingerprint)
-      retry.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/finance/${path}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": retry.current.key },
-          body: JSON.stringify(input),
-        }),
-        result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) retry.current = null;
-        throw new Error(result.error?.message ?? "Command failed.");
-      }
-      retry.current = null;
-      if (result.data.content) setExported(result.data);
-      if (!b) router.push(`${base}/finance/supplier-batches/${result.data.id}`);
-      else router.refresh();
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Response lost. Retry the same action to recover its result.",
-      );
-    } finally {
-      setBusy(false);
-    }
+export function SupplierBatchConsole({base,data:currentData,owner,invoiceId,onLockChange,onCloseRetained}:{base:string;data:Workspace|null;owner?:SupplierBatchOwner;invoiceId?:string;onLockChange?:(locked:boolean)=>void;onCloseRetained?:()=>void}){
+  const bankingSettle=useFinanceActionAllowed("settle-existing","finance.banking"),bankingHistory=useFinanceActionAllowed("history","finance.banking"),canSettle=bankingSettle||currentData?.sourcePurchase?.settleExisting===true,canHistory=bankingHistory||currentData?.sourcePurchase?.history===true;
+  const [draftForms]=useState(()=>{const rows=new Set<WeakRef<HTMLFormElement>>();let revision=0;return{edited(){revision++;},revision(){return revision;},connected(){return [...rows].flatMap(row=>{const form=row.deref();return form?.isConnected?[form]:[];});},remember(form:HTMLFormElement){if(![...rows].some(row=>row.deref()===form))rows.add(new WeakRef(form));},forget(form:HTMLFormElement|undefined){for(const row of rows)if(row.deref()===form)rows.delete(row);},discard(){for(const row of rows){const form=row.deref();if(form?.isConnected){form.reset();}}rows.clear();}};});
+  const {send:run,retry,retryAttempt,uncertain,retainedElsewhere,busy,error,notice,setError,draftScope,recoverExport,captureCurrent,discardAndRefresh}=useSupplierBatchCommand({base,owner,data:currentData,invoiceId,canSettle,canHistory,draft:()=>({revision:draftForms.revision(),forms:draftForms.connected()})},onLockChange);
+  const ownerKey=JSON.stringify([base,owner??null,invoiceId??null]);
+  const [retained,setRetained]=useState<{owner:string;data:Workspace}|null>(null),[generation,setGeneration]=useState(0);
+  const view=retained?.owner===ownerKey?retained.data:currentData;
+  const [selected,setSelected]=useState<string[]>(invoiceId&&currentData?.invoices.some(row=>row.id===invoiceId)?[invoiceId]:[]),[query,setQuery]=useState(''),[exportRecord,setExportRecord]=useState<{owner:string;batchId:string;content:string;sha256:string;assertCurrent:()=>void}|null>(null),[proofs,setProofs]=useState<Record<string,AttachmentPanelChange>>({}),[created,setCreated]=useState<{owner:string;id:string}|null>(null);
+  if(!view)return retainedElsewhere?<InlineNotice role="status">An original supplier request is retained for its original Company and role. Return there to recover it.</InlineNotice>:null;
+  const data=view,b=data.batch,createdBatch=created?.owner===ownerKey?created.id:null,canPay=!!b&&data.canPay&&data.userId!==b.created_by&&data.userId!==b.approved_by;
+  const exportAllowed=()=>{if(!exportRecord||exportRecord.owner!==ownerKey||!canHistory||!currentData?.canPay||currentData.userId===currentData.batch?.created_by||currentData.userId===currentData.batch?.approved_by||currentData.batch?.id!==exportRecord.batchId)return false;try{exportRecord.assertCurrent();return true;}catch{return false;}};
+  const exported=exportAllowed()?exportRecord:null;
+  function remember(form?:HTMLFormElement){if(form)draftForms.remember(form);if(!retained&&!retainedElsewhere)setRetained({owner:ownerKey,data});}
+  function discardDraft(){if(busy||retryAttempt||retainedElsewhere)return;discardAndRefresh(()=>{draftForms.discard();setRetained(null);setGeneration(value=>value+1);setSelected([]);setProofs({});setError('');});}
+  function saved(result:SupplierBatchReceipt,unchanged:boolean){
+    if(typeof result.content==='string'&&typeof result.sha256==='string'&&b)setExportRecord({owner:ownerKey,batchId:String(b.id),content:result.content,sha256:result.sha256,assertCurrent:captureCurrent()});
+    if(!b)setCreated({owner:ownerKey,id:result.id});
+    if(unchanged){setRetained(null);setSelected([]);setProofs({});}
   }
-  async function recover() {
-    if (!b) return;
-    try {
-      const response = await workFetch(`/api/v1${base}/finance/supplier-batches/${b.id}/export`),
-        result = await response.json();
-      if (!response.ok) throw new Error(result.error?.message ?? "Export unavailable.");
-      setExported(result.data);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Export unavailable.");
-    }
-  }
+  async function send(path:string,input:unknown,form?:HTMLFormElement){if(busy||createdBatch&&!b)return;remember(form);const original=form?new WeakRef(form):undefined;await run(path,input,form,(result,unchanged)=>{if(unchanged){draftForms.forget(original?.deref());}saved(result,unchanged);});}
+  function proofChanged(id:string,change:AttachmentPanelChange){if(JSON.stringify(proofs[id])===JSON.stringify(change))return;const previous=proofs[id];setProofs(current=>({...current,[id]:change}));if(change.setId||previous?.setId){remember();draftForms.edited();}}
+  async function recover(){if(!b)return;await recoverExport(value=>setExportRecord({owner:ownerKey,batchId:String(b.id),...value,assertCurrent:captureCurrent()}));}
+  const recovery=retryAttempt?<><InlineNotice role="status">The original action and key are retained. Retry never submits newer fields. Current native Treasury, evidence and source rules still apply.</InlineNotice><Button appearance="standard" type="button" disabled={busy} onClick={()=>void retry()}>Retry submitted payment action</Button></>:null;
   return (
-    <div className={b ? `content-stack ${styles.console}` : styles.console}>
+    <div key={ownerKey+':'+generation} className={b ? `content-stack ${styles.console}` : styles.console} data-supplier-owner-pending={uncertain?'true':undefined} onInputCapture={event=>{const form=event.target instanceof Element?event.target.closest<HTMLFormElement>('form[data-finance-draft]'):null;if(form){remember(form);draftForms.edited();}}} onChangeCapture={event=>{const form=event.target instanceof Element?event.target.closest<HTMLFormElement>('form[data-finance-draft]'):null;if(form){remember(form);draftForms.edited();}}}>
+      {createdBatch&&!b&&<p>Saved batch: <Link href={canonicalUiHref(`${base}/finance/supplier-batches/${createdBatch}`)}>Open the retained batch</Link>. Newer form edits remain here. Review that saved batch before preparing another instruction.</p>}
       {b && (
         <>
           <FinanceLegacyHeading>
-            <Link href={`${base}/finance/supplier-batches`}>← Supplier payment batches</Link>
+            {!data.sourcePurchase&&<Link href={canonicalUiHref(`${base}/finance/supplier-batches`)}>← Supplier payment batches</Link>}
             <h1>Supplier payment batch</h1>
           </FinanceLegacyHeading>
           <Card as="section" appearance="standard" className="ui-panel">
@@ -93,19 +69,23 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
           </Card>
         </>
       )}
+      {notice&&<InlineNotice tone="info" role="status">{notice}</InlineNotice>}
+      {recovery}{retainedElsewhere&&<InlineNotice role="status">An original request belongs to the previous Company or work role. Return there before another supplier action.</InlineNotice>}
+      {!onCloseRetained&&retained&&retained.owner===ownerKey&&!retryAttempt&&!retainedElsewhere&&<Button appearance="standard" type="button" variant="secondary" disabled={busy} onClick={()=>{if(window.confirm('Discard the unsubmitted supplier fields and review the current source?'))discardDraft();}}>Discard draft and review current source</Button>}
+      {onCloseRetained&&<Button appearance="standard" type="button" variant="secondary" disabled={busy} onClick={onCloseRetained}>Close and retain draft</Button>}
       {error && (
         <InlineNotice tone="danger" role="alert" className="error">
           {error}
         </InlineNotice>
       )}
-      {!b && data.canCreate && (
+      {!b && data.canCreate && (canSettle||!!createdBatch||!!retryAttempt) && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Prepare supplier instructions</h2>
           <p>
             Select up to 50 posted invoices in one currency and chart. Review bank details before
             approval. Available balances exclude other pending instructions.
           </p>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(event) => {
               event.preventDefault();
@@ -122,7 +102,7 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
                     beneficiaryName: form.get(`name-${i.id}`),
                     beneficiaryAccount: form.get(`account-${i.id}`),
                   })),
-              });
+              },event.currentTarget);
             }}
           >
             <Field appearance="standard">
@@ -225,20 +205,20 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
             <Button appearance="standard"
               clientManaged type="submit"
               variant="primary"
-              disabled={busy || !selected.length || selected.length > 50}
+              disabled={!canSettle || busy || !!createdBatch || !selected.length || selected.length > 50}
             >
               Reserve selected amounts
             </Button>
           </FormLayout>
         </Card>
       )}
-      {b &&
+      {b && (canSettle||busy||!!retryAttempt) &&
         ["draft", "approved"].includes(String(b.status)) &&
         ((b.status === "draft" && data.canApprove && b.created_by !== data.userId) ||
           (data.canCreate && (b.created_by === data.userId || data.canApprove))) && (
           <Card as="section" appearance="standard" className="ui-panel">
             <h2>Review the batch</h2>
-            <FormLayout
+            <FormDisclosure appearance="standard" error={error} drawerTitle="Review supplier batch" retainFormContents={!!retained||uncertain} dismissDisabled={busy} discardLabel={uncertain?"Close and retain request":undefined} ><summary>Review decision and evidence</summary>{recovery}<FormLayout data-finance-draft={draftScope}
               className="ui-form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -246,7 +226,7 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
                 void send(`supplier-batches/${b.id}/${form.get("decision")}`, {
                   expectedVersion: Number(b.version),
                   reason: form.get("reason"),
-                });
+                },event.currentTarget);
               }}
             >
               <Field appearance="standard">
@@ -264,17 +244,17 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
                 Review evidence or cancellation reason
                 <TextArea appearance="standard" name="reason" minLength={3} maxLength={1000} required />
               </Field>
-              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={!canSettle || busy}>
                 Record decision
               </Button>
-            </FormLayout>
+            </FormLayout></FormDisclosure>
           </Card>
         )}
-      {b && b.status === "approved" && canPay && (
+      {b && b.status === "approved" && canPay && canSettle && (
         <Button appearance="standard"
           type="submit"
           variant="primary"
-          disabled={busy}
+          disabled={!canSettle || busy}
           onClick={() =>
             void send(`supplier-batches/${b.id}/export`, { expectedVersion: Number(b.version) })
           }
@@ -287,7 +267,7 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
           <p>
             Export SHA-256 <code>{String(b.export_hash)}</code>
           </p>
-          {canPay && (
+          {canPay && canHistory && (
             <Button appearance="standard" type="submit" variant="secondary" onClick={() => void recover()}>
               Retrieve original export
             </Button>
@@ -303,7 +283,7 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
           <UiActionAnchor appearance="standard"
             variant="secondary"
             download="supplier-instructions.csv"
-            href={`data:text/csv;charset=utf-8,${encodeURIComponent(exported.content)}`}
+            onClick={event=>{if(!exportAllowed()){event.preventDefault();setError("Review the current independent Treasury source and retrieve the original export again.");}}} href={`data:text/csv;charset=utf-8,${encodeURIComponent(exported.content)}`}
           >
             Download CSV
           </UiActionAnchor>
@@ -316,7 +296,7 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
         data.items.map((i) => (
           <Card as="section" appearance="standard" className="ui-panel" key={String(i.id)}>
             <h2>
-              <Link href={`${base}/finance/invoices/${i.invoice_id}`}>
+              <Link href={canonicalUiHref(`${base}/finance/invoices/${i.invoice_id}`)}>
                 {String(i.invoice_number)}
               </Link>{" "}
               · {String(i.currency)} {minorToDecimal(Number(i.amount_minor))}
@@ -328,17 +308,18 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
             {i.status === "failed" && (
               <p>
                 Review the source invoice balance and{" "}
-                <Link href={`${base}/finance/supplier-batches`}>prepare a new instruction</Link> if
+                <Link href={canonicalUiHref(`${base}/finance/invoices/${i.invoice_id}`)}>prepare a new instruction from its source invoice</Link> if
                 it is still unpaid.
               </p>
             )}
             {i.evidence && <p>Evidence: {String(i.evidence)}</p>}
             {i.bank_reference && <p>Bank reference: {String(i.bank_reference)}</p>}
             {i.payment_id && (
-              <Link href={`${base}/finance/payments/${i.payment_id}`}>Payment and allocation</Link>
+              <Link href={canonicalUiHref(`${base}/finance/payments/${i.payment_id}`)}>Payment and allocation</Link>
             )}
-            {["exported", "unknown"].includes(String(i.status)) && canPay && (
-              <FormLayout
+            {["exported", "unknown"].includes(String(i.status)) && canPay && (canSettle||busy||!!retryAttempt) && (
+              <FormDisclosure appearance="standard" error={error} dismissDisabled={busy} retainFormContents={!!retained||uncertain} discardLabel={uncertain?"Close and retain request":undefined}  drawerTitle="Confirm supplier bank debit"><summary>Review bank debit and proof</summary>{recovery}
+              <FormLayout data-finance-draft={draftScope}
                 className="ui-form-grid"
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -355,7 +336,7 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
                     evidence: form.get("evidence"),
                     attachmentSetIds:
                       proof?.setId && proof.readyCount > 0 && proof.bindable ? [proof.setId] : [],
-                  });
+                  },event.currentTarget);
                 }}
               >
                 <Field appearance="standard">
@@ -406,18 +387,16 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
                   title="Supplier payment proof"
                   description="Attach the bank confirmation for this exact supplier instruction."
                   visibility="Visible only to authorized Company Finance and Treasury reviewers."
-                  onChange={(change) =>
-                    setProofs((current) => ({ ...current, [String(i.id)]: change }))
-                  }
+                  onChange={change=>proofChanged(String(i.id),change)}
                 />
-                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={!canSettle || busy}>
                   Confirm bank debit and settle invoice
                 </Button>
-              </FormLayout>
+              </FormLayout></FormDisclosure>
             )}
             {["exported", "unknown"].includes(String(i.status)) &&
-              (canPay || (data.canApprove && data.userId !== b.exported_by)) && (
-                <FormLayout
+              (canSettle||busy||!!retryAttempt) && (canPay || (data.canApprove && data.userId !== b.exported_by)) && (
+                <FormDisclosure appearance="standard" error={error} drawerTitle="Review supplier bank exception" retainFormContents={!!retained||uncertain} dismissDisabled={busy} discardLabel={uncertain?"Close and retain request":undefined} ><summary>Record bank exception</summary>{recovery}<FormLayout data-finance-draft={draftScope}
                   className="ui-form-grid"
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -426,13 +405,13 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
                       expectedVersion: Number(i.version),
                       outcome: form.get("outcome"),
                       evidence: form.get("evidence"),
-                    });
+                    },event.currentTarget);
                   }}
                 >
                   <Field appearance="standard">
                     Bank exception
                     <Select appearance="standard" name="outcome">
-                      {canPay && (
+                      {canPay && canHistory && (
                         <option value="unknown">Result uncertain — retain reservation</option>
                       )}
                       {data.canApprove && data.userId !== b.exported_by && (
@@ -446,13 +425,22 @@ export function SupplierBatchConsole({ base, data }: { base: string; data: Works
                     Evidence
                     <TextArea appearance="standard" name="evidence" required minLength={3} maxLength={1000} />
                   </Field>
-                  <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
+                  <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={!canSettle || busy}>
                     Record bank exception
                   </Button>
-                </FormLayout>
+                </FormLayout></FormDisclosure>
               )}
           </Card>
         ))}
     </div>
   );
+}
+
+/** The list and explicit new view share the same typed owner editor. Explicit
+ * discard remounts only this local draft; it never cancels a saved batch. */
+export function SupplierBatchPreparation({base,data,owner,invoiceId,feature}:{base:string;data:Workspace|null;owner?:SupplierBatchOwner;invoiceId?:string;feature?:{id:string;title:string}}){
+ const router=useRouter(),[revision,setRevision]=useState(0),[locked,setLocked]=useState(false),[open,setOpen]=useState(false),[visited,setVisited]=useState(false);
+ if(!data&&!visited)return null;
+ const content=<><FormDisclosure appearance="standard" open={open} onToggle={event=>setOpen(event.currentTarget.open)} retainFormContents={visited||locked} drawerTitle="Prepare supplier payment batch" discardLabel={locked?"Close and retain request":undefined} onDiscard={locked?undefined:()=>{setRevision(value=>value+1);setOpen(false);try{const guard=captureWorkCommandContext(),node=document.querySelector<HTMLElement>("[data-work-revision]");guard();if(owner&&node?.dataset.workUser===owner.userId&&node.dataset.workCompany===owner.companyId&&node.dataset.workAssignment===owner.assignmentId)router.refresh();}catch{/* Explicit known-draft discard does not authorize a different Work refresh. */}}}><summary onClick={()=>setVisited(true)}>Prepare batch</summary><SupplierBatchConsole key={revision} base={base} data={data} owner={owner} invoiceId={invoiceId} onLockChange={setLocked} onCloseRetained={()=>setOpen(false)}/></FormDisclosure>{visited&&!open&&<Button appearance="standard" type="button" onClick={()=>setOpen(true)}>Resume supplier batch draft</Button>}</>;
+ return feature?<FeatureWidget appearance="standard" id={feature.id} title={feature.title}>{content}</FeatureWidget>:content;
 }

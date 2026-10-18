@@ -1,4 +1,9 @@
 "use client";
+import {controlledPaymentAllowed,controlledPaymentCreationAcknowledged,type ServicePaymentPurchase} from "@/lib/finance/service-payment-controls";
+import {financeDocumentCommandContext,financeDocumentFormUnchanged} from "@/lib/finance/document-post-control";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
@@ -6,25 +11,34 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/files/attachment-panel";
 import { Card, FormLayout } from "@/components/ui/foundation";
+import { useFinanceActionAllowed } from "./purchase-context";
 
 type Row = Record<string, string | number | null>;
+type SourcePurchase=ServicePaymentPurchase;
 
-function usePaymentCommand(base: string, paymentId: string) {
+function usePaymentCommand(base: string, paymentId: string,sourcePurchase?:SourcePurchase) {
+  const banking = useFinanceActionAllowed("settle-existing", "finance.banking"),allowed=controlledPaymentAllowed(banking,sourcePurchase);
   const router = useRouter(),
     attempt = useRef<{ signature: string; key: string } | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [hasAttempt, setHasAttempt] = useState(false);
   async function send(action: string, input: unknown) {
     const body = JSON.stringify(input),
       signature = action + body;
+    if (!allowed && attempt.current?.signature !== signature) {
+      setError("This Finance action is unavailable. Your draft is retained.");
+      return;
+    }
     if (attempt.current?.signature !== signature)
-      attempt.current = { signature, key: crypto.randomUUID() };
+      { attempt.current = { signature, key: crypto.randomUUID() }; setHasAttempt(true); }
+    const completion = captureFinanceForm();
     setBusy(true);
     setError("");
     try {
@@ -33,9 +47,11 @@ function usePaymentCommand(base: string, paymentId: string) {
           headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
           body,
         }),
-        result = (await response.json()) as { error?: { message?: string } };
-      if (!response.ok) throw new Error(result.error?.message ?? "Could not update the payment.");
+        result = (await response.json()) as { data?: { id?: string }; error?: { message?: string } };
+      if (!response.ok || result.data?.id !== paymentId) throw new Error(result.error?.message ?? "Could not update the payment.");
+      acknowledgeFinanceForm(completion);
       attempt.current = null;
+      setHasAttempt(false);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connection interrupted. Retry safely.");
@@ -43,7 +59,7 @@ function usePaymentCommand(base: string, paymentId: string) {
       setBusy(false);
     }
   }
-  return { send, busy, error };
+  return { send, busy, error, canSend: allowed || hasAttempt };
 }
 
 export function PaymentLifecycle({
@@ -54,6 +70,7 @@ export function PaymentLifecycle({
   bankTransactions,
   fxAccounts,
   action,
+  sourcePurchase,
 }: {
   base: string;
   payment: Row;
@@ -62,8 +79,10 @@ export function PaymentLifecycle({
   bankTransactions: Row[];
   fxAccounts: Row[];
   action: "approve" | "release" | "confirm";
+  sourcePurchase?:SourcePurchase;
 }) {
-  const { send, busy, error } = usePaymentCommand(base, String(payment.id)),
+  const draftScope = useFinanceDraftScope();
+  const { send, busy, error, canSend } = usePaymentCommand(base, String(payment.id),sourcePurchase),
     [paymentProof, setPaymentProof] = useState<AttachmentPanelChange | null>(null);
   if (action === "approve" || action === "release")
     return (
@@ -79,7 +98,7 @@ export function PaymentLifecycle({
             {error}
           </InlineNotice>
         )}
-        <FormLayout
+        <FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={(event) => {
             event.preventDefault();
@@ -94,7 +113,7 @@ export function PaymentLifecycle({
             Decision evidence
             <TextInput appearance="standard" name="proof" required minLength={3} maxLength={1000} />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !canSend}>
             {busy ? "Saving…" : action === "approve" ? "Approve payment" : "Release payment"}
           </Button>
         </FormLayout>
@@ -123,7 +142,7 @@ export function PaymentLifecycle({
             : ""}
         </p>
       )}
-      <FormLayout
+      <FormLayout data-finance-draft={draftScope}
         className="ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -265,7 +284,7 @@ export function PaymentLifecycle({
         <Button appearance="standard"
           clientManaged type="submit"
           variant="primary"
-          disabled={busy || !periods.length || !invoices.length || !bankTransactions.length}
+          disabled={busy || !canSend || !periods.length || !invoices.length || !bankTransactions.length}
         >
           {busy ? "Posting…" : "Confirm, post and reconcile"}
         </Button>
@@ -278,15 +297,26 @@ export function PrepareControlledPayment({
   base,
   invoice,
   bankAccounts,
+  sourcePurchase,
+  correctionPaymentId,
+  correctionAmountMinor,
 }: {
   base: string;
   invoice: Row;
   bankAccounts: Row[];
+  sourcePurchase?:SourcePurchase;
+  correctionPaymentId?:string;
+  correctionAmountMinor?:number;
 }) {
+  const draftScope = useFinanceDraftScope();
+  const banking = useFinanceActionAllowed("settle-existing", "finance.banking"),allowed=controlledPaymentAllowed(banking,sourcePurchase);
   const router = useRouter(),
-    attempt = useRef<{ body: string; key: string } | null>(null),
+    attempt = useRef<{ body: string; key: string; context:string } | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [hasAttempt, setHasAttempt] = useState(false);
+  const [generation,setGeneration]=useState(0);
+  const [preparedId,setPreparedId]=useState<string|null>(null);
   async function submit(form: HTMLFormElement) {
     const values = new FormData(form),
       body = JSON.stringify({
@@ -297,8 +327,16 @@ export function PrepareControlledPayment({
         currency: invoice.currency,
         amount: values.get("amount"),
         bankAccount: values.get("bankAccount"),
+        settlementInvoiceId: String(invoice.id),
+        ...(correctionPaymentId?{correctionPaymentId}:{}),
       });
-    if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() };
+    const context=financeDocumentCommandContext();
+    if (!allowed && (attempt.current?.body !== body||attempt.current.context!==context)) {
+      setError("This Finance action is unavailable. Your draft is retained.");
+      return;
+    }
+    if (attempt.current?.body !== body||attempt.current.context!==context) { attempt.current = { body, key: crypto.randomUUID(),context }; setHasAttempt(true); }
+    const completion = captureFinanceForm();
     setBusy(true);
     setError("");
     try {
@@ -308,10 +346,13 @@ export function PrepareControlledPayment({
           body,
         }),
         result = (await response.json()) as { data?: { id: string }; error?: { message?: string } };
-      if (!response.ok || !result.data)
+      if (!response.ok || !controlledPaymentCreationAcknowledged(result.data,String(invoice.id),correctionPaymentId))
         throw new Error(result.error?.message ?? "Could not prepare the payment.");
+      acknowledgeFinanceForm(completion);
       attempt.current = null;
-      router.push(`${base}/finance/payments/${result.data.id}`);
+      setHasAttempt(false);
+      if(financeDocumentFormUnchanged(completion))router.push(canonicalUiHref(`${base}/finance/payments/${result.data!.id}`));
+      else setPreparedId(result.data!.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connection interrupted. Retry safely.");
     } finally {
@@ -319,18 +360,19 @@ export function PrepareControlledPayment({
     }
   }
   return (
-    <Card as="section" appearance="standard" className="ui-panel">
+    <FormDisclosure appearance="standard" drawerTitle={`Prepare controlled ${invoice.kind==="payable"?"payment":"receipt"}`} dismissDisabled={busy} error={error} onDiscard={()=>{setGeneration(value=>value+1);attempt.current=null;setHasAttempt(false);setError("");}}><summary>Prepare controlled {invoice.kind === "payable" ? "payment" : "receipt"}</summary><Card as="section" appearance="standard" className="ui-panel">
       <h2>Prepare controlled {invoice.kind === "payable" ? "payment" : "receipt"}</h2>
       <p className="muted">
         Creates a draft for independent approval, treasury release, exact bank confirmation and
         automatic allocation.
       </p>
+      {preparedId&&<InlineNotice tone="info">The payment was prepared. Your later edits remain unsaved. <a href={canonicalUiHref(`${base}/finance/payments/${preparedId}`)}>Open prepared payment</a></InlineNotice>}
       {error && (
         <InlineNotice tone="danger" className="error" role="alert">
           {error}
         </InlineNotice>
       )}
-      <FormLayout
+      <FormLayout key={generation} data-finance-draft={draftScope}
         className="ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -357,14 +399,15 @@ export function PrepareControlledPayment({
             type="number"
             min="0.01"
             step="0.01"
-            max={minorToDecimal(Number(invoice.outstanding_minor))}
+            max={minorToDecimal(correctionAmountMinor??Number(invoice.outstanding_minor))}
+            readOnly={correctionPaymentId!==undefined}
             required
-            defaultValue={minorToDecimal(Number(invoice.outstanding_minor))}
+            defaultValue={minorToDecimal(correctionAmountMinor??Number(invoice.outstanding_minor))}
           />
         </Field>
         <Field appearance="standard">
           Bank ledger account
-          <Select appearance="standard" name="bankAccount" required defaultValue="">
+          <Select appearance="standard" name="bankAccount" required defaultValue={correctionPaymentId&&bankAccounts.length===1?String(bankAccounts[0].id):""}>
             <option value="">Select bank account</option>
             {bankAccounts.map((account) => (
               <option key={String(account.id)} value={String(account.id)}>
@@ -373,10 +416,10 @@ export function PrepareControlledPayment({
             ))}
           </Select>
         </Field>
-        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !bankAccounts.length}>
+        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || (!allowed && !hasAttempt) || !bankAccounts.length}>
           {busy ? "Preparing…" : "Prepare for approval"}
         </Button>
       </FormLayout>
-    </Card>
+    </Card></FormDisclosure>
   );
 }

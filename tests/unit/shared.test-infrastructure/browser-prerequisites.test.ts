@@ -192,3 +192,49 @@ describe("normal local browser actors and Front targets", () => {
     expect(browserFrontOrigin("https://console-dev-erpx.jesadakorn.com", "pos", "https://dev-pos.jesadakorn.com")).toBe("https://dev-pos.jesadakorn.com");
   });
 });
+
+import {createHash} from "node:crypto";
+import {relative} from "node:path";
+import {captureUiBrowserEvidence,verifyUiBrowserEvidence} from "../../../scripts/testing/ui-evidence-witness";
+
+/** File-contract fixtures only: no browser, native owner, process or database is invoked. */
+async function withOriginalUiLeaves(action:(fixture:{root:string;output:string;cohort:string;reportPath:string;imagePath:string;observationPath:string;stateBytes:Buffer;capture:()=>ReturnType<typeof captureUiBrowserEvidence>;writeObservation:(patch:Record<string,unknown>)=>Promise<void>})=>Promise<void>){
+ const root=await realpath(await mkdtemp(join(tmpdir(),"erpx-original-ui-leaves-"))),output=join(root,".scratch/dev/test-suites/browser/2026-10-18T00-00-00-000Z",run),cohort=join(root,".runtime/browser",run),artifacts=join(output,"artifacts"),imagePath=join(artifacts,"native-view.png"),observationPath=join(artifacts,"observation.json"),reportPath=join(output,"result.json");
+ try{
+  await mkdir(artifacts,{recursive:true,mode:0o700});await mkdir(cohort,{recursive:true,mode:0o700});
+  const stateBytes=Buffer.from(JSON.stringify({run,ready:true,sourceFingerprint,verificationFingerprint:sourceFingerprint,port:3104,origin:"http://127.0.0.1:3104",release:{id:"original-compiled",fileManifestSha256}}));await writeFile(join(cohort,"state.json"),stateBytes,{mode:0o600});
+  const image=Buffer.from("Original PNG attachment byte contract; image decoding is a separate UI gate.");await writeFile(imagePath,image,{mode:0o600});
+  const observation={schema:"erpx-ui-browser-observation/v1",result:"passed",run,sourceFingerprint,verificationFingerprint:sourceFingerprint,url:"http://127.0.0.1:3104/example",screenshot:{path:relative(root,imagePath),sha256:createHash("sha256").update(image).digest("hex"),bytes:image.length}};
+  const report={suites:[{specs:[{file:"tests/uat/shared.ui/example.spec.ts",title:"original leaf capture",tests:[{projectName:"desktop",expectedStatus:"passed",status:"expected",results:[{status:"passed",attachments:[{name:"erpx-ui-observation",contentType:"application/json",path:observationPath},{name:"original-view",contentType:"image/png",path:imagePath}]}]}]}]}]};await writeFile(observationPath,JSON.stringify(observation),{mode:0o600});await writeFile(reportPath,JSON.stringify(report),{mode:0o600});
+  await action({root,output,cohort,reportPath,imagePath,observationPath,stateBytes,capture:()=>captureUiBrowserEvidence({root,run,reportPath,report,runtimeFingerprint:sourceFingerprint,verificationFingerprint:sourceFingerprint}),writeObservation:async patch=>{await writeFile(observationPath,JSON.stringify({...observation,...patch}),{mode:0o600});}});
+ }finally{await rm(root,{recursive:true,force:true});}
+}
+
+describe("original native UI evidence leaf capture",()=>{
+ it("leaves ordinary non-UI cases opted out without touching the filesystem or changing receipt metadata",async()=>{
+  expect(await captureUiBrowserEvidence({root:"/not-an-existing-root",run:"",reportPath:"",report:{suites:[]},runtimeFingerprint:sourceFingerprint,verificationFingerprint:sourceFingerprint})).toBeUndefined();
+ });
+ it("binds the exact original report, state, observation and PNG before the owned cohort disappears",async()=>{
+  await withOriginalUiLeaves(async f=>{const witness=await f.capture();expect(witness).toBeDefined();expect(witness!.report.path).toBe(relative(f.root,f.reportPath));expect(witness!.observations).toHaveLength(1);expect(witness!.screenshots).toHaveLength(1);expect(await readFile(join(f.output,"state.json"))).toEqual(f.stateBytes);await verifyUiBrowserEvidence(f.root,witness!,true);await rm(f.cohort,{recursive:true});await verifyUiBrowserEvidence(f.root,witness!);expect(await readFile(join(f.output,"state.json"))).toEqual(f.stateBytes);});
+ });
+ it("detects post-capture report or image mutation before cleanup can certify the original case",async()=>{
+  for(const leaf of ["reportPath","imagePath"] as const)await withOriginalUiLeaves(async f=>{const witness=await f.capture();await writeFile(f[leaf],"post-run replacement");await expect(verifyUiBrowserEvidence(f.root,witness!,true)).rejects.toThrow("UI_ORIGINAL_WITNESSED_LEAF_CHANGED");});
+ });
+ it("never overwrites a pre-existing retained state, and detects a different live jobs state",async()=>{
+  await withOriginalUiLeaves(async f=>{await writeFile(join(f.output,"state.json"),"pre-existing evidence",{mode:0o600});await expect(f.capture()).rejects.toMatchObject({code:"EEXIST"});expect((await readFile(join(f.output,"state.json"))).toString()).toBe("pre-existing evidence");});
+  await withOriginalUiLeaves(async f=>{const witness=await f.capture();await writeFile(join(f.cohort,"state.json"),"different live jobs state");await expect(verifyUiBrowserEvidence(f.root,witness!,true)).rejects.toThrow("UI_ORIGINAL_STATE_COPY_CHANGED");expect(await readFile(join(f.output,"state.json"))).toEqual(f.stateBytes);});
+ });
+ it("refuses public-development URLs instead of correlating them with a compiled3104 cohort",async()=>{
+  await withOriginalUiLeaves(async f=>{await f.writeObservation({url:"https://people-dev-erpx.jesadakorn.com/example"});await expect(f.capture()).rejects.toThrow("UI_NATIVE_OBSERVATION_ORIGIN_REQUIRED");});
+ });
+ it("refuses a UI attachment outside its owned case artifacts or through a symlink",async()=>{
+  await withOriginalUiLeaves(async f=>{const outside=join(f.root,"different-case.png"),bytes=Buffer.from("other owner bytes");await writeFile(outside,bytes);await f.writeObservation({screenshot:{path:relative(f.root,outside),sha256:createHash("sha256").update(bytes).digest("hex"),bytes:bytes.length}});await expect(f.capture()).rejects.toThrow("UI_NATIVE_LEAF_OUTSIDE_CASE");});
+  await withOriginalUiLeaves(async f=>{const original=await readFile(f.imagePath);await rm(f.imagePath);const outside=join(f.root,"outside.png");await writeFile(outside,original);await symlink(outside,f.imagePath);await expect(f.capture()).rejects.toThrow("UI_NATIVE_REGULAR_BOUNDED_LEAF_REQUIRED");});
+ });
+});
+
+
+
+it("does not downgrade an actual product-host state to unleased loopback UI evidence",async()=>{
+ await withOriginalUiLeaves(async f=>{const state=JSON.parse(f.stateBytes.toString());state.productHosts=true;await writeFile(join(f.cohort,"state.json"),JSON.stringify(state),{mode:0o600});await expect(f.capture()).rejects.toThrow("UI_NATIVE_PRODUCT_HOST_LEASE_REQUIRED");});
+});

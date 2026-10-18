@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import Link from "@/components/workplace/workspace-link";
 import type { PageCutEntry } from "@/lib/shared/hospitality-page-cut";
 import { type UiAppearance } from "@/components/ui/foundation";
 
@@ -7,6 +8,6 @@ export function ComingSoonPage({ appearance = "legacy",entry,base}:({entry:PageC
     <p data-ui-appearance={appearance} style={{color:'var(--text-muted, #667085)',fontWeight:700}}>{entry.state}</p>
     <h1 data-ui-appearance={appearance}>{entry.name}</h1>
     <p data-ui-appearance={appearance}>This workflow is not active for this company’s hotel and restaurant pilot. It will appear here after its setup, independent acceptance, and company rollout are complete.</p>
-    <p data-ui-appearance={appearance}><Link href={`${base}/future-features`}>Explore future features and prerequisites</Link></p>
+    <p data-ui-appearance={appearance}><Link href={canonicalUiHref(`${base}/future-features`)}>Explore future features and prerequisites</Link></p>
   </div>;
 }

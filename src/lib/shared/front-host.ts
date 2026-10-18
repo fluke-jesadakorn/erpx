@@ -1,4 +1,5 @@
 import { isEngineeringVerificationOrigin } from "@/server/modules/platform_administration/public/engineering-verification";
+import { productHostForHost } from "@/lib/runtime/product-hosts";
 
 export type FrontHostApp = "pms" | "pos";
 
@@ -17,6 +18,8 @@ export function frontOrigin(app: FrontHostApp): URL | null {
 
 export function frontAppForHost(host: string | null): FrontHostApp | null {
   if (!host) return null;
+  const productHost = productHostForHost(host);
+  if (productHost === "pms" || productHost === "pos") return productHost;
   for (const app of ["pms", "pos"] as const) if (frontOrigin(app)?.host === host) return app;
   return null;
 }

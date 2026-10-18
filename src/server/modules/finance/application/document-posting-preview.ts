@@ -15,6 +15,7 @@ export function createDocumentPostingPreview(ports: DocumentPostingPreviewPorts)
     const row = await (kind === "invoice" ? ports.invoice(companyId, id) : ports.stockCount(companyId, id));
     if (!row) return null;
     if (kind === "invoice" && row.status === "voided") return { state: "voided" };
+    if (kind === "invoice" && row.status === "no_charge_confirmed") return { state: "no-charge-confirmed" };
     const accounts = await ports.accounts(companyId);
     let lines: PostingPreviewLine[];
     if (row.journal_id) lines = await ports.journalLines(row.journal_id);

@@ -1,3 +1,6 @@
+import {financeDocumentFlow} from "@/server/modules/finance/public/record-presentation";
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
+import {withFinanceFlowAssignment} from "@/server/modules/finance/public/document-purchases";
 import { z } from "zod";
 import { flowKinds } from "@/lib/shared/flow";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -12,7 +15,7 @@ export async function GET(_request:Request, context:Context) {
   try {
     const p = await context.params, kind = z.enum(flowKinds).parse(p.kind), actor = await requireWorkContext(p.holdingSlug);
     const db = await requireFlowAccess(actor,kind,p.id);
-    return Response.json({data:await resolveFlow(db,actor,kind,p.id)},{headers:{"Cache-Control":"private, no-store"}});
+    return Response.json(canonicalDestinationLinks({data:await (kind==="invoice"||kind==="journal"?financeDocumentFlow(actor,kind,p.id):resolveFlow(db,actor,kind,p.id))}),{headers:{"Cache-Control":"private, no-store"}});
   } catch (error) { return errorResponse(error); }
 }
 export async function POST(request:Request, context:Context) {
@@ -21,8 +24,10 @@ export async function POST(request:Request, context:Context) {
     const p = await context.params, kind = z.enum(flowKinds).parse(p.kind), actor = await requireWorkContext(p.holdingSlug);
     const key = request.headers.get("Idempotency-Key"); if (!key) throw new ApiError(422,"COMMAND_KEY_REQUIRED","Idempotency-Key is required.");
     const db = await requireFlowAccess(actor,kind,p.id);
-    await assignFlowPrimary(db,actor,kind,p.id,schema.parse(await request.json()),key);
-    return Response.json({data:await resolveFlow(db,actor,kind,p.id)},{headers:{"Cache-Control":"private, no-store"}});
+    const input=schema.parse(await request.json());
+    if(kind==="invoice"||kind==="journal")await withFinanceFlowAssignment(actor,key,tx=>assignFlowPrimary(tx??db,actor,kind,p.id,input,key),{kind,id:p.id});
+    else await assignFlowPrimary(db,actor,kind,p.id,input,key);
+    return Response.json(canonicalDestinationLinks({data:await (kind==="invoice"||kind==="journal"?financeDocumentFlow(actor,kind,p.id):resolveFlow(db,actor,kind,p.id))}),{headers:{"Cache-Control":"private, no-store"}});
   } catch (error) {
     if (error instanceof z.ZodError) return errorResponse(new ApiError(422,"VALIDATION_FAILED",error.issues[0]?.message ?? "Invalid input."));
     return errorResponse(error);

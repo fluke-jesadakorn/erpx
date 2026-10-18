@@ -45,6 +45,7 @@ export interface RoutinesRepository<Effect> {
     stageChangeScheduleStateEffect(value: "paused" | "active", value2: number | null, now: number, id: string): Effect;
     stageChangeScheduleStateEffect2(now: number, id: string): Effect;
     stageChangeScheduleStateEffect3(key: string, id: string, now: number): Effect;
+    stageEndScheduleEffect(now:number,id:string):Effect;
     readOccurrenceStatementsEffect(project_id: string, company_id: string): Promise<Record<string, unknown> | null>;
     guard17(key: string, value: "template-version", id: string, version: number): Effect;
     stageOccurrenceStatementsSteps(id: string, company_id: string, branch_id: string | null, department_id: string | null, title: string, description: string, creator: string, assignee_user_id: string, dueAt: number, project_id: string | null, start_approvers_json: string, completion_approvers_json: string, state: "draft" | "start_approval" | "ready", blocked: string | null, id2: string, version: number, value: string | null, occurrenceAt: number | null, now: number, now2: number): Effect;
@@ -81,6 +82,7 @@ export interface RoutinesPorts<Effect> {
     commands: OperationsCommands<Effect>;
     prepare(holdingId: string): Promise<void>;
     production: boolean;
+    occurrenceUnit<Result extends {next:number|null;generated:boolean}>(schedule:ScheduleRow,at:number,run:()=>Promise<Result>):Promise<Result|undefined>;
     batch(effects: Effect[]): Promise<unknown>;
     policyRead<Result>(key: string, read: () => Promise<Result>): Promise<Result>;
     policyNow(): number;
@@ -206,6 +208,13 @@ export function createRoutinesApplication<Effect>(ports: RoutinesPorts<Effect>) 
                 : r.stageChangeScheduleStateEffect3(key, id, now),
         ], eventScope(template));
     }
+    async function endSchedule(actor:StaffActor,id:string,version:number,key:string){
+        const input={expectedVersion:version},operation='routine.schedule.end',prior=await ports.commands.replay(actor,key,operation,id,input);if(prior)return prior;
+        const row=await r.readChangeScheduleStateRow(id,actor.companyId);if(!row)throw new BusinessRuleError(404,'SCHEDULE_NOT_FOUND','Schedule not found.');
+        const template=await getTemplate(actor,row.template_id);if(!await canEditTemplate(actor,template))throw new BusinessRuleError(403,'TEMPLATE_OWNER_REQUIRED','The source owner manages its schedules.');
+        if(row.state==='ended')throw new BusinessRuleError(409,'SCHEDULE_ENDED','This schedule has already ended.');const now=ports.clock.now();
+        return ports.commands.commit(actor,key,operation,input,id,version+1,{id,state:'ended',version:version+1},[templateAuthorityGuard(key,actor,template.id),r.guard12(key,'schedule-version',id,version,row.state),r.stageEndScheduleEffect(now,id),r.stageChangeScheduleStateEffect2(now,id)],eventScope(template));
+    }
     async function occurrenceStatements(template: TemplateRow, id: string, key: string, dueAt: number, creator: string, schedule: ScheduleRow | null, occurrenceAt: number | null) {
         const now = ports.clock.now(), start: string[] = JSON.parse(template.start_approvers_json), completion: string[] = JSON.parse(template.completion_approvers_json);
         const startRoute = await ports.taskRoute(template, creator, template.assignee_user_id, "start", start), completionRoute = await ports.taskRoute(template, creator, template.assignee_user_id, "completion", completion);
@@ -259,9 +268,10 @@ export function createRoutinesApplication<Effect>(ports: RoutinesPorts<Effect>) 
                 examined < limit) {
                 examined++;
                 const at = schedule.next_occurrence_at;
-                const pause = await r.readGenerateOccurrencesPause(schedule.id, at, at);
-                const next = nextOccurrence(schedule, pause?.ended_at ?? at), key = `occurrence-${schedule.id}-${at}`, id = `task-${schedule.id}-${at}`;
                 try {
+                    const outcome=await ports.occurrenceUnit(schedule,at,async()=>{
+                    const pause = await r.readGenerateOccurrencesPause(schedule.id, at, at);
+                const next = nextOccurrence(schedule, pause?.ended_at ?? at), key = `occurrence-${schedule.id}-${at}`, id = `task-${schedule.id}-${at}`;
                     const template = await r.readGenerateOccurrencesTemplate(schedule.template_id, schedule.company_id);
                     if (!template)
                         throw new Error("TEMPLATE_UNAVAILABLE");
@@ -287,9 +297,11 @@ export function createRoutinesApplication<Effect>(ports: RoutinesPorts<Effect>) 
                             : []),
                         r.stageGenerateOccurrencesEffect4(key),
                     ]);
-                    if (prepared)
-                        generated++;
-                    schedule.next_occurrence_at = next;
+                    return {next,generated:!!prepared};
+                    });
+                    if(!outcome)break;
+                    if(outcome.generated)generated++;
+                    schedule.next_occurrence_at=outcome.next;
                 }
                 catch (error) {
                     if (ports.production) {
@@ -329,5 +341,5 @@ export function createRoutinesApplication<Effect>(ports: RoutinesPorts<Effect>) 
         }));
         return { generated, examined };
     }
-    return { listTemplates, getTemplate, canEditTemplate, saveTemplate, saveSchedule, changeScheduleState, runTemplate, generateOccurrences };
+    return { listTemplates, getTemplate, canEditTemplate, saveTemplate, saveSchedule, changeScheduleState, endSchedule, runTemplate, generateOccurrences };
 }

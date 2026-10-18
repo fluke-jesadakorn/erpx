@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {z} from 'zod';
 import {BusinessRuleError,type IdentifierSource} from '../../shared';
 import {aiBaseUrl,publicAddress,billableUnits,tokens,type AiEndpoint,type AiMessage} from '../domain/transport';
@@ -30,7 +31,7 @@ export function createAiTransportApplication<Gateway>(ports:AiTransportPorts<Gat
   let response: AiWireResponse;
   // Pin verified public DNS addresses while retaining the original TLS name.
   try {
-    response = await ports.request(`${base}/${path}`, addresses, headers, body, timeoutMs);
+    response = await ports.request(canonicalUiHref(`${base}/${path}`), addresses, headers, body, timeoutMs);
   } catch {
     throw new BusinessRuleError(
       503,

@@ -48,11 +48,11 @@ export function createMarketingApplication<Prepared>(ports:{actorId:string;clock
    }
    if(kind==="asset"){
     const row=await repository.asset(id);if(!row)throw new BusinessRuleError(404,"MARKETING_ASSET_NOT_FOUND","Asset not found.");
+    if(row.created_by===ports.actorId&&input.action!=="retire")throw new BusinessRuleError(409,"CONFLICT","Independent review is required.");
+    const operation=`marketing.asset.${input.action}`,prior=await repository.replay(key,operation,id,input);if(prior)return prior;
     if(input.action==="activate"&&row.kind==="form"&&!formRequiresConsent(row.configuration_json))throw new BusinessRuleError(422,"MARKETING_CONSENT_REQUIRED","Lead capture forms must require consent before activation.");
     const expected=input.action==="retire"?"active":"draft",status=input.action==="activate"?"active":input.action==="reject"?"rejected":"retired";
     if(!["activate","reject","retire"].includes(input.action)||row.status!==expected||Number(row.version)!==input.expectedVersion)throw new BusinessRuleError(409,"CONFLICT","Asset changed or transition is invalid.");
-    if(row.created_by===ports.actorId&&input.action!=="retire")throw new BusinessRuleError(409,"CONFLICT","Independent review is required.");
-    const operation=`marketing.asset.${input.action}`,prior=await repository.replay(key,operation,id,input);if(prior)return prior;
     const now=ports.clock.now(),needsPresentation=input.action==="activate"&&row.kind==="form",presentation=needsPresentation?repository.preparePresentation(key,row.configuration_json):null;
     if(needsPresentation&&!(await repository.formReadiness(row.configuration_json)).ready)throw new BusinessRuleError(409,"MARKETING_FORM_NOT_READY","Independently approve the exact content and public creative before activating this form.");
     return repository.commit({action:"asset",input,id,key,operation,now,expected,status,presentation},{id,status,version:input.expectedVersion+1});

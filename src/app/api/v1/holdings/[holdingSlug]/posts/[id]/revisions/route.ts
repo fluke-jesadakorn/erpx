@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { errorResponse } from "@/server/modules/runtime/public/http";
@@ -11,7 +12,7 @@ export async function GET(
     const { holdingSlug, id } = await context.params;
     const actor = await requireWorkContext(holdingSlug);
     const { write } = await holdingResources(actor.holdingId);
-    return Response.json({ data: await postRevisionHistory(write, actor, id) },
+    return Response.json(canonicalDestinationLinks({ data: await postRevisionHistory(write, actor, id) }),
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error);

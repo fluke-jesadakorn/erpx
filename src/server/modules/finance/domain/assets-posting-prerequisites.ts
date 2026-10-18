@@ -1,0 +1,20 @@
+import {z} from 'zod';
+import {createChartSchema,createAccountSchema,createPeriodSchema} from './finance';
+import {manualRateSchema} from './company-money';
+const initial={expectedVersion:z.literal(0),contextKey:z.string().regex(/^[a-f0-9]{64}$/)};
+export const assetsPostingChartSchema=z.object({...initial,input:createChartSchema.strict()}).strict();
+export const assetsPostingAccountSchema=z.object({...initial,input:createAccountSchema.strict()}).strict();
+export const assetsPostingPeriodSchema=z.object({...initial,input:createPeriodSchema.strict()}).strict();
+export const assetsPostingRateSchema=z.object({...initial,input:manualRateSchema.strict()}).strict();
+export type AssetsPostingChartInput=z.infer<typeof assetsPostingChartSchema>;
+export type AssetsPostingAccountInput=z.infer<typeof assetsPostingAccountSchema>;
+export type AssetsPostingPeriodInput=z.infer<typeof assetsPostingPeriodSchema>;
+export type AssetsPostingRateInput=z.infer<typeof assetsPostingRateSchema>;
+export type AssetsPostingPrerequisitesView={
+ companyId:string;available:boolean;contextKey:string|null;canCreateChart:boolean;canCreateAccount:boolean;canCreatePeriod:boolean;canConfirmRate:boolean;
+ charts:{id:string;name:string;baseCurrency:string}[];
+ accounts:{id:string;chartId:string;code:string;name:string;category:string;currency:string|null;controlKind:string}[];
+ periods:{id:string;name:string;startDate:string;endDate:string;state:string;version:number}[];
+ rates:{id:string;currency:string;effectiveDate:string;currencyPerUsd:string;confirmedAt:number}[];
+ unavailableReason:'authority-required'|'purchase-required'|null;
+};

@@ -1,4 +1,6 @@
 "use client";
+import {DestinationFilterForm} from "@/components/ui/destination-filter-form";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
@@ -13,7 +15,7 @@ import { PageHeader } from "@/components/ui/primitives";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { workResponsibilities, workTypes, workViews } from "@/lib/work_projection/work-item";
 import type { WorkPageSummary } from "@/server/modules/work_projection/public/work-summary";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigationState } from "./navigation-counts";
 import { NewWork } from "./new-work";
@@ -165,7 +167,7 @@ export function WorkDashboard({
         description="Act, decide and follow progress across the workspace."
         action={
           <div className="ui-form-actions">
-            <UiActionLink appearance="standard" variant="secondary" href={`${base}/calendar`}>
+            <UiActionLink appearance="standard" variant="secondary" href={canonicalUiHref(`${base}/calendar`)}>
               Calendar
             </UiActionLink>
             <NewWork base={base} creation={summary.capabilities.creation} current={current} />
@@ -209,7 +211,7 @@ export function WorkDashboard({
                   ))}
                 </nav>
               )}
-              <form className="ui-filter-bar" action={`${base}/work`}>
+              <DestinationFilterForm className="ui-filter-bar" action={canonicalUiHref(`${base}/work`)}>
                 <TextInput appearance="standard"
                   type="hidden"
                   name={view === "legacy" ? "queue" : "view"}
@@ -279,13 +281,13 @@ export function WorkDashboard({
                     Clear filters
                   </UiActionLink>
                 )}
-              </form>
+              </DestinationFilterForm>
               {view === "routing" && (
                 <p className="muted">
                   These workflows need an eligible responsible person or corrected approval setup.
                   Open the record and review its Flow before reassigning with a reason. Completed
                   decisions stay unchanged.{" "}
-                  <Link href={`${base}/work/routing`}>Review Company source routing</Link>
+                  <Link href={canonicalUiHref(`${base}/work/routing`)}>Review Company source routing</Link>
                 </p>
               )}
               {view === "team" && (

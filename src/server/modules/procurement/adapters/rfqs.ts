@@ -18,6 +18,8 @@ import {stageRfqNotifications} from "../../collaboration/public/rfq-notification
 import {BusinessRuleError} from "../../shared";
 import {createRfqApplication,type RfqPorts,type RfqMutation} from "../application/rfqs";
 import type {RfqRow as Row,RfqOrderInput} from "../domain/rfqs";
+import {rfqActionSchema} from "../domain/rfqs";
+import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcurementPurchasedCommand,prepareRfqPurchaseHandoff} from "./purchases";
 export {rfqCreateSchema,rfqActionSchema} from "../domain/rfqs";
 type Evidence=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
 type Authority=SqlStatement[];
@@ -53,6 +55,7 @@ function application(a:WorkContext,provided?:SqlDatabase){
  commit:async(m,result)=>commit(await database(),a,m,result),
  linkedRfq:async(id)=>(await database()).prepare('SELECT id FROM procurement_rfqs WHERE order_id=? AND company_id=?').bind(id,a.companyId).first<Row>(),
  stageHandoff:async(h)=>{const db=await database(),r=h.detail.rfq;
+ await prepareRfqPurchaseHandoff(db,a,String(r.id),h.orderId,h.key,h.editing);
  const sourceGuard=r.request_id?[assertion(db,h.key,'rfq-source-evidence',`EXISTS(SELECT 1 FROM (${recordsPlatformSources.employee_requests}) e JOIN procurement_request_orders l ON l.request_id=e.id AND l.order_id=? AND l.rfq_id=? WHERE e.id=? AND e.company_id=? AND e.evidence_version=? AND e.items_json=? AND e.approval_json::jsonb->>'decision'='approved')`,[h.orderId,r.id,r.request_id,a.companyId,r.request_evidence_version,r.request_items_json])]:[];
  const currencyGuard=assertion(db,h.key,'rfq-currency',`EXISTS(SELECT 1 FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=? AND currency=?)`,[a.companyId,r.currency]);
  if(h.editing)return [currencyGuard,...sourceGuard,guard(db,a,r,h.key,Number(r.version))];
@@ -88,10 +91,12 @@ async function commit<Result>(write:SqlDatabase,a:WorkContext,m:RfqMutation<Evid
  try{return await executeCommand(write,a,key,operation,input,id,version,result,steps,{companyId:a.companyId,branchId,departmentId});}catch(error){if(m.kind==='create'&&String(error).includes('RFQ_REQUEST_OVERALLOCATED'))throw new ApiError(409,'RFQ_REQUEST_OVERALLOCATED','Another quotation request allocated this demand. Refresh and use only the remaining approved quantity.');throw error;}
 }
 async function invoke<T>(call:()=>Promise<T>):Promise<T>{try{return await call();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
-export const getRfq=(a:WorkContext,id:string)=>invoke(()=>application(a).get(id));
-export const rfqWorkspace=(a:WorkContext)=>invoke(()=>application(a).workspace());
-export const rfqDetail=(a:WorkContext,id:string)=>invoke(()=>application(a).detail(id));
-export const createRfq=(a:WorkContext,raw:unknown,key:string)=>invoke(()=>application(a).create(raw,key));
-export const actRfq=(a:WorkContext,id:string,raw:unknown,key:string)=>invoke(()=>application(a).act(id,raw,key));
+async function readPurchase(a:WorkContext){const database=(await holdingResources(a.holdingId)).write;return requireProcurementPurchasedRead(database,a);}
+const purchaseControls=(access:Awaited<ReturnType<typeof procurementPurchaseAccess>>)=>access?{newWork:access.newWork,settleExisting:access.settleExisting,history:access.history,revision:access.revision}:undefined;
+export const getRfq=(a:WorkContext,id:string)=>invoke(async()=>{await readPurchase(a);return application(a).get(id);});
+export const rfqWorkspace=(a:WorkContext)=>invoke(async()=>{const access=await readPurchase(a),data=await application(a).workspace();return {...data,canPrepare:data.canPrepare&&(access?.newWork??true),purchase:purchaseControls(access)};});
+export const rfqDetail=(a:WorkContext,id:string)=>invoke(async()=>{const access=await readPurchase(a),data=await application(a).detail(id);return {...data,canPrepare:data.canPrepare&&(access?.newWork??true),canApprove:data.canApprove&&(access?.newWork??true),canCancel:data.canPrepare&&(access?.settleExisting??true)&&["collecting","review","approved"].includes(String(data.rfq.status))&&(data.rfq.status!=="approved"||hasPermission(a,"commerce.approve")&&!samePerson(a,data.rfq.created_by)),purchase:purchaseControls(access)};});
+export const createRfq=(a:WorkContext,raw:unknown,key:string)=>invoke(()=>withProcurementPurchasedCommand(a,{key,operation:"procurement.rfq.create",target:{kind:"rfq",id:`rfq-${key}`},creating:true,purpose:"new-work",permissions:["commerce.purchase"]},database=>application(a,database).create(raw,key)));
+export const actRfq=(a:WorkContext,id:string,raw:unknown,key:string)=>invoke(()=>{const input=rfqActionSchema.parse(raw);return withProcurementPurchasedCommand(a,{key,operation:`procurement.rfq.${input.action}`,target:{kind:"rfq",id},purpose:input.action==="cancel"?"settle-existing":"new-work",permissions:["commerce.read","commerce.purchase",...(["approve","return"].includes(input.action)?["commerce.approve"]:[])]},database=>application(a,database).act(id,raw,key));});
 export const prepareRfqOrderHandoff=(db:SqlDatabase,a:WorkContext,input:RfqOrderInput,orderId:string,key:string,editing:boolean)=>invoke(()=>application(a,db).handoff(input,orderId,key,editing));
-export const rfqWork=(a:WorkContext)=>invoke(()=>application(a).work());
+export const rfqWork=(a:WorkContext)=>invoke(async()=>{if(!hasPermission(a,"commerce.read"))return [];const database=(await holdingResources(a.holdingId)).write,access=await procurementPurchaseAccess(database,a);if(access&&!access.history)return [];const items=await application(a).work();return access&&!access.newWork?items.map(item=>({...item,canAct:false,queue:"waiting" as const})):items;});

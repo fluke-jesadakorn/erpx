@@ -1,0 +1,2 @@
+export {fieldServiceAttachmentRecordVersionStep,serviceAttachmentPurchaseScope,authorizeServiceAttachmentPurchase,serviceAttachmentSourceReadLocks,serviceAttachmentCommandBoundary,serviceAttachmentFailure} from "../adapters/attachment-purchases";
+export type {FieldServiceAttachmentVersionContext,ServiceAttachmentPurchase} from "../adapters/attachment-purchases";

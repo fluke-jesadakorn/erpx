@@ -1,8 +1,9 @@
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import type { ReactNode } from "react";
 import { PageContent } from "@/components/ui/foundation";
 import { hubHref, salesViews, customersViews, type HubQuery } from "@/server/modules/sales/public/rules/navigation";
 import styles from "@/components/sales/customers/hub.module.css";
+import {canonicalUiHref} from "@/lib/work_projection/destination-registry";
 
 export function HubShell({ base, hub, view, access, actions, children, reviewCount }: {
   base: string; hub: "sales" | "customers"; view: string;
@@ -14,7 +15,7 @@ export function HubShell({ base, hub, view, access, actions, children, reviewCou
       <div><p className={styles.eyebrow}>Customers &amp; sales</p><h1>{hub === "sales" ? "Sales" : "Customers"}</h1><p className={styles.description}>{hub === "sales" ? "Move the next conversation and sale forward." : "Keep customer information, conversations and service connected."}</p></div>
       <div className={styles.actions}>
         {hub === "sales" && access.reports && <Link className={styles.tool} href={hubHref(base, hub, { view: "reports" })} aria-current={view === "reports" ? "page" : undefined}>Reports</Link>}
-        {hub === "sales" && access.pricing && <Link className={styles.tool} href={hubHref(base, hub, { view: "pricing" })} aria-current={view === "pricing" ? "page" : undefined}>Price lists</Link>}
+        {hub === "sales" && access.pricing && <Link className={styles.tool} href={canonicalUiHref(`${base}/customers-sales/sales/pricing`)} aria-current={view === "pricing" ? "page" : undefined}>Price lists</Link>}
         {hub === "customers" && access.reviews && <Link className={styles.tool} href={hubHref(base, hub, { view: "reviews" })} aria-current={view === "reviews" ? "page" : undefined}>Review customer data{reviewCount !== null && reviewCount !== undefined && reviewCount > 0 && <span className={styles.count}>{reviewCount}</span>}</Link>}
         {actions}
       </div>

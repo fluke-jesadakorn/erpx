@@ -2,7 +2,8 @@
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { hrSettingsTopics } from "@/lib/people_payroll/hr-settings-navigation";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from '@/lib/shared/destination-router';
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
@@ -47,6 +48,8 @@ export function PeopleHrSettings({ appearance = "standard",
   base,
   initialTopic,
   initialAction,
+  initialIndex,
+  initialData,
   onTopicChange,
   onClose,
 }: ({
@@ -54,10 +57,13 @@ export function PeopleHrSettings({ appearance = "standard",
   base: string;
   initialTopic?: string;
   initialAction?: string;
+  initialIndex?: {topics:PeopleHrTopic[]};
+  initialData?: Payload;
   onTopicChange?: (topic: string) => void;
   onClose?: () => void;
 }) & { appearance?: UiAppearance }) {
   const searchParams = useSearchParams();
+  const router=useRouter();
   const requestedTopic = standalone ? searchParams.get("section") ?? initialTopic : initialTopic;
   const requestedAction = standalone ? searchParams.get("editor") ?? (searchParams.get("new") === "leave-policy" ? "policy" : undefined) : initialAction;
   const urlTopic = hrSettingsTopics.some((item) => item.id === requestedTopic)
@@ -67,6 +73,7 @@ export function PeopleHrSettings({ appearance = "standard",
   const chosenTopic = onTopicChange || standalone ? urlTopic : localTopic;
   const index = usePeopleIntegrationData<{ topics: PeopleHrTopic[] }>(
     `/api/v1${base}/people/hr-settings`,
+    undefined, initialIndex,
   );
   function choose(next: PeopleHrTopic | "") {
     setLocalTopic(next);
@@ -74,7 +81,7 @@ export function PeopleHrSettings({ appearance = "standard",
       const url = new URL(window.location.href);
       if(next) url.searchParams.set("section", next); else url.searchParams.delete("section");
       url.searchParams.delete("editor"); url.searchParams.delete("new");
-      window.history.pushState(null, "", url);
+      router.push(url.pathname+url.search,{scroll:false});
     }
     onTopicChange?.(next);
   }
@@ -91,7 +98,7 @@ export function PeopleHrSettings({ appearance = "standard",
       {topic && available.some(item => item.id === topic) && <>
         <h2>{available.find(item => item.id === topic)?.title}</h2>
         <p className={styles.note}>{available.find(item => item.id === topic)?.description}</p>
-        <HrTopic appearance="standard" key={`${topic}:${requestedAction ?? ""}`} base={base} topic={topic} initialAction={requestedAction} showHeading={false}/>
+        <HrTopic appearance="standard" key={`${topic}:${requestedAction ?? ""}`} base={base} topic={topic} initialData={initialData} initialAction={requestedAction} showHeading={false}/>
       </>}
       {index.data && (!available.length || (topic && !available.some(item => item.id === topic))) && <p role="alert">Your selected role does not manage this Company HR setting.</p>}
     </WorkspaceContent>
@@ -174,15 +181,18 @@ function HrTopic({ appearance = "legacy",
   base,
   topic,
   initialAction,
+  initialData,
   showHeading = true,
 }: ({
   showHeading?: boolean;
   base: string;
   topic: PeopleHrTopic;
   initialAction?: string;
+  initialData?: Payload;
 }) & { appearance?: UiAppearance }) {
   const resource = usePeopleIntegrationData<Payload>(
     `/api/v1${base}/people/hr-settings?topic=${topic}`,
+    undefined, initialData,
   );
   const command = usePeopleIntegrationCommand(base, resource.reload);
   return (

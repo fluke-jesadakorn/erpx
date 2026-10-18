@@ -1,0 +1,22 @@
+/* POS daily parent only. Native catalogue/cart, receipt, print and controller
+   owners keep their existing geometry and state. Shared controls own appearance. */
+.workspace { display: grid; gap: 22px; padding: 8px 0 0; min-width: 0; }
+.button { min-height: 44px; white-space: normal; }
+.secondary { min-width: 0; }
+.navigation { min-width: 0; }
+.navigation > nav { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.navigation > nav > button { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; min-height: 72px; padding: 12px; text-align: left; white-space: normal; }
+.navigation > nav > [aria-current="page"] { border-color: var(--ui-brand); background: var(--ui-brand-soft); color: var(--ui-brand-strong); }
+.navigation small { color: var(--ui-muted); font-weight: 400; }
+.alert { padding: 16px; border-radius: var(--ui-radius-md); border: 1px solid var(--ui-amber); background: var(--ui-amber-soft); color: var(--ui-amber); }
+.error { border-color: var(--ui-red); background: var(--ui-red-soft); color: var(--ui-red); }
+.success { border-color: var(--ui-green); background: var(--ui-green-soft); color: var(--ui-green); }
+.panel { min-width: 0; }
+.empty { text-align: center; padding: 48px 16px; color: var(--ui-muted); }
+.setupCard { display: grid; gap: 16px; min-width: 0; }
+.setupCard h2 { margin: 0 0 6px; font-size: var(--ui-type-card); }
+.setupCard p { margin: 6px 0; color: inherit; }
+@media (max-width:720px) {
+  .navigation > nav { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .navigation > nav > button { min-height: 64px; }
+}

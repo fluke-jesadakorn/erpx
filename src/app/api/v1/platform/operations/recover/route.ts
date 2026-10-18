@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
       parsed.data,
       key,
     );
-    return Response.json({ data: result }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json(canonicalDestinationLinks({ data: result }), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);
   }

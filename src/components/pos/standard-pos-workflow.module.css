@@ -1,0 +1,83 @@
+/* Shared controls own their standard appearance. These local rules retain the
+   POS catalogue/cart, denomination and mobile hit-area geometry only. The
+   protected POS stylesheet and its native receipt/print selectors are unchanged. */
+.panel {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-card);
+}
+.panel h2 { margin: 0 0 16px; font-size: 20px; line-height: 28px; }
+.button { min-height: 48px; white-space: normal; }
+.secondary { min-width: 0; }
+.actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+.total { display: flex; justify-content: space-between; font-size: 1.45rem; font-weight: 700; padding: 1rem 0; }
+.form { display: flex; gap: 0.65rem; flex-wrap: wrap; align-items: end; }
+.form > label, .fields > label { flex: 1; min-width: 140px; }
+.form :is(input,select), .fields :is(input,select,textarea) { width: 100%; min-height: 48px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 0.8rem; }
+.check { display: flex; flex-direction: row; align-items: center; gap: 0.4rem; }
+.check input { width: auto; min-height: 0; }
+.registerBar { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; padding: 12px 0; }
+.registerBar > label { display: grid; gap: 6px; min-width: 220px; }
+.registerBar select { min-height: 48px; max-width: 100%; }
+.saleLayout { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,390px); gap: 20px; align-items: start; }
+.cartPane { position: sticky; top: 90px; display: grid; gap: 14px; max-height: calc(100dvh - 110px); overflow: auto; min-width: 0; scroll-margin-top: 120px; }
+.cartPane h2 { margin: 0; }
+.cartPane .total { position: sticky; bottom: -20px; padding: 18px 0; font-size: 1.3rem; background: var(--ui-card); }
+.cartPane .fields { grid-template-columns: 1fr 1fr; }
+.cartPane .fields > label { min-width: 0; }
+.cartPane .actions .button { flex: 1; }
+.scanBar { display: flex; gap: 8px; }
+.scanBar input { min-width: 0; flex: 1; min-height: 52px; }
+.category { min-height: 44px; padding: 8px 16px; border-radius: var(--ui-radius-md); }
+.category[aria-pressed="true"] { background: var(--ui-brand); color: var(--ui-on-brand); }
+.products { display: grid; grid-template-columns: repeat(auto-fill,minmax(145px,1fr)); gap: 0.6rem; margin-top: 1rem; }
+.product { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 0 0 12px; min-height: 210px; overflow: hidden; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); background: var(--ui-card); }
+.product > strong, .product > span, .product > small { padding: 0 12px; }
+.product strong { font-size: 0.95rem; font-weight: 700; line-height: 1.4; }
+.product:hover { border-color: var(--ui-brand); }
+.product:disabled { opacity: 0.5; cursor: not-allowed; }
+.tableTile { display: grid; gap: 6px; min-height: 90px; text-align: center; border-radius: var(--ui-radius-md); }
+.tableTile strong { font-size: 1.05rem; }
+.tableTile.occupied { background: var(--ui-amber-soft); color: var(--ui-amber); border-color: var(--ui-amber); }
+.occupied { border-color: var(--ui-amber); }
+.customerPicker { display: grid; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--ui-line); }
+.customerPicker summary { cursor: pointer; min-height: 44px; padding: 10px 0; }
+.customerPicker :is(input,select) { min-height: 48px; min-width: 0; max-width: 100%; width: 100%; margin: 6px 0; }
+.paymentForm { display: grid; gap: 10px; }
+.paymentForm > label { display: grid; gap: 6px; }
+.paymentForm :is(input,select) { min-height: 48px; min-width: 0; width: 100%; }
+.paymentForm .button { min-height: 56px; }
+.selectionCard, .draftCart { padding: 16px; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-lg); background: var(--ui-card); margin: 12px 0; display: grid; gap: 10px; }
+.selectionCard { scroll-margin-top: 120px; }
+.modifierChoices { display: flex; gap: 12px; flex-wrap: wrap; }
+.modifierChoices > label { display: flex; gap: 8px; align-items: center; min-height: 44px; }
+.cashCount { flex: 1 1 100%; min-width: 0; width: 100%; }
+.denominations { display: grid; grid-template-columns: repeat(auto-fit,minmax(100px,1fr)); gap: 10px; margin: 14px 0; }
+.denominations > label { display: grid; gap: 4px; min-width: 0; padding: 10px; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); background: var(--ui-card-2); }
+.denominations input { min-height: 44px; min-width: 0; max-width: 100%; width: 100%; }
+.cashCount > p:last-child { padding: 12px 14px; border-radius: var(--ui-radius-md); background: var(--ui-card-2); line-height: 1.6; }
+.table { width: 100%; border-collapse: collapse; }
+.scroll { max-width: 100%; overflow: auto; }
+.mobileSaleActions { display: none; }
+@media (max-width:1050px) {
+  .saleLayout { grid-template-columns: minmax(0,1fr) 320px; gap: 12px; }
+  .products { grid-template-columns: repeat(auto-fill,minmax(120px,1fr)); }
+}
+@media (max-width:720px) {
+  .saleLayout { grid-template-columns: 1fr; }
+  .cartPane { position: static; max-height: none; }
+  .cartPane .total { position: static; }
+  .cartPane .fields { grid-template-columns: 1fr; }
+  .registerBar { align-items: stretch; }
+  .registerBar > label { width: 100%; min-width: 0; }
+  .registerBar .button { flex: 1; }
+  .products { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .scanBar input { width: 100px; }
+  .mobileSaleActions { position: fixed; bottom: 0; left: 0; right: 0; z-index: 35; display: grid; grid-template-columns: 1fr 2fr; gap: 8px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: var(--ui-card); border-top: 1px solid var(--ui-line); }
+  .mobileSaleActions button { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 48px; padding: 10px; }
+  .mobileSaleActions button:last-child { justify-content: space-between; }
+}
+@media print { .mobileSaleActions { display: none !important; } }

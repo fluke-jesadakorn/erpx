@@ -1,3 +1,4 @@
+import { withFinancePurchasedCommand, withFinancePurchasedRead } from "./purchase-boundary";
 import type { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
@@ -210,9 +211,9 @@ reverseCommit:async(facts)=>{const {actor,id,input,key,op,reversalId,updatedAt}=
           .bind(reversal.id, input.reason, updatedAt, id),
       ],
     );}}}
-function nativeAdjustments(provided?:SqlDatabase){let write:SqlDatabase;return createBookAdjustments({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write},transaction:async(actor,run)=>financeTransaction(provided??(await holdingResources(actor.holdingId)).write,db=>run(nativeAdjustmentRepository(db))),workspace:actor=>nativeBookAdjustmentWorkspace(write,actor),console:actor=>nativeBookAdjustmentConsole(write,actor)})}
-export const prepareBookAdjustment=(actor:WorkContext,raw:z.input<typeof bookAdjustmentSchema>,key:string)=>nativeAdjustments().prepareBookAdjustment(actor,raw,key);
-export const decideBookAdjustment=(actor:WorkContext,id:string,raw:z.input<typeof financeReviewSchema>,action:'post'|'reject',key:string)=>nativeAdjustments().decideBookAdjustment(actor,id,raw,action,key);
-export const reverseBookAdjustment=(actor:WorkContext,id:string,raw:z.input<typeof bookAdjustmentReversalSchema>,key:string)=>nativeAdjustments().reverseBookAdjustment(actor,id,raw,key);
-export const bookAdjustmentWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>nativeAdjustments(provided).bookAdjustmentWorkspace(actor);
-export const bookAdjustmentConsoleWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>nativeAdjustments(provided).bookAdjustmentConsoleWorkspace(actor);
+function nativeAdjustments(provided?:SqlDatabase){let write:SqlDatabase;return createBookAdjustments({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write},transaction:async(actor,run)=>provided?run(nativeAdjustmentRepository(provided)):financeTransaction((await holdingResources(actor.holdingId)).write,db=>run(nativeAdjustmentRepository(db))),workspace:actor=>nativeBookAdjustmentWorkspace(write,actor),console:actor=>nativeBookAdjustmentConsole(write,actor)})}
+export const prepareBookAdjustment=(actor:WorkContext,raw:z.input<typeof bookAdjustmentSchema>,key:string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.book-adjustment.prepare",purpose:"settle-existing",capability:"finance.advanced"},tx=>nativeAdjustments(tx).prepareBookAdjustment(actor,raw,key));
+export const decideBookAdjustment=(actor:WorkContext,id:string,raw:z.input<typeof financeReviewSchema>,action:'post'|'reject',key:string)=>withFinancePurchasedCommand(actor,{key,operation:`finance.book-adjustment.${action}`,purpose:"settle-existing",capability:"finance.advanced"},tx=>nativeAdjustments(tx).decideBookAdjustment(actor,id,raw,action,key));
+export const reverseBookAdjustment=(actor:WorkContext,id:string,raw:z.input<typeof bookAdjustmentReversalSchema>,key:string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.book-adjustment.reverse",purpose:"settle-existing",capability:"finance.advanced"},tx=>nativeAdjustments(tx).reverseBookAdjustment(actor,id,raw,key));
+export const bookAdjustmentWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>provided?nativeAdjustments(provided).bookAdjustmentWorkspace(actor):withFinancePurchasedRead(actor,db=>nativeAdjustments(db).bookAdjustmentWorkspace(actor),"finance.advanced");
+export const bookAdjustmentConsoleWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>provided?nativeAdjustments(provided).bookAdjustmentConsoleWorkspace(actor):withFinancePurchasedRead(actor,db=>nativeAdjustments(db).bookAdjustmentConsoleWorkspace(actor),"finance.advanced");

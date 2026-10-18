@@ -1,11 +1,11 @@
 "use client";
+import {useRouter} from "@/lib/shared/destination-router";
+import {useEmbeddedRecord} from "@/components/records/record-context";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import { useEmbeddedRecord } from "@/components/records/record-context";
-import { hubResultHref } from "@/lib/shared/hub-result";
-import { recordTarget, recordDrawerHref } from "@/lib/records/record-drawer";
-import { Dialog, FormDrawer } from "@/components/ui/dialog";
-import { FormDisclosure } from "@/components/ui/form-disclosure";
+import {CommerceFormDrawer as Dialog, CommerceFormDrawer as FormDrawer, CommerceForm, CommerceDisclosure as FormDisclosure} from "./commerce-draft-boundary";
+import {useCommerceCommand as useCommand} from "./use-commerce-command";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
@@ -13,17 +13,16 @@ import { PreferredDateTimeField } from "@/components/people_payroll/time/preferr
 
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { InvoiceSlipUpload, type InvoiceSlipSelection } from "@/components/finance/invoice-slip-upload";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import type { Row } from "@/server/modules/commerce/public/commerce";
 import { quantityMilli, lineAmounts } from "@/lib/commerce/commerce-math";
-import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
+import { decimalToMinor, minorToDecimal, decimalToUnits, unitsToDecimal } from "@/lib/finance/finance-money";
 import { businessDate } from "@/server/modules/pos/public/rules/pos";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/files/attachment-panel";
-import { Card, Stack, FormGrid, FormLayout } from "@/components/ui/foundation";
+import { Card, Stack, FormGrid } from "@/components/ui/foundation";
 type Options = {
   products: Row[];
   parties: Row[];
@@ -33,54 +32,6 @@ type Options = {
   priceLists: Row[];
   priceListItems: Row[];
 };
-function useCommand(base: string) {
-  const router = useRouter();
-  const embedded = useEmbeddedRecord();
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
-  const last = useRef<{ payload: string; key: string } | null>(null);
-  async function send(path: string, input: unknown, target?: string) {
-    const form=document.activeElement?.closest('form')??null;
-    const body = JSON.stringify(input);
-    const fingerprint = path + body;
-    if (last.current?.payload !== fingerprint)
-      last.current = { payload: fingerprint, key: crypto.randomUUID() };
-    setPending(true);
-    setError("");
-    try {
-      const r = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/commerce/${path}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body,
-        },
-      );
-      const v = (await r.json()) as {
-        data: { id: string; salesId?: string; orderId?: string };
-        error?: { message: string };
-      };
-      if (!r.ok) throw new Error(v.error?.message ?? "Unable to save.");
-      last.current = null;
-      const destination = target ?? `${base}/commerce/orders/${v.data.salesId ?? v.data.orderId ?? v.data.id}`;
-      const record = recordTarget(destination, base);
-      const hubResult = hubResultHref(window.location.href, base, destination);
-      window.dispatchEvent(new Event("erpx:hub-saved"));
-      window.dispatchEvent(new CustomEvent("erpx:record-saved",{detail:{form}}));
-      if (hubResult) router.replace(hubResult, { scroll: false });
-      else if (embedded && record) router.replace(recordDrawerHref(window.location.href, record), { scroll: false });
-      else if (!embedded) router.push(destination);
-      router.refresh();
-      return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save.");
-      return false;
-    } finally {
-      setPending(false);
-    }
-  }
-  return { send, pending, error };
-}
 export function OrderEditor({
   base,
   options,
@@ -103,7 +54,7 @@ export function OrderEditor({
   sourceRequest?: { id: string; version: number; neededDate: string | null; note: string };
 }) {
   const [open, setOpen] = useState(!order || initialOpen);
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice, canPrepare } = useCommand(base);
   const [items, setItems] = useState(
     (lines ?? []).map((l) => ({
       productId: String(l.product_id),
@@ -153,9 +104,11 @@ export function OrderEditor({
       ]);
     }
   };
+  function resetDraft() { setItems((lines ?? []).map(l => ({productId:String(l.product_id),quantity:String(Number(l.quantity_milli)/1000),price:minorToDecimal(Number(l.price_minor)),taxBps:Number(l.tax_bps)}))); setPartyId(String(order?.party_id ?? initialPartyId ?? "")); setPriceListId(String(order?.price_list_id ?? "")); setOpen(false); }
   const hasStock = items.some(line => options.products.find(product => product.id === line.productId)?.item_type !== "service");
   const amounts = items.map(line => { try { const value = lineAmounts(quantityMilli(line.quantity), decimalToMinor(line.price), line.taxBps); return { net: value.subtotal, tax: value.tax }; } catch { return { net: 0, tax: 0 }; } });
   const subtotal = amounts.reduce((sum, row) => sum + row.net, 0), tax = amounts.reduce((sum, row) => sum + row.tax, 0);
+  if (!canPrepare) return <p role="status">Creating or editing orders is unavailable for the current package.</p>;
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       {!initialOpen && <div className="ui-section-header">
@@ -170,13 +123,13 @@ export function OrderEditor({
           </Button>
         )}
       </div>}
-      {error && (
+      {notice && <p role="status">{notice}</p>}{error && (
         <InlineNotice tone="danger" role="alert" className="error">
           {error}
         </InlineNotice>
       )}
       {open && (
-        <FormDrawer appearance="standard" inline={!drawer && (!order || initialOpen)} open={open} onClose={() => setOpen(false)} title="Order details" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
+        <FormDrawer appearance="standard" inline={!drawer && (!order || initialOpen)} open={open} onClose={() => setOpen(false)} onDiscard={resetDraft} title="Order details" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<CommerceForm
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -403,7 +356,7 @@ export function OrderEditor({
               Review the tax treatment and agreed prices before submission.
             </span>
           </div>
-        </form></Stack></FormDrawer>
+        </CommerceForm></Stack></FormDrawer>
       )}
     </Card>
   );
@@ -417,7 +370,7 @@ export function OrderActions({
   order: Row;
   canApprove: boolean;
 }) {
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice, canPrepare, canSettle, purchase, hasAttempt } = useCommand(base);
   const states =
     order.state === "draft"
       ? ["submit", "cancel"]
@@ -432,10 +385,11 @@ export function OrderActions({
               ? ["cancel"]
               : []
           : [];
+  const allowedStates = states.filter(action => ["cancel", "return"].includes(action) ? canSettle : canPrepare && (action !== "convert" || hasAttempt || purchase?.convertNewWork !== false));
   const [reason, setReason] = useState("");
   return (
-    <div>
-      {error && (
+    <CommerceForm onSubmit={event => event.preventDefault()}>
+      {notice && <p role="status">{notice}</p>}{error && (
         <InlineNotice tone="danger" role="alert" className="error">
           {error}
         </InlineNotice>
@@ -454,9 +408,9 @@ export function OrderActions({
           </Field>
         )}
       <div className="ui-form-actions">
-        {states.map((action) => (
+        {allowedStates.map((action) => (
           <Button appearance="standard"
-            type="submit"
+            type="button"
             variant="secondary"
             key={action}
             disabled={
@@ -490,8 +444,19 @@ export function OrderActions({
           </Button>
         ))}
       </div>
-    </div>
+    </CommerceForm>
   );
+}
+/** Preserve the original three-decimal quantity contract while aggregating
+ * real lot/serial allocations without binary floating-point rounding. */
+function allocationQuantityTotal(values:readonly string[]){
+  const units=values.reduce((sum,value)=>{
+    if(!/^\d+(\.\d{1,3})?$/.test(value))throw new Error("Use a quantity with at most three decimal places.");
+    const next=sum+decimalToUnits(value,3);
+    if(next>BigInt(Number.MAX_SAFE_INTEGER))throw new Error("The allocated quantity total exceeds supported precision.");
+    return next;
+  },BigInt(0));
+  return unitsToDecimal(units,3);
 }
 type AllocationDraft = {
   key: string;
@@ -593,8 +558,9 @@ export function FulfillmentForm({
   lots: Row[];
   pendingEvidence?: Row[];
 }) {
-  const { send, pending, error } = useCommand(base),
+  const { send, pending, error:commandError, notice, canSettle, purchase, hasAttempt } = useCommand(base),
     incoming = order.kind === "purchase";
+  const quantitySource=JSON.stringify([base,order.id,order.version]),[quantityError,setQuantityError]=useState<{source:string;message:string}|null>(null),error=quantityError?.source===quantitySource?quantityError.message:commandError;
   const openLines = lines.filter(
     (line) => line.item_type !== "service" && Number(line.fulfilled_milli) < Number(line.quantity_milli),
   );
@@ -650,7 +616,7 @@ export function FulfillmentForm({
         return {
           lineId: line.id,
           quantity: tracked
-            ? String(drafts.reduce((sum, item) => sum + Number(item.quantity || 0), 0))
+            ? allocationQuantityTotal(drafts.map(item=>item.quantity||"0"))
             : quantities[String(line.id)],
           ...(tracked
             ? {
@@ -675,7 +641,10 @@ export function FulfillmentForm({
       ...(stagedEvidence ? [stagedEvidence.setId] : []),
     ]),
   ];
+  const [generation, setGeneration] = useState(0);
+  function resetDraft() {setQuantityError(null);setQuantities(Object.fromEntries(openLines.map(line => [String(line.id), String((Number(line.quantity_milli)-Number(line.fulfilled_milli))/1000)]))); setAllocations({}); setEvidenceId(String(pendingEvidence[0]?.attachment_id ?? "")); setStagedEvidence(null); setAttachmentSets({}); setGeneration(value=>value+1);}
   const proof = attachmentSets.proof_of_delivery;
+  if (!hasAttempt && (!canSettle || purchase?.stockSettleExisting === false || purchase?.financeSettleExisting === false || purchase?.receivingSettleExisting === false)) return <p role="status">Goods fulfillment is unavailable for the current packages.</p>;
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>{incoming ? "Receive goods" : "Deliver goods"}</h2>
@@ -683,14 +652,15 @@ export function FulfillmentForm({
         Record actual quantities and their traceability evidence. Stock, lot balances, quality
         holds, and accounting update in one transaction.
       </p>
-      {error && (
+      {notice && <p role="status">{notice}</p>}{error && (
         <InlineNotice tone="danger" role="alert" className="error">
           {error}
         </InlineNotice>
       )}
-      <form
+      <FormDisclosure appearance="standard" drawerTitle={incoming ? "Receive goods" : "Deliver goods"} onDiscard={resetDraft} error={error || undefined} dismissDisabled={pending}><summary>{incoming ? "Record receipt" : "Record delivery"}</summary><CommerceForm key={generation}
         onSubmit={(event) => {
-          event.preventDefault();
+          event.preventDefault();setQuantityError(null);
+          try {
           const form = new FormData(event.currentTarget);
           void send(`orders/${order.id}/fulfill`, {
             expectedVersion: order.version,
@@ -700,6 +670,7 @@ export function FulfillmentForm({
             evidenceNote: incoming ? "" : form.get("evidenceNote"),
             lines: payloadLines(),
           });
+          }catch(cause){setQuantityError({source:quantitySource,message:cause instanceof Error?cause.message:"Review the original allocated quantities."});}
         }}
       >
         <FormGrid as="div" className="ui-form-grid">
@@ -1020,14 +991,16 @@ export function FulfillmentForm({
         >
           {pending ? "Recording…" : incoming ? "Record receipt" : "Record delivery"}
         </Button>
-      </form>
+      </CommerceForm></FormDisclosure>
     </Card>
   );
 }
 export function InvoiceDeliveryForm({ base, fulfillment, completions = [], useSalesDefaults = false }: { base: string; fulfillment: Row; completions?: Row[]; useSalesDefaults?: boolean }) {
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice, canSettle, purchase, hasAttempt } = useCommand(base);
+  const [generation, setGeneration] = useState(0);
+  if (!hasAttempt && (!canSettle || purchase?.financeSettleExisting === false)) return null;
   return (
-    <FormDisclosure appearance="standard" drawerTitle="Prepare sales invoice" error={error} dismissDisabled={pending}><summary>Prepare invoice for GL review</summary><form
+    <>{notice && <p role="status">{notice}</p>}<FormDisclosure appearance="standard" drawerTitle="Prepare sales invoice" onDiscard={() => setGeneration(value=>value+1)} error={error || undefined} dismissDisabled={pending}><summary>Prepare invoice for GL review</summary><CommerceForm key={generation}
       onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
@@ -1059,7 +1032,7 @@ export function InvoiceDeliveryForm({ base, fulfillment, completions = [], useSa
           Prepare invoice for GL review
         </Button>
       </FormGrid>
-    </form></FormDisclosure>
+    </CommerceForm></FormDisclosure></>
   );
 }
 export function ReturnRequestForm({
@@ -1075,7 +1048,8 @@ export function ReturnRequestForm({
   lotAllocations: Row[];
   customerReturn: boolean;
 }) {
-  const { send, pending, error } = useCommand(base),
+  const { send, pending, error:commandError, notice, canSettle } = useCommand(base),
+    [quantityError,setQuantityError]=useState<{source:string;message:string}|null>(null),quantitySource=JSON.stringify([base,fulfillment.id,fulfillment.version]),error=quantityError?.source===quantitySource?quantityError.message:commandError,
     [open, setOpen] = useState(false),
     [attachmentSet, setAttachmentSet] = useState<AttachmentPanelChange | null>(null),
     available = lines.filter(
@@ -1083,7 +1057,7 @@ export function ReturnRequestForm({
         line.fulfillment_id === fulfillment.id &&
         Number(line.returned_milli) < Number(line.quantity_milli),
     );
-  if (!available.length) return null;
+  if (!canSettle || !available.length) return null;
   const businessToday = businessDate(),
     defaultReturnDate =
       String(fulfillment.fulfillment_date) > businessToday
@@ -1091,7 +1065,7 @@ export function ReturnRequestForm({
         : businessToday;
   return (
     <div>
-      {error && (
+      {notice && <p role="status">{notice}</p>}{error && (
         <InlineNotice tone="danger" role="alert" className="error">
           {error}
         </InlineNotice>
@@ -1100,19 +1074,20 @@ export function ReturnRequestForm({
         {open ? "Close return" : "Request return"}
       </Button>
       {open && (
-        <Dialog appearance="standard" open={open} onClose={() => setOpen(false)} title="Request a return" presentation="form-drawer" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<FormLayout
+        <Dialog appearance="standard" open={open} onClose={() => setOpen(false)} onDiscard={() => {setQuantityError(null);setAttachmentSet(null);setOpen(false);}} title="Request a return" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<CommerceForm
           className="ui-form-grid"
           onSubmit={(event) => {
-            event.preventDefault();
+            event.preventDefault();setQuantityError(null);
+            try {
             const form = new FormData(event.currentTarget),
               returnLines = available.flatMap((line) => {
                 const lots = lotAllocations.filter((a) => a.fulfillment_line_id === line.id),
                   allocations = lots.flatMap((a) => {
-                    const quantity = String(form.get(`lot:${line.id}:${a.lot_id}`) ?? "0");
-                    return Number(quantity) > 0 ? [{ lotId: String(a.lot_id), quantity }] : [];
+                    const quantity = String(form.get(`lot:${line.id}:${a.lot_id}`) ?? "0")||"0";
+                    return allocationQuantityTotal([quantity])!=="0.000" ? [{ lotId: String(a.lot_id), quantity }] : [];
                   }),
                   quantity = lots.length
-                    ? String(allocations.reduce((sum, a) => sum + Number(a.quantity), 0))
+                    ? allocationQuantityTotal(allocations.map(a=>a.quantity))
                     : String(form.get(String(line.id)));
                 return Number(quantity) > 0
                   ? [
@@ -1137,6 +1112,7 @@ export function ReturnRequestForm({
               reason: form.get("reason"),
               lines: returnLines,
             });
+            }catch(cause){setQuantityError({source:quantitySource,message:cause instanceof Error?cause.message:"Review the original allocated quantities."});}
           }}
         >
           <Field appearance="standard">
@@ -1250,7 +1226,7 @@ export function ReturnRequestForm({
           <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending}>
             {pending ? "Submitting…" : "Submit return for review"}
           </Button>
-        </FormLayout></Stack></Dialog>
+        </CommerceForm></Stack></Dialog>
       )}
     </div>
   );
@@ -1268,16 +1244,17 @@ export function ReturnActions({
   canComplete: boolean;
   fxAccounts?: Row[];
 }) {
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice, canSettle, purchase, hasAttempt } = useCommand(base);
+  if (!canSettle) return null;
   if (record.status === "requested" && canApprove)
     return (
       <div>
-        {error && (
+        {notice && <p role="status">{notice}</p>}{error && (
           <InlineNotice tone="danger" role="alert" className="error">
             {error}
           </InlineNotice>
         )}
-        <FormLayout
+        <CommerceForm
           className="ui-form-grid"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1294,18 +1271,18 @@ export function ReturnActions({
             Review evidence
             <TextInput appearance="standard" name="reason" required minLength={3} maxLength={500} />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" name="action" value="approve" disabled={pending}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" name="action" value="approve" disabled={pending || !hasAttempt && (purchase?.stockSettleExisting === false || purchase?.financeSettleExisting === false)}>
             Approve return
           </Button>
           <Button appearance="standard" clientManaged type="submit" variant="secondary" name="action" value="reject" disabled={pending}>
             Reject return
           </Button>
-        </FormLayout>
+        </CommerceForm>
       </div>
     );
   if (record.status === "approved" && canComplete)
     return (
-      <FormLayout className="ui-form-grid" onSubmit={(event)=>{
+      <CommerceForm className="ui-form-grid" onSubmit={(event)=>{
         event.preventDefault();const form=new FormData(event.currentTarget);
         void send(`returns/${record.id}/complete`,{expectedVersion:Number(record.version),
           ...(form.get('fxGainAccountId')?{fxGainAccountId:form.get('fxGainAccountId')}:{}),
@@ -1324,19 +1301,21 @@ export function ReturnActions({
         <Button appearance="standard"
           clientManaged type="submit"
           variant="primary"
-          disabled={pending}
+          disabled={pending || !hasAttempt && purchase?.financeSettleExisting === false}
         >
           {pending ? "Completing…" : "Complete credit / debit note"}
         </Button>
-      </FormLayout>
+      </CommerceForm>
     );
   return null;
 }
 export function SettlementForm({ base, invoice, periods, bankAccounts }: { base: string; invoice: Row; periods: Row[]; bankAccounts: Row[] }) {
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice, canSettle, purchase, hasAttempt } = useCommand(base);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [paymentSlip, setPaymentSlip] = useState<InvoiceSlipSelection | null>(null);
+  const [generation, setGeneration] = useState(0);
   const paymentLabel = invoice.kind === "payable" ? "Record made payment" : "Record received payment";
+  if (!hasAttempt && (!canSettle || purchase?.financeSettleExisting === false)) return null;
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>
@@ -1350,9 +1329,9 @@ export function SettlementForm({ base, invoice, periods, bankAccounts }: { base:
         Record a payment already received or made. This records accounting evidence; it does not
         send money through a bank.
       </p>
-      <FormDisclosure appearance="standard" open={receiptOpen} onToggle={event=>setReceiptOpen(event.currentTarget.open)} drawerTitle={paymentLabel} error={error} dismissDisabled={pending}>
+      {notice && <p role="status">{notice}</p>}<FormDisclosure appearance="standard" open={receiptOpen} onOpenChange={setReceiptOpen} drawerTitle={paymentLabel} onDiscard={() => {setPaymentSlip(null);setReceiptOpen(false);setGeneration(value=>value+1);}} error={error || undefined} dismissDisabled={pending}>
       <summary>{paymentLabel}</summary>
-      <form
+      <CommerceForm key={generation}
         onSubmit={async (e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -1368,7 +1347,7 @@ export function SettlementForm({ base, invoice, periods, bankAccounts }: { base:
               paymentSlipId: paymentSlip?.sourceId,
               attachmentSetIds: paymentSlip ? [paymentSlip.setId] : [],
             },
-            `${base}/finance/invoices/${invoice.id}`,
+            canonicalUiHref(`${base}/finance/invoices/${invoice.id}`),
           );
           if (saved) { setReceiptOpen(false); setPaymentSlip(null); }
         }}
@@ -1422,7 +1401,7 @@ export function SettlementForm({ base, invoice, periods, bankAccounts }: { base:
             Record and allocate payment
           </Button>
         </FormGrid>
-      </form>
+      </CommerceForm>
       </FormDisclosure>
     </Card>
   );
@@ -1442,7 +1421,7 @@ export function MasterEditor({
   initialOpen?: boolean;
   partyKind?: "customer" | "supplier";
 }) {
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice } = useCommand(base);
   const [open, setOpen] = useState(initialOpen);
   const [itemType, setItemType] = useState(String(row?.item_type ?? "stock"));
   const embedded = useEmbeddedRecord();
@@ -1456,7 +1435,7 @@ export function MasterEditor({
             : `Add ${kind === "products" ? "product" : kind === "parties" ? (partyKind ?? "customer / supplier") : "warehouse"}`}
       </Button>
       {open && (
-        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={() => setOpen(false)} title="Record details" dismissDisabled={pending}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<form
+        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={() => setOpen(false)} onDiscard={() => {setItemType(String(row?.item_type ?? "stock"));setOpen(false);}} title="Record details" dismissDisabled={pending}><Stack as="div" className="ui-stack">{notice && <p role="status">{notice}</p>}{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<CommerceForm
           onSubmit={async (e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
@@ -1471,7 +1450,7 @@ export function MasterEditor({
               await send(
                 `${kind}${row ? `/${row.id}` : ""}`,
                 { ...input, ...(row ? { expectedVersion: row.version } : {}) },
-                `${base}/commerce?view=${kind}${kind === "parties" && partyKind ? `&kind=${partyKind}` : ""}`,
+                canonicalUiHref(`${base}/commerce?view=${kind}${kind === "parties" && partyKind ? `&kind=${partyKind}` : ""}`),
               )
             )
               setOpen(false);
@@ -1647,7 +1626,7 @@ export function MasterEditor({
               Save {kind === "products" ? "product" : kind === "parties" ? "party" : "warehouse"}
             </Button>
           </FormGrid>
-        </form></Stack></FormDrawer>
+        </CommerceForm></Stack></FormDrawer>
       )}
     </div>
   );
@@ -1662,7 +1641,10 @@ export function StockReservationForm({
   order: Row;
   lines: Row[];
 }) {
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice, canPrepare, canSettle, purchase, hasAttempt } = useCommand(base);
+  const [generation, setGeneration] = useState(0);
+  const reserve = canPrepare && (hasAttempt || purchase?.stockNewWork !== false), release = canSettle && (hasAttempt || purchase?.stockSettleExisting !== false);
+  if (!reserve && !release) return null;
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>Reserve stock for this order</h2>
@@ -1670,12 +1652,12 @@ export function StockReservationForm({
         Reserved quantities are unavailable to other orders and POS. Delivery consumes this order’s
         reservation; expiry releases availability automatically.
       </p>
-      {error && (
+      {notice && <p role="status">{notice}</p>}{error && (
         <InlineNotice tone="danger" role="alert" className="error">
           {error}
         </InlineNotice>
       )}
-      <form
+      <FormDisclosure appearance="standard" drawerTitle="Stock reservation" onDiscard={() => setGeneration(value=>value+1)} error={error || undefined} dismissDisabled={pending}><summary>Change reservation</summary><CommerceForm key={generation}
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -1708,9 +1690,9 @@ export function StockReservationForm({
           </Field>
           <Field appearance="standard">
             Action
-            <Select appearance="standard" name="action">
-              <option value="reserve">Reserve</option>
-              <option value="release">Release</option>
+            <Select appearance="standard" name="action" defaultValue={reserve ? "reserve" : "release"}>
+              {reserve && <option value="reserve">Reserve</option>}
+              {release && <option value="release">Release</option>}
             </Select>
           </Field>
           <Field appearance="standard">
@@ -1726,7 +1708,7 @@ export function StockReservationForm({
         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
           {pending ? "Saving…" : "Save reservation"}
         </Button>
-      </form>
+      </CommerceForm></FormDisclosure>
     </Card>
   );
 }
@@ -1738,7 +1720,7 @@ export function CustomerNotificationSettingsForm({
   base: string;
   settings: Row;
 }) {
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice } = useCommand(base);
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>Customer delivery notifications</h2>
@@ -1746,12 +1728,12 @@ export function CustomerNotificationSettingsForm({
         Disabled sends nothing. Sandbox records a simulated delivery for training. Resend uses the
         configured live email provider.
       </p>
-      {error && (
+      {notice && <p role="status">{notice}</p>}{error && (
         <InlineNotice tone="danger" role="alert" className="error">
           {error}
         </InlineNotice>
       )}
-      <FormLayout
+      <CommerceForm
         className="ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -1759,7 +1741,7 @@ export function CustomerNotificationSettingsForm({
           void send(
             "customer-notifications/settings",
             { expectedVersion: Number(settings.version), adapter: form.get("adapter") },
-            `${base}/commerce?view=parties&kind=customer`,
+            canonicalUiHref(`${base}/commerce?view=parties&kind=customer`),
           );
         }}
       >
@@ -1774,7 +1756,7 @@ export function CustomerNotificationSettingsForm({
         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
           {pending ? "Saving…" : "Save notification adapter"}
         </Button>
-      </FormLayout>
+      </CommerceForm>
     </Card>
   );
 }
@@ -1786,6 +1768,7 @@ export function CustomerDeliveryNotification({
   customerEmail,
   customerConsent,
   adapter,
+  reconciliation,
 }: {
   base: string;
   fulfillment: Row;
@@ -1793,8 +1776,10 @@ export function CustomerDeliveryNotification({
   customerEmail: string;
   customerConsent: string;
   adapter: string;
+  reconciliation?: {attemptId:string;hasProviderIdentity:boolean;canReview:boolean};
 }) {
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice, hasAttempt } = useCommand(base);
+  const [reconcileOpen,setReconcileOpen]=useState(false),[reconcileDraft,setReconcileDraft]=useState(0);
   if (notification)
     return (
       <Card as="section" appearance="standard" className="ui-panel">
@@ -1808,6 +1793,14 @@ export function CustomerDeliveryNotification({
           </p>
         )}
         {notification.last_error && <InlineNotice tone="danger" role="alert">{String(notification.last_error)}</InlineNotice>}
+        {notification.status === "unknown" && (reconciliation && (reconciliation.canReview || hasAttempt) ? <FormDisclosure appearance="standard" drawerTitle="Reconcile customer notification" open={reconcileOpen} onOpenChange={setReconcileOpen} onDiscard={()=>setReconcileDraft(value=>value+1)} dismissDisabled={pending}>
+          <summary>Reconcile provider result</summary>
+          <CommerceForm key={`${notification.id}:${notification.version}:${reconcileDraft}`} onSubmit={async event=>{event.preventDefault();const form=event.currentTarget,input=new FormData(form);if(await send(`customer-notifications/${notification.id}/reconcile`,{expectedVersion:Number(notification.version),attemptId:reconciliation.attemptId,reason:String(input.get('reason')??'')})){setReconcileOpen(false);setReconcileDraft(value=>value+1);}}}>
+            <p>Verify the original provider message. This records the provider result and retains the uncertain attempt.</p>
+            <Field appearance="standard">Review reason<TextInput appearance="standard" name="reason" required minLength={5} maxLength={1000} /></Field>
+            <Button appearance="standard" type="submit" variant="primary" disabled={pending}>{pending?'Checking provider…':'Verify provider result'}</Button>
+          </CommerceForm>
+        </FormDisclosure> : <InlineNotice>{reconciliation?.hasProviderIdentity?'A different current Sales approver must review the original provider result.':'The original provider message identity is unconfirmed. Retain this attempt for reconciliation.'}</InlineNotice>)}
         {notification.status === "failed" && (
           <Button appearance="standard"
             type="submit"
@@ -1822,7 +1815,7 @@ export function CustomerDeliveryNotification({
             {pending ? "Queueing…" : "Retry notification"}
           </Button>
         )}
-        {error && (
+        {notice && <p role="status">{notice}</p>}{error && (
           <InlineNotice tone="danger" role="alert" className="error">
             {error}
           </InlineNotice>
@@ -1841,7 +1834,7 @@ export function CustomerDeliveryNotification({
       {blocker ? (
         <p className="muted">{blocker}</p>
       ) : (
-        <FormLayout
+        <CommerceForm
           className="ui-form-grid"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1869,7 +1862,7 @@ export function CustomerDeliveryNotification({
           <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={pending}>
             {pending ? "Queueing…" : "Queue customer notification"}
           </Button>
-        </FormLayout>
+        </CommerceForm>
       )}
       {error && (
         <InlineNotice tone="danger" role="alert" className="error">
@@ -1881,13 +1874,15 @@ export function CustomerDeliveryNotification({
 }
 
 export function ServiceCompletionForm({ base, order, lines }: { base: string; order: Row; lines: Row[] }) {
-  const { send, pending, error } = useCommand(base);
+  const { send, pending, error, notice, canSettle, purchase, hasAttempt } = useCommand(base);
   const remaining = lines.filter(line => line.item_type === "service" && Number(line.fulfilled_milli) < Number(line.quantity_milli));
+  const [generation, setGeneration] = useState(0);
   if (!remaining.length) return null;
-  return <Card as="section" appearance="standard" className="ui-panel"><h2>Complete services</h2><p>Confirm only the work already completed and accepted.</p><FormDisclosure appearance="standard" drawerTitle="Confirm service completion" error={error} dismissDisabled={pending}><summary>Confirm completed services</summary><form className="ui-stack" onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); void send(`orders/${order.id}/fulfill`, { expectedVersion: Number(order.version), completionMode: "service", date: values.get("date"), evidenceNote: values.get("evidenceNote"), lines: remaining.map(line => ({ lineId: String(line.id), quantity: String(values.get(`quantity-${line.id}`)) })).filter(line => Number(line.quantity) > 0) }); }}>
+  if (!hasAttempt && (!canSettle || purchase?.financeSettleExisting === false)) return null;
+  return <Card as="section" appearance="standard" className="ui-panel"><h2>Complete services</h2><p>Confirm only the work already completed and accepted.</p>{notice && <p role="status">{notice}</p>}<FormDisclosure appearance="standard" drawerTitle="Confirm service completion" onDiscard={() => setGeneration(value=>value+1)} error={error || undefined} dismissDisabled={pending}><summary>Confirm completed services</summary><CommerceForm key={generation} className="ui-stack" onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); void send(`orders/${order.id}/fulfill`, { expectedVersion: Number(order.version), completionMode: "service", date: values.get("date"), evidenceNote: values.get("evidenceNote"), lines: remaining.map(line => ({ lineId: String(line.id), quantity: String(values.get(`quantity-${line.id}`)) })).filter(line => Number(line.quantity) > 0) }); }}>
     <Field appearance="standard">Completion date<TextInput appearance="standard" name="date" type="date" required defaultValue={businessDate()} /></Field>
     {remaining.map(line => <Field appearance="standard" key={String(line.id)}>{String(line.description)} · Remaining {(Number(line.quantity_milli) - Number(line.fulfilled_milli)) / 1000}<TextInput appearance="standard" name={`quantity-${line.id}`} type="number" step="0.001" min="0" max={(Number(line.quantity_milli) - Number(line.fulfilled_milli)) / 1000} defaultValue={(Number(line.quantity_milli) - Number(line.fulfilled_milli)) / 1000} required /></Field>)}
     <Field appearance="standard">Completion evidence<TextInput appearance="standard" name="evidenceNote" required minLength={3} maxLength={2000} placeholder="Work completed and customer acceptance" /></Field>
     <Button appearance="standard" clientManaged type="submit" disabled={pending}>{pending ? "Recording…" : "Confirm completed services"}</Button>
-  </form></FormDisclosure></Card>;
+  </CommerceForm></FormDisclosure></Card>;
 }

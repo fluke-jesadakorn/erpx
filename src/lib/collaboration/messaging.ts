@@ -38,6 +38,7 @@ export type MessagingMessage = {
 export type MessagingOverview = {
   teams: MessagingTeam[];
   rooms: MessagingRoom[];
+  purchase?:import('./messaging-purchases').MessagingPurchaseControls;
 };
 export type MessagingHistory = {
   room: MessagingRoom;

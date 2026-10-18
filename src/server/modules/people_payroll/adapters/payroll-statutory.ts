@@ -1,3 +1,4 @@
+import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "./payroll-purchases";
 import {payrollStatutoryDecisionEffects} from '../../workflow/public/payroll-statutory-decision-effects';
 import "server-only";
 import { z } from "zod";
@@ -76,9 +77,9 @@ catch (error) {
 } }
 export async function recognizedThaiPack(rules: unknown, countryCode: string, version: string) { return invoke(() => application().recognizedThaiPack(rules, countryCode, version)); }
 export async function thaiPackForRun(db: SqlDatabase, run: PayrollStatutoryRun) { return invoke(() => application(db).thaiPackForRun(run)); }
-export async function createThaiPayrollProfile(actor: WorkContext, input: z.infer<typeof thaiPayrollProfileSchema>, key: string) { return invoke(() => application().createThaiPayrollProfile(actor, input, key)); }
-export async function decideThaiPayrollProfile(actor: WorkContext, id: string, input: z.infer<typeof thaiPayrollProfileDecisionSchema>, key: string) { return invoke(() => application().decideThaiPayrollProfile(actor, id, input, key)); }
-export async function thaiPayrollConfiguration(actor: WorkContext, engagementId?: string) { return invoke(() => application().thaiPayrollConfiguration(actor, engagementId)); }
+export async function createThaiPayrollProfile(actor: WorkContext, input: z.infer<typeof thaiPayrollProfileSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.thai-profile.create", purpose: "new-work" }, tx => invoke(() => application(tx).createThaiPayrollProfile(actor, input, key))); }
+export async function decideThaiPayrollProfile(actor: WorkContext, id: string, input: z.infer<typeof thaiPayrollProfileDecisionSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: `people.thai-profile.${input.action}`, purpose: "settle-existing" }, tx => invoke(() => application(tx).decideThaiPayrollProfile(actor, id, input, key))); }
+export async function thaiPayrollConfiguration(actor: WorkContext, engagementId?: string) { return withPayrollPurchasedRead(actor, tx => invoke(() => application(tx).thaiPayrollConfiguration(actor, engagementId))); }
 export async function thaiEvidenceForEmployee(db: SqlDatabase, run: PayrollStatutoryRun, engagementId: string) { return invoke(() => application(db).thaiEvidenceForEmployee(run, engagementId)); }
 export function applyThaiStatutory(calculated: Calculated, evidence: ThaiPayrollEvidence, run: PayrollStatutoryRun, overtimeMinor: number) { return sync(() => application().applyThaiStatutory(calculated, evidence, run, overtimeMinor)); }
 export function thaiEvidenceGuards(db: SqlDatabase, key: string, evidence: ThaiPayrollEvidence, run: PayrollStatutoryRun, engagementId: string) { return sync(() => application(db).thaiEvidenceGuards(key, evidence, run, engagementId)); }

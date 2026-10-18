@@ -1,8 +1,9 @@
 "use client";
 import { Button } from "@/components/ui/foundation";
 
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import Link from "@/components/workplace/workspace-link";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -65,7 +66,7 @@ export function WorkspaceBreadcrumb({
   function crumbContent(crumb: Crumb, current: boolean) {
     if (crumb.href && !current)
       return crumb.fullNavigation ? (
-        <a href={crumb.href} title={crumb.label}>
+        <a data-product-switch href={crumb.href} title={crumb.label}>
           {crumb.label}
         </a>
       ) : (
@@ -81,7 +82,7 @@ export function WorkspaceBreadcrumb({
   }
 
   return (
-    <nav className={styles.breadcrumb} aria-label="Breadcrumb">
+    <nav className={styles.breadcrumb} aria-label="Breadcrumb" data-condensed={crumbs.length > 4 || undefined}>
       <ol>
         {crumbs.map((crumb, index) => {
           const current = index === crumbs.length - 1;
@@ -123,6 +124,7 @@ export function WorkspaceBreadcrumb({
                   crumb.href ? (
                     crumb.fullNavigation ? (
                       <a
+                        data-product-switch
                         key={`${crumb.label}-${index}`}
                         href={crumb.href}
                         onClick={() => setOverflowOpen(false)}

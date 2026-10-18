@@ -3,8 +3,13 @@ import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { ArrowLeft, CalendarPlus } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CalendarForm } from "@/components/work_projection/calendar/calendar-forms";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { StandardCalendarForm as CalendarForm } from "@/components/work_projection/calendar/standard-calendar-forms";
+import {Dialog} from "@/components/ui/dialog";
+import {CalendarDraftBoundary} from "@/components/work_projection/calendar/calendar-draft-boundary";
+import {createCalendarCommands,calendarCommandContext,type CalendarCommandAttempt} from "@/lib/work_projection/calendar-command";
+import type {WorkCommandCompletion} from "@/lib/work_projection/work-fetch";
+import {captureWorkCommandContext} from "@/lib/work_projection/command-context";
 import { eventTime } from "@/components/work_projection/calendar/calendar-event";
 import { itemOnDate, type CalendarData, type CalendarHierarchy } from "@/lib/work_projection/calendar";
 import { addDays, rosterMonday, type RosterData } from "@/lib/people_payroll/people-roster";
@@ -13,10 +18,11 @@ import type {
   peoplePositionWorkingTimeData,
   peopleWorkingTimeData,
 } from "@/server/modules/people_payroll/public/people-hr-settings";
-import { RosterWorkspace } from "@/components/people_payroll/roster-workspace";
+import { RosterOwnerWorkspace as RosterWorkspace } from "@/components/people_payroll/roster-owner-workspace";
 import { usePeopleIntegrationCommand, usePeopleIntegrationData } from "@/components/people_payroll/people-integration-data";
 import styles from "@/components/people_payroll/people-hr-settings.module.css";
 import rosterStyles from "@/components/people_payroll/roster.module.css";
+import {currentRosterOwnerDraft,rosterOwnerDraftHeld,type RosterOwnerDraftState} from "@/lib/people_payroll/roster-owner-command";
 
 function form(event: FormEvent<HTMLFormElement>) {
   event.preventDefault();
@@ -58,7 +64,9 @@ export function PeopleTeamSchedule({
   const contextKey = `${base}:${query}`;
   const [latest, setLatest] = useState<{ key: string; data: RosterData } | null>(null),
     [appointment, setAppointment] = useState(false);
-  const data = latest?.key === contextKey ? latest.data : roster.data;
+  const [ownedDraft,setOwnedDraft]=useState<{state:RosterOwnerDraftState;key:string|null;data:RosterData|null}|null>(null),[ownerWarning,setOwnerWarning]=useState("");
+  const freshData = latest?.key === contextKey ? latest.data : roster.data;
+  const data = freshData??(rosterOwnerDraftHeld(ownedDraft?.state)?ownedDraft?.data:null);
   const defaultView = data?.selfRosterRequired ? "mine" : "team";
   const permittedView =
     initialView === "mine"
@@ -67,6 +75,13 @@ export function PeopleTeamSchedule({
         ? data?.canManage
         : initialView === "team" || initialView === "requests";
   const view = permittedView ? initialView! : defaultView;
+  const rosterHeld=rosterOwnerDraftHeld(ownedDraft?.state),rosterDraftLive=useRef<RosterOwnerDraftState|null>(null);
+  const trackRosterDraft=useCallback((next:RosterOwnerDraftState)=>{rosterDraftLive.current=currentRosterOwnerDraft(rosterDraftLive.current,next);setOwnedDraft(previous=>{
+    const current=currentRosterOwnerDraft(previous?.state,next);
+    if(current===previous?.state)return previous;
+    return {state:current,key:rosterOwnerDraftHeld(current)?previous?.key??`${contextKey}:${view}`:null,data:rosterOwnerDraftHeld(current)?data??previous?.data??null:null};
+  });},[contextKey,view,data]);
+
   const selected = data
     ? {
         department: data.departmentId,
@@ -95,7 +110,36 @@ export function PeopleTeamSchedule({
     `/api/v1${base}/calendar/hierarchy?limit=200`,
     "hierarchy",
   );
-  const command = usePeopleIntegrationCommand(base, calendar.reload);
+  const [calendarBusy,setCalendarBusy]=useState(false),[calendarPending,setCalendarPending]=useState<CalendarCommandAttempt|null>(null),[calendarDirty,setCalendarDirty]=useState(false),[calendarError,setCalendarError]=useState(''),[calendarMessage,setCalendarMessage]=useState(''),[calendarDiscard,setCalendarDiscard]=useState(false);
+  const [appointmentSnapshot,setAppointmentSnapshot]=useState<{hierarchy:CalendarHierarchy;date:string;timezone:string;participantIds:string[]}|null>(null);
+  const calendarCommands=useRef(createCalendarCommands()),calendarSource=useRef<string|null>(null),calendarTurn=useRef<object|null>(null),calendarLastContext=useRef<string|null>(null),calendarSourceKey=JSON.stringify([base,selected.department,selected.week,selected.timezone]);
+  useLayoutEffect(()=>{calendarSource.current=calendarSourceKey;return()=>{calendarSource.current=null;};},[calendarSourceKey]);
+  const calendarContext=useCallback(()=>JSON.stringify([calendarSource.current,calendarCommandContext()]),[]);
+  const calendarHeld=calendarDirty||calendarBusy||calendarPending!==null;
+  const closeAppointment=()=>{
+    if(calendarBusy||calendarPending){setCalendarError('Recover the original team appointment before closing this form.');return;}
+    if(calendarDirty){setCalendarDiscard(true);return;}
+    setAppointment(false);
+  };
+  useEffect(()=>{
+    const recover=()=>{const attempt=calendarCommands.current.pending();if(!attempt||attempt.context!==calendarContext()||calendarLastContext.current!==attempt.context)return;try{captureWorkCommandContext()();if(calendarSource.current===null)return;setCalendarPending(attempt);if(!calendarCommands.current.inflight()&&!calendarTurn.current)setCalendarBusy(false);}catch{}};
+    recover();window.addEventListener('erpx:work-context-changed',recover);window.addEventListener('focus',recover);return()=>{window.removeEventListener('erpx:work-context-changed',recover);window.removeEventListener('focus',recover);};
+  },[base,calendarSourceKey,calendarContext]);
+  async function saveAppointment(input?:unknown,completion?:WorkCommandCompletion,captured?:CalendarCommandAttempt){
+    if(calendarCommands.current.inflight()||calendarTurn.current)return;
+    const source=calendarSource.current,assertWorkCurrent=captureWorkCommandContext(),turn={};
+    const current=()=>{try{assertWorkCurrent();return source!==null&&calendarSource.current===source;}catch{return false;}};
+    if(!current())return;calendarTurn.current=turn;setCalendarBusy(true);setCalendarError('');setCalendarMessage('');
+    try{
+      const attempt=captured??calendarCommands.current.prepare(input,completion,calendarContext());calendarLastContext.current=attempt.context;
+      const result=await calendarCommands.current.execute(`/api/v1${base}/calendar/appointments`,attempt,calendarContext,'caller');
+      if(!current())return;setCalendarPending(calendarCommands.current.pending());
+      await calendar.reload();if(!current())return;result.assertCurrent();result.acknowledge();const unchanged=result.unchanged;setCalendarPending(calendarCommands.current.pending());
+      if(unchanged){setAppointment(false);setCalendarDirty(false);if(attempt.completion)window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:attempt.completion}));}
+      setCalendarMessage(unchanged?'Team appointment saved to Calendar.':'Submitted team appointment saved. Your newer draft is retained.');
+    }catch(error){if(current()){setCalendarPending(calendarCommands.current.pending());setCalendarError(error instanceof Error?error.message:'The team appointment could not be saved.');}}
+    finally{if(calendarTurn.current===turn){calendarTurn.current=null;if(current())setCalendarBusy(false);}}
+  }
   useEffect(() => {
     const listener = (event: Event) => {
       const detail = (event as CustomEvent<{ base: string; data: RosterData }>).detail;
@@ -127,10 +171,11 @@ export function PeopleTeamSchedule({
           ? "Shift templates"
           : "Team roster";
   return (
+    <CalendarDraftBoundary dirty={calendarDirty} busy={calendarBusy} pending={calendarPending!==null}>
     <section className={styles.settings} aria-label="Team schedule">
       <header className={styles.heading}>
         <div>
-          <Button type="submit" variant="plain" className={styles.back} onClick={onBack}>
+          <Button type="submit" variant="plain" className={styles.back} disabled={rosterHeld||calendarHeld} onClick={()=>{if(calendarHeld){setCalendarError("Finish or recover the team appointment before leaving this schedule.");return;}if(rosterOwnerDraftHeld(rosterDraftLive.current)){setOwnerWarning("Finish or recover the retained Roster draft before leaving this schedule.");return;}onBack();}}>
             <ArrowLeft size={16} />
             Back to structure
           </Button>
@@ -142,14 +187,15 @@ export function PeopleTeamSchedule({
             type="submit"
             variant="primary"
             className={styles.button}
-            onClick={() => setAppointment(true)}
-            disabled={!hierarchy.data || hierarchy.loading}
+            onClick={() => {if(calendarHeld||!hierarchy.data)return;setAppointmentSnapshot({hierarchy:hierarchy.data,date:selected.week,timezone:selected.timezone,participantIds:people.filter(person=>person.status!=="ended").map(person=>person.id)});setAppointment(true);}}
+            disabled={calendarHeld||!hierarchy.data || hierarchy.loading}
           >
             <CalendarPlus size={16} />
             Create team appointment
           </Button>
         )}
       </header>
+      {ownerWarning&&<p className={styles.error} role="alert">{ownerWarning}</p>}
       {roster.loading && !roster.data && (
         <p className={styles.loading} role="status">
           Loading team schedule…
@@ -196,44 +242,16 @@ export function PeopleTeamSchedule({
             </Button>
           </p>
         ))}
-      {appointment && hierarchy.data && (
-        <section className={styles.stack} aria-label="Create team appointment">
-          <h3>Create team appointment</h3>
-          {command.error && (
-            <p className={styles.error} role="alert">
-              {command.error}
-            </p>
-          )}
-          <CalendarForm
-            editor={{ kind: "appointment" }}
-            hierarchy={hierarchy.data}
-            date={selected.week}
-            selfPersonId={hierarchy.data.selfPersonId}
-            busy={command.busy}
-            api={`/api/v1${base}/calendar`}
-            initialTimezone={selected.timezone}
-            initialParticipantIds={people
-              .filter((person) => person.status !== "ended")
-              .map((person) => person.id)}
-            send={async (input) => {
-              if (
-                await command.send(
-                  "calendar/appointments",
-                  input,
-                  "Team appointment saved to Calendar.",
-                )
-              )
-                setAppointment(false);
-            }}
-            close={() => setAppointment(false)}
-          />
-        </section>
-      )}
-      {command.message && (
-        <p className={styles.message} role="status">
-          {command.message}
-        </p>
-      )}
+      <Dialog appearance="standard" open={appointment} title="Create team appointment" presentation="form-drawer" retainFormContents={calendarHeld} dismissDisabled={calendarBusy||calendarPending!==null} onClose={closeAppointment}>
+        {appointmentSnapshot&&<>
+          {calendarError&&<p className={styles.error} role="alert">{calendarError}</p>}
+          {calendarPending&&<div role="alert"><p>The original team appointment has not been confirmed. Your newer draft is retained.</p><Button appearance="standard" disabled={calendarBusy} onClick={()=>void saveAppointment(undefined,undefined,calendarPending)}>Retry submitted team appointment</Button></div>}
+          <CalendarForm appearance="legacy" editor={{kind:"appointment"}} hierarchy={appointmentSnapshot.hierarchy} date={appointmentSnapshot.date} selfPersonId={appointmentSnapshot.hierarchy.selfPersonId} busy={calendarBusy} api={`/api/v1${base}/calendar`} initialTimezone={appointmentSnapshot.timezone} initialParticipantIds={appointmentSnapshot.participantIds} send={(input,completion)=>void saveAppointment(input,completion)} edited={()=>setCalendarDirty(true)} close={closeAppointment}/>
+        </>}
+      </Dialog>
+      <Dialog appearance="standard" open={calendarDiscard} title="Discard team appointment draft?" onClose={()=>setCalendarDiscard(false)}><p>Your team appointment has not been saved.</p><div className="ui-form-actions"><Button appearance="standard" onClick={()=>setCalendarDiscard(false)}>Keep editing</Button>{!calendarBusy&&!calendarPending&&<Button appearance="standard" variant="danger" onClick={()=>{setCalendarDiscard(false);setCalendarDirty(false);setAppointment(false);setAppointmentSnapshot(null);}}>Discard appointment draft</Button>}</div></Dialog>
+      {calendarError&&!appointment&&<p className={styles.error} role="alert">{calendarError}</p>}
+      {calendarMessage&&<p className={styles.message} role="status">{calendarMessage}</p>}
       {data && (
         <>
           <div className={styles.form}>
@@ -241,7 +259,10 @@ export function PeopleTeamSchedule({
               Schedule view
               <Select
                 value={view}
+                disabled={rosterHeld||calendarHeld}
                 onChange={(event) => {
+                  if(calendarHeld){setCalendarError("Finish or recover the team appointment before changing this view.");return;}
+                  if(rosterOwnerDraftHeld(rosterDraftLive.current)){setOwnerWarning("Finish or recover the retained Roster draft before changing its view.");return;}
                   const url = new URL(window.location.href);
                   url.searchParams.set("view", event.target.value);
                   window.history.pushState(null, "", url);
@@ -254,15 +275,17 @@ export function PeopleTeamSchedule({
               </Select>
             </Field>
           </div>
-          <RosterWorkspace
-            key={`${contextKey}:${view}`}
+          <RosterWorkspace appearance="legacy"
+            key={ownedDraft?.key??`${contextKey}:${view}`}
             initial={data}
+            ownerAvailable={!!freshData}
             base={base}
             initialView={view}
             requestId={requestId}
             embedded
             calendarItems={items}
             onDataChange={updateContext}
+            onDraftStateChange={trackRosterDraft}
           />
         </>
       )}
@@ -303,6 +326,7 @@ export function PeopleTeamSchedule({
         </div>
       )}
     </section>
+    </CalendarDraftBoundary>
   );
 }
 

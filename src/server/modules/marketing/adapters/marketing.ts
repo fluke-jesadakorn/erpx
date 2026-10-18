@@ -1,3 +1,4 @@
+import {filterMarketingPurchasedWork} from "./record-purchases";
 import { commercialOwnerProjectionSources as organizationProjectionSources } from "../../organization/public/commercial-owner-projection-sources";
 
 import "server-only";
@@ -21,6 +22,9 @@ import {isTransactionalSqlDatabase} from "../../runtime/public/runtime/types";
 import type {SqlStatement} from "../../runtime/public/runtime/types";
 import {BusinessRuleError} from "../../shared";
 import {createCRMLeadInTransaction} from "../../crm/public/lead-handoff";
+import {crmMarketingCandidateTransaction} from "../../crm/public/purchases";
+import {marketingActionSchema,marketingCandidateSchema} from "../domain/marketing";
+import {requireMarketingPurchasedRead,marketingSourceAccess,marketingCandidateReadFilter,marketingFinanceHistory,marketingHandoffControls,withMarketingPurchasedCommand} from "./purchases";
 import {createMarketingApplication,type MarketingRepository,type MarketingMutation} from "../application/marketing";
 export type {MarketingExecutiveEvidenceMetric} from "../domain/marketing";
 import type {MarketingExecutiveEvidenceMetric} from "../domain/marketing";
@@ -45,7 +49,7 @@ async assets(){return (await write
         .all<Row>()).results;},
 async candidates(){return (await write
         .prepare(
-          "SELECT c.*,a.name form_name FROM marketing_lead_candidates c JOIN marketing_assets a ON a.id=c.form_id WHERE c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC",
+          `SELECT c.*,a.name form_name FROM marketing_lead_candidates c JOIN marketing_assets a ON a.id=c.form_id WHERE c.company_id=? AND ${await marketingCandidateReadFilter('c')} AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC`,
         )
         .bind(
           a.companyId,
@@ -70,7 +74,7 @@ async campaignSummary(){return (await write
             COUNT(*) FILTER (WHERE status='handed_off')::int handed_off,
             COUNT(*) FILTER (WHERE status='rejected')::int rejected
           FROM marketing_lead_candidates
-          WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)
+          WHERE company_id=? AND ${await marketingCandidateReadFilter('marketing_lead_candidates')} AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)
           GROUP BY 1,2 ORDER BY COUNT(*) DESC, campaign, source`,
         )
         .bind(
@@ -113,7 +117,7 @@ async history(id){return (await write
         .all<Row>()).results;},
 async workRows(){return (await write
         .prepare(
-          "SELECT * FROM marketing_lead_candidates WHERE company_id=? AND status='pending' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY updated_at DESC",
+          `SELECT * FROM marketing_lead_candidates WHERE company_id=? AND ${await marketingCandidateReadFilter('marketing_lead_candidates')} AND status='pending' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY updated_at DESC`,
         )
         .bind(
           a.companyId,
@@ -140,7 +144,7 @@ async evidence(metric,recordId,range){if(metric==="marketing-lead-candidates")re
 campaigns:()=>marketingCampaigns(a),costSources:()=>marketingCostSources(a),formReadiness:configuration=>marketingFormReadiness(write,a.companyId,configuration),publications:async(id)=>(await listAttachmentPublications(write,a,'marketing_asset',id)).items,preparePresentation:(key,configuration)=>marketingPresentationAssertions(write,key,a.companyId,configuration),
 replay:(key,operation,id,input)=>replayCommand(write,a,key,operation,id,input),createCRMLead:(raw,key)=>createCRMLeadInTransaction(write,a,raw,key),commit:(mutation,result)=>commit(write,a,mutation,result),
 };}
-function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);return createMarketingApplication({actorId:a.userId,clock:{now:()=>Date.now()},canRead:hasModuleAccess(a.modules,'marketing')&&hasPermission(a,'records.read'),canLinkCost:hasPermission(a,'finance.read')&&hasPermission(a,'records.write'),publicationsReadable:attachmentsV2Readable(),authorize:write=>access(a,write),repository:async()=>repository(await database(),a,true)});}
+function application(a:WorkContext,provided?:SqlDatabase,now?:number){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);return createMarketingApplication({actorId:a.userId,clock:{now:()=>now??Date.now()},canRead:hasModuleAccess(a.modules,'marketing')&&hasPermission(a,'records.read'),canLinkCost:hasPermission(a,'finance.read')&&hasPermission(a,'records.write'),publicationsReadable:attachmentsV2Readable(),authorize:write=>access(a,write),repository:async()=>repository(await database(),a,!provided)});}
 async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingMutation<SqlStatement[]>,result:Result):Promise<Result>{const {key,id,operation:op,now}=m;switch(m.action){
 case "candidate":{const i=m.input;return executeCommand(write, a, key, op, i, id, 1, result, [
     ...(m.presentation??[]),
@@ -303,9 +307,9 @@ case "handoff":{const i=m.input,crm=m.crm;return executeCommand(
   );}
 }}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
-export function marketingWorkspace(a:WorkContext){return translated(()=>application(a).workspace());}
-export function createMarketingCandidate(a:WorkContext,raw:unknown,key:string){return translated(()=>application(a).createCandidate(raw,key));}
-export function changeMarketing(a:WorkContext,kind:"asset"|"candidate",id:string,raw:unknown,key:string){return translated(()=>application(a).change(kind,id,raw,key));}
-export function marketingDetail(a:WorkContext,id:string){return translated(()=>application(a).detail(id));}
-export function marketingExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:MarketingExecutiveEvidenceMetric,id:string,range?:{from:number;toExclusive:number}){return translated(()=>application(a,db).evidence(metric,id,range));}
-export function marketingWork(a:WorkContext){return translated(()=>application(a).work());}
+export function marketingWorkspace(a:WorkContext){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireMarketingPurchasedRead(db,a),view=await application(a,db).workspace();return {...view,...(purchase?{purchase,canWrite:hasPermission(a,'records.write'),costHistory:await marketingFinanceHistory(db,a)}: {})};});}
+export function createMarketingCandidate(a:WorkContext,raw:unknown,key:string){return translated(()=>{const input=marketingCandidateSchema.parse(raw);return withMarketingPurchasedCommand(a,{key,operation:'marketing.candidate.create',target:{kind:'candidate',id:`marketing-candidate-${key}`},purpose:'new-work',sources:[{kind:'asset',id:input.formId}]},db=>application(a,db).createCandidate(input,key));});}
+export function changeMarketing(a:WorkContext,kind:"asset"|"candidate",id:string,raw:unknown,key:string){return translated(()=>{const input=marketingActionSchema.parse(raw);return kind==='candidate'&&input.action==='handoff'?crmMarketingCandidateTransaction(a,id,input,key,(db,now)=>application(a,db,now).change(kind,id,input,key,repository(db,a,false))):withMarketingPurchasedCommand(a,{key,operation:kind==='asset'?`marketing.asset.${input.action}`:'marketing.candidate.engagement',target:{kind,id},existing:true,purpose:input.action==='activate'?'new-work':'settle-existing'},db=>application(a,db).change(kind,id,input,key));});}
+export function marketingDetail(a:WorkContext,id:string){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireMarketingPurchasedRead(db,a,{kind:'candidate',id}),view=await application(a,db).detail(id),handoff=purchase?await marketingHandoffControls(db,a):undefined;return {...view,...(purchase?{purchase,canWrite:hasPermission(a,'records.write'),canHandoff:!!handoff?.sales&&hasPermission(a,'records.write')&&view.candidate.created_by!==a.userId,handoffPurchase:handoff?.purchase}: {})};});}
+export function marketingExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:MarketingExecutiveEvidenceMetric,id:string,range?:{from:number;toExclusive:number}){return translated(async()=>{await requireMarketingPurchasedRead(db,a);return application(a,db).evidence(metric,id,range);});}
+export function marketingWork(a:WorkContext){return translated(async()=>{if(!hasModuleAccess(a.modules,'marketing')||!hasPermission(a,'records.read'))return [];const db=(await holdingResources(a.holdingId)).write,purchase=await marketingSourceAccess(db,a);if(purchase&&!purchase.history)return [];const rows=await application(a,db).work();return filterMarketingPurchasedWork(db,a,purchase&&!purchase.settleExisting?rows.map(row=>({...row,canAct:false,queue:'waiting' as const})):rows);});}

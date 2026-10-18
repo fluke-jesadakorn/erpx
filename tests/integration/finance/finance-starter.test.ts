@@ -1,4 +1,5 @@
-import { beforeAll, expect, it, vi } from "vitest";
+import { packageGrantStore } from "../../../src/server/modules/commercial/public/package-grants";
+import { beforeAll, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
   expenseDb as db,
@@ -14,6 +15,7 @@ vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
+afterEach(()=>vi.unstubAllEnvs());
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
 });
@@ -67,9 +69,10 @@ const request = {
     "Review the shown starting accounts before independent Company policy approval",
 };
 it("creates configuration once, with exact control categories and leap-month dates, without posting money or approving policy", async () => {
-  const f = await fresh(),
-    command = key(),
-    result = await createFinanceStarter(f.actor, request, command);
+  const f = await fresh(), command = key();
+  await packageGrantStore(db,{authorize:async()=>({userId:"isolated-starter-review"}),obligations:async()=>{throw Error("No starter withdrawal witness");}}).apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.company,packageId:"pos",packageVersion:1,state:"active",startsAt:0,endsAt:null,version:1,reason:"POS included starting ledger",evidence:"test:pos-starter-foundation"}});
+  vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+  const result = await createFinanceStarter(f.actor, request, command);
   expect(result).toMatchObject({
     currency: "THB",
     accountCount: 23,

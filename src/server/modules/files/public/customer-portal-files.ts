@@ -1,1 +1,1 @@
-export { customerPortalFileTarget, customerPortalSharedFileRows, customerPortalPreviewRow, recordCustomerPortalFileAccess } from "../adapters/customer-portal-files";
+export { customerPortalFileTarget, customerPortalSharedFileRows, customerPortalPreviewRow, recordCustomerPortalFileAccess,customerPortalFileSourceReadLocks,customerPortalSharedPreviewSource,customerPortalPreviewReadAudits } from "../adapters/customer-portal-files";

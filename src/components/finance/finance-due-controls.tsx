@@ -1,6 +1,7 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {useState} from "react";
-import {useRouter} from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import {financeCommandFetch as workFetch} from "@/lib/finance/finance-command-fetch";
 import {Button,Card,Field,FormLayout,TextArea,InlineNotice,ActionLink} from "@/components/ui/foundation";
 type Row=Record<string,string|number|null>;
@@ -12,7 +13,7 @@ export function FinanceDueControls({base,rows,canWrite}:{base:string;rows:Row[];
  <h2>{String(r.kind).replaceAll('_',' ')} · {String(r.run_on)}</h2><p>{String(r.status)} · {String(r.reason)}</p>
  {r.last_message&&<InlineNotice tone="danger">{String(r.last_message)}</InlineNotice>}
  <ActionLink appearance="standard" href={`${base}${href}`}>{result?'Open prepared draft':'Open source and resolve missing information'}</ActionLink>
- {canWrite&&['scheduled','blocked'].includes(String(r.status))&&<FormLayout onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget,(e.nativeEvent as SubmitEvent).submitter);setBusy(true);try{const response=await workFetch(`${base.replace('/holdings/','/api/v1/holdings/')}/finance/due-drafts/${r.id}/${f.get('action')}`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({expectedVersion:r.version,reason:f.get('reason')})}),body=await response.json();if(!response.ok)throw new Error(body.error?.message??'The schedule could not be changed.');setMessage('Schedule updated.');router.refresh();}catch(error){setMessage(error instanceof Error?error.message:'The schedule could not be changed.');}finally{setBusy(false);}}}>
+ {canWrite&&['scheduled','blocked'].includes(String(r.status))&&<FormLayout onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget,(e.nativeEvent as SubmitEvent).submitter);setBusy(true);try{const response=await workFetch(`${base.replace(canonicalUiHref('/holdings/'),'/api/v1/holdings/')}/finance/due-drafts/${r.id}/${f.get('action')}`,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({expectedVersion:r.version,reason:f.get('reason')})}),body=await response.json();if(!response.ok)throw new Error(body.error?.message??'The schedule could not be changed.');setMessage('Schedule updated.');router.refresh();}catch(error){setMessage(error instanceof Error?error.message:'The schedule could not be changed.');}finally{setBusy(false);}}}>
  <Field appearance="standard">Change reason<TextArea appearance="standard" name="reason" required minLength={3}/></Field>
  {r.status==='blocked'&&<Button appearance="standard" clientManaged type="submit" name="action" value="retry" disabled={busy}>Retry after fixing source</Button>}
  <Button appearance="standard" clientManaged type="submit" name="action" value="cancel" disabled={busy}>Cancel scheduled draft</Button>

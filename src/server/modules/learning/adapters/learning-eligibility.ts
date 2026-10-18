@@ -14,6 +14,7 @@ import type { SqlDatabase,SqlStatement } from "@/server/modules/runtime/public/r
 import { createLearningBenefitConsumption, createValidateBenefitLearning, createRevokeLearningCertificate } from "../application/eligibility";
 import type { LearningCertificate as Certificate, LearningBenefitInput, LearningBenefitElection, LearningRevocationInput } from "../domain/eligibility";
 export { certificateRevocationSchema } from "../domain/eligibility";
+import {withLearningPurchasedCommand} from "./purchases";
 const currentSource=`JOIN learning_eligibility_handoffs h ON h.id=c.handoff_id JOIN learning_assignments a ON a.id=c.assignment_id ${peoplepayrollSources.learning_adapters_learning_eligibility_hr_people_p_join} ON p.id=c.person_id AND p.company_id=c.company_id`;
 
 export function nativeLearningBenefitConsumption(write:SqlDatabase){return createLearningBenefitConsumption({error:violation=>new ApiError(violation.status,violation.code,violation.message),today:()=>new Date().toISOString().slice(0,10),digest:sha256,
@@ -37,7 +38,14 @@ export function nativeValidateBenefitLearning(write:SqlDatabase){return createVa
  });}
 export async function validateBenefitLearning(write:SqlDatabase,actor:WorkContext,row:LearningBenefitElection,key:string){return (await nativeValidateBenefitLearning(write)(actor,row,key)??[]) as SqlStatement[];}
 export async function revokeLearningCertificate(actor:WorkContext,id:string,input:LearningRevocationInput,key:string){
- let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=holdingResources(actor.holdingId).then(resources=>resources.write);
+ const owner=(await holdingResources(actor.holdingId)).write;
+ return withLearningPurchasedCommand(owner,actor,{key,operation:"learning.certificate.revoke",target:{kind:"certificate",id},purpose:"settle-existing",capabilities:["learn.certificates"],permission:"records.review",existing:true,
+ sourceWitness:async database=>JSON.stringify(await database.prepare(`SELECT to_jsonb(a)-'updated_at' assignment,to_jsonb(h) handoff,to_jsonb(r) revocation
+ FROM learning_certificates c ${currentSource} LEFT JOIN learning_certificate_revocations r ON r.certificate_id=c.id
+ WHERE c.id=? AND c.company_id=?`).bind(id,actor.companyId).first())},write=>nativeRevokeLearningCertificate(write,actor,id,input,key));
+}
+async function nativeRevokeLearningCertificate(write:SqlDatabase,actor:WorkContext,id:string,input:LearningRevocationInput,key:string){
+ const database=async()=>write;
  return createRevokeLearningCertificate({
  authorize(actor){actor=requirePermission(actor,"records.review");if(!hasModuleAccess(actor.modules,"learning"))throw new ApiError(403,"MODULE_FORBIDDEN","Use an authorized Learning reviewer assignment.");return actor;},
  error:violation=>new ApiError(violation.status,violation.code,violation.message),now:Date.now,

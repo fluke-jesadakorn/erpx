@@ -8,7 +8,7 @@ import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,
 import type {listTasks,saveTask,taskActionSchema,taskDelegationRevokeSchema,taskDelegationSchema,taskDetail,taskSchema,delegateTask,revokeTaskDelegation,transitionTask} from "@/server/modules/operations/public/staff-tasks";
 import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema,saveProjectMilestone,transitionProjectMilestone} from "@/server/modules/projects/public/project-milestones";
 import type {decideProjectWorkLog,listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema,saveProjectWorkLog} from "@/server/modules/projects/public/project-actuals";
-import type {canEditTemplate,changeScheduleState,getTemplate,listTemplates,runTemplate,saveSchedule,saveTemplate,scheduleSchema,templateSchema,ScheduleRow} from "@/server/modules/operations/public/routines";
+import type {canEditTemplate,changeScheduleState,endSchedule,getTemplate,listTemplates,runTemplate,saveSchedule,saveTemplate,scheduleSchema,templateSchema,ScheduleRow} from "@/server/modules/operations/public/routines";
 import type {rerouteApproval} from "@/server/modules/workflow/public/approvals";
 import type {changeAppointment} from "@/server/modules/organization/public/department-authority";
 import type {getProject,listProjects,projectSchema,saveProject} from "../../projects/public/staff-projects";
@@ -38,6 +38,7 @@ listProjectWorkLogs:WithoutDatabase<typeof listProjectWorkLogs>;
 saveProjectWorkLog:WithoutDatabase<typeof saveProjectWorkLog>;
 canEditTemplate:WithoutDatabase<typeof canEditTemplate>;
 changeScheduleState:WithoutDatabase<typeof changeScheduleState>;
+endSchedule:WithoutDatabase<typeof endSchedule>;
 getTemplate:WithoutDatabase<typeof getTemplate>;
 listTemplates:WithoutDatabase<typeof listTemplates>;
 runTemplate:WithoutDatabase<typeof runTemplate>;
@@ -276,18 +277,12 @@ const {holdingSlug,path:p=[]}=await context.params;const actor=await ports.requi
           );
         else if (
           resource === "routine-schedules" &&
-          ["pause", "resume"].includes(p[1])
+          ["pause", "resume", "end"].includes(p[1])
         ) {
           const body = z
             .object({ expectedVersion: z.number().int().positive() })
             .parse(input);
-          data = await ports.changeScheduleState(
-            actor,
-            p[0],
-            body.expectedVersion,
-            p[1] === "resume",
-            key,
-          );
+          data = p[1]==="end"?await ports.endSchedule(actor,p[0],body.expectedVersion,key):await ports.changeScheduleState(actor,p[0],body.expectedVersion,p[1]==="resume",key);
         } else if (resource === "approvals" && p[1] === "reroute") {
           if (
             actor.beta &&

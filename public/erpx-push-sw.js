@@ -7,7 +7,7 @@ self.addEventListener("push", event => {
     /^\/holdings\/[a-zA-Z0-9%_-]+(?:\/[^?#]*)?\/inbox\?tab=updates$/.test(data.path) ||
     /^\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/(?:holding|branches\/[a-zA-Z0-9_-]+(?:\/departments\/[a-zA-Z0-9_-]+)?|departments\/[a-zA-Z0-9_-]+)\/notifications$/.test(data.path)
   )
-    ? data.path : "/my-access";
+    ? data.path : "/";
   event.waitUntil(self.registration.showNotification("ERPX", {
     body: "You have a work update.", tag, renotify: false,
     data: { path }, icon: "/favicon.ico",
@@ -15,7 +15,7 @@ self.addEventListener("push", event => {
 });
 self.addEventListener("notificationclick", event => {
   event.notification.close();
-  const path = event.notification.data?.path || "/my-access";
+  const path = event.notification.data?.path || "/";
   const url = new URL(path, self.location.origin);
   if (url.origin !== self.location.origin) return;
   event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(async tabs => {

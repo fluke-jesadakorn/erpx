@@ -1,10 +1,11 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {FinanceEvidenceDocuments} from "./finance-evidence-documents";
 import {EmbeddedRecord} from "@/components/records/record-context";
 import {RecordLink} from "@/components/records/record-link";
 import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { useContext,useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import {
   Button,
@@ -51,7 +52,7 @@ export function FinanceBookControls({
     setError("");
     try {
       const r = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
+        `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/${path}`,
         {
           method: "POST",
           headers: {

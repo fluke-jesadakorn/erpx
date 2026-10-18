@@ -1,13 +1,20 @@
 import "server-only";
+import {headers} from 'next/headers';
+import {productHostForHost} from '@/lib/runtime/product-hosts';
 import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/work_projection/workspace";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { staffSettings } from "@/server/modules/operations/public/staff-settings";
 import { listProjects } from "@/server/modules/projects/public/staff-projects";
+import {routineProjectOptions} from '../../projects/public/routine-project-options';
+import {optionalProjectOptions} from '../../projects/public/optional-project-options';
 import { activeStaff } from "@/server/modules/operations/public/staff-policy";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import {createStaffPageService} from "../application/staff-page";
-export async function staffPage(slug:string){let write:Awaited<ReturnType<typeof holdingResources>>["write"];
- const result=await createStaffPageService({actor:requireWorkContext,prepare:async actor=>{write=(await holdingResources(actor.holdingId)).write;},settings:actor=>staffSettings(write,actor),projects:actor=>listProjects(write,actor),staff:actor=>activeStaff(write,actor.companyId,actor.userId),expectedAbsence:error=>error instanceof ApiError,base:actor=>workspaceBase(publicScope(actor))})(slug);
- return {...result,write:write!};
+export type StaffPageOptions={routineProjects?:true;projectOptions?:'optional'};
+export async function staffPage(slug:string,options?:StaffPageOptions){let write:Awaited<ReturnType<typeof holdingResources>>["write"];
+ const projectPickerStrict=!!(options?.routineProjects||options?.projectOptions==='optional')&&productHostForHost((await headers()).get('host'))==='work';
+ const projectOptions={strictProduct:projectPickerStrict};
+ const result=await createStaffPageService({actor:requireWorkContext,prepare:async actor=>{write=(await holdingResources(actor.holdingId)).write;},settings:actor=>staffSettings(write,actor),projects:actor=>options?.routineProjects?routineProjectOptions(write,actor,projectOptions):options?.projectOptions==='optional'?optionalProjectOptions(write,actor,projectOptions):listProjects(write,actor),staff:actor=>activeStaff(write,actor.companyId,actor.userId),expectedAbsence:error=>error instanceof ApiError,base:actor=>workspaceBase(publicScope(actor))})(slug);
+ return {...result,write:write!,projectPickerStrict};
 }

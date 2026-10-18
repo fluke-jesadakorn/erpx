@@ -1,3 +1,4 @@
+import {withFinancePurchasedCommand,withFinancePurchasedRead,requireFinancePurchasedRead} from "./purchase-boundary";
 import {financeCommandReceipts} from "../../workflow/public/finance-command-receipts";
 import type { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -334,8 +335,8 @@ opening:async(actor,chartId,asOf)=>write
       )
       .bind(actor.companyId, chartId, asOf)
       .first("value")});}
-export const prepareCollectionCase=(actor:WorkContext,input:z.infer<typeof collectionCaseSchema>,key:string)=>nativeCollections().prepareCollectionCase(actor,input,key);
-export const reviseCollectionCase=(actor:WorkContext,parentId:string,input:z.infer<typeof reviseCollectionCaseSchema>,key:string)=>nativeCollections().reviseCollectionCase(actor,parentId,input,key);
-export const decideCollectionCase=(actor:WorkContext,id:string,input:z.infer<typeof financeReviewSchema>,action:'approve'|'cancel'|'test-deliver',key:string)=>nativeCollections().decideCollectionCase(actor,id,input,action,key);
-export const collectionWorkspace=(actor:WorkContext,asOf:string,query:CollectionQuery={},provided?:SqlDatabase)=>nativeCollections(provided).collectionWorkspace(actor,asOf,query);
-export const cashDueForecast=(actor:WorkContext,input:{chartId:string;asOf:string},provided?:SqlDatabase)=>nativeCollections(provided).cashDueForecast(actor,input);
+export const prepareCollectionCase=(actor:WorkContext,input:z.infer<typeof collectionCaseSchema>,key:string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.collection.prepare",purpose:"settle-existing",capability:"finance.receivables"},tx=>nativeCollections(tx).prepareCollectionCase(actor,input,key));
+export const reviseCollectionCase=(actor:WorkContext,parentId:string,input:z.infer<typeof reviseCollectionCaseSchema>,key:string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.collection.revise",purpose:"settle-existing",capability:"finance.receivables"},tx=>nativeCollections(tx).reviseCollectionCase(actor,parentId,input,key));
+export const decideCollectionCase=(actor:WorkContext,id:string,input:z.infer<typeof financeReviewSchema>,action:'approve'|'cancel'|'test-deliver',key:string)=>withFinancePurchasedCommand(actor,{key,operation:`finance.collection.${action}`,purpose:"settle-existing",capability:"finance.receivables"},tx=>nativeCollections(tx).decideCollectionCase(actor,id,input,action,key));
+export const collectionWorkspace=async(actor:WorkContext,asOf:string,query:CollectionQuery={},provided?:SqlDatabase)=>{if(provided){await requireFinancePurchasedRead(provided,actor,"finance.receivables");return nativeCollections(provided).collectionWorkspace(actor,asOf,query);}return withFinancePurchasedRead(actor,db=>nativeCollections(db).collectionWorkspace(actor,asOf,query),"finance.receivables");};
+export const cashDueForecast=async(actor:WorkContext,input:{chartId:string;asOf:string},provided?:SqlDatabase)=>{if(provided){await requireFinancePurchasedRead(provided,actor,"finance.banking");return nativeCollections(provided).cashDueForecast(actor,input);}return withFinancePurchasedRead(actor,db=>nativeCollections(db).cashDueForecast(actor,input),"finance.banking");};

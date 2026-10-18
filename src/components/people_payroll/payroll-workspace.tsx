@@ -1,4 +1,6 @@
 "use client";
+import {PayrollCommandRecovery} from "./payroll-command-recovery";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Card } from "@/components/ui/foundation";
 
 import { InlineNotice } from "@/components/ui/foundation";
@@ -11,12 +13,13 @@ import {
 import { Button } from "@/components/ui/foundation";
 
 import { RecordLink as Link } from "@/components/records/record-link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { payrollErrorMessage, type PayrollApiError } from "@/lib/people_payroll/payroll-errors";
 import { useMoneyFormatter } from "@/components/finance/money/currency-provider";
 import styles from "@/components/people_payroll/payroll-workspace.module.css";
+import {usePayrollCommand} from "./use-payroll-command";
+import {payrollSnapshotMatches} from "@/lib/people_payroll/payroll-purchases";
 type Row = Record<string, unknown>;
 export function PayrollDisclosure({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -51,7 +54,7 @@ export function PayrollPageIntro({
   return (
     <header className={styles.header}>
       <div>
-        <Link className="back-link" href={`${base}/people/payroll`}>
+        <Link className="back-link" href={canonicalUiHref(`${base}/people/payroll`)}>
           ← Payroll
         </Link>
         <p className="eyebrow">Payroll</p>
@@ -116,7 +119,7 @@ function sourceHref(
     href?: string;
   },
 ): string | null {
-  const href = blocker.href?.startsWith(`${base}/`)
+  const href = blocker.href?.startsWith(canonicalUiHref(`${base}/`))
     ? blocker.href
     : blocker.href?.startsWith("/people/")
       ? `${base}${blocker.href}`
@@ -201,7 +204,7 @@ export function PayrollDashboard({
   base: string;
   userId: string;
   runs: Row[];
-  readiness: Readiness | null;
+  readiness: PayrollReadinessSnapshot | null;
   canPrepare: boolean;
   redacted: boolean;
 }) {
@@ -243,7 +246,7 @@ export function PayrollDashboard({
           {canPrepare && (
             <UiActionLink appearance="standard"
               variant="primary"
-              href={`${base}/people?panel=settings&section=pay-groups`}
+              href={canonicalUiHref(`${base}/people?panel=settings&section=pay-groups`)}
             >
               {"Set up a pay group"}
             </UiActionLink>
@@ -298,7 +301,7 @@ export function PayrollDashboard({
             </div>
             <UiActionLink appearance="standard"
               variant="primary"
-              href={`${base}/people/payroll/runs/${encodeURIComponent(String(current.id))}`}
+              href={canonicalUiHref(`${base}/people/payroll/runs/${encodeURIComponent(String(current.id))}`)}
             >
               {"Open run and continue"}
             </UiActionLink>
@@ -311,7 +314,7 @@ export function PayrollDashboard({
                   {readiness.blockers.slice(0, 4).map((blocker, index) => {
                     const href =
                       sourceHref(base, blocker) ??
-                      `${base}/people/payroll/runs/${encodeURIComponent(String(current.id))}`;
+                      canonicalUiHref(`${base}/people/payroll/runs/${encodeURIComponent(String(current.id))}`);
                     return (
                       <li key={`${blocker.code}:${index}`}>
                         <Link href={href}>{blocker.message}</Link>
@@ -322,7 +325,7 @@ export function PayrollDashboard({
               ) : issue ? (
                 <p>
                   <Link
-                    href={`${base}/people/payroll/runs/${encodeURIComponent(String(current.id))}`}
+                    href={canonicalUiHref(`${base}/people/payroll/runs/${encodeURIComponent(String(current.id))}`)}
                   >
                     {"Calculation failed. Open the run and correct source data."}
                   </Link>
@@ -332,8 +335,8 @@ export function PayrollDashboard({
               )}
               {!redacted && (
                 <>
-                  <Link href={`${base}/people`}>{"Employee records"}</Link> ·{" "}
-                  <Link href={`${base}/people/roster`}>{"Time and roster"}</Link>
+                  <Link href={canonicalUiHref(`${base}/people`)}>{"Employee records"}</Link> ·{" "}
+                  <Link href={canonicalUiHref(`${base}/people/roster`)}>{"Time and roster"}</Link>
                 </>
               )}
             </Card>
@@ -366,7 +369,7 @@ export function PayrollHistoryContent({
     <div className={styles.workspace}>
       <div className={styles.header}>
         <div>
-          <Link className="back-link" href={`${base}/people/payroll`}>
+          <Link className="back-link" href={canonicalUiHref(`${base}/people/payroll`)}>
             ← Payroll
           </Link>
           <p className="eyebrow">Payroll</p>
@@ -379,7 +382,7 @@ export function PayrollHistoryContent({
           runs.map((run) => (
             <Link
               className="ui-record-item"
-              href={`${base}/people/payroll/runs/${encodeURIComponent(String(run.id))}`}
+              href={canonicalUiHref(`${base}/people/payroll/runs/${encodeURIComponent(String(run.id))}`)}
               key={String(run.id)}
             >
               <span className="row-main">
@@ -508,7 +511,7 @@ export function PayrollDetailOverview({
     <div className={styles.workspace}>
       <div className={styles.header}>
         <div>
-          <Link className="back-link" href={`${base}/people/payroll`}>
+          <Link className="back-link" href={canonicalUiHref(`${base}/people/payroll`)}>
             ← {"Back to Payroll"}
           </Link>
           <p className="eyebrow">Payroll · {"Run detail"}</p>
@@ -588,7 +591,7 @@ export function PayrollDetailOverview({
     </div>
   );
 }
-type Readiness = {
+export type PayrollReadinessSnapshot = {
   runId: string;
   status: string;
   version: number;
@@ -611,6 +614,7 @@ export function PayrollReadinessPanel({
   canApprove,
   canExport,
   simulationMode,
+  initial,
 }: {
   base: string;
   runId: string;
@@ -620,24 +624,25 @@ export function PayrollReadinessPanel({
   canApprove: boolean;
   canExport: boolean;
   simulationMode: boolean;
+  initial?: PayrollReadinessSnapshot | null;
 }) {
-  const router = useRouter();
-  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const {send, busy, error: commandError, notice, canSettle, canRead, recovery} = usePayrollCommand(base, `run:${runId}:readiness`, JSON.stringify([runId, version, initial, canPrepare, canApprove, canExport]));
+  canPrepare &&= canSettle; canApprove &&= canSettle; canExport &&= canRead;
+  const currentInitial = payrollSnapshotMatches(initial, runId, version) ? initial : null;
+  const [readiness, setReadiness] = useState<PayrollReadinessSnapshot | null>(currentInitial);
+  const [previousInitial, setPreviousInitial] = useState(initial);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
   const [showAllBlockers, setShowAllBlockers] = useState(false);
-  const attempt = useRef<{
-    body: string;
-    key: string;
-  } | null>(null);
+  if (previousInitial !== initial) {setPreviousInitial(initial); setReadiness(currentInitial);}
   useEffect(() => {
+    if (payrollSnapshotMatches(initial, runId, version)) return;
     let active = true;
     void workFetch(`/api/v1${base}/people/payroll/runs/${encodeURIComponent(runId)}/readiness`, {
       cache: "no-store",
     })
       .then(async (response) => {
         const body = (await response.json()) as {
-          data?: Readiness;
+          data?: PayrollReadinessSnapshot;
           error?: PayrollApiError;
         };
         if (!response.ok || !body.data)
@@ -650,39 +655,17 @@ export function PayrollReadinessPanel({
     return () => {
       active = false;
     };
-  }, [base, runId, version]);
+  }, [base, runId, version, initial]);
   async function command(
     action: "calculate" | "submit-review" | "approve" | "export-review",
     input: unknown,
   ) {
-    const bodyText = JSON.stringify(input),
-      path = `payroll/runs/${encodeURIComponent(runId)}/${action}`;
-    if (attempt.current?.body !== path + bodyText)
-      attempt.current = { body: path + bodyText, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/people/${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-        body: bodyText,
-      });
-      const body = (await response.json()) as {
-        error?: PayrollApiError;
-      };
-      if (!response.ok) throw body.error ?? { message: "Could not complete this Payroll step." };
-      attempt.current = null;
-      router.refresh();
-    } catch (cause) {
-      setError(payrollErrorMessage(cause, "Could not complete this Payroll step."));
-    } finally {
-      setBusy(false);
-    }
+    await send(`payroll/runs/${encodeURIComponent(runId)}/${action}`, input);
   }
   return (
     <Card as="section" appearance="standard" className={styles.card} aria-labelledby="payroll-readiness-title">
       <h2 id="payroll-readiness-title">{"Readiness and next action"}</h2>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <PayrollCommandRecovery {...recovery} appearance="standard"/>{(error || commandError) && <InlineNotice tone="danger" role="alert">{error || commandError}</InlineNotice>}{notice && <p role="status">{notice}</p>}
       {!readiness && !error && <p className="muted">{"Checking source data…"}</p>}
       {readiness && (
         <>

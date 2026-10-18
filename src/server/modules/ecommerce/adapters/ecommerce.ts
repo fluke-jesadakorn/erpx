@@ -1,3 +1,4 @@
+import {commerceOwnerTransaction} from "../../commerce/public/purchase-boundary";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "../../commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as financeProjectionSources } from "../../finance/public/commercial-owner-projection-sources";
 import "server-only";
@@ -15,6 +16,10 @@ import { changeOrderReservation, getOrder, orderSchema, requestCommerceReturn, r
 import { createEcommerceApplication, type EcommerceRepository } from "../application/commerce";
 import { ecommerceCurrencyConfiguration, ecommerceProductCandidates, ecommerceWarehouseCandidates, ecommerceWarehouse, ecommerceFulfillmentCurrent } from "../../commerce/public/ecommerce-sources";
 import { ecommerceCustomerCandidates } from "../../finance/public/ecommerce-customers";
+import {commercePackageEnforcementMode} from '../../commercial/public/purchase-command-boundary';
+import {channelSchema} from '../domain/channel';
+import {listingSchema,cartSchema,lineSchema,checkoutSchema,actionSchema} from '../domain/commerce';
+import {requireEcommercePurchasedRead,ecommercePurchaseControls,withEcommercePurchasedCommand,type EcommercePurchaseCommand} from './purchase-boundary';
 function access(a: WorkContext, write = false) {
   requirePermission(a, write ? "commerce.sales" : "commerce.read");
   if (!hasModuleAccess(a.modules, "ecommerce"))
@@ -30,7 +35,7 @@ function scopeValues(a:WorkContext){return [a.companyId,a.branchId,a.branchId,a.
 function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction: boolean): EcommerceRepository {
  let money: Awaited<ReturnType<typeof snapshotMoney>> | undefined;
  return {
-  ...(canStartTransaction && isTransactionalSqlDatabase(write) ? { transaction: <Result>(action: (repository: EcommerceRepository) => Promise<Result>) => write.transaction(tx => action(bindRepository(tx, a, false))) } : {}),
+  ...(canStartTransaction && isTransactionalSqlDatabase(write) ? { transaction: <Result>(action: (repository: EcommerceRepository) => Promise<Result>) => commerceOwnerTransaction(write,a,tx => action(bindRepository(tx, a, false))) } : {}),
   replay: command => replayCommand(write, a, command.key, command.operation, command.id, command.input),
   async workspace() {
   const [channels, listings, carts, checkouts, products, parties, warehouses] =
@@ -229,6 +234,10 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   );
   },
   cartLines: async id => (await write.prepare("SELECT * FROM ecommerce_cart_lines WHERE cart_id=? ORDER BY ordinal").bind(id).all<Row>()).results,
+  async abandonCart(command,now){const {key,operation,input,id}=command;return executeCommand(write,a,key,operation,input,id,input.expectedVersion+1,{id,status:'abandoned',version:input.expectedVersion+1},[
+    assertion(write,key,'cart-abandon',"EXISTS(SELECT 1 FROM ecommerce_carts c WHERE c.id=? AND c.version=? AND c.status='open' AND NOT EXISTS(SELECT 1 FROM ecommerce_checkouts checkout WHERE checkout.cart_id=c.id))",[id,input.expectedVersion]),
+    write.prepare("UPDATE ecommerce_carts SET status='abandoned',version=version+1,updated_at=? WHERE id=?").bind(now,id),
+  ]);},
   saveSalesOrder: (actor, input, key) => saveOrder(actor, null, orderSchema.parse(input), key, write),
   transitionSalesOrder: (actor, id, input, key) => transitionOrder(actor, id, input, key, write),
   async checkout(command, cart, orderId, now) {
@@ -312,7 +321,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
     .first<Row>();
 
   },
-  salesOrder: (actor, id, detail) => detail ? getOrder(actor, id) : getOrder(actor, id, write),
+  salesOrder: (actor, id) => getOrder(actor, id, write),
   reserveSalesOrder: (actor, id, input, key) => changeOrderReservation(actor, id, input, key, write),
   async confirmCheckout(command, v, now) {
    const { input: i, id, operation: op, key } = command;
@@ -442,11 +451,15 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
 function application(a: WorkContext, ownerWrite?: SqlDatabase) {
  return createEcommerceApplication({ actor: a, authorize: write => access(a, write), authorizeReview: () => requirePermission(a, "commerce.approve"), clock: { now: () => Date.now() }, error: (status, code, message) => new ApiError(status, code, message), repository: async () => bindRepository(ownerWrite ?? (await holdingResources(a.holdingId)).write, a, !ownerWrite) });
 }
-export async function ecommerceWorkspace(a: WorkContext) { return application(a).ecommerceWorkspace(); }
-export async function createChannel(a: WorkContext, raw: unknown, key: string) { return application(a).createChannel(raw, key); }
-export async function createListing(a: WorkContext, raw: unknown, key: string) { return application(a).createListing(raw, key); }
-export async function createCart(a: WorkContext, raw: unknown, key: string) { return application(a).createCart(raw, key); }
-export async function addCartLine(a: WorkContext, raw: unknown, key: string) { return application(a).addCartLine(raw, key); }
-export async function checkoutCart(a: WorkContext, raw: unknown, key: string, ownerWrite?: SqlDatabase) { return application(a, ownerWrite).checkoutCart(raw, key); }
-export async function changeEcommerce(a: WorkContext, kind: "channel" | "listing" | "checkout", id: string, raw: unknown, key: string, ownerWrite?: SqlDatabase) { return application(a, ownerWrite).changeEcommerce(kind, id, raw, key); }
-export async function ecommerceDetail(a: WorkContext, id: string) { return application(a).ecommerceDetail(id); }
+async function command(a:WorkContext,metadata:EcommercePurchaseCommand,run:(owner:ReturnType<typeof application>)=>Promise<Record<string,unknown>>,provided?:SqlDatabase){
+ if(await commercePackageEnforcementMode()==='disabled')return run(application(a,provided));
+ return withEcommercePurchasedCommand(a,metadata,database=>run(application(a,database)),provided);
+}
+export async function ecommerceWorkspace(a: WorkContext) {access(a);const write=(await holdingResources(a.holdingId)).write;await requireEcommercePurchasedRead(write,a);const data=await application(a,write).ecommerceWorkspace(),purchase=await ecommercePurchaseControls(write,a);return {...data,...(purchase?{purchase}: {})};}
+export async function createChannel(a: WorkContext, raw: unknown, key: string) {access(a,true);const input=channelSchema.parse(raw),id=`ecommerce-channel-${key}`;return command(a,{operation:'ecommerce.channel.create',key,id,purpose:'new-work',after:{kind:'channel',id}},owner=>owner.createChannel(input,key));}
+export async function createListing(a: WorkContext, raw: unknown, key: string) {access(a,true);const input=listingSchema.parse(raw),id=`ecommerce-listing-${key}`;return command(a,{operation:'ecommerce.listing.create',key,id,purpose:'new-work',after:{kind:'listing',id}},owner=>owner.createListing(input,key));}
+export async function createCart(a: WorkContext, raw: unknown, key: string) {access(a,true);const input=cartSchema.parse(raw),id=`ecommerce-cart-${key}`;return command(a,{operation:'ecommerce.cart.create',key,id,purpose:'new-work',after:{kind:'cart',id}},owner=>owner.createCart(input,key));}
+export async function addCartLine(a: WorkContext, raw: unknown, key: string) {access(a,true);const input=lineSchema.parse(raw),target={kind:'cart' as const,id:input.cartId};return command(a,{operation:'ecommerce.cart.add',key,id:input.cartId,purpose:'new-work',before:target,after:target},owner=>owner.addCartLine(input,key));}
+export async function checkoutCart(a: WorkContext, raw: unknown, key: string, ownerWrite?: SqlDatabase) {access(a,true);const input=checkoutSchema.parse(raw),id=`ecommerce-checkout-${input.cartId}`;return command(a,{operation:'ecommerce.checkout',key,id,purpose:'new-work',before:{kind:'cart',id:input.cartId},after:{kind:'checkout',id}},owner=>owner.checkoutCart(input,key),ownerWrite);}
+export async function changeEcommerce(a: WorkContext, kind: "channel" | "listing" | "checkout" | "cart", id: string, raw: unknown, key: string, ownerWrite?: SqlDatabase) {access(a,true);if(!['channel','listing','checkout','cart'].includes(kind))throw new ApiError(422,'ECOMMERCE_ENTITY_REQUIRED','Choose an original Ecommerce command.');const input=actionSchema.parse(raw),target={kind,id},purpose=['activate','publish','approve-order'].includes(input.action)?'new-work' as const:'settle-existing' as const;return command(a,{operation:`ecommerce.${kind}.${input.action}`,key,id,purpose,review:kind==='channel'||kind==='listing',before:target,after:target},owner=>owner.changeEcommerce(kind,id,input,key),ownerWrite);}
+export async function ecommerceDetail(a: WorkContext, id: string) {access(a);const write=(await holdingResources(a.holdingId)).write;await requireEcommercePurchasedRead(write,a,{kind:'checkout',id});const data=await application(a,write).ecommerceDetail(id),purchase=await ecommercePurchaseControls(write,a);return {...data,...(purchase?{purchase}: {})};}

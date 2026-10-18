@@ -8,8 +8,13 @@ import {executeCommand,replayCommand} from "@/server/modules/workflow/public/com
 import {ApiError} from "@/server/modules/runtime/public/http";
 import {BusinessRuleError} from "../../shared";
 import {createLearningCourseApplication, type LearningCourseInputPorts} from "../application/course";
+import {withLearningPurchasedCommand} from "./purchases";
 export async function createLearningCourse(a:WorkContext,raw:unknown,key:string){
- let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=(holdingResources(a.holdingId).then(x=>x.write));
+ const owner=(await holdingResources(a.holdingId)).write;
+ return withLearningPurchasedCommand(owner,a,{key,operation:"learning.course.create",target:{kind:"course",id:`learning-course-${key}`},purpose:"new-work",capabilities:["learn.courses"]},write=>nativeCreateLearningCourse(write,a,raw,key));
+}
+async function nativeCreateLearningCourse(write:SqlDatabase,a:WorkContext,raw:unknown,key:string){
+ const database=async()=>write;
  const ports:LearningCourseInputPorts={clock:{now:()=>Date.now()},
  async authorize(){requirePermission(a,"records.write");if(!hasModuleAccess(a.modules,"learning"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Learning.");},
  async replay(key,operation,id,input){return replayCommand(await database(),a,key,operation,id,input);},

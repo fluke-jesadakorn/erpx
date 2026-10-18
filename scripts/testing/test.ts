@@ -6,9 +6,11 @@ import { impactFromGit } from "./impact";
 import { vitestChildEnvironment } from "./runner-environment";
 import { writeJsonOutput } from "./json-output";
 import { assertTestPlacement } from "./layout";
+import { runDevelopmentTests } from "./development";
 
 if (Bun.version !== "1.4.3") throw new Error("Tests require Bun 1.4.3.");
 const options = parseTestArguments(process.argv.slice(2));
+if (options.command === "dev") process.exit(await runDevelopmentTests(options));
 const catalogue = loadCatalogue();
 validateCatalogue(catalogue);
 assertTestPlacement(catalogue.suites);

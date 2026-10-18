@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {sentNoticeRows,sentNoticeRow,sentNoticeDeliveryCount} from '@/server/modules/collaboration/public/people-app-entrypoint-facts';
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
@@ -9,7 +10,7 @@ import { messagingPeople } from "@/server/modules/collaboration/public/messaging
 
 export const dynamic = "force-dynamic";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};
-const response=(data:unknown)=>Response.json({data},{headers:{"Cache-Control":"private, no-store"}});
+const response=(data:unknown)=>Response.json(canonicalDestinationLinks({data}),{headers:{"Cache-Control":"private, no-store"}});
 
 export async function GET(request:Request,context:Context){
   try{

@@ -1,3 +1,4 @@
+import {serviceRecordSourcePredicate} from "./record-purchases";
 import "server-only";
 import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -7,10 +8,10 @@ async function fieldVisitEvidenceRows(db: SqlDatabase, actor: WorkContext, filte
     scheduledAt: number;
     id: string;
 }, limit = 25, recordId?: string) {
-    const scoped = fieldVisitConditions(actor, filters, query, cursor, recordId);
+    const scoped = fieldVisitConditions(actor, filters, query, cursor, recordId),source=await serviceRecordSourcePredicate(db,actor,"o");
     return (await db.prepare(`SELECT o.id,o.scheduled_at,o.visit_completed_at,o.status,o.version
-    FROM field_service_orders o WHERE ${scoped.conditions.join(" AND ")}
-    ORDER BY o.scheduled_at DESC,o.id DESC LIMIT ?`).bind(...scoped.values, recordId ? 1 : limit + 1).all<FieldVisitEvidenceRow>()).results;
+    FROM field_service_orders o WHERE ${scoped.conditions.join(" AND ")} AND ${source.where}
+    ORDER BY o.scheduled_at DESC,o.id DESC LIMIT ?`).bind(...scoped.values,...source.args, recordId ? 1 : limit + 1).all<FieldVisitEvidenceRow>()).results;
 }
 function fieldVisitConditions(actor: WorkContext, filters: Filters, query: string, cursor?: {
     scheduledAt: number;

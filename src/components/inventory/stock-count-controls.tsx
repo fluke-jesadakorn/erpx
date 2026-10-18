@@ -1,12 +1,12 @@
 "use client";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import { FormDisclosure } from "@/components/ui/form-disclosure";
+import {CountForm,CountDisclosure} from "./count-draft-boundary";
+import {useCountCommand} from "./use-count-command";
+import {countEditorDraft,acknowledgedCountDraft,currentCountDraft,type CountEditorDraft,type CountItem,type CountAllocation} from "@/lib/inventory/count-editor-draft";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { CountRow as Row } from "@/server/modules/inventory/public/inventory-counts";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import {
@@ -21,61 +21,6 @@ type Options = {
   lots: Row[];
   currency: string;
 };
-type CountAllocation = {
-  lotId?: string;
-  lotCode: string;
-  serialNumber: string;
-  manufacturedDate: string;
-  expiryDate: string;
-  countedQuantity: string;
-  unitCost: string;
-};
-type CountItem = {
-  productId: string;
-  trackingMode: string;
-  countedQuantity: string;
-  unitCost: string;
-  allocations: CountAllocation[];
-};
-function useCountCommand(base: string) {
-  const router = useRouter(),
-    last = useRef<{ fingerprint: string; key: string } | null>(null),
-    [error, setError] = useState(""),
-    [pending, setPending] = useState(false);
-  async function send(path: string, input: unknown, create = false) {
-    const body = JSON.stringify(input),
-      fingerprint = path + body;
-    if (last.current?.fingerprint !== fingerprint)
-      last.current = { fingerprint, key: crypto.randomUUID() };
-    setPending(true);
-    setError("");
-    try {
-      const r = await workFetch(`/api/v1${base}/stock-counts${path}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": last.current.key,
-        },
-        body,
-      });
-      const v = (await r.json()) as {
-        data: { id: string };
-        error?: { message: string };
-      };
-      if (!r.ok) throw new Error(v.error?.message ?? "Unable to save count.");
-      last.current = null;
-      if (create) router.push(`${base}/stock-counts/${v.data.id}`);
-      router.refresh();
-      return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save count.");
-      return false;
-    } finally {
-      setPending(false);
-    }
-  }
-  return { send, error, pending };
-}
 export function CountEditor({
   base,
   options,
@@ -83,6 +28,7 @@ export function CountEditor({
   lines,
   lotLines,
   initialOpen = false,
+  drawer = false,
 }: {
   base: string;
   options: Options;
@@ -90,34 +36,19 @@ export function CountEditor({
   lines?: Row[];
   lotLines?: Row[];
   initialOpen?: boolean;
+  drawer?: boolean;
 }) {
-  const { send, error, pending } = useCountCommand(base),
-    [warehouse, setWarehouse] = useState(
-      String(count?.warehouse_id ?? options.warehouses[0]?.id ?? ""),
-    );
-  const [items, setItems] = useState<CountItem[]>(
-    (lines ?? []).map((l) => ({
-      productId: String(l.product_id),
-      trackingMode: String(l.tracking_mode ?? "none"),
-      countedQuantity: String(Number(l.counted_quantity_milli) / 1000),
-      unitCost: l.unit_cost_minor == null ? "" : minorToDecimal(Number(l.unit_cost_minor)),
-      allocations: (lotLines ?? [])
-        .filter((a) => a.count_line_id === l.id)
-        .map((a) => ({
-          ...(a.source_lot_id ? { lotId: String(a.source_lot_id) } : {}),
-          lotCode: String(a.lot_code ?? ""),
-          serialNumber: String(a.serial_number ?? ""),
-          manufacturedDate: String(a.manufactured_date ?? ""),
-          expiryDate: String(a.expiry_date ?? ""),
-          countedQuantity: String(Number(a.counted_quantity_milli) / 1000),
-          unitCost: a.unit_cost_minor == null ? "" : minorToDecimal(Number(a.unit_cost_minor)),
-        })),
-    })),
-  );
-  const [adding, setAdding] = useState(String(options.products[0]?.id ?? ""));
+  const {send,retry,error,notice,pending,uncertain,canPrepare}=useCountCommand(base);
+  const [seed]=useState(()=>countEditorDraft(options,count,lines,lotLines));
+  const baseline=useRef(seed),sourceRef=useRef(seed.source);
+  const [source,setSource]=useState(seed.source);
+  const [warehouse,setWarehouse]=useState(seed.warehouse),[items,setItems]=useState<CountItem[]>(seed.items),[adding,setAdding]=useState(seed.adding),[countDate,setCountDate]=useState(seed.countDate),[countReason,setCountReason]=useState(seed.reason),[generation,setGeneration]=useState(0),[editorOpen,setEditorOpen]=useState(initialOpen);
+  const inline=initialOpen && !drawer && !count;
+  function resetDraft(){const next=currentCountDraft(baseline.current,countEditorDraft(options,count,lines,lotLines));baseline.current=next;sourceRef.current=next.source;setSource(next.source);setWarehouse(next.warehouse);setItems(next.items);setAdding(next.adding);setCountDate(next.countDate);setCountReason(next.reason);setGeneration(value=>value+1);}
+  if(!canPrepare && !editorOpen && !inline)return <p role="status">New counts and recounts are unavailable for the current package.</p>;
   return (
-    <FormDisclosure appearance="standard" inline={Boolean(!!count || initialOpen)} className="ui-panel" open={!!count || initialOpen}>
-      <summary>{count ? "Edit or recount" : "New physical count"}</summary>
+    <>{notice && <p role="status">{notice}</p>}{uncertain && <Button appearance="standard" type="button" variant="secondary" disabled={pending} onClick={()=>void retry().then(saved=>{if(saved)setEditorOpen(false);})}>Retry submitted count change</Button>}<CountDisclosure appearance="standard" inline={inline} open={editorOpen} onOpenChange={setEditorOpen} onBeforeOpen={resetDraft} drawerTitle={source ? "Edit or recount" : "New physical count"} error={error || undefined} dismissDisabled={pending} onDiscard={()=>{resetDraft();setEditorOpen(false);}}>
+      <summary>{source ? "Edit or recount" : "New physical count"}</summary>
       <p className="muted">
         Record the quantities physically counted. Saving captures the current stock balance;
         movement during review requires a recount. Existing stock keeps its average cost.
@@ -127,12 +58,12 @@ export function CountEditor({
           {error}
         </InlineNotice>
       )}
-      <form
+      <CountForm key={generation}
         onSubmit={(e) => {
           e.preventDefault();
-          const f = new FormData(e.currentTarget);
+          const f = new FormData(e.currentTarget),submitted:CountEditorDraft={warehouse,items,adding,countDate,reason:countReason,...(sourceRef.current?{source:sourceRef.current}:{})};
           void send(
-            count ? `/${count.id}` : "",
+            sourceRef.current ? `/${sourceRef.current.id}` : "",
             {
               warehouseId: warehouse,
               countDate: f.get("countDate"),
@@ -151,10 +82,11 @@ export function CountEditor({
                   ...(a.unitCost ? { unitCost: a.unitCost } : {}),
                 })),
               })),
-              ...(count ? { expectedVersion: count.version } : {}),
+              ...(sourceRef.current ? { expectedVersion: sourceRef.current.version } : {}),
             },
-            !count,
-          );
+            !sourceRef.current,
+            receipt=>{baseline.current=acknowledgedCountDraft(submitted,receipt);sourceRef.current=baseline.current.source;setSource(baseline.current.source);},
+          ).then(saved=>{if(saved)setEditorOpen(false);});
         }}
       >
         <FormGrid as="div" className="ui-form-grid">
@@ -162,7 +94,7 @@ export function CountEditor({
             Count warehouse
             <Select appearance="standard"
               required
-              disabled={!!count}
+              disabled={!!source}
               value={warehouse}
               onChange={(e) => {
                 setWarehouse(e.target.value);
@@ -182,7 +114,7 @@ export function CountEditor({
               name="countDate"
               type="date"
               required
-              defaultValue={String(count?.count_date ?? new Date().toISOString().slice(0, 10))}
+              value={countDate} onChange={event=>setCountDate(event.target.value)}
             />
           </Field>
           <Field appearance="standard">
@@ -192,7 +124,7 @@ export function CountEditor({
               required
               minLength={5}
               maxLength={2000}
-              defaultValue={String(count?.reason ?? "")}
+              value={countReason} onChange={event=>setCountReason(event.target.value)}
               placeholder="Cycle count, damage review, or unrecorded stock"
             />
           </Field>
@@ -529,12 +461,12 @@ export function CountEditor({
           clientManaged type="submit"
           variant="primary"
 
-          disabled={pending || !items.length || !warehouse}
+          disabled={pending || !canPrepare || !items.length || !warehouse}
         >
-          {pending ? "Saving…" : count ? "Save recount" : "Save physical count"}
+          {pending ? "Saving…" : source ? "Save recount" : "Save physical count"}
         </Button>
-      </form>
-    </FormDisclosure>
+      </CountForm>
+    </CountDisclosure></>
   );
 }
 export function CountActions({
@@ -550,16 +482,19 @@ export function CountActions({
   reviewable: boolean;
   stale: boolean;
 }) {
-  const { send, error, pending } = useCountCommand(base),
+  const { send,retry,error,notice,pending,uncertain,canPrepare,canSettle } = useCountCommand(base),
     [reason, setReason] = useState("");
   const [attachmentSets, setAttachmentSets] = useState<Record<string, AttachmentPanelChange>>({});
+  const [workflowOpen,setWorkflowOpen]=useState(false),[generation,setGeneration]=useState(0);
+  const visible=editable && (canPrepare || canSettle) || reviewable && canSettle || workflowOpen;
+  function reset(){setReason("");setAttachmentSets({});setGeneration(value=>value+1);}
   const attachmentSetIds = Object.values(attachmentSets)
     .filter((item) => item.setId && item.readyCount > 0 && item.bindable)
     .map((item) => item.setId!);
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>Count workflow</h2>
-      {error && (
+      {notice && <p role="status">{notice}</p>}{uncertain && <Button appearance="standard" type="button" variant="secondary" disabled={pending} onClick={()=>void retry()}>Retry submitted count change</Button>}{error && (
         <InlineNotice tone="danger" className="error" role="alert">
           {error}
         </InlineNotice>
@@ -570,8 +505,8 @@ export function CountActions({
           before approval.
         </p>
       )}
-      {(editable || reviewable) && (
-        <>
+      {visible && (
+        <CountDisclosure appearance="standard" open={workflowOpen} onOpenChange={setWorkflowOpen} onBeforeOpen={reset} drawerTitle="Count workflow" error={error || undefined} dismissDisabled={pending} onDiscard={()=>{reset();setWorkflowOpen(false);}}><summary>{reviewable ? "Review count decision" : "Prepare count submission or cancellation"}</summary><CountForm key={generation} onSubmit={event=>event.preventDefault()}>
           {editable &&
             (
               [
@@ -601,7 +536,7 @@ export function CountActions({
                 componentKind="action"
                 componentRef="submit"
                 purposeKey={purpose}
-                compact
+                compact readOnly={!canPrepare}
                 title={title}
                 description={description}
                 visibility="Inventory preparers and authorized independent Finance reviewers can access these files."
@@ -623,10 +558,10 @@ export function CountActions({
             {editable && (
               <>
                 <Button appearance="standard"
-                  type="submit"
+                  type="button"
                   variant="primary"
 
-                  disabled={pending || stale}
+                  disabled={pending || !canPrepare || stale}
                   onClick={() =>
                     void send(`/${count.id}/submit`, {
                       expectedVersion: count.version,
@@ -637,10 +572,10 @@ export function CountActions({
                   Submit count for approval
                 </Button>
                 <Button appearance="standard"
-                  type="submit"
+                  type="button"
                   variant="secondary"
 
-                  disabled={pending || reason.trim().length < 3}
+                  disabled={pending || !canSettle || reason.trim().length < 3}
                   onClick={() =>
                     void send(`/${count.id}/cancel`, {
                       expectedVersion: count.version,
@@ -655,10 +590,10 @@ export function CountActions({
             {reviewable && (
               <>
                 <Button appearance="standard"
-                  type="submit"
+                  type="button"
                   variant="primary"
 
-                  disabled={pending || stale || reason.trim().length < 3}
+                  disabled={pending || !canSettle || stale || reason.trim().length < 3}
                   onClick={() =>
                     void send(`/${count.id}/${count.status === "approved" ? "post" : "approve"}`, {
                       expectedVersion: count.version,
@@ -671,10 +606,10 @@ export function CountActions({
                     : "Approve count for GL review"}
                 </Button>
                 <Button appearance="standard"
-                  type="submit"
+                  type="button"
                   variant="secondary"
 
-                  disabled={pending || reason.trim().length < 3}
+                  disabled={pending || !canSettle || reason.trim().length < 3}
                   onClick={() =>
                     void send(`/${count.id}/reject`, {
                       expectedVersion: count.version,
@@ -687,9 +622,9 @@ export function CountActions({
               </>
             )}
           </div>
-        </>
+        </CountForm></CountDisclosure>
       )}
-      {!editable && !reviewable && (
+      {!visible && (
         <p className="muted">
           {count.status === "submitted"
             ? "Awaiting an independent holding finance approver."

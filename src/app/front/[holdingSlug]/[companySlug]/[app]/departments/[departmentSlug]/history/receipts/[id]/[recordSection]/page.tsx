@@ -1,0 +1,3 @@
+import PosScreen from '@/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pos-entry';
+import {notFound} from 'next/navigation';
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;companySlug:string;app:string;branchSlug?:string;departmentSlug?:string;id:string;recordSection:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){const p=await params;if(!["pos"].includes(p.app))notFound();const Screen=PosScreen;if(p.app!=='pos'||p.recordSection!=='overview')notFound();return <Screen params={Promise.resolve({...p,path:['departments',p.departmentSlug,'history','receipts',p.id,'overview'].filter((x):x is string=>!!x)})} searchParams={searchParams}/>;}

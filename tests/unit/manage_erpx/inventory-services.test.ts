@@ -93,3 +93,251 @@ describe('Inventory quality scrap count preparation',()=>{
   expect(app.prepare(actor,{key:'key',id:'hold',now:42,countId:'count',lineId:'line',number:'COUNT',input:{dispositionDate:'2026-09-02',reason:'Verified disposition'},h:{},stock:{},scrapValue:100,countedQuantity:2000,countedValue:200,lotAdjustments:[]})).toEqual(['count','line']);
  });
 });
+
+import {afterEach,vi} from "vitest";
+import {workFetch} from '../../../src/lib/work_projection/work-fetch';
+import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
+import {createElement,type ComponentType} from "react";
+import {renderToStaticMarkup} from "react-dom/server";
+import {countCommandAllowed,countCommandPurpose,type CountPurchaseControls} from "../../../src/lib/inventory/count-purchase-controls";
+import {countEditorDraft,acknowledgedCountDraft,currentCountDraft} from "../../../src/lib/inventory/count-editor-draft";
+import {createCountCommandAttempt,type CountCommandAttempt} from "../../../src/lib/inventory/count-command-attempt";
+import {createCountCommandFetch,countFormUnchanged,validCountAcknowledgement} from "../../../src/lib/inventory/count-command-fetch";
+import {CountPurchaseProvider} from "../../../src/components/inventory/count-purchase-context";
+import {CountEditor,CountActions} from "../../../src/components/inventory/stock-count-controls";
+vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>"/holdings/acme/stock-counts",useSearchParams:()=>new URLSearchParams()}));
+afterEach(()=>vi.unstubAllGlobals());
+const activeCount:CountPurchaseControls={newWork:true,settleExisting:true,history:true,revision:"opaque"};
+const drainingCount:CountPurchaseControls={...activeCount,newWork:false};
+const retainedCount:CountPurchaseControls={...drainingCount,settleExisting:false};
+function renderCount<Props extends object>(Component:ComponentType<Props>,props:Props,purchase?:CountPurchaseControls){return renderToStaticMarkup(createElement(CountPurchaseProvider,{purchase},createElement(Component,props)));}
+const countEditorOptions={warehouses:[{id:"warehouse",name:"Main"}],products:[{id:"product",name:"Tracked product",sku:"SKU",tracking_mode:"serial"}],stock:[],lots:[],currency:"THB"};
+test("Count purpose requires active creation, recount and submit while retaining existing review/cancel",()=>{
+ for(const path of ["","/count","/count/submit"]){expect(countCommandPurpose(path)).toBe("new-work");expect(countCommandAllowed(drainingCount,path)).toBe(false);}
+ for(const action of ["approve","reject","post","cancel"]){expect(countCommandAllowed(drainingCount,`/count/${action}`)).toBe(true);expect(countCommandAllowed(retainedCount,`/count/${action}`)).toBe(false);}
+ expect(countCommandAllowed(undefined,"")).toBe(true);expect(countCommandAllowed(activeCount,"/count/foreign-action")).toBe(false);
+});
+test("Count retries retain their exact key through lost, malformed or incomplete identity/version acknowledgements",async()=>{
+ const keys:string[]=[],request=createCountCommandFetch(async(_url,init)=>{keys.push(new Headers(init?.headers).get("Idempotency-Key")!);if(keys.length===1)throw Error("Lost after commit");if(keys.length===2)return new Response("truncated");if(keys.length===3)return Response.json({data:null});if(keys.length===4)return Response.json({data:{id:"count"}});if(keys.length===5)return Response.json({data:{id:"count",version:0}});return Response.json({data:{id:"count",version:1}});});const input={method:"POST",body:'{"warehouseId":"warehouse"}'};await expect(request("/counts",input)).rejects.toThrow("Lost after commit");for(let n=0;n<4;n++)await request("/counts",input);expect(request.hasAttempt("/counts",input.body)).toBe(true);await request("/counts",input);expect(request.hasAttempt("/counts",input.body)).toBe(false);await request("/counts",input);expect(new Set(keys.slice(0,6)).size).toBe(1);expect(keys[6]).not.toBe(keys[0]);
+});
+test("Count command identities separate Company-role contexts and counted quantities",async()=>{
+ const dataset={workUser:"preparer",workRevision:"1",workCompany:"A",workAssignment:"inventory-A"};vi.stubGlobal("document",{querySelector:()=>({dataset})});const keys:string[]=[],request=createCountCommandFetch(async(_url,init)=>{keys.push(new Headers(init?.headers).get("Idempotency-Key")!);return new Response("unavailable",{status:503});});await request("/counts",{body:"counted-one"});await request("/counts",{body:"counted-one"});await request("/counts",{body:"counted-two"});dataset.workCompany="B";dataset.workAssignment="inventory-B";expect(request.hasAttempt("/counts","counted-one")).toBe(false);await request("/counts",{body:"counted-one"});expect(keys[1]).toBe(keys[0]);expect(keys[2]).not.toBe(keys[0]);expect(keys[3]).not.toBe(keys[0]);
+});
+test("Count uncertain creation blocks a newer payload until the original captured revision is resolved",()=>{
+ const commands=createCountCommandAttempt(),receipt=vi.fn(),completion={form:{} as HTMLFormElement,formEditVersion:"submitted"},original:CountCommandAttempt={path:"",body:"original counted quantities",create:true,context:"Company:role:1",completion,acknowledged:receipt};commands.unresolved(original);expect(()=>commands.select({...original,body:"newer quantity"},original.context)).toThrow("Retry the submitted count change first");expect(()=>commands.select(original,"another role")).toThrow("workspace changed");const retry=commands.select({...original,completion:{...completion,formEditVersion:"later"}},original.context);expect(retry).toBe(original);expect(retry.completion?.formEditVersion).toBe("submitted");expect(commands.retry()?.body).toBe(original.body);retry.acknowledged?.({id:"created-count",version:1});expect(receipt).toHaveBeenCalledWith({id:"created-count",version:1});commands.resolved(retry);expect(commands.select({...original,path:"/created-count",body:"newer quantity",create:false},original.context).create).toBe(false);
+});
+test("Count parsed acknowledgement retains later lot/serial edits",async()=>{
+ let edit="submitted";const form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement,completion={form,formEditVersion:edit};edit="later-serial";const events:Event[]=[];vi.stubGlobal("window",{dispatchEvent:(event:Event)=>{events.push(event);return true;}});await createCountCommandFetch(async()=>Response.json({data:{id:"count",version:2}}))("/counts/count",{body:"submitted"},completion);const ack=events.find(event=>event.type==="erpx:record-command-saved") as CustomEvent;expect(ack.detail.countAcknowledged).toBe(true);expect(ack.detail.formEditVersion).toBe("submitted");expect(countFormUnchanged(ack.detail)).toBe(false);for(const invalid of [null,{},[],{id:""},{id:"count"},{id:"count",version:0},{id:"count",version:1.5}])expect(validCountAcknowledgement(invalid)).toBe(false);
+});
+test("Count editor retains actual lot/serial identities, dates, three-place quantities and two-place cost",()=>{
+ const draft=countEditorDraft(countEditorOptions,{id:"count",version:2,warehouse_id:"warehouse",count_date:"2026-10-15",reason:"Reviewed count"},[{id:"line",product_id:"product",tracking_mode:"lot",counted_quantity_milli:1250,unit_cost_minor:1234}],[{count_line_id:"line",source_lot_id:"lot",lot_code:"LOT",serial_number:"",manufactured_date:"2026-10-01",expiry_date:"2027-10-01",counted_quantity_milli:1250,unit_cost_minor:null}]);expect(draft.source).toEqual({id:"count",version:2});expect(draft.items[0]).toMatchObject({countedQuantity:"1.25",unitCost:"12.34",allocations:[{lotId:"lot",lotCode:"LOT",manufacturedDate:"2026-10-01",expiryDate:"2027-10-01",countedQuantity:"1.25",unitCost:""}]});
+});
+test("Count acknowledgement rebases saved identity/version without replacing newer draft or accepting an older snapshot",()=>{
+ const original=countEditorDraft(countEditorOptions),submitted={...original,items:[{productId:"product",trackingMode:"none",countedQuantity:"1",unitCost:"2.00",allocations:[]}]},newer={...submitted,items:[{...submitted.items[0],countedQuantity:"2"}]};const saved=acknowledgedCountDraft(submitted,{id:"created-count",version:3});expect(saved.source).toEqual({id:"created-count",version:3});expect(newer.items[0].countedQuantity).toBe("2");expect(saved.items[0].countedQuantity).toBe("1");expect(currentCountDraft(saved,original)).toBe(saved);expect(currentCountDraft(saved,{...saved,source:{id:"created-count",version:2}})).toBe(saved);const latest={...saved,reason:"Latest owner record",source:{id:"created-count",version:4}};expect(currentCountDraft(saved,latest)).toBe(latest);
+});
+test("Count current-page editor is a disclosure while dedicated new work retains initial inline fields",()=>{
+ const props={base:"/holdings/acme",options:countEditorOptions};const page=renderCount(CountEditor,props,activeCount);expect(page).toContain("New physical count");expect(page).not.toContain('name="countDate"');const inline=renderCount(CountEditor,{...props,initialOpen:true},activeCount);expect(inline).toContain('name="countDate"');expect(inline).toContain("Add counted product");expect(renderCount(CountEditor,props,drainingCount)).not.toContain("New physical count");expect(renderCount(CountEditor,props)).toContain("New physical count");
+});
+test("Count history suppresses mutation drawers while original independent/stale review remains",()=>{
+ const props={base:"/holdings/acme",count:{id:"count",status:"draft",version:1},editable:true,reviewable:false,stale:false};expect(renderCount(CountActions,props,drainingCount)).toContain("Prepare count submission or cancellation");expect(renderCount(CountActions,props,retainedCount)).not.toContain("Prepare count submission or cancellation");const review={...props,count:{...props.count,status:"submitted"},editable:false,reviewable:true,stale:true};const html=renderCount(CountActions,review,drainingCount);expect(html).toContain("Review count decision");expect(html).toContain("Stock changed after this count was saved");expect(renderCount(CountActions,{...review,reviewable:false},activeCount)).not.toContain("Review count decision");for(const secret of ["company_package_grants","sourceEventId","assignment_permissions"])expect(html).not.toContain(secret);
+});
+
+
+import {transferCommandAllowed,type TransferPurchaseControls} from "../../../src/lib/inventory/transfer-purchase-controls";
+import {transferEditorDraft,acknowledgedTransferDraft,currentTransferDraft} from "../../../src/lib/inventory/transfer-editor-draft";
+import {createTransferCommandAttempt,type TransferCommandAttempt} from "../../../src/lib/inventory/transfer-command-attempt";
+import {createTransferCommandFetch,transferFormUnchanged,validTransferAcknowledgement} from "../../../src/lib/inventory/transfer-command-fetch";
+import {TransferPurchaseProvider} from "../../../src/components/inventory/transfer-purchase-context";
+import {TransferEditor,TransferActions} from "../../../src/components/inventory/stock-transfer-controls";
+import {TransitConsole} from "../../../src/components/inventory/transit-console";
+import {transitWorkItem} from "../../../src/server/modules/inventory/domain/transit";
+const activeTransfer:TransferPurchaseControls={newWork:true,settleExisting:true,lossSettleExisting:true,history:true,revision:"opaque"},drainingTransfer={...activeTransfer,newWork:false},historyTransfer={...drainingTransfer,settleExisting:false,lossSettleExisting:false};
+const transferEditorOptions={warehouses:[{id:"source",name:"Source"},{id:"target",name:"Target"}],sources:[{id:"source",name:"Source"}],stock:[],lots:[]};
+function renderTransfer<Props extends object>(Component:ComponentType<Props>,props:Props,purchase?:TransferPurchaseControls){return renderToStaticMarkup(createElement(TransferPurchaseProvider,{purchase},createElement(Component,props)));}
+test("Transfer distinguishes first dispatch/new plans from retained warehouse settlement and actual loss accounting",()=>{
+ for(const path of ["/stock-transfers","/stock-transfers/transfer","/stock-transfers/transfer/submit","/stock-transit/transit/dispatch"])expect(transferCommandAllowed(drainingTransfer,path)).toBe(false);
+ for(const path of ["/stock-transfers/transfer/post","/stock-transfers/transfer/reject","/stock-transfers/transfer/cancel","/stock-transit/transit/receive","/stock-transit/transit/loss","/stock-transit/transit/cancel"]){expect(transferCommandAllowed(drainingTransfer,path)).toBe(true);expect(transferCommandAllowed(historyTransfer,path)).toBe(false);}
+ const warehouseOnly={...drainingTransfer,lossSettleExisting:false};expect(transferCommandAllowed(warehouseOnly,"/stock-transit/transit/decide-loss",{decision:"reject"})).toBe(true);expect(transferCommandAllowed(warehouseOnly,"/stock-transit/transit/decide-loss",{decision:"approve"})).toBe(false);expect(transferCommandAllowed(drainingTransfer,"/stock-transit/transit/decide-loss",{decision:"approve"})).toBe(true);
+ expect(transferCommandAllowed(activeTransfer,"/stock-transit/transit/foreign-action")).toBe(false);expect(transferCommandAllowed(activeTransfer,"/stock-transit/transit/decide-loss",{})).toBe(false);expect(transferCommandAllowed(undefined,"/stock-transfers")).toBe(true);
+});
+test("Transfer retry keeps the exact key through lost response, malformed body and incomplete version",async()=>{
+ const keys:string[]=[],request=createTransferCommandFetch(async(_url,init)=>{keys.push(new Headers(init?.headers).get("Idempotency-Key")!);if(keys.length===1)throw Error("Lost physical receipt response");if(keys.length===2)return new Response("truncated");if(keys.length===3)return Response.json({data:{id:"transit"}});if(keys.length===4)return Response.json({data:{id:"transit",version:0}});return Response.json({data:{id:"transit",version:3}});});const input={method:"POST",body:'{"expectedVersion":2,"lines":[{"lineId":"line","quantity":"1"}]}'};
+ await expect(request("/transit/receive",input)).rejects.toThrow("Lost physical receipt response");for(let index=0;index<3;index++)await request("/transit/receive",input);expect(request.hasAttempt("/transit/receive",input.body)).toBe(true);await request("/transit/receive",input);expect(request.hasAttempt("/transit/receive",input.body)).toBe(false);await request("/transit/receive",input);expect(new Set(keys.slice(0,5)).size).toBe(1);expect(keys[5]).not.toBe(keys[0]);
+});
+test("Transfer command identity separates source quantities and Company/role context",async()=>{
+ const dataset={workUser:"receiver",workRevision:"1",workCompany:"A",workAssignment:"warehouse-A"};vi.stubGlobal("document",{querySelector:()=>({dataset})});const keys:string[]=[],request=createTransferCommandFetch(async(_url,init)=>{keys.push(new Headers(init?.headers).get("Idempotency-Key")!);return new Response("unavailable",{status:503});});await request("/transit/receive",{body:"one"});await request("/transit/receive",{body:"one"});await request("/transit/receive",{body:"two"});dataset.workCompany="B";dataset.workAssignment="warehouse-B";await request("/transit/receive",{body:"one"});expect(keys[1]).toBe(keys[0]);expect(new Set([keys[0],keys[2],keys[3]]).size).toBe(3);
+});
+test("Transfer unknown receipt blocks a newer physical outcome while preserving the original payload and captured form",()=>{
+ const attempts=createTransferCommandAttempt(),completion={form:{} as HTMLFormElement,formEditVersion:"original"},original:TransferCommandAttempt={path:"/stock-transit/transit/receive",body:"one carton",create:false,context:"company-role",completion};attempts.unresolved(original);expect(()=>attempts.select({...original,body:"two cartons"},original.context)).toThrow("Retry the submitted transfer change first");expect(()=>attempts.select(original,"other-role")).toThrow("workspace changed");expect(attempts.select({...original,completion:{...completion,formEditVersion:"later"}},original.context)).toBe(original);expect(attempts.retry()?.completion?.formEditVersion).toBe("original");attempts.resolved(original);expect(attempts.select({...original,body:"two cartons"},original.context).body).toBe("two cartons");
+});
+test("Transfer parsed acknowledgment never clears newer quantity or serial evidence",async()=>{
+ const form={isConnected:true,getAttribute:()=>"later-serial"} as unknown as HTMLFormElement,completion={form,formEditVersion:"submitted"},events:Event[]=[];vi.stubGlobal("window",{dispatchEvent:(event:Event)=>{events.push(event);return true;}});await createTransferCommandFetch(async()=>Response.json({data:{id:"transit",version:4}}))("/receive",{body:"submitted"},completion);const event=events.find(value=>value.type==="erpx:record-command-saved") as CustomEvent;expect(event.detail.transferAcknowledged).toBe(true);expect(event.detail.formEditVersion).toBe("submitted");expect(transferFormUnchanged(event.detail)).toBe(false);for(const invalid of [null,[],{}, {id:""},{id:"transit"},{id:"transit",version:0},{id:"transit",version:1.5}])expect(validTransferAcknowledgement(invalid)).toBe(false);
+});
+test("Transfer draft retains exact route, lot identity, three-place quantities and staged dates",()=>{
+ const draft=transferEditorDraft(transferEditorOptions,{id:"transfer",version:2,source_warehouse_id:"source",target_warehouse_id:"target",delivery_mode:"transit",transfer_date:"2026-10-15",arrival_due_date:"2026-10-16",reason:"Staged transport"},[{id:"line",product_id:"product",quantity_milli:1250,description:"Tracked product",tracking_mode:"lot"}],[{transfer_line_id:"line",lot_id:"lot",quantity_milli:1250}]);expect(draft).toMatchObject({record:{id:"transfer",version:2},source:"source",target:"target",mode:"transit",date:"2026-10-15",due:"2026-10-16",items:[{quantity:"1.25",trackingMode:"lot",allocations:[{lotId:"lot",quantity:"1.25"}]}]});
+});
+test("Transfer acknowledgement rebases identity and prevents an older server snapshot replacing the saved plan",()=>{
+ const original=transferEditorDraft(transferEditorOptions),submitted={...original,reason:"Submitted plan"},saved=acknowledgedTransferDraft(submitted,{id:"transfer",version:3}),newer={...submitted,reason:"Newer plan"};expect(saved.record).toEqual({id:"transfer",version:3});expect(newer.reason).toBe("Newer plan");expect(currentTransferDraft(saved,original)).toBe(saved);expect(currentTransferDraft(saved,{...saved,record:{id:"transfer",version:2}})).toBe(saved);const current={...saved,record:{id:"transfer",version:4}};expect(currentTransferDraft(saved,current)).toBe(current);
+});
+test("Transfer current-page plan is a drawer disclosure and the dedicated new form remains inline",()=>{
+ const props={base:"/holdings/acme",options:transferEditorOptions};const current=renderTransfer(TransferEditor,props,activeTransfer);expect(current).toContain("New warehouse transfer");expect(current).not.toContain('name="reason"');const inline=renderTransfer(TransferEditor,{...props,initialOpen:true},activeTransfer);expect(inline).toContain('name="reason"');expect(inline).toContain("Add transfer product");expect(renderTransfer(TransferEditor,props,drainingTransfer)).not.toContain("New warehouse transfer");expect(renderTransfer(TransferEditor,props)).toContain("New warehouse transfer");
+});
+test("Transfer history removes mutation disclosure while preserving original independent review and stale warnings",()=>{
+ const props={base:"/holdings/acme",transfer:transferRow,editable:false,reviewable:true,stale:true};expect(renderTransfer(TransferActions,props,drainingTransfer)).toContain("Review transfer workflow");const html=renderTransfer(TransferActions,props,historyTransfer);expect(html).not.toContain("Review transfer workflow");expect(html).toContain("Source stock changed");expect(renderTransfer(TransferActions,{...props,reviewable:false},activeTransfer)).not.toContain("Review transfer workflow");for(const secret of ["company_package_grants","assignment_permissions"])expect(html).not.toContain(secret);
+});
+test("Transit Work independently intersects dispatch/receipt/loss authority with the original source purchase purpose",()=>{
+ const dispatch={...transitRow,status:"awaiting_dispatch",created_by:actor.userId};expect(transitWorkItem(actor,dispatch,activeTransfer).canAct).toBe(true);expect(transitWorkItem(actor,dispatch,drainingTransfer).canAct).toBe(false);expect(transitWorkItem(actor,transitRow,drainingTransfer).canAct).toBe(true);expect(transitWorkItem(actor,transitRow,historyTransfer).canAct).toBe(false);expect(transitWorkItem({...actor,userId:"dispatcher"},transitRow,activeTransfer).canAct).toBe(false);
+});
+test("Transit long receiving editor is disclosed and retained history does not expose action forms",()=>{
+ const data={userId:actor.userId,transit:transitRow,lines:[transitLine],lots:[],events:[],periods:[],accounts:[],canDispatch:false,canReceive:true,canReviewLoss:false};const props={base:"/holdings/acme",data};const html=renderTransfer(TransitConsole,props,drainingTransfer);expect(html).toContain("Record actual receiving outcome");expect(html).not.toContain('name="quantity"');expect(renderTransfer(TransitConsole,props,historyTransfer)).not.toContain("Record actual receiving outcome");
+});
+
+import {landedCostCommandAllowed,type LandedCostPurchaseControls} from "../../../src/lib/inventory/landed-cost-purchase-controls";
+import {createLandedCostCommandAttempt,type LandedCostCommandAttempt} from "../../../src/lib/inventory/landed-cost-command-attempt";
+import {createLandedCostCommandFetch,landedCostFormUnchanged,validLandedCostAcknowledgement} from "../../../src/lib/inventory/landed-cost-command-fetch";
+import {LandedCostCreateForm,LandedCostActions} from "../../../src/components/commerce/landed-cost-controls";
+const activeLanded:LandedCostPurchaseControls={newWork:true,settleExisting:true,history:true,revision:'opaque'},drainingLanded={...activeLanded,newWork:false},historyLanded={...drainingLanded,settleExisting:false};
+test('Landed allocation requires active purchase while retained approve/reject/cancel/post keep their original purpose',()=>{
+ expect(landedCostCommandAllowed(drainingLanded,'')).toBe(false);for(const action of ['approve','reject','cancel','post']){expect(landedCostCommandAllowed(drainingLanded,`/cost/${action}`)).toBe(true);expect(landedCostCommandAllowed(historyLanded,`/cost/${action}`)).toBe(false);}expect(landedCostCommandAllowed(undefined,'')).toBe(true);expect(landedCostCommandAllowed(activeLanded,'/cost/foreign-action')).toBe(false);
+});
+test('Landed lost and incomplete acknowledgements retain the exact physical and financial command key until parsed receipt',async()=>{
+ const keys:string[]=[],request=createLandedCostCommandFetch(async(_url,init)=>{keys.push(new Headers(init?.headers).get('Idempotency-Key')!);if(keys.length===1)throw Error('Lost landed cost post response');if(keys.length===2)return new Response('truncated');if(keys.length===3)return Response.json({data:{id:'cost'}});if(keys.length===4)return Response.json({data:{id:'cost',version:0}});return Response.json({data:{id:'cost',version:3}});}),input={method:'POST',body:'{"expectedVersion":2,"reason":"Captured freight post evidence"}'};
+ await expect(request('/landed-costs/cost/post',input)).rejects.toThrow('Lost landed cost post response');for(let i=0;i<3;i++)await request('/landed-costs/cost/post',input);expect(request.hasAttempt('/landed-costs/cost/post',input.body)).toBe(true);await request('/landed-costs/cost/post',input);expect(request.hasAttempt('/landed-costs/cost/post',input.body)).toBe(false);await request('/landed-costs/cost/post',input);expect(new Set(keys.slice(0,5)).size).toBe(1);expect(keys[5]).not.toBe(keys[0]);
+});
+test('Uncertain landed cost retries preserve original context/payload and captured acknowledgement while newer drafts wait',()=>{
+ const attempts=createLandedCostCommandAttempt(),completion={form:{} as HTMLFormElement,formEditVersion:'original'},original:LandedCostCommandAttempt={path:'/cost/post',body:'original allocation',create:false,context:'Company:Finance:1',completion};attempts.unresolved(original);expect(()=>attempts.select({...original,body:'newer allocation'},original.context)).toThrow('Retry the submitted landed cost change first');expect(()=>attempts.select(original,'different Company')).toThrow('workspace changed');expect(attempts.select({...original,completion:{...completion,formEditVersion:'later'}},original.context)).toBe(original);expect(attempts.retry()?.completion?.formEditVersion).toBe('original');attempts.resolved(original);expect(attempts.select({...original,body:'newer allocation'},original.context).body).toBe('newer allocation');
+});
+test('Landed parsed acknowledgement does not clear a later decision reason',async()=>{
+ const form={isConnected:true,getAttribute:()=>'later-reason'} as unknown as HTMLFormElement,completion={form,formEditVersion:'submitted'},events:Event[]=[];vi.stubGlobal('window',{dispatchEvent:(event:Event)=>{events.push(event);return true;}});await createLandedCostCommandFetch(async()=>Response.json({data:{id:'cost',version:3}}))('/post',{body:'submitted'},completion);const saved=events.find(event=>event.type==='erpx:record-command-saved') as CustomEvent;expect(saved.detail.landedCostAcknowledged).toBe(true);expect(saved.detail.formEditVersion).toBe('submitted');expect(landedCostFormUnchanged(saved.detail)).toBe(false);for(const value of [null,{},[],{id:''},{id:'cost'},{id:'cost',version:0},{id:'cost',version:1.5}])expect(validLandedCostAcknowledgement(value)).toBe(false);
+});
+test('Landed allocation and original independent decisions use drawer disclosures without exposing private purchase snapshots',()=>{
+ const createProps={base:'/holdings/acme',fulfillment:{id:'receipt',version:2,fulfillment_date:'2026-09-02'},accounts:[],currency:'THB'};const active=renderToStaticMarkup(createElement(LandedCostCreateForm,{...createProps,purchase:activeLanded}));expect(active).toContain('Add landed cost');expect(active).not.toContain('name="description"');expect(renderToStaticMarkup(createElement(LandedCostCreateForm,{...createProps,purchase:drainingLanded}))).not.toContain('Add landed cost');
+ const props={base:'/holdings/acme',record:{id:'cost',version:2,status:'approved'},canApprove:true,canCancel:false};expect(renderToStaticMarkup(createElement(LandedCostActions,{...props,purchase:drainingLanded}))).toContain('Post inventory value and GL');const retained=renderToStaticMarkup(createElement(LandedCostActions,{...props,purchase:historyLanded}));expect(retained).not.toContain('Post inventory value and GL');expect(renderToStaticMarkup(createElement(LandedCostActions,{...props,canApprove:false,purchase:activeLanded}))).not.toContain('Post inventory value and GL');for(const secret of ['company_package_grants','assignment_permissions'])expect(active+retained).not.toContain(secret);
+});
+
+for(const [label,create,path] of [['Count',createCountCommandFetch,'stock-counts/count/count'],['Transfer',createTransferCommandFetch,'stock-transit/transfer/receive'],['Landed',createLandedCostCommandFetch,'landed-costs/cost/post']] as const){
+ test.each(['newer edit','newly focused form'] as const)(`${label} retains its first completion after a lost response despite a %s`,async changed=>{
+  let edit='submitted-edit',focused=changed==='newer edit';const form={isConnected:true,getAttribute:()=>edit},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),saved:unknown[]=[];
+  browser.addEventListener('erpx:record-command-saved',event=>saved.push((event as CustomEvent).detail));
+  vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:()=>null,activeElement:{closest:()=>focused?form:null}});
+  let calls=0;vi.stubGlobal('fetch',async()=>{if(++calls===1)throw Error('Original response lost');return Response.json({data:{id:'original-record',version:2}});});
+  const request=create(workFetch),url=`/api/v1/holdings/acme/${path}`,input={method:'POST',body:'captured-input'};
+  await expect(request(url,input)).rejects.toThrow('Original response lost');edit='newer-edit';focused=true;await request(url,input);
+  if(changed==='newer edit')expect(saved).toEqual([expect.objectContaining({form,formEditVersion:'submitted-edit'})]);else expect(saved).toEqual([]);
+ });
+ test.each(['revision','stale boundary','removed boundary','switch generation'] as const)(`${label} withholds a late %s cloned acknowledgement and retains its exact original retry`,async changed=>{
+  const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment',workStale:'false'}},form={isConnected:true,getAttribute:()=> 'submitted-edit'},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),events:string[]=[];
+  for(const type of ['erpx:record-command-saved','erpx:work-changed'])browser.addEventListener(type,()=>events.push(type));
+  vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'&&node.isConnected?node:null,activeElement:{closest:()=>form},documentElement:{dataset:{}}});
+  let release!:ReadableStreamDefaultController<Uint8Array>,signalBody!:()=>void,calls=0;
+  const bodyStarted=new Promise<void>(resolve=>{signalBody=resolve;}),body=new ReadableStream<Uint8Array>({start(controller){release=controller;}});
+  class CloneBody extends Response{override json(){signalBody();return super.json();}}
+  class LazyResponse extends Response{override clone(){const cloned=super.clone();return new CloneBody(cloned.body,{status:cloned.status,headers:cloned.headers});}}
+  const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>{if(++calls===1)throw Error('Original response lost');return calls===2?new LazyResponse(body,{headers:{'content-type':'application/json'}}):Response.json({data:{id:'original-record',version:2}});});vi.stubGlobal('fetch',network);
+  try{
+   const request=create(workFetch),url=`/api/v1/holdings/acme/${path}`,input={method:'POST',body:JSON.stringify({id:'original-record',expectedVersion:1,reason:'Captured decision'})};
+   await expect(request(url,input)).rejects.toThrow('Original response lost');expect(request.hasAttempt(url,input.body)).toBe(true);
+   const retry=request(url,input);await bodyStarted;if(changed==='revision')node.dataset.workRevision='8';else if(changed==='stale boundary')node.dataset.workStale='true';else if(changed==='removed boundary')node.isConnected=false;else setContextSwitching(true);
+   release.enqueue(new TextEncoder().encode(JSON.stringify({data:{id:'original-record',version:2}})));release.close();
+   await expect(retry).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(events).toEqual([]);
+   node.dataset.workRevision='7';node.dataset.workStale='false';node.isConnected=true;setContextSwitching(false);expect(request.hasAttempt(url,input.body)).toBe(true);
+   expect((await request(url,input)).ok).toBe(true);expect(request.hasAttempt(url,input.body)).toBe(false);expect(events).toEqual(['erpx:record-command-saved','erpx:work-changed']);
+   expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([input.body,input.body,input.body]);const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(new Set(keys).size).toBe(1);expect(keys[0]).toBeTruthy();
+  }finally{setContextSwitching(false);vi.unstubAllGlobals();}
+ });
+}
+
+import {captureCountForm,countCommandContext} from '../../../src/lib/inventory/count-command-fetch';
+import {captureTransferForm,transferCommandContext} from '../../../src/lib/inventory/transfer-command-fetch';
+import {captureLandedCostForm,landedCostCommandContext} from '../../../src/lib/inventory/landed-cost-command-fetch';
+import {captureWorkCommandContext} from '../../../src/lib/work_projection/command-context';
+import {canonicalUiHref} from '../../../src/lib/work_projection/destination-registry';
+import {countSchema} from '../../../src/server/modules/inventory/domain/counts';
+import {landedCostCreateSchema} from '../../../src/server/modules/inventory/domain/landed-costs';
+const stockCallerOwners=[
+ {label:'Count',prefix:'count',capital:'Count',source:'inventory/use-count-command.ts',path:'',url:'/api/v1/holdings/acme/stock-counts',input:countSchema.parse(countInput),create:createCountCommandFetch,attempts:createCountCommandAttempt,context:countCommandContext,capture:captureCountForm,valid:validCountAcknowledgement,unchanged:countFormUnchanged,allowed:countCommandAllowed},
+ {label:'Transfer',prefix:'transfer',capital:'Transfer',source:'inventory/use-transfer-command.ts',path:'/stock-transfers',url:'/api/v1/holdings/acme/stock-transfers',input:transferInput,create:createTransferCommandFetch,attempts:createTransferCommandAttempt,context:transferCommandContext,capture:captureTransferForm,valid:validTransferAcknowledgement,unchanged:transferFormUnchanged,allowed:transferCommandAllowed},
+ {label:'Landed',prefix:'landedCost',capital:'LandedCost',source:'commerce/use-landed-cost-command.ts',path:'',url:'/api/v1/holdings/acme/landed-costs',input:landedCostCreateSchema.parse({fulfillmentId:'receipt',costDate:'2026-10-16',description:'Original captured freight',allocationMethod:'quantity',amount:'10.00',creditAccountId:'freight'}),create:createLandedCostCommandFetch,attempts:createLandedCostCommandAttempt,context:landedCostCommandContext,capture:captureLandedCostForm,valid:validLandedCostAcknowledgement,unchanged:landedCostFormUnchanged,allowed:landedCostCommandAllowed},
+] as const;
+type StockCallerOwner=typeof stockCallerOwners[number];
+async function actualStockCaller(owner:StockCallerOwner,request:ReturnType<typeof createCountCommandFetch>) {
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL(`../../../src/components/${owner.source}`,import.meta.url),'utf8'),file=ts.createSourceFile('actual-stock-owner.ts',source,ts.ScriptTarget.Latest,true),functions:import('typescript').FunctionDeclaration[]=[];
+ const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='execute')functions.push(node);ts.forEachChild(node,visit);};visit(file);if(functions.length!==1)throw Error('Expected the actual Stock execute handler.');
+ const emitted=ts.transpileModule(functions[0].getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const names=['pendingRef','commands',`${owner.prefix}CommandContext`,'base',`${owner.prefix}CommandAllowed`,'purchase',`${owner.prefix}CommandFetch`,'setError','setPending','setNotice',`capture${owner.capital}Form`,'setUncertain',`valid${owner.capital}Acknowledgement`,`${owner.prefix}FormUnchanged`,'router','canonicalUiHref','captureWorkCommandContext','attempt','retry'],run=new Function(...names,`${emitted}\nreturn execute(attempt,retry);`) as (...ports:unknown[])=>Promise<boolean>;
+ const commands={current:owner.attempts()},resolved=vi.spyOn(commands.current,'resolved'),unresolved=vi.spyOn(commands.current,'unresolved'),router={push:vi.fn(),refresh:vi.fn()},state:Record<string,unknown[]>={},pendingRef={current:false},setter=(key:string)=>(value:unknown)=>{(state[key]??=[]).push(value);};
+ const execute=(attempt:CountCommandAttempt,retry=false)=>run(pendingRef,commands,owner.context,'/holdings/acme',owner.allowed,undefined,request,setter('error'),setter('pending'),setter('notice'),owner.capture,setter('uncertain'),owner.valid,owner.unchanged,router,canonicalUiHref,captureWorkCommandContext,attempt,retry);
+ return {execute,commands,resolved,unresolved,router,state};
+}
+for(const owner of stockCallerOwners){
+ test.each(['revision','stale boundary','removed boundary','switch generation'] as const)(`actual ${owner.label} caller keeps callbacks, resolution and key pending through late %s in original JSON`,async changed=>{
+  const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment',workStale:'false'}},form={isConnected:true,getAttribute:()=> 'submitted-edit'},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),events:string[]=[];
+  for(const type of ['erpx:record-command-saved','erpx:work-changed'])browser.addEventListener(type,()=>events.push(type));
+  vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'&&node.isConnected?node:null,activeElement:{closest:()=>form},documentElement:{dataset:{}}});
+  let startBody!:()=>void,releaseBody!:()=>void,calls=0;
+  const bodyStarted=new Promise<void>(resolve=>{startBody=resolve;}),released=new Promise<void>(resolve=>{releaseBody=resolve;});
+  class OriginalBody extends Response{override async json(){startBody();await released;return super.json();}}
+  const receipt={id:'original-record',version:2},network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>++calls===1?new OriginalBody(JSON.stringify({data:receipt}),{headers:{'content-type':'application/json'}}):Response.json({data:receipt}));vi.stubGlobal('fetch',network);
+  const request=owner.create(workFetch),caller=await actualStockCaller(owner,request),acknowledged=vi.fn(),attempt:CountCommandAttempt={path:owner.path,body:JSON.stringify(owner.input),create:true,context:owner.context(),acknowledged};
+  try{
+   const submission=caller.execute(attempt);await bodyStarted;const beforeBody={retained:request.hasAttempt(owner.url,attempt.body),events:[...events]};
+   if(changed==='revision')node.dataset.workRevision='8';else if(changed==='stale boundary')node.dataset.workStale='true';else if(changed==='removed boundary')node.isConnected=false;else setContextSwitching(true);
+   releaseBody();const lateResult=await submission,afterBody={events:[...events],resolved:caller.resolved.mock.calls.length,acknowledged:acknowledged.mock.calls.length,push:caller.router.push.mock.calls.length,refresh:caller.router.refresh.mock.calls.length,pending:caller.commands.current.retry(),uncertain:caller.state.uncertain?.at(-1),error:caller.state.error.at(-1)};
+   node.dataset.workRevision='7';node.dataset.workStale='false';node.isConnected=true;setContextSwitching(false);const retainedAfterRefusal=request.hasAttempt(owner.url,attempt.body);
+   expect(await caller.execute(attempt,true)).toBe(true);
+   const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(keys[0]).toBeTruthy();expect(keys[1]).toBe(keys[0]);expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([attempt.body,attempt.body]);
+   expect(lateResult).toBe(false);expect(afterBody.error).toContain('Return to the original work context');expect(beforeBody).toEqual({retained:true,events:[]});expect(retainedAfterRefusal).toBe(true);
+   expect(afterBody).toMatchObject({events:[],resolved:0,acknowledged:0,push:0,refresh:0,pending:attempt,uncertain:true});expect(caller.unresolved).toHaveBeenCalledWith(attempt);
+   expect(caller.commands.current.retry()).toBe(null);expect(caller.resolved).toHaveBeenCalledOnce();expect(acknowledged).toHaveBeenCalledExactlyOnceWith(receipt);expect(caller.state.uncertain.at(-1)).toBe(false);expect(request.hasAttempt(owner.url,attempt.body)).toBe(false);expect(caller.router.push).toHaveBeenCalledOnce();expect(caller.router.refresh).toHaveBeenCalledOnce();expect(events).toEqual(['erpx:record-command-saved','erpx:work-changed']);
+  }finally{releaseBody();setContextSwitching(false);vi.unstubAllGlobals();}
+ });
+ test.each(['newer edit','newly focused form'] as const)(`actual ${owner.label} caller retains a %s when retry acknowledges its original completion`,async changed=>{
+  let edit='submitted-edit',focused=changed==='newer edit',calls=0;
+  const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment'}},form={isConnected:true,getAttribute:()=>edit},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),saved:unknown[]=[];
+  browser.addEventListener('erpx:record-command-saved',event=>saved.push((event as CustomEvent).detail));
+  vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?node:null,activeElement:{closest:()=>focused?form:null}});
+  const receipt={id:'original-record',version:2},network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>{if(++calls===1)throw Error('Original response lost');return Response.json({data:receipt});});vi.stubGlobal('fetch',network);
+  const request=owner.create(workFetch),caller=await actualStockCaller(owner,request),acknowledged=vi.fn(),attempt:CountCommandAttempt={path:owner.path,body:JSON.stringify(owner.input),create:true,context:owner.context(),acknowledged};
+  expect(await caller.execute(attempt)).toBe(false);expect(caller.commands.current.retry()).toBe(attempt);expect(caller.state.uncertain.at(-1)).toBe(true);edit='newer-edit';focused=true;
+  const submitted=caller.commands.current.retry();if(!submitted)throw Error('Expected the real unresolved command.');
+  expect(await caller.execute(submitted,true)).toBe(false);expect(caller.state.notice.at(-1)).toContain('newer draft is retained');expect(caller.state.error.at(-1)).toBe('');expect(caller.router.push).not.toHaveBeenCalled();expect(caller.router.refresh).not.toHaveBeenCalled();
+  expect(caller.commands.current.retry()).toBe(null);expect(caller.resolved).toHaveBeenCalledOnce();expect(acknowledged).toHaveBeenCalledExactlyOnceWith(receipt);expect(caller.state.uncertain.at(-1)).toBe(false);expect(request.hasAttempt(owner.url,attempt.body)).toBe(false);
+  if(changed==='newer edit')expect(saved).toEqual([expect.objectContaining({form,formEditVersion:'submitted-edit'})]);else expect(saved).toEqual([]);
+  const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(keys[0]).toBeTruthy();expect(keys[1]).toBe(keys[0]);expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([attempt.body,attempt.body]);
+ });
+ test.each(['unreadable original receipt','incomplete original receipt','definitive owner refusal','acknowledgement callback fails'] as const)(`actual ${owner.label} caller preserves command certainty after %s`,async outcome=>{
+  const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment'}},form={isConnected:true,getAttribute:()=> 'submitted-edit'},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),events:string[]=[];
+  for(const type of ['erpx:record-command-saved','erpx:work-changed'])browser.addEventListener(type,()=>events.push(type));
+  vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?node:null,activeElement:{closest:()=>form}});
+  const receipt={id:'original-record',version:2};let calls=0;
+  class OriginalReceipt extends Response{override async json(){if(outcome==='unreadable original receipt')throw new SyntaxError('Original JSON was truncated');if(outcome==='incomplete original receipt')return {data:{id:receipt.id,version:0}};return super.json();}}
+  const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>{
+   ++calls;if(outcome==='definitive owner refusal')return Response.json({error:{code:'OWNER_REVIEW_REQUIRED',message:'Independent owner review is required.'}},{status:422});
+   return calls===1?new OriginalReceipt(JSON.stringify({data:receipt}),{headers:{'content-type':'application/json'}}):Response.json({data:receipt});
+  });vi.stubGlobal('fetch',network);
+  const request=owner.create(workFetch),caller=await actualStockCaller(owner,request),acknowledged=vi.fn(()=>{if(outcome==='acknowledgement callback fails')throw Error('Local receipt callback failed');}),attempt:CountCommandAttempt={path:owner.path,body:JSON.stringify(owner.input),create:true,context:owner.context(),acknowledged};
+  expect(await caller.execute(attempt)).toBe(false);expect(caller.router.push).not.toHaveBeenCalled();expect(caller.router.refresh).not.toHaveBeenCalled();
+  if(outcome==='unreadable original receipt'||outcome==='incomplete original receipt'){
+   expect(request.hasAttempt(owner.url,attempt.body)).toBe(true);expect(caller.commands.current.retry()).toBe(attempt);expect(caller.state.uncertain.at(-1)).toBe(true);expect(caller.resolved).not.toHaveBeenCalled();expect(acknowledged).not.toHaveBeenCalled();expect(events).toEqual([]);
+   const submitted=caller.commands.current.retry();if(!submitted)throw Error('Expected the original unresolved command.');expect(await caller.execute(submitted,true)).toBe(true);
+   const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(keys[0]).toBeTruthy();expect(keys[1]).toBe(keys[0]);expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([attempt.body,attempt.body]);expect(request.hasAttempt(owner.url,attempt.body)).toBe(false);expect(acknowledged).toHaveBeenCalledExactlyOnceWith(receipt);expect(caller.router.refresh).toHaveBeenCalledOnce();
+  }else if(outcome==='definitive owner refusal'){
+   expect(caller.state.error.at(-1)).toBe('Independent owner review is required.');expect(acknowledged).not.toHaveBeenCalled();expect(events).toEqual([]);expect(caller.unresolved).not.toHaveBeenCalled();
+  }else{
+   expect(caller.state.error.at(-1)).toBe('Local receipt callback failed');expect(acknowledged).toHaveBeenCalledExactlyOnceWith(receipt);expect(events).toEqual(['erpx:record-command-saved','erpx:work-changed']);expect(request.hasAttempt(owner.url,attempt.body)).toBe(false);expect(caller.unresolved).not.toHaveBeenCalled();
+  }
+  expect(caller.commands.current.retry()).toBe(null);expect(caller.resolved).toHaveBeenCalledOnce();expect(caller.state.uncertain.at(-1)).toBe(false);
+ });
+ test(`${owner.label} caller acknowledgement completes only its exact bound attempt once`,async()=>{
+  const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment'}},form={isConnected:true,getAttribute:()=> 'submitted-edit'},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),events:string[]=[];
+  for(const type of ['erpx:record-command-saved','erpx:work-changed'])browser.addEventListener(type,()=>events.push(type));
+  vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?node:null,activeElement:{closest:()=>form}});
+  const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>Response.json({data:{id:'original-record',version:2}}));vi.stubGlobal('fetch',network);
+  const request=owner.create(workFetch),input={method:'POST',body:JSON.stringify(owner.input)},earlier=await request(owner.url,input,undefined,'caller'),retry=await request(owner.url,input,undefined,'caller');
+  expect(request.hasAttempt(owner.url,input.body)).toBe(true);expect(events).toEqual([]);expect(request.acknowledge(Response.json({data:{id:'original-record',version:2}}))).toBe(false);
+  expect(request.acknowledge(retry)).toBe(true);expect(request.acknowledge(retry)).toBe(false);expect(request.hasAttempt(owner.url,input.body)).toBe(false);
+  const next=await request(owner.url,input,undefined,'caller');expect(request.acknowledge(earlier)).toBe(false);expect(request.hasAttempt(owner.url,input.body)).toBe(true);expect(events).toEqual(['erpx:record-command-saved','erpx:work-changed']);
+  expect(request.acknowledge(next)).toBe(true);expect(request.acknowledge(next)).toBe(false);expect(request.hasAttempt(owner.url,input.body)).toBe(false);expect(events).toEqual(['erpx:record-command-saved','erpx:work-changed','erpx:record-command-saved','erpx:work-changed']);
+  const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(keys[0]).toBeTruthy();expect(keys[1]).toBe(keys[0]);expect(keys[2]).not.toBe(keys[0]);expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([input.body,input.body,input.body]);
+ });
+}

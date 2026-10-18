@@ -1,14 +1,15 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { recordCanonicalHref } from "@/lib/records/record-drawer";
 import { Table, TableFrame } from "@/components/ui/foundation";
 import { FeatureWidget } from "@/components/shared/features/feature-page";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePmsWorkspaceContext} from "./pms-backoffice-workspace";
+import type {BackofficePmsWorkspaceReportsScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
 
 
 const PmsRangeReports = dynamic(() => import("./range-reports").then(module => module.PmsRangeReports));
@@ -38,7 +39,7 @@ export function BackofficePmsWorkspaceReportsScreen({context}: {context: Backoff
                   {crossLinks.finance && (
                     <p className={styles.muted}>
                       Review shared accounting in{" "}
-                      <Link href={`${erpBase}/finance/accounting`}>Finance Accounting</Link>.
+                      <Link href={canonicalUiHref(`${erpBase}/finance/accounting`)}>Finance Accounting</Link>.
                     </p>
                   )}
                   <PmsRangeReports base={base} propertyId={p.id} today={today}/>

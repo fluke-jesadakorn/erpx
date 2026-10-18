@@ -11,9 +11,9 @@ it("offers only authorized local POS tabs and keeps them on Front", () => {
   const items = frontActionItems("pos", actor(["pos.read", "pos.sell"]), "/acme/hotel/holding/");
   expect(items.map((item) => item.id)).toEqual(["sale", "shifts", "history"]);
   expect(items.map((item) => item.href)).toEqual([
-    "/acme/hotel/holding/?tab=sale",
-    "/acme/hotel/holding/?tab=shifts",
-    "/acme/hotel/holding/?tab=history",
+    "/acme/hotel/holding/sale",
+    "/acme/hotel/holding/shifts",
+    "/acme/hotel/holding/history",
   ]);
   expect(items.every((item) => !item.href.includes("/holdings/"))).toBe(true);
 });
@@ -22,7 +22,7 @@ it("offers only authorized PMS sections", () => {
   const items = frontActionItems("pms", actor(["pms.read", "pms.frontdesk", "pms.housekeeping"]), "/acme/hotel/holding/");
   expect(items.map((item) => item.id)).toEqual(["dashboard", "front-desk", "rooms", "housekeeping"]);
   expect(items.map((item) => item.href)).toEqual([
-    "/acme/hotel/holding/",
+    "/acme/hotel/holding/today",
     "/acme/hotel/holding/front-desk",
     "/acme/hotel/holding/rooms",
     "/acme/hotel/holding/housekeeping",

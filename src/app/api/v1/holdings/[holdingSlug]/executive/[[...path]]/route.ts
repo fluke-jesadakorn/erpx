@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {appExecutiveCacheRevisions} from "@/server/modules/work_projection/public/app-executive-cache-source";
 import { after } from "next/server";
 import { z } from "zod";
@@ -58,7 +59,7 @@ export async function GET(request:Request,context:Context) {
       },cancel(){closed=true;if(timer)clearTimeout(timer);}});
       return new Response(stream,{headers:{...headers,"Content-Type":"text/event-stream","X-Accel-Buffering":"no","Connection":"keep-alive"}});
     }else throw new ApiError(404,"NOT_FOUND","This Executive resource does not exist.");
-    return Response.json({data},{headers});
+    return Response.json(canonicalDestinationLinks({data}),{headers});
   }catch(e){return errorResponse(e);}
 }
 export async function POST(request:Request,context:Context) {
@@ -83,6 +84,6 @@ export async function POST(request:Request,context:Context) {
     else if(action==="revoke")data=await revokeShare(write,a,id,z.object({shareId:z.string()}).parse(raw).shareId,key);
     else if(action==="restore"){const input=z.object({version:z.number().int().positive(),expectedVersion:z.number().int().positive()}).parse(raw);data=await restoreReport(write,a,id,input.version,input.expectedVersion,key);}
     else throw new ApiError(404,"NOT_FOUND","This Executive action does not exist.");
-    return Response.json({data},{headers});
+    return Response.json(canonicalDestinationLinks({data}),{headers});
   }catch(e){return errorResponse(e);}
 }

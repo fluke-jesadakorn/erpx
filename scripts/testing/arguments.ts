@@ -3,7 +3,7 @@ import { repositoryRoot, testLanes, type Selection } from "./catalogue";
 import { parseBrowserCaseOrder, type BrowserCaseOrder } from "./browser-execution-plan";
 
 export type TestArguments = Selection & { command: string; list: boolean; json: boolean; check: boolean; base?: string; head?: string; caseOrder?: BrowserCaseOrder; forwarded: string[] };
-const commands = new Set(["tests", ...testLanes, "impact"]);
+const commands = new Set(["tests", ...testLanes, "impact", "dev"]);
 export function parseTestArguments(args: string[], root = repositoryRoot): TestArguments {
   const input = [...args];
   const command = commands.has(input[0]) ? input.shift()! : "tests";
@@ -42,9 +42,11 @@ export function parseTestArguments(args: string[], root = repositoryRoot): TestA
     if (arg.startsWith("--module") || arg.startsWith("--suite") || arg.startsWith("--base") || arg.startsWith("--head") || arg.startsWith("--case-order")) throw new Error(`UNKNOWN_TEST_OPTION:${arg}`);
     result.forwarded.push(arg);
   }
-  if (command === "impact" && !result.base) throw new Error("IMPACT_BASE_REQUIRED:use --base=<commit>");
-  if (command !== "impact" && (result.base || result.head)) throw new Error("GIT_REFERENCE_ONLY_FOR_IMPACT");
-  if (command === "impact" && (result.modules!.length || result.suiteIds!.length || result.files!.length)) throw new Error("IMPACT_SELECTION_IS_COMPUTED_FROM_GIT");
+  const computedImpact = command === "impact" || command === "dev";
+  if (computedImpact && !result.base) throw new Error("IMPACT_BASE_REQUIRED:use --base=<commit>");
+  if (!computedImpact && (result.base || result.head)) throw new Error("GIT_REFERENCE_ONLY_FOR_IMPACT");
+  if (computedImpact && (result.modules!.length || result.suiteIds!.length || result.files!.length)) throw new Error("IMPACT_SELECTION_IS_COMPUTED_FROM_GIT");
+  if (command === "tests" && !result.files!.length && !result.suiteIds!.length) result.lane = "unit";
   if (result.caseOrder && !["impact", "e2e", "journeys", "uat"].includes(command)) throw new Error("BROWSER_CASE_ORDER_ONLY_FOR_BROWSER_LANES");
   return result;
 }

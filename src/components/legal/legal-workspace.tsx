@@ -1,6 +1,12 @@
 "use client";
+import WorkspaceLink from '@/components/workplace/workspace-link';
+import {legalActionPurchased,legalKindCapability} from "@/server/modules/legal/public/rules/purchases";
+import {registerUnsavedWork} from "@/lib/work_projection/context-switch";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
-import { useRouter } from "next/navigation";
+import {useSearchParams} from "@/lib/shared/destination-search";
+import dynamic from "next/dynamic";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useEmbeddedRecord } from "@/components/records/record-context";
 import { recordDrawerHref } from "@/lib/records/record-drawer";
 import { RecordLink } from "@/components/records/record-link";
@@ -16,22 +22,23 @@ import { TimeText } from "@/components/people_payroll/time/time-preference-conte
 import { BarChart3, BookOpen, Globe2, Plus, X, Scale } from "lucide-react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { LegalApproval, LegalEditor } from "./legal-review";
-import { LegalReports } from "./legal-reports";
-import { LegalGovernance } from "./legal-governance";
-import { LegalThailand } from "./legal-thailand";
-import { LegalKnowledge } from "./legal-knowledge";
-import { LegalDeadlines } from "./legal-deadlines";
-import { LegalFeatures } from "./legal-features";
-import { LegalRetention } from "./legal-retention";
+const LegalReports = dynamic(() => import("./legal-reports").then(module => module.LegalReports));
+const LegalGovernance = dynamic(() => import("./legal-governance").then(module => module.LegalGovernance));
+const LegalThailand = dynamic(() => import("./legal-thailand").then(module => module.LegalThailand));
+const LegalKnowledge = dynamic(() => import("./legal-knowledge").then(module => module.LegalKnowledge));
+const LegalDeadlines = dynamic(() => import("./legal-deadlines").then(module => module.LegalDeadlines));
+const LegalFeatures = dynamic(() => import("./legal-features").then(module => module.LegalFeatures));
+const LegalRetention = dynamic(() => import("./legal-retention").then(module => module.LegalRetention));
 import { LegalEvidenceFields, LegalSnapshot } from "./legal-evidence-fields";
-import { LegalExecutedCopies } from "./legal-executed-copies";
-import { LegalLawCorpus } from "./legal-law-corpus";
-import { LegalReleaseAcceptance } from "./legal-release-acceptance";
-import { LegalWorkQueue } from "./legal-work-queue";
-import { LegalAssignment } from "./legal-assignment";
-import { LegalDocumentTextReview } from "./legal-document-text-review";
+const LegalExecutedCopies = dynamic(() => import("./legal-executed-copies").then(module => module.LegalExecutedCopies));
+const LegalLawCorpus = dynamic(() => import("./legal-law-corpus").then(module => module.LegalLawCorpus));
+const LegalReleaseAcceptance = dynamic(() => import("./legal-release-acceptance").then(module => module.LegalReleaseAcceptance));
+const LegalWorkQueue = dynamic(() => import("./legal-work-queue").then(module => module.LegalWorkQueue));
+const LegalAssignment = dynamic(() => import("./legal-assignment").then(module => module.LegalAssignment));
+const LegalDocumentTextReview = dynamic(() => import("./legal-document-text-review").then(module => module.LegalDocumentTextReview));
 import { useLegalPeople } from "./legal-person-select";
 import { createLegalCommandClient } from "@/lib/shared/legal/command-client";
+import {createLegalDocumentUploadClient} from '@/lib/legal/document-upload-client';
 import { useState, useCallback, useEffect, useMemo, useRef, type FormEvent } from "react";
 import { OperationSummary } from "@/components/workplace/operation-summary";
 import {
@@ -62,6 +69,7 @@ export function LegalWorkspace({
   initialCreate?: boolean;
   initialKind?: LegalKind;
 }) {
+  const route=useSearchParams();
   const router = useRouter(), embedded = useEmbeddedRecord();
   const [data, setData] = useState(initial),
     [kind, setKind] = useState<LegalKind>(initialDetail?.item.kind ?? initialKind),
@@ -69,17 +77,18 @@ export function LegalWorkspace({
     [state, setState] = useState(""),
     [selected, setSelected] = useState<LegalDetail | null>(initialDetail),
     [creating, setCreating] = useState(
-      initialCreate && initial.enabled && initial.permissions.includes("legal.create"),
+      initialCreate && initial.enabled && initial.permissions.includes("legal.create") && legalActionPurchased(initial.purchases,initialKind,"create"),
     ),
     [editing, setEditing] = useState(false),
     [busy, setBusy] = useState(false),
     [pendingAction, setPendingAction] = useState(false),
+    [savedNotice,setSavedNotice]=useState(''),
     [error, setError] = useState(""),
-    [tab, setTab] = useState("Overview"),
-    [tool, setTool] = useState<"reports" | "knowledge" | "thailand" | "laws" | "release" | null>(
+    [localTab, setLocalTab] = useState("Overview"),
+    [localTool, setLocalTool] = useState<"reports" | "knowledge" | "thailand" | "laws" | "release" | null>(
       null,
     ),
-    [workView, setWorkView] = useState<"register" | "mine" | "deadlines">("register"),
+    [localWorkView, setLocalWorkView] = useState<"register" | "mine" | "deadlines">("register"),
     [inspection, setInspection] = useState<unknown>(null),
     [proposals, setProposals] = useState<Record<string, unknown>[]>([]);
   const [importData, setImportData] = useState<{
@@ -94,23 +103,35 @@ export function LegalWorkspace({
         query: { kind: LegalKind; search: string; state: string };
       }[]
     >([]);
+  const sectionLabels:Record<string,string>={overview:'Overview',tasks:'Tasks & controls',documents:'Documents',workflow:'Workflow',access:'Access',holds:'Holds',retention:'Retention',ai:'AI',activity:'Activity'};
+  const tab=embedded?sectionLabels[route.get('section')??'overview']??localTab:localTab;
+  const tool=(route.get('tool')??localTool) as typeof localTool;
+  const workView=(route.get('workView')??localWorkView) as typeof localWorkView;
+  const setTab=(value:string)=>{setLocalTab(value);if(embedded&&selected){const section=Object.entries(sectionLabels).find(([,label])=>label===value)?.[0]??'overview';router.push(recordDrawerHref(window.location.href,{kind:'legal',id:selected.item.id,args:{kind:selected.item.kind,section}}),{scroll:false});}};
+  const setTool=(value:typeof localTool)=>{setLocalTool(value);if(!embedded)router.push(`${base}/legal?${new URLSearchParams(value?{tool:value}:{kind})}`,{scroll:false});};
+  const setWorkView=(value:typeof localWorkView)=>{setLocalWorkView(value);if(!embedded&&value!=='register')router.push(`${base}/legal?workView=${value}`,{scroll:false});};
   const api = `/api/v1${base}/legal`,
     can = (p: string) => data.permissions.includes(`legal.${p}`);
+  const canPurchase=(action:string,enabled?:unknown)=>legalActionPurchased(selected?.purchases??data.purchases,selected?.item.kind??kind,action,enabled);
   const contextKey = `erpx:legal:${base}:${JSON.stringify(initial.workContext ?? { userId: initial.userId })}`;
-  const send = useMemo(() => createLegalCommandClient(`${contextKey}:command`), [contextKey]);
+  const send = useMemo(() => createLegalCommandClient(`${contextKey}:command`,{strictOwnerReceipt:true}), [contextKey]);
+  const uploads=useMemo(()=>createLegalDocumentUploadClient(api,contextKey),[api,contextKey]);
+  const [pendingUpload,setPendingUpload]=useState<ReturnType<typeof uploads.pending>>(null);
   useEffect(() => {
-    const frame = requestAnimationFrame(() => setPendingAction(send.hasPending()));
+    const frame = requestAnimationFrame(() => {setPendingUpload(uploads.pending());setPendingAction(send.hasPending()||Boolean(uploads.pending()));});
     return () => cancelAnimationFrame(frame);
-  }, [send]);
+  }, [send,uploads]);
+  useEffect(()=>registerUnsavedWork(()=>pendingAction),[pendingAction]);
   const call = useCallback(
     async (path: string, body?: unknown) => {
       if (body !== undefined) {
         try {
+          if(uploads.pending())throw Error('Check the original Legal document upload before submitting another action.');
           const result = await send(api + path, body);
           setPendingAction(false);
           return result;
         } catch (error) {
-          setPendingAction(send.hasPending());
+          setPendingUpload(uploads.pending());setPendingAction(send.hasPending()||Boolean(uploads.pending()));
           throw error;
         }
       }
@@ -119,7 +140,7 @@ export function LegalWorkspace({
       if (!r.ok) throw new Error(j.error?.message ?? "Request failed");
       return j.data;
     },
-    [api, send],
+    [api, send,uploads],
   );
   function location(record?: string, selectedKind = kind) {
     const url = new URL(window.location.href);
@@ -132,8 +153,8 @@ export function LegalWorkspace({
   async function load(k = kind, page = 1, q = search, status = state) {
     setData(await call(`?kind=${k}&page=${page}&search=${encodeURIComponent(q)}&state=${status}`));
   }
-  async function open(id: string) {
-    if (!embedded || selected?.item.id !== id) { router.push(recordDrawerHref(window.location.href, { kind: "legal", id, args: { kind } }), { scroll: false }); return; }
+  async function open(id: string, targetKind: LegalKind = kind) {
+    if (!embedded || selected?.item.id !== id) { router.push(recordDrawerHref(window.location.href, { kind: "legal", id, args: { kind: targetKind } }), { scroll: false }); return; }
     setBusy(true);
     setError("");
     try {
@@ -152,24 +173,27 @@ export function LegalWorkspace({
     }
   }
   async function command(body: Record<string, unknown>) {
+    if(!canPurchase(String(body.action),body.enabled)){setError("The current Legal package permits retained history only for this action. Refresh the workspace to review current access.");return false;}
     setBusy(true);
     setError("");
+    setSavedNotice('');let acknowledged=false;
     try {
       const result = await call("", {
         ...(selected ? { id: selected.item.id, expectedVersion: selected.item.version } : {}),
         ...body,
       });
+      acknowledged=true;setSavedNotice('The original Legal action was saved.');
+      setEditing(false);
       if (body.action === "create" || body.action === "revision.create") {
         setCreating(false);
         location(result.id, body.action === "create" ? (body.item as ItemInput).kind : kind);
         setSelected(await call(`/${result.id}`));
       } else if (selected) setSelected(await call(`/${selected.item.id}`));
-      setEditing(false);
       await load();
       return true;
     } catch (e) {
-      setError((e as Error).message);
-      return false;
+      setError(`${acknowledged?'The action was saved, but its refreshed view is unavailable. ':''}${(e as Error).message}`);
+      return acknowledged;
     } finally {
       setBusy(false);
     }
@@ -191,44 +215,30 @@ export function LegalWorkspace({
   }
   async function upload(file: File) {
     if (!selected) return;
+    if(send.hasPending()){setError('Recover the original Legal action before uploading a different document.');return;}
+    const prior=uploads.pending();if(prior&&prior.id!==selected.item.id){setError('Open the original Legal record to recover its document upload.');return;}
+    if(!prior&&!canPurchase('document')){setError('This original document upload is currently unavailable. Your selected file is retained.');return;}
     setBusy(true);
-    setError("");
+    setError("");setSavedNotice('');let acknowledged=false;
     try {
-      const response = await workFetch(`${api}/upload/${selected.item.id}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": file.type,
-          "Idempotency-Key": crypto.randomUUID(),
-          "X-Record-Version": String(selected.item.version),
-          "X-File-Name": encodeURIComponent(file.name),
-        },
-        body: file,
-      });
-      const json = await response.json();
-      if (!response.ok) throw new Error(json.error?.message ?? "Upload failed");
-      setSelected(await call(`/${selected.item.id}`));
+      const result=prior?await uploads.recover(file):await uploads.upload({id:selected.item.id,version:selected.item.version},file);if(!result)return;
+      acknowledged=true;setSavedNotice('The exact original Legal document was saved.');
+      setSelected(await call(`/${result.id}`));
     } catch (e) {
-      setError((e as Error).message);
+      setError(`${acknowledged?'The document was saved, but its refreshed view is unavailable. ':''}${(e as Error).message}`);
     } finally {
+      setPendingUpload(uploads.pending());setPendingAction(send.hasPending()||Boolean(uploads.pending()));
       setBusy(false);
     }
   }
-  function select(k: LegalKind) {
-    setKind(k);
-    setWorkView("register");
-    location(undefined, k);
-    setSelected(null);
-    setCreating(false);
-    setEditing(false);
-    setError("");
-    load(k).catch((e) => setError(e.message));
-  }
+  function select(k: LegalKind) {router.push(`${base}/legal?kind=${k}`,{scroll:false});}
+
   const total = data.counts.reduce((n, c) => n + c.count, 0),
     count = (states: string[]) =>
       data.counts.filter((c) => states.includes(c.state)).reduce((n, c) => n + c.count, 0);
   return (
     <div className="ui-stack">
-      <header className={s.header}>
+      {!embedded && <header className={s.header}>
         <div>
           <span className={s.eyebrow}>
             <Scale size={15} aria-hidden="true" /> Legal workspace
@@ -236,7 +246,7 @@ export function LegalWorkspace({
           <h1>Legal</h1>
           <p>Commitments, decisions and evidence in one place.</p>
         </div>
-        {can("create") && data.enabled && (
+        {can("create") && data.enabled && canPurchase("create") && (
           <Button appearance="standard"
             type="submit"
             variant="ghost"
@@ -250,17 +260,17 @@ export function LegalWorkspace({
             <Plus size={16} aria-hidden="true" /> New {kind}
           </Button>
         )}
-      </header>
+      </header>}
       {error && (
         <InlineNotice tone="danger" role="alert" className={s.error}>
           {error}
         </InlineNotice>
       )}
+      {savedNotice&&<InlineNotice role="status">{savedNotice}</InlineNotice>}
       {pendingAction && (
         <InlineNotice tone="info" className={s.notice} role="status">
           <p>
-            A previous Legal action has an uncertain result. Recover its original request before
-            starting another action.
+            {pendingUpload?`The original document upload has an uncertain result. ${pendingUpload.needsFile?`Reselect the same file (${pendingUpload.name}) on its original record.`:'Check its original upload before starting another action.'}`:'A previous Legal action has an uncertain result. Recover its original request before starting another action.'}
           </p>
           <Button appearance="standard"
             type="submit"
@@ -271,6 +281,7 @@ export function LegalWorkspace({
               setBusy(true);
               setError("");
               try {
+                if(uploads.pending()){const recovered=await uploads.recover();setPendingUpload(uploads.pending());setPendingAction(send.hasPending()||Boolean(uploads.pending()));if(recovered){setSavedNotice('The exact original Legal document was saved.');await open(recovered.id);await load();}return;}
                 const recovered = await send.recover();
                 setPendingAction(send.hasPending());
                 if (recovered) {
@@ -285,7 +296,7 @@ export function LegalWorkspace({
                 }
               } catch (error) {
                 setError(error instanceof Error ? error.message : "Unable to recover the action.");
-                setPendingAction(send.hasPending());
+                setPendingUpload(uploads.pending());setPendingAction(send.hasPending()||Boolean(uploads.pending()));
               } finally {
                 setBusy(false);
               }
@@ -298,7 +309,7 @@ export function LegalWorkspace({
       {!data.enabled && (
         <div className={s.notice}>
           Legal is currently read-only for this Company.{" "}
-          {can("manage") && (
+          {can("manage") && canPurchase("settings",true) && (
             <Button appearance="standard"
               type="submit"
               variant="ghost"
@@ -311,6 +322,7 @@ export function LegalWorkspace({
           )}
         </div>
       )}
+      {!embedded && <>
       <div className={s.metrics}>
         {[
           ["Accessible records", total],
@@ -412,8 +424,9 @@ export function LegalWorkspace({
           {tool === "release" && <LegalReleaseAcceptance call={call} userId={data.userId} />}
         </section>
       )}
-      <div className={s.layout}>
-        <nav className={s.nav} aria-label="Legal registers">
+      </>}
+      <div className={embedded ? "ui-stack" : s.layout}>
+        {!embedded && <nav className={s.nav} aria-label="Legal registers">
           <span className={s.navLabel}>WORKSPACE</span>
           <Button appearance="standard"
             type="submit"
@@ -442,7 +455,7 @@ export function LegalWorkspace({
             Deadlines
           </Button>
           <span className={s.navLabel}>REGISTERS</span>
-          {kinds.map((k) => (
+          {kinds.filter(k=>!data.purchases||data.purchases[legalKindCapability(k)]?.history).map((k) => (
             <Button appearance="standard"
               type="submit"
               variant="ghost"
@@ -453,7 +466,7 @@ export function LegalWorkspace({
               <span>{labels[k]}</span>
             </Button>
           ))}
-        </nav>
+        </nav>}
         <Card as="section" appearance="standard" className={s.panel}>
           {(creating || editing) && (
             <ItemForm
@@ -482,14 +495,14 @@ export function LegalWorkspace({
           ) : selected ? (
             <LocalTabs className={s.detail} value={tab} onValueChange={value => setTab(String(value))}>
               <div className={s.actions}>
-                <Button appearance="standard"
+                {!embedded && <Button appearance="standard"
                   type="submit"
                   variant="ghost"
                   className={button}
                   onClick={() => setSelected(null)}
                 >
                   ← All records
-                </Button>
+                </Button>}
                 <span className={s.badge}>{selected.item.state}</span>
                 <span className={s.small}>
                   Version {selected.item.version} · {selected.item.classification}
@@ -574,7 +587,7 @@ export function LegalWorkspace({
                     {selected.item.jurisdiction} · {selected.item.currency} ·{" "}
                     {selected.item.timezone} · Due {selected.item.due_date ?? "not set"}
                   </div>
-                  {can("edit") && data.enabled && (
+                  {can("edit") && data.enabled && canPurchase("update") && (
                     <Button appearance="standard"
                       type="submit"
                       variant="ghost"
@@ -597,7 +610,8 @@ export function LegalWorkspace({
                       </p>
                       <ActionForm
                         busy={busy}
-                        label="Prepare purchase request"
+                        purchaseAllowed={canPurchase("finance.prepare")}
+                    label="Prepare purchase request"
                         fields={[
                           {
                             name: "summary",
@@ -627,6 +641,7 @@ export function LegalWorkspace({
                   ))}
                   <ActionForm
                     busy={busy}
+                    purchaseAllowed={canPurchase("link")}
                     label="Link record"
                     fields={[
                       { name: "targetId", label: "Target record ID" },
@@ -651,6 +666,7 @@ export function LegalWorkspace({
                   ))}
                   <ActionForm
                     busy={busy}
+                    purchaseAllowed={canPurchase("comment")}
                     label="Add comment"
                     fields={[
                       { name: "body", label: "Comment", textarea: true },
@@ -685,12 +701,14 @@ export function LegalWorkspace({
                 <>
                   {selected.item.kind === "contract" && (
                     <LegalExecutedCopies
+                      key={`${contextKey}:${selected.item.id}`}
                       detail={selected}
                       api={api}
                       call={call}
                       command={command}
                       busy={busy}
                       userId={data.userId}
+                      contextKey={contextKey}
                       canReview={can("approve")}
                       onRefresh={refreshDetail}
                     />
@@ -709,7 +727,8 @@ export function LegalWorkspace({
                   {selected.item.state === "draft" && (
                     <ActionForm
                       busy={busy}
-                      label="Preserve existing ERPX attachment"
+                      purchaseAllowed={canPurchase("source.attach")}
+                    label="Preserve existing ERPX attachment"
                       fields={[
                         {
                           name: "attachmentId",
@@ -737,7 +756,7 @@ export function LegalWorkspace({
                     key={selected.item.id}
                     detail={selected}
                     command={command}
-                    busy={busy}
+                    busy={busy||!canPurchase("document")}
                   />
                   {inspection !== null && (
                     <div className={s.notice}>
@@ -788,7 +807,7 @@ export function LegalWorkspace({
                       Upload PDF, DOCX or image (up to 10 MB)
                       <TextInput appearance="standard"
                         type="file"
-                        disabled={busy}
+                        disabled={busy||!canPurchase('document')&&pendingUpload?.id!==selected.item.id}
                         accept=".pdf,.docx,.png,.jpg,.jpeg"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
@@ -870,7 +889,8 @@ export function LegalWorkspace({
                   {selected.item.state === "draft" && (
                     <ActionForm
                       busy={busy}
-                      label="Save document version"
+                      purchaseAllowed={canPurchase("document")}
+                    label="Save document version"
                       fields={[
                         { name: "name", label: "Document name" },
                         {
@@ -889,7 +909,8 @@ export function LegalWorkspace({
                   {["contract", "rule", "template"].includes(selected.item.kind) && (
                     <ActionForm
                       busy={busy}
-                      label="Create amendment / renewal / replacement draft"
+                      purchaseAllowed={canPurchase("revision.create")}
+                    label="Create amendment / renewal / replacement draft"
                       fields={[
                         { name: "title", label: "New draft title" },
                         {
@@ -903,6 +924,7 @@ export function LegalWorkspace({
                   )}
                   <ActionForm
                     busy={busy}
+                    purchaseAllowed={canPurchase("transition")}
                     label="Change state"
                     fields={[
                       {
@@ -975,6 +997,7 @@ export function LegalWorkspace({
                   ))}
                   <ActionForm
                     busy={busy}
+                    purchaseAllowed={canPurchase("member")}
                     label="Update membership"
                     fields={[
                       {
@@ -994,9 +1017,9 @@ export function LegalWorkspace({
                     onSubmit={(v) => command({ action: "member", ...v })}
                   />
                   <h3>External shares</h3>
-                  <a href={`/legal-portal/${base.split("/")[2]}`} target="_blank" rel="noreferrer">
+                  <WorkspaceLink href={`/legal-portal/${base.split("/")[2]}`} target="_blank" rel="noreferrer">
                     Open external portal
-                  </a>
+                  </WorkspaceLink>
                   {selected.shares.map((share) => (
                     <div className={s.event} key={share.id}>
                       {share.email} ·{" "}
@@ -1025,6 +1048,7 @@ export function LegalWorkspace({
                   <h3>Share a document version externally</h3>
                   <ActionForm
                     busy={busy}
+                    purchaseAllowed={canPurchase("share")}
                     label="Create external access"
                     fields={[
                       {
@@ -1072,7 +1096,8 @@ export function LegalWorkspace({
                       ) : (
                         <ActionForm
                           busy={busy}
-                          label="Acknowledge preservation notice"
+                          purchaseAllowed={canPurchase("hold.acknowledge")}
+                    label="Acknowledge preservation notice"
                           fields={[
                             {
                               name: "reason",
@@ -1096,6 +1121,7 @@ export function LegalWorkspace({
                       {h.direct && (
                         <ActionForm
                           busy={busy}
+                          purchaseAllowed={canPurchase(h.state === "active"?"hold.request-release":"hold.release")}
                           label={h.state === "active" ? "Request release" : "Approve release"}
                           fields={[{ name: "reason", label: "Release reason" }]}
                           onSubmit={(v) =>
@@ -1112,6 +1138,7 @@ export function LegalWorkspace({
                   ))}
                   <ActionForm
                     busy={busy}
+                    purchaseAllowed={canPurchase("hold.create")}
                     label="Place legal hold"
                     fields={[
                       {
@@ -1130,7 +1157,7 @@ export function LegalWorkspace({
                     AI proposals use accessible documents and independently reviewed, applicable law
                     sources. Review every statement and citation before accepting a draft.
                   </p>
-                  {can("manage") && (
+                  {can("manage") && canPurchase("settings",true) && (
                     <Button appearance="standard"
                       type="submit"
                       variant="ghost"
@@ -1149,6 +1176,7 @@ export function LegalWorkspace({
                   )}
                   <ActionForm
                     busy={busy}
+                    purchaseAllowed={canPurchase("ai.queue")}
                     label="Request AI proposal"
                     fields={[
                       {
@@ -1180,7 +1208,8 @@ export function LegalWorkspace({
                       {p.state === "proposed" && selected.item.state === "draft" && can("edit") && (
                         <ActionForm
                           busy={busy}
-                          label="Accept reviewed draft as a new version"
+                          purchaseAllowed={canPurchase("ai.apply")}
+                    label="Accept reviewed draft as a new version"
                           fields={[
                             { name: "name", label: "Reviewed document name" },
                             {
@@ -1288,7 +1317,7 @@ export function LegalWorkspace({
                   </Button>
                 ))}
               </div>
-              {can("create") && (
+              {can("create") && canPurchase("import.commit") && (
                 <details className={s.event}>
                   <summary>Import records</summary>
                   <p className={s.small}>
@@ -1396,7 +1425,7 @@ export function LegalWorkspace({
                     {data.items.map((i) => (
                       <tr key={i.id}>
                         <td>
-                          <RecordLink href={`${base}/legal?record=${encodeURIComponent(i.id)}&kind=${kind}`}>{i.title}</RecordLink>
+                          <RecordLink href={canonicalUiHref(`${base}/legal?record=${encodeURIComponent(i.id)}&kind=${kind}`)}>{i.title}</RecordLink>
                           <div className={s.small}>{i.jurisdiction}</div>
                         </td>
                         <td>
@@ -1467,8 +1496,10 @@ function ItemForm({
 }) {
   const item = detail?.item;
   const formRef = useRef<HTMLFormElement>(null);
+  const fieldsRef=useRef<HTMLFieldSetElement>(null);
   const [restored, setRestored] = useState(false);
   const [dirty, setDirty] = useState(false);
+  useEffect(()=>registerUnsavedWork(()=>dirty),[dirty]);
   const [ownerId, setOwnerId] = useState(item?.owner_id ?? data.userId);
   const { people, error: peopleError } = useLegalPeople(call, "owner");
   useEffect(() => {
@@ -1510,13 +1541,15 @@ function ItemForm({
   }
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if(busy)return;
     const f = new FormData(e.currentTarget),
       values: ItemInput["data"] = {};
     for (const field of fields[kind]) {
       const v = String(f.get(`field:${field.key}`) ?? "");
       if (v) values[field.key] = field.type === "number" ? Number(v) : v;
     }
-    const saved = await onSave({
+    if(fieldsRef.current)fieldsRef.current.disabled=true;
+    let saved=false;try{saved = await onSave({
       kind,
       title: String(f.get("title")),
       description: String(f.get("description")),
@@ -1530,7 +1563,7 @@ function ItemForm({
       dueDate: String(f.get("dueDate")) || null,
       ownerId: String(f.get("ownerId")),
       data: values,
-    });
+    });}finally{if(fieldsRef.current)fieldsRef.current.disabled=false;}
     if (saved) {
       try {
         sessionStorage.removeItem(draftKey);
@@ -1543,6 +1576,7 @@ function ItemForm({
       onCancel();
     }}>
     <FormLayout layout="stack" ref={formRef} onSubmit={save} onChange={(event) => preserve(event.currentTarget, event.target instanceof HTMLSelectElement && event.target.name === "ownerId" ? event.target.value : ownerId)}>
+      <fieldset ref={fieldsRef} disabled={busy} style={{display:'contents'}} aria-label="Legal record details">
       <p className={s.small}>
         {restored
           ? "Your unsent details were restored in this tab. Review them before saving."
@@ -1678,6 +1712,7 @@ function ItemForm({
           {busy ? "Saving…" : "Save record"}
         </Button>
       </div>
+      </fieldset>
     </FormLayout>
     </DraftFormDrawer>
   );
@@ -1687,6 +1722,7 @@ function ActionForm({
   label,
   onSubmit,
   busy,
+  purchaseAllowed = true,
 }: {
   fields: {
     name: string;
@@ -1701,15 +1737,23 @@ function ActionForm({
   label: string;
   onSubmit: (v: Record<string, string>) => Promise<boolean>;
   busy: boolean;
+  purchaseAllowed?:boolean;
 }) {
+  const [open,setOpen]=useState(false),[dirty,setDirty]=useState(false),formRef=useRef<HTMLFormElement>(null),editVersion=useRef(0);
+  useEffect(()=>registerUnsavedWork(()=>dirty),[dirty]);
   return (
-    <form
+    <>
+    <Button appearance="standard" variant="secondary" disabled={busy||!purchaseAllowed} onClick={()=>setOpen(true)}>{label}</Button>
+    <DraftFormDrawer open={open} title={label} dirty={dirty} dismissDisabled={busy} onClose={()=>setOpen(false)} onDiscard={()=>{formRef.current?.reset();setDirty(false);editVersion.current++;setOpen(false);}}>
+    <form ref={formRef} onChange={()=>{editVersion.current++;setDirty(true);}}
       className={s.detail}
       onSubmit={async (e) => {
         e.preventDefault();
         const form = e.currentTarget,
           v = Object.fromEntries(new FormData(form)) as Record<string, string>;
-        if (await onSubmit(v)) form.reset();
+        if(!purchaseAllowed)return;
+        const submittedVersion=editVersion.current;
+        if (await onSubmit(v)&&submittedVersion===editVersion.current){form.reset();setDirty(false);setOpen(false);}
       }}
     >
       {spec.map((f) => (
@@ -1741,12 +1785,14 @@ function ActionForm({
           clientManaged type="submit"
           variant="ghost"
           className={button}
-          disabled={busy || spec.some((f) => f.options?.length === 0 || f.choices?.length === 0)}
+          disabled={busy || !purchaseAllowed || spec.some((f) => f.options?.length === 0 || f.choices?.length === 0)}
         >
           {label}
         </Button>
       </div>
     </form>
+    </DraftFormDrawer>
+    </>
   );
 }
 

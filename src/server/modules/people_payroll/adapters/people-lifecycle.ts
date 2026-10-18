@@ -1,3 +1,9 @@
+import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from './project-worker-startup-binding';
+import {filterPeopleLifecycleWork} from "./record-purchases";
+import {peoplePackageEnforcementMode} from "../../commercial/public/purchase-command-boundary";
+import {preparePeopleIamCommand} from "./people-iam-purchases";
+import {hasPermission} from "@/lib/identity_access/permissions";
+import {withPeoplePurchasedRead,withPeoplePurchasedCommand,peoplePurchaseControls} from "./people-purchases";
 import {peopleLifecycleNotificationEffects} from '../../collaboration/public/people-lifecycle-notification-effects';
 import {peopleLifecycleAuditEffects} from '../../workflow/public/people-lifecycle-audit-effects';
 import {peoplePayrollFinalOwnerProjections as identityaccessFinalOwnerProjections} from "../../identity_access/public/people-payroll-final-owner-projections";
@@ -17,10 +23,10 @@ import { ApiError } from "@/server/modules/runtime/public/http";
 import { requirePermission } from "@/server/modules/identity_access/public/iam-permissions";
 import { iamDb } from "@/server/modules/identity_access/public/iam-db";
 import { iamActorFromWork, type IamActor } from "@/server/modules/identity_access/public/iam-context";
-import { iamCommand } from "@/server/modules/identity_access/public/iam-transactions";
+import { iamCommand, assertIamOwnerTransaction } from "@/server/modules/identity_access/public/iam-transactions";
 import { requireFreshMfa } from "@/server/modules/identity_access/public/iam-mfa";
 import { grantInput, validateIamGrant, insertIamGrant, proposeIamReview } from "@/server/modules/identity_access/public/iam-service";
-import { assertion, executeCommand, replayCommand } from "@/server/modules/workflow/public/commands";
+import { assertion } from "@/server/modules/workflow/public/commands";
 import { organizationGuard, validateStaffOrganization } from "@/server/modules/organization/public/organization";
 import type { SqlStatement } from '../../runtime/public/runtime/types';
 import { lifecycleSettingsInput, rehireInput, type LifecycleGrantFact, type LifecyclePackageRevisionFact, type LifecyclePersonFact } from '../domain/people-lifecycle';
@@ -379,7 +385,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient): PeopleLifecycl
         applyApplyLifecycleReviewEffect8(id: unknown, assignment: unknown) { return client!.query<Record<string, unknown>>("UPDATE people_lifecycle_grants SET assignment_id=$2 WHERE id=$1", [id, assignment]); },
         applyApplyLifecycleReviewEffect9(id: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM people_lifecycle_grants WHERE case_id=$1 AND assignment_id IS NULL", [id]); },
         applyApplyLifecycleReviewEffect10(id: unknown, value: unknown) { return client!.query<Record<string, unknown>>("UPDATE people_lifecycle_cases SET status='scheduled',version=version+1,updated_at=$2 WHERE id=$1", [id, value]); } };
-    return { repository, clock: { now: Date.now }, ids: { newId: () => crypto.randomUUID() }, authorize: requirePermission, commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, digest: value => createHash('sha256').update(JSON.stringify(value)).digest('hex'), grantInput, iamCommand: (actor, key, operation, input, permission, run) => fromNative(() => iamCommand(iamDb(raw) as PostgresDatabase, actor, key, operation, input, permission, c => run(applicationPorts(raw, c)))), effectiveGpoRules: (...args) => fromNative(() => effectiveGpoRules(iamDb(raw) as PostgresDatabase, ...args)), eligibleClearanceOwner: (...args) => fromNative(() => eligibleClearanceOwner(database, ...args)), iamActorFromWork: (...args) => iamActorFromWork(...args), requireFreshMfa: (...args) => fromNative(() => requireFreshMfa(...args)), validateIamGrant: (...args) => fromNative(() => validateIamGrant(client!, ...args)), insertIamGrant: (...args) => fromNative(() => insertIamGrant(client!, ...args)), proposeIamReview: (...args) => fromNative(() => proposeIamReview(client!, ...args)), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), calendarCommand: (...args) => fromNative(() => calendarCommand(iamDb(raw) as PostgresDatabase, ...args)) };
+    return { repository, clock: { now: Date.now }, ids: { newId: () => crypto.randomUUID() }, authorize: requirePermission, commands: projectWorkerNativeCommands(database), digest: value => createHash('sha256').update(JSON.stringify(value)).digest('hex'), grantInput, iamCommand: (actor, key, operation, input, permission, run) => fromNative(() => iamCommand(iamDb(raw) as PostgresDatabase, actor, key, operation, input, permission, c => run(applicationPorts(raw, c)),c=>preparePeopleIamCommand(c,actor,key,operation,input))), effectiveGpoRules: (...args) => fromNative(() => effectiveGpoRules(iamDb(raw) as PostgresDatabase, ...args)), eligibleClearanceOwner: (...args) => fromNative(() => eligibleClearanceOwner(database, ...args)), iamActorFromWork: (...args) => iamActorFromWork(...args), requireFreshMfa: (...args) => fromNative(() => requireFreshMfa(...args)), validateIamGrant: (...args) => fromNative(() => validateIamGrant(client!, ...args)), insertIamGrant: (...args) => fromNative(() => insertIamGrant(client!, ...args)), proposeIamReview: (...args) => fromNative(() => proposeIamReview(client!, ...args)), organizationGuard: (...args) => fromNative(() => organizationGuard(database, ...args)), validateStaffOrganization: (...args) => fromNative(() => validateStaffOrganization(database, ...args)), calendarCommand: (...args) => fromNative(() => calendarCommand(iamDb(raw) as PostgresDatabase, ...args)) };
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> { try {
     return await run();
@@ -397,8 +403,11 @@ catch (error) {
         throw new ApiError(error.status, error.code, error.message);
     throw error;
 } }
-export async function peopleLifecycleData(raw: SqlDatabase, actor: WorkContext) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(raw)).peopleLifecycleData(actor)); }
-export async function previewPackage(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof packageInput>) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).previewPackage(actor, input)); }
+export async function peopleLifecycleData(raw: SqlDatabase, actor: WorkContext) {
+ const data=hasPermission(actor,"people.manage")?await withPeoplePurchasedRead(actor,"people.lifecycle",(tx,current)=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx)).peopleLifecycleData(current)),"people.manage",raw):await withPeoplePurchasedRead(actor,"foundation.identity",(tx,current)=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx)).peopleLifecycleData(current)),undefined,raw);
+ return {...data,purchases:await peoplePurchaseControls(actor,raw)};
+}
+export async function previewPackage(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof packageInput>) { return withPeoplePurchasedRead(actor,"foundation.identity",(tx,current)=>invoke(() => createPeopleLifecycleApplication(applicationPorts(tx)).previewPackage(current, input)),"iam.directory.manage",db); }
 export async function savePackage(db: PostgresDatabase, actor: WorkContext, input: z.infer<typeof packageInput>, key: string, publish: boolean, token?: string) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).savePackage(actor, input, key, publish, token)); }
 export async function bindPositionPackage(db: PostgresDatabase, actor: WorkContext, input: {
     positionId: string;
@@ -407,15 +416,20 @@ export async function bindPositionPackage(db: PostgresDatabase, actor: WorkConte
     expectedVersion: number;
     previewToken?: string;
 }, key: string, previewOnly = false) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).bindPositionPackage(actor, input, key, previewOnly)); }
-export async function previewLifecycle(raw: SqlDatabase, actor: WorkContext, input: LifecycleInput, placementOnly = false) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(raw)).previewLifecycle(actor, input, placementOnly)); }
+export async function previewLifecycle(raw: SqlDatabase, actor: WorkContext, input: LifecycleInput, placementOnly = false) { return withPeoplePurchasedRead(actor,"people.lifecycle",(tx,current)=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx)).previewLifecycle(current,input,placementOnly)),"people.manage",raw); }
 export async function saveLifecycle(db: SqlDatabase, actor: WorkContext, input: LifecycleInput, key: string, submit: boolean, token?: string, placementOnly = false, supersedeLegacyCase?: {
     id: string;
     expectedVersion: number;
-}) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).saveLifecycle(actor, input, key, submit, token, placementOnly, supersedeLegacyCase)); }
-export async function cancelLifecycle(db: SqlDatabase, actor: WorkContext, id: string, expectedVersion: number, key: string) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).cancelLifecycle(actor, id, expectedVersion, key)); }
+}) { return withPeoplePurchasedCommand(actor,{key,operation:submit?"people.lifecycle.submit":"people.lifecycle.draft",capability:"people.lifecycle",purpose:["offboarding","suspend"].includes(input.kind)?"settle-existing":"new-work",permission:"people.manage",resultKind:"lifecycle",target:{kind:"engagement",id:input.engagementId}},tx=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx)).saveLifecycle(actor,input,key,submit,token,placementOnly,supersedeLegacyCase)),db); }
+export async function cancelLifecycle(db: SqlDatabase, actor: WorkContext, id: string, expectedVersion: number, key: string) { return withPeoplePurchasedCommand(actor,{key,operation:"people.lifecycle.cancel",capability:"people.lifecycle",purpose:"settle-existing",permission:"people.manage",target:{kind:"lifecycle",id}},tx=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx)).cancelLifecycle(actor,id,expectedVersion,key)),db); }
 export async function requestLifecycleAccess(db: PostgresDatabase, actor: WorkContext, id: string, version: number, key: string) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).requestLifecycleAccess(actor, id, version, key)); }
-export async function applyLifecycleReview(c: PoolClient, actor: IamActor, kind: string, p: Record<string, unknown>, decision: "approve" | "reject" = "approve") { return invoke(() => createPeopleLifecycleApplication(applicationPorts(undefined!, c)).applyLifecycleReview(actor, kind, p, decision)); }
-export async function peopleLifecycleWork(db: SqlDatabase, actor: WorkContext) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).peopleLifecycleWork(actor)); }
-export async function createRehireEngagement(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof rehireInput>, key: string) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).createRehireEngagement(actor, input, key)); }
-export async function saveLifecycleSettings(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof lifecycleSettingsInput>, key: string) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).saveLifecycleSettings(actor, input, key)); }
+export async function applyLifecycleReview(c: PoolClient, actor: IamActor, kind: string, p: Record<string, unknown>, decision: "approve" | "reject" = "approve") { if(await peoplePackageEnforcementMode()!=="disabled")assertIamOwnerTransaction(c); return invoke(() => createPeopleLifecycleApplication(applicationPorts(undefined!, c)).applyLifecycleReview(actor, kind, p, decision)); }
+export async function peopleLifecycleWork(db: SqlDatabase, actor: WorkContext) { return filterPeopleLifecycleWork(db,actor,await invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).peopleLifecycleWork(actor))); }
+export async function createRehireEngagement(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof rehireInput>, key: string) { return withPeoplePurchasedCommand(actor,{key,operation:"people.lifecycle.rehire",capability:"people.lifecycle",purpose:"new-work",permission:"people.manage",target:{kind:"engagement",id:input.engagementId}},tx=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx)).createRehireEngagement(actor,input,key)),db); }
+export async function saveLifecycleSettings(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof lifecycleSettingsInput>, key: string) { return withPeoplePurchasedCommand(actor,{key,operation:"people.lifecycle.settings",capability:"people.lifecycle",purpose:"new-work",permission:"organization.manage"},tx=>invoke(()=>createPeopleLifecycleApplication(applicationPorts(tx)).saveLifecycleSettings(actor,input,key)),db); }
 export async function completePreparationTask(db: PostgresDatabase, actor: WorkContext, id: string, version: number, key: string) { return invoke(() => createPeopleLifecycleApplication(applicationPorts(db)).completePreparationTask(actor, id, version, key)); }
+
+/** Original HR-only placement; the caller cannot select an access recipe. */
+export async function previewProjectWorkerPlacementOwned(database:SqlDatabase,actor:WorkContext,input:LifecycleInput){requireProjectWorkerUnit(database,actor);return invoke(()=>createPeopleLifecycleApplication(applicationPorts(database)).previewLifecycle(actor,input,true));}
+export async function submitProjectWorkerPlacementOwned(database:SqlDatabase,actor:WorkContext,input:LifecycleInput,key:string,token:string){requireProjectWorkerNativeCommand(database,actor,key,'people.lifecycle.submit');return invoke(()=>createPeopleLifecycleApplication(applicationPorts(database)).saveLifecycle(actor,input,key,true,token,true));}
+export async function cancelProjectWorkerPlacementOwned(database:SqlDatabase,actor:WorkContext,id:string,expectedVersion:number,key:string){requireProjectWorkerUnit(database,actor);return invoke(()=>createPeopleLifecycleApplication(applicationPorts(database)).cancelLifecycle(actor,id,expectedVersion,key));}

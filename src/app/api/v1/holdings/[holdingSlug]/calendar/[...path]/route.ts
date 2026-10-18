@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { calendarHierarchy, calendarData } from "@/server/modules/work_projection/public/calendar/index";
@@ -40,7 +41,7 @@ export async function GET(request: Request, context: Context) {
     if (!data)
       throw new ApiError(404, "NOT_FOUND", "Calendar resource not found.");
     return Response.json(
-      { data },
+      canonicalDestinationLinks({ data }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {

@@ -10,13 +10,14 @@ import { ApiError } from "@/server/modules/runtime/public/http";
 import { sha256 } from "@/server/modules/runtime/public/crypto";
 import type { SqlDatabase } from '@/server/modules/runtime/public/runtime/types';
 import { createManualDrafts } from '../application/manual-drafts';
+import { withFinancePurchasedCommand } from './purchase-boundary';
 import { manualDraftEditSchema, type DraftRow } from '../domain/manual-drafts';
 export { manualDraftEditSchema } from '../domain/manual-drafts';
-export async function editManualDraft(actor: WorkContext, journalId: string, raw: z.input<typeof manualDraftEditSchema>, key: string) { return nativeManualDrafts().editManualDraft(actor, journalId, raw, key); }
-function nativeManualDrafts() {
-    let pending: Promise<SqlDatabase> | undefined, owned: SqlDatabase | undefined, prepared: Awaited<ReturnType<typeof prepareJournal>>;
+export async function editManualDraft(actor: WorkContext, journalId: string, raw: z.input<typeof manualDraftEditSchema>, key: string) { return withFinancePurchasedCommand(actor, { key, operation: 'finance.manual-draft.edit', purpose: 'new-work' }, tx => nativeManualDrafts(tx).editManualDraft(actor, journalId, raw, key)); }
+function nativeManualDrafts(provided?: SqlDatabase) {
+    let pending: Promise<SqlDatabase> | undefined, owned: SqlDatabase | undefined = provided, prepared: Awaited<ReturnType<typeof prepareJournal>>;
     const database = (actor: WorkContext) => owned ? Promise.resolve(owned) : pending ??= holdingResources(actor.holdingId).then(r => r.write);
-    return createManualDrafts({ error: (...args) => new ApiError(...args), permission: requirePermission, ready: async (actor) => { await database(actor); }, now: Date.now, hash: sha256, transaction: async <Result>(actor: WorkContext, work: () => Promise<Result>) => financeTransaction(await database(actor), async (tx) => { owned = tx; try {
+    return createManualDrafts({ error: (...args) => new ApiError(...args), permission: requirePermission, ready: async (actor) => { await database(actor); }, now: Date.now, hash: sha256, transaction: async <Result>(actor: WorkContext, work: () => Promise<Result>) => provided ? work() : financeTransaction(await database(actor), async (tx) => { owned = tx; try {
             return await work();
         }
         finally {

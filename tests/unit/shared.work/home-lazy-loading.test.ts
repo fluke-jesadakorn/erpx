@@ -31,3 +31,7 @@ it("starts the first feed and audience read together while Home defers My day an
   expect(feed).toHaveBeenCalledExactlyOnceWith({ limit: 8, stream: "conversations", tag: "team" });
   expect(audience).toHaveBeenCalledTimes(1); expect(seed).not.toHaveBeenCalled(); expect(post).not.toHaveBeenCalled();
 });
+it('renders the exact included conversation shell with Apps recovery and no Work discovery or queue chrome',async()=>{
+ const {SocialHomeShell}=await import('../../../src/components/collaboration/social-home-shell');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_ENVIRONMENT','local');
+ try{const props:React.ComponentProps<typeof SocialHomeShell>={base:'/holdings/acme',name:'Actual colleague',single:true,sourceOnly:true,calendarEnabled:true,canRequestLegal:false,contextKey:'opaque-context',children:React.createElement('p',null,'Actual included post')};const html=renderToStaticMarkup(React.createElement(SocialHomeShell,props));expect(html).toContain('Actual included post');expect(html).toContain('Included conversation');expect(html).toContain('Back to Apps');expect(html).toContain('https://apps-dev-erpx.jesadakorn.com/sso/start');expect(html).not.toContain('Back to Today');expect(html).not.toContain('Needs you');expect(html).not.toContain('Draft handover');expect(html).not.toContain('/calendar');expect(html).not.toContain('opaque-context');}finally{vi.unstubAllEnvs();}
+});

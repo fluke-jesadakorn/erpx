@@ -1,4 +1,6 @@
 "use client";
+import WorkspaceLink from '@/components/workplace/workspace-link';
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
@@ -254,7 +256,7 @@ export function BetaSettings({
               {settings?.reports.map((r) => (
                 <p key={r.id}>
                   {r.state === "published" ? (
-                    <a href={`${base}/posts/${r.post_id}`}>Reported conversation</a>
+                    <WorkspaceLink href={canonicalUiHref(`${base}/posts/${r.post_id}`)}>Reported conversation</WorkspaceLink>
                   ) : (
                     <span>
                       {r.state === "archived" ? "Deleted by author" : "Hidden by moderator"} · audit

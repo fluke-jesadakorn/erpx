@@ -4,7 +4,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { PreferredDateTimeField } from "@/components/people_payroll/time/preferred-date-time-field";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { Dialog } from "@/components/ui/dialog";
 import { RecordDocumentPanel } from "@/components/files/record-document-panel";

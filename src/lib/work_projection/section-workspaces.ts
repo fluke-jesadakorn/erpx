@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {routeContextHref,type RouteSearch} from "@/lib/shared/route-context";
 export type WorkspaceTopic={id:string;title:string;description?:string;path:string;query:Record<string,string>};
 export const sectionWorkspaceTopics={

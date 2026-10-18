@@ -9,7 +9,7 @@ const subscribe = (notify: () => void) => {
   window.addEventListener("hashchange", notify);
   return () => window.removeEventListener("hashchange", notify);
 };
-export function LegalEnrollment() {
+export function LegalEnrollment({centralEnrollmentHref}:{centralEnrollmentHref?:string}={}) {
   const token = useSyncExternalStore(
     subscribe,
     () => new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "",
@@ -17,6 +17,7 @@ export function LegalEnrollment() {
   );
   const [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
+  if(centralEnrollmentHref)return <main className={s.workspace} style={{maxWidth:600,padding:32}}><h1>Accept your Legal invitation</h1><p>Continue on ERPX Account to create and verify the exact invited account. Your document is opened separately through its original invitation policy.</p><a href={token?`${centralEnrollmentHref}#token=${encodeURIComponent(token)}`:undefined} aria-disabled={!token}>Continue on ERPX Account</a>{!token&&<p>Open the complete invitation link from your email.</p>}</main>;
   return (
     <main className={s.workspace} style={{ maxWidth: 600, padding: 32 }}>
       <h1>Accept your Legal invitation</h1>

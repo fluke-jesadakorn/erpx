@@ -1,3 +1,4 @@
+import {withFinancePurchasedCommand,withFinancePurchasedRead} from "./purchase-boundary";
 import { recognitionRunSchema } from '../domain/due-inputs';
 import { billingRevisionSchema } from '../domain/business-billing-revision';
 import "server-only";
@@ -314,28 +315,29 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                     throw new BusinessRuleError(error.status, error.code, error.message);
                 throw error;
             }
-        }, requireMoneyScale: (...args) => inward(() => requireFinanceMoneyScale(read(), ...args)), requireTool: (...args) => inward(() => requireFinanceTool(read(), ...args)), transaction: work => inward(() => financeTransaction(base(), db => work(bindPorts(() => db, base, db, async (holdingId) => { await holdingResources(holdingId); })))), ownedTransaction: (available, work) => inward(() => financeOwnedTransaction(base(), available ? owned : undefined, db => work(bindPorts(() => db, base, db, async (holdingId) => { await holdingResources(holdingId); })))), createInvoice: (actor, input, key) => inward(async () => await createInvoice(actor, input, key, undefined, read()) as {
+        }, requireMoneyScale: (...args) => inward(() => requireFinanceMoneyScale(read(), ...args)), requireTool: (...args) => inward(() => requireFinanceTool(read(), ...args)), transaction: work => inward(() => owned ? work(bindPorts(() => owned,base,owned,async () => {})) : financeTransaction(base(), db => work(bindPorts(() => db, base, db, async (holdingId) => { await holdingResources(holdingId); })))), ownedTransaction: (available, work) => inward(() => financeOwnedTransaction(base(), available ? owned : undefined, db => work(bindPorts(() => db, base, db, async (holdingId) => { await holdingResources(holdingId); })))), createInvoice: (actor, input, key) => inward(async () => await createInvoice(actor, input, key, undefined, read()) as {
             id: string;
             version: number;
         }), prepareJournal: (...args) => inward(() => prepareJournal(read(), ...args)), prepareReversal: (...args) => inward(() => prepareOwnedJournalReversal(read(), ...args)), commands: { replay: (...args) => inward(() => replayCommand(read(), ...args)), commit: (...args) => inward(() => executeCommand(read(), ...args)) } };
 }
-function application(owned?: SqlDatabase) {
-    let db: SqlDatabase | undefined;
+function application(owned?: SqlDatabase,readDatabase?:SqlDatabase) {
+    let db: SqlDatabase | undefined=readDatabase;
     const read = () => {
         if (!db)
             throw Error('BUSINESS_CONTRACT_CONTEXT_REQUIRED');
         return db;
     };
-    const ports = bindPorts(read, read, owned, async (holdingId) => { db = (await holdingResources(holdingId)).write; });
+    const ports = bindPorts(()=>owned??read(),read,owned,async holdingId=>{db=readDatabase??(await holdingResources(holdingId)).write;});
     return createBusinessContractApplication<SqlStatement>(ports);
 }
-export function prepareBusinessContract(actor: WorkContext, raw: z.input<typeof businessContractSchema>, key: string) { return exposed(() => application().prepareBusinessContract(actor, raw, key)); }
-export function decideBusinessContract(actor: WorkContext, id: string, raw: z.input<typeof businessDecisionSchema>, action: "approve" | "reject" | "cancel", key: string) { return exposed(() => application().decideBusinessContract(actor, id, raw, action, key)); }
-export function prepareBusinessBilling(actor: WorkContext, contractId: string, raw: z.input<typeof businessBillingSchema>, key: string, ownedTransaction?: SqlDatabase, revision?: BillingRevision, postedCorrectionId?: string) { return exposed(() => application(ownedTransaction).prepareBusinessBilling(actor, contractId, raw, key, Boolean(ownedTransaction), revision, postedCorrectionId)); }
-export function prepareBusinessBillingRevision(actor: WorkContext, parentId: string, raw: z.input<typeof billingRevisionSchema>, key: string) { return exposed(() => application().prepareBusinessBillingRevision(actor, parentId, raw, key)); }
-export function prepareRecognitionRun(actor: WorkContext, raw: z.input<typeof recognitionRunSchema>, key: string, ownedTransaction?: SqlDatabase) { return exposed(() => application(ownedTransaction).prepareRecognitionRun(actor, raw, key, Boolean(ownedTransaction))); }
-export function decideRecognitionRun(actor: WorkContext, id: string, raw: z.input<typeof businessDecisionSchema>, action: "post" | "reject", key: string) { return exposed(() => application().decideRecognitionRun(actor, id, raw, action, key)); }
-export function reverseRecognitionRun(actor: WorkContext, id: string, raw: z.input<typeof recognitionReversalSchema>, key: string) { return exposed(() => application().reverseRecognitionRun(actor, id, raw, key)); }
-export function decideNoChargeBilling(actor: WorkContext, id: string, raw: z.input<typeof businessDecisionSchema>, action: "approve" | "reject", key: string) { return exposed(() => application().decideNoChargeBilling(actor, id, raw, action, key)); }
-export function businessContractWorkspace(actor: WorkContext) { return exposed(() => application().businessContractWorkspace(actor)); }
+export function prepareBusinessContract(actor: WorkContext, raw: z.input<typeof businessContractSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.business-contract.prepare",purpose:"new-work"},tx=>exposed(()=>application(tx).prepareBusinessContract(actor,raw,key))); }
+export function decideBusinessContract(actor: WorkContext, id: string, raw: z.input<typeof businessDecisionSchema>, action: "approve" | "reject" | "cancel", key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.business-contract.${action}`,purpose:"settle-existing"},tx=>exposed(()=>application(tx).decideBusinessContract(actor,id,raw,action,key))); }
+/** Supplied owned transactions compose with the caller's purchase/final-effect boundary (due drafts or posted corrections). */
+export function prepareBusinessBilling(actor: WorkContext, contractId: string, raw: z.input<typeof businessBillingSchema>, key: string, ownedTransaction?: SqlDatabase, revision?: BillingRevision, postedCorrectionId?: string) { if(ownedTransaction)return exposed(()=>application(ownedTransaction).prepareBusinessBilling(actor,contractId,raw,key,true,revision,postedCorrectionId));return withFinancePurchasedCommand(actor,{key,operation:revision?"finance.business-billing.revise":"finance.business-billing.prepare",purpose:"settle-existing"},tx=>exposed(()=>application(tx).prepareBusinessBilling(actor,contractId,raw,key,Boolean(tx),revision,postedCorrectionId)),ownedTransaction); }
+export function prepareBusinessBillingRevision(actor: WorkContext, parentId: string, raw: z.input<typeof billingRevisionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.business-billing.revise",purpose:"settle-existing"},tx=>exposed(()=>application(tx).prepareBusinessBillingRevision(actor,parentId,raw,key))); }
+export function prepareRecognitionRun(actor: WorkContext, raw: z.input<typeof recognitionRunSchema>, key: string, ownedTransaction?: SqlDatabase) { if(ownedTransaction)return exposed(()=>application(ownedTransaction).prepareRecognitionRun(actor,raw,key,true));return withFinancePurchasedCommand(actor,{key,operation:"finance.recognition.prepare",purpose:"settle-existing"},tx=>exposed(()=>application(tx).prepareRecognitionRun(actor,raw,key,Boolean(tx))),ownedTransaction); }
+export function decideRecognitionRun(actor: WorkContext, id: string, raw: z.input<typeof businessDecisionSchema>, action: "post" | "reject", key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.recognition.${action}`,purpose:"settle-existing"},tx=>exposed(()=>application(tx).decideRecognitionRun(actor,id,raw,action,key))); }
+export function reverseRecognitionRun(actor: WorkContext, id: string, raw: z.input<typeof recognitionReversalSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.recognition.reverse",purpose:"settle-existing"},tx=>exposed(()=>application(tx).reverseRecognitionRun(actor,id,raw,key))); }
+export function decideNoChargeBilling(actor: WorkContext, id: string, raw: z.input<typeof businessDecisionSchema>, action: "approve" | "reject", key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.business-zero.${action}`,purpose:"settle-existing"},tx=>exposed(()=>application(tx).decideNoChargeBilling(actor,id,raw,action,key))); }
+export function businessContractWorkspace(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>exposed(()=>application(undefined,db).businessContractWorkspace(actor))); }
 export function businessContractConfiguration(db: SqlDatabase, actor: WorkContext, input: BusinessContractInput) { return exposed(() => createBusinessContractApplication<SqlStatement>(bindPorts(() => db, () => db, db, async () => { })).businessContractConfiguration(actor, input)); }

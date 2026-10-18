@@ -4,7 +4,7 @@ import { FrontLocalizedTree } from "@/components/front/front-language";
 import type {FrontPosDailyContext} from "./pos-front-console";
 
 
-const PosSaleWorkspace = dynamic(() => import("./pos-sales").then(module => module.PosSaleWorkspace));
+const PosSaleWorkspace = dynamic(() => import("./standard-pos-sale-workspace").then(module => module.StandardPosSaleWorkspace));
 export function FrontPosDailySaleScreen({context}: {context: FrontPosDailyContext}) {
   const {data, api, erpBase, busy, send, activeRegisterId, setRegisterId, setSelected, pick, setTab} = context;
   return <FrontLocalizedTree>{(

@@ -13,6 +13,9 @@ import { multiSession } from "better-auth/plugins";
 import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { queueAccountRecovery, recordAccountRecoveryCompleted, } from "@/server/modules/identity_access/public/account-recovery";
 import { createHash } from "node:crypto";
+import { configuredProductOrigin, productHostForHost, trustedProductOrigin } from "@/lib/runtime/product-hosts";
+import { productSsoStore } from "./product-sso-store";
+import { productSessionCookie, ssoOrigins } from "./product-sso";
 type AuthRuntime = Awaited<ReturnType<typeof runtimeEnv>>;
 type AuthFactory = Awaited<ReturnType<typeof buildAuth>>;
 const ordinaryAuthFactories = new WeakMap<AuthRuntime, {
@@ -25,6 +28,14 @@ export async function createAuth(requestOrigin?: string, directoryId?: string, l
     const local = env.ERPX_ENVIRONMENT === "local";
     const beta = env.ERPX_PUBLIC_BETA === "true";
     const policy = authPolicy({ local, defaultOrigin: env.BETTER_AUTH_URL, pmsOrigin: process.env.ERPX_FRONT_PMS_ORIGIN, posOrigin: process.env.ERPX_FRONT_POS_ORIGIN, beta, legalInvitationEmail }, requestOrigin);
+    const productOrigin = trustedProductOrigin(requestOrigin ?? "");
+    if (productOrigin) {
+        const audience = productHostForHost(new URL(productOrigin).host)!;
+        policy.baseURL = productOrigin;
+        policy.cookiePrefix = `erpx-${audience}`;
+        policy.trustedOrigins = [productOrigin];
+        policy.disableSignUp = !(audience==='account'&&legalInvitationEmail);
+    }
     // Provider configuration and invitation identity are evaluated on every call.
     if (directoryId || legalInvitationEmail) return buildAuth(env, local, policy, directoryId, legalInvitationEmail);
     const pool = (env.CONTROL_DB as PostgresDatabase).pool;
@@ -55,11 +66,13 @@ export async function createAuth(requestOrigin?: string, directoryId?: string, l
 }
 async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<typeof authPolicy>, directoryId?: string, legalInvitationEmail?: string) {
     const { baseURL, cookiePrefix } = policy;
-    return betterAuth({
+    const audience = productHostForHost(new URL(baseURL).host);
+    const sso = audience ? productSsoStore(env.CONTROL_DB as PostgresDatabase, "development", ssoOrigins()) : null;
+    const auth = betterAuth({
         database: drizzleAdapter(drizzle((env.CONTROL_DB as PostgresDatabase).pool, { schema: authSchema }), { provider: "pg", schema: authSchema, transaction: true }),
         baseURL,
         secret: env.BETTER_AUTH_SECRET,
-        advanced: { database: { joins: true }, cookiePrefix, useSecureCookies: !local, ...(!local ? { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } } : {}) },
+        advanced: { database: { joins: true }, cookiePrefix, useSecureCookies: !local || !!audience, ...(!local ? { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } } : {}) },
         emailAndPassword: {
             enabled: true,
             disableSignUp: policy.disableSignUp,
@@ -88,12 +101,23 @@ async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<ty
             storage: "database",
         },
         account: { encryptOAuthTokens: true, accountLinking: { enabled: false } },
-        databaseHooks: { ...(legalInvitationEmail ? { user: { create: { before: async (user: {
+        databaseHooks: { ...(audience === "account" && sso ? { session: { create: { after: session => sso.registerCentral(session) } } } : {}), ...(legalInvitationEmail ? { user: { create: { before: async (user: {
                             email: string;
                         }) => legalInvitationAccountAllowed(user.email, legalInvitationEmail) ? undefined : false } } } : {}), account: { create: { before: async (account) => account.providerId === "credential" && !await localCredentialAllowed(account.userId) ? false : undefined } } },
         plugins: [multiSession({ maximumSessions: 5 }), directoryAuthPlugin(), ...(directoryId ? [genericOAuth({ config: [await directoryOidcConfig(directoryId)] })] : [])],
         trustedOrigins: policy.trustedOrigins,
     });
+    if (audience && sso) {
+        const getSession = auth.api.getSession;
+        Object.assign(auth.api, { getSession: async (input: { headers: Headers }) => {
+            // The request must still belong to this exact factory's audience.
+            if (configuredProductOrigin(audience) !== baseURL || productHostForHost(input.headers.get("host")) !== audience) return null;
+            if (audience !== "account") return sso.session(productSessionCookie(input.headers), audience);
+            const session = await getSession(input);
+            return session && await sso.centralIsCurrent(session.session.id) ? session : null;
+        } });
+    }
+    return auth;
 }
 export async function sessionFromRequest(request: Request) {
     const auth = await createAuth(requestPublicOrigin(request));

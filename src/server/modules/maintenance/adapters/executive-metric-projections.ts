@@ -1,3 +1,4 @@
+import {assetMetricSource} from "../../assets/public/metric-purchases";
 import { finalRootOwnerProjectionSources as assetsProjectionSources } from "../../assets/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as organizationProjectionSources } from "../../organization/public/final-root-owner-projection-sources";
 import { readMetricSources } from '@/server/modules/runtime/public/executive/metric-sources';
@@ -9,6 +10,7 @@ import { specs } from '@/server/modules/runtime/public/executive/metric-projecti
 import type { MetricSnapshot, RawMetricRow } from '@/server/modules/runtime/public/executive/metric-projection-contract';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
+    const source=await assetMetricSource(sourceDb,a,id);
     let sql = '', values: unknown[] = [];
     const referenceAtOverride: number | null = null;
     if (id === "open-work-orders" || id === "blocked-maintenance") {
@@ -16,8 +18,8 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=w.branch_id AND n.company_id=w.company_id),'Company-wide')`
             : breakdown === "department" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=w.department_id AND n.company_id=w.company_id),'Unassigned')`
                 : blocked ? "'Blocked'" : "w.status";
-        sql = `SELECT ${label} label,count(*)::text value FROM maintenance_work_orders w WHERE ${scopedAlias("w")} AND ${blocked ? "w.status='blocked'" : "w.status NOT IN ('completed','cancelled')"} GROUP BY 1 ORDER BY 1`;
-        values = scopeArgs;
+        sql = `SELECT ${label} label,count(*)::text value FROM (${source.sql}) w WHERE ${scopedAlias("w")} AND ${blocked ? "w.status='blocked'" : "w.status NOT IN ('completed','cancelled')"} GROUP BY 1 ORDER BY 1`;
+        values = [...source.args,...scopeArgs];
     }
     if (id === "asset-downtime") {
         const label = breakdown === "asset" ? "s.asset_code || ' · ' || s.asset_name"
@@ -27,7 +29,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         sql = `WITH raw_intervals AS (
         SELECT w.asset_id,w.branch_id,w.department_id,a.code asset_code,a.name asset_name,b.display_name branch_name,d.display_name department_name,
           greatest(w.downtime_started_at,?::bigint) start_at,least(w.downtime_ended_at,?::bigint) end_at,w.id work_order_id
-        FROM maintenance_work_orders w JOIN (${assetsProjectionSources.operational_assets}) a ON a.id=w.asset_id AND a.company_id=w.company_id
+        FROM (${source.sql}) w JOIN (${assetsProjectionSources.operational_assets}) a ON a.id=w.asset_id AND a.company_id=w.company_id
         LEFT JOIN (${organizationProjectionSources.organization_nodes}) b ON b.id=w.branch_id AND b.company_id=w.company_id
         LEFT JOIN (${organizationProjectionSources.organization_nodes}) d ON d.id=w.department_id AND d.company_id=w.company_id
         WHERE ${scopedAlias("w")} AND w.status IN ('completed','cancelled')
@@ -55,8 +57,8 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
       )
       SELECT ${label} label,sum(segment_end-segment_start)::text value FROM monthly_segments s
       WHERE segment_end>segment_start GROUP BY 1 ORDER BY 1`;
-        values = [from, to, ...scopeArgs, to, from];
+        values = [from, to,...source.args, ...scopeArgs, to, from];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;
-    return { raw, referenceAtOverride, source: (group, reported) => readMetricSources(sourceDb, id, sql, values, group, raw, `${spec.dateBasis} · ${f.from} to ${f.to} · ${f.currency}`, reported), watermarks: async () => [] };
+    return { raw, referenceAtOverride, source: async (group, reported) => {await assetMetricSource(sourceDb,a,id);return readMetricSources(sourceDb, id, sql, values, group, raw, `${spec.dateBasis} · ${f.from} to ${f.to} · ${f.currency}`, reported);}, watermarks: async () => [] };
 }

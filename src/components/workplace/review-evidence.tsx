@@ -1,7 +1,7 @@
 "use client";
 import { useEffect,useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { prepareDocumentPages } from "@/lib/files/document-pages";
 import type { WorkReview } from "@/lib/work_projection/work-review";

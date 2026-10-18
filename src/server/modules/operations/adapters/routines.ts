@@ -1,6 +1,7 @@
+import {withWorkRoutineCommand,withWorkRoutineOccurrence,workRoutineReadScope,workRoutineScheduledReadScope} from './work-routine-purchases';
 import {operationsRoutineJournalEffects} from '../../workflow/public/operations-routine-journal-effects';
 import { getProject } from "../../projects/public/staff-projects";
-import type { SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
+import type { SqlDatabase, SqlStatement, SqlValue } from "@/server/modules/runtime/public/runtime/types";
 import { z } from "zod";
 import { validateTaskConfiguration, configGuards } from "@/server/modules/operations/public/staff-tasks";
 import { activeStaff, companyAuthority, staffGuard, notification, type StaffActor } from "@/server/modules/operations/public/staff-policy";
@@ -21,16 +22,16 @@ export { templateSchema } from '../domain/routines';
 export { scheduleSchema } from '../domain/routines';
 export type { TemplateRow } from '../domain/routines';
 export type { ScheduleRow } from '../domain/routines';
-function application(provided?: SqlDatabase) {
+function application(provided?: SqlDatabase,readScope={where:'TRUE',args:[] as SqlValue[]}) {
     let database = provided!;
     const repository: RoutinesRepository<SqlStatement> = { readListTemplatesEffect(companyId: string, userId: string, value: 0 | 1) {
-            return database.prepare("SELECT * FROM routine_templates WHERE company_id=? AND (published=1 OR creator_user_id=? OR ?=1) ORDER BY updated_at DESC,id")
-                .bind(companyId, userId, value)
+            return database.prepare(`SELECT t.* FROM routine_templates t WHERE t.company_id=? AND (t.published=1 OR t.creator_user_id=? OR ?=1) AND (${readScope.where}) ORDER BY t.updated_at DESC,t.id`)
+                .bind(companyId, userId, value,...readScope.args)
                 .all<TemplateRow>();
         },
         readGetTemplateRow(id: string, companyId: string) {
-            return database.prepare("SELECT * FROM routine_templates WHERE id=? AND company_id=?")
-                .bind(id, companyId)
+            return database.prepare(`SELECT t.* FROM routine_templates t WHERE t.id=? AND t.company_id=? AND (${readScope.where})`)
+                .bind(id, companyId,...readScope.args)
                 .first<TemplateRow>();
         },
         guard3(...args) { return RoutinesIdentityAccessFacts(database).guard3(...args); },
@@ -80,6 +81,7 @@ function application(provided?: SqlDatabase) {
             return database.prepare("INSERT INTO routine_schedule_pauses(id,schedule_id,started_at) VALUES(?,?,?)")
                 .bind(key, id, now);
         },
+        stageEndScheduleEffect(now:number,id:string){return database.prepare("UPDATE routine_schedules SET state='ended',next_occurrence_at=NULL,paused_at=NULL,version=version+1,updated_at=? WHERE id=?").bind(now,id);},
         readOccurrenceStatementsEffect(...args) { return RoutinesProjectsFacts(database).readOccurrenceStatementsEffect(...args); },
         guard17(key: string, value: "template-version", id: string, version: number) {
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM routine_templates WHERE id=? AND version=? AND published=1)", [id, version]);
@@ -88,8 +90,8 @@ function application(provided?: SqlDatabase) {
             return database.prepare("INSERT INTO staff_tasks(id,company_id,branch_id,department_id,title,description,creator_user_id,assignee_user_id,due_at,project_id,start_approvers_json,completion_approvers_json,state,blocked_reason,template_id,template_version,schedule_id,occurrence_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
                 .bind(id, company_id, branch_id, department_id, title, description, creator, assignee_user_id, dueAt, project_id, start_approvers_json, completion_approvers_json, state, blocked, id2, version, value, occurrenceAt, now, now2);
         },
-        readGenerateOccurrencesSchedules(now: number, value: number) {
-            return database.prepare(`SELECT * FROM routine_schedules s WHERE s.state='active' AND s.next_occurrence_at<=? AND ${scheduledFeaturePredicate("s.company_id", "operations")} ORDER BY s.next_occurrence_at,s.id LIMIT ?`)
+        async readGenerateOccurrencesSchedules(now: number, value: number) {
+            return database.prepare(`SELECT * FROM routine_schedules s WHERE s.state='active' AND s.next_occurrence_at<=? AND ${scheduledFeaturePredicate("s.company_id", "operations")} AND (${await workRoutineScheduledReadScope()}) ORDER BY s.next_occurrence_at,s.id LIMIT ?`)
                 .bind(now, value)
                 .all<ScheduleRow>();
         },
@@ -117,7 +119,8 @@ function application(provided?: SqlDatabase) {
             return database.prepare("UPDATE routine_schedules SET next_occurrence_at=?,state=CASE WHEN ?::text IS NULL THEN 'ended' ELSE state END,last_generated_at=CASE WHEN ?=1 THEN ? ELSE last_generated_at END,last_error=NULL,updated_at=? WHERE id=?")
                 .bind(next, next2, value, at, now, id);
         },
-        ...operationsRoutineJournalEffects(database),
+        stageGenerateOccurrencesEffect2(...args){return operationsRoutineJournalEffects(database).stageGenerateOccurrencesEffect2(...args);},
+        stageGenerateOccurrencesEffect3(...args){return operationsRoutineJournalEffects(database).stageGenerateOccurrencesEffect3(...args);},
         
         stageGenerateOccurrencesEffect4(...args) { return RoutinesWorkflowFacts(database).stageGenerateOccurrencesEffect4(...args); },
         readGenerateOccurrencesLatest(id: string) {
@@ -138,7 +141,7 @@ function application(provided?: SqlDatabase) {
             }>();
         } };
     return createRoutinesApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => { if (!provided)
-            database = (await nativeHoldingResources(holding)).write; }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, getProject: (...args) => fromNative(() => getProject(database, ...args)), validateTaskConfiguration: (...args) => fromNative(() => validateTaskConfiguration(database, ...args)), configGuards: (...args) => configGuards(database, ...args), activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), companyAuthority: (...args) => fromNative(() => companyAuthority(database, ...args)), staffGuard: (...args) => staffGuard(database, ...args), notification: (...args) => notification(database, ...args), taskRoute: (...args) => fromNative(() => taskRoute(database, ...args)), openApproval: (...args) => fromNative(() => openApproval(database, ...args)), assertProductionModuleEnabled: (...args) => fromNative(() => assertProductionModuleEnabled(database, ...args)), productionFeatureGuard: (...args) => productionFeatureGuard(database, ...args) });
+            database = (await nativeHoldingResources(holding)).write; }, production: process.env.NODE_ENV === 'production', occurrenceUnit:(schedule,at,run)=>withWorkRoutineOccurrence(database,schedule,at,async transaction=>{const original=database;database=transaction;try{return await run();}finally{database=original;}}), batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, getProject: (...args) => fromNative(() => getProject(database, ...args)), validateTaskConfiguration: (...args) => fromNative(() => validateTaskConfiguration(database, ...args)), configGuards: (...args) => configGuards(database, ...args), activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), companyAuthority: (...args) => fromNative(() => companyAuthority(database, ...args)), staffGuard: (...args) => staffGuard(database, ...args), notification: (...args) => notification(database, ...args), taskRoute: (...args) => fromNative(() => taskRoute(database, ...args)), openApproval: (...args) => fromNative(() => openApproval(database, ...args)), assertProductionModuleEnabled: (...args) => fromNative(() => assertProductionModuleEnabled(database, ...args)), productionFeatureGuard: (...args) => productionFeatureGuard(database, ...args) });
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> { try {
     return await run();
@@ -156,11 +159,13 @@ catch (error) {
         throw new NativeApiError(error.status, error.code, error.message);
     throw error;
 } }
-export async function listTemplates(db: SqlDatabase, actor: StaffActor) { return invoke(() => application(db).listTemplates(actor)); }
-export async function getTemplate(db: SqlDatabase, actor: StaffActor, id: string) { return invoke(() => application(db).getTemplate(actor, id)); }
+export async function listTemplates(db: SqlDatabase, actor: StaffActor) { return invoke(async() => application(db,await workRoutineReadScope(db,actor)).listTemplates(actor)); }
+export async function getTemplate(db: SqlDatabase, actor: StaffActor, id: string) { const scope=await workRoutineReadScope(db,actor);return invoke(() => application(db,scope).getTemplate(actor, id)); }
 export async function canEditTemplate(db: SqlDatabase, actor: StaffActor, row: TemplateRow) { return invoke(() => application(db).canEditTemplate(actor, row)); }
-export async function saveTemplate(db: SqlDatabase, actor: StaffActor, id: string | null, input: z.infer<typeof templateSchema>, key: string, cloneId?: string) { return invoke(() => application(db).saveTemplate(actor, id, input, key, cloneId)); }
-export async function saveSchedule(db: SqlDatabase, actor: StaffActor, templateId: string, id: string | null, input: z.infer<typeof scheduleSchema>, key: string) { return invoke(() => application(db).saveSchedule(actor, templateId, id, input, key)); }
-export async function changeScheduleState(db: SqlDatabase, actor: StaffActor, id: string, version: number, resume: boolean, key: string) { return invoke(() => application(db).changeScheduleState(actor, id, version, resume, key)); }
-export async function runTemplate(db: SqlDatabase, actor: StaffActor, id: string, dueAt: number, key: string) { return invoke(() => application(db).runTemplate(actor, id, dueAt, key)); }
+export async function saveTemplate(db: SqlDatabase, actor: StaffActor, id: string | null, input: z.infer<typeof templateSchema>, key: string, cloneId?: string) { return withWorkRoutineCommand(db,actor,{key,operations:[cloneId?'routine.clone':id?'routine.update':'routine.create'],templateId:id??`routine-${key}`,configure:true,projectId:input.projectId,purpose:'new-work',retire:input,cloneId},tx=>invoke(() => application(tx).saveTemplate(actor, id, input, key, cloneId))); }
+export async function saveSchedule(db: SqlDatabase, actor: StaffActor, templateId: string, id: string | null, input: z.infer<typeof scheduleSchema>, key: string) { return withWorkRoutineCommand(db,actor,{key,operations:[id?'routine.schedule.update':'routine.schedule.create'],templateId,scheduleId:id??`schedule-${key}`,purpose:'new-work',capture:id?'update':'create'},tx=>invoke(() => application(tx).saveSchedule(actor, templateId, id, input, key))); }
+export async function changeScheduleState(db: SqlDatabase, actor: StaffActor, id: string, version: number, resume: boolean, key: string) { const row=await db.prepare('SELECT template_id FROM routine_schedules WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{template_id:string}>();if(!row)throw new NativeApiError(404,'SCHEDULE_NOT_FOUND','Schedule not found.');return withWorkRoutineCommand(db,actor,{key,operations:[resume?'routine.schedule.resume':'routine.schedule.pause'],templateId:row.template_id,scheduleId:id,purpose:resume?'new-work':'settle-existing',capture:resume?'resume':undefined},tx=>invoke(() => application(tx).changeScheduleState(actor, id, version, resume, key))); }
+export async function runTemplate(db: SqlDatabase, actor: StaffActor, id: string, dueAt: number, key: string) { return withWorkRoutineCommand(db,actor,{key,operations:['routine.run'],templateId:id,taskId:`task-${key}`,purpose:'new-work'},tx=>invoke(() => application(tx).runTemplate(actor, id, dueAt, key))); }
 export async function generateOccurrences(db: SqlDatabase, now = Date.now(), limit = 20) { return invoke(() => application(db).generateOccurrences(now, limit)); }
+
+export async function endSchedule(db:SqlDatabase,actor:StaffActor,id:string,version:number,key:string){const row=await db.prepare('SELECT template_id FROM routine_schedules WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{template_id:string}>();if(!row)throw new NativeApiError(404,'SCHEDULE_NOT_FOUND','Schedule not found.');return withWorkRoutineCommand(db,actor,{key,operations:['routine.schedule.end'],templateId:row.template_id,scheduleId:id,purpose:'settle-existing'},tx=>invoke(() => application(tx).endSchedule(actor,id,version,key)));}

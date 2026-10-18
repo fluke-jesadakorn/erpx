@@ -1,3 +1,4 @@
+import { withPayrollPurchasedCommand } from "./payroll-purchases";
 import {peoplePayrollFinalOwnerProjections as workflowFinalOwnerProjections} from "../../workflow/public/people-payroll-final-owner-projections";
 const workflowFinalSources=workflowFinalOwnerProjections();
 import "server-only";
@@ -14,9 +15,12 @@ import { createPayrollCancellationApplication, type CancellationMutation } from 
 import type { CancellationRun } from '../domain/payroll-cancellation';
 export { payrollCancelSchema } from '../domain/payroll-cancellation';
 export async function cancelPayrollRun(actor: WorkContext, runId: string, input: import('../domain/payroll-cancellation').PayrollCancelInput, key: string) {
+    return withPayrollPurchasedCommand(actor, {key, operation: "people.payroll.cancel", purpose: "settle-existing"}, tx => cancelPayrollRunIn(actor, runId, input, key, tx));
+}
+async function cancelPayrollRunIn(actor: WorkContext, runId: string, input: import('../domain/payroll-cancellation').PayrollCancelInput, key: string, provided?: SqlDatabase) {
     let write: SqlDatabase;
     try {
-        return await createPayrollCancellationApplication({ clock: { now: Date.now }, authorize: requirePermission, prepare: async (actor) => { write = (await holdingResources(actor.holdingId)).write; }, currentGrant: actor => payrollCancellationGrant(write, actor), replay: (...args) => replayCommand(write, ...args), run: (actor, id) => write.prepare('SELECT r.*,to_jsonb(r)::text source_snapshot FROM hr_payroll_runs r WHERE r.id=? AND r.company_id=?').bind(id, actor.companyId).first<CancellationRun>(), flow: (actor, id) => resolveFlow(write, actor, 'payroll', id), commit: async <Result>(m: CancellationMutation, _result: Result) => {
+        return await createPayrollCancellationApplication({ clock: { now: Date.now }, authorize: requirePermission, prepare: async (actor) => { write = provided ?? (await holdingResources(actor.holdingId)).write; }, currentGrant: actor => payrollCancellationGrant(write, actor), replay: (...args) => replayCommand(write, ...args), run: (actor, id) => write.prepare('SELECT r.*,to_jsonb(r)::text source_snapshot FROM hr_payroll_runs r WHERE r.id=? AND r.company_id=?').bind(id, actor.companyId).first<CancellationRun>(), flow: (actor, id) => resolveFlow(write, actor, 'payroll', id), commit: async <Result>(m: CancellationMutation, _result: Result) => {
                 const { actor, runId, input, key, run, evidenceId, now, step } = m;
                 return executeCommand(write, actor, key, "people.payroll.cancel", input, runId, input.expectedVersion + 1, _result, [
                     payrollCancellationGrantLock(write, actor),

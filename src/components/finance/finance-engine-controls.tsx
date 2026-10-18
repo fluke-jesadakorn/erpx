@@ -1,12 +1,15 @@
 "use client";
+import { useFinanceActionAllowed } from "./purchase-context";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
-import { Card, FormGrid } from "@/components/ui/foundation";
+import { Card, FormGrid, FormLayout } from "@/components/ui/foundation";
 
 type Row = Record<string, string | number | null>;
 const fieldSets = {
@@ -122,6 +125,9 @@ function payload(kind: Kind, form: FormData) {
   return result;
 }
 export function CalculationRunForm({ base, periods }: { base: string; periods: Row[] }) {
+  const draftScope=useFinanceDraftScope();
+  const [hasAttempt,setHasAttempt]=useState(false);
+  const allowed=useFinanceActionAllowed("new-work","finance.advanced");
   const router = useRouter(),
     [kind, setKind] = useState<Kind>("cash_flow"),
     [busy, setBusy] = useState(false),
@@ -137,34 +143,35 @@ export function CalculationRunForm({ base, periods }: { base: string; periods: R
           {error}
         </InlineNotice>
       )}
-      <form
+      <FormLayout data-finance-draft={draftScope}
         onSubmit={async (event) => {
           event.preventDefault();
+          const completion=captureFinanceForm();
           setBusy(true);
           setError("");
           const form = new FormData(event.currentTarget);
           try {
+            const url=`${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/calculation-runs`,
+              requestBody=JSON.stringify({kind,currency:String(form.get("currency")),currencyScale:Number(form.get("currencyScale")),periodId:String(form.get("periodId"))||null,policyVersion:1,input:payload(kind,form)});
+            if (!allowed && !workFetch.hasAttempt(url,requestBody)) throw new Error("This calculation action is unavailable for the current package. Your draft is retained.");
+            setHasAttempt(true);
             const response = await workFetch(
-                `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/calculation-runs`,
+                url,
                 {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
                     "Idempotency-Key": crypto.randomUUID(),
                   },
-                  body: JSON.stringify({
-                    kind,
-                    currency: String(form.get("currency")),
-                    currencyScale: Number(form.get("currencyScale")),
-                    periodId: String(form.get("periodId")) || null,
-                    policyVersion: 1,
-                    input: payload(kind, form),
-                  }),
+                  body: requestBody,
                 },
               ),
-              body = (await response.json()) as { error?: { message: string } };
+              body = (await response.json()) as { data?: unknown; error?: { message: string } };
             if (!response.ok)
               throw new Error(body.error?.message ?? "Unable to create calculation run");
+            if (body.data === undefined) throw new Error("Calculation acknowledgement is missing. Retry the same action.");
+            acknowledgeFinanceForm(completion);
+            setHasAttempt(false);
             router.refresh();
           } catch (reason) {
             setError(reason instanceof Error ? reason.message : "Unable to create calculation run");
@@ -216,15 +223,18 @@ export function CalculationRunForm({ base, periods }: { base: string; periods: R
             </Field>
           ))}
         </FormGrid>
-        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+        <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || (!allowed && !hasAttempt)}>
           {busy ? "Calculating…" : "Calculate and save draft"}
         </Button>
-      </form>
+      </FormLayout>
     </Card>
   );
 }
 
 export function CalculationDecision({ base, run }: { base: string; run: Row }) {
+  const draftScope=useFinanceDraftScope();
+  const [hasAttempt,setHasAttempt]=useState(false);
+  const allowed=useFinanceActionAllowed("settle-existing","finance.advanced");
   const router = useRouter(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -232,29 +242,34 @@ export function CalculationDecision({ base, run }: { base: string; run: Row }) {
     run.status === "prepared" ? "review" : run.status === "reviewed" ? "approve" : null;
   if (!action) return null;
   return (
-    <form
+    <FormLayout data-finance-draft={draftScope}
       onSubmit={async (event) => {
         event.preventDefault();
+        const completion=captureFinanceForm();
         setBusy(true);
         setError("");
         try {
           const form = new FormData(event.currentTarget),
-            response = await workFetch(
-              `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/calculation-runs/${run.id}/${action}`,
+            url=`${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/calculation-runs/${run.id}/${action}`,
+            requestBody=JSON.stringify({expectedVersion:Number(run.version),reason:String(form.get("reason"))});
+          if (!allowed && !workFetch.hasAttempt(url,requestBody)) throw new Error("This calculation action is unavailable for the current package. Your draft is retained.");
+          setHasAttempt(true);
+          const response = await workFetch(
+              url,
               {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
                   "Idempotency-Key": crypto.randomUUID(),
                 },
-                body: JSON.stringify({
-                  expectedVersion: Number(run.version),
-                  reason: String(form.get("reason")),
-                }),
+                body: requestBody,
               },
             ),
-            body = (await response.json()) as { error?: { message: string } };
+            body = (await response.json()) as { data?: unknown; error?: { message: string } };
           if (!response.ok) throw new Error(body.error?.message ?? "Unable to save the decision");
+          if (body.data === undefined) throw new Error("Calculation acknowledgement is missing. Retry the same action.");
+          acknowledgeFinanceForm(completion);
+          setHasAttempt(false);
           router.refresh();
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : "Unable to save the decision");
@@ -267,7 +282,7 @@ export function CalculationDecision({ base, run }: { base: string; run: Row }) {
         Review evidence
         <TextInput appearance="standard" name="reason" required minLength={3} />
       </Field>
-      <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
+      <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy || (!allowed && !hasAttempt)}>
         {action === "review" ? "Confirm review" : "Approve calculation"}
       </Button>
       {error && (
@@ -275,6 +290,6 @@ export function CalculationDecision({ base, run }: { base: string; run: Row }) {
           {error}
         </span>
       )}
-    </form>
+    </FormLayout>
   );
 }

@@ -1,5 +1,7 @@
 # Billing Sandbox operations
 
+The new [product/package contract](product-separation.md#commercial-packages) defines prospective Holding package grants independently of this billing model. Its store is not yet connected to live enforcement or administrator commands. This implementation does not reprice or rerate past months, add paid signup, or count product sessions as extra seats.
+
 Historical ADR-028 Support billing remains chargeable for existing enrollments. The [original read-only pricing hypothesis](billing-pricing-hypothesis.md) uses AI cost plus 20%; the new [ADR-037](../../adr/ADR-037-sandbox-ai-gateway-and-rated-holding-billing.md) target offering uses plus 10% and requires explicit future-month assignment. Shadow rating never creates a Stripe command. A designated Sandbox test account can invoice the target offering only after a closed, complete, statement-reconciled month and reasoned Platform Admin approval.
 
 The current target price version starts with the first active named seat at THB 499 per seat-month. There is no Holding base fee, minimum seat count, or automatic entry fee. Each paid seat-month contributes 2 decimal GB-months of original-file allowance; excess is THB 5 per GB-month. This is a Sandbox price hypothesis and creates no live storage entitlement. Optional setup or Support is a separately approved service, not an entry charge.

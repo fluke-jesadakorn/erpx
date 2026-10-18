@@ -1,10 +1,12 @@
+import {financeExpansionWork} from "../../../src/server/modules/finance/public/finance-expansion-work";
+import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
 import { describe, expect, it } from "vitest";
 import { allocateUnits, decimalToUnits, multiplyBps, unitsToDecimal } from "../../../src/lib/finance/finance-money";
 import { calculateFinance } from "../../../src/server/modules/finance/public/rules/finance-calculations";
-import { beforeAll, beforeEach, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { createCalculationRun, decideCalculationRun } from "../../../src/server/modules/finance/public/finance-engines";
+import { createCalculationRun, decideCalculationRun, calculationRunDetail, financeEngineWorkspace } from "../../../src/server/modules/finance/public/finance-engines";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 describe("exact finance calculation engine",()=>{
@@ -41,6 +43,7 @@ describe("exact finance calculation engine",()=>{
 });
 
 describe("calculation run controls",()=>{
+  afterEach(()=>vi.unstubAllEnvs());
   let fixture:Awaited<ReturnType<typeof expenseFixture>>;
   beforeAll(async()=>{await applyMigrations(expenseDb,env.STAFF_TEST_MIGRATIONS);});
   beforeEach(async()=>{fixture=await expenseFixture();});
@@ -50,4 +53,19 @@ describe("calculation run controls",()=>{
     await expect(decideCalculationRun(fixture.owner,String(run.id),{expectedVersion:1,reason:"Reviewed source balances"},"review",key())).rejects.toMatchObject({code:"SELF_REVIEW_FORBIDDEN"});
     expect(await decideCalculationRun(fixture.manager,String(run.id),{expectedVersion:1,reason:"Reviewed source balances"},"review",key())).toMatchObject({status:"reviewed",version:2});
   });
+  it("requires Advanced for calculation preparation and history, retaining independent draining review and replay",async()=>{
+    await reviewedFinanceGrant(expenseDb,fixture.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+    const command=key(),input={kind:"cash_flow" as const,currency:"THB",currencyScale:2,periodId:fixture.period,policyVersion:1,input:{openingCash:"100",closingCash:"110",profit:"10",nonCashAdjustments:"0",workingCapitalChange:"0",investing:"0",financing:"0",fxEffect:"0"}};
+    await expect(createCalculationRun(fixture.owner,input,command)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+    await expect(financeEngineWorkspace(fixture.owner)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+    await reviewedFinanceGrant(expenseDb,fixture.company,"finance-advanced");const run=await createCalculationRun(fixture.owner,input,command);
+    await reviewedFinanceGrant(expenseDb,fixture.company,"finance-advanced","draining");
+    expect(await createCalculationRun(fixture.owner,input,command)).toEqual(run);
+    expect((await financeExpansionWork(fixture.manager)).find(item=>item.id===run.id)).toMatchObject({canAct:true,href:"/finance/engines"});
+    await expect(createCalculationRun(fixture.owner,input,key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});
+    await expect(decideCalculationRun(fixture.owner,String(run.id),{expectedVersion:1,reason:"Original author cannot review"},"review",key())).rejects.toMatchObject({code:"SELF_REVIEW_FORBIDDEN"});
+    expect(await decideCalculationRun(fixture.manager,String(run.id),{expectedVersion:1,reason:"Independently checked source balances"},"review",key())).toMatchObject({status:"reviewed",version:2});
+    expect(await calculationRunDetail(fixture.owner,String(run.id))).toBeDefined();
+  });
+
 });

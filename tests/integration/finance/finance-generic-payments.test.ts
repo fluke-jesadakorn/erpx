@@ -1,7 +1,19 @@
-import { beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
+import {getRecord,listRecords,recordsPage,recordContext,searchReferences} from "../../../src/server/modules/records/public/records";
+import {findModule} from "../../../src/data/module-registry";
+import {requireFlowAccess} from "../../../src/server/modules/workflow/public/flow-access";
+import {enrichFlowWork} from "../../../src/server/modules/workflow/public/flow-work";
+import {invoiceRecordWorkspace} from "../../../src/server/modules/finance/public/record-presentation";
+import {publishInboxEvent,inboxPage,inboxSummary,sendNotice} from "../../../src/server/modules/collaboration/public/inbox";
+import {listStaffNotifications,notificationsPage,visibleNotifications} from "../../../src/server/modules/collaboration/public/staff-notifications";
+import type {WorkItem} from "../../../src/lib/work_projection/work-item";
+import { financePurchaseControls } from "../../../src/server/modules/finance/public/purchases";
+import { financeWorkbench, paymentRecordsWorkspace, paymentObligationsWorkspace, financeSetupWorkspace } from "../../../src/server/modules/finance/public/finance-workspace";
+import { ledgerWorkspace, journalDetail, workJournalRows } from "../../../src/server/modules/finance/public/ledger";
+import { beforeAll,beforeEach,afterEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env,type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { approvePayment,bankWorkspace,calculateCloseReconciliations,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,invoicesPage,postInvoice,releasePayment,reversePayment } from "../../../src/server/modules/finance/public/finance";
+import { approvePayment,bankWorkspace,calculateCloseReconciliations,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,invoicesPage,postInvoice,releasePayment,reversePayment,getInvoice,workInvoiceRows,createJournal,createJournalSchema,listCharts,listAccounts,getPayment } from "../../../src/server/modules/finance/public/finance";
+import { packageGrantStore,readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
 import { confirmManualRate } from "../../../src/server/modules/finance/public/company-money";
 import { assignFlowPrimary,resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
 
@@ -10,7 +22,8 @@ vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingReso
 
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 
-beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS as TestMigration[]);});
+beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS as TestMigration[]),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS as TestMigration[])]);});
+afterEach(()=>vi.unstubAllEnvs());
 beforeEach(async()=>{f=await expenseFixture();await db.batch([db.prepare("UPDATE finance_accounts SET is_control=1,control_kind='bank' WHERE id=?").bind(f.accounts.cash),db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,'asset','THB',1,'receivable',1,1)").bind(`${f.company}-receivable`,f.chart,f.company,"receivable","Trade receivables")]);});
 
 async function payable(amount="100"){
@@ -21,6 +34,48 @@ async function payable(amount="100"){
  await postInvoice(f.manager,String(invoice.id),{periodId:f.period,entryDate:"2026-09-10",expectedVersion:1},key());
  return {supplier,invoice};
 }
+async function financePackage(state:"active"|"draining"="active",endsAt:number|null=null,packageId:"finance"|"pos"="finance"){
+ const current=(await readCompanyPackageGrants(db,f.company)).find(grant=>grant.packageId===packageId);
+ return packageGrantStore(db,{authorize:async()=>({userId:"isolated-finance-purchase-fixture"}),obligations:async()=>{throw Error("No test Finance withdrawal witness");}}).apply({expectedVersion:current?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt,version:(current?.version??0)+1,reason:"Native Finance purchase review",evidence:"test:finance-purchase-core"}});
+}
+const financialRows=()=>Promise.all(["finance_invoices","finance_payments","finance_journals","finance_journal_lines","finance_allocations","finance_bank_transactions","finance_bank_statements","money_transaction_snapshots","command_receipts","audit_events","outbox_events"].map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results));
+it("package Finance denies unpurchased money and reads, while shadow retains original authority",async()=>{
+ const {supplier,invoice}=await payable(),input={partyId:String(supplier.id),kind:"payment" as const,paymentNumber:key(),paymentDate:"2026-09-12",currency:"THB",amount:"100",bankAccount:f.accounts.cash},before=await financialRows();vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ await expect(createPayment(f.reviewer,input,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(createJournal(f.reviewer,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-12",currency:"THB",memo:"Unpurchased manual GL must fail",lines:[{accountId:f.accounts.expense,debit:"10",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"10"}]}),key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(createInvoice(f.reviewer,{partyId:String(supplier.id),kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-10",dueDate:"2026-09-12",currency:"THB",subtotal:"100",tax:"0",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable},key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ for(const read of [()=>getInvoice(f.owner,String(invoice.id)),()=>bankWorkspace(f.owner,{}),()=>invoicesPage(f.owner,{}),()=>financeWorkbench(f.owner),()=>paymentRecordsWorkspace(f.owner,{}),()=>paymentObligationsWorkspace(f.owner,{}),()=>financeSetupWorkspace(f.owner),()=>ledgerWorkspace(f.owner),()=>journalDetail(f.owner,"unavailable")])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await workInvoiceRows(f.owner,db)).toEqual([]);expect(await workJournalRows(f.owner,db)).toEqual([]);expect(await financialRows()).toEqual(before);
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","shadow");const log=vi.spyOn(console,"info").mockImplementation(()=>{});
+ try{expect(await getInvoice(f.owner,String(invoice.id))).toMatchObject({invoice:{id:invoice.id}});await createPayment(f.reviewer,input,key());expect(log.mock.calls.some(args=>String(args[0]).includes("commercial.purchase.shadow")&&String(args[0]).includes("PACKAGE_REQUIRED"))).toBe(true);await expect(createPayment({...f.payer,role:"auditor"},input,key())).rejects.toMatchObject({status:403});}finally{log.mockRestore();}
+});
+it("package Finance preserves POS accounting references without granting general Finance work",async()=>{
+ await financePackage("active",null,"pos");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ expect((await listCharts(f.owner)).map(row=>row.id)).toContain(f.chart);expect((await listAccounts(f.owner,f.chart)).map(row=>row.id)).toContain(f.accounts.cash);
+ for(const read of [()=>financeSetupWorkspace(f.owner),()=>ledgerWorkspace(f.owner)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ const before=await financialRows();await expect(createJournal(f.reviewer,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-12",currency:"THB",sourceType:"pos_sale",memo:"A user supplied source label cannot select an included foundation",lines:[{accountId:f.accounts.expense,debit:"10",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"10"}]}),key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await financialRows()).toEqual(before);
+});
+it("package Finance-only draining prepares an invoice-bound payment and completes independent bank settlement and replay",async()=>{
+ await financePackage();vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const {supplier,invoice}=await payable();await financePackage("draining");
+ const controls=await financePurchaseControls(f.owner);expect(Object.keys(controls??{}).sort()).toEqual(["finance.accounting","finance.advanced","finance.banking","finance.close","finance.receivables","finance.tax"]);for(const capability of ["finance.accounting","finance.banking","finance.close","finance.receivables","finance.tax"])expect(controls?.[capability]).toEqual({newWork:false,settleExisting:true,history:true,revision:expect.any(String)});expect(controls?.["finance.advanced"]).toEqual({newWork:false,settleExisting:false,history:false,revision:expect.any(String)});
+ const input={partyId:String(supplier.id),kind:"payment" as const,paymentNumber:key(),paymentDate:"2026-09-12",currency:"THB",amount:"100",bankAccount:f.accounts.cash};
+ await expect(createPayment(f.reviewer,input,key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});const createKey=key(),bound={...input,settlementInvoiceId:String(invoice.id)},payment=await createPayment(f.reviewer,bound,createKey);expect(payment.settlementInvoiceId).toBe(invoice.id);expect((await getPayment(f.payer,String(payment.id))).payment.settlement_invoice_id).toBe(invoice.id);expect((await getPayment(f.payer,String(payment.id))).invoices.map(row=>row.id)).toEqual([invoice.id]);expect(await createPayment(f.reviewer,bound,createKey)).toEqual(payment);
+ await approvePayment(f.manager,String(payment.id),{expectedVersion:1,proof:"Independent invoice and payment review"},key());await releasePayment(f.payer,String(payment.id),{expectedVersion:2,proof:"Treasury reviewed original invoice and beneficiary"},key());
+ const statement=await importBankStatement(f.reviewer,{bankAccount:f.accounts.cash,statementNumber:key(),statementDate:"2026-09-30",opening:"1000",closing:"900",sourceHash:key(),rows:[{externalId:key(),transactionDate:"2026-09-12",description:"Existing supplier liability settlement",amount:"-100",currency:"THB"}]},key()),bankId=String(await db.prepare("SELECT id FROM finance_bank_transactions WHERE statement_id=?").bind(statement.id).first("id"));
+ const confirmation={expectedVersion:3,periodId:f.period,bankTransactionId:bankId,bankVersion:1,bankReference:"NATIVE-PURCHASE-SETTLEMENT",proof:"Treasury verified exact bank evidence",allocations:[{invoiceId:String(invoice.id),amount:"100"}]},receipt=key(),result=await confirmPayment(f.payer,String(payment.id),confirmation,receipt);
+ expect(result).toMatchObject({id:payment.id,status:"settled",version:4});expect(await confirmPayment(f.payer,String(payment.id),confirmation,receipt)).toEqual(result);expect(await db.prepare("SELECT status,outstanding_minor FROM finance_invoices WHERE id=?").bind(invoice.id).first()).toEqual({status:"paid",outstanding_minor:0});
+ expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(["finance"]);expect(await getInvoice(f.owner,String(invoice.id))).toMatchObject({invoice:{id:invoice.id,status:"paid"}});expect(await db.prepare("SELECT count(*) n FROM command_assertions").first()).toEqual({n:0});
+ await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.owner.assignmentId).run();await expect(getInvoice(f.owner,String(invoice.id))).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});
+});
+it("package Finance draining rejects invented, oversized and retargeted settlement bindings",async()=>{
+ await financePackage();const{supplier,invoice}=await payable();await financePackage("draining");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const input={partyId:String(supplier.id),kind:"payment" as const,paymentNumber:key(),paymentDate:"2026-09-12",currency:"THB",amount:"100",bankAccount:f.accounts.cash,settlementInvoiceId:String(invoice.id)},before=await financialRows();
+ for(const change of [{settlementInvoiceId:"missing-invoice"},{amount:"100.01"},{partyId:"foreign-party"},{currency:"USD"}])await expect(createPayment(f.reviewer,{...input,...change},key())).rejects.toMatchObject({code:"PAYMENT_SETTLEMENT_SOURCE_INVALID"});expect(await financialRows()).toEqual(before);
+ const payment=await createPayment(f.reviewer,input,key());await approvePayment(f.manager,String(payment.id),{expectedVersion:1,proof:"Original invoice review"},key());await releasePayment(f.payer,String(payment.id),{expectedVersion:2,proof:"Original beneficiary review"},key());
+ await expect(confirmPayment(f.payer,String(payment.id),{expectedVersion:3,periodId:f.period,bankTransactionId:"not-used",bankVersion:1,bankReference:"not-used",proof:"Retarget must fail before bank work",allocations:[{invoiceId:"another-invoice",amount:"100"}]},key())).rejects.toMatchObject({code:"PAYMENT_SETTLEMENT_SOURCE_CHANGED"});expect(await db.prepare("SELECT status,version FROM finance_payments WHERE id=?").bind(payment.id).first()).toEqual({status:"released",version:3});
+});
+it("package Finance expires after deferred invoice effects and rolls back money, record and receipt together",async()=>{
+ const supplier=await createParty(f.reviewer,{kind:"supplier",code:key(),name:"Expiry supplier",currency:"THB",paymentTermsDays:30,creditLimit:"0"},key());await financePackage("active",Date.now()+1500);vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const before=await financialRows(),command=key(),trigger=`finance_purchase_${key().replaceAll('-','')}`;
+ await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(1.6);RETURN NEW;END $$;
+  CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.action='finance.invoice.create' AND NEW.authority_json::jsonb->>'companyId'='${f.company}') EXECUTE FUNCTION ${trigger}()`);
+ try{await expect(createInvoice(f.reviewer,{partyId:String(supplier.id),kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-10",dueDate:"2026-09-12",currency:"THB",subtotal:"100",tax:"0",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable},command)).rejects.toMatchObject({code:"PACKAGE_CAPABILITY_CHANGED"});expect(await financialRows()).toEqual(before);expect(await db.prepare("SELECT command_id FROM command_receipts WHERE command_id=?").bind(command).first()).toBeNull();}finally{await db.exec(`DROP TRIGGER ${trigger} ON audit_events;DROP FUNCTION ${trigger}()`);}
+});
 
 describe("generic controlled payments",()=>{
  it("reads each statement's bank currency and chart currency in paged and print views",async()=>{
@@ -146,4 +201,29 @@ describe("generic controlled payments",()=>{
   expect(Number(await db.prepare("SELECT count(*) n FROM finance_allocations WHERE payment_id=?").bind(payment.id).first("n"))).toBe(1);
  });
 
+});
+
+it("supplied Finance record reads and flow access cannot bypass purchase and revoked cached authority",async()=>{
+ const {invoice}=await payable();vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const id=String(invoice.id),item:WorkItem={id,type:"invoice",title:"Retained source",detail:"Source review",href:`/finance/invoices/${id}`,status:"posted",updatedAt:1,queue:"todo",canAct:true};
+ await expect(getInvoice(f.owner,id,db)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(requireFlowAccess(f.owner,"invoice",id,db)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await enrichFlowWork(f.owner,[item])).toEqual([]);
+ await financePackage();const detail=await invoiceRecordWorkspace(f.owner,id);expect(detail.invoice.id).toBe(id);expect(detail.options.invoices).toEqual([]);expect(detail.options.charts).toHaveLength(1);expect(detail.options.accounts.every(account=>account.chart_id===f.chart)).toBe(true);await requireFlowAccess(f.owner,"invoice",id,db);
+ const stale=await enrichFlowWork(f.owner,[item]);await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.owner.assignmentId).run();await expect(getInvoice(f.owner,id,db)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(await enrichFlowWork(f.owner,stale)).toEqual([]);
+});
+it("generic Finance history and cross-module reference search intersect purchase before the shared limit",async()=>{
+ const actor={...f.owner,modules:["finance","projects"]},needle=`purchase-${key()}`,financeSection=findModule("finance")!.sections[0].id,projectSection=findModule("projects")!.sections[0].id,project=`record-${key()}`,ids:string[]=[];
+ for(let index=0;index<16;index++){const id=`record-${key()}`;ids.push(id);await db.prepare("INSERT INTO workspace_records(module_id,id,section_id,title,description,status,fields_json,company_id,version,created_by,updated_by,created_at,updated_at) VALUES('finance',?,?,?,'Legacy retained preview','draft','[]',?,1,?,?,1,?)").bind(id,financeSection,`${needle} financial ${index}`,f.company,f.owner.userId,f.owner.userId,100+index).run();}
+ await db.prepare("INSERT INTO workspace_records(module_id,id,section_id,title,description,status,fields_json,company_id,version,created_by,updated_by,created_at,updated_at) VALUES('projects',?,?,?,'Other authorized reference','draft','[]',?,1,?,?,1,1)").bind(project,projectSection,`${needle} project`,f.company,f.owner.userId,f.owner.userId).run();vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ for(const read of [()=>getRecord(actor,"finance",ids[0],db),()=>listRecords(actor,"finance",financeSection),()=>recordsPage(actor,"finance",financeSection,{}),()=>recordContext(actor,"finance",ids[0])])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ const visible=await searchReferences(actor,needle);expect(visible).toEqual([expect.objectContaining({kind:"record",module_id:"projects",id:project})]);
+ await financePackage();expect((await searchReferences(actor,needle)).filter(row=>row.kind==="record")).toHaveLength(12);expect((await getRecord(actor,"finance",ids[0],db)).id).toBe(ids[0]);await financePackage("draining");expect((await getRecord(actor,"finance",ids[0],db)).id).toBe(ids[0]);
+ await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(actor.assignmentId).run();expect((await searchReferences(actor,needle)).some(row=>"module_id" in row&&row.module_id==="finance")).toBe(false);
+});
+it("financial Inbox and legacy notifications filter source access before limits and retain delivery identity through grant and revocation",async()=>{
+ const {invoice}=await payable(),journal=await createJournal(f.reviewer,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-12",currency:"THB",memo:"Notification original journal",lines:[{accountId:f.accounts.expense,debit:"1",credit:"0"},{accountId:f.accounts.cash,debit:"0",credit:"1"}]}),key());
+ await sendNotice(db,f.owner,{title:"Retained nonfinancial handoff",body:"The earlier visible notice stays available.",recipients:[f.manager.userId]},key());
+ for(let index=0;index<105;index++)await publishInboxEvent(db,{key:key(),companyId:f.company,sourceType:index%2?"journal":"invoice",sourceId:String(index%2?journal.id:invoice.id),sourceVersion:1,category:"work",preview:"Financial source review",recipientIds:[f.manager.userId],createdAt:Date.now()+index});
+ const delivery=`financial-notice-${key()}`;await db.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,'invoice',?,1,'Retained invoice review',?)").bind(delivery,f.company,f.manager.userId,invoice.id,Date.now()).run();
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");expect((await listStaffNotifications(db,f.manager)).filter(row=>row.record_type==="invoice"||row.record_type==="journal")).toEqual([]);const page=await inboxPage(db,f.manager,{view:"all",limit:10});expect(page.items.some(item=>item.message.includes("Retained nonfinancial handoff"))).toBe(true);expect(page.items.some(item=>item.sourceType==="invoice"||item.sourceType==="journal")).toBe(false);expect((await inboxSummary(db,f.manager)).categories.work).toBe(0);
+ await financePackage();const visible=await listStaffNotifications(db,f.manager);expect(visible.find(row=>row.id===delivery)).toMatchObject({record_version:1,source:{kind:"invoice",id:invoice.id,version:2}});expect((await notificationsPage(db,f.manager,{view:"all"})).items.some(row=>row.id===delivery)).toBe(true);expect((await inboxPage(db,f.manager,{view:"all",limit:10})).items.some(item=>item.sourceType==="invoice"||item.sourceType==="journal")).toBe(true);
+ await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.manager.assignmentId).run();expect((await visibleNotifications(db,f.manager,visible)).filter(row=>row.record_type==="invoice"||row.record_type==="journal")).toEqual([]);expect((await inboxPage(db,f.manager,{view:"all"})).items.some(item=>item.sourceType==="invoice"||item.sourceType==="journal")).toBe(false);expect(await db.prepare("SELECT record_id,record_version,read_at FROM staff_notifications WHERE id=?").bind(delivery).first()).toEqual({record_id:invoice.id,record_version:1,read_at:null});
 });

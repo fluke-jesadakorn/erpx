@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { rememberPlatformRole } from "@/server/modules/work_projection/public/workspace-preferences";
 import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { NextResponse } from "next/server";
@@ -10,7 +11,7 @@ const schema = z.object({ assignmentId: z.string().min(1).max(128) });
 export async function GET() {
   try {
     const actor = await requirePlatformContext();
-    return NextResponse.json({ data: { userId: actor.userId, assignmentId: actor.assignmentId } }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json(canonicalDestinationLinks({ data: { userId: actor.userId, assignmentId: actor.assignmentId } }), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }
 
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     if (!selected)
       throw new ApiError(403, "ASSIGNMENT_UNAVAILABLE", "That Platform assignment is unavailable.");
     await rememberPlatformRole((await runtimeEnv()).CONTROL_DB,actor.userId,selected.id);
-    const response = NextResponse.json({ data: selected });
+    const response = NextResponse.json(canonicalDestinationLinks({ data: selected }));
     response.cookies.set("erpx_assignment_platform", selected.id, {
       httpOnly: true,
       sameSite: "lax",

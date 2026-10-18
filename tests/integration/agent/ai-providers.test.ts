@@ -872,3 +872,64 @@ it("re-extracts ready suggestions only on explicit retry and still deduplicates 
   expect(again.proposalId).not.toBe(first.proposalId);
   expect((await queueExpenseAi(db, f.claimant, aiEnv, id, { ...input, retry: true }, key())).proposalId).toBe(again.proposalId);
 });
+
+async function expenseAiPurchaseGrant(state:'active'|'draining'='active'){
+ const {packageGrantStore,readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants');
+ const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-expense-ai-purchase-provider'}),obligations:async()=>{throw Error('Concrete owner withdrawal is required');}});
+ for(const packageId of ['people','people-expenses']){
+  const current=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);if(packageId==='people'&&current)continue;
+  await store.apply({expectedVersion:current?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state:packageId==='people'?'active':state,startsAt:0,endsAt:null,version:(current?.version??0)+1,reason:'Original Expense queued work purchase fixture',evidence:'test:expense-ai-boundary'}});
+ }
+}
+it('completes actually queued Expense suggestions while draining with the captured native author and unchanged financial source',async()=>{
+ await connection();await expenseAiPurchaseGrant();vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
+ try{
+  const id=await f.claim(),attachment=await f.attach(id),input={expectedVersion:1,paymentId:null,retry:false},command=key();
+  const created=await queueExpenseAi(db,f.claimant,aiEnv,id,input,command);expect(await queueExpenseAi(db,f.claimant,aiEnv,id,input,command)).toEqual(created);
+  const original=await db.prepare('SELECT to_jsonb(e)::text image FROM finance_expenses e WHERE id=?').bind(id).first<string>('image'),job=await db.prepare('SELECT actor_json FROM expense_ai_proposals WHERE id=?').bind(created.proposalId).first<{actor_json:string}>();
+  expect(JSON.parse(job!.actor_json)).toMatchObject({userId:f.claimant.userId,assignmentId:f.claimant.assignmentId,companyId:f.company,iam:{queuedAssignmentVersion:expect.any(Number)}});
+  await expenseAiPurchaseGrant('draining');
+  await expect(queueExpenseAi(db,f.claimant,aiEnv,id,{...input,retry:true},key())).rejects.toMatchObject({status:403,code:'PACKAGE_DRAINING'});
+  const generate=vi.fn(async()=>({result:{summary:'Original evidence read without a business transition',fields:[{name:'merchant',value:'Suggested merchant',citations:[{attachmentId:attachment,page:1}]}],missing:[],conflicts:[]},inputTokens:2,outputTokens:1}));
+  await runExpenseAi(db,env.H001_FILES,aiEnv,String(created.proposalId),generate);expect(generate).toHaveBeenCalledTimes(1);
+  expect((await expenseAiStatus(db,f.claimant,aiEnv,id,null)).proposal?.state).toBe('ready');expect((await expenseAiStatus(db,f.claimant,aiEnv,id,null)).allowed).toBe(false);
+  expect(await db.prepare('SELECT to_jsonb(e)::text image FROM finance_expenses e WHERE id=?').bind(id).first<string>('image')).toBe(original);
+  expect(await db.prepare('SELECT state,lease_until,input_tokens,output_tokens FROM expense_ai_usage WHERE id=?').bind(created.proposalId).first()).toMatchObject({state:'succeeded',lease_until:0,input_tokens:2,output_tokens:1});
+  expect(await queueExpenseAi(db,f.claimant,aiEnv,id,input,command)).toEqual(created);
+ }finally{vi.unstubAllEnvs();}
+});
+it('clears a revoked original Expense queued author through native failure bookkeeping without invoking a provider',async()=>{
+ await connection();await expenseAiPurchaseGrant();vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
+ try{
+  const id=await f.claim();await f.attach(id);const created=await queueExpenseAi(db,f.claimant,aiEnv,id,{expectedVersion:1,paymentId:null,retry:false},key());
+  const original=await db.prepare('SELECT to_jsonb(e)::text image FROM finance_expenses e WHERE id=?').bind(id).first<string>('image');
+  // Adverse native authority fact, never a manufactured positive grant.
+  await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=? AND company_id=?').bind(Date.now(),f.claimant.assignmentId,f.company).run();
+  const generate=vi.fn(async()=>{throw Error('Revoked original author reached a provider');});await runExpenseAi(db,env.H001_FILES,aiEnv,String(created.proposalId),generate);expect(generate).not.toHaveBeenCalled();
+  expect(await db.prepare('SELECT state,result_json,claim_until,lease_token,attempts FROM expense_ai_proposals WHERE id=?').bind(created.proposalId).first()).toMatchObject({state:'stale',result_json:null,claim_until:null,lease_token:null,attempts:1});
+  expect(await db.prepare('SELECT state,lease_until FROM expense_ai_usage WHERE id=?').bind(created.proposalId).first()).toEqual({state:'failed',lease_until:0});
+  expect(await db.prepare('SELECT to_jsonb(e)::text image FROM finance_expenses e WHERE id=?').bind(id).first<string>('image')).toBe(original);
+ }finally{vi.unstubAllEnvs();}
+});
+
+
+it('keeps queued payment AI as a real duty after independent unused-preparation cancellation until the original worker closes it without provider IO',async()=>{
+ const {expenseDetail,postExpense,reverseExpense}=await import('../../../src/server/modules/people_payroll/public/expenses'),{createExpensePayment,cancelExpensePayment}=await import('../../../src/server/modules/people_payroll/public/expense-payments'),{withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),{packageGrantStore,readCompanyPackageGrants,packageGrantRevision}=await import('../../../src/server/modules/commercial/public/package-grants');
+ await connection();await expenseAiPurchaseGrant();vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_ATTACHMENTS_V2','false');
+ const scope={companyId:f.company,packageId:'people-expenses',packageVersion:1},observe=()=>withOwnerPackageObligations(db,scope,tx=>readOwnerPackageObligations(db,tx,{...scope,now:Date.now()}));
+ const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-expense-payment-ai-closure-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)});
+ const withdrawal=async()=>{const grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==='people-expenses')!;return {companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Actual cancelled payment source and queued provider duty have settled',evidence:'test:expense-payment-ai-closure'}}]};};
+ try{
+  const id=await f.claim();await f.throughAccounts(id);await f.action(f.manager,id,'approve');await postExpense(f.manager,id,{expectedVersion:Number((await getExpense(f.manager,id)).version),periodId:f.period,entryDate:'2026-09-02'},key());
+  const posted=await getExpense(f.payer,id),draftId=String((await createExpensePayment(f.payer,id,Number(posted.version),key())).draftId);await f.attach(draftId,'expense_payment');
+  const queued=await queueExpenseAi(db,f.payer,aiEnv,id,{expectedVersion:1,paymentId:draftId,retry:false},key());expect(queued.state).toBe('queued');expect(await db.prepare('SELECT state FROM expense_ai_usage WHERE id=?').bind(queued.proposalId).first<string>('state')).toBe('reserved');
+  await reverseExpense(f.manager,id,{expectedVersion:Number((await getExpense(f.manager,id)).version),periodId:f.period,entryDate:'2026-09-03',reason:'Original unpaid claim is no longer owed'},key());
+  await expenseAiPurchaseGrant('draining');const cancelled=await cancelExpensePayment(f.payer,id,draftId,{expectedVersion:1,expenseVersion:Number((await getExpense(f.payer,id)).version),reason:'Independent Treasury verified the preparation was not paid',paymentNotExecuted:true},key());expect(cancelled).toMatchObject({id:draftId,status:'cancelled',version:2});
+  expect((await expenseDetail(f.payer,id)).paymentDrafts.find(row=>row.id===draftId)).toMatchObject({status:'cancelled'});expect((await observe()).observations.find(row=>row.moduleId==='people_payroll')!.outstanding).toBeGreaterThan(0);
+  const request=await withdrawal();await expect(withOwnerPackageObligations(db,scope,tx=>store.batch.applyIn(tx,request,async()=>{}))).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
+  const business=()=>db.prepare("SELECT jsonb_build_object('expense',to_jsonb(e),'draft',to_jsonb(d),'payments',(SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]') FROM finance_payments p WHERE p.company_id=e.company_id),'journals',(SELECT COALESCE(jsonb_agg(to_jsonb(j) ORDER BY j.id),'[]') FROM finance_journals j WHERE j.company_id=e.company_id))::text image FROM finance_expenses e JOIN expense_payment_drafts d ON d.expense_id=e.id AND d.company_id=e.company_id WHERE e.id=? AND e.company_id=?").bind(id,f.company).first<string>('image'),before=await business();
+  const generate=vi.fn(async()=>{throw Error('Cancelled payment preparation reached a provider');});await runExpenseAi(db,env.H001_FILES,aiEnv,String(queued.proposalId),generate);expect(generate).not.toHaveBeenCalled();
+  expect(await db.prepare('SELECT state,claim_until,lease_token,attempts FROM expense_ai_proposals WHERE id=?').bind(queued.proposalId).first()).toEqual({state:'failed',claim_until:null,lease_token:null,attempts:1});expect(await db.prepare('SELECT state,lease_until,input_tokens,output_tokens FROM expense_ai_usage WHERE id=?').bind(queued.proposalId).first()).toEqual({state:'failed',lease_until:0,input_tokens:0,output_tokens:0});expect(await business()).toBe(before);
+  expect((await observe()).observations.map(row=>[row.moduleId,row.outstanding])).toEqual([['people_payroll',0],['finance',0]]);const settled=await withdrawal(),preview=await withOwnerPackageObligations(db,scope,tx=>store.batch.previewIn(tx,settled));expect(await withOwnerPackageObligations(db,scope,tx=>store.batch.applyIn(tx,settled,async()=>{}))).toEqual(preview);
+ }finally{vi.unstubAllEnvs();}
+});

@@ -2,19 +2,29 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "../../runtime/public/runtime/types";
 import {PostgresDatabase} from "../../runtime/public/runtime/postgres";
 import {legalPortalStorageAllowance} from "../../manage_erpx/public/legal-portal-storage-allowance";
-import type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentRepository} from "../../legal/public/portal-attachment-contracts";
+import type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentRepository,PortalAttachmentStageScope,PortalAttachmentRecoverySource} from "../../legal/public/portal-attachment-contracts";
 function unit(db:SqlDatabase):PortalAttachmentUnit{const writes=new WeakMap<PortalAttachmentWrite,SqlStatement>();function stage(statement:SqlStatement):PortalAttachmentWrite{const write:PortalAttachmentWrite={owner:"files"};writes.set(write,statement);return write;}
+function stagedSource(facts:PortalAttachmentStageScope){return db.prepare(`SELECT a.object_key,a.checksum_sha256,a.media_type,a.bytes,s.expected_target_version,
+ CASE WHEN s.state='draft' AND l.state='draft' AND i.status='ready' AND a.source_state='available' AND a.revoked_at IS NULL THEN 1 ELSE 0 END recovery_draft,
+ jsonb_build_object('source',to_jsonb(a),'upload',to_jsonb(i),'link',to_jsonb(l),'set',to_jsonb(s))::text image,
+ CASE WHEN a.owner_type='legal_item' AND a.owner_id=? AND a.purpose='legal_portal_submission' AND a.created_by=? AND a.object_key=? AND a.original_name=?
+  AND i.id=? AND i.company_id=a.company_id AND i.owner_type=a.owner_type AND i.owner_id=a.owner_id AND i.purpose=a.purpose
+  AND i.created_by=a.created_by AND i.owner_version=s.expected_target_version AND i.final_key=a.object_key AND i.original_name=a.original_name
+  AND i.attachment_set_id=s.id AND i.attachment_link_id=l.id
+  AND l.id=? AND l.created_by=a.created_by AND l.attachment_id=a.id
+  AND s.id=? AND s.company_id=a.company_id AND s.target_type=a.owner_type AND s.target_id=a.owner_id
+  AND s.component_kind='action' AND s.component_ref=? AND s.purpose_key=a.purpose AND s.created_by=a.created_by
+  AND s.audience_json::jsonb->>'portalShareId'=? THEN 1 ELSE 0 END scope_matches
+ FROM attachments a LEFT JOIN upload_intents i ON i.id=a.upload_id
+ LEFT JOIN attachment_links l ON l.id=i.attachment_link_id LEFT JOIN attachment_sets s ON s.id=l.set_id
+ WHERE a.id=? AND a.company_id=?`).bind(facts.itemId,facts.actorId,facts.objectKey,facts.name,facts.uploadId,facts.linkId,facts.setId,facts.commandId,facts.shareId,facts.sourceId,facts.companyId).first<PortalAttachmentRecoverySource>();}
 return {
-existing:(facts:{sourceId:string;companyId:string;})=>db.prepare("SELECT object_key,checksum_sha256,media_type,bytes FROM attachments WHERE id=? AND company_id=?").bind(facts.sourceId,facts.companyId).first<{
-      object_key: string;
-      checksum_sha256: string;
-      media_type: string;
-      bytes: number;
-    }>(),
+existing:stagedSource,
+recoverySource:stagedSource,
 usedStorage:(facts:{companyId:string;})=>db.prepare("SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')").bind(facts.companyId).first<number>("coalesce"),
 pendingStorage:(facts:{companyId:string;now:number;})=>db.prepare("SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?").bind(facts.companyId,facts.now).first<number>("coalesce"),
 storageAllowance:facts=>legalPortalStorageAllowance(db,facts.companyId),
-raced:(facts:{sourceId:string;})=>db.prepare("SELECT checksum_sha256 FROM attachments WHERE id=?").bind(facts.sourceId).first<{ checksum_sha256: string }>(),
+raced:stagedSource,
 draftSet:(facts:{setId:string;companyId:string;branchId:string | null;departmentId:string | null;fact4:"legal_item";itemId:string;fact6:"action";commandId:string;PORTAL_PURPOSE:"legal_portal_submission";itemVersion:number;version:number;classification:"public"|"internal"|"confidential"|"restricted";fact12:string;retentionPolicyKey:string | null;requiredCount:number;maxFiles:number;actorId:string;now:number;now2:number;})=>stage(db.prepare(`INSERT INTO attachment_sets(
               id,company_id,branch_id,department_id,target_type,target_id,component_kind,component_ref,purpose_key,
               expected_target_version,policy_version,classification,audience_json,retention_policy_key,

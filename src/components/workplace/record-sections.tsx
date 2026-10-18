@@ -1,6 +1,6 @@
 "use client";
 import { useEffect,useId,useState,type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import { useFrontLanguage } from "@/components/front/front-language";
 export function RecordSections({children,evidence,history}:{children:ReactNode;evidence:ReactNode;history:ReactNode}){
  const query=useSearchParams(),sections=["overview","evidence","history"];

@@ -88,6 +88,7 @@
       ],
       "source": [
         "src/server/modules/commercial/**",
+        "src/lib/commercial/**",
         "src/server/modules/commercial/public/seat-meter.ts",
         "src/server/modules/commercial/public/usage-projection.ts",
         "src/server/modules/commercial/public/usage.ts"

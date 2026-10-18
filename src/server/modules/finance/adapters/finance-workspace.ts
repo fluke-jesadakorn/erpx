@@ -1,4 +1,5 @@
 import "server-only";
+import { requireFinancePurchasedRead } from "./purchase-boundary";
 
 import { hasPermission } from "@/lib/identity_access/permissions";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -20,7 +21,7 @@ import {financeWorkspacePeoplePayments,financeWorkspacePendingPeopleSql,financeW
 import {financeWorkspaceOpenManufacturingSql} from '@/server/modules/manufacturing/public/finance-close-sources';
 import {financeWorkspaceReturnJoinSql} from '@/server/modules/commerce/public/finance-obligation-sources';
 export type {FinanceAttention,PaymentObligation,PaymentObligationFilters,ClosePeriodRow} from '../domain/workspace';
-function nativeFinanceWorkspace(provided?:SqlDatabase){let write:SqlDatabase;return createFinanceWorkspace({error:(...args)=>new ApiError(...args),permission:requirePermission,hasPermission,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write},today:()=>new Date().toISOString().slice(0,10),businessDate:()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),reconciliation:(actor,period)=>calculateCloseReconciliations(write,actor,period),expansionPending:(actor,start,end)=>financeExpansionClosePending(write,actor.companyId,start,end),consolidation:consolidationRunWorkspace,intercompany:intercompanyWorkspace,setupAuthority:actor=>financeSetupAuthority(write,actor.companyId),paymentRecords:async(actor,query)=>{  const clauses = ["p.company_id=?"], args: unknown[] = [actor.companyId];
+function nativeFinanceWorkspace(provided?:SqlDatabase){let write:SqlDatabase;return createFinanceWorkspace({error:(...args)=>new ApiError(...args),permission:requirePermission,hasPermission,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write;await requireFinancePurchasedRead(write,actor)},today:()=>new Date().toISOString().slice(0,10),businessDate:()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),reconciliation:(actor,period)=>calculateCloseReconciliations(write,actor,period),expansionPending:(actor,start,end)=>financeExpansionClosePending(write,actor.companyId,start,end),consolidation:consolidationRunWorkspace,intercompany:intercompanyWorkspace,setupAuthority:actor=>financeSetupAuthority(write,actor.companyId),paymentRecords:async(actor,query)=>{  const clauses = ["p.company_id=?"], args: unknown[] = [actor.companyId];
   const search = query.search;
   if (search) { clauses.push("(p.payment_number ILIKE ? OR COALESCE(f.name,'') ILIKE ?)"); args.push(`%${search}%`,`%${search}%`); }
   if (query.status) { clauses.push("p.status=?"); args.push(query.status); }
@@ -110,5 +111,5 @@ export const paymentRecordsWorkspace=(actor:WorkContext,query:{q?:string;payment
 export const financeWorkbench=(actor:WorkContext,asOf?:string,provided?:SqlDatabase)=>nativeFinanceWorkspace(provided).financeWorkbench(actor,asOf);
 export const paymentObligationsWorkspace=(actor:WorkContext,filters:PaymentObligationFilters={},provided?:SqlDatabase)=>nativeFinanceWorkspace(provided).paymentObligationsWorkspace(actor,filters);
 export const closeWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>nativeFinanceWorkspace(provided).closeWorkspace(actor);
-export const groupFinanceWorkspace=(actor:WorkContext)=>nativeFinanceWorkspace().groupFinanceWorkspace(actor);
+export const groupFinanceWorkspace=async(actor:WorkContext)=>{const write=(await holdingResources(actor.holdingId)).write;await requireFinancePurchasedRead(write,actor);return nativeFinanceWorkspace().groupFinanceWorkspace(actor);};
 export const financeSetupWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>nativeFinanceWorkspace(provided).financeSetupWorkspace(actor);

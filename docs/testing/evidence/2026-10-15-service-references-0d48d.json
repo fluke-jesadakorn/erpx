@@ -1,0 +1,1071 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+  "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac",
+  "createdAt": "2026-10-15T01:48:55.248283+00:00",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit",
+    "apps:all-company-branch-department-product-selection"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+          "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+        },
+        "files": [
+          "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "tests/integration/identity_access/product-sso.test.ts"
+        ],
+        "scope": "Fresh 215-file unit and five-file / 42-case Admin/Apps native regression on this candidate; installed Apply and whole-product acceptance remain open."
+      }
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+          "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+        },
+        "files": [
+          "tests/integration/commercial/provider-legacy-grants.test.ts"
+        ],
+        "scope": "Fresh 215-file unit and five-file / 42-case Admin/Apps native regression on this candidate; installed Apply and whole-product acceptance remain open."
+      }
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Signed read-only per-Company comparison; expected versions, fresh Platform MFA and normal Commercial applyIn grant/audit/review transaction. The source owns its first snapshot and complete IAM/Organization/People predicates, tracks future eligibility boundaries and verifies source/current Platform authority after the final batch receipt before COMMIT. The current full invocation verifies late-receipt rollback. Stale-directory review, future HR appointment, committed replay and transaction confinement are covered.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+          "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+        },
+        "files": [
+          "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "tests/integration/commercial/legacy-module-preview.test.ts"
+        ],
+        "scope": "Fresh 215-file unit and five-file / 42-case Admin/Apps native regression on this candidate; installed Apply and whole-product acceptance remain open."
+      }
+    },
+    {
+      "workflow": "apps:all-company-branch-department-product-selection",
+      "implementation": [
+        "src/server/modules/work_projection/application/product-launcher.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/app/choose-work-role/page.tsx"
+      ],
+      "behavior": "Enumerates all Company/Branch/Department choices, checks each applicable role independently using purchased entry capabilities/release/owner menu predicates, preserves the live selection and uses explicit versioned same-origin role selection. Assignment rows and original Module IDs remain unchanged. Positive installed-Company acceptance remains open.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+          "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+        },
+        "files": [
+          "tests/unit/shared.ui/product-launcher.test.ts",
+          "tests/integration/identity_access/product-workspace.test.ts"
+        ],
+        "scope": "Fresh 215-file unit and five-file / 42-case Admin/Apps native regression on this candidate; installed Apply and whole-product acceptance remain open."
+      }
+    }
+  ],
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "release": {
+    "id": "2026-10-15T01-43-16-705Z",
+    "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55"
+  },
+  "previousImplementation": "docs/testing/evidence/2026-10-15-service-intake-e8a60.json",
+  "previousImplementationSha256": "a61da461a3aa02788ccd8865c38e7ceb8614e3b67aa61c9178f2e80635f2b068",
+  "checks": {
+    "staticUnitImpactedBuild": {
+      "startedAt": "2026-10-15T01:39:33.329563+00:00",
+      "pid": 32755,
+      "candidate": {
+        "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+        "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+      },
+      "phases": [
+        {
+          "name": "typecheck",
+          "startedAt": "2026-10-15T01:39:33.824108+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T01:40:16.880804+00:00",
+          "log": ".scratch/dev/service-reference-current/accepted/final-typecheck.log",
+          "logSha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+          "sourceAfter": {
+            "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+            "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+          }
+        },
+        {
+          "name": "lint",
+          "startedAt": "2026-10-15T01:40:17.773340+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T01:41:18.466298+00:00",
+          "log": ".scratch/dev/service-reference-current/accepted/final-lint.log",
+          "logSha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+          "sourceAfter": {
+            "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+            "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+          }
+        },
+        {
+          "name": "architecture",
+          "startedAt": "2026-10-15T01:41:18.949025+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T01:41:30.169119+00:00",
+          "log": ".scratch/dev/service-reference-current/accepted/final-architecture.log",
+          "logSha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+          "sourceAfter": {
+            "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+            "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+          }
+        },
+        {
+          "name": "catalogue",
+          "startedAt": "2026-10-15T01:41:30.681459+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T01:41:31.317069+00:00",
+          "log": ".scratch/dev/service-reference-current/accepted/final-catalogue.log",
+          "logSha256": "639cf407bb405b179e0a0f5bee4a41ba9d943b66f4cf35af710f94fb6ef4b0ac",
+          "sourceAfter": {
+            "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+            "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+          }
+        },
+        {
+          "name": "documentation",
+          "startedAt": "2026-10-15T01:41:31.704621+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T01:41:32.003683+00:00",
+          "log": ".scratch/dev/service-reference-current/accepted/final-documentation.log",
+          "logSha256": "3670ea94c95bfa3aaf318dc7d744339b5f97655aacc905f8a234c3d3cc42780c",
+          "sourceAfter": {
+            "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+            "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+          }
+        },
+        {
+          "name": "unit",
+          "startedAt": "2026-10-15T01:41:32.388173+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T01:42:13.698817+00:00",
+          "log": ".scratch/dev/service-reference-current/accepted/final-unit.log",
+          "logSha256": "4046304c74822a1fd81de3d4259e1051574fe0a52f5b6cf4d4d27105bd638539",
+          "sourceAfter": {
+            "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+            "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+          }
+        },
+        {
+          "name": "impacted-postgres",
+          "startedAt": "2026-10-15T01:42:14.199299+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T01:43:13.600473+00:00",
+          "log": ".scratch/dev/service-reference-current/accepted/final-impacted-postgres.log",
+          "logSha256": "2ebced90fa4e3dcaa936039ce87030bcc3df5e98f8f230410f3be1af1277a8ea",
+          "sourceAfter": {
+            "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+            "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+          }
+        },
+        {
+          "name": "css-source",
+          "startedAt": "2026-10-15T01:43:14.117765+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T01:43:16.104856+00:00",
+          "log": ".scratch/dev/service-reference-current/accepted/final-css-source.log",
+          "logSha256": "c8198b953e35e3b3d7fb8f296f18ef6d7c68da1e1360902fb243325baa28f43c",
+          "sourceAfter": {
+            "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+            "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+          }
+        },
+        {
+          "name": "build",
+          "startedAt": "2026-10-15T01:43:16.603055+00:00",
+          "status": "passed",
+          "exitCode": 0,
+          "endedAt": "2026-10-15T01:46:52.462381+00:00",
+          "log": ".scratch/dev/service-reference-current/accepted/final-build.log",
+          "logSha256": "cf04c1969e4cacee02e9280d00586cec319e731b8edcef903b079f4e9e45315c",
+          "sourceAfter": {
+            "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+            "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+          }
+        }
+      ],
+      "status": "service-reference-static-unit-impacted-native-build-passed-full-product-acceptance-open",
+      "release": {
+        "id": "2026-10-15T01-43-16-705Z",
+        "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55"
+      },
+      "endedAt": "2026-10-15T01:46:53.271680+00:00"
+    },
+    "implementationRenewal": {
+      "files": 5,
+      "cases": 42,
+      "exitCode": 0
+    },
+    "fullPostgresLaneRerun": false,
+    "wholeUiGate": {
+      "candidate": {
+        "sourceFingerprint": "0d48d9f18cb1c50dcb96b5c7589f69ede47ed41c6dea2f7f4fc94d4470ae5b55",
+        "verificationFingerprint": "3f932eb95e52defc07d214950323aa852ba82ebeb0845482bbf7290f941023ac"
+      },
+      "exitCode": 1,
+      "frozenDifferences": 36,
+      "retirementsPending": 3,
+      "sourceStatesPending": 1737,
+      "routesPending": 954,
+      "protectedChecksChanged": false,
+      "scope": "Required complete UI gate still fails; one new unaccepted component state, no frozen/assertion changes",
+      "result": "failed"
+    }
+  },
+  "serviceReferences": {
+    "phase": "implementation checkpoint; no whole Service workflow accepted",
+    "newUnitCases": 3,
+    "newNativeCases": 4,
+    "scope": [
+      "minimal typed customer/currency, location, asset and technician references through named owner boundaries",
+      "same existing technician eligibility for choices and commands",
+      "current Department/asset lifecycle guard in atomic new-link commands",
+      "dependent selection reset, case/agreement matching and explicit technician choice",
+      "actual cross-form error reproduction and repair"
+    ]
+  },
+  "browser": {
+    "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/services/field-service",
+    "frames": 20,
+    "widths": [
+      320,
+      390,
+      768,
+      1024,
+      1440
+    ],
+    "modes": [
+      "light",
+      "dark",
+      "system-light",
+      "system-dark"
+    ],
+    "controlsDirtyKeyboardScroll": "passed",
+    "pendingValidationCrossForm": "passed",
+    "initialServerContent": true,
+    "serviceMountGETs": 0,
+    "allSharedMountGETCriterionAccepted": false,
+    "compiledPerformanceAccepted": false,
+    "initialDocumentBytes": 391710,
+    "businessCommandAccepted": false,
+    "scope": "Actual authenticated public Console; positive populated product-host workflow/browser acceptance remains open."
+  },
+  "transport": {
+    "developmentHealthIconTlsChecks": 44,
+    "requiredHealthStatuses": [
+      200,
+      200,
+      200
+    ],
+    "detachedPinnedDev": true,
+    "postgresReady": true,
+    "stagingAccessed": false,
+    "productionDeployed": false
+  },
+  "installedDevelopment": {
+    "newSchemaMigration": false,
+    "commercialRowsZero": true,
+    "serviceRowsZero": true,
+    "supportEnforcement": "disabled",
+    "serviceEnforcement": "disabled"
+  },
+  "excludedInvocations": [
+    "26e69c50 initial Department-scope assertion failure is retained; corrected reader passes the unchanged assertion.",
+    "26e69c50 static/unit/native checks predate the final cross-form repair; its isolated build rejects RELEASE_SOURCE_CHANGED_DURING_COPY.",
+    "Twenty earlier 26e69c50 frames are retained as earlier-source observations; only browser-frames-final.json certifies the current drawer."
+  ],
+  "scopeLimits": [
+    "All 203 workflow acceptances remain open; no verified/enabled promotion.",
+    "Included Finance issue/collection and role entry, all five Service owner obligations/source fences and safe period replacement remain required.",
+    "Remaining owner/provider purchase surfaces, installed Company/role parity and Apply, full SSO/public flows/UI/compiled performance and populated rollback remain open.",
+    "Current mutable asset/source conditions remain authoritative at command time; complete resource lifecycle/UI parity is not accepted.",
+    "No full PostgreSQL invocation, product-host positive workflow or comparable compiled performance baseline is claimed.",
+    "All five protected UI inputs remain unchanged; complete UI still fails."
+  ],
+  "declaredSources": [
+    {
+      "path": "src/server/modules/organization/adapters/field-service-references.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/organization/adapters/field-service-references.ts",
+      "sha256": "e8e82c0758d79b4584866d75dbcc87ab8cb1ec35d9d01a20909e589eec114110"
+    },
+    {
+      "path": "src/server/modules/organization/public/field-service-references.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/organization/public/field-service-references.ts",
+      "sha256": "798be92c61f2adb59a9f0ecf06c8dde0b52f70c24ca72020a52f2f38fbc2285e"
+    },
+    {
+      "path": "src/server/modules/finance/adapters/field-service-references.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/finance/adapters/field-service-references.ts",
+      "sha256": "e16b210458f3d644a31e36ea15217a94f1d7f484ff45080c80f4b637e31ecb10"
+    },
+    {
+      "path": "src/server/modules/finance/public/field-service-references.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/finance/public/field-service-references.ts",
+      "sha256": "7c259eb692e4b9c96627db88048af70b8660db93099342982bce4fb01d6ce4e2"
+    },
+    {
+      "path": "src/server/modules/assets/adapters/field-service-references.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/assets/adapters/field-service-references.ts",
+      "sha256": "ee1e81121c53d9473bffd846083ce91a4104f20aba57e3caab32ea9f4be0fd47"
+    },
+    {
+      "path": "src/server/modules/assets/public/field-service-references.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/assets/public/field-service-references.ts",
+      "sha256": "2a0510d5cd28ff13e991fb07bb8c19ba4dd22e944cf2bcc3057857a77f228d0c"
+    },
+    {
+      "path": "src/server/modules/identity_access/adapters/field-service-authority.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/identity_access/adapters/field-service-authority.ts",
+      "sha256": "bc7c785123363b406659b70b10430f6093abbaa643dd4ecb8f61ca8cb09100a9"
+    },
+    {
+      "path": "src/server/modules/identity_access/public/field-service-authority.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/identity_access/public/field-service-authority.ts",
+      "sha256": "33db192e941f394c4ebef1b1443d809795e715e00ac3c5882d874f29d434ee76"
+    },
+    {
+      "path": "src/components/field_service/service-reference-fields.tsx",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/components/field_service/service-reference-fields.tsx",
+      "sha256": "ecc699057d9f5b601d318596d92352d3ff8ae88c4b4d746f470135c6e5f8be62"
+    },
+    {
+      "path": "src/components/field_service/field-service-console.tsx",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/components/field_service/field-service-console.tsx",
+      "sha256": "8993eab771d508f404193db1f36b47d96862676541699a5c18c45c6f561127e9"
+    },
+    {
+      "path": "src/server/modules/field_service/adapters/service.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/field_service/adapters/service.ts",
+      "sha256": "07966868c6c2d1c78519906f76a2fd05e2baef1d4492816120e49070fe9823a5"
+    },
+    {
+      "path": "src/server/modules/field_service/adapters/agreement.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/field_service/adapters/agreement.ts",
+      "sha256": "922f0009e8695a1deb645cec524b3bbd6756103923fc6208305808247c277f3f"
+    },
+    {
+      "path": "src/server/modules/field_service/domain/service.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/field_service/domain/service.ts",
+      "sha256": "cfbb96145e346ae40a9169557325d276b7e47fcc6ffeb25d42f1bff0be4cf1a5"
+    },
+    {
+      "path": "src/server/modules/field_service/public/field-service.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/src/server/modules/field_service/public/field-service.ts",
+      "sha256": "06c785dfa1642c854e7b75ffeffd844cc83505b09399ac3805b95ea779f5ea46"
+    },
+    {
+      "path": "tests/unit/field_service/field-service-application.test.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/tests/unit/field_service/field-service-application.test.ts",
+      "sha256": "e0b00cb8d0aa9d572a5cbf9e42ee96a3492a17d0a3ad2fd3c14d33c9dc009380"
+    },
+    {
+      "path": "tests/integration/field_service/field-service.test.ts",
+      "snapshot": ".scratch/dev/service-reference-current/source/tests/integration/field_service/field-service.test.ts",
+      "sha256": "8599a5d7530f4db2eab845501b5396aab61460c592a14e04d500286d9f7b9a95"
+    },
+    {
+      "path": "docs/contracts/next/product-separation.md",
+      "snapshot": ".scratch/dev/service-reference-current/source/docs/contracts/next/product-separation.md",
+      "sha256": "a39f180370608b259d11236730e34ded04592ac049f0f0142d9a8f02dd3ace90"
+    },
+    {
+      "path": "ops/macos/commercial-development-migration.md",
+      "snapshot": ".scratch/dev/service-reference-current/source/ops/macos/commercial-development-migration.md",
+      "sha256": "90dde9a4e7c39641b55198fd8580f7465009fc23d5b988e31e72a933c9e94c00"
+    },
+    {
+      "path": "docs/testing/service-references-2026-10-15.md",
+      "snapshot": ".scratch/dev/service-reference-current/source/docs/testing/service-references-2026-10-15.md",
+      "sha256": "90653bffff8dedb088c0d9da223650072f31429a4dbb61d1c3e3f18f4f47bf61"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/final-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/final-build.log",
+      "sha256": "cf04c1969e4cacee02e9280d00586cec319e731b8edcef903b079f4e9e45315c",
+      "bytes": 111892
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/final-catalogue.log",
+      "sha256": "639cf407bb405b179e0a0f5bee4a41ba9d943b66f4cf35af710f94fb6ef4b0ac",
+      "bytes": 82
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/final-css-source.log",
+      "sha256": "c8198b953e35e3b3d7fb8f296f18ef6d7c68da1e1360902fb243325baa28f43c",
+      "bytes": 143
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/final-documentation.log",
+      "sha256": "3670ea94c95bfa3aaf318dc7d744339b5f97655aacc905f8a234c3d3cc42780c",
+      "bytes": 192
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/final-impacted-postgres.log",
+      "sha256": "2ebced90fa4e3dcaa936039ce87030bcc3df5e98f8f230410f3be1af1277a8ea",
+      "bytes": 3586
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/final-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+      "bytes": 167872
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/final-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/final-unit.log",
+      "sha256": "4046304c74822a1fd81de3d4259e1051574fe0a52f5b6cf4d4d27105bd638539",
+      "bytes": 58888
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted/verification.json",
+      "sha256": "c6048709c4181a57c89d1ae408470b460666b4ba1e802b50fa92078d73e1d5b0",
+      "bytes": 5971
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/accepted-launch.log",
+      "sha256": "2567025c5579074c82bc97af150ad23b638dc5ca3f2700d55b399dab21e5dd66",
+      "bytes": 425
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/architecture-first.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/availability-final.json",
+      "sha256": "57645fad21ba87a568890064bb829580141d4a41e7349b1fafaf4e767206f8b8",
+      "bytes": 1331
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/before/src/components/field_service/field-service-console.tsx",
+      "sha256": "08b328b3a09b2fa296975d1ffb454d202241fce353b394689862f3d9eba29b4d",
+      "bytes": 21646
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/before/src/server/modules/field_service/adapters/agreement.ts",
+      "sha256": "6d8664e0a96353f76085df05fcefd98db3e935a3449786b4d0bb9cbc39e3a29a",
+      "bytes": 5000
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/before/src/server/modules/field_service/adapters/service.ts",
+      "sha256": "965d0124281dfc18f4435266ee6dba1bf74e514313658f6fb628839440575f16",
+      "bytes": 31367
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/before/src/server/modules/field_service/domain/service.ts",
+      "sha256": "c00b8ac2dd07477aeeb7a4dd93891824a56578e11fae66e1bdb5ea8edb336a1c",
+      "bytes": 10242
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/before/src/server/modules/field_service/public/field-service.ts",
+      "sha256": "d16b24a9f1cfe4676e152f3c027f125cd8934b85efdfa9a69701d9d8d9aff925",
+      "bytes": 275
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/before/tests/integration/field_service/field-service.test.ts",
+      "sha256": "e63139d461b2e9c0cf9d2ee44c2bcc96173a6f9366537c8a033c8f960a3f16d2",
+      "bytes": 50449
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/before/tests/unit/field_service/field-service-application.test.ts",
+      "sha256": "4e589b23b290d2b1f7e74aeb683cd9493823ce29be4f1e95730f009d454ca056",
+      "bytes": 12476
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-dark-1024.png",
+      "sha256": "9d926c3faf533318cdb2531a5349f4244a42b1a400a83d5130e0e1f0056a910d",
+      "bytes": 57625
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-dark-1440.png",
+      "sha256": "5593e9add65577f09141415a7c5a7459b1b0b7315e599a44383d951700532234",
+      "bytes": 74751
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-dark-320.png",
+      "sha256": "12c0eb61844f9f096c437fdad67588d2d08a867ac5b0a197201d7803940cf9b9",
+      "bytes": 29606
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-dark-390.png",
+      "sha256": "e681b1c51fbf19a6bfd957a432da4a5b2a0f735f9ea198886498d3b2381cc945",
+      "bytes": 33618
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-dark-768.png",
+      "sha256": "6b1ad18f2df058619c4c3982dc19f49d54b23435412961d74c2b8fce1d31025b",
+      "bytes": 44677
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-dark-1024.png",
+      "sha256": "9d926c3faf533318cdb2531a5349f4244a42b1a400a83d5130e0e1f0056a910d",
+      "bytes": 57625
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-dark-1440.png",
+      "sha256": "3a850aac579a73ed19073329e3162e981e20b28d16d66dc92a6928f7cd7aa8de",
+      "bytes": 74760
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-dark-320.png",
+      "sha256": "65c5f32df3e24d7d0a1d2ac31c9626e267580e1fac8fa5c002712c67cf5cd4ae",
+      "bytes": 29611
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-dark-390.png",
+      "sha256": "9293fa87b3d7b6fe9bee19ed93b0ef7ad95338721c132830a0b6e6fbc78a47cb",
+      "bytes": 33640
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-dark-768.png",
+      "sha256": "6b1ad18f2df058619c4c3982dc19f49d54b23435412961d74c2b8fce1d31025b",
+      "bytes": 44677
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-light-1024.png",
+      "sha256": "4c8955d1348ca3937093417fee7c6db4d5196f92d48157f0668f6d9a0d3aa385",
+      "bytes": 59189
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-light-1440.png",
+      "sha256": "f87d0682da28b5ca67a4955795ca01b4b239ac08b0ac5c425eec01b9219d5231",
+      "bytes": 76722
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-light-320.png",
+      "sha256": "bbf8fafc314c6db53d1ea4c5a6d99d384f3a9d230154f32804db8d9a17058a0e",
+      "bytes": 30283
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-light-390.png",
+      "sha256": "8ed105ef538ac65cbeb2dd203e5e47adce1aabd228ec6b1d0fd8dcdef494fc0b",
+      "bytes": 34646
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-light-768.png",
+      "sha256": "5d838d021ad0bb97ef58cf06b583870529ad21fb90931660507ac4079e836b0d",
+      "bytes": 46189
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-dark-1024.png",
+      "sha256": "9d926c3faf533318cdb2531a5349f4244a42b1a400a83d5130e0e1f0056a910d",
+      "bytes": 57625
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-dark-1440.png",
+      "sha256": "a5024a95b48d524ad04dbea25e92200b76f8a2d8beb46b50ff66a2b331117a3a",
+      "bytes": 75125
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-dark-320.png",
+      "sha256": "b5a0f147ce4f482682b57402005720e266f46f86fa48124b0e82ceb3dd977520",
+      "bytes": 28132
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-dark-390.png",
+      "sha256": "98e0aa9e9594fbaff22cc1eeecf00c4b663ce23a6be1055a801df6f737ba5363",
+      "bytes": 33607
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-dark-768.png",
+      "sha256": "4350869e3ae3daa119768555e24f6a9ccaf1fa33157f1a6d3c904855ebedfe62",
+      "bytes": 44699
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-light-1024.png",
+      "sha256": "4c8955d1348ca3937093417fee7c6db4d5196f92d48157f0668f6d9a0d3aa385",
+      "bytes": 59189
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-light-1440.png",
+      "sha256": "c5433ff511b26481216e3132477791c6a7228d01c1989be49c194aa1665663d3",
+      "bytes": 76861
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-light-320.png",
+      "sha256": "0a5d65d15b3b6118eba1db82e562e79664f7eb263ae564ec1d3ce6be62c1f335",
+      "bytes": 30284
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-light-390.png",
+      "sha256": "8ed105ef538ac65cbeb2dd203e5e47adce1aabd228ec6b1d0fd8dcdef494fc0b",
+      "bytes": 34646
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-final-system-light-768.png",
+      "sha256": "5d838d021ad0bb97ef58cf06b583870529ad21fb90931660507ac4079e836b0d",
+      "bytes": 46189
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-light-1024.png",
+      "sha256": "4c8955d1348ca3937093417fee7c6db4d5196f92d48157f0668f6d9a0d3aa385",
+      "bytes": 59189
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-light-1440.png",
+      "sha256": "e470c0917ffbea20a0abe290af3180035211c857965a82cfd36cc50c908b08ab",
+      "bytes": 76743
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-light-320.png",
+      "sha256": "89f23349940f2fa0c35fe17c615ed00ba21a33cbeaff8514701cf56709059f4b",
+      "bytes": 30285
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-light-390.png",
+      "sha256": "865488246983b41dfad4dd2f5e8ffa26f6cc7570bdb0ded93c6d379b7ec68ed6",
+      "bytes": 34678
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-light-768.png",
+      "sha256": "272950f072599ce098450f6539b2afb47636b2a931b868f418f0a2a952793800",
+      "bytes": 46131
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-dark-1024.png",
+      "sha256": "9d926c3faf533318cdb2531a5349f4244a42b1a400a83d5130e0e1f0056a910d",
+      "bytes": 57625
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-dark-1440.png",
+      "sha256": "836f677566ebee457fbe7a64e80f0cc96ebf58fc9aea67d828590fd13b1415b2",
+      "bytes": 75124
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-dark-320.png",
+      "sha256": "e68b00cb2f5a5a2bc09ee89e6601447765e16b8b2f07bc053069dc1fd839ef7e",
+      "bytes": 27456
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-dark-390.png",
+      "sha256": "1ee3be79a68082e69a4ff5de8bd256885e43f76cd1af0a19e792c967d3bc92db",
+      "bytes": 33569
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-dark-768.png",
+      "sha256": "db6fe160d75737290cb9f62daa6a759caa34b886faed20b5e2b07313368032b9",
+      "bytes": 44630
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-light-1024.png",
+      "sha256": "4c8955d1348ca3937093417fee7c6db4d5196f92d48157f0668f6d9a0d3aa385",
+      "bytes": 59189
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-light-1440.png",
+      "sha256": "757f10a5da3301bb60160b7b87fb47f429c7b6ad27e31898209d0abc56b0998d",
+      "bytes": 76859
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-light-320.png",
+      "sha256": "3481361be81848a39159908c067dae7434f45283aaedf58b655f541f4193ff61",
+      "bytes": 30293
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-light-390.png",
+      "sha256": "22c9cda063d267a521bd04cbd2e51193ad43874bf5fed8535c5532ba478a66af",
+      "bytes": 34664
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/agreement-system-light-768.png",
+      "sha256": "272950f072599ce098450f6539b2afb47636b2a931b868f418f0a2a952793800",
+      "bytes": 46131
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/branch-change.png",
+      "sha256": "d20e071c0fc0b06e3fd1c7fb5feea8c3e36a62a5a11235aea6702b962ff572b8",
+      "bytes": 82192
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/mobile-bottom.png",
+      "sha256": "b0b1128db6290e900b1424d8f0ebcef083fbb6cfb727687e7fff326397f66a98",
+      "bytes": 27764
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser/submit-pending.png",
+      "sha256": "689996644b17f219f21238a762ba4aaaf0ff6cae3bbef4b39bd842e1608faf91",
+      "bytes": 80241
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-final/mobile-bottom.png",
+      "sha256": "f30b5b40613af264eef7b40f551d477bdb5820b3cfa653cf472ffa1b2df5d0b3",
+      "bytes": 27752
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-final/request-after-validation.png",
+      "sha256": "b105582226a4ee662798f0ce37ed577348080b3d0af7892abd076acad89885f6",
+      "bytes": 69909
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-final/submit-pending.png",
+      "sha256": "69d8c92f167601674d7d9c10e3ccc8ab3618c9640303d37388289eb2d283e55d",
+      "bytes": 80628
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-frames-final.json",
+      "sha256": "a583537b5853a4073ee68a5ea2e251b953c22113571032bb21ec6e009c52d129",
+      "bytes": 11396
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-frames.json",
+      "sha256": "b6734ee73648eae8e5f11902eccc56cadf4d760cbd81d9772650e42901dc33be",
+      "bytes": 11276
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-hydration-final.json",
+      "sha256": "59fc8d4f557c8a6a7c37f38629c25e6b0bfcfd811e9eb9b0f84b71692e51a706",
+      "bytes": 5689
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-legacy-empty-final.json",
+      "sha256": "d65d6c75eebd5bc8bca825e4341808ebd0ad0dce4736664172c62ff462b9bd5f",
+      "bytes": 293
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-reference-controls-final.json",
+      "sha256": "9105c2a277505f9f9dc5aa0d16eb32cb952c30f95e9737253d27535081d022b2",
+      "bytes": 1870
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-reference-controls.json",
+      "sha256": "3332a299b558055294fa848938bd75b00d8d11d003f868f47148dabca2c26d34",
+      "bytes": 2212
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-scroll-final.json",
+      "sha256": "88660a3c13eae1fee8b6b62f15e5c2d5ba5810cbb5e09736e8d7ae8a38793f43",
+      "bytes": 64
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-scroll.json",
+      "sha256": "88660a3c13eae1fee8b6b62f15e5c2d5ba5810cbb5e09736e8d7ae8a38793f43",
+      "bytes": 64
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-validation-final.json",
+      "sha256": "aa33b88f0c6b5e2420be7b5e4483f6777d1af880ee586ba1c8ddbfbb3bf83c45",
+      "bytes": 394
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/browser-validation.json",
+      "sha256": "300b41a404870cad08d8b1a5cef8aa468a5282ef2bee81534531a37eef309d7f",
+      "bytes": 331
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/candidate.json",
+      "sha256": "04af6ef191f6f6cae729b89ec5cc2c8824deb9fbaebd296ff1a27d5be97de226",
+      "bytes": 182
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/cross-form-error-before.json",
+      "sha256": "abccb850ed91fde8f53d301b71eda836305ca3551a7c8957ac72a72011674b85",
+      "bytes": 224
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/dev-launch.json",
+      "sha256": "366828320606533f37c5d8cab82b968af7f7f59ee549bf1f0f666280db6be900",
+      "bytes": 189
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/end-checks.log",
+      "sha256": "f2d294d95f015d8b08add128847d05b8404267fd9235196bfb25923094e2c260",
+      "bytes": 209
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/end-checks.py",
+      "sha256": "c6f8f3631fc78e994363034cbb008757ca48a54b79a1d96ebce60c5a0035d943",
+      "bytes": 4966
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/final-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/final-build.log",
+      "sha256": "07b1bc55b4b906e2ef5d865bacb07845230ef133ee33abe92f20498175f42298",
+      "bytes": 1013
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/final-catalogue.log",
+      "sha256": "639cf407bb405b179e0a0f5bee4a41ba9d943b66f4cf35af710f94fb6ef4b0ac",
+      "bytes": 82
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/final-css-source.log",
+      "sha256": "c8198b953e35e3b3d7fb8f296f18ef6d7c68da1e1360902fb243325baa28f43c",
+      "bytes": 143
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/final-documentation.log",
+      "sha256": "3670ea94c95bfa3aaf318dc7d744339b5f97655aacc905f8a234c3d3cc42780c",
+      "bytes": 192
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/final-impacted-postgres.log",
+      "sha256": "cfe7d45c2c147580e59ff7d2ca0b6620912a53d4f65f8be91a2813c73d4f94ce",
+      "bytes": 4216
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/final-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+      "bytes": 167872
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/final-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/final-unit.log",
+      "sha256": "48c016a31f2a6ee198227bc0fe0d24b510b1d0906d704569bb0c31bdc41abab3",
+      "bytes": 58895
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final/verification.json",
+      "sha256": "b09dd348e6ca201d63d2d6689cce03f2e05a363c41f76d0e5d6ad42fa88001d7",
+      "bytes": 5664
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/final-launch.log",
+      "sha256": "718baae8fad8f7d9b1e704ae93cff2ee842a6831e3de83bc5e80a4983d3a87e3",
+      "bytes": 337
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/fingerprint-final.json",
+      "sha256": "04af6ef191f6f6cae729b89ec5cc2c8824deb9fbaebd296ff1a27d5be97de226",
+      "bytes": 182
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/implementation-renewal.log",
+      "sha256": "a7dba798f026b02ce39ef2589be7e9b1f303c690be774b0c12be72758c13248b",
+      "bytes": 3198
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/installed-commercial-final.json",
+      "sha256": "077015a33f5261854360dc38b9421f2ea3289074138b278421b6d00068ed02fb",
+      "bytes": 1773
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/installed-service-counts.json",
+      "sha256": "2fe06da942c8981ce6f1cdd915d53726fc812cb5bc512dde15c75a9c391de7f7",
+      "bytes": 1322
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/lint-first.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+      "bytes": 167872
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/parent.json",
+      "sha256": "4d3601a5beeec79e5c40b45e3d7588ecf89f13109e9ccd39b08ff3cc04816e17",
+      "bytes": 392
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/proposal.json",
+      "sha256": "5586bd89d19c11e98611e17759a26523f04d9e5b6371fb2097d8ee138f26de85",
+      "bytes": 4051
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/protected-files.json",
+      "sha256": "09a185cd979af5ca7f6d937f6d194dc5802f84c27d25b954baeea60766908218",
+      "bytes": 952
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/references-first.log",
+      "sha256": "5e0ec18a4e227177b04c09a6256ef4fd669b88b076a0d5ad91bc16494d177cff",
+      "bytes": 6785
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/references-retry.log",
+      "sha256": "6fcdd6e0a805742bda479790e5ed0d8536df0268bb4ba41e714cd395e8e5b2a6",
+      "bytes": 3264
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/references-second-retry.log",
+      "sha256": "7ce4a3a1301a7dec29fe0d6ef12d5a44f4acf4c377e6069f25e562a412c5069c",
+      "bytes": 3264
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/docs/contracts/next/product-separation.md",
+      "sha256": "a39f180370608b259d11236730e34ded04592ac049f0f0142d9a8f02dd3ace90",
+      "bytes": 38261
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/docs/testing/service-references-2026-10-15.md",
+      "sha256": "90653bffff8dedb088c0d9da223650072f31429a4dbb61d1c3e3f18f4f47bf61",
+      "bytes": 5700
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/ops/macos/commercial-development-migration.md",
+      "sha256": "90dde9a4e7c39641b55198fd8580f7465009fc23d5b988e31e72a933c9e94c00",
+      "bytes": 17098
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/components/field_service/field-service-console.tsx",
+      "sha256": "8993eab771d508f404193db1f36b47d96862676541699a5c18c45c6f561127e9",
+      "bytes": 16697
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/components/field_service/service-reference-fields.tsx",
+      "sha256": "ecc699057d9f5b601d318596d92352d3ff8ae88c4b4d746f470135c6e5f8be62",
+      "bytes": 6982
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/assets/adapters/field-service-references.ts",
+      "sha256": "ee1e81121c53d9473bffd846083ce91a4104f20aba57e3caab32ea9f4be0fd47",
+      "bytes": 1249
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/assets/public/field-service-references.ts",
+      "sha256": "2a0510d5cd28ff13e991fb07bb8c19ba4dd22e944cf2bcc3057857a77f228d0c",
+      "bytes": 195
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/field_service/adapters/agreement.ts",
+      "sha256": "922f0009e8695a1deb645cec524b3bbd6756103923fc6208305808247c277f3f",
+      "bytes": 5134
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/field_service/adapters/service.ts",
+      "sha256": "07966868c6c2d1c78519906f76a2fd05e2baef1d4492816120e49070fe9823a5",
+      "bytes": 29036
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/field_service/domain/service.ts",
+      "sha256": "cfbb96145e346ae40a9169557325d276b7e47fcc6ffeb25d42f1bff0be4cf1a5",
+      "bytes": 10577
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/field_service/public/field-service.ts",
+      "sha256": "06c785dfa1642c854e7b75ffeffd844cc83505b09399ac3805b95ea779f5ea46",
+      "bytes": 332
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/finance/adapters/field-service-references.ts",
+      "sha256": "e16b210458f3d644a31e36ea15217a94f1d7f484ff45080c80f4b637e31ecb10",
+      "bytes": 633
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/finance/public/field-service-references.ts",
+      "sha256": "7c259eb692e4b9c96627db88048af70b8660db93099342982bce4fb01d6ce4e2",
+      "bytes": 164
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/identity_access/adapters/field-service-authority.ts",
+      "sha256": "bc7c785123363b406659b70b10430f6093abbaa643dd4ecb8f61ca8cb09100a9",
+      "bytes": 2974
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/identity_access/public/field-service-authority.ts",
+      "sha256": "33db192e941f394c4ebef1b1443d809795e715e00ac3c5882d874f29d434ee76",
+      "bytes": 230
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/organization/adapters/field-service-references.ts",
+      "sha256": "e8e82c0758d79b4584866d75dbcc87ab8cb1ec35d9d01a20909e589eec114110",
+      "bytes": 1678
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/src/server/modules/organization/public/field-service-references.ts",
+      "sha256": "798be92c61f2adb59a9f0ecf06c8dde0b52f70c24ca72020a52f2f38fbc2285e",
+      "bytes": 187
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/tests/integration/field_service/field-service.test.ts",
+      "sha256": "8599a5d7530f4db2eab845501b5396aab61460c592a14e04d500286d9f7b9a95",
+      "bytes": 55201
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/source/tests/unit/field_service/field-service-application.test.ts",
+      "sha256": "e0b00cb8d0aa9d572a5cbf9e42ee96a3492a17d0a3ad2fd3c14d33c9dc009380",
+      "bytes": 15635
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/transport-final.json",
+      "sha256": "d61e22900bb0cfe8f4ef7d18e1ac99f1dbb2b8272b6c86e8dafc4c85c6621b80",
+      "bytes": 7660
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/typecheck-first.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/ui-complete-final.log",
+      "sha256": "be33cad997102b66b76c1ee1c827ec4eef46645db3f70de69ff62f71af46d8ea",
+      "bytes": 3790
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/ui-complete.json",
+      "sha256": "53526743448f9a279e2731d66a6c4dcc7f1b196b46b06b97d445ecb23e86d8ad",
+      "bytes": 516
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/verify-accepted.py",
+      "sha256": "df18b7f469518b339490e01f16b4e19fe4ae1c52da745c38dba9248af4dbc987",
+      "bytes": 3273
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/verify.py",
+      "sha256": "f4a9e75d601e400e8ff785f9ba2b3ecbdf15c70929c47e6b069a121399cc161a",
+      "bytes": 3270
+    },
+    {
+      "path": ".scratch/dev/service-reference-current/visual-inspection.json",
+      "sha256": "8d093ba9f457e3548a689dc39a3f7230d41ebda044884b83eee0d06ef38b0f82",
+      "bytes": 639
+    }
+  ]
+}

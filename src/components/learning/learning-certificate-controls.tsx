@@ -1,0 +1,10 @@
+"use client";
+import {Button,Field,TextArea,InlineNotice,FormLayout} from '@/components/ui/foundation';
+import {learningPurchased,type LearningPurchaseControls} from '@/lib/learning/purchase-controls';
+import {useLearningCommand} from './use-learning-command';
+export function LearningCertificateControls({base,certificate,assignmentVersion,canReview,purchases}:{base:string;certificate:{id:string;revoked:boolean};assignmentVersion:number;canReview:boolean;purchases?:LearningPurchaseControls}){
+ const allowed=canReview&&learningPurchased(purchases,'learn.certificates','settleExisting'),command=useLearningCommand(base,()=>allowed,()=>canReview&&learningPurchased(purchases,'learn.certificates','history'));
+ if(certificate.revoked)return <p>This certificate has been revoked. Its original history remains available.</p>;
+ if(!allowed&&!command.retryAttempt)return null;
+ return <section className="ui-panel ui-stack"><h2>Certificate review</h2><p>Revoke this exact retained certificate when its evidence is invalid. Existing benefit eligibility keeps its original certificate reference.</p>{command.error&&<InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}{command.notice&&<InlineNotice tone="info" role="status">{command.notice}</InlineNotice>}{command.retryAttempt&&canReview&&<Button appearance="standard" variant="secondary" disabled={command.busy} onClick={()=>void command.retry()}>Retry submitted certificate review</Button>}<FormLayout onSubmit={event=>{event.preventDefault();void command.send({entity:'certificate',id:certificate.id,expectedAssignmentVersion:assignmentVersion,reason:new FormData(event.currentTarget).get('reason')},event.currentTarget);}}><Field appearance="standard">Revocation reason<TextArea appearance="standard" name="reason" required minLength={8} maxLength={2000}/></Field><Button appearance="standard" clientManaged type="submit" variant="danger" disabled={!allowed||command.busy||!!command.savedDraft}>Revoke certificate</Button></FormLayout></section>;
+}

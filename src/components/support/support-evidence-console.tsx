@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,

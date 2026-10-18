@@ -8,7 +8,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { ContextSwitchContext as Context, type SwitchRequest } from "./context-switch-context";
 export { useContextSwitch } from "./context-switch-context";
 import { WorkspaceMenu } from "./workspace-menu";

@@ -19,15 +19,15 @@ export function supportEvidenceEvent(db: SqlDatabase, id: string, key: string, a
     return db.prepare('INSERT INTO support_ticket_events SELECT ?,id,version,?,?,?,owner_id,due_date,status,updated_at,?::jsonb FROM support_tickets WHERE id=?').bind(`support-evidence-${key}`, action, actor, reason, JSON.stringify(evidence), id);
 }
 export async function supportEvidence(a: WorkContext, id: string) {
-    const runtime = nativeSupportRuntime(a);
-    return createSupportEvidence({ ticket: getSupportTicket, readOnly: attachmentsV2ReadOnly, items: async (id) => {
+    const runtime = nativeSupportRuntime(a), access = await runtime.requirePurchase("support.evidence");
+    const data = await createSupportEvidence({ ticket: getSupportTicket, readOnly: attachmentsV2ReadOnly, items: async (id) => {
             const write = await runtime.database();
             return (await write.prepare(`SELECT a.id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at,a.created_by,a.revoked_at,a.legal_hold
    FROM (${filesProjectionSources.attachments}) a WHERE a.owner_type='support_ticket' AND a.owner_id=? AND (a.company_id IS NULL OR EXISTS(
      SELECT 1 FROM (${filesProjectionSources.attachment_links}) l JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
      WHERE l.attachment_id=a.id AND l.state='bound' AND s.company_id=a.company_id AND s.target_type='support_ticket' AND s.target_id=a.owner_id))
    ORDER BY a.created_at,a.id`).bind(id).all<Row>()).results;
-        }, eligible: async (a, id) => { const write = await runtime.database(); return Boolean(await write.prepare(`SELECT 1 AS ok FROM support_tickets t WHERE t.id=? AND ${eligible.replaceAll('t.owner_id', '?::text')}`).bind(id, a.userId).first()); } })(a, id);
+        }, eligible: async (a, id) => { const write = await runtime.database(); return Boolean(await write.prepare(`SELECT 1 AS ok FROM support_tickets t WHERE t.id=? AND ${eligible.replaceAll('t.owner_id', '?::text')}`).bind(id, a.userId).first()); } })(a, id); return { ...data, canChange: data.canChange && access.settleExisting, canShare: data.canShare && access.settleExisting };
 }
 export async function bindSupportEvidence(a: WorkContext, id: string, raw: unknown, key: string) {
     const runtime = nativeSupportRuntime(a);

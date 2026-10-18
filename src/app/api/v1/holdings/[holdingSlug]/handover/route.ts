@@ -1,5 +1,6 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { handoverView, publishHandover } from "@/server/modules/operations/public/handover";
+import { handoverView, publishHandover,publishRecoverableHandover } from "@/server/modules/operations/public/handover";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
@@ -15,7 +16,7 @@ export async function GET(_request: Request, context: Context) {
     const [{ write }, snapshot] = await Promise.all([
       holdingResources(actor.holdingId), workSnapshot(actor),
     ]);
-    return Response.json({ data: await handoverView(write, actor, snapshot) }, { headers });
+    return Response.json(canonicalDestinationLinks({ data: await handoverView(write, actor, snapshot) }), { headers });
   } catch (error) { return errorResponse(error); }
 }
 
@@ -31,6 +32,6 @@ export async function POST(request: Request, context: Context) {
     const [{ write }, snapshot] = await Promise.all([
       holdingResources(actor.holdingId), workSnapshot(actor),
     ]);
-    return Response.json({ data: await publishHandover(write, actor, snapshot, input, key) }, { headers });
+    return Response.json(canonicalDestinationLinks({ data: await (request.headers.get('x-erpx-handover-publication')==='recoverable'?publishRecoverableHandover(write,actor,snapshot,input,key):publishHandover(write,actor,snapshot,input,key)) }), { headers });
   } catch (error) { return errorResponse(error); }
 }

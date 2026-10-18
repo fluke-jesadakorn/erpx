@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { accountWorkContext } from "@/server/modules/identity_access/public/account-work-context";
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const input = query.parse({ from: url.searchParams.get("from"), companyId: url.searchParams.get("companyId") ?? undefined });
     const data = await accountWorkContext(input);
-    const response = NextResponse.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
+    const response = NextResponse.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
     // Keep this page's company in this browser even when the new account's
     // saved preference points elsewhere. Selecting a workspace changes it later.
     if (data.current && data.current.kind !== "platform") {

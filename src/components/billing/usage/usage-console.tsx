@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { CollectionRecordLink, RecordCollectionDrawer } from "@/components/records/record-collection";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -6,8 +7,9 @@ import { Button, Field, Select, Table, TableFrame, TextInput } from "@/component
 
 import { betaFetch } from "@/lib/shared/beta-client";
 import { sandboxPricingForMonth } from "@/lib/billing/billing-pricing";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "@/components/workplace/workspace-link";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useEffect, useState } from "react";
 import styles from "@/components/billing/usage/usage-console.module.css";
 import { Card } from "@/components/ui/foundation";
@@ -115,7 +117,7 @@ export function UsageConsole({
   const [data, setData] = useState<UsageView | null>(null);
   const [error, setError] = useState("");
   const pricing = sandboxPricingForMonth(month);
-  const path = mode === "platform" ? `${base}/manage-erpx/billing/usage` : `${base}/usage`;
+  const path = mode === "platform" ? canonicalUiHref(`${base}/manage-erpx/billing/usage`) : canonicalUiHref(`${base}/usage`);
   const api = mode === "platform" ? "/api/v1/platform/billing/usage" : `/api/v1${base}/usage`;
 
   useEffect(() => {
@@ -257,13 +259,13 @@ export function UsageConsole({
         )}
         {mode === "platform" && (
           <Link
-            href={`${base}/manage-erpx/billing?tab=target${holdingId ? `&holdingId=${encodeURIComponent(holdingId)}` : ""}`}
+            href={canonicalUiHref(`${base}/manage-erpx/billing?tab=target${holdingId ? `&holdingId=${encodeURIComponent(holdingId)}` : ""}`)}
           >
             Target billing review
           </Link>
         )}
         {mode === "holding" && (
-          <Link href={`${base}/settings?section=usage`}>Usage &amp; billing</Link>
+          <Link href={canonicalUiHref(`${base}/settings?section=usage`)}>Usage &amp; billing</Link>
         )}
       </div>
       {error && (

@@ -1,3 +1,4 @@
+import {withPeoplePreparationTransaction} from "../../../people_payroll/public/people-purchases";
 import { requireClearanceCompletion, requireClearancePlan } from "@/server/modules/people_payroll/public/retirement-clearance";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -16,8 +17,11 @@ import { calendarCommandsOperationsFacts } from "../../../operations/public/cale
 import { calendarCommandsPeoplePayrollFacts } from "../../../people_payroll/public/calendar-commands-facts";
 import { calendarCommandsIdentityAccessFacts } from "../../../identity_access/public/calendar-commands-facts";
 import { createCalendarCommands, type CalendarCommandsUnit } from "../../application/calendar/commands";
+import { withRosterPurchasedTransaction } from "../../../people_payroll/public/roster-purchases";
+import {isManualCalendarCommand,withCalendarPurchasedTransaction} from './purchases';
+import {calendarCommandSchema,type CalendarCommand} from '../../public/rules/calendar-domain';
 const service = createCalendarCommands<SqlStatement>({ clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, fail, requirePlacement });
-export function calendarCommandsUnit(db: SqlDatabase): CalendarCommandsUnit<SqlStatement> {
+export function calendarCommandsUnit(db: SqlDatabase, roster?: {actor: WorkContext; key: string},people?:{actor:WorkContext;key:string;input:{id:string;action:"task.plan"|"task.complete"}},manual?:{actor:WorkContext;key:string;input:CalendarCommand}): CalendarCommandsUnit<SqlStatement> {
     return { reschedule: (...args) => rescheduleRosterShift(db, ...args), read1: facts => calendarCommandsWorkProjectionFacts(db).read1(facts),
         read2: facts => calendarCommandsOperationsFacts(db).read2(facts),
         read3: facts => calendarCommandsWorkProjectionFacts(db).read3(facts),
@@ -77,8 +81,15 @@ export function calendarCommandsUnit(db: SqlDatabase): CalendarCommandsUnit<SqlS
         clearancePlan: (...args) => requireClearancePlan(db, ...args),
         clearanceCompletion: (...args) => requireClearanceCompletion(db, ...args),
         publish: input => publishInboxEvent(db, input),
-        transaction: callback => (db as PostgresDatabase).transaction(tx => callback(calendarCommandsUnit(tx))) };
+        transaction: callback => roster
+            ? withRosterPurchasedTransaction(db, roster.actor, {key: roster.key, operation: "calendar.shift.reschedule", purpose: "settle-existing"}, tx => callback(calendarCommandsUnit(tx)))
+            : people?withPeoplePreparationTransaction(db,people.actor,people.input,people.key,tx=>callback(calendarCommandsUnit(tx))):manual?withCalendarPurchasedTransaction(db,manual.actor,manual.input,manual.key,tx=>callback(calendarCommandsUnit(tx))):(db as PostgresDatabase).transaction(tx => callback(calendarCommandsUnit(tx))) };
 }
 export function localInterval(db: SqlDatabase, start: string, end: string, zone: string) { return service.localInterval(calendarCommandsUnit(db), start, end, zone); }
-export function calendarCommand(database: PostgresDatabase, actor: WorkContext, raw: unknown, key: string) { return service.calendarCommand(calendarCommandsUnit(database), actor, raw, key); }
+export function calendarCommand(database: PostgresDatabase, actor: WorkContext, raw: unknown, key: string) {
+    const roster = raw && typeof raw === "object" && "action" in raw && raw.action === "shift.reschedule" ? {actor, key} : undefined;
+    const people=raw&&typeof raw==="object"&&"action"in raw&&["task.plan","task.complete"].includes(String(raw.action))&&"id"in raw?{actor,key,input:{id:String(raw.id),action:raw.action as "task.plan"|"task.complete"}}:undefined;
+    const input=calendarCommandSchema.parse(raw),manual=isManualCalendarCommand(input)?{actor,key,input}:undefined;
+    return service.calendarCommand(calendarCommandsUnit(database, roster,people,manual), actor, input, key);
+}
 export type { Result, SeriesRow } from "../../domain/calendar/commands";

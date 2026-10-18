@@ -8,6 +8,8 @@ import { currentPushSession } from '../../identity_access/public/collaboration-p
 import { sessionFromRequest } from '../../identity_access/public/auth';
 import { holdingBindingBySlug, holdingResources } from '../../runtime/public/runtime';
 import { requestPublicOrigin } from '../../manage_erpx/public/public-origin';
+import { configuredProductOrigin } from "@/lib/runtime/product-hosts";
+import { legacyConsoleRetired } from "@/lib/runtime/console-retirement";
 import { createCurrentPushSessionCleanup, createWebPushApplication, type WebPushRepository } from '../application/web-push';
 import { pushOriginAllowed, b64, validatePushSubscription as validateSubscription, type PushConfig, Subscription, Preference, StoredSubscription, DeliveryJob, Send } from '../domain/web-push';
 async function exposed<T>(action: () => Promise<T>) {
@@ -41,7 +43,11 @@ export function pushConfig(): PushConfig | null {
     }
     return { publicKey, privateKey, subject, dataKey };
 }
-export function allowedPushOrigin(origin: string) { return pushOriginAllowed(origin, [process.env.ERPX_PUBLIC_ORIGIN, process.env.ERPX_FRONT_PMS_ORIGIN, process.env.ERPX_FRONT_POS_ORIGIN].filter((value): value is string => Boolean(value)), process.env.NODE_ENV === 'production'); }
+export function allowedPushOrigin(origin: string) { return pushOriginAllowed(origin, [
+    ...(!legacyConsoleRetired() ? [process.env.ERPX_PUBLIC_ORIGIN] : []),
+    process.env.ERPX_FRONT_PMS_ORIGIN, process.env.ERPX_FRONT_POS_ORIGIN,
+    ...(["work", "pos", "pms"] as const).map(key => configuredProductOrigin(key)),
+].filter((value): value is string => Boolean(value)), process.env.NODE_ENV === 'production'); }
 function seal(config: PushConfig, value: Subscription) {
     const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", config.dataKey, iv);
     const body = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);

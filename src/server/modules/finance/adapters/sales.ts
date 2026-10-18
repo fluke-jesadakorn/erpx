@@ -18,7 +18,10 @@ import { commerceSalesDocuments } from "../../commerce/public/commerce";
 import { readListPage } from "../../work_projection/public/list-page";
 import { assertion, executeCommand, replayCommand } from "../../workflow/public/commands";
 import { financeCommandReceipts } from "../../workflow/public/finance-command-receipts";
-import { createInvoice, invoiceWorkspace } from "../public/finance";
+import { createInvoice } from "../public/finance";
+import {withSalesCustomerReceiptRead,withSalesCustomerReceiptIssue} from './sales-customer-receipts';
+import {salesDefaultsReferences,withSalesPostingCommand} from './sales-posting-setup';
+import {salesPostingDefaultsSchema,salesPostingDecisionSchema} from '../domain/sales-posting-setup';
 type Row = Record<string, string | number | null>;
 async function database(actor: WorkContext, permission = "finance.read") { requirePermission(actor, permission); return (await holdingResources(actor.holdingId)).write; }
 function companyAuthority(actor: WorkContext) { if (actor.branchId || actor.departmentId) throw new ApiError(403, "COMPANY_SCOPE_REQUIRED", "Use a Company Finance assignment for sales configuration."); }
@@ -27,21 +30,7 @@ const scopeArgs = (actor: WorkContext) => [actor.branchId, actor.departmentId, a
 const receiptScope = `((?::text IS NULL AND ?::text IS NULL) OR (EXISTS(SELECT 1 FROM finance_allocations WHERE payment_id=p.id) AND NOT EXISTS(SELECT 1 FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE a.payment_id=p.id AND NOT ${invoiceScope})))`;
 const receiptScopeArgs = (actor: WorkContext) => [actor.branchId, actor.departmentId, ...scopeArgs(actor)];
 
-export async function salesDefaultsWorkspace(actor: WorkContext) {
-  const db = await database(actor); companyAuthority(actor);
-  const [rows, options] = await Promise.all([
-    db.prepare("SELECT * FROM finance_sales_defaults WHERE company_id=? ORDER BY created_at DESC,id DESC").bind(actor.companyId).all<SalesDefaults>(), invoiceWorkspace(actor),
-  ]);
-  const usableDefaults: string[] = [], issues: { currency: string; message: string }[] = [];
-  for (const row of rows.results.filter(row => row.status === "approved")) {
-    const chart = options.charts.find(chart => chart.id === row.chart_id);
-    const ar = options.accounts.find(account => account.id === row.receivable_account_id), revenue = options.accounts.find(account => account.id === row.revenue_account_id), vat = options.accounts.find(account => account.id === row.tax_account_id);
-    const accounts = [ar, revenue, ...(row.tax_account_id ? [vat] : [])];
-    if (chart?.status !== "active" || accounts.some(account => !account || account.status !== "active" || account.chart_id !== row.chart_id || account.currency !== row.currency) || ar?.control_kind !== "receivable" || revenue?.category !== "revenue" || row.tax_account_id && (vat?.category !== "liability" || vat?.control_kind !== "none")) issues.push({ currency: row.currency, message: "Restore active receivable, revenue and VAT accounts on the approved ledger, or prepare new sales defaults." });
-    else usableDefaults.push(row.id);
-  }
-  return { editions: rows.results, options, usableDefaults, issues };
-}
+export async function salesDefaultsWorkspace(actor:WorkContext){return salesDefaultsReferences(actor);}
 async function validateDefaults(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof salesDefaultsSchema>) {
   const ids = [input.receivableAccountId, input.revenueAccountId, ...(input.taxAccountId ? [input.taxAccountId] : [])];
   if (new Set(ids).size !== ids.length) throw new ApiError(422, "SALES_ACCOUNTS_INVALID", "Choose distinct receivable, revenue and VAT accounts.");
@@ -51,32 +40,37 @@ async function validateDefaults(db: SqlDatabase, actor: WorkContext, input: z.in
     throw new ApiError(422, "SALES_ACCOUNTS_INVALID", "Use active accounts on one Company ledger: trade receivables, revenue and output VAT.");
   return accounts;
 }
-export async function prepareSalesDefaults(actor: WorkContext, raw: z.input<typeof salesDefaultsSchema>, key: string) {
-  const db = await database(actor, "finance.write"); companyAuthority(actor);
-  const input = salesDefaultsSchema.parse(raw), id = `sales-defaults-${key}`;
-  return financeTransaction(db, async tx => {
-    const previous = await replayCommand(tx, actor, key, "finance.sales-defaults.prepare", id, input); if (previous) return previous;
-    const accounts = await validateDefaults(tx, actor, input), now = Date.now();
-    return executeCommand(tx, actor, key, "finance.sales-defaults.prepare", input, id, 1, { id, status: "draft", version: 1 }, [
-      ...accounts.map((account, index) => assertion(tx, key, `account-${index}`, "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status='active')", [account.id, actor.companyId, account.version])),
-      tx.prepare("INSERT INTO finance_sales_defaults(id,company_id,chart_id,currency,receivable_account_id,revenue_account_id,tax_account_id,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(id, actor.companyId, input.chartId, input.currency, input.receivableAccountId, input.revenueAccountId, input.taxAccountId ?? null, input.reason, actor.userId, now, now),
-    ]);
-  });
+async function prepareDefaults(tx:SqlDatabase,actor:WorkContext,input:z.infer<typeof salesDefaultsSchema>,key:string,request:unknown){
+ const id=`sales-defaults-${key}`,previous=await replayCommand<{id:string;status:'draft';version:1}>(tx,actor,key,'finance.sales-defaults.prepare',id,request);if(previous)return previous;
+ const accounts=await validateDefaults(tx,actor,input),now=Date.now();
+ return executeCommand(tx,actor,key,'finance.sales-defaults.prepare',request,id,1,{id,status:'draft' as const,version:1 as const},[
+  ...accounts.map((account,index)=>assertion(tx,key,`account-${index}`,'EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status=\'active\')',[account.id,actor.companyId,account.version])),
+  tx.prepare('INSERT INTO finance_sales_defaults(id,company_id,chart_id,currency,receivable_account_id,revenue_account_id,tax_account_id,reason,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(id,actor.companyId,input.chartId,input.currency,input.receivableAccountId,input.revenueAccountId,input.taxAccountId??null,input.reason,actor.userId,now,now),
+ ]);
 }
-export async function decideSalesDefaults(actor: WorkContext, id: string, raw: z.input<typeof salesDefaultsDecisionSchema>, key: string) {
-  const db = await database(actor, "finance.approve"); companyAuthority(actor); const input = salesDefaultsDecisionSchema.parse(raw);
-  return financeTransaction(db, async tx => {
-    const previous = await replayCommand(tx, actor, key, "finance.sales-defaults.decide", id, input); if (previous) return previous;
-    const row = await tx.prepare("SELECT * FROM finance_sales_defaults WHERE id=? AND company_id=? FOR UPDATE").bind(id, actor.companyId).first<SalesDefaults>();
-    if (!row || row.status !== "draft" || Number(row.version) !== input.expectedVersion) throw new ApiError(409, "VERSION_CONFLICT", "Refresh the sales defaults before review.");
-    if (samePerson(actor, row.created_by)) throw new ApiError(403, "INDEPENDENT_APPROVER_REQUIRED", "A different Finance approver must review these defaults.");
-    await validateDefaults(tx, actor, { chartId: row.chart_id, currency: row.currency, receivableAccountId: row.receivable_account_id, revenueAccountId: row.revenue_account_id, taxAccountId: row.tax_account_id ?? undefined, reason: row.reason });
-    const status = input.action === "approve" ? "approved" : "rejected", now = Date.now();
-    return executeCommand(tx, actor, key, "finance.sales-defaults.decide", input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1 }, [
-      ...(status === "approved" ? [tx.prepare("UPDATE finance_sales_defaults SET status='superseded',version=version+1,updated_at=? WHERE company_id=? AND currency=? AND status='approved'").bind(now, actor.companyId, row.currency)] : []),
-      tx.prepare("UPDATE finance_sales_defaults SET status=?,reviewed_by=?,review_reason=?,version=version+1,updated_at=? WHERE id=?").bind(status, actor.userId, input.reason, now, id),
-    ]);
-  });
+async function decideDefaults(tx:SqlDatabase,actor:WorkContext,id:string,input:z.infer<typeof salesDefaultsDecisionSchema>,key:string,request:unknown){
+ const previous=await replayCommand<{id:string;status:'approved'|'rejected';version:number}>(tx,actor,key,'finance.sales-defaults.decide',id,request);if(previous)return previous;
+ const row=await tx.prepare('SELECT * FROM finance_sales_defaults WHERE id=? AND company_id=? FOR UPDATE').bind(id,actor.companyId).first<SalesDefaults>();
+ if(!row||row.status!=='draft'||Number(row.version)!==input.expectedVersion)throw new ApiError(409,'VERSION_CONFLICT','Refresh the sales defaults before review.');
+ if(samePerson(actor,row.created_by))throw new ApiError(403,'INDEPENDENT_APPROVER_REQUIRED','A different Finance approver must review these defaults.');
+ await validateDefaults(tx,actor,{chartId:row.chart_id,currency:row.currency,receivableAccountId:row.receivable_account_id,revenueAccountId:row.revenue_account_id,taxAccountId:row.tax_account_id??undefined,reason:row.reason});
+ const status=input.action==='approve'?'approved' as const:'rejected' as const,now=Date.now();
+ return executeCommand(tx,actor,key,'finance.sales-defaults.decide',request,id,input.expectedVersion+1,{id,status,version:input.expectedVersion+1},[
+  ...(status==='approved'?[tx.prepare("UPDATE finance_sales_defaults SET status='superseded',version=version+1,updated_at=? WHERE company_id=? AND currency=? AND status='approved'").bind(now,actor.companyId,row.currency)]:[]),
+  tx.prepare('UPDATE finance_sales_defaults SET status=?,reviewed_by=?,review_reason=?,version=version+1,updated_at=? WHERE id=?').bind(status,actor.userId,input.reason,now,id),
+ ]);
+}
+export async function prepareSalesDefaults(actor:WorkContext,raw:z.input<typeof salesDefaultsSchema>,key:string){
+ const input=salesDefaultsSchema.parse(raw);return withSalesPostingCommand(actor,'defaults',input,key,tx=>prepareDefaults(tx,actor,input,key,input),true,`sales-defaults-${key}`);
+}
+export async function decideSalesDefaults(actor:WorkContext,id:string,raw:z.input<typeof salesDefaultsDecisionSchema>,key:string){
+ const input=salesDefaultsDecisionSchema.parse(raw);return withSalesPostingCommand(actor,'decision',input,key,tx=>decideDefaults(tx,actor,id,input,key,input),true,id);
+}
+export async function prepareSalesPostingDefaults(actor:WorkContext,raw:unknown,key:string){
+ const request=salesPostingDefaultsSchema.parse(raw);return withSalesPostingCommand(actor,'defaults',request,key,tx=>prepareDefaults(tx,actor,request.input,key,request),false,`sales-defaults-${key}`);
+}
+export async function decideSalesPostingDefaults(actor:WorkContext,id:string,raw:unknown,key:string){
+ const request=salesPostingDecisionSchema.parse(raw);return withSalesPostingCommand(actor,'decision',request,key,tx=>decideDefaults(tx,actor,id,request.input,key,request),false,id);
 }
 
 export async function salesWorkspace(actor: WorkContext, raw: z.input<typeof salesQuerySchema>) {
@@ -111,25 +105,23 @@ export async function ensureCustomerReceipt(tx: SqlDatabase, actor: WorkContext,
   await tx.prepare("INSERT INTO finance_customer_receipts(id,company_id,payment_id,document_number,receipt_date,currency,amount_minor,snapshot_json,export_html,export_sha256,issued_by,issued_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, actor.companyId, paymentId, number, payment.payment_date, payment.currency, payment.amount_minor, JSON.stringify(snapshot), html, hash, actor.userId, Date.now()).run();
   return { id };
 }
-export async function issueCustomerReceipt(actor: WorkContext, paymentId: string, key: string) {
-  const db = await database(actor, "finance.write"); companyAuthority(actor);
-  return financeTransaction(db, async tx => {
-    const input = { paymentId }, previous = await replayCommand(tx, actor, key, "finance.customer-receipt.issue", paymentId, input); if (previous) return previous;
-    const receipt = await ensureCustomerReceipt(tx, actor, paymentId);
-    if (!receipt) throw new ApiError(409, "POSTED_RECEIPT_REQUIRED", "A settled customer receipt with a posted journal is required.");
-    return executeCommand(tx, actor, key, "finance.customer-receipt.issue", input, paymentId, 1, receipt, []);
-  });
+export async function issueCustomerReceipt(actor:WorkContext,paymentId:string,key:string){
+ requirePermission(actor,'finance.write');companyAuthority(actor);
+ return withSalesCustomerReceiptIssue(actor,paymentId,key,async tx=>{
+  const input={paymentId},previous=await replayCommand(tx,actor,key,'finance.customer-receipt.issue',paymentId,input);if(previous)return previous;
+  const receipt=await ensureCustomerReceipt(tx,actor,paymentId);if(!receipt)throw new ApiError(409,'POSTED_RECEIPT_REQUIRED','A settled customer receipt with a posted journal is required.');
+  return executeCommand(tx,actor,key,'finance.customer-receipt.issue',input,paymentId,1,receipt,[]);
+ });
 }
-export async function customerReceiptDetail(actor: WorkContext, id: string) {
-  const db = await database(actor);
-  const row = await db.prepare(`SELECT r.*,p.status payment_status,p.version payment_version FROM finance_customer_receipts r JOIN finance_payments p ON p.id=r.payment_id WHERE r.id=? AND r.company_id=? AND ${receiptScope}`).bind(id, actor.companyId, ...receiptScopeArgs(actor)).first<Row>();
-  if (!row) throw new ApiError(404, "RECEIPT_NOT_FOUND", "Receipt not found in this workspace.");
-  return { sha256: String(row.export_sha256), receipt: { ...row, export_html: undefined }, snapshot: JSON.parse(String(row.snapshot_json)) as ReceiptSnapshot, status: ["cancelled", "reversed", "voided"].includes(String(row.payment_status)) ? "cancelled" : "issued" };
+async function receiptDetail(tx:SqlDatabase,actor:WorkContext,id:string){
+ const row=await tx.prepare(`SELECT r.*,p.status payment_status,p.version payment_version FROM finance_customer_receipts r JOIN finance_payments p ON p.id=r.payment_id WHERE r.id=? AND r.company_id=? AND ${receiptScope}`).bind(id,actor.companyId,...receiptScopeArgs(actor)).first<Row>();
+ if(!row)throw new ApiError(404,'RECEIPT_NOT_FOUND','Receipt not found in this workspace.');
+ return {sha256:String(row.export_sha256),receipt:{...row,export_html:undefined},snapshot:JSON.parse(String(row.snapshot_json)) as ReceiptSnapshot,status:['cancelled','reversed','voided'].includes(String(row.payment_status))?'cancelled':'issued'};
 }
-export async function customerReceiptExport(actor: WorkContext, id: string) {
-  await customerReceiptDetail(actor, id); const db = await database(actor);
-  return (await db.prepare("SELECT export_html content,export_sha256 sha256,document_number FROM finance_customer_receipts WHERE id=? AND company_id=?").bind(id, actor.companyId).first<{ content: string; sha256: string; document_number: string } >())!;
-}
+export async function customerReceiptDetail(actor:WorkContext,id:string){return withSalesCustomerReceiptRead(actor,id,tx=>receiptDetail(tx,actor,id));}
+export async function customerReceiptExport(actor:WorkContext,id:string){return withSalesCustomerReceiptRead(actor,id,async tx=>{
+ await receiptDetail(tx,actor,id);return (await tx.prepare('SELECT export_html content,export_sha256 sha256,document_number FROM finance_customer_receipts WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{content:string;sha256:string;document_number:string}>())!;
+});}
 export async function createSalesInvoiceDraft(actor: WorkContext, raw: z.input<typeof salesInvoiceDraftSchema>, key: string) {
   const db = await database(actor, "finance.write"); companyAuthority(actor); const input = salesInvoiceDraftSchema.parse(raw);
   return financeTransaction(db, async tx => {

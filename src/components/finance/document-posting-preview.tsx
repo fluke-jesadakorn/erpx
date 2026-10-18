@@ -14,6 +14,7 @@ export async function DocumentPostingPreview({
 }) {
   const data = await documentPostingPreview(actor, kind, id);
   if (!data) return null;
+  if (data.state === "no-charge-confirmed") return <Card as="section" appearance="standard" className="ui-panel"><h2>Service No-Charge Confirmation</h2><p>The covered visit has no customer amount to collect. Its original billing evidence is retained.</p></Card>;
   if (data.state === "voided") return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>Voided draft</h2>

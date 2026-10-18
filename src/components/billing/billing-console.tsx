@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {BillingCostEditor} from "@/components/records/billing-cost-editor";
 import { CollectionRecordLink, RecordCollectionDrawer, RecordFacts } from "@/components/records/record-collection";
 import { Card } from "@/components/ui/foundation";
@@ -23,7 +24,8 @@ import {
 } from "@/lib/billing/billing";
 import { APP_LOCALE, APP_TIMEZONE } from "@/lib/shared/localization";
 import { workFetch } from "@/lib/work_projection/work-fetch";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RecordLink as Link } from "@/components/records/record-link";
 import styles from "./billing-console.module.css";
@@ -45,10 +47,16 @@ export function BillingConsole({
   base,
   platform = false,
   writable = false,
+  initialAccounts,
+  initialHolding,
+  initialData,
 }: {
   base?: string;
   platform?: boolean;
   writable?: boolean;
+  initialAccounts?: AccountChoice[];
+  initialHolding?: string;
+  initialData?: BillingView | null;
 }) {
   const searchParams = useSearchParams(),
     router = useRouter();
@@ -61,13 +69,13 @@ export function BillingConsole({
     query.set("tab", value);
     router.push(`?${query}`, { scroll: false });
   }
-  const [accounts, setAccounts] = useState<AccountChoice[]>([]),
-    [holding, setHolding] = useState(""),
-    [data, setData] = useState<BillingView | null>(null),
+  const [accounts, setAccounts] = useState<AccountChoice[]>(initialAccounts??[]),
+    [holding, setHolding] = useState(initialHolding??""),
+    [data, setData] = useState<BillingView | null>(initialData??null),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     [reason, setReason] = useState(""),
-    [periodId, setPeriodId] = useState(""),
+    [periodId, setPeriodId] = useState(initialData?.periods[0]?.id??""),
     [consent, setConsent] = useState(false),
     [evidence, setEvidence] = useState<string | null>(null),
     [editingCost, setEditingCost] = useState<BillingCost | null>(null);
@@ -83,6 +91,7 @@ export function BillingConsole({
     setPeriodId((p) => (d.periods.some((v) => v.id === p) ? p : (d.periods[0]?.id ?? "")));
   }, [api, platform, holding]);
   useEffect(() => {
+    if(initialAccounts&&(holdingTarget===initialHolding||!holdingTarget))return;
     if (platform)
       betaFetch<{ accounts: AccountChoice[] }>("/api/v1/platform/billing")
         .then((d) => {
@@ -94,7 +103,7 @@ export function BillingConsole({
           );
         })
         .catch((e) => setMessage(e.message));
-  }, [platform, holdingTarget]);
+  }, [platform, holdingTarget,initialAccounts,initialHolding]);
   useEffect(() => {
     let active = true;
     const run = async () => {
@@ -109,14 +118,14 @@ export function BillingConsole({
         if (active) setMessage(e instanceof Error ? e.message : "Load failed");
       }
     };
-    void run();
+    if(!initialData||holding!==initialHolding)void run();
     const timer = setInterval(run, 15000);
     return () =>
  {
       active = false;
       clearInterval(timer);
     };
-  }, [api, platform, holding]);
+  }, [api, platform, holding,initialData,initialHolding]);
   useEffect(() => {
     if (platform || !data) return;
     let targetId = "";
@@ -237,7 +246,7 @@ export function BillingConsole({
       </div>
       <Link
         data-slot="button" className={['ui-standard-control', (`button secondary ${styles.usageLink}`)].filter(Boolean).join(' ')}
-        href={platform ? "/holdings/erpx/manage-erpx/billing/usage" : `${base}/usage`}
+        href={platform ? canonicalUiHref("/holdings/erpx/manage-erpx/billing/usage") : canonicalUiHref(`${base}/usage`)}
       >
         View measured AI and file usage
       </Link>
@@ -289,13 +298,13 @@ export function BillingConsole({
           aria-label="Measured usage and target billing"
         >
           <NextMonthForecast
-            base={base ?? "/holdings/erpx"}
+            base={base ?? canonicalUiHref("/holdings/erpx")}
             platform={false}
             holdingId={data.account?.holding_id ?? ""}
           />
           <TargetBillingPanel
             key={data.account?.holding_id ?? "holding"}
-            base={base ?? "/holdings/erpx"}
+            base={base ?? canonicalUiHref("/holdings/erpx")}
             platform={false}
             holdingId={data.account?.holding_id ?? ""}
             now={data.now}
@@ -332,13 +341,13 @@ export function BillingConsole({
                 <div className={styles.forecastStack}>
                   <NextMonthForecast
                     key={`forecast:${holding}`}
-                    base={base ?? "/holdings/erpx"}
+                    base={base ?? canonicalUiHref("/holdings/erpx")}
                     platform
                     holdingId={holding}
                   />
                   <TargetBillingPanel
                     key={platform ? holding : (data.account?.holding_id ?? "holding")}
-                    base={base ?? "/holdings/erpx"}
+                    base={base ?? canonicalUiHref("/holdings/erpx")}
                     platform={platform}
                     holdingId={platform ? holding : (data.account?.holding_id ?? "")}
                     now={data.now}

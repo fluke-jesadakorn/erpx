@@ -1,4 +1,5 @@
-import {afterAll,beforeAll,describe,expect,it,vi} from "vitest";
+import {afterAll,afterEach,beforeAll,describe,expect,it,vi} from "vitest";
+import {packageGrantStore,readCompanyPackageGrants} from "@/server/modules/commercial/public/package-grants";
 import {createHash} from "node:crypto";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
@@ -74,5 +75,41 @@ describe("Service and hospitality File Sources owner intake",()=>{
   await expect(completeAttachmentUpload(db,env.H001_FILES,actor,reserved.uploadIntentId,body)).rejects.toMatchObject(revoked);await expect(completeAttachmentUpload(db,env.H001_FILES,actor,revokedReservation.uploadIntentId,body)).rejects.toMatchObject(revoked);expect(await db.prepare("SELECT status,actual_bytes FROM upload_intents WHERE id=?").bind(revokedReservation.uploadIntentId).first()).toEqual({status:"pending",actual_bytes:null});const quarantine=String(await db.prepare("SELECT quarantine_key FROM upload_intents WHERE id=?").bind(revokedReservation.uploadIntentId).first("quarantine_key"));expect(await env.H001_FILES.get(quarantine)).toBeNull();expect(await db.prepare("SELECT COUNT(*) n FROM attachments WHERE company_id=?").bind(actor.companyId).first("n")).toBe(initialSourceCount+1);
   expect(await attachmentBindingState(db,set.id)).toMatchObject({set_state:"bound",link_state:"bound",bound_command_id:command});expect(await db.prepare("SELECT COUNT(*) n FROM attachment_links WHERE attachment_id=? AND state='bound'").bind(uploaded.sourceId).first("n")).toBe(1);
   expect(await db.prepare("SELECT COUNT(*) n FROM attachment_access_events WHERE attachment_id=? AND outcome='denied' AND reason='ATTACHMENT_TARGET_NOT_FOUND'").bind(uploaded.sourceId).first("n")).toBe(1);expect(await db.prepare("SELECT COUNT(*) n FROM attachment_access_events WHERE attachment_id=? AND outcome='denied' AND reason='ATTACHMENT_NOT_AVAILABLE'").bind(uploaded.sourceId).first("n")).toBe(1);
+ });
+});
+
+describe("Purchased hospitality Files",()=>{
+ afterEach(()=>vi.unstubAllEnvs());
+ async function purchase(companyId:string,packageId:string,state:"active"|"draining"="active",endsAt:number|null=null){
+  const current=(await readCompanyPackageGrants(db,companyId)).find(grant=>grant.packageId===packageId);
+  return packageGrantStore(db,{authorize:async()=>({userId:"isolated-hospitality-file-provider"}),obligations:async()=>{throw Error("Owner settlement withdrawal is not part of this fixture");}}).apply({expectedVersion:current?.version??0,idempotencyKey:key(),
+   grant:{companyId,packageId,packageVersion:1,state,startsAt:0,endsAt,version:(current?.version??0)+1,reason:"Native hospitality file purchase review",evidence:"test:hospitality-files"}});
+ }
+ it.each(["pos_sale/void_evidence/action","pms_task/room_photo/action"])("checks purchase through intake, draining action binding and held private bytes for %s",async tupleId=>{
+  const tuple=tuples.find(row=>row.id===tupleId)!;expect(tuple).toBeTruthy();const owner=await serviceHospitalityAttachmentOwner(tuple),actor=owner.actor;
+  const packageId=tuple.targetType.startsWith("pos_")?"pos":"pms",gate=packageId==="pos"?"ERPX_POS_PACKAGE_ENFORCEMENT":"ERPX_PMS_PACKAGE_ENFORCEMENT";
+  const input={targetType:tuple.targetType,targetId:owner.targetId,componentKind:tuple.componentKind,purposeKey:tuple.purposeKey,componentRef:owner.componentRef,expectedTargetVersion:owner.version};
+  vi.stubEnv(gate,"enforced");await expect(createAttachmentSet(db,actor,input,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+  expect(await db.prepare("SELECT count(*) n FROM attachment_sets WHERE target_id=?").bind(owner.targetId).first("n")).toBe(0);
+  await purchase(actor.companyId,packageId);const set=await createAttachmentSet(db,actor,input,key());await purchase(actor.companyId,packageId,"draining");
+  const reserved=await reserveAttachmentFile(db,actor,set.id,{filename:"private-evidence.png",mediaType:"image/png",bytes:png.length},key());
+  const uploaded=await completeAttachmentUpload(db,env.H001_FILES,actor,reserved.uploadIntentId,png.buffer.slice(png.byteOffset,png.byteOffset+png.length));
+  await drainAttachmentScans(db,env.H001_FILES,uploaded.sourceId);
+  await owner.bindAction!(set.id,key());expect(await attachmentBindingState(db,set.id)).toMatchObject({set_state:"bound",link_state:"bound"});
+  await db.prepare("UPDATE attachments SET legal_hold=1 WHERE id=?").bind(uploaded.sourceId).run();
+  const held=await db.prepare("SELECT legal_hold,checksum_sha256 FROM attachments WHERE id=?").bind(uploaded.sourceId).first();
+  const content=await attachmentContent(db,env.H001_FILES,actor,reserved.attachmentLinkId,"original");expect(Buffer.from(await content.object.arrayBuffer())).toEqual(png);
+  expect(await db.prepare("SELECT legal_hold,checksum_sha256 FROM attachments WHERE id=?").bind(uploaded.sourceId).first()).toEqual(held);
+  expect(await db.prepare("SELECT count(*) n FROM command_assertions").first("n")).toBe(0);
+ });
+ it("rolls back new booking-media intake when purchase expires after the Files event",async()=>{
+  const tuple=tuples.find(row=>row.id==="pms_task/room_photo/action")!,owner=await serviceHospitalityAttachmentOwner(tuple),actor=owner.actor;
+  const property=await db.prepare("SELECT p.id,p.version FROM pms_properties p JOIN pms_records r ON r.property_id=p.id WHERE r.id=?").bind(owner.targetId).first<{id:string;version:number}>();
+  const input={targetType:"pms_property",targetId:property!.id,componentKind:"record" as const,purposeKey:"booking_media",expectedTargetVersion:property!.version};
+  await purchase(actor.companyId,"pms","active",Date.now()+1500);vi.stubEnv("ERPX_PMS_PACKAGE_ENFORCEMENT","enforced");
+  await db.exec("CREATE FUNCTION hospitality_file_delay() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.company_id=TG_ARGV[0] AND NEW.action='set.created' THEN PERFORM pg_sleep(1.6); END IF; RETURN NEW; END $$");
+  await db.exec(`CREATE TRIGGER hospitality_file_delay AFTER INSERT ON attachment_events FOR EACH ROW EXECUTE FUNCTION hospitality_file_delay('${actor.companyId}')`);
+  try{await expect(createAttachmentSet(db,actor,input,key())).rejects.toMatchObject({code:"PACKAGE_CAPABILITY_CHANGED"});expect(await db.prepare("SELECT count(*) n FROM attachment_sets WHERE target_id=?").bind(property!.id).first("n")).toBe(0);}
+  finally{await db.exec("DROP TRIGGER hospitality_file_delay ON attachment_events; DROP FUNCTION hospitality_file_delay()");}
  });
 });

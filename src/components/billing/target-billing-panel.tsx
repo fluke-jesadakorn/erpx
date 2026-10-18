@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {CollectionRecordLink,RecordCollectionDrawer,RecordFacts} from "@/components/records/record-collection";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -442,8 +443,8 @@ export function TargetBillingPanel({
   const additionalApprovalBlockers =
     view?.approval?.blockers.filter((item) => !view.completeness.missing.includes(item)) ?? [];
   const usageHref = platform
-    ? `${base}/manage-erpx/billing/usage?holdingId=${encodeURIComponent(holdingId)}&month=${month}`
-    : `${base}/usage?month=${month}`;
+    ? canonicalUiHref(`${base}/manage-erpx/billing/usage?holdingId=${encodeURIComponent(holdingId)}&month=${month}`)
+    : canonicalUiHref(`${base}/usage?month=${month}`);
   return (
     <section className={styles.root} aria-label="Target billing model">
       <div className={styles.heading}>

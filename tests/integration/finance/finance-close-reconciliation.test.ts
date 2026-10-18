@@ -1,10 +1,12 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { packageGrantStore } from "../../../src/server/modules/commercial/public/package-grants";
+import { beforeAll, afterEach, describe, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
 import { beginClose, calculateCloseReconciliations, closePeriod,cancelClose } from "../../../src/server/modules/finance/public/finance";
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB;
+afterEach(()=>vi.unstubAllEnvs());
 const preparer={userId:"close-preparer",assignmentId:"close-preparer-a",role:"finance_preparer",companyId:"close-company",holdingId:"h001",branchId:null,departmentId:null} as WorkContext;
 const approver={...preparer,userId:"close-approver",assignmentId:"close-approver-a",role:"finance_approver"} as WorkContext;
 
@@ -46,6 +48,10 @@ beforeAll(async()=>{
 
 describe("finance close reconciliation",()=>{
   it("proves AR, AP, and bank to GL and completes two consecutive independent closes",async()=>{
+    vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");await expect(beginClose(preparer,"close-jan","close-unpurchased")).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await db.prepare("SELECT state FROM finance_periods WHERE id='close-jan'").first("state")).toBe("open");
+    const store=packageGrantStore(db,{authorize:async()=>({userId:"isolated-close-review"}),obligations:async()=>{throw Error("No close withdrawal witness");}}),grant={companyId:preparer.companyId,packageId:"finance",packageVersion:1,state:"active" as const,startsAt:0,endsAt:null,version:1,reason:"Native retained close review",evidence:"test:finance-draining-close"};
+    await store.apply({expectedVersion:0,idempotencyKey:crypto.randomUUID(),grant});await store.apply({expectedVersion:1,idempotencyKey:crypto.randomUUID(),grant:{...grant,state:"draining",version:2}});
+
     const period=await db.prepare("SELECT * FROM finance_periods WHERE id='close-jan'").first<Record<string,string|number|null>>();
     const preview=await calculateCloseReconciliations(db,preparer,period!);
     expect(preview.ready).toBe(true);
@@ -53,6 +59,7 @@ describe("finance close reconciliation",()=>{
     const jan=await beginClose(preparer,"close-jan","close-jan-begin");
     expect(jan).toMatchObject({state:"closing",version:1});
     await closePeriod(approver,"close-jan",{expectedVersion:1,proof:"Controller reviewed GL, subledgers, and January bank statement"},"close-jan-approve");
+    expect(await closePeriod(approver,"close-jan",{expectedVersion:1,proof:"Controller reviewed GL, subledgers, and January bank statement"},"close-jan-approve")).toMatchObject({state:"closed",version:2});
     const feb=await beginClose(preparer,"close-feb","close-feb-begin");
     await closePeriod(approver,"close-feb",{expectedVersion:Number(feb.version),proof:"Controller reviewed February carry-forward and bank statement"},"close-feb-approve");
     expect(await db.prepare("SELECT count(*) n FROM finance_periods WHERE company_id='close-company' AND state='closed'").first("n")).toBe(2);

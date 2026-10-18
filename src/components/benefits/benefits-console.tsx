@@ -1,467 +1,66 @@
 "use client";
-import { InlineNotice } from "@/components/ui/foundation";
-
-import { FormDisclosure } from "@/components/ui/form-disclosure";
-import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
-
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import type { benefitDetail, benefitsWorkspace } from "@/server/modules/benefits/public/benefits";
-import {
-  AttachmentPanel,
-  type AttachmentPanelChange,
-} from "@/components/files/attachment-panel";
-import { RecordDocumentPanel } from "@/components/files/record-document-panel";
-import { FormLayout } from "@/components/ui/foundation";
-function useCommand(base: string) {
-  const router = useRouter(),
-    last = useRef<{ key: string; body: string } | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function send(input: unknown) {
-    const form=document.activeElement?.closest("form"),formEditVersion=form?.getAttribute("data-erpx-edit-version");
-    const body = JSON.stringify(input);
-    if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
-    setBusy(true);
-    setError("");
-    try {
-      const r = await workFetch(`/api/v1${base}/benefits`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": last.current.key,
-          },
-          body,
-        }),
-        j = await r.json();
-      if (!r.ok) {
-        if (r.status < 500) last.current = null;
-        throw new Error(j.error?.message ?? "Unable to update benefits.");
-      }
-      last.current = null;
-      if(form&&formEditVersion&&form.getAttribute('data-erpx-edit-version')===formEditVersion)window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form,formEditVersion}}));
-      const current=new URL(window.location.href);
-      const entity=input&&typeof input==='object'&&'entity' in input?String(input.entity):null;
-      if(current.pathname===`${base}/benefits`){if(entity==='election'||entity===null){current.searchParams.set('detailKind','benefit_enrollment');current.searchParams.set('detailId',String(j.data.id));}router.push(current.pathname+current.search,{scroll:false});}
-      else {
-      router.push(
-        `${base}/benefits${input && typeof input === "object" && "entity" in input && input.entity === "election" ? `/${j.data.id}` : ""}`,
-      );
-      }
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry this action.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return { send, busy, error };
+import {useState,type ReactNode} from 'react';
+import {Button,Field,Select,TextArea,TextInput,InlineNotice,FormLayout} from '@/components/ui/foundation';
+import {AttachmentPanel,type AttachmentPanelChange} from '@/components/files/attachment-panel';
+import {RecordDocumentPanel} from '@/components/files/record-document-panel';
+import type {benefitDetail,benefitsWorkspace} from '@/server/modules/benefits/public/benefits';
+import {benefitActionAllowed,type BenefitPresentation} from '@/lib/benefits/presentation';
+import type {BenefitKind} from '@/lib/benefits/command';
+import {BenefitDraftBoundary} from './benefit-draft-boundary';
+import {BenefitEditor} from './benefit-editor';
+import {BenefitCommandFeedback} from './benefit-command-feedback';
+import {useBenefitCommand} from './use-benefit-command';
+type Command=ReturnType<typeof useBenefitCommand>;
+type Row=Record<string,string|number|null>;
+const labels:Record<string,string>={publish:'Publish plan',reject:'Reject',retire:'Retire plan',open:'Open window',close:'Close window',cancel:'Cancel',verify:'Verify dependent',remove:'Remove dependent',submit:'Submit election',acknowledge:'Record provider acknowledgement',release:'Release payroll input'};
+function Transition({base,view,command,kind,row,action,canManageDocuments}:{base:string;view:BenefitPresentation;command:Command;kind:BenefitKind;row:Row;action:string;canManageDocuments:boolean}){
+ const [files,setFiles]=useState<AttachmentPanelChange|null>(null),input={entity:kind,id:row.id,action,expectedVersion:Number(row.version)};
+ if(!benefitActionAllowed({...view,purchase:undefined},input))return null;
+ const evidence=kind==='dependent'&&action==='verify'?{target:'benefit_dependent',purpose:'dependent_proof',ref:'verification',title:'Dependent verification proof'}:kind==='election'&&action==='submit'?{target:'benefit_election',purpose:'election_document',ref:'employee-submit',title:'Election documents'}:kind==='election'&&action==='acknowledge'?{target:'benefit_election',purpose:'provider_proof',ref:'provider-acknowledgement',title:'Provider acknowledgement proof'}:null;
+ const blocked=command.busy||!!command.retryAttempt||!!command.savedDraft||!benefitActionAllowed(view,input);
+ return <BenefitEditor title={`${labels[action]} · ${String(row.name??row.plan_name??row.id)}`} busy={command.busy} recovery={<BenefitCommandFeedback command={command} view={view}/>} error={command.error} onReset={()=>setFiles(null)}><FormLayout data-benefit-draft className="ui-form-grid" onSubmit={event=>{event.preventDefault();const form=event.currentTarget,fields=new FormData(form);void command.send({...input,reason:fields.get('reason'),...(action==='acknowledge'?{providerReference:fields.get('providerReference')}:{}),attachmentSetIds:files?.setId&&files.readyCount>0&&files.bindable?[files.setId]:[]},form);}}>
+  {action==='acknowledge'&&<Field appearance="standard">Provider reference<TextInput appearance="standard" name="providerReference" minLength={2} maxLength={160} required/></Field>}
+  <Field appearance="standard">Reason<TextArea appearance="standard" name="reason" minLength={3} maxLength={3000} required/></Field>
+  {evidence&&(action==='submit'||canManageDocuments)&&<AttachmentPanel appearance="standard" key={`${row.id}:${row.version}:${action}`} base={base} targetType={evidence.target} targetId={String(row.id)} expectedTargetVersion={Number(row.version)} componentKind="action" componentRef={evidence.ref} purposeKey={evidence.purpose} title={evidence.title} description="Attach the evidence reviewed for this action. Clean files are locked with the original source revision." visibility="Restricted to the employee owner and dedicated Benefits document roles under the original file policy." onChange={setFiles}/>}
+  <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={blocked}>{labels[action]}</Button>
+ </FormLayout></BenefitEditor>;
 }
-export function BenefitsConsole({ recordOnly=false, section, embedded=false,
-  base,
-  data,
-  detail,
-}: { recordOnly?:boolean; section?:"plans"|"enrollments"; embedded?:boolean;
-  base: string;
-  data?: Awaited<ReturnType<typeof benefitsWorkspace>>;
-  detail?: Awaited<ReturnType<typeof benefitDetail>>;
-}) {
-  const { send, busy, error } = useCommand(base),
-    e = detail?.election,
-    [transitionFiles, setTransitionFiles] = useState<AttachmentPanelChange | null>(null),
-    [dependentFiles, setDependentFiles] = useState<Record<string, AttachmentPanelChange>>({});
-  return (
-    <div className="ui-stack" data-owner-embedded={embedded||undefined}>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {section!=="enrollments" && data?.canReview && (
-        <>
-          {!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft benefit plan</summary><FormLayout
-            className="ui-panel ui-form-grid"
-            onSubmit={(x) => {
-              x.preventDefault();
-              const f = Object.fromEntries(new FormData(x.currentTarget));
-              void send({
-                ...f,
-                entity: "plan",
-                effectiveTo: f.effectiveTo || null,
-                requiredEligibilityCode:f.requiredEligibilityCode||null,
-              });
-            }}
-          >
-            <h2>Draft benefit plan</h2>
-            <Field appearance="standard">
-              Name
-              <TextInput appearance="standard" name="name" required />
-            </Field>
-            <Field appearance="standard">
-              Provider
-              <TextInput appearance="standard" name="provider" required />
-            </Field>
-            <Field appearance="standard">
-              Coverage
-              <Select appearance="standard" name="coverageType">
-                <option value="employee">Employee</option>
-                <option value="family">Family</option>
-              </Select>
-            </Field>
-            <Field appearance="standard">
-              Currency
-              <TextInput appearance="standard" name="currency" defaultValue="THB" required />
-            </Field>
-            <Field appearance="standard">
-              Employee deduction
-              <TextInput appearance="standard" name="employeeDeduction" inputMode="decimal" required />
-            </Field>
-            <Field appearance="standard">
-              Employer cost
-              <TextInput appearance="standard" name="employerCost" inputMode="decimal" required />
-            </Field>
-            <Field appearance="standard">
-              Effective from
-              <TextInput appearance="standard" name="effectiveFrom" type="date" required />
-            </Field>
-            <Field appearance="standard">
-              Effective to
-              <TextInput appearance="standard" name="effectiveTo" type="date" />
-            </Field>
-            <Field appearance="standard">Required learning eligibility code, when applicable<TextInput appearance="standard" name="requiredEligibilityCode" maxLength={120}/></Field>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-              Draft plan
-            </Button>
-          </FormLayout></FormDisclosure>}
-          {!recordOnly && <FormDisclosure appearance="standard" dismissDisabled={busy} error={error} drawerTitle="Draft enrollment window"><summary>Draft enrollment window</summary><FormLayout
-            className="ui-panel ui-form-grid"
-            onSubmit={(x) => {
-              x.preventDefault();
-              void send({
-                ...Object.fromEntries(new FormData(x.currentTarget)),
-                entity: "window",
-              });
-            }}
-          >
-            <h2>Draft enrollment window</h2>
-            <Field appearance="standard">
-              Name
-              <TextInput appearance="standard" name="name" required />
-            </Field>
-            <Field appearance="standard">
-              Opens
-              <TextInput appearance="standard" name="opensOn" type="date" required />
-            </Field>
-            <Field appearance="standard">
-              Closes
-              <TextInput appearance="standard" name="closesOn" type="date" required />
-            </Field>
-            <Field appearance="standard">
-              Coverage effective
-              <TextInput appearance="standard" name="effectiveOn" type="date" required />
-            </Field>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-              Draft window
-            </Button>
-          </FormLayout></FormDisclosure>}
-          {(
-            [
-              ...data.plans
-                .filter((x) => x.status === "draft")
-                .map((x) => ({ entity: "plan", ...x })),
-              ...data.windows
-                .filter((x) => x.status === "draft")
-                .map((x) => ({ entity: "window", ...x })),
-            ] as Array<Record<string, unknown>>
-          ).map((x) => (
-            <FormLayout
-              className="ui-panel ui-form-grid"
-              key={String(x.id)}
-              onSubmit={(ev) => {
-                ev.preventDefault();
-                void send({
-                  entity: x.entity,
-                  id: x.id,
-                  action: x.entity === "plan" ? "publish" : "open",
-                  expectedVersion: Number(x.version),
-                  reason: String(new FormData(ev.currentTarget).get("reason")),
-                });
-              }}
-            >
-              <h2>Independent review · {String(x.name)}</h2>
-              <Field appearance="standard">
-                Reason
-                <TextArea appearance="standard" name="reason" minLength={3} required />
-              </Field>
-              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-                {x.entity === "plan" ? "Publish plan" : "Open window"}
-              </Button>
-            </FormLayout>
-          ))}
-        </>
-      )}
-      {section!=="plans" && data?.canWrite && (
-        (!recordOnly && <FormDisclosure appearance="standard" dismissDisabled={busy} error={error} drawerTitle="Add dependent"><summary>Add dependent</summary><FormLayout
-          className="ui-panel ui-form-grid"
-          onSubmit={(x) => {
-            x.preventDefault();
-            void send({
-              ...Object.fromEntries(new FormData(x.currentTarget)),
-              entity: "dependent",
-            });
-          }}
-        >
-          <h2>Add dependent</h2>
-          <Field appearance="standard">
-            Name
-            <TextInput appearance="standard" name="name" required />
-          </Field>
-          <Field appearance="standard">
-            Relationship
-            <TextInput appearance="standard" name="relationship" required />
-          </Field>
-          <Field appearance="standard">
-            Birth date
-            <TextInput appearance="standard" name="birthDate" type="date" required />
-          </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-            Submit dependent
-          </Button>
-        </FormLayout></FormDisclosure>)
-      )}
-      {data?.plans
-        .filter((plan) => ["draft", "published", "retired"].includes(String(plan.status)))
-        .map((plan) => (
-          <RecordDocumentPanel appearance="standard"
-            key={`booklet:${String(plan.id)}`}
-            base={base}
-            targetType="benefit_plan"
-            targetId={String(plan.id)}
-            expectedTargetVersion={Number(plan.version)}
-            editable={data.canManageDocuments}
-            title={`${String(plan.name)} · plan documents`}
-            purposes={[
-              {
-                key: "benefit_booklet",
-                label: "Benefit booklet",
-                description:
-                  "Attach the reviewed plan booklet or coverage guide for this plan revision.",
-                visibility:
-                  "Published booklets are self-visible to active employees; drafts remain restricted to Benefits document managers.",
-              },
-            ]}
-          />
-        ))}
-      {data?.dependents.map((dependent) => (
-        <RecordDocumentPanel appearance="standard"
-          key={`dependent-proof:${String(dependent.id)}`}
-          base={base}
-          targetType="benefit_dependent"
-          targetId={String(dependent.id)}
-          expectedTargetVersion={Number(dependent.version)}
-          editable={String(dependent.status) === "pending"}
-          title={`${String(dependent.name)} · dependent proof`}
-          purposes={[
-            {
-              key: "dependent_proof",
-              label: "Dependent proof",
-              description: "Attach relationship, identity, or provider eligibility evidence.",
-              visibility:
-                "Only the employee owner and dedicated Benefits document roles can access these files.",
-            },
-          ]}
-        />
-      ))}
-      {data?.canReview &&
-        data.dependents
-          .filter((x) => x.status === "pending")
-          .map((x) => (
-            <FormLayout
-              className="ui-panel ui-form-grid"
-              key={String(x.id)}
-              onSubmit={(ev) => {
-                ev.preventDefault();
-                void send({
-                  entity: "dependent",
-                  id: x.id,
-                  action: "verify",
-                  expectedVersion: Number(x.version),
-                  reason: String(new FormData(ev.currentTarget).get("reason")),
-                  attachmentSetIds:
-                    dependentFiles[String(x.id)]?.setId &&
-                    dependentFiles[String(x.id)]?.readyCount > 0 &&
-                    dependentFiles[String(x.id)]?.bindable
-                      ? [dependentFiles[String(x.id)].setId]
-                      : [],
-                });
-              }}
-            >
-              <h2>Verify dependent · {String(x.name)}</h2>
-              <Field appearance="standard">
-                Reason
-                <TextArea appearance="standard" name="reason" required minLength={3} />
-              </Field>
-              {data.canManageDocuments && (
-                <AttachmentPanel appearance="standard"
-                  base={base}
-                  targetType="benefit_dependent"
-                  targetId={String(x.id)}
-                  expectedTargetVersion={Number(x.version)}
-                  componentKind="action"
-                  componentRef="verification"
-                  purposeKey="dependent_proof"
-                  title="Dependent verification proof"
-                  description="Attach the relationship, identity, or provider evidence reviewed for this verification."
-                  visibility="Restricted to the employee owner and dedicated Benefits document roles."
-                  onChange={(change) =>
-                    setDependentFiles((current) => ({
-                      ...current,
-                      [String(x.id)]: change,
-                    }))
-                  }
-                />
-              )}
-              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-                Verify
-              </Button>
-            </FormLayout>
-          ))}
-      {section!=="plans" && data?.canWrite && (
-        (!recordOnly && <FormDisclosure appearance="standard" dismissDisabled={busy} error={error} drawerTitle="Elect coverage"><summary>Elect coverage</summary><FormLayout
-          className="ui-panel ui-form-grid"
-          onSubmit={(x) => {
-            x.preventDefault();
-            const f = Object.fromEntries(new FormData(x.currentTarget)),
-              plan = data.plans.find((p) => p.id === f.planId),
-              win = data.windows.find((w) => w.id === f.windowId);
-            void send({
-              entity: "election",
-              planId: f.planId,
-              planVersion: Number(plan?.version),
-              windowId: f.windowId,
-              windowVersion: Number(win?.version),
-              dependentIds: new FormData(x.currentTarget).getAll("dependentIds"),
-            });
-          }}
-        >
-          <h2>Elect coverage</h2>
-          <Field appearance="standard">
-            Plan
-            <Select appearance="standard" name="planId">
-              {data.plans
-                .filter((x) => x.status === "published")
-                .map((x) => (
-                  <option key={String(x.id)} value={String(x.id)}>
-                    {String(x.name)}
-                  </option>
-                ))}
-            </Select>
-          </Field>
-          <Field appearance="standard">
-            Window
-            <Select appearance="standard" name="windowId">
-              {data.windows
-                .filter((x) => x.status === "open")
-                .map((x) => (
-                  <option key={String(x.id)} value={String(x.id)}>
-                    {String(x.name)}
-                  </option>
-                ))}
-            </Select>
-          </Field>
-          <fieldset>
-            <legend>Verified dependents</legend>
-            {data.dependents
-              .filter((x) => x.status === "verified")
-              .map((x) => (
-                <Field appearance="standard" orientation="inline" key={String(x.id)}>
-                  <TextInput appearance="standard" type="checkbox" name="dependentIds" value={String(x.id)} />
-                  {String(x.name)}
-                </Field>
-              ))}
-          </fieldset>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-            Elect plan
-          </Button>
-        </FormLayout></FormDisclosure>)
-      )}
-      {e && !["released", "cancelled"].includes(String(e.status)) && (
-        (!recordOnly && <FormLayout
-          className="ui-panel ui-form-grid"
-          onSubmit={(x) => {
-            x.preventDefault();
-            const f = Object.fromEntries(new FormData(x.currentTarget)),
-              action =
-                e.status === "elected"
-                  ? "submit"
-                  : e.status === "submitted"
-                    ? "acknowledge"
-                    : "release";
-            void send({
-              entity: "election",
-              id: e.id,
-              action,
-              expectedVersion: Number(e.version),
-              reason: f.reason,
-              providerReference: f.providerReference || undefined,
-              attachmentSetIds:
-                transitionFiles?.setId && transitionFiles.readyCount > 0 && transitionFiles.bindable
-                  ? [transitionFiles.setId]
-                  : [],
-            });
-          }}
-        >
-          <h2>
-            {e.status === "elected"
-              ? "Submit election"
-              : e.status === "submitted"
-                ? "Record provider acknowledgement"
-                : "Release payroll input"}
-          </h2>
-          {e.status === "submitted" && (
-            <Field appearance="standard">
-              Provider reference
-              <TextInput appearance="standard" name="providerReference" required />
-            </Field>
-          )}
-          <Field appearance="standard">
-            Reason
-            <TextArea appearance="standard" name="reason" required minLength={3} />
-          </Field>
-          {e.status === "elected" && (
-            <AttachmentPanel appearance="standard"
-              key={`${String(e.id)}:election:${String(e.version)}`}
-              base={base}
-              targetType="benefit_election"
-              targetId={String(e.id)}
-              expectedTargetVersion={Number(e.version)}
-              componentKind="action"
-              componentRef="employee-submit"
-              purposeKey="election_document"
-              title="Election documents"
-              description="Attach employee election or coverage-selection evidence. Clean files are locked with submission."
-              visibility="Only the employee owner and dedicated Benefits document roles can access these files."
-              onChange={setTransitionFiles}
-            />
-          )}
-          {e.status === "submitted" && detail?.canManageDocuments && (
-            <AttachmentPanel appearance="standard"
-              key={`${String(e.id)}:provider:${String(e.version)}`}
-              base={base}
-              targetType="benefit_election"
-              targetId={String(e.id)}
-              expectedTargetVersion={Number(e.version)}
-              componentKind="action"
-              componentRef="provider-acknowledgement"
-              purposeKey="provider_proof"
-              title="Provider acknowledgement proof"
-              description="Attach the provider receipt, acknowledgement, or enrollment confirmation."
-              visibility="Restricted to dedicated Benefits document roles until acknowledgement is recorded."
-              onChange={setTransitionFiles}
-            />
-          )}
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-            Continue
-          </Button>
-        </FormLayout>)
-      )}
-    </div>
-  );
+export function BenefitsConsole({recordOnly=false,section,embedded=false,base,data,detail}:{recordOnly?:boolean;section?:'plans'|'enrollments';embedded?:boolean;base:string;data?:Awaited<ReturnType<typeof benefitsWorkspace>>;detail?:Awaited<ReturnType<typeof benefitDetail>>}){
+ const source=data??detail,view:BenefitPresentation={actorId:source?.actorId??'',canWrite:source?.canWrite??false,canReview:source?.canReview??false,purchase:source?.purchase,plans:data?.plans,windows:data?.windows,dependents:data?.dependents,election:detail?.election,isOwner:detail?.isOwner},command=useBenefitCommand(base,view,source?.workContext??'unavailable'),newWork=!source?.purchase||source.purchase.newWork,settleExisting=!source?.purchase||source.purchase.settleExisting,blocked=command.busy||!!command.retryAttempt||!!command.savedDraft;
+ const editor=(title:string,children:ReactNode)=><BenefitEditor title={title} busy={command.busy} recovery={<BenefitCommandFeedback command={command} view={view}/>} error={command.error}>{children}</BenefitEditor>;
+ const rows=(kind:BenefitKind,values:Row[],actions:string[])=>values.map(row=><div key={`${kind}:${row.id}`} className="ui-stack">{actions.map(action=><Transition key={`${row.id}:${action}`} base={base} view={view} command={command} kind={kind} row={row} action={action} canManageDocuments={source?.canManageDocuments??false}/>)}</div>);
+ return <BenefitDraftBoundary dirty={!!command.retryAttempt||!!command.savedDraft}><div className="ui-stack" data-owner-embedded={embedded||undefined}>
+  {source?.purchase&&!newWork&&<InlineNotice tone="info">Benefits history remains available. {settleExisting?'Existing enrollments and provider work can be completed.':'This package is read only.'}</InlineNotice>}
+  {command.error&&<InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}
+  <BenefitCommandFeedback command={command} view={view}/>
+  {!recordOnly&&section!=='enrollments'&&data?.canReview&&data.canWrite&&<>
+   {editor('Draft benefit plan',<FormLayout data-benefit-draft className="ui-form-grid" onSubmit={event=>{event.preventDefault();const form=event.currentTarget,fields=Object.fromEntries(new FormData(form));void command.send({...fields,entity:'plan',effectiveTo:fields.effectiveTo||null,requiredEligibilityCode:fields.requiredEligibilityCode||null},form);}}>
+    <Field appearance="standard">Name<TextInput appearance="standard" name="name" required/></Field><Field appearance="standard">Provider<TextInput appearance="standard" name="provider" required/></Field>
+    <Field appearance="standard">Coverage<Select appearance="standard" name="coverageType"><option value="employee">Employee</option><option value="family">Family</option></Select></Field>
+    <Field appearance="standard">Currency<TextInput appearance="standard" name="currency" defaultValue="THB" required/></Field>
+    <Field appearance="standard">Employee deduction<TextInput appearance="standard" name="employeeDeduction" inputMode="decimal" required/></Field><Field appearance="standard">Employer cost<TextInput appearance="standard" name="employerCost" inputMode="decimal" required/></Field>
+    <Field appearance="standard">Effective from<TextInput appearance="standard" name="effectiveFrom" type="date" required/></Field><Field appearance="standard">Effective to<TextInput appearance="standard" name="effectiveTo" type="date"/></Field>
+    <Field appearance="standard">Required learning eligibility code, when applicable<TextInput appearance="standard" name="requiredEligibilityCode" maxLength={120}/></Field>
+    <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={blocked||!newWork}>Draft plan</Button>
+   </FormLayout>)}
+   {editor('Draft enrollment window',<FormLayout data-benefit-draft className="ui-form-grid" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;void command.send({...Object.fromEntries(new FormData(form)),entity:'window'},form);}}>
+    <Field appearance="standard">Name<TextInput appearance="standard" name="name" required/></Field><Field appearance="standard">Opens<TextInput appearance="standard" name="opensOn" type="date" required/></Field><Field appearance="standard">Closes<TextInput appearance="standard" name="closesOn" type="date" required/></Field><Field appearance="standard">Coverage effective<TextInput appearance="standard" name="effectiveOn" type="date" required/></Field>
+    <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={blocked||!newWork}>Draft window</Button>
+   </FormLayout>)}
+  </>}
+  {data&&section!=='enrollments'&&<>{rows('plan',data.plans,['publish','reject','retire'])}{rows('window',data.windows,['open','cancel','close'])}</>}
+  {!recordOnly&&section!=='plans'&&data?.canWrite&&editor('Add dependent',<FormLayout data-benefit-draft className="ui-form-grid" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;void command.send({...Object.fromEntries(new FormData(form)),entity:'dependent'},form);}}>
+   <Field appearance="standard">Name<TextInput appearance="standard" name="name" required/></Field><Field appearance="standard">Relationship<TextInput appearance="standard" name="relationship" required/></Field><Field appearance="standard">Birth date<TextInput appearance="standard" name="birthDate" type="date" required/></Field><Button appearance="standard" clientManaged type="submit" variant="primary" disabled={blocked||!newWork}>Submit dependent</Button>
+  </FormLayout>)}
+  {data?.plans.filter(plan=>['draft','published','retired'].includes(String(plan.status))).map(plan=><RecordDocumentPanel appearance="standard" key={`booklet:${plan.id}`} base={base} targetType="benefit_plan" targetId={String(plan.id)} expectedTargetVersion={Number(plan.version)} editable={data.canManageDocuments&&newWork} title={`${plan.name} · plan documents`} purposes={[{key:'benefit_booklet',label:'Benefit booklet',description:'Attach the reviewed plan booklet or coverage guide for this plan revision.',visibility:'Published booklets are self-visible to active employees; drafts remain restricted to Benefits document managers.'}]}/>)}
+  {data?.dependents.map(dependent=><RecordDocumentPanel appearance="standard" key={`dependent-proof:${dependent.id}`} base={base} targetType="benefit_dependent" targetId={String(dependent.id)} expectedTargetVersion={Number(dependent.version)} editable={dependent.status==='pending'&&settleExisting} title={`${dependent.name} · dependent proof`} purposes={[{key:'dependent_proof',label:'Dependent proof',description:'Attach relationship, identity, or provider eligibility evidence.',visibility:'Only the employee owner and dedicated Benefits document roles can access these files.'}]}/>)}
+  {data&&rows('dependent',data.dependents,['verify','reject','remove'])}
+  {!recordOnly&&section!=='plans'&&data?.canWrite&&editor('Elect coverage',<FormLayout data-benefit-draft className="ui-form-grid" onSubmit={event=>{event.preventDefault();const form=event.currentTarget,fields=new FormData(form),plan=data.plans.find(row=>row.id===fields.get('planId')),window=data.windows.find(row=>row.id===fields.get('windowId'));void command.send({entity:'election',planId:fields.get('planId'),planVersion:Number(plan?.version),windowId:fields.get('windowId'),windowVersion:Number(window?.version),dependentIds:fields.getAll('dependentIds')},form);}}>
+   <Field appearance="standard">Plan<Select appearance="standard" name="planId" required>{data.plans.filter(row=>row.status==='published').map(row=><option key={String(row.id)} value={String(row.id)}>{row.name}</option>)}</Select></Field>
+   <Field appearance="standard">Window<Select appearance="standard" name="windowId" required>{data.windows.filter(row=>row.status==='open').map(row=><option key={String(row.id)} value={String(row.id)}>{row.name}</option>)}</Select></Field>
+   <fieldset><legend>Verified dependents</legend>{data.dependents.filter(row=>row.status==='verified').map(row=><Field appearance="standard" orientation="inline" key={String(row.id)}><TextInput appearance="standard" type="checkbox" name="dependentIds" value={String(row.id)}/>{row.name}</Field>)}</fieldset>
+   <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={blocked||!newWork||!data.plans.some(row=>row.status==='published')||!data.windows.some(row=>row.status==='open')}>Elect plan</Button>
+  </FormLayout>)}
+  {detail&&rows('election',[detail.election],['submit','cancel','acknowledge','release'])}
+ </div></BenefitDraftBoundary>;
 }

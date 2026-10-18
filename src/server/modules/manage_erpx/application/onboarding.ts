@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {z} from 'zod';
 import {BusinessRuleError,type Clock} from '../../shared';
 import {requireVerified,onboardingSchema,type BetaUser,type SlotRow,type BetaResourceSlot,type BetaCapacity} from '../domain/onboarding';
@@ -166,7 +167,7 @@ export function createBetaOnboardingApplication<Effect>(ports:{control:BetaContr
     r.prepareBilling(slot.holding_id,now),
     r.prepareActiveSlot(now,slot.holding_id,user.id),
   ]);
-  return { state: "active", href: `/holdings/${slot.slug}/home` };
+  return { state: "active", href: canonicalUiHref(`/holdings/${slot.slug}/home`) };
 }
 async function view(user:BetaUser){requireVerified(user);return {enabled:ports.publicBeta,slot:await ports.control.onboardingSlot(user.id)};}
 return {onboard,view};}

@@ -1,9 +1,10 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button } from "@/components/ui/foundation";
 
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useCallback, useEffect, useState } from "react";
 import type { CalendarItem } from "@/lib/work_projection/calendar";
 import { today } from "@/lib/work_projection/calendar-date";
@@ -56,7 +57,7 @@ export function AnnouncementFeed({ base }: { base: string }) {
           <h3>{i.title}</h3>
           <p>{i.description}</p>
           <Link
-            href={`${base}/calendar?date=${i.startDate}&layers=announcements&event=${encodeURIComponent(i.id)}`}
+            href={canonicalUiHref(`${base}/calendar?date=${i.startDate}&layers=announcements&event=${encodeURIComponent(i.id)}`)}
           >
             View in Calendar
           </Link>

@@ -1,9 +1,30 @@
+import {workSourceReadScope} from "../../operations/public/record-purchases";
+import {serviceSourceReadScope} from "../../field_service/public/record-purchases";
+import {benefitSourceReadScope} from "../../benefits/public/record-purchases";
+import {workforceSourceReadScope} from "../../people_payroll/public/workforce-record-purchases";
+import {followupSourceReadScope} from "../../sales/public/followup-purchases";
+import {crmSourceReadScope} from "../../crm/public/record-purchases";
+import {marketingSourceReadScope} from "../../marketing/public/record-purchases";
+import {legalSourceReadScope} from "../../legal/public/record-purchases";
+import {talentSourceReadScope} from "../../talent/public/record-purchases";
+import {manufacturingSourceReadScope} from "../../manufacturing/public/record-purchases";
+import {landedCostSourceReadScope} from "../../inventory/public/landed-cost-record-purchases";
+import {assetSourceReadScope} from "../../assets/public/record-purchases";
+import {learningSourceReadScope} from "../../learning/public/record-purchases";
+import {qualitySourceReadScope} from "../../quality/public/record-purchases";
+import {projectSourceReadScope} from "../../projects/public/record-purchases";
+import {transferSourceReadScope} from "../../inventory/public/transfer-record-purchases";
+import {procurementSourceReadScope} from "../../procurement/public/record-purchases";
+import {countSourceReadScope,initialPhysicalStockCountDestinations} from "../../inventory/public/count-record-purchases";
+import {peopleSourceReadScope,payrollSourceReadScope} from "../../people_payroll/public/record-purchases";
+import {commerceSourceReadScope} from "../../commerce/public/record-purchases";
+import {financeNotificationReadScope} from "../../finance/public/document-purchases";
 import 'server-only';
 import type { SqlDatabase, SqlStatement, TransactionalSqlDatabase } from '../../runtime/public/runtime/types';
 import { ApiError } from '../../runtime/public/http';
 import { BusinessRuleError } from '../../shared';
 import type { WorkContext } from '../../identity_access/public/authorization';
-import type { InboxCategory, InboxEventInput, Candidate } from '../domain/inbox';
+import type { InboxCategory, InboxEventInput, Candidate, InboxItem } from '../domain/inbox';
 import { executeCommand, replayCommand } from '../../workflow/public/commands';
 import { visibleNotifications } from '../public/staff-notifications';
 import { createInboxApplication, createInboxNoticeApplication, type InboxRepository } from '../application/inbox';
@@ -104,16 +125,24 @@ function application(db: SqlDatabase) {
             }>();
         }, ...owner0(db), ...owner1(db), ...owner2(db), ...owner3(db) };
     return createInboxApplication<SqlStatement>({ repository, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, visibleNotifications: (...args) => inward(() => visibleNotifications(db, ...args)), async candidates(actor, view, category, search, cursor) {
-            const query = { view };
-            return { results: (await db.prepare(`${candidateSql}
+            const query = { view },scope=await financeNotificationReadScope(db,actor,"inbox"),basePeople=await peopleSourceReadScope(db,actor,"inbox"),commerce=await commerceSourceReadScope(db,actor,"inbox"),payroll=await payrollSourceReadScope(db,actor,"inbox"),count=await countSourceReadScope(db,actor,"inbox"),procurement=await procurementSourceReadScope(db,actor,"inbox"),transfer=await transferSourceReadScope(db,actor,"inbox"),projects=await projectSourceReadScope(db,actor,"inbox"),quality=await qualitySourceReadScope(db,actor,"inbox"),learning=await learningSourceReadScope(db,actor,"inbox"),assets=await assetSourceReadScope(db,actor,"inbox"),landedCost=await landedCostSourceReadScope(db,actor,"inbox"),manufacturing=await manufacturingSourceReadScope(db,actor,"inbox"),talent=await talentSourceReadScope(db,actor,"inbox"),legal=await legalSourceReadScope(db,actor,"inbox"),crm=await crmSourceReadScope(db,actor,"inbox"),marketing=await marketingSourceReadScope(db,actor,"inbox"),followups=await followupSourceReadScope(db,actor,"inbox"),workforce=await workforceSourceReadScope(db,actor,"inbox"),benefits=await benefitSourceReadScope(db,actor,"inbox"),service=await serviceSourceReadScope(db,actor,"inbox"),work=await workSourceReadScope(db,actor,"inbox");
+            return { results: (await db.prepare(`${scope.clock}${candidateSql} AND ${scope.where} AND ${commerce.where} AND ${payroll.where} AND ${basePeople.where} AND ${count.where} AND ${procurement.where} AND ${transfer.where} AND ${projects.where} AND ${quality.where} AND ${learning.where} AND ${assets.where} AND ${landedCost.where} AND ${manufacturing.where} AND ${talent.where} AND ${legal.where} AND ${crm.where} AND ${marketing.where} AND ${followups.where} AND ${workforce.where} AND ${benefits.where} AND ${service.where} AND ${work.where}
       ${query.view === "all" ? "" : "AND d.read_at IS NULL"}
       ${category ? "AND e.category=?" : ""}
       ${search ? "AND e.preview ILIKE '%'||?||'%'" : ""}
       ${cursor ? "AND (d.delivered_at,d.id)<(?,?)" : ""}
       ORDER BY d.delivered_at DESC,d.id DESC LIMIT 100`)
-                    .bind(actor.companyId, actor.userId, ...(category ? [category] : []), ...(search ? [search] : []), ...(cursor ? [cursor.at, cursor.id] : []))
+                    .bind(actor.companyId, actor.userId,...scope.args,...commerce.args,...payroll.args,...basePeople.args,...count.args,...procurement.args,...transfer.args,...projects.args,...quality.args,...learning.args,...assets.args,...landedCost.args,...manufacturing.args,...talent.args,...legal.args,...crm.args,...marketing.args,...followups.args,...workforce.args,...benefits.args,...service.args,...work.args, ...(category ? [category] : []), ...(search ? [search] : []), ...(cursor ? [cursor.at, cursor.id] : []))
                     .all<Candidate>()).results };
         } });
+}
+/** The original candidate resolver runs before this final page projection.
+ * Do not perform a destination query from its per-candidate staff resolver. */
+async function projectInitialCountInbox(db:SqlDatabase,actor:WorkContext,items:InboxItem[]){
+ const ids=[...new Set(items.filter(item=>item.sourceType==='stock_count').map(item=>item.sourceId))];
+ if(!ids.length)return items;
+ const destinations=await initialPhysicalStockCountDestinations(db,actor,ids);
+ return items.map(item=>{const href=item.sourceType==='stock_count'&&Object.hasOwn(destinations,item.sourceId)?destinations[item.sourceId]:undefined;return href?{...item,href,...(item.source?{source:{...item.source,href}}:{})}:item;});
 }
 export function publishInboxEvent(db: SqlDatabase, input: InboxEventInput) { return exposed(() => application(db).publishInboxEvent(input)); }
 export function inboxPage(db: SqlDatabase, actor: WorkContext, query: {
@@ -122,7 +151,7 @@ export function inboxPage(db: SqlDatabase, actor: WorkContext, query: {
     search?: string;
     cursor?: string;
     limit?: number;
-}) { return exposed(() => application(db).inboxPage(actor, query)); }
+}) { return exposed(async () => {const page=await application(db).inboxPage(actor,query);return {...page,items:await projectInitialCountInbox(db,actor,page.items)};}); }
 export function inboxSummary(db: SqlDatabase, actor: WorkContext) { return exposed(() => application(db).inboxSummary(actor)); }
 export function changeInboxState(db: SqlDatabase, actor: WorkContext, id: string, state: {
     read?: boolean;

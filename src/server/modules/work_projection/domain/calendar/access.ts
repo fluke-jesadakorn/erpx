@@ -1,6 +1,7 @@
 import type {WorkContext} from "../../../identity_access/public/authorization";
 import type {StaffPerson} from "../../../operations/public/staff-policy";
 import type {CalendarNode} from "@/server/modules/work_projection/public/rules/calendar-domain";
+import type {CalendarPurchaseControls} from '@/lib/work_projection/calendar-purchases';
 export type CalendarAccess = {
   actor: WorkContext;
   staff: StaffPerson | null;
@@ -12,6 +13,7 @@ export type CalendarAccess = {
   rosterReader: boolean;
   lifecycleReader: boolean;
   teamDefault: boolean;
+  manualPurchase?:CalendarPurchaseControls;
 };
 export function descendants(nodes: CalendarNode[], root: string) {
   const found = new Set<string>([root]);

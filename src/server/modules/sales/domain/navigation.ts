@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { hasPermission } from "@/lib/identity_access/permissions";
 import type { PermissionActor } from "@/lib/identity_access/iam";
 
@@ -14,7 +15,7 @@ export function queryValue(query: HubQuery, key: string, fallback = "") {
 export function hubHref(base: string, hub: "sales" | "customers", query: HubQuery = {}, changes: HubQuery = {}) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries({ ...query, ...changes })) if (typeof value === "string") params.set(key, value);
-  return `${base}/${hub}${params.size ? `?${params}` : ""}`;
+  return canonicalUiHref(`${base}/${hub}${params.size ? `?${params}` : ""}`);
 }
 export function salesCustomerAccess(actor: PermissionActor & { branchId?: string | null; departmentId?: string | null }, apps?: readonly string[]) {
   const enabled = (id: string) => !apps || apps.includes(id);

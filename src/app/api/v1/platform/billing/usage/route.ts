@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { activeHoldingBindings, runtimeEnv } from "@/server/modules/runtime/public/runtime";
@@ -17,11 +18,11 @@ export async function GET(request: Request) {
       throw new ApiError(404, "NOT_FOUND", "Customer Holding not found.");
     const { CONTROL_DB } = await runtimeEnv();
     const report = await readPlatformUsageProjection(CONTROL_DB, all, month, selectedId);
-    return Response.json({ data: {
+    return Response.json(canonicalDestinationLinks({ data: {
       month, scope: "platform", holdings: report.holdings,
       accounts: all.map(binding => ({ holdingId: binding.id, holdingName: binding.displayName })),
       items: report.items,
       unavailable: report.unavailable, measured: true, coverage: "partial",
-    } }, { headers: { "Cache-Control": "private, no-store" } });
+    } }), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

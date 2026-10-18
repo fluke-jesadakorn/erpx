@@ -1,3 +1,5 @@
+import {inLegalAttachmentPreservationUnit,deferLegalOwnerCheck,legalSourceWitness} from '../purchases';
+import {requireQueuedCommandAuthority} from '../../../identity_access/public/queued-command-authority';
 import "server-only";
 import type {PostgresDatabase} from "../../../runtime/public/runtime/postgres";
 import type {SqlDatabase,FileStore} from "../../../runtime/public/runtime/types";
@@ -16,8 +18,10 @@ import {access} from "./access";
 import {hash} from "./service";
 import {uploadDocument} from "./documents";
 import {createLegalPreservationApplication,type LegalPreservationWork} from "../../application/sources";
+import {legalPreservationInput} from '../../domain/sources';
+import {isLegalEvidenceAttachmentType} from '../evidence-attachment-read';
 function work(db:SqlDatabase,files:FileStore,a:WorkContext):LegalPreservationWork{return {
  lock:async()=>{await db.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").run();},source:id=>legalPreservationSource(db,a.companyId,id),owner:{request:id=>getEmployeeRequest(db,a,id),task:id=>getTask(db,a,id),expense:id=>readExpenseForLegal(a,id,db),leave:id=>legalLeaveSource(db,a.holdingId,id,a),expensePayment:id=>readExpensePaymentForLegal(a,id,db),invoicePayment:id=>invoicePaymentOwner(db,a,id)},content:async id=>(await attachmentContent(db,files,a,id,"original")).object,file:key=>files.get(key),replay:(key,id,input)=>replayCommand(db,a,key,"legal.document.upload",id,input),upload:(id,version,name,type,bytes,key)=>uploadDocument(db,files,a,id,version,name,type,bytes,key),
  preserve:async(id,sourceId,row,now)=>{await db.prepare("INSERT INTO legal_file_preservations(item_id,source_type,source_id,object_key,checksum,created_by,created_at) VALUES(?,'attachment',?,?,?,?,?) ON CONFLICT DO NOTHING").bind(id,sourceId,row.object_key,row.checksum_sha256,a.userId,now).run();}
 };}
-export function preserveAttachment(db:PostgresDatabase,files:FileStore,a:WorkContext,raw:unknown,key:string){return createLegalPreservationApplication({readOnly:()=>attachmentsV2ReadOnly(),readable:()=>attachmentsV2Readable(),access:id=>access(db,a,id,"legal.edit"),transaction:task=>db.transaction(tx=>task(work(tx,files,a))),clock:{now:()=>Date.now()},hash,error:(status,code,message)=>new ApiError(status,code,message)})(raw,key);}
+export async function preserveAttachment(db:PostgresDatabase,files:FileStore,a:WorkContext,raw:unknown,key:string){const input=legalPreservationInput.parse(raw),original=await legalPreservationSource(db,a.companyId,input.attachmentId),source=original&&isLegalEvidenceAttachmentType(original.owner_type)?{attachmentId:input.attachmentId,ownerType:original.owner_type,ownerId:original.owner_id}:undefined;return createLegalPreservationApplication({readOnly:()=>attachmentsV2ReadOnly(),readable:()=>attachmentsV2Readable(),access:id=>access(db,a,id,"legal.edit"),transaction:async task=>inLegalAttachmentPreservationUnit(db,a,async tx=>{const result=await task(work(tx,files,a)),completed=await legalSourceWitness(tx,a,input.id);if(!completed)throw new ApiError(409,'LEGAL_SOURCE_CHANGED','The preserved Legal destination is unavailable.');deferLegalOwnerCheck(tx,a.companyId,async()=>{await requireQueuedCommandAuthority(tx,a,'legal.edit');if(await legalSourceWitness(tx,a,input.id)!==completed)throw new ApiError(409,'LEGAL_SOURCE_CHANGED','The completed Legal destination changed during preservation.');});return result;},source),clock:{now:()=>Date.now()},hash,error:(status,code,message)=>new ApiError(status,code,message)})(raw,key);}

@@ -1,10 +1,10 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { FinanceEvidenceDocuments } from "./finance-evidence-documents";
-import { useState, useContext } from "react";
+import { useContext } from "react";
 import { EmbeddedRecord } from "@/components/records/record-context";
 import { recordCanonicalHref } from "@/lib/records/record-drawer";
-import { useRouter } from "next/navigation";
-import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
+import { useFinanceCommand } from "./use-finance-command";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import {
   Button,
@@ -60,34 +60,7 @@ export function FinanceCollectionControls({
   query?: Record<string, string | undefined>;
 }) {
   const recordOnly = useContext(EmbeddedRecord);
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function run(path: string, input: unknown) {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await workFetch(
-          `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Idempotency-Key": crypto.randomUUID(),
-            },
-            body: JSON.stringify(input),
-          },
-        ),
-        body = await r.json();
-      if (!r.ok)
-        throw new Error(body.error?.message ?? "Collection action failed");
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Collection action failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const {send:run,busy,error,draftScope,canSettle}=useFinanceCommand(base,"finance.receivables");
   return (
     <>
       <Card appearance="standard" as="section" className="ui-panel">
@@ -108,7 +81,7 @@ export function FinanceCollectionControls({
             drawerTitle="Prepare a collection case"
           >
             <summary>Prepare customer follow-up</summary>
-            <FormLayout
+            <FormLayout data-finance-draft={draftScope}
               className="ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -145,7 +118,7 @@ export function FinanceCollectionControls({
                 appearance="standard"
                 clientManaged
                 type="submit"
-                disabled={busy}
+                disabled={busy || !canSettle}
               >
                 Save case for review
               </Button>
@@ -165,7 +138,7 @@ export function FinanceCollectionControls({
               {data.invoices.map((i) => (
                 <tr key={String(i.id)}>
                   <td>
-                    <RecordLink href={`${base}/finance/invoices/${i.id}`}>
+                    <RecordLink href={canonicalUiHref(`${base}/finance/invoices/${i.id}`)}>
                       {String(i.invoice_number)}
                     </RecordLink>{" "}
                     · {String(i.party_name)}
@@ -204,7 +177,7 @@ export function FinanceCollectionControls({
                 <tr key={String(c.id)}>
                   <td>
                     <RecordLink
-                      href={`${base}/finance/invoices/${c.invoice_id}`}
+                      href={canonicalUiHref(`${base}/finance/invoices/${c.invoice_id}`)}
                     >
                       Invoice
                     </RecordLink>
@@ -263,7 +236,7 @@ export function FinanceCollectionControls({
                           drawerTitle="Revise unsent collection message"
                         >
                           <summary>Revise message</summary>
-                          <FormLayout
+                          <FormLayout data-finance-draft={draftScope}
                             className="ui-form-grid"
                             onSubmit={(event) => {
                               event.preventDefault();
@@ -321,7 +294,7 @@ export function FinanceCollectionControls({
                               appearance="standard"
                               clientManaged
                               type="submit"
-                              disabled={busy}
+                              disabled={busy || !canSettle}
                             >
                               Prepare revised message
                             </Button>
@@ -333,7 +306,7 @@ export function FinanceCollectionControls({
                       c.prepared_by !== userId) ||
                       (canWrite &&
                         ["draft", "approved"].includes(String(c.status)))) && (
-                      <FormLayout
+                      <FormLayout data-finance-draft={draftScope}
                         onSubmit={(e) => {
                           e.preventDefault();
                           const f = new FormData(e.currentTarget);
@@ -371,7 +344,7 @@ export function FinanceCollectionControls({
                           appearance="standard"
                           clientManaged
                           type="submit"
-                          disabled={busy}
+                          disabled={busy || !canSettle}
                         >
                           Confirm
                         </Button>
@@ -438,7 +411,7 @@ export function FinanceCollectionControls({
                     {m.invoiceIds.map((id) => (
                       <RecordLink
                         key={id}
-                        href={`${base}/finance/invoices/${id}`}
+                        href={canonicalUiHref(`${base}/finance/invoices/${id}`)}
                       >
                         Invoice ·{" "}
                       </RecordLink>

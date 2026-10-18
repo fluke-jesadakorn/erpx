@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { defaultTimePreference, formatPreferredDateTime, resolvedTimeZone, systemTimeZone, type TimePreference } from "@/lib/shared/ui-format";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { usePathname } from "next/navigation";
@@ -17,22 +17,42 @@ const TimeContext = createContext<TimeContextValue>({
   preference: defaultTimePreference, systemZone: "UTC", ready: false, setPreference: () => {},
 });
 
-export function TimePreferenceProvider({ children }: ({ children: React.ReactNode }) & { appearance?: UiAppearance }) {
+export function TimePreferenceProvider({ children, initialPreference, accountKey = "default" }: ({ children: React.ReactNode; initialPreference?: TimePreference; accountKey?: string }) & { appearance?: UiAppearance }) {
   const pathname = usePathname();
   const hydrated = useHydrated();
-  const [preference, setPreference] = useState<TimePreference>(defaultTimePreference);
+  const [received, receivePreference] = useState<{ accountKey: string; preference: TimePreference } | null>(null);
+  const receivedPreference = received?.accountKey === accountKey ? received.preference : null;
+  const seeded = initialPreference !== undefined;
+  const preference = receivedPreference && (!initialPreference || receivedPreference.version >= initialPreference.version)
+    ? receivedPreference : initialPreference ?? defaultTimePreference;
+  const setPreference = useCallback((next: TimePreference) => receivePreference(current => current?.accountKey === accountKey && current.preference.version > next.version ? current : { accountKey, preference: next }), [accountKey]);
+  const pendingRead = useRef<{ accountKey: string; read: Promise<TimePreference | null> } | null>(null);
   const [systemZone, setSystemZone] = useState("UTC");
-  const [loaded, setLoaded] = useState(false);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     const refreshZone = () => { if (active) setSystemZone(systemTimeZone()); };
     refreshZone();
     const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("erpx-time-preference");
-    const refreshPreference = () => fetch("/api/v1/account/time-preference", { cache: "no-store" })
-      .then(response => response.ok ? response.json() : null)
-      .then(body => { if (active) { if (body?.data) setPreference(body.data); setLoaded(true); } })
-      .catch(() => { if (active) setLoaded(true); });
-    void refreshPreference();
+    const refreshPreference = () => {
+      // Share only an in-flight read within this mounted account provider. In
+      // particular, development Strict Mode must not issue two identical GETs.
+      if (!pendingRead.current || pendingRead.current.accountKey !== accountKey) {
+        const read = fetch("/api/v1/account/time-preference", { cache: "no-store" })
+          .then(response => response.ok ? response.json() : null)
+          .then(body => body?.data as TimePreference | undefined ?? null).catch(() => null);
+        const pending = { accountKey, read };
+        pendingRead.current = pending;
+        void read.finally(() => { if (pendingRead.current === pending) pendingRead.current = null; });
+      }
+      void pendingRead.current.read.then(next => {
+        if (active) {
+          if (next) receivePreference(current => current?.accountKey === accountKey && current.preference.version > next.version ? current : { accountKey, preference: next });
+          setLoadedFor(accountKey);
+        }
+      });
+    };
+    if (!seeded) refreshPreference();
     channel?.addEventListener("message", refreshPreference);
     window.addEventListener("focus", refreshZone);
     document.addEventListener("visibilitychange", refreshZone);
@@ -40,8 +60,8 @@ export function TimePreferenceProvider({ children }: ({ children: React.ReactNod
       active = false; channel?.close(); window.removeEventListener("focus", refreshZone);
       document.removeEventListener("visibilitychange", refreshZone);
     };
-  }, [pathname]);
-  const value = useMemo(() => ({ preference, systemZone, ready: hydrated && loaded, setPreference }), [preference, systemZone, hydrated, loaded]);
+  }, [pathname, seeded, accountKey]);
+  const value = useMemo(() => ({ preference, systemZone, ready: hydrated && (seeded || loadedFor === accountKey), setPreference }), [preference, systemZone, hydrated, seeded, loadedFor, accountKey, setPreference]);
   return <TimeContext.Provider value={value}>{children}</TimeContext.Provider>;
 }
 
@@ -53,9 +73,10 @@ export function TimeText({ value, options, className, appearance = "legacy" }: (
   className?: string;
 }) & { appearance?: UiAppearance }) {
   const { preference, systemZone, ready } = useTimePreference();
+  const hydrated = useHydrated();
   const date = value instanceof Date ? value : new Date(value);
   return <time data-ui-appearance={appearance} className={className} dateTime={Number.isFinite(date.getTime()) ? date.toISOString() : undefined}>
-    {ready && Number.isFinite(date.getTime()) ? formatPreferredDateTime(date, preference, systemZone, options) : "…"}
+    {hydrated && ready && Number.isFinite(date.getTime()) ? formatPreferredDateTime(date, preference, systemZone, options) : "…"}
   </time>;
 }
 

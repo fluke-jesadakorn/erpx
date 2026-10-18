@@ -53,3 +53,13 @@ Historical Rust terms and dated rollout evidence in older decisions apply to tha
 - [ADR-041 — Transaction-local command assertions](ADR-041-transaction-local-command-assertions.md)
 
 - [ADR-042 — Canonical command receipt partitions](ADR-042-canonical-command-receipt-partitions.md)
+
+- [ADR-043 — Products, packages and host-bound identity](ADR-043-products-packages-and-host-bound-identity.md)
+
+- [ADR-044 — Retained package history rights](ADR-044-retained-package-history-rights.md)
+
+- [ADR-045 — Service intake case ownership](ADR-045-service-intake-case-ownership.md)
+
+- [ADR-046 — Finance confirmation of a fully warranted Service visit](ADR-046-service-no-charge-confirmation.md)
+
+- [ADR-047 — Source-bound worker preparation foundation](ADR-047-source-bound-worker-preparation-foundation.md)

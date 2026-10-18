@@ -7,6 +7,7 @@ import { BusinessRuleError } from '../../shared';
 import { createStaffProjectsApplication, type StaffProjectsRepository } from '../application/staff-projects';
 import { projectSchema, type ProjectRow } from '../domain/staff-projects';
 import { z } from 'zod';
+import {requireProjectPurchasedRead,withProjectPurchasedCommand} from './purchases';
 async function inward<T>(action: () => Promise<T>) { try {
     return await action();
 }
@@ -61,6 +62,6 @@ function application(db: SqlDatabase) {
         } };
     return createStaffProjectsApplication({ repository, clock: { now: () => Date.now() }, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, activeStaff: (...args) => inward(() => activeStaff(db, ...args)), staffGuard: (...args) => staffGuard(db, ...args) });
 }
-export function getProject(db: SqlDatabase, actor: StaffActor, id: string) { return exposed(() => application(db).getProject(actor, id)); }
-export function listProjects(db: SqlDatabase, actor: StaffActor) { return exposed(() => application(db).listProjects(actor)); }
-export function saveProject(db: SqlDatabase, actor: StaffActor, id: string | null, input: z.infer<typeof projectSchema>, key: string) { return exposed(() => application(db).saveProject(actor, id, input, key)); }
+export async function getProject(db: SqlDatabase, actor: StaffActor, id: string) { await requireProjectPurchasedRead(db,actor,id);return exposed(() => application(db).getProject(actor, id)); }
+export async function listProjects(db: SqlDatabase, actor: StaffActor) { await requireProjectPurchasedRead(db,actor);return exposed(() => application(db).listProjects(actor)); }
+export function saveProject(db: SqlDatabase, actor: StaffActor, id: string | null, input: z.infer<typeof projectSchema>, key: string) { return withProjectPurchasedCommand(db,actor,{key,operations:[id?'project.update':'project.create'],projectId:id??`project-${key}`,purpose:'new-work',existing:!!id,memberUserIds:input.memberUserIds},tx=>exposed(() => application(tx).saveProject(actor, id, input, key))); }

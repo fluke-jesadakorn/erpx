@@ -7,13 +7,15 @@ import { measureReadPhase } from "@/server/modules/runtime/public/runtime/read-m
 import styles from "@/components/collaboration/social.module.css";
 
 import { PageContent } from "@/components/ui/patterns";
+import {SocialCommandProvider} from "./social-command-context";
 import { SocialHome } from "@/components/collaboration/social-home";
 import { socialPageData } from "@/server/modules/collaboration/public/social-page";
 import { publicScope, type WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { workspaceBase } from "@/lib/work_projection/workspace";
 import { RecordDocumentPanel } from "@/components/files/record-document-panel";
+import {socialPostSourceOnly} from '@/server/modules/collaboration/public/product-entry';
 import { hasPermission } from "@/lib/identity_access/permissions";
-export function SocialPage({
+export async function SocialPage({
   actor,
   postId,
   tag,
@@ -25,35 +27,37 @@ export function SocialPage({
 }) {
   const base = workspaceBase(publicScope(actor));
   const contextKey = homeContextKey(actor);
-  const data = measureReadPhase("home_feed", () => socialPageData(actor, { postId, tag, skipDay: true, skipMilestones: true }));
+  const sourceOnly=!!postId&&await socialPostSourceOnly(actor,postId);
+  const data = measureReadPhase("home_feed", () => socialPageData(actor, { postId, tag, skipDay: true, skipMilestones: true,sourceOnly }));
   return <HomeContextBoundary key={contextKey} contextKey={contextKey}>
-  <SocialHomeShell base={base} name={actor.name} single={!!postId} calendarEnabled={!actor.beta}
+  <SocialHomeShell base={base} name={actor.name} single={!!postId} sourceOnly={sourceOnly} calendarEnabled={!actor.beta}
     contextKey={contextKey} canRequestLegal={hasPermission(actor, "legal.create")}>
     <Suspense fallback={<div className={styles.stream} role="status">Loading team updates…</div>}>
-      <SocialFeed actor={actor} base={base} postId={postId} data={data} />
+      <SocialFeed actor={actor} base={base} postId={postId} sourceOnly={sourceOnly} data={data} />
     </Suspense>
   </SocialHomeShell>
   {postId && <Suspense><SocialDocuments actor={actor} base={base} data={data} /></Suspense>}
   </HomeContextBoundary>;
 }
 
-async function SocialFeed({ actor, base, postId, data }: {
-  actor: WorkContext; base: string; postId?: string; data: ReturnType<typeof socialPageData>;
+async function SocialFeed({ actor, base, postId, sourceOnly, data }: {
+  actor: WorkContext; base: string; postId?: string; sourceOnly:boolean; data: ReturnType<typeof socialPageData>;
 }) {
-  const { posts, options, moderate } = await data;
+  const { posts, options, moderate, presentation } = await data;
   return (
     <>
-    <SocialHome
+    <SocialCommandProvider value={{apiRoot:`/api/v1${base}`,token:presentation?.context??homeContextKey(actor),companyId:actor.companyId,userId:actor.userId}}><SocialHome
       key={homeContextKey(actor)}
       base={base}
       userId={actor.userId}
       name={actor.name}
       branchId={actor.branchId}
       canModerate={moderate}
+      purchase={presentation?.purchase}
       initialPosts={posts}
       initialMeta={{
-        handoffContext: { companyId: actor.companyId, userId: actor.userId,
-          assignmentId: actor.assignmentId, base: workspaceBase(publicScope(actor)) },
+        ...(!sourceOnly?{handoffContext: { companyId: actor.companyId, userId: actor.userId,
+          assignmentId: actor.assignmentId, base: workspaceBase(publicScope(actor)) }}:{}),
         people: [],
         branches: options.branches,
         audiences: options.audiences,
@@ -62,8 +66,9 @@ async function SocialFeed({ actor, base, postId, data }: {
         tasks: [],
       }}
       single={!!postId}
+      sourceOnly={sourceOnly}
       calendarEnabled={!actor.beta}
-    />
+    /></SocialCommandProvider>
 
     </>
   );
@@ -79,7 +84,7 @@ async function SocialDocuments({ actor, base, data }: {
       targetId={post.id}
       expectedTargetVersion={Number(post.version)}
       title={post.purpose==='handover'?"Handover files":"Conversation files"}
-      editable={post.author_id===actor.userId}
+      editable={post.author_id===actor.userId&&post.purchase?.newWork!==false}
       purposes={[post.purpose==='handover'?{
         key:'handover_file',label:'Handover file',description:'Add a controlled file revision for this handover.',visibility:'Only colleagues who can still read the handover and its source records can open this file.',
       }:{

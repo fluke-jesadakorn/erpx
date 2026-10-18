@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RecordLink as Link } from "@/components/records/record-link";
 import { MemberPanel } from "@/components/collaboration/member-panel";
 import { PeopleEditor } from "@/components/people_payroll/people-editor";
@@ -17,7 +18,7 @@ export async function MemberProfile({
   const { person, options, manage, access, history, nodes, organization, canManageAccess, canRevokeCompany } = await memberProfileDetails(actor, member);
   return (
     <MemberPanel base={base} person={member} canRevoke={false}>
-      {member.id===actor.userId&&<p><Link href={`${base}/people/payslips`}>My payslips</Link></p>}
+      {member.id===actor.userId&&<p><Link href={canonicalUiHref(`${base}/people/payslips`)}>My payslips</Link></p>}
       {person ? (
         <dl>
           <dt>Department</dt>
@@ -47,7 +48,7 @@ export async function MemberProfile({
           base={base}
           person={person ?? undefined}
           member={!person?.user_id ? member : undefined}
-          returnTo={`${base}/people?member=${encodeURIComponent(member.id)}`}
+          returnTo={canonicalUiHref(`${base}/people?member=${encodeURIComponent(member.id)}`)}
           nodes={nodes}
           levels={options.levels}
           people={options.people}

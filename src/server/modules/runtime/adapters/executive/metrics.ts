@@ -1,3 +1,12 @@
+import {workMetricHistoryAccess} from "../../../operations/public/record-purchases";
+import {serviceMetricHistoryAccess} from "../../../field_service/public/record-purchases";
+import {benefitMetricHistoryAccess} from "../../../benefits/public/record-purchases";
+import {crmMetricHistoryAccess} from "../../../crm/public/metric-purchases";
+import {marketingMetricHistoryAccess} from "../../../marketing/public/metric-purchases";
+import {legalMetricHistoryAccess} from "../../../legal/public/metric-purchases";
+import {talentMetricHistoryAccess} from "../../../talent/public/metric-purchases";
+import {manufacturingMetricHistoryAccess} from "../../../manufacturing/public/metric-purchases";
+import {assetMetricHistoryAccess} from "../../../assets/public/metric-purchases";
 import { type MetricSourceGroup, type MetricSourcePage } from '../../public/executive/metric-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricData, type MetricId } from "@/lib/shared/executive/canvas";
@@ -12,18 +21,18 @@ import { specs, metricCatalog as catalog, metricUnavailable as unavailable } fro
 import { createExecutiveMetricApplication, type MetricSnapshot } from '../../application/executive/metrics';
 import { BusinessRuleError } from '../../../shared';
 import { readExecutiveMetricProjection as owner0 } from '../../../billing/public/executive-metric-projections';
-import { readExecutiveMetricProjection as owner1 } from '../../../finance/public/executive-metric-projections';
+import { readExecutiveMetricProjection as owner1, financeMetricHistoryAccess } from '../../../finance/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner2 } from '../../../commerce/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner3 } from '../../../procurement/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner4 } from '../../../people_payroll/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner5 } from '../../../operations/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner6 } from '../../../inventory/public/executive-metric-projections';
-import { readExecutiveMetricProjection as owner7 } from '../../../pos/public/executive-metric-projections';
-import { readExecutiveMetricProjection as owner8 } from '../../../pms/public/executive-metric-projections';
-import { readExecutiveMetricProjection as owner9 } from '../../../projects/public/executive-metric-projections';
+import { readExecutiveMetricProjection as owner7, posMetricHistoryAccess } from '../../../pos/public/executive-metric-projections';
+import { readExecutiveMetricProjection as owner8, pmsMetricHistoryAccess } from '../../../pms/public/executive-metric-projections';
+import { readExecutiveMetricProjection as owner9, projectMetricHistoryAccess } from '../../../projects/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner10 } from '../../../collaboration/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner11 } from '../../../customer_authority/public/executive-metric-projections';
-import { readExecutiveMetricProjection as owner12 } from '../../../support/public/executive-metric-projections';
+import { readExecutiveMetricProjection as owner12, supportMetricHistoryAccess } from '../../../support/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner13 } from '../../../assets/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner14 } from '../../../maintenance/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner15 } from '../../../quality/public/executive-metric-projections';
@@ -36,7 +45,7 @@ import { readExecutiveMetricProjection as owner21 } from '../../../manufacturing
 import { readExecutiveMetricProjection as owner22 } from '../../../planning/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner23 } from '../../../ecommerce/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner24 } from '../../../benefits/public/executive-metric-projections';
-import { readExecutiveMetricProjection as owner25 } from '../../../learning/public/executive-metric-projections';
+import { readExecutiveMetricProjection as owner25, learningMetricHistoryAccess } from '../../../learning/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner26 } from '../../../talent/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner27 } from '../../../field_service/public/executive-metric-projections';
 import { readExecutiveMetricProjection as owner28 } from '../../../agent/public/executive-metric-projections';
@@ -65,7 +74,14 @@ catch (error) {
 } }
 export { metricSupportsComparison, metricBreakdowns } from '../../domain/executive/metrics';
 export function metricCatalog(actor: WorkContext) { return catalog(actor, process.env.NODE_ENV === 'production'); }
-export function metricCatalogFor(db: SqlDatabase, a: WorkContext) { return invoke(() => application(db).metricCatalogFor(a)); }
+export function metricCatalogFor(db: SqlDatabase, a: WorkContext) { return invoke(async () => {
+    const metrics = await application(db).metricCatalogFor(a);
+    const owners = ["support", "pos", "pms", "finance", "projects", "learning", "talent", "assets", "maintenance", "manufacturing", "planning", "legal", "crm", "marketing", "benefits", "field_service", "operations"] as const, access: Record<string, Record<string, boolean>> = {};
+    for (const owner of owners) if (metrics.some(metric => metricOwner[metric.id] === owner && metric.available))
+      access[owner] = await (owner === "operations" ? workMetricHistoryAccess(db,a) : owner === "field_service" ? serviceMetricHistoryAccess(db,a) : owner === "benefits" ? benefitMetricHistoryAccess(db,a) : owner === "crm" ? crmMetricHistoryAccess(db,a) : owner === "marketing" ? marketingMetricHistoryAccess(db,a) : owner === "legal" ? legalMetricHistoryAccess(db,a) : (owner === "manufacturing"||owner === "planning") ? access.manufacturing??access.planning??manufacturingMetricHistoryAccess(db,a) : (owner === "assets"||owner === "maintenance") ? assetMetricHistoryAccess(db,a) : owner === "talent" ? talentMetricHistoryAccess(db,a) : owner === "learning" ? learningMetricHistoryAccess(db,a) : owner === "projects" ? projectMetricHistoryAccess(db,a) : owner === "finance" ? financeMetricHistoryAccess(db,a) : owner === "support" ? supportMetricHistoryAccess(db, a) : owner === "pos" ? posMetricHistoryAccess(db, a) : pmsMetricHistoryAccess(db, a));
+    return metrics.map(metric => metric.available && access[metricOwner[metric.id]] && !access[metricOwner[metric.id]][metric.id]
+        ? { ...metric, available: false, reason: "A started purchase and current source authority are required to read this metric." } : metric);
+}); }
 export function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown?: Breakdown): Promise<MetricData>;
 export function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown, sourceGroup: MetricSourceGroup): Promise<MetricSourcePage>;
 export function queryMetric(db: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown = 'default', sourceGroup?: MetricSourceGroup) { return invoke(() => application(db).queryMetric(a, id, f, breakdown, sourceGroup)); }

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {
   requestAiStatus,
   queueRequestAi,
@@ -26,24 +27,24 @@ export async function GET(_request: Request, context: Context) {
       { write } = await holdingResources(actor.holdingId);
     if (path.length === 2 && path[1] === "ai")
       return Response.json(
-        {
+        canonicalDestinationLinks({
           data: await requestAiStatus(
             write,
             actor,
             await runtimeEnv(),
             path[0],
           ),
-        },
+        }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path.length > 1)
       throw new ApiError(404, "NOT_FOUND", "Request route not found.");
     return Response.json(
-      {
+      canonicalDestinationLinks({
         data: path.length
           ? await employeeRequestDetail(write, actor, path[0])
           : await listEmployeeRequests(write, actor),
-      },
+      }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -96,7 +97,7 @@ export async function POST(request: Request, context: Context) {
         key,
       );
     else throw new ApiError(404, "NOT_FOUND", "Request action not found.");
-    return Response.json({ data });
+    return Response.json(canonicalDestinationLinks({ data }));
   } catch (e) {
     return errorResponse(e);
   }

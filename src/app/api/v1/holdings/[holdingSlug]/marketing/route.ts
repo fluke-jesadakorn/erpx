@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -16,7 +17,7 @@ export async function GET(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       id = new URL(r.url).searchParams.get("id");
     return Response.json(
-      { data: id ? await marketingDetail(a, id) : await marketingWorkspace(a) },
+      canonicalDestinationLinks({ data: id ? await marketingDetail(a, id) : await marketingWorkspace(a) }),
       { headers },
     );
   } catch (e) {
@@ -51,7 +52,7 @@ export async function POST(r: Request, c: C) {
           : i.entity === "asset"
             ? await createMarketingAsset(a, i, key)
             : await createMarketingCandidate(a, i, key);
-    return Response.json({ data }, { headers });
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);
   }

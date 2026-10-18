@@ -619,7 +619,7 @@ export function createLeaveSelfServiceApplication<Effect>(ports: LeaveSelfServic
         }
         else
             await repository.stageAdministerLeaveEffect9(id, context.companyId, input.engagementId, input.leaveTypeId, input.units, input.effectiveDate, key, input.note, context.userId, now);
-        await runLeaveAccruals(new Date(ports.clock.now()).toISOString().slice(0, 10));
+        await runLeaveAccruals(new Date(ports.clock.now()).toISOString().slice(0,10),context.companyId);
         return ports.commands.commit(context, key, "leave.policy.manage", input, context.companyId, 1, { id }, []);
     }
     return { previewLeave, leaveSummary, listOwnLeavePage, leaveCalendarMonth, createSelfServiceLeave, editSelfServiceLeave, normalizeLegacyLeave, listOwnLeave, administerLeave, runLeaveAccruals, leaveAdministration, applyAdministration, applySelfService };

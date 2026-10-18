@@ -7,10 +7,10 @@ import { type FormEvent, type ReactNode } from "react";
 import styles from "./pos.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {FrontPosDailyContext} from "./pos-front-console";
+import type {StandardFrontPosDailyContext as FrontPosDailyContext} from "./standard-pos-front-console";
 
 
-const CashDenominationCount = dynamic(() => import("./pos-closing").then(module => module.CashDenominationCount));
+const CashDenominationCount = dynamic(() => import("./standard-pos-closing").then(module => module.StandardCashDenominationCount));
 
 
 type Row = PosRow;
@@ -131,10 +131,10 @@ export function FrontPosDailyShiftsScreen({context}: {context: FrontPosDailyCont
                       void send("shift.open", {
                         registerId: text(f, "register") || activeRegisterId,
                         openingMinor: amount(f, "opening"),
-                      }).then((result) => {
-                        if (result) setOpeningDraft((current) => current === submittedDraft
+                      },false,undefined,{form:event.currentTarget,acknowledged:()=>{
+                        setOpeningDraft((current) => current === submittedDraft
                           ? {...current, opening: "0"} : current);
-                      });
+                      }});
                     }}
                   >
                     <Field>
@@ -166,7 +166,7 @@ export function FrontPosDailyShiftsScreen({context}: {context: FrontPosDailyCont
                         required
                       />
                     </Field>
-                    <Button type="submit" disabled={busy || !online}>
+                    <Button type="submit" disabled={busy || !online || data.purchases && !data.purchases["pos.shifts"].newWork}>
                       {tr("Open cash shift")}
                     </Button>
                   </form>

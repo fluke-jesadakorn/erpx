@@ -1,3 +1,6 @@
+import {routineSourceReadScope} from "./routine-source-read";
+import {workTaskProjectionReadScope,workMetricHistoryAccess} from "./record-purchases";
+import {ApiError} from "../../runtime/public/http";
 import { finalRootOwnerProjectionSources as organizationProjectionSources } from "../../organization/public/final-root-owner-projection-sources";
 import { readMetricSources } from '@/server/modules/runtime/public/executive/metric-sources';
 import "server-only";
@@ -8,11 +11,13 @@ import { operationsMetrics, operationsTaskCohort, operationsTaskVisibility, type
 import { specs } from '@/server/modules/runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@/server/modules/runtime/public/executive/metric-projection-contract';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
+    const access=await workMetricHistoryAccess(sourceDb,a);if(access[id as keyof typeof access]===false)throw new ApiError(403,'METRIC_SOURCE_UNAVAILABLE','This Work metric requires its retained purchase and current original authority.');
+    const purchase=await workTaskProjectionReadScope(sourceDb,a);
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     let sql = '', values: unknown[] = [], referenceAtOverride: number | null = null;
     if (id === "my-tasks") {
-        sql = `SELECT t.state label,count(*)::text value FROM staff_tasks t WHERE ${scopedAlias("t")} AND t.assignee_user_id=? AND t.state NOT IN ('draft','completed','cancelled') AND t.due_at>=? AND t.due_at<? GROUP BY 1 ORDER BY 1`;
-        values = [...scopeArgs, a.userId, Date.parse(f.from), Date.parse(f.to) + 86400000];
+        sql = `SELECT t.state label,count(*)::text value FROM staff_tasks t WHERE ${scopedAlias("t")} AND t.assignee_user_id=? AND t.state NOT IN ('draft','completed','cancelled') AND t.due_at>=? AND t.due_at<? AND ${purchase.where} GROUP BY 1 ORDER BY 1`;
+        values = [...scopeArgs, a.userId, Date.parse(f.from), Date.parse(f.to) + 86400000,...purchase.args];
     }
     if (operationsMetrics.includes(id as OperationsMetricId)) {
         const metric = id as OperationsMetricId, now = Date.now();
@@ -23,7 +28,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
                 ? `to_char(to_timestamp(t.updated_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')`
                 : "'Median overdue time to completion'";
             sql = `WITH visible_tasks AS (
-          SELECT t.* FROM staff_tasks t WHERE ${visibility.sql} AND ${cohort.sql}
+          SELECT t.* FROM staff_tasks t WHERE ${visibility.sql} AND ${cohort.sql} AND ${purchase.where}
         ), grouped AS (
           SELECT ${label} label,
             ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY (t.updated_at-t.due_at)::double precision))::bigint::text value
@@ -34,7 +39,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
           FROM visible_tasks
         )
         SELECT grouped.label,grouped.value,overall.total,overall.count_value FROM overall LEFT JOIN grouped ON TRUE ORDER BY grouped.label`;
-            values = [...visibility.values, ...cohort.values];
+            values = [...visibility.values, ...cohort.values,...purchase.args];
         }
         else {
             const ageBand = `CASE WHEN t.due_at>=${now}-86400000 THEN 'Less than 1 day'
@@ -47,14 +52,15 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
                             : metric === "operations-escalations" ? "'Overdue escalations sent to current reader'"
                                 : "'Overdue operational tasks'";
             sql = `SELECT ${label} label,count(*)::text value FROM staff_tasks t
-        WHERE ${visibility.sql} AND ${cohort.sql} GROUP BY 1 ORDER BY 1`;
-            values = [...visibility.values, ...cohort.values];
+        WHERE ${visibility.sql} AND ${cohort.sql} AND ${purchase.where} GROUP BY 1 ORDER BY 1`;
+            values = [...visibility.values, ...cohort.values,...purchase.args];
         }
     }
     if (id === "routines") {
-        sql = `SELECT 'Published' label,count(*)::text value FROM routine_templates t WHERE ${scopedAlias("t")} AND t.assignee_user_id=? AND t.published=1`;
-        values = [...scopeArgs, a.userId];
+        const routine=await routineSourceReadScope(sourceDb,a);
+        sql = `SELECT 'Published' label,count(*)::text value FROM routine_templates t WHERE ${scopedAlias("t")} AND t.assignee_user_id=? AND t.published=1 AND ${routine.where}`;
+        values = [...scopeArgs, a.userId,...routine.args];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;
-    return { raw, referenceAtOverride, source: (group, reported) => readMetricSources(sourceDb, id, sql, values, group, raw, `${spec.dateBasis} · ${f.from} to ${f.to} · ${f.currency}`, reported), watermarks: async () => [] };
+    return { raw, referenceAtOverride, source: async (group, reported) => {const current=await workMetricHistoryAccess(sourceDb,a);if(current[id as keyof typeof current]===false)throw new ApiError(403,'METRIC_SOURCE_UNAVAILABLE','The current Work source authority changed.');return readMetricSources(sourceDb, id, sql, values, group, raw, `${spec.dateBasis} · ${f.from} to ${f.to} · ${f.currency}`, reported);}, watermarks: async () => [] };
 }

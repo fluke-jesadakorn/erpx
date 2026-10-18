@@ -1,4 +1,5 @@
 import type { FeatureState } from "@/lib/shared/hospitality-rollout";
+import {sourcePath,selectionForPath} from '@/lib/work_projection/destination-registry';
 
 export type PageCutEntry = { id:string; name:string; state:FeatureState };
 
@@ -19,7 +20,9 @@ const entryModules:Record<string,string>={
 /** Entry screens stay out of a disabled pilot; record detail reads remain available for audit. */
 export function productionPageCut(pathname:string,workspaceBase:string,search:Pick<URLSearchParams,'get'>,catalogue:readonly PageCutEntry[]) {
   if(!pathname.startsWith(`${workspaceBase}/`))return null;
-  const segments=pathname.slice(workspaceBase.length+1).split('/').filter(Boolean);
+  const selection=selectionForPath(pathname),originalSearch=search;
+  search={get:key=>selection[key]??originalSearch.get(key)};
+  const segments=sourcePath(pathname.slice(workspaceBase.length+1)).split('/').filter(Boolean);
   const [root,section]=segments;
   if(!root)return null;
   if(['sales','customers'].includes(root)&&segments.length===1) {

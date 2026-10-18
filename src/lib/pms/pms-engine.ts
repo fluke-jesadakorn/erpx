@@ -1,4 +1,4 @@
-import {availableReceiptSources} from "@/lib/pms/pms-receipt-funding";
+import {availableReceiptSources,captureReceiptAllocationCredit} from "@/lib/pms/pms-receipt-funding";
 import { dailyRoomReport, readiness, nightBlockers } from "@/lib/pms/pms-read";
 export { dailyRoomReport, readiness, nightBlockers } from "@/lib/pms/pms-read";
 import { PmsError } from "@/lib/pms/pms-error";
@@ -1455,6 +1455,7 @@ export function executePms(
           "credit-balance",
           pair("receivable", "advance", -f.data.due),
         );
+        captureReceiptAllocationCredit(s, e.id, -f.data.due);
         f.data.advance -= f.data.due;
         f.data.due = 0;
       }

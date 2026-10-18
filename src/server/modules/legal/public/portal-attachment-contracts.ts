@@ -1,1 +1,1 @@
-export type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentRepository} from "../application/portal-attachments";
+export type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentRepository,PortalAttachmentStageScope,PortalAttachmentStagedSource,PortalAttachmentRecoverySource} from "../application/portal-attachments";

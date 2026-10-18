@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
@@ -10,7 +11,7 @@ import { FeatureTabBar, FeatureWidget, WidgetGrid } from "@/components/shared/fe
 import { PersonAvatar } from "@/components/ui/person-avatar";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 
 import type {
   MessagingHistory,
@@ -33,13 +34,16 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {createMessagingCommands,messagingCommandContext,validMessagingUpload,type MessagingAttempt} from "@/lib/collaboration/messaging-command";
+import {MessagingDraftBoundary} from "./draft-boundary";
+import type {MessagingPurchaseControls} from "@/lib/collaboration/messaging-purchases";
 import styles from "@/components/collaboration/messaging/inbox.module.css";
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await workFetch(url, { ...init, cache: "no-store" });
   const result = await response.json();
   if (!response.ok)
-    throw new Error(result.error?.message ?? "Unable to connect. Please try again.");
+    throw Object.assign(new Error(result.error?.message ?? "Unable to connect. Please try again."),{status:response.status});
   return result.data as T;
 }
 type MessageFileUpload = {
@@ -97,6 +101,7 @@ export function MessagingInbox({
   initialPerson,
   initialRoom,
   notificationUnread = 0,
+  initialOverview,initialHistory,contextToken="",
 }: {
   base: string;
   userId: string;
@@ -105,18 +110,24 @@ export function MessagingInbox({
   initialPerson?: string;
   initialRoom?: string;
   notificationUnread?: number;
+  initialOverview?:MessagingOverview;initialHistory?:MessagingHistory;contextToken?:string;
 }) {
   const router = useRouter();
   const root = `/api/v1${base}/messaging`;
   const tab = initialTab;
-  const [overview, setOverview] = useState<MessagingOverview>({
-    teams: [],
-    rooms: [],
-  });
+  const [overview, setOverview] = useState<MessagingOverview>(initialOverview??{teams:[],rooms:[]});
   const [selected, setSelected] = useState<string | null>(initialRoom ?? null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(""),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(!initialOverview);
+  const [draft,setDraft]=useState({dirty:false,unresolved:false}),[leave,setLeave]=useState<{run:()=>void}|null>(null),[leaveError,setLeaveError]=useState(""),[leaving,setLeaving]=useState(false);
+  const [editorDraft,setEditorDraft]=useState({dirty:false,unresolved:false});
+  const editorDraftState=useCallback((state:{dirty:boolean;unresolved:boolean})=>setEditorDraft(current=>current.dirty===state.dirty&&current.unresolved===state.unresolved?current:state),[]);
+  const initialOpen=useRef<{person:string;attempt:MessagingAttempt;commands:ReturnType<typeof createMessagingCommands>}|null>(null);
+  const discardDraft=useRef<()=>Promise<void>>(async()=>{});
+  const draftState=useCallback((state:{dirty:boolean;unresolved:boolean;discard:()=>Promise<void>})=>{setDraft(current=>current.dirty===state.dirty&&current.unresolved===state.unresolved?current:{dirty:state.dirty,unresolved:state.unresolved});discardDraft.current=state.discard;},[]);
+  const navigate=(run:()=>void)=>{if(draft.dirty||editorDraft.dirty||editorDraft.unresolved)setLeave({run});else run();};
+  const canNew=overview.purchase?.newWork!==false;
   const refresh = useCallback(async () => {
     const result = await api<MessagingOverview>(root);
     setOverview(result);
@@ -127,9 +138,11 @@ export function MessagingInbox({
     );
   }, [root]);
   useEffect(() => {
-    if (!initialPerson || initialPerson === userId) return;
+    if (!initialPerson || initialPerson === userId || !canNew) return;
     let stopped = false;
-    void post<{ id: string }>(`${root}/rooms`, { kind: "direct", members: [initialPerson] })
+    if(initialOpen.current?.person!==initialPerson){const commands=createMessagingCommands(),attempt=commands.prepare("rooms",{kind:"direct",members:[initialPerson]},messagingCommandContext(contextToken));initialOpen.current={person:initialPerson,commands,attempt};}
+    const opening=initialOpen.current;
+    void opening.commands.execute(root,opening.attempt,()=>messagingCommandContext(contextToken))
       .then(async (result) => {
         await refresh();
         if (!stopped) setSelected(result.id);
@@ -140,7 +153,7 @@ export function MessagingInbox({
     return () => {
       stopped = true;
     };
-  }, [root, initialPerson, userId, refresh]);
+  }, [root, initialPerson, userId, refresh,canNew,contextToken]);
   useEffect(() => {
     if (tab === "updates") return;
     let stopped = false,
@@ -165,18 +178,18 @@ export function MessagingInbox({
       clearTimeout(timer);
       void poll();
     };
-    void poll();
+    if(initialOverview)timer=setTimeout(poll,2000);else void poll();
     document.addEventListener("visibilitychange", visible);
     return () => {
       stopped = true;
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [refresh, tab]);
+  }, [refresh, tab,initialOverview]);
   const room = overview.rooms.find((r) => r.id === selected);
   const chats = overview.rooms.filter((r) => r.kind !== "channel");
   function choose(id: string) {
-    setSelected(id);
+    navigate(()=>setSelected(id));
   }
   function roomButton(r: MessagingRoom) {
     return (
@@ -214,7 +227,7 @@ export function MessagingInbox({
     );
   }
   return (
-    <>
+    <MessagingDraftBoundary dirty={draft.dirty||editorDraft.dirty||editorDraft.unresolved} unresolved={draft.unresolved||editorDraft.unresolved} onDiscard={()=>discardDraft.current()}>
       <FeatureTabBar appearance="standard" aria-label="Inbox sections" data-inbox-sections>
         {(["chats", "teams", "updates"] as const).map((value) => (
           <Button appearance="standard"
@@ -223,7 +236,7 @@ export function MessagingInbox({
             key={value}
             aria-current={tab === value ? "page" : undefined}
             onClick={() => {
-              router.push(`${base}/inbox?tab=${value}`, { scroll: false });
+              navigate(()=>router.push(canonicalUiHref(`${base}/inbox?tab=${value}`), { scroll: false }));
             }}
           >
             {{ chats: "Messages", teams: "Teams", updates: "Notifications" }[value]}
@@ -247,6 +260,7 @@ export function MessagingInbox({
         updates
       ) : (
         <>
+          {overview.purchase&&!canNew&&<InlineNotice tone="info">{overview.purchase.settleExisting?"Messages is draining. Retained conversations and removal of existing members remain available.":overview.purchase.history?"Messages history is available. New conversations and messages are unavailable.":"Messages is not included in the current Company package."}</InlineNotice>}
           {error && (
             <InlineNotice tone="info" className={styles.error} role="status">
               {error} Reconnecting…
@@ -266,7 +280,7 @@ export function MessagingInbox({
                       variant="ghost"
                       className={styles.iconButton}
                       aria-label={tab === "chats" ? "New chat" : "New team"}
-                      disabled={loading}
+                      disabled={loading||!canNew}
                       onClick={() => setEditor({ kind: tab === "chats" ? "direct" : "team" })}
                     >
                       <Plus size={20} />
@@ -285,6 +299,7 @@ export function MessagingInbox({
                             type="submit"
                             variant="ghost"
                             className={styles.mobileStart}
+                            disabled={!canNew}
                             onClick={() => setEditor({ kind: "direct" })}
                           >
                             Start a chat
@@ -304,6 +319,7 @@ export function MessagingInbox({
                                   type="submit"
                                   variant="ghost"
                                   aria-label={`Add channel to ${t.name}`}
+                                  disabled={!canNew}
                                   onClick={() => setEditor({ kind: "channel", team: t })}
                                 >
                                   <Plus size={16} />
@@ -335,6 +351,7 @@ export function MessagingInbox({
                           <Button appearance="standard"
                             type="submit"
                             variant="ghost"
+                            disabled={!canNew}
                             onClick={() => setEditor({ kind: "team" })}
                           >
                             Create a team
@@ -350,7 +367,8 @@ export function MessagingInbox({
                     root={root}
                     room={room}
                     userId={userId}
-                    onBack={() => setSelected(null)}
+                    contextToken={contextToken} purchase={overview.purchase} initialHistory={initialHistory?.room.id===room.id?initialHistory:undefined} onDraftState={draftState}
+                    onBack={() => navigate(()=>setSelected(null))}
                     onRead={() => {
                       void refresh().catch(() => {});
                     }}
@@ -380,7 +398,7 @@ export function MessagingInbox({
                       type="submit"
                       variant="primary"
                       className={styles.primary}
-                      disabled={loading}
+                      disabled={loading||!canNew}
                       onClick={() => setEditor({ kind: tab === "teams" ? "team" : "direct" })}
                     >
                       <Plus size={16} />
@@ -398,6 +416,7 @@ export function MessagingInbox({
           key={`${editor.kind}-${editor.room?.id ?? editor.team?.id ?? ""}`}
           root={root}
           userId={userId}
+          purchase={overview.purchase} contextToken={contextToken} onDraftState={editorDraftState}
           editor={editor}
           onClose={() => setEditor(null)}
           onSaved={async (id) => {
@@ -407,7 +426,8 @@ export function MessagingInbox({
           }}
         />
       )}
-    </>
+      <Dialog appearance="standard" open={leave!==null} title="Discard unsent message?" onClose={()=>!leaving&&setLeave(null)} dismissDisabled={leaving}><p>{draft.unresolved||editorDraft.unresolved?"Retry the submitted message first. Your newer draft remains here.":"Your message has not been sent. Uploaded unsent files will be withdrawn with their history retained."}</p>{leaveError&&<InlineNotice tone="danger">{leaveError}</InlineNotice>}<div className="ui-form-actions"><Button appearance="standard" data-autofocus disabled={leaving} onClick={()=>setLeave(null)}>Keep editing</Button>{!draft.unresolved&&!editorDraft.unresolved&&<Button appearance="standard" variant="danger" disabled={leaving} onClick={async()=>{if(!leave)return;setLeaving(true);try{await discardDraft.current();setDraft({dirty:false,unresolved:false});leave.run();setLeave(null);}catch(error){setLeaveError((error as Error).message);}finally{setLeaving(false);}}}>Discard draft</Button>}</div></Dialog>
+    </MessagingDraftBoundary>
   );
 }
 
@@ -417,7 +437,7 @@ function Conversation({
   userId,
   onBack,
   onRead,
-  onManage,
+  onManage,initialHistory,purchase,contextToken,onDraftState,
 }: {
   root: string;
   room: MessagingRoom;
@@ -425,21 +445,27 @@ function Conversation({
   onBack: () => void;
   onRead: () => void;
   onManage: () => void;
+  initialHistory?:MessagingHistory;purchase?:MessagingPurchaseControls;contextToken:string;onDraftState:(state:{dirty:boolean;unresolved:boolean;discard:()=>Promise<void>})=>void;
 }) {
-  const [messages, setMessages] = useState<MessagingMessage[]>([]),
-    [hasOlder, setHasOlder] = useState(false),
-    [loading, setLoading] = useState(true),
+  const [messages, setMessages] = useState<MessagingMessage[]>(initialHistory?.messages??[]),
+    [hasOlder, setHasOlder] = useState(initialHistory?.hasMore??false),
+    [loading, setLoading] = useState(!initialHistory),
     [error, setError] = useState("");
   const [body, setBody] = useState(""),
     [attachments, setAttachments] = useState<{ id: string; file: File }[]>([]),
     [sending, setSending] = useState(false),
     [sendError, setSendError] = useState("");
-  const last = useRef(0),
+  const commands=useRef(createMessagingCommands()),uploaded=useRef(new Set<string>()),discardCommands=useRef(new Map<string,MessagingAttempt>());
+  const last = useRef(Math.max(0,...(initialHistory?.messages??[]).map(message=>message.seq))),
     read = useRef(0),
-    initialized = useRef(false),
+    initialized = useRef(!!initialHistory),
     scroller = useRef<HTMLDivElement>(null),
     stick = useRef(true),
-    attempt = useRef<{ signature: string; key: string } | null>(null);
+    attempt = useRef<{command:MessagingAttempt;body:string;attachments:{id:string;file:File}[]} | null>(null);
+  const [unresolved,setUnresolved]=useState(false);
+  const discardAttachment=useCallback(async(id:string)=>{if(uploaded.current.has(id)){let command=discardCommands.current.get(id);if(!command){command={path:`files/${encodeURIComponent(id)}/discard`,body:JSON.stringify({reason:"Original uploader discarded this unsent message attachment"}),key:crypto.randomUUID(),context:messagingCommandContext(contextToken)};discardCommands.current.set(id,command);}await createMessagingCommands().execute(root,command,()=>messagingCommandContext(contextToken));uploaded.current.delete(id);discardCommands.current.delete(id);}setAttachments(current=>current.filter(file=>file.id!==id));},[root,contextToken]);
+  const discardAll=useCallback(async()=>{if(commands.current.pending())throw Error("Retry the submitted message before discarding its draft.");for(const attachment of attachments)await discardAttachment(attachment.id);setBody("");setAttachments([]);},[attachments,discardAttachment]);
+  useEffect(()=>{onDraftState({dirty:!!body.trim()||attachments.length>0||unresolved,unresolved,discard:discardAll});return()=>onDraftState({dirty:false,unresolved:false,discard:async()=>{}});},[body,attachments.length,unresolved,discardAll,onDraftState]);
   const onReadRef = useRef(onRead);
   useEffect(() => {
     onReadRef.current = onRead;
@@ -497,14 +523,14 @@ function Conversation({
       clearTimeout(timer);
       void poll();
     };
-    void poll();
+    if(initialHistory)timer=setTimeout(poll,2000);else void poll();
     document.addEventListener("visibilitychange", visible);
     return () => {
       stopped = true;
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [root, room.id, merge]);
+  }, [root, room.id, merge,initialHistory]);
   useEffect(() => {
     if (stick.current && scroller.current)
       scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -528,34 +554,19 @@ function Conversation({
   }
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (sending || (!body.trim() && !attachments.length)) return;
-    const signature = JSON.stringify({
-      body: body.trim(),
-      files: attachments.map((a) => a.id),
-    });
-    if (attempt.current?.signature !== signature)
-      attempt.current = { signature, key: crypto.randomUUID() };
-    setSending(true);
-    setSendError("");
+    if (sending || (!unresolved&&!body.trim() && !attachments.length)) return;
+    if(!attempt.current){if(purchase?.newWork===false)return;const command=commands.current.prepare(`rooms/${room.id}/messages`,{body:body.trim(),files:attachments.map(file=>file.id)},messagingCommandContext(contextToken));attempt.current={command,body,attachments:[...attachments]};}
+    const captured=attempt.current;
+    setSending(true);setSendError("");
     try {
-      for (const attachment of attachments) {
-        const upload = await api<MessageFileUpload>(
-          `${root}/rooms/${room.id}/files/${attachment.id}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": messageFileMediaType(attachment.file),
-              "X-File-Name": encodeURIComponent(attachment.file.name),
-            },
-            body: attachment.file,
-          },
-        );
-        await waitForMessageFile(root, upload);
+      for(const attachment of captured.attachments){
+        const upload=await api<MessageFileUpload>(`${root}/rooms/${room.id}/files/${attachment.id}`,{method:"PUT",headers:{"Content-Type":messageFileMediaType(attachment.file),"X-File-Name":encodeURIComponent(attachment.file.name)},body:attachment.file});
+        if(!validMessagingUpload(upload,attachment.id))throw Error("The attachment acknowledgement is incomplete. Retry the submitted message.");
+        uploaded.current.add(attachment.id);await waitForMessageFile(root,upload);
       }
-      await post(`${root}/rooms/${room.id}/messages`, JSON.parse(signature), attempt.current.key);
-      attempt.current = null;
-      setBody("");
-      setAttachments([]);
+      await commands.current.execute(root,captured.command,()=>messagingCommandContext(contextToken));
+      attempt.current=null;captured.attachments.forEach(file=>uploaded.current.delete(file.id));
+      setBody(current=>current===captured.body?"":current);setAttachments(current=>current.filter(file=>!captured.attachments.some(sent=>sent.id===file.id)));
       stick.current = true;
       try {
         const history = await api<MessagingHistory>(
@@ -566,9 +577,10 @@ function Conversation({
         setError((e as Error).message);
       }
     } catch (e) {
+      if(commands.current.pending()||!(e&&typeof e==="object"&&"status"in e&&Number(e.status)<500))commands.current.retain(captured.command);else attempt.current=null;
       setSendError((e as Error).message);
     } finally {
-      setSending(false);
+      setUnresolved(commands.current.pending()!==null);setSending(false);
     }
   }
   return (
@@ -695,9 +707,9 @@ function Conversation({
                 <Button appearance="standard"
                   variant="ghost"
                   type="button"
-                  disabled={sending}
+                  disabled={sending||unresolved}
                   aria-label={`Remove ${a.file.name}`}
-                  onClick={() => setAttachments((current) => current.filter((f) => f.id !== a.id))}
+                  onClick={() => void discardAttachment(a.id).catch(error=>setSendError((error as Error).message))}
                 >
                   <X size={14} />
                 </Button>
@@ -707,7 +719,7 @@ function Conversation({
         )}
         {sendError && (
           <InlineNotice tone="danger" className={styles.error} role="alert">
-            {sendError} Your message is still here. Press Send to retry.
+            {sendError} Your message is still here. Retry the submitted change in its original account and role.
           </InlineNotice>
         )}
         <label className={styles.srOnly} htmlFor="chat-message">
@@ -716,7 +728,7 @@ function Conversation({
         <TextArea appearance="standard"
           id="chat-message"
           value={body}
-          disabled={sending}
+          disabled={sending||purchase?.newWork===false}
           maxLength={5000}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Write a message…"
@@ -729,7 +741,7 @@ function Conversation({
             <TextInput appearance="standard"
               type="file"
               multiple
-              disabled={sending}
+              disabled={sending||purchase?.newWork===false||unresolved}
               aria-label="Attach files"
               accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,.csv,image/heic,image/heif"
               onChange={(e) => {
@@ -757,11 +769,11 @@ function Conversation({
           <Button appearance="standard"
             clientManaged variant="primary"
             className={styles.primary}
-            disabled={sending || (!body.trim() && !attachments.length)}
+            disabled={sending || (!unresolved&&purchase?.newWork===false) || (!body.trim() && !attachments.length&&!unresolved)}
             type="submit"
           >
             <Send size={16} />
-            {sending ? "Sending…" : "Send"}
+            {sending ? "Sending…" : unresolved?"Retry submitted message":"Send"}
           </Button>
         </div>
       </form>
@@ -774,13 +786,14 @@ function ConversationEditor({
   userId,
   editor,
   onClose,
-  onSaved,
+  onSaved,purchase,contextToken,onDraftState,
 }: {
   root: string;
   userId: string;
   editor: Editor;
   onClose: () => void;
   onSaved: (id?: string) => Promise<void>;
+  purchase?:MessagingPurchaseControls;contextToken:string;onDraftState:(state:{dirty:boolean;unresolved:boolean})=>void;
 }) {
   const [kind, setKind] = useState(editor.kind),
     [name, setName] = useState(
@@ -794,7 +807,14 @@ function ConversationEditor({
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false);
   const version = useRef(editor.room?.version ?? editor.team?.version ?? 1),
-    attempt = useRef<{ body: string; key: string } | null>(null);
+    commands=useRef(createMessagingCommands()),searchVersion=useRef(0),submittedImage=useRef<string|null>(null);
+  const [originalMembers,setOriginalMembers]=useState<string[]>([]),[unresolved,setUnresolved]=useState(false),[originalName,setOriginalName]=useState(editor.room?.name??editor.team?.name??"");
+  const [baseline,setBaseline]=useState(editor.editing?"":JSON.stringify([editor.kind,"",false,[]])),[discard,setDiscard]=useState(false),[touched,setTouched]=useState(false);
+  const image=JSON.stringify([kind,name,privateChannel,[...selected].sort()]),currentImage=useRef(image);useEffect(()=>{currentImage.current=image;},[image]);
+  const dirty=touched&&(baseline===""||baseline!==image);
+  useEffect(()=>{onDraftState({dirty,unresolved});return()=>onDraftState({dirty:false,unresolved:false});},[dirty,unresolved,onDraftState]);
+  const canSave=purchase?.newWork!==false||!!(editor.editing&&purchase.settleExisting&&name===originalName&&selected.every(id=>originalMembers.includes(id)));
+  const close=()=>{if(busy)return;if(dirty||unresolved)setDiscard(true);else onClose();};
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -812,13 +832,13 @@ function ConversationEditor({
             `${root}/${editor.kind === "team" ? "teams" : "rooms"}/${editor.room?.id ?? editor.team?.id}/members`,
           );
           if (cancelled) return;
-          setSelected(detail.members.filter((p) => p.id !== userId).map((p) => p.id));
+          const members=detail.members.filter((p) => p.id !== userId).map((p) => p.id);setOriginalMembers(members);setSelected(members);setBaseline(JSON.stringify([editor.kind,editor.room?.name??editor.team?.name??"",editor.room?.private??false,[...members].sort()]));
           version.current = detail.version;
           setPeople([
             ...options,
             ...detail.members.filter((p) => !options.some((o) => o.id === p.id)),
           ]);
-        }
+        }else setBaseline(JSON.stringify([editor.kind,"",false,[]]));
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
       } finally {
@@ -831,23 +851,23 @@ function ConversationEditor({
     };
   }, [root, editor, userId]);
   async function search(value: string) {
-    setQuery(value);
+    setQuery(value);const request=++searchVersion.current;
     // The initial list covers the first 100 accounts; search also reaches larger companies.
     try {
       const options = await api<MessagingPerson[]>(
         `${root}/people?q=${encodeURIComponent(value)}${kind === "channel" ? `&team=${editor.team?.id}` : ""}`,
       );
-      setPeople((current) => [
+      if(request!==searchVersion.current)return;setPeople((current) => [
         ...current.filter((p) => selected.includes(p.id)),
         ...options.filter((p) => !selected.includes(p.id)),
       ]);
     } catch (e) {
-      setError((e as Error).message);
+      if(request===searchVersion.current)setError((e as Error).message);
     }
   }
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy||(!canSave&&!unresolved)) return;
     setBusy(true);
     setError("");
     const input = {
@@ -864,26 +884,23 @@ function ConversationEditor({
         : kind === "channel"
           ? `teams/${editor.team?.id}/channels`
           : "rooms";
-    const body = JSON.stringify({ path, input });
-    if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() };
     try {
-      const result = await post<{ id: string; roomId?: string }>(
-        `${root}/${path}`,
-        input,
-        attempt.current.key,
-      );
-      await onSaved(kind === "team" ? result.roomId : result.id);
+      if(!commands.current.pending())submittedImage.current=image;
+      const attempt=commands.current.pending()??commands.current.prepare(path,input,messagingCommandContext(contextToken));
+      const result=await commands.current.execute(root,attempt,()=>messagingCommandContext(contextToken));
+      if(editor.editing)version.current=Number((JSON.parse(attempt.body) as {expectedVersion:number}).expectedVersion)+1;
+      if(currentImage.current===submittedImage.current){await onSaved(kind === "team" ? result.roomId : result.id);}else {const acknowledged=JSON.parse(attempt.body) as {name:string;members:string[]};setOriginalName(acknowledged.name);setOriginalMembers(acknowledged.members);setBaseline(submittedImage.current??"");setError("The submitted change was saved. Your newer draft remains here.");}
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      setUnresolved(commands.current.pending()!==null);setBusy(false);
     }
   }
   const showMembers = kind !== "channel" || privateChannel;
   return (
-    <Dialog appearance="standard"
+    <><Dialog appearance="standard"
       open
-      onClose={onClose}
+      onClose={close}
       title={`${editor.editing ? "Manage" : kind === "direct" ? "New" : "Create"} ${kind === "direct" ? "chat" : kind}`}
       dismissDisabled={busy}
 
@@ -897,7 +914,7 @@ function ConversationEditor({
             <Select appearance="standard"
               value={kind}
               onChange={(e) => {
-                setKind(e.target.value as "direct" | "group");
+                setTouched(true);setKind(e.target.value as "direct" | "group");
                 setSelected([]);
               }}
             >
@@ -911,9 +928,10 @@ function ConversationEditor({
             Name
             <TextInput appearance="standard"
               required
+              disabled={purchase?.newWork===false}
               maxLength={120}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {setTouched(true);setName(e.target.value);}}
               placeholder={
                 kind === "channel"
                   ? "e.g. Design"
@@ -929,7 +947,7 @@ function ConversationEditor({
             Access
             <Select appearance="standard"
               value={privateChannel ? "private" : "standard"}
-              onChange={(e) => setPrivate(e.target.value === "private")}
+              onChange={(e) => {setTouched(true);setPrivate(e.target.value === "private");}}
             >
               <option value="standard">Standard — everyone in the team</option>
               <option value="private">Private — selected team members</option>
@@ -968,14 +986,15 @@ function ConversationEditor({
                         type={kind === "direct" ? "radio" : "checkbox"}
                         name="recipient"
                         checked={selected.includes(person.id)}
-                        onChange={(e) =>
+                        disabled={purchase?.newWork===false&&!originalMembers.includes(person.id)}
+                        onChange={(e) =>{setTouched(true);
                           setSelected((current) =>
                             kind === "direct"
                               ? [person.id]
                               : e.target.checked
                                 ? [...current, person.id]
                                 : current.filter((id) => id !== person.id),
-                          )
+                          );}
                         }
                       />
                       <span>
@@ -1005,7 +1024,7 @@ function ConversationEditor({
           </InlineNotice>
         )}
         <footer>
-          <Button appearance="standard" variant="ghost" type="button" onClick={onClose} disabled={busy}>
+          <Button appearance="standard" variant="ghost" type="button" onClick={close} disabled={busy}>
             Cancel
           </Button>
           <Button appearance="standard"
@@ -1014,6 +1033,7 @@ function ConversationEditor({
             disabled={
               busy ||
               loading ||
+              (!canSave&&!unresolved) ||
               (kind === "direct" && selected.length !== 1) ||
               (kind === "group" && !selected.length)
             }
@@ -1021,7 +1041,7 @@ function ConversationEditor({
           >
             {busy
               ? "Saving…"
-              : editor.editing
+              : unresolved?"Retry submitted change":editor.editing
                 ? "Save changes"
                 : kind === "direct"
                   ? "Start chat"
@@ -1029,6 +1049,6 @@ function ConversationEditor({
           </Button>
         </footer>
       </form>
-    </Dialog>
+    </Dialog><Dialog appearance="standard" open={discard} title="Discard conversation draft?" onClose={()=>setDiscard(false)}><p>{unresolved?"Retry the submitted change in its original account and role first. Your newer draft remains here.":"Your conversation changes have not been saved."}</p><div className="ui-form-actions"><Button appearance="standard" data-autofocus onClick={()=>setDiscard(false)}>Keep editing</Button>{!unresolved&&<Button appearance="standard" variant="danger" onClick={()=>{setDiscard(false);onClose();}}>Discard draft</Button>}</div></Dialog></>
   );
 }

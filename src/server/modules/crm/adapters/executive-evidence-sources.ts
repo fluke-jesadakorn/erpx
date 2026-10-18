@@ -1,4 +1,5 @@
 import "server-only";
+import {crmMetricSource} from "./metric-purchases";
 import { z } from "zod";
 import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -16,9 +17,9 @@ function scopedConditions(actor: WorkContext, filters: Filters) {
 export function executiveEvidenceSources(database: SqlDatabase) {
     const db = database;
     return { async searchRows0(actor: WorkContext, input: z.infer<typeof inputSchema>, cursor: ReturnType<typeof parseCursor>): Promise<OpportunityRow[]> {
-            const scope = scopedConditions(actor, input.filters);
+            const purchased=await crmMetricSource(db,actor,"opportunity-pipeline"),scope = scopedConditions(actor, input.filters);
             const conditions = [...scope.sql];
-            const values = [...scope.values];
+            const values = [...purchased.args,...scope.values];
             if (input.query) {
                 conditions.push("(position(lower(?) in lower(l.title))>0 OR position(lower(?) in lower(v.stage))>0 OR position(lower(?) in lower(v.close_date))>0)");
                 values.push(input.query, input.query, input.query);
@@ -29,7 +30,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
             }
             const rows = (await db.prepare(`SELECT v.id,v.lead_id,l.title,l.status lead_status,l.version lead_version,
       v.stage,v.expected_minor,v.currency,v.close_date,v.version
-    FROM crm_opportunities v JOIN crm_leads l ON l.id=v.lead_id
+    FROM crm_opportunities v JOIN (${purchased.sql}) l ON l.id=v.lead_id
     WHERE ${conditions.join(" AND ")} ORDER BY v.close_date,v.id LIMIT ?`)
                 .bind(...values, input.limit + 1).all<OpportunityRow>()).results;
             return rows;

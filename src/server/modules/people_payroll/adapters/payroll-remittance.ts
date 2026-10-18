@@ -1,3 +1,4 @@
+import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "./payroll-purchases";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -14,8 +15,8 @@ import { payrollRemittanceSources } from '../../finance/public/payroll-remittanc
 import { payrollRemittanceSchema } from '../domain/payroll-remittance';
 import { createPayrollRemittanceApplication, type PayrollRemittanceRepository } from '../application/payroll-remittance';
 export { payrollRemittanceSchema } from '../domain/payroll-remittance';
-function application() {
-    let database: SqlDatabase;
+function application(provided?: SqlDatabase) {
+    let database = provided!;
     const repository: PayrollRemittanceRepository<SqlStatement> = { postedRun(...args) { return payrollRemittanceSources(database).postedRun(...args); },
         credits(...args) { return payrollRemittanceSources(database).credits(...args); },
         remitted(id: string, kind: "withholding_tax" | "social_security") {
@@ -37,7 +38,7 @@ function application() {
                 .bind(remittanceId, companyId, runId, kind, amountMinor, accountId, bankAccountId, bankTransactionId, id, bankReference, userId, now);
         },
         matchBank(...args) { return payrollRemittanceSources(database).matchBank(...args); } };
-    const ports = { repository, clock: { now: Date.now }, production: async () => (await runtimeEnv()).ERPX_ENVIRONMENT === 'production', authorize: requirePermission, prepare: async (holding: string) => { database = (await holdingResources(holding)).write; }, commands: { replay: <Result = Record<string, unknown>>(...args: Parameters<import('../application/payroll-statutory').PayrollStatutoryCommands<SqlStatement>['replay']>) => replayCommand<Result>(database, ...args), commit: <Result>(actor: WorkContext, key: string, operation: string, input: unknown, id: string, version: number, result: Result, effects: SqlStatement[]) => executeCommand(database, actor, key, operation, input, id, version, result, effects) }, statutoryReady: (id: string) => assertStatutoryRunReady(database, id), journal: (...args: Parameters<import('../application/payroll-remittance').PayrollRemittancePorts<SqlStatement>['journal']>) => prepareJournal(database, ...args) };
+    const ports = { repository, clock: { now: Date.now }, production: async () => (await runtimeEnv()).ERPX_ENVIRONMENT === 'production', authorize: requirePermission, prepare: async (holding: string) => { database = provided ?? (await holdingResources(holding)).write; }, commands: { replay: <Result = Record<string, unknown>>(...args: Parameters<import('../application/payroll-statutory').PayrollStatutoryCommands<SqlStatement>['replay']>) => replayCommand<Result>(database, ...args), commit: <Result>(actor: WorkContext, key: string, operation: string, input: unknown, id: string, version: number, result: Result, effects: SqlStatement[]) => executeCommand(database, actor, key, operation, input, id, version, result, effects) }, statutoryReady: (id: string) => assertStatutoryRunReady(database, id), journal: (...args: Parameters<import('../application/payroll-remittance').PayrollRemittancePorts<SqlStatement>['journal']>) => prepareJournal(database, ...args) };
     return createPayrollRemittanceApplication(ports);
 }
 async function invoke<Result>(run: () => Promise<Result>) { try {
@@ -48,5 +49,5 @@ catch (error) {
         throw new ApiError(error.status, error.code, error.message);
     throw error;
 } }
-export async function getPayrollLiabilities(actor: WorkContext, runId: string) { return invoke(() => application().getPayrollLiabilities(actor, runId)); }
-export async function remitPayrollLiability(actor: WorkContext, runId: string, input: z.infer<typeof payrollRemittanceSchema>, key: string) { return invoke(() => application().remitPayrollLiability(actor, runId, input, key)); }
+export async function getPayrollLiabilities(actor: WorkContext, runId: string) { return withPayrollPurchasedRead(actor, tx => invoke(() => application(tx).getPayrollLiabilities(actor, runId))); }
+export async function remitPayrollLiability(actor: WorkContext, runId: string, input: z.infer<typeof payrollRemittanceSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "payroll.liability.remit", purpose: "settle-existing" }, tx => invoke(() => application(tx).remitPayrollLiability(actor, runId, input, key))); }

@@ -1,3 +1,5 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { rememberWorkspace } from "@/server/modules/work_projection/public/workspace-preferences";
 import { holdingBindingBySlug, runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { NextResponse } from "next/server";
@@ -49,8 +51,8 @@ export async function POST(
       );
     if (actor.scope.companyId !== parsed.data.companyId)
       throw new ApiError(403, "COMPANY_UNAVAILABLE", "That Company is not available in this Holding.");
-    await rememberWorkspace((await runtimeEnv()).CONTROL_DB,actor.userId,`/holdings/${holdingSlug}/home`,{holdingId:actor.scope.holdingId,companyId:parsed.data.companyId});
-    const response = NextResponse.json({ data: { companyId: parsed.data.companyId } });
+    await rememberWorkspace((await runtimeEnv()).CONTROL_DB,actor.userId,canonicalUiHref(`/holdings/${holdingSlug}/home`),{holdingId:actor.scope.holdingId,companyId:parsed.data.companyId});
+    const response = NextResponse.json(canonicalDestinationLinks({ data: { companyId: parsed.data.companyId } }));
     response.cookies.set(`erpx_company_${actor.scope.holdingId}`, parsed.data.companyId, {
       httpOnly: true,
       sameSite: "lax",

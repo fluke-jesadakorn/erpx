@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -16,11 +17,11 @@ const headers = { "Cache-Control": "private, no-store" };
 export async function GET(_: Request, c: C) {
   try {
     return Response.json(
-      {
+      canonicalDestinationLinks({
         data: await agentWorkspace(
           await requireWorkContext((await c.params).holdingSlug),
         ),
-      },
+      }),
       { headers },
     );
   } catch (e) {
@@ -57,7 +58,7 @@ export async function POST(r: Request, c: C) {
     else if (i.entity === "pool") data = await createAgentPool(a, i, key);
     else if (i.entity === "assignment") data = await createAgentAssignment(a, i, key);
     else throw new ApiError(422,"AGENT_ENTITY_REQUIRED","Choose an Agent governance command.");
-    return Response.json({ data }, { headers });
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);
   }

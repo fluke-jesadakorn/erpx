@@ -1,1 +1,1 @@
-export { ownedRecordSource } from '../adapters/records-source-facts';
+export { ownedRecordSource, readableRecordSourceIds } from '../adapters/records-source-facts';

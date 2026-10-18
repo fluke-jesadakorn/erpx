@@ -1,4 +1,8 @@
 "use client";
+import { useFinanceActionAllowed } from "./purchase-context";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
@@ -13,10 +17,10 @@ import {
   TextInput,
 } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { Card, FormLayout } from "@/components/ui/foundation";
 
 type Run = {
@@ -71,16 +75,22 @@ export function ConsolidationRunConsole({
   canWrite: boolean;
   canApprove: boolean;
 }) {
+  const draftScope=useFinanceDraftScope();
+  const [hasAttempt,setHasAttempt]=useState(false);
   const router = useRouter();
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const attempt = useRef<{ signature: string; key: string } | null>(null);
-  const apiBase = base.replace("/holdings/", "/api/v1/holdings/"),
+  const apiBase = base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/"),
     endpoint = `${apiBase}/finance/consolidation-runs`;
+  const allowed=useFinanceActionAllowed("settle-existing","finance.advanced");
   async function send(url: string, input: Record<string, unknown>) {
+    if (!allowed && !workFetch.hasAttempt(url,JSON.stringify(input))) {setError("Existing group settlement is unavailable for the current package.");return;}
+    const completion=captureFinanceForm();
     const signature = `${url}:${JSON.stringify(input)}`;
     if (attempt.current?.signature !== signature)
       attempt.current = { signature, key: crypto.randomUUID() };
+    setHasAttempt(true);
     setBusy(true);
     setError("");
     try {
@@ -89,9 +99,11 @@ export function ConsolidationRunConsole({
         headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
         body: JSON.stringify(input),
       });
-      const body = (await response.json()) as { error?: { message?: string } };
+      const body = (await response.json()) as { data?: unknown; error?: { message?: string } };
       if (!response.ok)
         throw new Error(body.error?.message ?? "Unable to save consolidation workflow.");
+      if (body.data === undefined) throw new Error("Finance acknowledgement is missing. Retry the same action.");
+      acknowledgeFinanceForm(completion);setHasAttempt(false);
       attempt.current = null;
       router.refresh();
     } catch (cause) {
@@ -118,7 +130,8 @@ export function ConsolidationRunConsole({
         </InlineNotice>
       )}
       {canWrite && (
-        <FormLayout
+        <FormDisclosure appearance="standard" drawerTitle="Prepare consolidation snapshot" error={error}><summary>Prepare consolidation snapshot</summary>
+        <FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={(event) => {
             event.preventDefault();
@@ -156,10 +169,10 @@ export function ConsolidationRunConsole({
             Translation rates (presentation currency per source currency)
             <TextArea appearance="standard" name="translationRates" rows={3} placeholder="USD=35.50\nEUR=38.20" />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || (!allowed && !hasAttempt)}>
             {busy ? "Preparing…" : "Prepare consolidation snapshot"}
           </Button>
-        </FormLayout>
+        </FormLayout></FormDisclosure>
       )}
       {!canWrite && !runs.length && (
         <p className="muted">A Finance preparer must prepare the first consolidation snapshot.</p>
@@ -195,7 +208,7 @@ export function ConsolidationRunConsole({
                 return (
                   <tr key={run.id}>
                     <td>
-                      <RecordLink href={`${base}/record-details/consolidation/${encodeURIComponent(run.id)}`}>{run.as_of_date}</RecordLink>
+                      <RecordLink href={canonicalUiHref(`${base}/record-details/consolidation/${encodeURIComponent(run.id)}`)}>{run.as_of_date}</RecordLink>
                       <div className="muted">{run.id}</div>
                     </td>
                     <td>{run.presentation_currency}</td>
@@ -209,7 +222,7 @@ export function ConsolidationRunConsole({
                     </td>
                     <td>
                       {action ? (
-                        <form
+                        <FormLayout data-finance-draft={draftScope}
                           className="ui-form-actions"
                           onSubmit={(event) => {
                             event.preventDefault();
@@ -228,10 +241,10 @@ export function ConsolidationRunConsole({
                             placeholder="Review evidence"
                             aria-label={`Reason to ${action} ${run.as_of_date}`}
                           />
-                          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
+                          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy || (!allowed && !hasAttempt)}>
                             {action}
                           </Button>
-                        </form>
+                        </FormLayout>
                       ) : run.status === "published" ? (
                         "Published"
                       ) : (
@@ -263,7 +276,7 @@ export function ConsolidationRunConsole({
               ["settled", "eliminated"].includes(transaction.status),
             ) &&
             accounts.length >= 2 && (
-              <FormLayout
+              <FormLayout data-finance-draft={draftScope}
                 className="ui-form-grid"
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -338,7 +351,7 @@ export function ConsolidationRunConsole({
                     placeholder="Eliminate intercompany receivable/payable"
                   />
                 </Field>
-                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+                <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || (!allowed && !hasAttempt)}>
                   {busy ? "Saving…" : "Propose elimination"}
                 </Button>
               </FormLayout>
@@ -391,7 +404,7 @@ export function ConsolidationRunConsole({
                         </td>
                         <td>
                           {action ? (
-                            <form
+                            <FormLayout data-finance-draft={draftScope}
                               className="ui-form-actions"
                               onSubmit={(event) => {
                                 event.preventDefault();
@@ -413,10 +426,10 @@ export function ConsolidationRunConsole({
                                 placeholder="Evidence and reason"
                                 aria-label={`Reason to ${action} ${elimination.description}`}
                               />
-                              <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
+                              <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy || (!allowed && !hasAttempt)}>
                                 {action}
                               </Button>
-                            </form>
+                            </FormLayout>
                           ) : elimination.status === "posted" ? (
                             `Posted · ${elimination.consolidation_journal_id ?? "journal"}`
                           ) : (

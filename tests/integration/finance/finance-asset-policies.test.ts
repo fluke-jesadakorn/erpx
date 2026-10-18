@@ -1,3 +1,5 @@
+import {afterEach} from "vitest";
+import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { financeExpansionRecord } from "../../../src/server/modules/finance/public/finance-expansion-records";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
@@ -208,6 +210,7 @@ it("finds omitted monthly depreciation directly from approved asset policy and r
   ).toEqual([]);
 });
 it("prepares due depreciation from the reviewed book policy without posting the asset until independent review", async () => {
+ await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
   const assetId = await recognized(),
     p = await prepareAssetPolicy(
       f.owner,
@@ -333,6 +336,7 @@ async function secondary(
   return { chart, maps };
 }
 it("posts separate reviewed book methods atomically, reverses and reaches exact lifetime carrying totals", async () => {
+ await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
   const secondaryBook = await secondary(),
     assetId = await recognized(),
     p = await prepareAssetPolicy(
@@ -395,9 +399,13 @@ it("posts separate reviewed book methods atomically, reverses and reaches exact 
     "assetPolicyData" in runDetail &&
       runDetail.assetPolicyData?.runs.map((row) => row.id),
   ).toEqual([r.id]);
+  // A current, purchased actor in another Company still receives the original
+  // not-found response. A forged Company context is rejected at the new gate.
+  const otherCompany=await expenseFixture();await reviewedFinanceGrant(db,otherCompany.company,"finance");
+  await expect(financeExpansionRecord({...f.owner,companyId:key()},"finance_asset_policy",String(p.id))).rejects.toMatchObject({status:403});
   await expect(
     financeExpansionRecord(
-      { ...f.owner, companyId: key() },
+      otherCompany.owner,
       "finance_asset_policy",
       String(p.id),
     ),
@@ -1335,6 +1343,7 @@ it("dates a zero-usage inverse without inventing a journal and retains the earli
   });
 });
 it("restores both books and asset carrying on final depreciation outbox failure, then retries and replays once",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
  const b=await secondary(),assetId=await recognized(),policy=await prepareAssetPolicy(f.owner,{assetId,expectedVersion:2,books:[{chartId:f.chart,policy:{method:'straight_line'}},{chartId:b.chart,policy:{method:'declining_balance',annualRateBps:2000}}],reason:'Independent primary and secondary depreciation policies'},key());
  await decideAssetPolicy(f.manager,String(policy.id),{expectedVersion:1,reason:'Review both original book policies independently'},'approve',key());
  const draft=await prepareAssetPolicyRun(f.owner,String(policy.id),{expectedVersion:2,periodId:f.period,entryDate:'2026-09-30',reason:'Retained September asset and two-book carrying evidence'},key()),input={expectedVersion:1,reason:'Independent current source and carrying review'},command=key(),fault=`asset_policy_post_fault_${crypto.randomUUID().replaceAll('-','')}`;
@@ -1361,3 +1370,5 @@ it("restores both books and asset carrying on final depreciation outbox failure,
  expect(await db.prepare('SELECT status,version FROM finance_asset_policy_runs WHERE id=?').bind(draft.id).first()).toEqual({status:'posted',version:2});
  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
 });
+
+afterEach(()=>vi.unstubAllEnvs());

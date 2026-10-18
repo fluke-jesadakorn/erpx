@@ -1,10 +1,15 @@
 import { guestAccountUrl } from "@/lib/identity_access/guest-account-compat";
+import { canonicalUiHref, sourcePath } from '@/lib/work_projection/destination-registry';
 import { runWithRequestMemo } from "./server/modules/runtime/public/runtime/request-memo";
 import { NextResponse, type NextRequest } from "next/server";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { frontAppForHost, frontOrigin, frontVisiblePath } from "@/lib/shared/front-host";
-import { consoleOrigin, isMarketingHost, marketingConsoleUrl, marketingIsIndexable, marketingOrigin } from "@/lib/runtime/erpx-hosts";
+import { consoleOrigin, isMarketingHost, marketingIsIndexable, marketingOrigin } from "@/lib/runtime/erpx-hosts";
+import { configuredProductOrigin, productHostForHost } from "@/lib/runtime/product-hosts";
+import { productPageAllowed, productFrontBackofficeAllowed } from "@/lib/runtime/product-route-policy";
+import { applicationUrl } from "@/lib/runtime/application-origins";
+import { consoleRetirementResponse } from "@/lib/runtime/console-retirement";
 
 type ParsedScope = {
   holdingSlug: string;
@@ -56,27 +61,73 @@ function requestedPagePath(request: NextRequest) {
 // Proxy owns a separate invocation; nothing is shared with the route handler.
 // Origin/artifact guards remain fresh; byte-identical digest work is local.
 export function proxy(request: NextRequest) {
-  return runWithRequestMemo(() => routeRequest(request));
+  const retired = consoleRetirementResponse(request);
+  if (retired) return retired;
+  // These paths previously bypassed Proxy through its matcher. Keep their
+  // ordinary Next/CDN asset policy on live hosts, after the retirement boundary.
+  const path = request.nextUrl.pathname;
+  if (path.startsWith("/_next/static/") || path === "/_next/static" || path === "/_next/image" || path.startsWith("/vendor/"))
+    return NextResponse.next();
+  return runWithRequestMemo(() => {
+    const response = routeRequest(request);
+    if (productHostForHost(request.headers.get("host"))) {
+      response.headers.set("Cache-Control", "private, no-store");
+      response.headers.set("Referrer-Policy", "no-referrer");
+      response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    }
+    return response;
+  });
 }
 
 function routeRequest(request: NextRequest) {
   const production = process.env.NODE_ENV === "production";
   const path = request.nextUrl.pathname;
   const host = request.headers.get("host") ?? new URL(request.url).host;
+  const productHost = productHostForHost(host);
   const frontApp = frontAppForHost(host);
   const erpOrigin = consoleOrigin();
   const marketing = isMarketingHost(host);
   const publicFont = ["/fonts/NotoSansThai.ttf", "/fonts/NotoSansThai.woff2", "/fonts/NotoSansThaiOther.woff2"].includes(path);
   const localHost = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host ?? "");
   const loopbackHealth = localHost && (path === "/api/health" || path === "/api/ready");
-  if (!frontApp && !marketing && host !== erpOrigin?.host && !(localHost && (!production || loopbackHealth))) return new NextResponse("Invalid host", { status: 421 });
+  if (!productHost && !frontApp && !marketing && host !== erpOrigin?.host && !(localHost && (!production || loopbackHealth))) return new NextResponse("Invalid host", { status: 421 });
+  if (host === erpOrigin?.host && path === "/" && ["GET", "HEAD"].includes(request.method)) {
+    const appsOrigin = configuredProductOrigin("apps");
+    if (appsOrigin) {
+      const destination = new URL("/", appsOrigin);
+      destination.search = request.nextUrl.search;
+      return NextResponse.redirect(destination, {
+        status: 307,
+        headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" },
+      });
+    }
+  }
+  if (productHost) {
+    const assets = path.startsWith("/_next/") || publicFont || path.startsWith("/brand/") || (!frontApp && path === "/manifest.webmanifest") || /^\/(?:favicon\.ico|icon\.svg|apple-icon\.png|icon-(?:192|512|maskable-512)\.png)$/.test(path);
+    if (!assets && path !== "/api/health" && path !== "/api/ready" && path !== "/robots.txt" && !productPageAllowed(productHost, path, request.method)) return new NextResponse("Not found", { status: 404 });
+    // Shared product assets must not fall through to Front's operational URL parser.
+    // Keep its existing favicon redirect for company-aware Front icons.
+    if (assets && path !== "/favicon.ico") return NextResponse.next();
+    if (path.startsWith("/sso/")) return NextResponse.next();
+    if (path === "/login" && productHost !== "account") {
+      if (request.method !== "GET") return new NextResponse("Method not allowed", { status: 405 });
+      const destination = new URL("/sso/start", configuredProductOrigin(productHost)!);
+      if (request.nextUrl.searchParams.has("next")) destination.searchParams.set("next", request.nextUrl.searchParams.get("next")!);
+      return NextResponse.redirect(destination, 303);
+    }
+    if (path === "/" && productHost !== "pos" && productHost !== "pms") {
+      const internal = new URL(request.url);
+      internal.pathname = "/product-entry";
+      return NextResponse.rewrite(internal);
+    }
+  }
   if (request.method === "GET" && !request.nextUrl.pathname.startsWith("/api/")) {
     const canonical = guestAccountUrl(request.nextUrl.pathname + request.nextUrl.search, frontApp === "pms");
     if (canonical !== request.nextUrl.pathname + request.nextUrl.search)
       return NextResponse.redirect(new URL(canonical, request.url), 308);
   }
   if (production) {
-    const origin = frontApp ? frontOrigin(frontApp)! : marketing ? marketingOrigin()! : erpOrigin!;
+    const origin = productHost ? new URL(configuredProductOrigin(productHost)!) : frontApp ? frontOrigin(frontApp)! : marketing ? marketingOrigin()! : erpOrigin!;
     if (!loopbackHealth && origin.protocol === "https:" && request.headers.get("x-forwarded-proto") === "http") {
       const secure = new URL(origin);
       secure.pathname = path;
@@ -110,15 +161,25 @@ function routeRequest(request: NextRequest) {
     if (path === "/favicon.ico" || path === "/icon.svg" || path === "/apple-icon.png" || /^\/icon-(?:192|512|maskable-512)\.png$/.test(path) || path.startsWith("/brand/")) return NextResponse.next();
     if (path === "/manifest.webmanifest") return new NextResponse("Not found", { status: 404 });
     if (path === "/marketing") return new NextResponse("Not found", { status: 404 });
-    return NextResponse.redirect(marketingConsoleUrl(path, request.nextUrl.search), 308);
+    return NextResponse.redirect(applicationUrl(path, request.nextUrl.search), 308);
   }
   if (path === "/marketing") return new NextResponse("Not found", { status: 404 });
-  if (frontApp) {
+  if (frontApp && !productFrontBackofficeAllowed(productHost, path, request.method)) {
+    // Stripe delivers directly to the POS owner. The unchanged handler verifies
+    // its signature and retains durable intake/idempotency; no redirect/forward.
+    if (productHost === "pos" && path === "/api/pos/stripe/webhook") return NextResponse.next();
+    // Owned product handoffs use the normal host-bound launch before the
+    // operational Front URL parser; legacy Front hosts gain no new entry.
+    if(productHost===frontApp&&["/launch", "/choose-work-role"].includes(path))return NextResponse.next();
+    if(productHost===frontApp&&["/api/v1/account/work-context", "/api/v1/workspace-preference"].includes(path))return NextResponse.next();
     if (path === "/api/health" || path === "/api/ready" || path.startsWith("/_next/") || publicFont) return NextResponse.next();
     // The shared date renderer reads only the signed-in account's preference.
     // Its route handler still requires a normal session; Front cannot edit it
     // or use this exception to reach other account/administration commands.
     if (path === "/api/v1/account/time-preference" && request.method === "GET") return NextResponse.next();
+    // The host's normal session and rendered account/version still authorize
+    // this personal preference command. No profile or administration exception.
+    if (path === "/api/v1/account/preferences" && ["GET", "PATCH"].includes(request.method)) return NextResponse.next();
     if (path === "/erpx-push-sw.js") return NextResponse.next();
     if (path.startsWith("/api/v1/front/")) {
       const parts = path.slice("/api/v1/front/".length).split("/");
@@ -252,11 +313,21 @@ function routeRequest(request: NextRequest) {
     .filter(Boolean);
   const parsed = parse(parts);
   if (!parsed) return NextResponse.next();
+  // Development compatibility within the same surface. This is not product
+  // cutover and does not start the accepted-cutover alias-retention clock.
+  if (!api && process.env.ERPX_ENVIRONMENT === "local" && configuredProductOrigin("apps") &&
+      ["GET", "HEAD"].includes(request.method) && parsed.destination[0] === "support") {
+    const canonical = canonicalUiHref(path + request.nextUrl.search);
+    if (canonical !== path + request.nextUrl.search) {
+      const origin = productHost ? configuredProductOrigin(productHost)! : host === erpOrigin?.host ? erpOrigin.origin : new URL(request.url).origin;
+      return NextResponse.redirect(new URL(canonical, origin), { status: 307, headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
+    }
+  }
 
   const headers = new Headers(request.headers);
   headers.set("x-erpx-page-path", requestedPagePath(request));
-  for (const key of ["x-erpx-workspace-kind","x-erpx-branch-slug","x-erpx-department-slug","x-erpx-destination","x-erpx-api","x-erpx-method"]) headers.delete(key);
-  headers.set("x-erpx-destination",parsed.destination.join("/") || "home");
+  for (const key of ["x-erpx-workspace-kind","x-erpx-branch-slug","x-erpx-department-slug","x-erpx-destination","x-erpx-api","x-erpx-method","x-erpx-front-company","x-erpx-front-app"]) headers.delete(key);
+  headers.set("x-erpx-destination",(api ? parsed.destination.join('/') : sourcePath(parsed.destination.join('/'))) || "home");
   headers.set("x-erpx-api",String(api));
   headers.set("x-erpx-method",request.method);
   headers.set("x-erpx-workspace-kind", parsed.kind);
@@ -285,5 +356,5 @@ function routeRequest(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|vendor/).*)"],
+  matcher: ["/:path*"],
 };

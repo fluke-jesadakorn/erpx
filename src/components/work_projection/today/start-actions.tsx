@@ -1,6 +1,7 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { StartPrompt } from "@/components/work_projection/today/start-prompt";
 
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import {
   CalendarDays,
   CheckSquare2,
@@ -63,7 +64,7 @@ export function StartActions({
       <StartPrompt rail={rail} onNavigate={onNavigate} />
       <div className={styles.actions}>
         {canRequestLegal && (
-          <Link href={`${base}/legal?kind=request&new=request`} onClick={onNavigate}>
+          <Link href={canonicalUiHref(`${base}/legal?kind=request&new=request`)} onClick={onNavigate}>
             <Scale size={18} aria-hidden="true" />
             Request legal advice
           </Link>

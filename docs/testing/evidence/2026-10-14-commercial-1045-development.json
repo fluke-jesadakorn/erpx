@@ -1,0 +1,120 @@
+{
+  "schema": "erpx-development-migration-receipt/v1",
+  "environment": "development",
+  "migration": "1045_company_package_change_sets.sql",
+  "migrationSha256": "c97d3194bafcdd92618c6522dfd0ddf62b2cf8747d9bc8f38b786d67f194044b",
+  "backup": [
+    {
+      "binding": "H001_DB",
+      "database": "erpx_dev_h001_write",
+      "bytes": 8294868,
+      "sha256": "51dac90e0e99f87669959518afe6ccdae9898b653e91256a20b61a3dab0924b7",
+      "listItems": 6904
+    },
+    {
+      "binding": "H002_DB",
+      "database": "erpx_dev_h002_write",
+      "bytes": 4091573,
+      "sha256": "8742fe23212d29c8c1240fb1720e84e673b74f58909aa75491f41592b7e2a8b6",
+      "listItems": 6904
+    },
+    {
+      "binding": "H003_DB",
+      "database": "erpx_dev_h003_write",
+      "bytes": 3686897,
+      "sha256": "6b6064957481489e6b16da658776c31544946fe75bfa74b3ae4011e52fa3a122",
+      "listItems": 6904
+    }
+  ],
+  "reconciliation": [
+    {
+      "binding": "H001_DB",
+      "checkedTables": 237,
+      "changedTables": 0,
+      "packageCounts": {
+        "grants": 0,
+        "events": 0,
+        "changes": 0,
+        "revisions": 0
+      }
+    },
+    {
+      "binding": "H002_DB",
+      "checkedTables": 237,
+      "changedTables": 0,
+      "packageCounts": {
+        "grants": 0,
+        "events": 0,
+        "changes": 0,
+        "revisions": 0
+      }
+    },
+    {
+      "binding": "H003_DB",
+      "checkedTables": 237,
+      "changedTables": 0,
+      "packageCounts": {
+        "grants": 0,
+        "events": 0,
+        "changes": 0,
+        "revisions": 0
+      }
+    }
+  ],
+  "applied": [
+    {
+      "binding": "CONTROL_DB",
+      "files": [],
+      "remaining": []
+    },
+    {
+      "binding": "CONTROL_READ_DB",
+      "files": [],
+      "remaining": []
+    },
+    {
+      "binding": "H001_DB",
+      "files": [
+        "1045_company_package_change_sets.sql"
+      ],
+      "remaining": []
+    },
+    {
+      "binding": "H001_READ_DB",
+      "files": [],
+      "remaining": []
+    },
+    {
+      "binding": "H002_DB",
+      "files": [
+        "1045_company_package_change_sets.sql"
+      ],
+      "remaining": []
+    },
+    {
+      "binding": "H002_READ_DB",
+      "files": [],
+      "remaining": []
+    },
+    {
+      "binding": "H003_DB",
+      "files": [
+        "1045_company_package_change_sets.sql"
+      ],
+      "remaining": []
+    },
+    {
+      "binding": "H003_READ_DB",
+      "files": [],
+      "remaining": []
+    }
+  ],
+  "newCompanyGrants": 0,
+  "roleAssignmentsChanged": false,
+  "rolloutChanged": false,
+  "pricingChanged": false,
+  "productionDeployed": false,
+  "stagingAccessed": false,
+  "restoreAccepted": false,
+  "wholeProductMigrationAccepted": false
+}

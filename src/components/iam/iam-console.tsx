@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { CollectionRecordLink, RecordCollectionDrawer, RecordFacts } from "@/components/records/record-collection";
 import { WorkspaceCollection, WorkspaceDetail, WorkspaceRecordList, type WorkspaceRecord } from "@/components/ui/workspace";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
@@ -47,7 +48,8 @@ import {
   X,
 } from "lucide-react";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./iam.module.css";
 type Data = Awaited<ReturnType<typeof iamOverview>>;
@@ -508,7 +510,7 @@ export function IamConsole({
             )
             .map(([id, label]) => (
               <Link
-                href={`${base}/iam/${id}`}
+                href={canonicalUiHref(`${base}/iam/${id}`)}
                 key={id}
                 aria-current={id === section ? "page" : undefined}
               >
@@ -615,7 +617,7 @@ export function IamConsole({
                       expires {date(a.valid_until)}
                     </p>
                   ))}
-                <Link href={`${base}/iam/reviews`}>Open reviews & audit →</Link>
+                <Link href={canonicalUiHref(`${base}/iam/reviews`)}>Open reviews & audit →</Link>
               </Card>
             </>
           )}

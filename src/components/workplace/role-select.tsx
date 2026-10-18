@@ -3,7 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { ArrowLeftRight, Check, ChevronUp } from "lucide-react";
 import { Button, type UiAppearance } from "@/components/ui/foundation";
-import type { WorkAssignment } from "@/server/modules/identity_access/public/authorization";
+import type {WorkRoleDisplayChoice} from "@/lib/identity_access/work-role-display";
 import styles from "./role-select.module.css";
 
 export function RoleSelect({
@@ -14,7 +14,7 @@ export function RoleSelect({
   onChange,
 }: {
   appearance?: UiAppearance;
-  assignments: WorkAssignment[];
+  assignments: readonly WorkRoleDisplayChoice[];
   value: string;
   disabled: boolean;
   onChange: (value: string) => void;

@@ -24,7 +24,7 @@ export function LegalWorkQueue({
   view: "mine" | "deadlines";
   people: { id: string; name: string }[];
   call: (path: string) => Promise<unknown>;
-  open: (id: string) => Promise<void>;
+  open: (id: string, kind: LegalKind) => Promise<void>;
 }) {
   const [data, setData] = useState<{ deadlines: QueueItem[]; assigned: QueueItem[] } | null>(null);
   const [error, setError] = useState("");
@@ -60,7 +60,7 @@ export function LegalWorkQueue({
             type="submit"
             variant="ghost"
             className={s.link}
-            onClick={() => void open(item.id)}
+            onClick={() => void open(item.id, item.kind)}
           >
             {item.title}
           </Button>

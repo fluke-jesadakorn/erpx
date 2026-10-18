@@ -1,4 +1,5 @@
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import { consolidationEliminationDecisionSchema, consolidationEliminationSchema, consolidationRunSchema, createConsolidationElimination, createConsolidationRun, decideConsolidationElimination, decideConsolidationRun } from "../../../src/server/modules/finance/public/finance-consolidation";
@@ -7,6 +8,7 @@ import { createIntercompany, decideIntercompany, intercompanyTransactionSchema }
 vi.mock("server-only", () => ({}));
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
+afterEach(()=>vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 let target: string;
 
@@ -25,6 +27,7 @@ beforeEach(async () => {
 });
 
 it("prepares, independently reviews, approves and publishes a closed-period consolidation snapshot", async () => {
+  await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,target,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
   const input = consolidationRunSchema.parse({ asOfDate: "2028-01-31", presentationCurrency: "thb" });
   const commandId = key();
   const prepared = await createConsolidationRun(f.reviewer, input, commandId);

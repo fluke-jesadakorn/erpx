@@ -1,4 +1,5 @@
 "use client";
+import {ExpensePaymentCancellation} from './expense-payment-cancellation';
 import { ReviewDecisionForm } from "@/components/workplace/review-decision";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -619,6 +620,8 @@ export function ExpensePayments({
               ))}
           </Card>
         ))}
+      {drafts.filter(draft=>draft.status==='cancelled').map(draft=><Card as="article" appearance="standard" className="ui-panel" key={`cancelled-${draft.id}`}><strong>Cancelled payment preparation</strong><p>No bank payment was confirmed through this preparation.</p>{draft.cancellation_reason&&<p>{String(draft.cancellation_reason)}</p>}{attachments.filter(file=>file.owner_id===draft.id).map(file=><p key={String(file.id)}><a href={`/api/v1${base}/attachments/${file.id}/content`}>{String(file.original_name)}</a></p>)}</Card>)}
+      {drafts.map(draft=><ExpensePaymentCancellation key={`cancel-${draft.id}`} base={base} expense={expense} draft={draft}/>)}
       {expense.can_pay === 1 &&
         open.map((d) => (
           <PaymentPreparation

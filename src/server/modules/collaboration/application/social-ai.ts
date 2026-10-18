@@ -1,3 +1,4 @@
+import type {SocialAiPhase} from '../domain/social-ai-phase';
 import { socialAiLimits } from '../domain/ai-policy';
 import { z } from 'zod';
 import type { StaffActor } from '../../operations/public/staff-policy';
@@ -46,6 +47,7 @@ export interface SocialAiPorts<Effect> {
     identifiers: IdentifierSource;
     sha256(value: string): Promise<string>;
     batch(effects: Effect[]): Promise<unknown>;
+    writePhase(actor:StaffActor,phase:SocialAiPhase,prepare:()=>Effect[]|Promise<Effect[]>):Promise<unknown>;
     sourceSnapshot(actor: Pick<StaffActor, "companyId" | "userId">, id: string, comments: string[]): Promise<SocialSnapshot>;
     sourceGuard(...args: Tail<Parameters<typeof sourceGuard>>): Effect;
     readablePost(actor: Pick<StaffActor, "companyId" | "userId">, id: string): Promise<PostRow>;
@@ -130,7 +132,7 @@ export function createSocialAiApplication<Effect>(ports: SocialAiPorts<Effect>) 
         }
         // Reserve before the external request. Failed requests count because the provider may have billed them.
         try {
-            await ports.batch([
+            await ports.writePhase(actor,{phase:"reserve",reservationId:id,postId,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{})},()=>[
                 ...ports.workContextGuards(actor, id),
                 ports.sourceGuard(id, source.post, actor.userId, "source"),
                 ports.aiRequestQuotaLock(actor.companyId),
@@ -177,7 +179,7 @@ export function createSocialAiApplication<Effect>(ports: SocialAiPorts<Effect>) 
             if (configured &&
                 JSON.stringify((await ports.resolveAiProvider(actor.companyId, env, "text")).snapshot) !== JSON.stringify(configured.snapshot))
                 throw new Error("PROVIDER_CHANGED");
-            await ports.batch([
+            await ports.writePhase(actor,{phase:"finish",reservationId:id,postId,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{})},()=>[
                 ...ports.workContextGuards(actor, id),
                 ports.sourceGuard(id, source.post, actor.userId, "source-finish"),
                 ...(configured
@@ -201,7 +203,7 @@ export function createSocialAiApplication<Effect>(ports: SocialAiPorts<Effect>) 
             };
         }
         catch {
-            await ports.batch([
+            await ports.writePhase(actor,{phase:"failure",reservationId:id,postId,sourceHash:source.hash,...(configured?{provider:configured.snapshot}:{})},()=>[
                 ...(configured
                     ? [ports.aiUsageStatement(id, configured.snapshot, "social", "failed", 0, 0, actor.branchId)]
                     : []),

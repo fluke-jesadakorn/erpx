@@ -3,10 +3,12 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import { useStaffCommand } from "@/components/work_projection/staff-work-controls";
+import { useState, type FormEvent } from "react";
+import {useProjectRecordCommand} from "./use-project-record-command";
+import {ProjectRecordRecovery} from "./project-record-recovery";
+import type {ProjectRecordOwner} from "@/lib/projects/project-record-command";
+import {useProjectPurchases} from "./purchase-context";
+import {projectPurchased} from "@/lib/projects/purchase-controls";
 import type {
   ProjectCostAllocationRow,
   ProjectCostSourceRow,
@@ -25,6 +27,7 @@ export function ProjectActualsConsole({
   canWriteCosts,
   canApproveCosts,
   editable=true,
+  ownerContext,
 }: {
   base: string;
   projectId: string;
@@ -36,16 +39,17 @@ export function ProjectActualsConsole({
   canWriteCosts: boolean;
   canApproveCosts: boolean;
   editable?:boolean;
+  ownerContext?:ProjectRecordOwner;
 }) {
-  const { send, busy: timeBusy, error: timeError } = useStaffCommand(base);
-  const router = useRouter();
+  const purchases=useProjectPurchases();
+  const timeNew=projectPurchased(purchases,"projects.time","newWork"),timeSettle=projectPurchased(purchases,"projects.time","settleExisting"),costNew=projectPurchased(purchases,"projects.costs","newWork"),costSettle=projectPurchased(purchases,"projects.costs","settleExisting"),readCosts=canReadCosts&&projectPurchased(purchases,"projects.costs","history");
   const [workDate, setWorkDate] = useState("");
   const [minutes, setMinutes] = useState("60");
   const [sourceLineId, setSourceLineId] = useState("");
   const [amount, setAmount] = useState("");
-  const [costBusy, setCostBusy] = useState(false);
-  const [costError, setCostError] = useState("");
-  const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const [timeRevision,setTimeRevision]=useState(0),[costRevision,setCostRevision]=useState(0),[timeDirty,setTimeDirty]=useState(false),[costDirty,setCostDirty]=useState(false);
+  const timeCommand=useProjectRecordCommand({kind:'time',base,projectId,owner:ownerContext,workLogs,editable,purchases,draftVersion:timeRevision,dirty:timeDirty}),costCommand=useProjectRecordCommand({kind:'costs',base,projectId,owner:ownerContext,costs,costSources,editable,canReadCosts,canWriteCosts,canApproveCosts,purchases,draftVersion:costRevision,dirty:costDirty});
+  const {send,busy:timeBusy,error:timeError,pending:timePending}=timeCommand,{busy:costBusy,error:costError,pending:costPending}=costCommand;
   const owner = isProjectOwner;
   const selectedWorkLog = workLogs.find((log) => log.work_date === workDate && log.is_actor);
   const selectedRejectedCost = costs.find(
@@ -54,15 +58,15 @@ export function ProjectActualsConsole({
 
   async function submitWorkLog(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if(!timeNew||!editable||timeBusy||timePending)return;
     const rejected = workLogs.find(
       (log) => log.work_date === workDate && log.state === "rejected" && log.is_actor,
     );
-    const result = await send(`projects/${encodeURIComponent(projectId)}/work-logs`, {
+    await send(`projects/${encodeURIComponent(projectId)}/work-logs`, {
       workDate,
       minutes: Number(minutes),
       ...(rejected ? { expectedVersion: rejected.version } : {}),
-    });
-    if (result) setWorkDate("");
+    },event.currentTarget,{saved:()=>{setWorkDate("");setTimeDirty(false);}});
   }
 
   async function reviewWorkLog(log: ProjectWorkLogRow, action: "approve" | "reject") {
@@ -79,48 +83,17 @@ export function ProjectActualsConsole({
     );
   }
 
-  async function sendCost(path: string, input: unknown) {
-    const body = JSON.stringify(input),
-      signature = `${path}${body}`;
-    if (attempt.current?.signature !== signature)
-      attempt.current = { signature, key: crypto.randomUUID() };
-    setCostBusy(true);
-    setCostError("");
-    try {
-      const response = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-          body,
-        },
-      );
-      const result = (await response.json()) as { error?: { message?: string } };
-      if (!response.ok)
-        throw new Error(result.error?.message ?? "Unable to save this cost allocation.");
-      attempt.current = null;
-      router.refresh();
-      return true;
-    } catch (error) {
-      setCostError(error instanceof Error ? error.message : "Unable to save this cost allocation.");
-      return false;
-    } finally {
-      setCostBusy(false);
-    }
-  }
+  async function sendCost(path:string,input:unknown,form?:HTMLFormElement){return costCommand.send(`finance/${path}`,input,form);}
 
   async function submitCost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const saved = await sendCost("project-cost-allocations", {
+    if(!costNew||!editable||!canWriteCosts||costBusy||costPending)return;
+    await costCommand.send("finance/project-cost-allocations", {
       projectId,
       sourceLineId,
       amount,
       ...(selectedRejectedCost ? { expectedVersion: selectedRejectedCost.version } : {}),
-    });
-    if (saved) {
-      setSourceLineId("");
-      setAmount("");
-    }
+    },event.currentTarget,{saved:()=>{setSourceLineId("");setAmount("");setCostDirty(false);}});
   }
 
   async function reviewCost(row: ProjectCostAllocationRow, action: "approve" | "reject") {
@@ -158,12 +131,12 @@ export function ProjectActualsConsole({
                     {owner && !log.is_actor ? ` · ${log.user_id}` : ""}
                   </p>
                 </div>
-                {log.can_review && log.state === "submitted" && (
+                {editable&&timeSettle&&log.can_review && log.state === "submitted" && (
                   <div className="ui-form-actions">
                     <Button appearance="standard"
                       variant="secondary"
                       type="button"
-                      disabled={timeBusy}
+                      disabled={timeBusy||timePending}
                       onClick={() => void reviewWorkLog(log, "approve")}
                     >
                       Approve
@@ -171,7 +144,7 @@ export function ProjectActualsConsole({
                     <Button appearance="standard"
                       variant="ghost"
                       type="button"
-                      disabled={timeBusy}
+                      disabled={timeBusy||timePending}
                       onClick={() => void reviewWorkLog(log, "reject")}
                     >
                       Return
@@ -184,7 +157,7 @@ export function ProjectActualsConsole({
         ) : (
           <p>No project time has been submitted.</p>
         )}
-        {editable&&<FormLayout className="ui-form-grid" onSubmit={submitWorkLog}>
+        {((editable&&timeNew)||timeDirty||timePending)&&<FormLayout className="ui-form-grid" data-work-dirty={timeDirty?"true":undefined} onChangeCapture={()=>{setTimeRevision(value=>value+1);setTimeDirty(true);}} onSubmit={submitWorkLog}>
           <Field appearance="standard">
             Work date
             <TextInput appearance="standard"
@@ -210,7 +183,7 @@ export function ProjectActualsConsole({
             variant="primary"
             clientManaged type="submit"
             disabled={
-              timeBusy || !workDate || (!!selectedWorkLog && selectedWorkLog.state !== "rejected")
+              timeBusy || timePending || !editable || !timeNew || !workDate || (!!selectedWorkLog && selectedWorkLog.state !== "rejected")
             }
           >
             Submit project hours
@@ -219,12 +192,14 @@ export function ProjectActualsConsole({
             <p>This project already has a time entry for that date.</p>
           )}
         </FormLayout>}
+        <ProjectRecordRecovery pending={timePending} busy={timeBusy} retry={timeCommand.retry}/>
+        {timeCommand.notice&&<InlineNotice role="status">{timeCommand.notice}</InlineNotice>}
         {timeError && <InlineNotice tone="danger" role="alert">{timeError}</InlineNotice>}
       </Card>
 
       <Card as="section" appearance="standard" className="ui-panel" aria-labelledby="project-cost-heading">
         <h2 id="project-cost-heading">Posted project costs</h2>
-        {!canReadCosts ? (
+        {!readCosts ? (
           <p>Finance permission and project membership are required to view cost actuals.</p>
         ) : (
           <>
@@ -245,12 +220,12 @@ export function ProjectActualsConsole({
                         {row.journal_status !== "posted" ? ` · Source ${row.journal_status}` : ""}
                       </p>
                     </div>
-                    {canApproveCosts && row.can_review && row.state === "draft" && (
+                    {editable&&costSettle&&canApproveCosts && row.can_review && row.state === "draft" && (
                       <div className="ui-form-actions">
                         <Button appearance="standard"
                           variant="secondary"
                           type="button"
-                          disabled={costBusy}
+                          disabled={costBusy||costPending}
                           onClick={() => void reviewCost(row, "approve")}
                         >
                           Approve
@@ -258,7 +233,7 @@ export function ProjectActualsConsole({
                         <Button appearance="standard"
                           variant="ghost"
                           type="button"
-                          disabled={costBusy}
+                          disabled={costBusy||costPending}
                           onClick={() => void reviewCost(row, "reject")}
                         >
                           Return
@@ -271,8 +246,11 @@ export function ProjectActualsConsole({
             ) : (
               <p>No project cost allocations have been recorded.</p>
             )}
-            {canWriteCosts && (
-              <FormLayout className="ui-form-grid" onSubmit={submitCost}>
+            {costError && <InlineNotice tone="danger" role="alert">{costError}</InlineNotice>}
+          </>
+        )}
+            {((readCosts&&editable&&costNew&&canWriteCosts)||costDirty||costPending) && (
+              <FormLayout className="ui-form-grid" data-work-dirty={costDirty?"true":undefined} onChangeCapture={()=>{setCostRevision(value=>value+1);setCostDirty(true);}} onSubmit={submitCost}>
                 <Field appearance="standard">
                   Posted expense source
                   <Select appearance="standard"
@@ -281,7 +259,7 @@ export function ProjectActualsConsole({
                     onChange={(event) => setSourceLineId(event.target.value)}
                   >
                     <option value="">Choose a posted expense line</option>
-                    {costSources.map((source) => (
+                    {(readCosts?costSources:[]).map((source) => (
                       <option key={source.source_line_id} value={source.source_line_id}>
                         {source.journal_number} · {source.entry_date} · {source.account_code} ·{" "}
                         {source.currency} {source.remaining} available
@@ -300,7 +278,7 @@ export function ProjectActualsConsole({
                     placeholder="0.00"
                   />
                 </Field>
-                <Button appearance="standard" variant="primary" clientManaged type="submit" disabled={costBusy || !sourceLineId}>
+                <Button appearance="standard" variant="primary" clientManaged type="submit" disabled={costBusy || costPending || !editable || !costNew || !canWriteCosts || !sourceLineId}>
                   Submit cost allocation
                 </Button>
                 {!costSources.length && (
@@ -308,9 +286,9 @@ export function ProjectActualsConsole({
                 )}
               </FormLayout>
             )}
-            {costError && <InlineNotice tone="danger" role="alert">{costError}</InlineNotice>}
-          </>
-        )}
+        <ProjectRecordRecovery pending={costPending} busy={costBusy} retry={costCommand.retry}/>
+        {costCommand.notice&&<InlineNotice role="status">{costCommand.notice}</InlineNotice>}
+        {!readCosts&&costError&&<InlineNotice tone="danger" role="alert">{costError}</InlineNotice>}
       </Card>
     </Stack>
   );

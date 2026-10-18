@@ -124,3 +124,10 @@ bun --env-file=.env.local run seed:retirement:local
 The command refuses production, non-loopback PostgreSQL and databases outside the `erpx_dev_` namespace. It creates six unmistakably fictional people with stable `demo-retirement-v1-*` IDs and `example.invalid` addresses: draft; scheduled in 30 days; near retirement with unassigned handoff; effective with financial clearance pending; clearance complete; and cancelled before effect. Repeat execution skips existing examples without overwriting them and refuses colliding non-demo records. It creates no sign-in grants, sends no notifications/email and calls no directory/payment provider. Completed examples use an explicit fictional “not required” rationale.
 
 Coverage lives in `people-lifecycle.test.ts`, `retirement.test.ts`, `calendar.test.ts` and `work-sources.test.ts`, including repeat submit/seed, cancellation, cutoff without worker, post-cutoff clearance and denied IT financial completion.
+
+
+## Recruit-only accepted-hire pay-group prerequisite
+
+An accepted, current and consent-valid hire handoff can expose a same-page pay-group drawer when no active Company group exists in its actual offer currency. The named `people/hire-handoffs/{id}/pay-groups` transport reuses the original pay-group schema/application and requires current Company HR and `payroll.prepare` authority plus the original Recruit handoff purchase and releases. It grants no Payroll collection or package. The exact handoff and expected offer/candidate versions are bound to original command and HR receipts. Creation refuses an existing suitable group, a consumed source or another currency; normal HR intake follows unchanged.
+
+The rare constructor acquires the normal strong package settlement fence before receipt/source leases. Purchase boundary and assertion writes finish before deferred effects flush; final source, authority, group and purchase checks are read-only. Late source changes roll back the complete original unit. Exact original replay remains available after legitimate intake, while generic Payroll setup retains its normal purchase requirement.

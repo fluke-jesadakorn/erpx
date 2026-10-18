@@ -1,8 +1,11 @@
 "use client";
+import { useFinanceActionAllowed } from "./purchase-context";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {EmbeddedRecord} from "@/components/records/record-context";
 import {recordCanonicalHref} from "@/lib/records/record-drawer";
 import { useContext,useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import {
@@ -40,6 +43,7 @@ function InstrumentEditor({
   busy: boolean;
   onSave: (input: unknown) => Promise<void>;
 }) {
+  const draftScope=useFinanceDraftScope();
   const old = initial
       ? (JSON.parse(String(initial.content_json)) as InstrumentInput)
       : null,
@@ -78,7 +82,7 @@ function InstrumentEditor({
     );
   }
   return (
-    <FormLayout
+    <FormLayout data-finance-draft={draftScope}
       className="ui-form-grid"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -307,28 +311,37 @@ export function FinanceInstrumentControls({
   userId: string;
   enabled: boolean;
 }) {
+  const draftScope=useFinanceDraftScope();
+  const [hasAttempt,setHasAttempt]=useState(false);
   const recordOnly=useContext(EmbeddedRecord);
   const router = useRouter(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const canPrepare = useFinanceActionAllowed("new-work","finance.advanced"), canSettle = useFinanceActionAllowed("settle-existing","finance.advanced");
   async function run(path: string, input: unknown) {
+    const completion=captureFinanceForm(),url=`${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/${path}`,payload=JSON.stringify(input);
+    if (!(path === "instruments" ? canPrepare : canSettle) && !workFetch.hasAttempt(url,payload)) { setError("This financing action is unavailable for the current package."); return; }
+
+    setHasAttempt(true);
     setBusy(true);
     setError("");
     try {
       const r = await workFetch(
-          `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
+          url,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Idempotency-Key": crypto.randomUUID(),
             },
-            body: JSON.stringify(input),
+            body: payload,
           },
         ),
         body = await r.json();
       if (!r.ok)
         throw new Error(body.error?.message ?? "Financing command failed");
+      if (body.data === undefined) throw new Error("Financing acknowledgement is missing. Retry the same action.");
+      acknowledgeFinanceForm(completion);setHasAttempt(false);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Financing command failed");
@@ -359,7 +372,7 @@ export function FinanceInstrumentControls({
             <summary>Prepare agreement</summary>
             <InstrumentEditor
               data={data}
-              busy={busy}
+              busy={busy || (!canPrepare && !hasAttempt)}
               onSave={(i) => run("instruments", i)}
             />
           </FormDisclosure>
@@ -395,7 +408,7 @@ export function FinanceInstrumentControls({
             </p>
             {e.activation_journal_id && (
               <RecordLink
-                href={`${base}/finance/journals/${e.activation_journal_id}`}
+                href={canonicalUiHref(`${base}/finance/journals/${e.activation_journal_id}`)}
               >
                 Recognition journal
               </RecordLink>
@@ -434,7 +447,7 @@ export function FinanceInstrumentControls({
               approveAction="approve"
               canApprove={canApprove}
               userId={userId}
-              busy={busy}
+              busy={busy || (!canSettle && !hasAttempt)}
               run={run}
             />
             {enabled && canWrite && e.status === "active" && (
@@ -444,7 +457,7 @@ export function FinanceInstrumentControls({
                   drawerTitle="Prepare bank-backed instalment"
                 >
                   <summary>Prepare instalment or payoff</summary>
-                  <FormLayout
+                  <FormLayout data-finance-draft={draftScope}
                     className="ui-form-grid"
                     onSubmit={async (ev) => {
                       ev.preventDefault();
@@ -526,7 +539,7 @@ export function FinanceInstrumentControls({
                       appearance="standard"
                       clientManaged
                       type="submit"
-                      disabled={busy}
+                      disabled={busy || (!canSettle && !hasAttempt)}
                     >
                       Prepare payment draft
                     </Button>
@@ -541,7 +554,7 @@ export function FinanceInstrumentControls({
                     <InstrumentEditor
                       initial={e}
                       data={data}
-                      busy={busy}
+                      busy={busy || (!canPrepare && !hasAttempt)}
                       onSave={(i) => run("instruments", i)}
                     />
                   </FormDisclosure>
@@ -576,14 +589,14 @@ export function FinanceInstrumentControls({
             </p>
             {r.journal_id && (
               <RecordLink
-                href={`${base}/finance/journals/${r.journal_id}`}
+                href={canonicalUiHref(`${base}/finance/journals/${r.journal_id}`)}
               >
                 Posting journal
               </RecordLink>
             )}
             {r.reversal_journal_id && (
               <RecordLink
-                href={`${base}/finance/journals/${r.reversal_journal_id}`}
+                href={canonicalUiHref(`${base}/finance/journals/${r.reversal_journal_id}`)}
               >
                 Retained reversal
               </RecordLink>
@@ -595,7 +608,7 @@ export function FinanceInstrumentControls({
               approveAction="post"
               canApprove={canApprove}
               userId={userId}
-              busy={busy}
+              busy={busy || (!canSettle && !hasAttempt)}
               run={run}
               periods={data.periods}
             />

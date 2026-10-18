@@ -1,3 +1,6 @@
+import {financePlanningWorkspace,financePlanRecord} from "../../../src/server/modules/finance/public/finance-planning";
+import {afterEach} from "vitest";
+import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { readWorkSnapshot } from "../../../src/server/modules/work_projection/public/work-items";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
@@ -301,4 +304,22 @@ it("reconciles a reviewed cash-flow layout and retains cash-flow amounts in its 
  const report=await snapshotFinancialReport(f.owner,String(p.id),{startDate:"2026-09-01",endDate:"2026-09-30"},key());
  expect(report).toMatchObject({cashFlow:{opening:"0.00",operating:"-80.01",investing:"0.00",financing:"0.00",change:"-80.01",closing:"-80.01"}});
  expect((await exportFinancialReport(f.owner,String(report.id))).content).toContain('"Cash flow: closing","-80.01","money"');
+});
+
+afterEach(()=>vi.unstubAllEnvs());
+
+it("unpurchased planning refuses private records while draining Finance reviews and exports the retained definition",async()=>{
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const data=financialReportSchema.parse({chartId:f.chart,name:"Retained source-only report",rows:[{key:"expense",label:"Reviewed expense",kind:"accounts",accountIds:[f.accounts.expense],basis:"period",sign:"debit"}]}),command=key();
+ await expect(prepareFinancialReport(f.owner,data,command)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(financePlanningWorkspace(f.owner,f.chart)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(financePlanRecord(f.owner,"absent")).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(exportFinancialReport(f.owner,"absent")).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await reviewedFinanceGrant(db,f.company,"finance");await post();const report=await prepareFinancialReport(f.owner,data,command);await reviewedFinanceGrant(db,f.company,"finance","draining");expect(await prepareFinancialReport(f.owner,data,command)).toEqual(report);await expect(prepareFinancialReport(f.owner,data,key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});await approve(String(report.id));
+ const snapshotKey=key(),range={startDate:"2026-09-01",endDate:"2026-09-30"},snapshot=await snapshotFinancialReport(f.owner,String(report.id),range,snapshotKey);expect(await snapshotFinancialReport(f.owner,String(report.id),range,snapshotKey)).toEqual(snapshot);expect(snapshot.rows).toEqual([expect.objectContaining({key:"expense",minor:8001})]);const exported=await exportFinancialReport(f.owner,String(snapshot.id));expect(exported.content).toContain("80.01");expect(await exportFinancialReport(f.owner,String(snapshot.id))).toEqual(exported);
+ await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.owner.assignmentId).run();await expect(exportFinancialReport(f.owner,String(snapshot.id))).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});
+});
+it("report final preparer revocation rolls back immutable result and issued CSV bytes before the same-key retry",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const report=await prepareFinancialReport(f.owner,financialReportSchema.parse({chartId:f.chart,name:"Exact report source fence",rows:[{key:"expense",label:"Expense",kind:"accounts",accountIds:[f.accounts.expense],basis:"period",sign:"debit"}]}),key());await approve(String(report.id));const command=key(),range={startDate:"2026-09-01",endDate:"2026-09-30"},fault=`report_purchase_${key().replaceAll("-","")}`;
+ const snapshot=async()=>Promise.all(["finance_plan_editions","finance_report_snapshots","command_receipts","audit_events","outbox_events"].map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await snapshot();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.owner.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
+ try{await expect(snapshotFinancialReport(f.owner,String(report.id),range,command)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(await snapshot()).toEqual(before);}
+ finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}()`);}
+ const result=await snapshotFinancialReport(f.owner,String(report.id),range,command);expect(await snapshotFinancialReport(f.owner,String(report.id),range,command)).toEqual(result);expect((await exportFinancialReport(f.owner,String(result.id))).content).toContain("Expense");
 });

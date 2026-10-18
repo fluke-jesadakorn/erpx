@@ -5,7 +5,7 @@ import { useState } from "react";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import type { OrganizationOverview } from "@/lib/organization/organization";
 import type { SpendingException } from "@/lib/shared/spending";
-import { useStaffCommand } from "@/components/work_projection/staff-work-controls";
+import { useStaffCommand } from "@/components/work_projection/use-staff-command";
 import { type UiAppearance } from "@/components/ui/foundation";
 
 export function SpendingTemplateEditor({ appearance = "legacy",

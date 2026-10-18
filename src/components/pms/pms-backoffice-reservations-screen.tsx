@@ -9,13 +9,13 @@ import { type RecordDocumentPurpose } from "@/components/files/record-document-p
 import { dates, plusDays } from "@/server/modules/pms/public/rules/pms-model";
 import { availability } from "@/server/modules/pms/public/rules/pms-inventory";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePmsWorkspaceContext} from "./pms-backoffice-workspace";
+import type {BackofficePmsWorkspaceReservationsScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
 
 
 const RecordDocumentPanel = dynamic(() => import("@/components/files/record-document-panel").then(module => module.RecordDocumentPanel));

@@ -1,0 +1,1172 @@
+{
+  "schema": "erpx-product-navigation-checkpoint/v1",
+  "createdAt": "2026-10-14T16:37:07.569054+00:00",
+  "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+  "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266",
+  "release": {
+    "id": "2026-10-14T16-00-51-662Z",
+    "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db"
+  },
+  "checks": [
+    {
+      "name": "typecheck",
+      "startedAt": "2026-10-14T15:57:49.933083+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:58:28.574212+00:00",
+      "log": ".scratch/dev/product-dirty-guard-final/dirty-guard-current-typecheck.log",
+      "logSha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "sourceAfter": {
+        "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+        "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+      }
+    },
+    {
+      "name": "lint",
+      "startedAt": "2026-10-14T15:58:29.447691+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:59:30.565504+00:00",
+      "log": ".scratch/dev/product-dirty-guard-final/dirty-guard-current-lint.log",
+      "logSha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+      "sourceAfter": {
+        "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+        "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+      }
+    },
+    {
+      "name": "architecture",
+      "startedAt": "2026-10-14T15:59:31.071992+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:59:40.874002+00:00",
+      "log": ".scratch/dev/product-dirty-guard-final/dirty-guard-current-architecture.log",
+      "logSha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "sourceAfter": {
+        "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+        "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+      }
+    },
+    {
+      "name": "catalogue",
+      "startedAt": "2026-10-14T15:59:41.261458+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:59:41.875025+00:00",
+      "log": ".scratch/dev/product-dirty-guard-final/dirty-guard-current-catalogue.log",
+      "logSha256": "91932b663f37d13d4f7587ef70a123364c3cb7df8daee5d8b0cc6cb67427c23a",
+      "sourceAfter": {
+        "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+        "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+      }
+    },
+    {
+      "name": "documentation",
+      "startedAt": "2026-10-14T15:59:42.273676+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:59:42.600689+00:00",
+      "log": ".scratch/dev/product-dirty-guard-final/dirty-guard-current-documentation.log",
+      "logSha256": "d61872ee817680f9e94701d4da7bbe22be5c0974db37eb42ed1a70bea25d76a5",
+      "sourceAfter": {
+        "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+        "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+      }
+    },
+    {
+      "name": "products",
+      "startedAt": "2026-10-14T15:59:42.978390+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:59:43.393211+00:00",
+      "log": ".scratch/dev/product-dirty-guard-final/dirty-guard-current-products.log",
+      "logSha256": "dccdd861f3d91d35282eb0a5b965e04d97d1023ebaed3dad13d83455ab5df5fa",
+      "sourceAfter": {
+        "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+        "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+      }
+    },
+    {
+      "name": "unit",
+      "startedAt": "2026-10-14T15:59:43.762099+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T16:00:24.008451+00:00",
+      "log": ".scratch/dev/product-dirty-guard-final/dirty-guard-current-unit.log",
+      "logSha256": "8da59ade53df6014ffa533294ccc081f7fed040e40cb416b92c7571c7acee97b",
+      "sourceAfter": {
+        "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+        "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+      }
+    },
+    {
+      "name": "focused-postgres",
+      "startedAt": "2026-10-14T16:00:24.532218+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T16:00:51.061715+00:00",
+      "log": ".scratch/dev/product-dirty-guard-final/dirty-guard-current-focused-postgres.log",
+      "logSha256": "e7291fe368981caea15e8817bbd3b7bd4b853f4a5d94a56f23ff684ccd1721c3",
+      "sourceAfter": {
+        "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+        "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+      }
+    },
+    {
+      "name": "build",
+      "startedAt": "2026-10-14T16:00:51.564496+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T16:04:54.023199+00:00",
+      "log": ".scratch/dev/product-dirty-guard-final/dirty-guard-current-build.log",
+      "logSha256": "2831cf29b9de72f2338b19ed81a0bde2528af73fc6ac00a5722f2a5461667c0d",
+      "sourceAfter": {
+        "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+        "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+      }
+    }
+  ],
+  "unit": {
+    "files": 212,
+    "cases": 2843
+  },
+  "focusedPostgres": {
+    "files": 5,
+    "cases": 41
+  },
+  "fullPostgres": {
+    "files": 231,
+    "cases": 2157,
+    "startedAt": "2026-10-14T16:01:21.207411+00:00",
+    "candidate": {
+      "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+      "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+    },
+    "status": "passed",
+    "exitCode": 0,
+    "endedAt": "2026-10-14T16:33:03.435606+00:00",
+    "sourceAfter": {
+      "sourceFingerprint": "e67952ce3b0b6e3fe781756f83fe171505452c3c372f4868ef344b15b4f900db",
+      "verificationFingerprint": "b2d01ccb8a88ed887beb4b6e1b7428b557715322e05c167688afc4a897ed3266"
+    },
+    "log": ".scratch/dev/product-dirty-guard-final/full-postgres.log",
+    "logSha256": "e45a306ab7fc4a4ae7494380b73225aa0c32cbd07d8950eb7cbeed3203ce48eb"
+  },
+  "browser": {
+    "companyPreviews": [
+      {
+        "label": "Acme Group · Acme Corporation",
+        "value": "h001:acme-co",
+        "status": 200,
+        "summary": "0 → 38 packages · 252 existing assignments"
+      },
+      {
+        "label": "Acme Group · Acme ร้านตัวอย่าง THB",
+        "value": "h001:acme-pos-thb",
+        "status": 200,
+        "summary": "0 → 38 packages · 10 existing assignments"
+      },
+      {
+        "label": "Acme Group · Beacon Labs",
+        "value": "h001:beacon-co",
+        "status": 200,
+        "summary": "0 → 38 packages · 38 existing assignments"
+      },
+      {
+        "label": "Acme Group · ERPX Engineering Demo · Fictional Company",
+        "value": "h001:expense-9142f115-14c4-45aa-b941-1e0110343a27",
+        "status": 200,
+        "summary": "0 → 38 packages · 20 existing assignments"
+      },
+      {
+        "label": "Acme Group · Expense test",
+        "value": "h001:expense-4bfac74c-28ec-48b2-9095-6a931aecd221",
+        "status": 200,
+        "summary": "0 → 6 packages · 14 existing assignments"
+      },
+      {
+        "label": "Acme Group · Expense test",
+        "value": "h001:expense-76b05650-5c6b-4fce-8fb8-256c4709ae77",
+        "status": 200,
+        "summary": "0 → 6 packages · 14 existing assignments"
+      },
+      {
+        "label": "Acme Group · Expense test",
+        "value": "h001:expense-a67543f2-67e9-4520-9a13-9d916461097a",
+        "status": 200,
+        "summary": "0 → 6 packages · 14 existing assignments"
+      },
+      {
+        "label": "Acme Group · Finance engineering rehearsal · Companion Company",
+        "value": "h001:expense-809aac55-96c0-4f63-ad8c-fa09b7c1b722",
+        "status": 200,
+        "summary": "0 → 6 packages · 13 existing assignments"
+      },
+      {
+        "label": "Acme Group · Finance engineering rehearsal · Operating Company",
+        "value": "h001:expense-1d1369fb-4ec9-4f7b-9f28-63b05e548059",
+        "status": 200,
+        "summary": "0 → 6 packages · 14 existing assignments"
+      },
+      {
+        "label": "Acme Group · Hospitality Setup Practice Demo · custom practice note",
+        "value": "h001:hospitality-setup-practice-demo",
+        "status": 200,
+        "summary": "0 → 16 packages · 12 existing assignments"
+      },
+      {
+        "label": "Acme Group · Messaging acceptance tests",
+        "value": "h001:expense-7327f271-4d89-48dd-a4a7-e8f193998b64",
+        "status": 200,
+        "summary": "0 → 5 packages · 12 existing assignments"
+      },
+      {
+        "label": "Acme Group · Riverside Lantern Hotel & Kitchen Demo",
+        "value": "h001:riverside-lantern-hotel-kitchen-demo",
+        "status": 200,
+        "summary": "0 → 16 packages · 12 existing assignments"
+      },
+      {
+        "label": "Acme Group · ซ้อม VAT Correction · ไม่มีการยื่นจริง",
+        "value": "h001:expense-3c95885d-d9da-48de-94cc-a10c1741efc5",
+        "status": 200,
+        "summary": "0 → 6 packages · 13 existing assignments"
+      },
+      {
+        "label": "Northstar Supply · Northstar Supply",
+        "value": "h002:northstar-co",
+        "status": 200,
+        "summary": "0 → 38 packages · 52 existing assignments"
+      },
+      {
+        "label": "ERPX · ERPX",
+        "value": "h003:erpx-co",
+        "status": 200,
+        "summary": "0 → 38 packages · 1 existing assignments"
+      }
+    ],
+    "navigation": {
+      "cancel": {
+        "url": "https://admin-dev-erpx.jesadakorn.com/provider/commercial",
+        "company": "h001:riverside-lantern-hotel-kitchen-demo",
+        "reason": "Keep this reviewed draft after cancelling navigation",
+        "evidence": "test:product-dialog-cancel-preserves-reviewed-draft",
+        "roleFilter": "pms_manager",
+        "confirmed": true,
+        "comparisonVisible": true,
+        "focus": "Apps"
+      },
+      "escape": {
+        "remainingDialogs": 0,
+        "url": "https://admin-dev-erpx.jesadakorn.com/provider/commercial"
+      },
+      "discard": {
+        "url": "https://apps-dev-erpx.jesadakorn.com/",
+        "appsVisible": true
+      },
+      "overridesRestored": true,
+      "applyClicked": false
+    },
+    "dialogViewports": [
+      {
+        "width": 320,
+        "mode": "light",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(88, 101, 119)",
+            "label": ""
+          },
+          {
+            "background": "rgb(47, 105, 245)",
+            "color": "rgb(255, 255, 255)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(62, 74, 89)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 320,
+        "focusInDialog": true,
+        "left": 16,
+        "right": 289,
+        "scrollWidth": 305,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-320-light.jpg"
+      },
+      {
+        "width": 390,
+        "mode": "light",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(88, 101, 119)",
+            "label": ""
+          },
+          {
+            "background": "rgb(47, 105, 245)",
+            "color": "rgb(255, 255, 255)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(62, 74, 89)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 390,
+        "focusInDialog": true,
+        "left": 16,
+        "right": 359,
+        "scrollWidth": 375,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-390-light.jpg"
+      },
+      {
+        "width": 768,
+        "mode": "light",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(88, 101, 119)",
+            "label": ""
+          },
+          {
+            "background": "rgb(47, 105, 245)",
+            "color": "rgb(255, 255, 255)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(62, 74, 89)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 768,
+        "focusInDialog": true,
+        "left": 66.5,
+        "right": 686.5,
+        "scrollWidth": 753,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-768-light.jpg"
+      },
+      {
+        "width": 1024,
+        "mode": "light",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(88, 101, 119)",
+            "label": ""
+          },
+          {
+            "background": "rgb(47, 105, 245)",
+            "color": "rgb(255, 255, 255)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(62, 74, 89)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 1024,
+        "focusInDialog": true,
+        "left": 194.5,
+        "right": 814.5,
+        "scrollWidth": 1009,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-1024-light.jpg"
+      },
+      {
+        "width": 1440,
+        "mode": "light",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(88, 101, 119)",
+            "label": ""
+          },
+          {
+            "background": "rgb(47, 105, 245)",
+            "color": "rgb(255, 255, 255)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(255, 255, 255)",
+            "color": "rgb(62, 74, 89)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 1440,
+        "focusInDialog": true,
+        "left": 402.5,
+        "right": 1022.5,
+        "scrollWidth": 1425,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-1440-light.jpg"
+      },
+      {
+        "width": 320,
+        "mode": "dark",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 320,
+        "focusInDialog": true,
+        "left": 16,
+        "right": 289,
+        "scrollWidth": 305,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-320-dark.jpg"
+      },
+      {
+        "width": 390,
+        "mode": "dark",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 390,
+        "focusInDialog": true,
+        "left": 16,
+        "right": 359,
+        "scrollWidth": 375,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-390-dark.jpg"
+      },
+      {
+        "width": 768,
+        "mode": "dark",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 768,
+        "focusInDialog": true,
+        "left": 66.5,
+        "right": 686.5,
+        "scrollWidth": 753,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-768-dark.jpg"
+      },
+      {
+        "width": 1024,
+        "mode": "dark",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 1024,
+        "focusInDialog": true,
+        "left": 194.5,
+        "right": 814.5,
+        "scrollWidth": 1009,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-1024-dark.jpg"
+      },
+      {
+        "width": 1440,
+        "mode": "dark",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 1440,
+        "focusInDialog": true,
+        "left": 402.5,
+        "right": 1022.5,
+        "scrollWidth": 1425,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-1440-dark.jpg"
+      },
+      {
+        "width": 320,
+        "mode": "system",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 320,
+        "focusInDialog": true,
+        "left": 16,
+        "right": 289,
+        "scrollWidth": 305,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-320-system.jpg"
+      },
+      {
+        "width": 390,
+        "mode": "system",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 390,
+        "focusInDialog": true,
+        "left": 16,
+        "right": 359,
+        "scrollWidth": 375,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-390-system.jpg"
+      },
+      {
+        "width": 768,
+        "mode": "system",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 768,
+        "focusInDialog": true,
+        "left": 66.5,
+        "right": 686.5,
+        "scrollWidth": 753,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-768-system.jpg"
+      },
+      {
+        "width": 1024,
+        "mode": "system",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 1024,
+        "focusInDialog": true,
+        "left": 194.5,
+        "right": 814.5,
+        "scrollWidth": 1009,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-1024-system.jpg"
+      },
+      {
+        "width": 1440,
+        "mode": "system",
+        "buttons": [
+          {
+            "background": "rgba(0, 0, 0, 0)",
+            "color": "rgb(186, 197, 210)",
+            "label": ""
+          },
+          {
+            "background": "rgb(120, 162, 255)",
+            "color": "rgb(27, 35, 58)",
+            "label": "Keep editing"
+          },
+          {
+            "background": "rgb(37, 45, 55)",
+            "color": "rgb(213, 222, 233)",
+            "label": "Discard and leave"
+          }
+        ],
+        "clientWidth": 1440,
+        "focusInDialog": true,
+        "left": 402.5,
+        "right": 1022.5,
+        "scrollWidth": 1425,
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/product-dirty-guard-final/browser/dialog-1440-system.jpg"
+      }
+    ],
+    "visuallyInspected": true,
+    "temporaryOverridesRestored": true
+  },
+  "availability": [
+    {
+      "url": "http://127.0.0.1:3100/api/health",
+      "status": 200,
+      "exitCode": 0
+    },
+    {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "status": 200,
+      "exitCode": 0
+    },
+    {
+      "url": "http://127.0.0.1:3101/api/health",
+      "status": 200,
+      "exitCode": 0
+    }
+  ],
+  "transport": {
+    "observedAt": "2026-10-14T16:01:38.937857+00:00",
+    "results": [
+      {
+        "url": "https://work-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 12.73325
+      },
+      {
+        "url": "https://work-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.260053
+      },
+      {
+        "url": "https://pos-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 1.09852
+      },
+      {
+        "url": "https://pos-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.311442
+      },
+      {
+        "url": "https://pms-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.258316
+      },
+      {
+        "url": "https://pms-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.387006
+      },
+      {
+        "url": "https://finance-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.968827
+      },
+      {
+        "url": "https://finance-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.152156
+      },
+      {
+        "url": "https://people-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.212992
+      },
+      {
+        "url": "https://people-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.155692
+      },
+      {
+        "url": "https://sales-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.163295
+      },
+      {
+        "url": "https://sales-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.457407
+      },
+      {
+        "url": "https://supply-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.438653
+      },
+      {
+        "url": "https://supply-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.282347
+      },
+      {
+        "url": "https://assets-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.319464
+      },
+      {
+        "url": "https://assets-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 2.632016
+      },
+      {
+        "url": "https://projects-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.886095
+      },
+      {
+        "url": "https://projects-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.149112
+      },
+      {
+        "url": "https://recruit-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.250293
+      },
+      {
+        "url": "https://recruit-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.141445
+      },
+      {
+        "url": "https://learn-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.196033
+      },
+      {
+        "url": "https://learn-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.151652
+      },
+      {
+        "url": "https://support-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.167804
+      },
+      {
+        "url": "https://support-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.145774
+      },
+      {
+        "url": "https://service-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.174527
+      },
+      {
+        "url": "https://service-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.15333
+      },
+      {
+        "url": "https://legal-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 2.555199
+      },
+      {
+        "url": "https://legal-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 7.735553
+      },
+      {
+        "url": "https://manufacturing-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.305006
+      },
+      {
+        "url": "https://manufacturing-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.212418
+      },
+      {
+        "url": "https://apps-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.405019
+      },
+      {
+        "url": "https://apps-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.170899
+      },
+      {
+        "url": "https://account-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.254016
+      },
+      {
+        "url": "https://account-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.322881
+      },
+      {
+        "url": "https://admin-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 1.228667
+      },
+      {
+        "url": "https://admin-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 1.237554
+      },
+      {
+        "url": "https://booking-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.254933
+      },
+      {
+        "url": "https://booking-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.148669
+      },
+      {
+        "url": "https://portal-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.187039
+      },
+      {
+        "url": "https://portal-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.182459
+      },
+      {
+        "url": "https://legal-portal-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.16942
+      },
+      {
+        "url": "https://legal-portal-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.155443
+      },
+      {
+        "url": "https://forms-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.174341
+      },
+      {
+        "url": "https://forms-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.166815
+      }
+    ],
+    "complete": true,
+    "scope": "public dev health/icon/TLS only; no workflow, private isolation, compatibility or performance acceptance"
+  },
+  "grantsAfter": {
+    "observedAt": "2026-10-14T16:36:57.651Z",
+    "reports": [
+      {
+        "binding": "H001_DB",
+        "grants": 0,
+        "events": 0,
+        "changes": 0,
+        "revisions": 0,
+        "reviews": 0
+      },
+      {
+        "binding": "H002_DB",
+        "grants": 0,
+        "events": 0,
+        "changes": 0,
+        "revisions": 0,
+        "reviews": 0
+      },
+      {
+        "binding": "H003_DB",
+        "grants": 0,
+        "events": 0,
+        "changes": 0,
+        "revisions": 0,
+        "reviews": 0
+      }
+    ]
+  },
+  "uiGuard": {
+    "status": "failed",
+    "frozenChanges": 36,
+    "legacyAdapterMentions": 467,
+    "newProviderBoundaryViolations": [],
+    "fingerprintsChanged": false
+  },
+  "implementationOnlyWorkflows": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit"
+  ],
+  "fullProductMigrationAccepted": false,
+  "liveGrantApply": false,
+  "artifacts": [
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/provider-verification.json",
+      "sha256": "3cb95be342a95b97c58d5ef84aef93f3042ae17c2e451e960fdf11f24e3178e5"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/full-postgres.json",
+      "sha256": "558c83103ca224b78cbee37676a30f5f5abcbc2bf9d13f553c3a139352b74f9a"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/full-postgres.log",
+      "sha256": "e45a306ab7fc4a4ae7494380b73225aa0c32cbd07d8950eb7cbeed3203ce48eb"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dirty-actions.json",
+      "sha256": "c9dc83f99219edd9578e1193ef0eb691133ba2d1a00f933e21bcb0e3861fc476"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/observations.json",
+      "sha256": "a51a7ffcc74b00878c66d9e2f97f50593bb76495174183a72acdb5a02441e933"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/company-previews.json",
+      "sha256": "ada98fcf6e321b358349327a7f8ca9eabec3afbfd3b3176639d143c6192b50c8"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/grant-counts-after-regression.json",
+      "sha256": "79de3d193007ac6740613ca478c8e8ee88d9e3d8c5f2cf5b958ee16e635044b1"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/availability-after-regression.json",
+      "sha256": "31c6af91b317f9f3f7dc4b8d0e87dff5126e694c643a0427cbbc0129efd11c23"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/ui-guard.log",
+      "sha256": "0e2a394e92476c4c793c2527b757d13d06311a0339d9f2a92a526e30c89516aa"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/transport/receipt.json",
+      "sha256": "1cac0d4fe7381d4c63be4285c04a19b172122cf3080165c291f6f0b365d941de"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-320-light.jpg",
+      "sha256": "56317889c1c43edd8168ce2c45863ae35e988a726fcbc799c9f1c69ec3b0b46b"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-390-light.jpg",
+      "sha256": "8a44e7508d4ff8076dbb8bd733954c416874735d656c69c28a89c0dd286c5aa5"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-768-light.jpg",
+      "sha256": "64e4a4e280aac855a4b9223bf6f686063cfeb64f108da70c4cc9cd246595f0ea"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-1024-light.jpg",
+      "sha256": "0f5feb86f44d59b263fbd4ecf0fb8e0330a60fcb8b0cadbaece89863256bd6a8"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-1440-light.jpg",
+      "sha256": "b18290c650f67493ba3615fdfdb8b5ec297a1dc7fa545c9d4cd84d3b251bd081"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-320-dark.jpg",
+      "sha256": "274085581852cccab91a13c8d39533b8d1ac9a13e73125c073ed4fc3c01756fe"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-390-dark.jpg",
+      "sha256": "a889f6ba2201db61c3dd585c99861d9c92c43988e62ab8442c3aa6f946616462"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-768-dark.jpg",
+      "sha256": "07cd33ad96f1a4bdd37ce458399763dd6f84a822ba4b8dc41e70d8753a235475"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-1024-dark.jpg",
+      "sha256": "e7c09757e61d73adeca1cdb840c603aa6fa2644aa26b82bb8d0162031b98e1a9"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-1440-dark.jpg",
+      "sha256": "836b9b6c2927e982108afc19c89769f724b83e26c07ef68713c26db1b22fa30a"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-320-system.jpg",
+      "sha256": "274085581852cccab91a13c8d39533b8d1ac9a13e73125c073ed4fc3c01756fe"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-390-system.jpg",
+      "sha256": "a889f6ba2201db61c3dd585c99861d9c92c43988e62ab8442c3aa6f946616462"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-768-system.jpg",
+      "sha256": "07cd33ad96f1a4bdd37ce458399763dd6f84a822ba4b8dc41e70d8753a235475"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-1024-system.jpg",
+      "sha256": "e7c09757e61d73adeca1cdb840c603aa6fa2644aa26b82bb8d0162031b98e1a9"
+    },
+    {
+      "path": ".scratch/dev/product-dirty-guard-final/browser/dialog-1440-system.jpg",
+      "sha256": "836b9b6c2927e982108afc19c89769f724b83e26c07ef68713c26db1b22fa30a"
+    }
+  ]
+}

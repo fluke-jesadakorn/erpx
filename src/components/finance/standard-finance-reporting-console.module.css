@@ -1,0 +1,12 @@
+.owner { display: grid; gap: var(--space-5, 1.25rem); min-width: 0; }
+.heading, .sectionHeading, .record { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4, 1rem); flex-wrap: wrap; }
+.heading h2, .sectionHeading h3, .record h4 { margin: 0; }
+.heading p, .sectionHeading p { margin-block: .5rem 0; max-width: 70ch; }
+.record { padding-block: 1rem; border-top: 1px solid var(--ui-line); }
+.actions, .recovery { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+.recovery p, .recovery h3 { flex-basis: 100%; margin-block: 0; }
+.form { display: grid; gap: 1rem; min-width: 0; }
+.form fieldset { display: grid; gap: .75rem; margin: 0; min-width: 0; padding: 1rem; border: 1px solid var(--ui-line); border-radius: .75rem; }
+.dates { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.owner td small, .owner td a { display: block; margin-block: .25rem; }
+@media (max-width: 40rem) { .dates { grid-template-columns: minmax(0, 1fr); } .sectionHeading > button { width: 100%; } }

@@ -19,3 +19,177 @@ it("Calendar local time conversion rejects a nonexistent wall-clock instant",asy
 const access=createCalendarAccess({fail,errorCode:failure=>failure instanceof Error&&"code"in failure?String(failure.code):undefined});
 it("Calendar hierarchy keeps pilot account access closed before checking staff",async()=>{await expect(access.calendarAccess(repository<CalendarAccessUnit>({}),{...actor,beta:true})).rejects.toMatchObject({code:"CALENDAR_FORBIDDEN"});});
 it("Calendar access does not swallow an unavailable staff owner",async()=>{const unit=repository<CalendarAccessUnit>({activeStaff:async()=>{throw error(503,"STAFF_UNAVAILABLE","unavailable")}});await expect(access.calendarAccess(unit,actor)).rejects.toMatchObject({code:"STAFF_UNAVAILABLE"});});
+
+// Calendar client receipts must acknowledge the exact original owner command.
+import {createCalendarCommands as createCalendarClientCommands,calendarCommandContext,validCalendarReceipt,type CalendarCommandAttempt} from '../../../src/lib/work_projection/calendar-command';
+import type {workFetch} from '../../../src/lib/work_projection/work-fetch';
+import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
+it('Calendar transport retains an incomplete acknowledgement and exact original key until a validated retry',async()=>{
+ let calls=0;const send=vi.fn<typeof workFetch>(async()=>Response.json({data:++calls===1?{id:'calendar-captured',version:1}:{id:'calendar-captured',version:1,warnings:[]}})),commands=createCalendarClientCommands(send,()=> 'captured'),attempt=commands.prepare({action:'appointment.save',title:'Original meeting'},undefined,'account-A');
+ await expect(commands.execute('/calendar',attempt,'account-A')).rejects.toThrow('acknowledgement is incomplete');expect(commands.pending()).toBe(attempt);expect(()=>commands.prepare({action:'appointment.save',title:'Later draft'},undefined,'account-A')).toThrow('newer draft is retained');
+ const retry=commands.prepare(JSON.parse(attempt.body),undefined,'account-A');expect(retry).toBe(attempt);expect(await commands.execute('/calendar',retry,'account-A')).toMatchObject({result:{id:'calendar-captured',version:1},unchanged:true});expect(commands.pending()).toBeNull();expect(send.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'))).toEqual(['captured','captured']);expect(send.mock.calls.map(call=>call[1]?.body)).toEqual([attempt.body,attempt.body]);expect(send.mock.calls.every(call=>call[3]==='caller')).toBe(true);
+});
+it('Calendar validates source id and exact original version including original future-series acknowledgement',()=>{
+ const attempt:CalendarCommandAttempt={key:'captured',context:'A',body:JSON.stringify({action:'appointment.reschedule',id:'original-series',expectedVersion:3,scope:'future'})};expect(validCalendarReceipt(attempt,{id:'original-series',version:4,status:'scheduled',warnings:[]})).toBe(true);expect(validCalendarReceipt(attempt,{id:'calendar-captured',version:4,warnings:[]})).toBe(false);expect(validCalendarReceipt(attempt,{id:'original-series',version:9,warnings:[]})).toBe(false);expect(validCalendarReceipt(attempt,{id:'original-series',version:4,warnings:[{private:'not a message'}]})).toBe(false);
+ const specialized={...attempt,body:JSON.stringify({action:'shift.reschedule',id:'original-roster-shift',expectedVersion:7})};expect(validCalendarReceipt(specialized,{id:'original-roster-shift',version:8,warnings:[]})).toBe(true);
+});
+it('Calendar rejects cross-account retries before transport while preserving the exact submitted request',async()=>{
+ const send=vi.fn<typeof workFetch>(async()=>{throw Error('Lost network response');}),commands=createCalendarClientCommands(send,()=> 'captured'),attempt=commands.prepare({action:'announcement.save',title:'Original announcement'},undefined,'original-role');await expect(commands.execute('/calendar',attempt,'original-role')).rejects.toThrow('Lost network');await expect(commands.execute('/calendar',attempt,'other-role')).rejects.toThrow('account, Company or role changed');expect(send).toHaveBeenCalledOnce();expect(commands.pending()).toBe(attempt);
+});
+it('Calendar later acknowledgement preserves a changed form and does not automatically clear its dirty revision',async()=>{
+ let revision='submitted';const form={isConnected:true,getAttribute:()=>revision} as unknown as HTMLFormElement,send=vi.fn<typeof workFetch>(async()=>{revision='newer-edit';return Response.json({data:{id:'calendar-captured',version:1,warnings:[]}});}),commands=createCalendarClientCommands(send,()=> 'captured'),attempt=commands.prepare({action:'appointment.save',title:'Submitted snapshot'},{form,formEditVersion:revision},'A'),result=await commands.execute('/calendar',attempt,'A');expect(result.unchanged).toBe(false);expect(revision).toBe('newer-edit');expect(commands.pending()).toBeNull();
+});
+it('Calendar known validation errors keep the same correction key and an already uncertain retry stays unresolved after a later rejection',async()=>{
+ let calls=0;const send=vi.fn<typeof workFetch>(async()=>{if(++calls===1)return Response.json({error:{code:'VALIDATION_FAILED',message:'Invalid time'}},{status:422});if(calls===2)throw Error('Network lost');return Response.json({error:{message:'Current source changed'}},{status:409});}),commands=createCalendarClientCommands(send,()=> 'captured'),input={action:'appointment.save',title:'Same form'},first=commands.prepare(input,undefined,'A');await expect(commands.execute('/calendar',first,'A')).rejects.toThrow('Invalid time');expect(commands.pending()).toBeNull();const corrected=commands.prepare(input,undefined,'A');expect(corrected.key).toBe(first.key);await expect(commands.execute('/calendar',corrected,'A')).rejects.toThrow('Network lost');await expect(commands.execute('/calendar',corrected,'A')).rejects.toThrow('Current source changed');expect(commands.pending()).toBe(corrected);
+});
+
+it.each(['role revision','opaque presentation source','stale boundary','replaced boundary','switch generation'] as const)('Calendar retains the exact uncertain command when %s changes while its real response body is decoding',async changed=>{
+ const node={isConnected:true,dataset:{workUser:'original-user',workRevision:'7',workCompany:'original-company',workAssignment:'original-assignment',workStale:'false'}};let currentNode=node;
+ const browser=Object.assign(new EventTarget(),{location:{origin:'https://work-dev-erpx.jesadakorn.com'}});
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?currentNode:null,documentElement:{dataset:{}}});
+ let signalBody!:()=>void,release!:ReadableStreamDefaultController<Uint8Array>;
+ const bodyStarted=new Promise<void>(resolve=>{signalBody=resolve;}),body=new ReadableStream<Uint8Array>({start(controller){release=controller;}});
+ class LazyResponse extends Response{override json(){signalBody();return super.json();}}
+ let calls=0;
+ const send=vi.fn<(input:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>{
+  if(++calls===1)throw Error('Lost response');
+  return calls===2?new LazyResponse(body,{headers:{'content-type':'application/json'}}):Response.json({data:{id:'calendar-captured',version:1,warnings:[]}});
+ });vi.stubGlobal('fetch',send);
+ try{
+  let presentation='original-Calendar-source';const context=()=>changed==='opaque presentation source'?JSON.stringify([presentation,calendarCommandContext()]):calendarCommandContext();
+  const commands=createCalendarClientCommands(undefined,()=> 'captured'),attempt=commands.prepare({action:'appointment.save',title:'Original submitted draft'},undefined,context()),originalContext=context();
+  const execute=()=>changed==='opaque presentation source'?commands.execute('/api/v1/holdings/acme/calendar',attempt,context):commands.execute('/api/v1/holdings/acme/calendar',attempt);
+  await expect(execute()).rejects.toThrow('Lost response');expect(commands.pending()).toBe(attempt);
+  const retry=execute();
+  await bodyStarted;if(changed==='role revision')node.dataset.workRevision='8';else if(changed==='opaque presentation source')presentation='changed-Calendar-source';else if(changed==='stale boundary')node.dataset.workStale='true';else if(changed==='replaced boundary'){node.isConnected=false;currentNode={isConnected:true,dataset:{...node.dataset}};}else setContextSwitching(true);
+  if(changed==='role revision'||changed==='opaque presentation source')expect(context()).not.toBe(originalContext);else expect(context()).toBe(originalContext);
+  release.enqueue(new TextEncoder().encode(JSON.stringify({data:{id:'calendar-captured',version:1,warnings:[]}})));release.close();
+  await expect(retry).rejects.toThrow('account, Company or role changed');expect(commands.pending()).toBe(attempt);
+  node.dataset.workRevision='7';node.dataset.workStale='false';node.isConnected=true;currentNode=node;setContextSwitching(false);presentation='original-Calendar-source';
+  expect(await execute()).toMatchObject({result:{id:'calendar-captured',version:1},unchanged:true});expect(commands.pending()).toBeNull();
+  expect(send.mock.calls.map(call=>call[1]?.body)).toEqual([attempt.body,attempt.body,attempt.body]);
+  expect(send.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'))).toEqual(['captured','captured','captured']);
+ }finally{setContextSwitching(false);vi.unstubAllGlobals();}
+});
+
+// Live standard Calendar editors exercise the original submit handler, not a copied serializer.
+import {createRequire as calendarRequire} from 'node:module';
+import {readFileSync as calendarRead} from 'node:fs';
+import {runInNewContext as calendarEvaluate} from 'node:vm';
+import * as calendarReact from 'react';
+import {addDays as calendarAddDays} from '../../../src/lib/people_payroll/people-roster';
+import {localDateTimeToInstant as calendarInstant} from '../../../src/lib/work_projection/calendar-timeline';
+type CalendarFormNode=calendarReact.ReactElement<Record<string,unknown>>;
+function standardCalendarEditor(kind:'appointment'|'announcement'|'task',fields:Map<string,string[]>,send:ReturnType<typeof vi.fn>,edited=vi.fn()){
+ const require=calendarRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=calendarRead('src/components/work_projection/calendar/standard-calendar-forms.tsx','utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},fetch=vi.fn();
+ const controls=new Proxy({},{get:(_target,key)=>Object.assign((props:Record<string,unknown>)=>calendarReact.createElement(String(key),props),{displayName:String(key)})});
+ const localRequire=(name:string):unknown=>{
+  if(name==='react')return {...calendarReact,useState:(initial:unknown)=>[typeof initial==='function'?initial():initial,()=>{}]};
+  if(name==='react/jsx-runtime')return require(name);
+  if(name.endsWith('/foundation'))return controls;
+  if(name.endsWith('/people-roster'))return {addDays:calendarAddDays};
+  if(name.endsWith('/calendar-timeline'))return {localDateTimeToInstant:calendarInstant};
+  if(name.endsWith('/work-fetch'))return {workFetch:fetch};
+  if(name.endsWith('.module.css'))return {default:new Proxy({},{get:(_target,key)=>String(key)})};
+  throw Error('Unexpected live Calendar editor import '+name);
+ };
+ calendarEvaluate(code,{require:localRequire,module:loaded,exports:loaded.exports,crypto,Intl,FormData:class{get(name:string){return fields.get(name)?.[0]??null;}getAll(name:string){return fields.get(name)??[];}}});
+ const Form=loaded.exports.StandardCalendarForm as (props:Record<string,unknown>)=>CalendarFormNode;
+ const item={id:'calendar-source:occurrence',sourceId:'calendar-source',version:7,title:'Original title',participants:[],details:{},timezone:'Asia/Bangkok'},form=Form({editor:{kind,item},hierarchy:{nodes:[{id:'company',kind:'company',name:'Current Company',inScope:true}],people:[]},date:'2026-10-19',selfPersonId:null,busy:false,send,close:vi.fn(),api:'/api/v1/holdings/acme/calendar',accounts:[],edited});
+ const nodes:CalendarFormNode[]=[];const collect=(value:calendarReact.ReactNode)=>calendarReact.Children.forEach(value,child=>{if(calendarReact.isValidElement<Record<string,unknown>>(child)){nodes.push(child);collect(child.props.children as calendarReact.ReactNode);}});collect(form);
+ return {form,nodes,fetch,edited};
+}
+it.each(['appointment','announcement','task'] as const)('standard Calendar %s editor retains exact native payload, original form/version and user edits without a mount GET',kind=>{
+ const entries:Record<string,string[]>={title:['Native title'],description:['Native description'],organizer:['organizer'],participants:['person-1','person-2'],start:['2026-10-19T09:00'],end:['2026-10-19T10:00'],requiredUsers:['account-required'],optionalUsers:['account-optional'],frequency:['weekly'],interval:['2'],endKind:['count'],count:['4'],timezone:['Asia/Bangkok'],location:['Meeting room'],link:['https://meeting.example.test/'],private:['on'],guests:['Guest name | guest@example.test | 555'],content:['Actual announcement'],audience:['company'],startDate:['2026-10-19'],endDate:['2026-10-20'],dueDate:['2026-10-21'],assignee:['account-worker'],responsibility:['Retain the real checklist scope']},send=vi.fn(),f=standardCalendarEditor(kind,new Map(Object.entries(entries)),send);
+ let revision='original-form';const form={isConnected:true,getAttribute:()=>revision,setAttribute:(_name:string,value:string)=>{revision=value;}};
+ const controls=f.nodes.filter(node=>typeof node.type==='function');expect(controls.length).toBeGreaterThan(0);expect(controls.every(node=>node.props.appearance==='standard')).toBe(true);expect(f.fetch).not.toHaveBeenCalled();
+ (f.form.props.onSubmit as (event:unknown)=>void)({preventDefault(){},currentTarget:form});
+ const version={id:'calendar-source',expectedVersion:7},expected=kind==='appointment'?{action:'appointment.save',...version,title:'Native title',description:'Native description',organizerPersonId:'organizer',participantIds:['person-1','person-2'],startLocal:'2026-10-19T09:00',endLocal:'2026-10-19T10:00',attendees:[{userId:'account-required',attendance:'required'},{userId:'account-optional',attendance:'optional'}],recurrence:{frequency:'weekly',intervalCount:2,weekdays:[],endKind:'count',occurrenceCount:4},timezone:'Asia/Bangkok',location:'Meeting room',meetingUrl:'https://meeting.example.test/',private:true,guests:[{name:'Guest name',email:'guest@example.test',phone:'555'}]}:kind==='announcement'?{action:'announcement.save',...version,title:'Native title',content:'Actual announcement',audienceId:'company',startDate:'2026-10-19',endDate:'2026-10-20'}:{action:'task.plan',...version,dueDate:'2026-10-21',assigneeId:'account-worker',responsibility:'Retain the real checklist scope'};
+ expect(send).toHaveBeenCalledExactlyOnceWith(expected,{form,formEditVersion:'original-form'});
+ (f.form.props.onInputCapture as (event:unknown)=>void)({currentTarget:form});expect(revision).not.toBe('original-form');expect(f.edited).toHaveBeenCalledOnce();expect(send.mock.calls[0][1].formEditVersion).toBe('original-form');expect(f.fetch).not.toHaveBeenCalled();
+});
+
+it.each(['appointment.respond','appointment.reminder.set'] as const)('Calendar %s accepts the actual current native appointment version while retaining exact target/status',action=>{
+ const attempt:CalendarCommandAttempt={body:JSON.stringify({action,id:'meeting',expectedVersion:3}),context:'A',key:'original'};
+ expect(validCalendarReceipt(attempt,{id:'meeting',version:7,status:'scheduled',warnings:[]})).toBe(true);
+ for(const receipt of [{id:'other',version:7,status:'scheduled',warnings:[]},{id:'meeting',version:3,status:'scheduled',warnings:[]},{id:'meeting',version:7,status:'cancelled',warnings:[]}])expect(validCalendarReceipt(attempt,receipt)).toBe(false);
+ expect(validCalendarReceipt({...attempt,body:JSON.stringify({action:'appointment.reschedule',id:'meeting',expectedVersion:3})},{id:'meeting',version:7,status:'scheduled',warnings:[]})).toBe(false);
+});
+it('Calendar freezes the first completion, excludes a second in-flight command and binds every retry to its original API',async()=>{
+ let release!:(value:Response)=>void;const send=vi.fn<typeof workFetch>(()=>new Promise(resolve=>{release=resolve;})),commands=createCalendarClientCommands(send,()=> 'captured'),original={isConnected:true,getAttribute:()=> 'first'} as unknown as HTMLFormElement,other={isConnected:true,getAttribute:()=> 'other'} as unknown as HTMLFormElement,input={action:'appointment.save',title:'Original'},attempt=commands.prepare(input,{form:original,formEditVersion:'first'},'A'),request=commands.execute('/calendar',attempt,'A');
+ expect(commands.inflight()).toBe(attempt);expect(()=>commands.prepare({...input,title:'Newer'},undefined,'A')).toThrow('newer draft is retained');expect(commands.prepare(input,{form:other,formEditVersion:'other'},'A')).toBe(attempt);expect(Object.isFrozen(attempt)).toBe(true);expect(Object.isFrozen(attempt.completion)).toBe(true);
+ await expect(commands.execute('/calendar',attempt,'A')).rejects.toThrow('still waiting');expect(send).toHaveBeenCalledOnce();release(Response.json({error:{code:'WORK_ROLE_UNAVAILABLE',message:'Possible committed denial'}},{status:403}));await expect(request).rejects.toThrow('Possible committed denial');expect(commands.pending()).toBe(attempt);expect(commands.inflight()).toBeNull();
+ await expect(commands.execute('/calendar/announcements',attempt,'A')).rejects.toThrow('original Calendar source');expect(send).toHaveBeenCalledOnce();expect(attempt.completion?.form).toBe(original);
+});
+it.each([{status:403,code:'WORK_ROLE_UNAVAILABLE'},{status:409,code:'WORK_CONTEXT_CHANGED'},{status:422,code:'UNKNOWN_VALIDATION'},{status:409,code:'VERSION_CONFLICT',action:'appointment.respond'}])('Calendar retains a first post-send $status $code without a qualifying native rollback',async({status,code,action})=>{
+ const send=vi.fn<typeof workFetch>().mockResolvedValue(Response.json({error:{code,message:'Retain original'}},{status})),commands=createCalendarClientCommands(send,()=> 'captured'),attempt=commands.prepare({action:action??'appointment.save',id:'source',expectedVersion:1,title:'Original'},undefined,'A');await expect(commands.execute('/calendar',attempt,'A')).rejects.toThrow('Retain original');expect(commands.pending()).toBe(attempt);expect(()=>commands.prepare({action:'appointment.save',title:'Later'},undefined,'A')).toThrow('newer draft is retained');
+});
+it('Calendar releases the actual first recurrence rollback for a corrected body but never releases that code after an earlier unknown',async()=>{
+ let key=0;const send=vi.fn<typeof workFetch>().mockResolvedValueOnce(Response.json({error:{code:'CALENDAR_RECURRENCE_END',message:'End precedes first occurrence'}},{status:422})).mockResolvedValueOnce(Response.json({data:{id:'calendar-key-2',version:1,status:'scheduled',warnings:[]}})),commands=createCalendarClientCommands(send,()=> `key-${++key}`),first=commands.prepare({action:'appointment.save',title:'Original',recurrence:{endKind:'until',untilDate:'2026-10-01'}},undefined,'A');await expect(commands.execute('/calendar',first,'A')).rejects.toThrow('End precedes');expect(commands.pending()).toBeNull();const next=commands.prepare({action:'appointment.save',title:'Corrected',recurrence:{endKind:'until',untilDate:'2026-11-01'}},undefined,'A');expect(next.key).not.toBe(first.key);await commands.execute('/calendar',next,'A');
+ const uncertain=createCalendarClientCommands(vi.fn<typeof workFetch>().mockRejectedValueOnce(Error('Lost original')).mockResolvedValue(Response.json({error:{code:'CALENDAR_RECURRENCE_END',message:'Same later rejection'}},{status:422})),()=> 'retained'),attempt=uncertain.prepare(JSON.parse(first.body),undefined,'A');await expect(uncertain.execute('/calendar',attempt,'A')).rejects.toThrow('Lost original');await expect(uncertain.execute('/calendar',attempt,'A')).rejects.toThrow('later rejection');expect(uncertain.pending()).toBe(attempt);
+});
+it('Calendar caller ACK keeps the exact native result pending through owner replacement and preserves the first newer form on valid replay',async()=>{
+ let source='A',revision='first';const form={isConnected:true,getAttribute:()=>revision} as unknown as HTMLFormElement,send=vi.fn<typeof workFetch>().mockImplementation(async()=>Response.json({data:{id:'calendar-captured',version:1,warnings:[]}})),commands=createCalendarClientCommands(send,()=> 'captured'),attempt=commands.prepare({action:'announcement.save',title:'First'},{form,formEditVersion:'first'},source),result=await commands.execute('/calendar',attempt,()=>source,'caller');expect(commands.pending()).toBe(attempt);source='B';expect(()=>result.acknowledge()).toThrow('account, Company or role changed');expect(commands.pending()).toBe(attempt);source='A';revision='newer';const replay=await commands.execute('/calendar',attempt,()=>source,'caller');expect(replay.unchanged).toBe(false);replay.acknowledge();expect(commands.pending()).toBeNull();expect(send.mock.calls[1][1]?.body).toBe(attempt.body);expect(send.mock.calls[1][2]?.formEditVersion).toBe('first');
+});
+it('Calendar does not release even a proven schema rejection when the owner changes during ORIGINAL JSON',async()=>{
+ let release!:()=>void,started!:()=>void,source='A';const ready=new Promise<void>(resolve=>{started=resolve;}),wait=new Promise<void>(resolve=>{release=resolve;});class Original extends Response{override async json(){started();await wait;return super.json();}}
+ const commands=createCalendarClientCommands(vi.fn<typeof workFetch>().mockResolvedValue(new Original(JSON.stringify({error:{code:'VALIDATION_FAILED',message:'Correct these fields'}}),{status:422,headers:{'content-type':'application/json'}})),()=> 'captured'),attempt=commands.prepare({action:'appointment.save',title:'First'},undefined,'A'),request=commands.execute('/calendar',attempt,()=>source);await ready;source='B';release();await expect(request).rejects.toThrow('account, Company or role changed');expect(commands.pending()).toBe(attempt);
+});
+
+import {installCalendarPendingNavigation,sameCalendarCommandView} from '../../../src/lib/work_projection/calendar-pending-navigation';
+import {hasUnsavedWork as calendarHasUnsavedWork} from '../../../src/lib/work_projection/context-switch';
+it.each([true,false])('Calendar mounted no-field pending departure uses public navigation and preserves Next history (Navigation API %s)',withNavigation=>{
+ const listeners=new Map<string,EventListener>(),navigation=new EventTarget(),history={pushState:vi.fn(),replaceState:vi.fn(),state:{nativeNext:'unchanged'}},location={href:'https://work.example.test/holdings/acme/work/calendar/team?view=week&date=2026-10-19',origin:'https://work.example.test'},requests:string[]=[],documentPort={querySelector:()=>null,documentElement:{dataset:{}},addEventListener:(name:string,listener:EventListener)=>listeners.set('document:'+name,listener),removeEventListener:(name:string)=>listeners.delete('document:'+name)};
+ class LinkElement{constructor(readonly href:string,readonly attributes=new Set<string>(),readonly target=''){}closest(){return this;}hasAttribute(name:string){return this.attributes.has(name);}}
+ const windowPort={location,history,navigation:withNavigation?navigation:undefined,addEventListener:(name:string,listener:EventListener)=>listeners.set(name,listener),removeEventListener:(name:string)=>listeners.delete(name)};vi.stubGlobal('window',windowPort);vi.stubGlobal('document',documentPort);vi.stubGlobal('Element',LinkElement);
+ let pending=true;const cleanup=installCalendarPendingNavigation(()=>pending,href=>requests.push(href));
+ const click=(href:string,attributes=new Set<string>(),extra:Record<string,unknown>={})=>{const event={defaultPrevented:false,button:0,target:new LinkElement(href,attributes),preventDefault:vi.fn(),stopImmediatePropagation:vi.fn(),...extra};listeners.get('document:click')!(event as unknown as Event);return event;};
+ try{
+  expect(calendarHasUnsavedWork()).toBe(true);const unload={preventDefault:vi.fn(),returnValue:undefined};listeners.get('beforeunload')!(unload as unknown as Event);expect(unload.preventDefault).toHaveBeenCalledOnce();expect(unload.returnValue).toBe('');
+  expect(click(location.href+'&event=native-record').preventDefault).not.toHaveBeenCalled();expect(click(location.href+'#details').preventDefault).not.toHaveBeenCalled();const departure=click(location.href.replace('team','mine'));expect(departure.preventDefault).toHaveBeenCalledOnce();expect(requests).toHaveLength(1);
+  for(const event of [click(location.href.replace('week','month'),new Set(),{metaKey:true}),click(location.href.replace('team','mine'),new Set(['data-product-switch'])),click(location.href.replace('team','mine'),new Set(['download'])),click('https://account.example.test/apps')])expect(event.preventDefault).not.toHaveBeenCalled();
+  const back=new Event('navigate',{cancelable:true});Object.defineProperties(back,{navigationType:{value:'traverse'},destination:{value:{url:location.href.replace('2026-10-19','2026-11-02'),sameDocument:true}}});navigation.dispatchEvent(back);expect(back.defaultPrevented).toBe(withNavigation);expect(listeners.has('popstate')).toBe(false);expect(history.pushState).not.toHaveBeenCalled();expect(history.replaceState).not.toHaveBeenCalled();
+  pending=false;expect(click(location.href.replace('team','mine')).preventDefault).not.toHaveBeenCalled();expect(sameCalendarCommandView(location.href,location.href+'&event=native-record')).toBe(true);
+ }finally{cleanup();expect(listeners.size).toBe(0);vi.unstubAllGlobals();}
+});
+it('Calendar distinguishes its exact legacy audience-input rejection from the same-code authority denial and from an earlier unknown',async()=>{
+ const literal='Choose an audience inside the selected workspace.',input={action:'announcement.save',title:'Announcement',audienceId:'outside'},reply=(message:string)=>Response.json({error:{code:'CALENDAR_FORBIDDEN',message}},{status:403}),first=createCalendarClientCommands(vi.fn<typeof workFetch>().mockResolvedValue(reply(literal)),()=> 'captured'),attempt=first.prepare(input,undefined,'A');await expect(first.execute('/calendar',attempt,'A')).rejects.toThrow(literal);expect(first.pending()).toBeNull();
+ for(const [action,message] of [['announcement.save','This record is outside the selected workspace.'],['appointment.save',literal]]){const commands=createCalendarClientCommands(vi.fn<typeof workFetch>().mockResolvedValue(reply(message)),()=> 'captured'),submitted=commands.prepare({...input,action},undefined,'A');await expect(commands.execute('/calendar',submitted,'A')).rejects.toThrow(message);expect(commands.pending()).toBe(submitted);}
+ const unknown=createCalendarClientCommands(vi.fn<typeof workFetch>().mockRejectedValueOnce(Error('Lost result')).mockResolvedValue(reply(literal)),()=> 'captured'),submitted=unknown.prepare(input,undefined,'A');await expect(unknown.execute('/calendar',submitted,'A')).rejects.toThrow('Lost result');await expect(unknown.execute('/calendar',submitted,'A')).rejects.toThrow(literal);expect(unknown.pending()).toBe(submitted);
+});
+it.each(['busy','pending','dirty'] as const)('actual Calendar departure dialog retains %s owner work without allowing uncertain discard',kind=>{
+ const require=calendarRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=calendarRead('src/components/work_projection/calendar/calendar-draft-boundary.tsx','utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>};let destination:string|null=null,requestDeparture!:(href:string)=>void,held!:()=>boolean;
+ const assign=vi.fn(),switching=vi.fn(),controls=new Proxy({},{get:(_target,key)=>Object.assign((props:Record<string,unknown>)=>calendarReact.createElement(String(key),props),{displayName:String(key)})});
+ calendarEvaluate(code,{module:loaded,exports:loaded.exports,window:{location:{assign}},require:(name:string):unknown=>{
+  if(name==='react')return {...calendarReact,useState:()=>[destination,(value:string|null)=>{destination=value;}],useEffect:(run:()=>void)=>run()};
+  if(name==='react/jsx-runtime')return require(name);
+  if(name.endsWith('/foundation'))return controls;
+  if(name.endsWith('/dialog'))return {Dialog:(props:Record<string,unknown>)=>calendarReact.createElement('aside',props)};
+  if(name.endsWith('/context-switch'))return {setContextSwitching:switching};
+  if(name.endsWith('/calendar-pending-navigation'))return {installCalendarPendingNavigation:(current:()=>boolean,next:(href:string)=>void)=>{held=current;requestDeparture=next;return()=>{};}};
+  throw Error('Unexpected actual Calendar boundary import '+name);
+ }});
+ const Boundary=loaded.exports.CalendarDraftBoundary as (props:Record<string,unknown>)=>CalendarFormNode,props={children:'Actual Calendar',dirty:kind==='dirty',busy:kind==='busy',pending:kind==='pending'};
+ Boundary(props);expect(held()).toBe(true);requestDeparture('https://work.example.test/other');const tree=Boundary(props),nodes:CalendarFormNode[]=[];const collect=(value:calendarReact.ReactNode)=>calendarReact.Children.forEach(value,node=>{if(calendarReact.isValidElement<Record<string,unknown>>(node)){nodes.push(node);collect(node.props.children as calendarReact.ReactNode);}});collect(tree);
+ expect(nodes.find(node=>node.props.title==='Leave unsaved Calendar work?')!.props.open).toBe(true);const discard=nodes.find(node=>node.props.children==='Discard and leave');expect(!!discard).toBe(kind==='dirty');expect(nodes.find(node=>node.props.children==='Keep editing')).toBeDefined();
+ if(discard){(discard.props.onClick as ()=>void)();expect(switching).toHaveBeenCalledExactlyOnceWith(true);expect(assign).toHaveBeenCalledExactlyOnceWith('https://work.example.test/other');}else{expect(assign).not.toHaveBeenCalled();expect(switching).not.toHaveBeenCalled();}
+});
+
+// The real shared editor owns both presentations; native commands and edit
+// completions are identical, rather than substituting the old Calendar form.
+async function calendarAppearanceBoundary(appearance:undefined|'legacy'|'standard',kind:'appointment'|'announcement'|'task'){
+ const require=calendarRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),foundation=await import('../../../src/components/ui/foundation'),{renderToStaticMarkup}=await import('react-dom/server'),source=calendarRead('src/components/work_projection/calendar/standard-calendar-forms.tsx','utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},fetch=vi.fn(),send=vi.fn(),edited=vi.fn(),close=vi.fn(),fields=new Map<string,string[]>([['title',['Original meeting']],['description',['Original description']],['start',['2026-10-19T09:00']],['end',['2026-10-19T10:00']],['timezone',['Asia/Bangkok']],['frequency',['none']],['content',['Original announcement']],['audience',['company']],['startDate',['2026-10-19']],['endDate',['2026-10-20']],['dueDate',['2026-10-21']],['assignee',['account-worker']],['responsibility',['Original task scope']]]);
+ let revision='original-edit';const element={isConnected:true,getAttribute:()=>revision,setAttribute:(_name:string,value:string)=>{revision=value;}},localRequire=(name:string):unknown=>{
+  if(name==='react')return {...calendarReact,useState:(initial:unknown)=>[typeof initial==='function'?initial():initial,()=>{}]};if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/foundation'))return foundation;if(name.endsWith('/people-roster'))return {addDays:calendarAddDays};if(name.endsWith('/calendar-timeline'))return {localDateTimeToInstant:calendarInstant};if(name.endsWith('/work-fetch'))return {workFetch:fetch};
+  if(name.endsWith('.module.css'))return {default:new Proxy({},{get:(_target,key)=>(name.includes('standard-calendar-forms')?'standard-':'legacy-')+String(key)})};throw Error('Unexpected actual shared Calendar appearance import '+name);
+ };
+ calendarEvaluate(code,{require:localRequire,module:loaded,exports:loaded.exports,crypto,Intl,FormData:class{constructor(selected:unknown){expect(selected).toBe(element);}get(name:string){return fields.get(name)?.[0]??null;}getAll(name:string){return fields.get(name)??[];}}});
+ const Form=loaded.exports.StandardCalendarForm as(props:Record<string,unknown>)=>CalendarFormNode,form=Form({...(appearance?{appearance}:{}),editor:{kind,item:{id:'occurrence',sourceId:'source',version:7,title:'Original title',participants:[],details:{},timezone:'Asia/Bangkok'}},hierarchy:{nodes:[{id:'company',kind:'company',name:'Original Company',inScope:true}],people:[]},date:'2026-10-19',selfPersonId:null,busy:false,send,edited,close,api:'/api/v1/holdings/acme/calendar',accounts:[]});
+ return {form,element,fetch,send,edited,close,html:renderToStaticMarkup(form),revision:()=>revision};
+}
+it.each(['appointment','announcement','task'] as const)('actual shared Calendar %s legacy opt-in retains the same native payload/version/completion as the standard default',async kind=>{
+ const ordinary=await calendarAppearanceBoundary(undefined,kind),standard=await calendarAppearanceBoundary('standard',kind),legacy=await calendarAppearanceBoundary('legacy',kind);
+ expect(ordinary.html).toBe(standard.html);expect(standard.form.props.className).toBe('standard-form');expect(legacy.form.props.className).toBe('legacy-form');expect(standard.html).toContain('ui-standard-field');expect(legacy.html).not.toContain('ui-standard-');
+ for(const selected of [ordinary,standard,legacy]){expect(selected.fetch).not.toHaveBeenCalled();expect(selected.send).not.toHaveBeenCalled();Reflect.apply(selected.form.props.onSubmit as(event:unknown)=>void,undefined,[{preventDefault:vi.fn(),currentTarget:selected.element}]);expect(selected.send).toHaveBeenCalledOnce();expect(selected.send.mock.calls[0][0]).toMatchObject({id:'source',expectedVersion:7});expect(selected.send.mock.calls[0][1]).toEqual({form:selected.element,formEditVersion:'original-edit'});Reflect.apply(selected.form.props.onInputCapture as(event:unknown)=>void,undefined,[{currentTarget:selected.element}]);expect(selected.edited).toHaveBeenCalledOnce();expect(selected.revision()).not.toBe('original-edit');expect(selected.send.mock.calls[0][1].formEditVersion).toBe('original-edit');expect(selected.fetch).not.toHaveBeenCalled();}
+ expect(legacy.send.mock.calls[0][0]).toEqual(standard.send.mock.calls[0][0]);expect(ordinary.send.mock.calls[0][0]).toEqual(standard.send.mock.calls[0][0]);
+});

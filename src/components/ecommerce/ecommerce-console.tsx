@@ -1,58 +1,27 @@
 "use client";
-import { InlineNotice } from "@/components/ui/foundation";
-
-import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import {CRMForm as FormLayout,CRMDisclosure as FormDisclosure,CRMCommandState,CRMCommandFeedback,CRMDraftBoundary,useCRMSnapshot} from '@/components/crm/draft-boundary';
+import {useCRMCommand} from '@/components/crm/use-crm-command';
+import {ecommerceCommandAllowed} from '@/lib/ecommerce/purchase-controls';
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import { useRouter } from "@/lib/shared/destination-router";
 import type { ecommerceWorkspace } from "@/server/modules/ecommerce/public/ecommerce";
-import { Stack, FormLayout, Card } from "@/components/ui/foundation";
+import { Stack, Card } from "@/components/ui/foundation";
 
 type Workspace = Awaited<ReturnType<typeof ecommerceWorkspace>>;
-export function EcommerceConsole({ recordOnly=false, base, data }: { recordOnly?:boolean; base: string; data: Workspace }) {
+export function EcommerceConsole({ recordOnly=false, base, data:currentData }: { recordOnly?:boolean; base: string; data: Workspace }) {
   const router = useRouter();
-  const last = useRef<{ body: string; key: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function send(input: unknown) {
-    const body = JSON.stringify(input);
-    if (last.current?.body !== body) last.current = { body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/ecommerce`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": last.current.key,
-        },
-        body,
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(result.error?.message ?? "Unable to update E-commerce.");
-      }
-      last.current = null;
-      if (input && typeof input === "object" && "entity" in input && input.entity === "checkout")
-        router.push(`${base}/ecommerce/${result.data.id}`);
-      router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Retry this action.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const {snapshot:data,rootProps}=useCRMSnapshot(currentData),purchase=currentData.purchase,active=purchase?.newWork!==false,review=purchase?.settleExisting!==false&&purchase?.canReview!==false,sourceVersion=JSON.stringify([currentData.channels.map(row=>[row.id,row.version]),currentData.listings.map(row=>[row.id,row.version]),currentData.carts.map(row=>[row.id,row.version])]);
+  const command=useCRMCommand(base,'ecommerce',input=>ecommerceCommandAllowed(purchase,input),(receipt,input)=>{if(input.entity==='checkout')router.push(canonicalUiHref(`${base}/ecommerce/${receipt.id}`));}),{send,busy}=command;
   const values = (event: React.FormEvent<HTMLFormElement>) =>
     Object.fromEntries(new FormData(event.currentTarget));
   const channels = data.channels.filter((x) => x.status === "active");
   const listings = data.listings.filter((x) => x.status === "published");
   return (
-    <Stack as="div" className="ui-stack">
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {!recordOnly && <FormLayout
+    <CRMCommandState {...command}><CRMDraftBoundary><div {...rootProps}><Stack as="div" className="ui-stack">
+      <CRMCommandFeedback/>
+      {!recordOnly && <FormLayout sourceVersion={sourceVersion} allowed={active}
         className="ui-panel ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -87,9 +56,9 @@ export function EcommerceConsole({ recordOnly=false, base, data }: { recordOnly?
         </Button>
       </FormLayout>}
       {data.channels
-        .filter((x) => x.status === "draft")
+        .filter((x) => ['draft','active'].includes(String(x.status)))
         .map((x) => (
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={review}
             className="ui-panel ui-form-grid"
             key={String(x.id)}
             onSubmit={(event) => {
@@ -97,23 +66,24 @@ export function EcommerceConsole({ recordOnly=false, base, data }: { recordOnly?
               void send({
                 entity: "channel",
                 id: x.id,
-                action: "activate",
+                action: String(new FormData(event.currentTarget).get('action')),
                 expectedVersion: Number(x.version),
                 reason: String(new FormData(event.currentTarget).get("reason")),
               });
             }}
           >
             <h2>Review channel · {String(x.name)}</h2>
+            <Field appearance="standard">Decision<Select appearance="standard" name="action" defaultValue={x.status==='active'?'retire':active?'activate':'reject'}>{x.status==='active'?<option value="retire">Retire channel</option>:<><option value="activate" disabled={!active}>Activate channel</option><option value="reject">Reject channel</option></>}</Select></Field>
             <Field appearance="standard">
               Review reason
               <TextArea appearance="standard" name="reason" required minLength={3} />
             </Field>
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-              Activate
+              Record channel decision
             </Button>
           </FormLayout>
         ))}
-      {!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Create product listing</summary><FormLayout
+      {!recordOnly && <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy} disabled={!active}><summary>Create product listing</summary><FormLayout sourceVersion={sourceVersion} allowed={active}
         className="ui-panel ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -166,9 +136,9 @@ export function EcommerceConsole({ recordOnly=false, base, data }: { recordOnly?
         </Button>
       </FormLayout></FormDisclosure>}
       {data.listings
-        .filter((x) => x.status === "draft")
+        .filter((x) => ['draft','published'].includes(String(x.status)))
         .map((x) => (
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={review}
             className="ui-panel ui-form-grid"
             key={String(x.id)}
             onSubmit={(event) => {
@@ -176,23 +146,24 @@ export function EcommerceConsole({ recordOnly=false, base, data }: { recordOnly?
               void send({
                 entity: "listing",
                 id: x.id,
-                action: "publish",
+                action: String(new FormData(event.currentTarget).get('action')),
                 expectedVersion: Number(x.version),
                 reason: String(new FormData(event.currentTarget).get("reason")),
               });
             }}
           >
             <h2>Review listing · {String(x.title)}</h2>
+            <Field appearance="standard">Decision<Select appearance="standard" name="action" defaultValue={x.status==='published'?'retire':active?'publish':'reject'}>{x.status==='published'?<option value="retire">Retire listing</option>:<><option value="publish" disabled={!active}>Publish listing</option><option value="reject">Reject listing</option></>}</Select></Field>
             <Field appearance="standard">
               Review reason
               <TextArea appearance="standard" name="reason" required minLength={3} />
             </Field>
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-              Publish
+              Record listing decision
             </Button>
           </FormLayout>
         ))}
-      {!recordOnly && <FormLayout
+      {!recordOnly && <FormLayout sourceVersion={sourceVersion} allowed={active}
         className="ui-panel ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -250,7 +221,7 @@ export function EcommerceConsole({ recordOnly=false, base, data }: { recordOnly?
         .map((cart) => (
           <Card as="section" appearance="standard" className="ui-panel" key={String(cart.id)}>
             <h2>Cart · {String(cart.id)}</h2>
-            <FormLayout
+            <FormLayout sourceVersion={sourceVersion} allowed={active}
               className="ui-form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -284,7 +255,7 @@ export function EcommerceConsole({ recordOnly=false, base, data }: { recordOnly?
                 Add line
               </Button>
             </FormLayout>
-            <FormLayout
+            <FormLayout sourceVersion={sourceVersion} allowed={active}
               className="ui-form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -310,8 +281,11 @@ export function EcommerceConsole({ recordOnly=false, base, data }: { recordOnly?
                 Checkout to Sales
               </Button>
             </FormLayout>
+            <FormLayout sourceVersion={sourceVersion} allowed={purchase?.settleExisting!==false} editorTitle="Abandon open cart" className="ui-form-grid" onSubmit={event=>{event.preventDefault();void send({entity:'cart',id:cart.id,action:'abandon',expectedVersion:Number(cart.version),reason:String(new FormData(event.currentTarget).get('reason'))});}}>
+              <p>Close this open cart and retain its original listing quantities and prices for history.</p><Field appearance="standard">Reason<TextArea appearance="standard" name="reason" required minLength={3} maxLength={2000}/></Field><Button appearance="standard" clientManaged type="submit" disabled={busy}>Abandon cart</Button>
+            </FormLayout>
           </Card>
         ))}
-    </Stack>
+    </Stack></div></CRMDraftBoundary></CRMCommandState>
   );
 }

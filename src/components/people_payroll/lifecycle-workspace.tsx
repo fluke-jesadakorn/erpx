@@ -1,18 +1,21 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter } from "@/lib/shared/destination-router";
+import Link from "@/components/workplace/workspace-link";
 import { Plus, ShieldCheck, BriefcaseBusiness, ClipboardList, ArrowRight, GripVertical } from "lucide-react";
 import { SetupChecklist } from "@/components/ui/setup-checklist";
 import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
 import { useWorkspaceRouteState } from "@/lib/shared/workspace-route-state";
 import { WorkspaceCollection, WorkspaceDetail } from "@/components/ui/workspace";
 import { Dialog } from "@/components/ui/dialog";
+import {PeopleFormDrawer} from "./people-form-drawer";
+import {peopleLifecyclePurchased} from "@/lib/people_payroll/purchase-controls";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { retirementLocalTime, retirementInstant, nextRetirementDay } from "@/lib/people_payroll/retirement";
 import type { RoleRevision } from "@/lib/identity_access/iam";
@@ -35,6 +38,7 @@ function useCommand(base: string) {
     [error, setError] = useState("");
   const receipt = useRef<{ body: string; key: string } | null>(null);
   async function send<T>(path: string, input: unknown): Promise<T | undefined> {
+    const form=document.activeElement?.closest("form")??null,formEditVersion=form?.getAttribute("data-erpx-edit-version")??null,previewOnly=path.endsWith("preview");
     const body = JSON.stringify(input),
       fingerprint = path + body;
     if (receipt.current?.body !== fingerprint)
@@ -49,11 +53,12 @@ function useCommand(base: string) {
           "Idempotency-Key": receipt.current.key,
         },
         body,
-      });
+      },form?{form,formEditVersion}:undefined,previewOnly?"caller":"automatic");
       const result = await response.json();
       if (!response.ok) throw Error(result.error?.message ?? "Unable to save. Please try again.");
       receipt.current = null;
-      if (!path.endsWith("preview")) router.refresh();
+      if(form&&formEditVersion!==form.getAttribute("data-erpx-edit-version")){setError("The submitted version completed. Review the changes typed since then before continuing.");return;}
+      if (!previewOnly) router.refresh();
       return result.data as T;
     } catch (error) {
       setError(error instanceof Error ? error.message : "Unable to save.");
@@ -227,7 +232,7 @@ export function PositionPreparation({
           </p>
         </div>
         {surface === "technology" && (
-          <Link href={`${base}/work?type=people_lifecycle`}>
+          <Link href={canonicalUiHref(`${base}/work?type=people_lifecycle`)}>
             Open IT queue <ArrowRight size={15} />
           </Link>
         )}
@@ -238,7 +243,7 @@ export function PositionPreparation({
             <strong>No published access packages yet</strong>
             <p>Create a package in Resources, then return to a position to assign it.</p>
           </div>
-          <Link href={`${base}/technology?view=resources`}>
+          <Link href={canonicalUiHref(`${base}/technology?view=resources`)}>
             Open Resources <ArrowRight size={15} />
           </Link>
         </div>
@@ -412,7 +417,7 @@ export function PositionPreparation({
             )}
             {surface === "technology" && (
               <Link
-                href={`${base}/technology?view=organization&position=${encodeURIComponent(position.id)}`}
+                href={canonicalUiHref(`${base}/technology?view=organization&position=${encodeURIComponent(position.id)}`)}
               >
                 View Directory & GPO for this position
               </Link>
@@ -423,11 +428,11 @@ export function PositionPreparation({
                 delivery in Technology.
               </p>
             )}
-            {data.canManage && (
+            {data.canManage && data.purchases?.lifecycle.newWork!==false && (
               <UiActionLink
                 variant="primary"
 
-                href={`${base}/people?new=person&position=${encodeURIComponent(position.id)}`}
+                href={canonicalUiHref(`${base}/people?new=person&position=${encodeURIComponent(position.id)}`)}
               >
                 Onboard into this position
               </UiActionLink>
@@ -454,7 +459,7 @@ export function PositionPreparation({
                     </Select>
                   </Field>
                 )}
-                <Link href={`${base}/technology?view=resources`}>
+                <Link href={canonicalUiHref(`${base}/technology?view=resources`)}>
                   Create or prepare an access package
                 </Link>
                 {publishedPackages.length > 0 && (
@@ -462,7 +467,7 @@ export function PositionPreparation({
                     type="submit"
                     variant="secondary"
 
-                    disabled={busy || !input}
+                    disabled={busy || !input || data.purchases?.identity.history===false}
                     onClick={async () => {
                       const p = await send<typeof preview>("position/preview", input);
                       if (p) setPreview(p);
@@ -489,7 +494,7 @@ export function PositionPreparation({
                   type="submit"
                   variant="primary"
 
-                  disabled={busy}
+                  disabled={busy || data.purchases?.identity.newWork===false}
                   onClick={async () => {
                     if (
                       await send("position/bind", {
@@ -588,7 +593,7 @@ export function AccessPackages({
             placeholder="Package name"
           />
         </Field>
-        {data.canPrepare && (
+        {data.canPrepare && data.purchases?.identity.newWork!==false && (
           <Button type="submit" variant="primary" onClick={() => edit("new")}>
             <Plus size={16} /> New package
           </Button>
@@ -646,7 +651,7 @@ export function AccessPackages({
                       : "Draft package"}
                   </p>
                 </div>
-                {data.canPrepare && (
+                {data.canPrepare && data.purchases?.identity.newWork!==false && (
                   <Button variant="secondary" type="button" onClick={() => edit(selectedPackage)}>
                     Edit package
                   </Button>
@@ -1196,7 +1201,7 @@ export function AccessPackages({
               }}
             />
           </Field>
-          {data.canPrepare && (
+          {data.canPrepare && data.purchases?.identity.newWork!==false && (
             <div className={styles.actions}>
               <Button
                 variant="secondary"
@@ -1228,7 +1233,7 @@ export function AccessPackages({
                 variant="primary"
                 type="button"
 
-                disabled={busy}
+                disabled={busy || data.purchases?.identity.newWork===false}
                 onClick={async () => {
                   if (
                     await send("packages/publish", {
@@ -1272,6 +1277,7 @@ export function LifecyclePanel({
   initialPositionId?: string;
   initialKind?: LifecycleInput["kind"];
 }) {
+  const canChange=(kind:string)=>peopleLifecyclePurchased(data.purchases,kind);
   const editableInitial =
     initialCase &&
     initialCase.workflow !== "legacy" &&
@@ -1325,11 +1331,11 @@ export function LifecyclePanel({
             Directory verification does not confirm application on an employee device.
           </p>
           {data.canPrepare && (
-            <Link href={`${base}/technology?view=employees`}>Open in Technology</Link>
+            <Link href={canonicalUiHref(`${base}/technology?view=employees`)}>Open in Technology</Link>
           )}
           <p className="muted">Onboard, transfer, suspend, leave, or retire in this Company.</p>
         </div>
-        {data.canManage && person.status !== "ended" && (
+        {data.canManage && data.purchases?.lifecycle.newWork!==false && person.status !== "ended" && (
           <Button
             type="submit"
             clientManaged
@@ -1349,7 +1355,7 @@ export function LifecyclePanel({
           </Button>
         )}
       </div>
-      {data.canManage && person.status !== "ended" && (
+      {data.canManage && data.purchases?.lifecycle.settleExisting!==false && person.status !== "ended" && (
         <Button
           type="submit"
           variant="secondary"
@@ -1365,7 +1371,7 @@ export function LifecyclePanel({
           Retire employee
         </Button>
       )}
-      {data.canManage && person.status === "ended" && (
+      {data.canManage && data.purchases?.lifecycle.newWork!==false && person.status === "ended" && (
         <Button
           type="submit"
           variant="secondary"
@@ -1375,11 +1381,11 @@ export function LifecyclePanel({
           Create a new engagement for rehire
         </Button>
       )}
-      <Dialog
+      <PeopleFormDrawer
+        dismissDisabled={busy}
         open={rehireOpen}
         onClose={() => setRehireOpen(false)}
         title="Rehire · new engagement"
-        presentation="form-drawer"
       >
         <form
           className={styles.stack}
@@ -1424,12 +1430,12 @@ export function LifecyclePanel({
             Reason
             <TextInput name="reason" required minLength={3} />
           </Field>
-          <Button clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button clientManaged type="submit" variant="primary" disabled={busy || data.purchases?.lifecycle.newWork===false}>
             Create onboarding engagement
           </Button>
           {error && <p role="alert">{error}</p>}
         </form>
-      </Dialog>
+      </PeopleFormDrawer>
       {cases.map((c) => (
         <div className={styles.case} key={c.id}>
           <strong>
@@ -1462,7 +1468,7 @@ export function LifecyclePanel({
                     : "Complete"}
               </p>
               {!["draft", "cancelled"].includes(c.status) && (
-                <UiActionLink variant="secondary" href={`${base}/people/clearance/${c.id}`}>
+                <UiActionLink variant="secondary" href={canonicalUiHref(`${base}/people/clearance/${c.id}`)}>
                   Track all six departments
                 </UiActionLink>
               )}
@@ -1473,8 +1479,8 @@ export function LifecyclePanel({
               <Link
                 href={
                   c.definition.departureReason === "retirement"
-                    ? `${base}/people/clearance/${c.id}`
-                    : `${base}/people/access?view=devices`
+                    ? canonicalUiHref(`${base}/people/clearance/${c.id}`)
+                    : canonicalUiHref(`${base}/people/access?view=devices`)
                 }
               >
                 {data.tasks.filter((t) => t.case_id === c.id && t.status === "pending").length}{" "}
@@ -1509,7 +1515,7 @@ export function LifecyclePanel({
               placement can continue separately.
             </p>
           )}
-          {data.canManage &&
+          {data.canManage && canChange(c.kind) &&
             c.workflow !== "legacy" &&
             ["draft", "waiting_it"].includes(c.status) && (
               <Button
@@ -1535,7 +1541,7 @@ export function LifecyclePanel({
                 Continue draft
               </Button>
             )}
-          {data.canManage &&
+          {data.canManage && canChange(c.kind) &&
             c.workflow === "legacy" &&
             ["waiting_it", "pending_review", "scheduled"].includes(c.status) &&
             !c.cutoffEffective &&
@@ -1560,12 +1566,12 @@ export function LifecyclePanel({
                 Continue as HR placement
               </Button>
             )}
-          {data.canReview && c.status === "pending_review" && (
+          {data.canReview && canChange(c.kind) && c.status === "pending_review" && (
             <Button
               type="submit"
               variant="secondary"
 
-              disabled={busy}
+              disabled={busy || !canChange(kind)}
               onClick={() =>
                 void send(`cases/${c.id}/request-access`, {
                   expectedVersion: c.version,
@@ -1575,12 +1581,12 @@ export function LifecyclePanel({
               Request individual access review
             </Button>
           )}
-          {data.canManage && !["completed", "cancelled"].includes(c.status) && (
+          {data.canManage && data.purchases?.lifecycle.settleExisting!==false && !["completed", "cancelled"].includes(c.status) && (
             <Button
               type="submit"
               variant="secondary"
 
-              disabled={busy}
+              disabled={busy || !canChange(kind)}
               onClick={() =>
                 void send(`cases/${c.id}/cancel`, {
                   expectedVersion: c.version,
@@ -1590,14 +1596,16 @@ export function LifecyclePanel({
               {c.status === "draft" ? "Cancel draft" : "Cancel scheduled change"}
             </Button>
           )}
-          <Link href={`${base}/work?type=people_lifecycle`}>Track preparation and reviews</Link>
+          <Link href={canonicalUiHref(`${base}/work?type=people_lifecycle`)}>Track preparation and reviews</Link>
         </div>
       ))}
-      <Dialog
+      <PeopleFormDrawer
+        key={step===3?"saved":"draft"}
+        saved={step===3}
+        dismissDisabled={busy}
         open={open}
         onClose={() => setOpen(false)}
         title={`${person.name} · employment change`}
-        presentation="form-drawer"
       >
         <div className={styles.steps} aria-label="Onboarding steps">
           <span data-active={step === 1}>1 · Person & position</span>
@@ -1816,7 +1824,7 @@ export function LifecyclePanel({
               Reason
               <TextArea name="reason" required minLength={3} defaultValue={draft?.reason} />
             </Field>
-            <Button clientManaged type="submit" variant="primary" disabled={busy}>
+            <Button clientManaged type="submit" variant="primary" disabled={busy || !canChange(kind)}>
               Review placement <ArrowRight size={16} />
             </Button>
           </form>
@@ -1903,7 +1911,7 @@ export function LifecyclePanel({
                   type="submit"
                   variant="secondary"
 
-                  disabled={busy}
+                  disabled={busy || !canChange(kind)}
                   onClick={async () => {
                     if (await send("placements/draft", draft)) {
                       setStep(3);
@@ -1918,7 +1926,7 @@ export function LifecyclePanel({
                 variant="primary"
 
                 disabled={
-                  busy || !preview.ready || (!!preview.legacyCaseToSupersede && !confirmSupersede)
+                  busy || !canChange(kind) || !preview.ready || (!!preview.legacyCaseToSupersede && !confirmSupersede)
                 }
                 onClick={async () => {
                   if (
@@ -1954,14 +1962,14 @@ export function LifecyclePanel({
             <UiActionLink
               variant="primary"
 
-              href={`${base}/work?type=people_lifecycle`}
+              href={canonicalUiHref(`${base}/work?type=people_lifecycle`)}
             >
               Open Work
             </UiActionLink>
           </div>
         )}
         {error && <p role="alert">{error}</p>}
-      </Dialog>
+      </PeopleFormDrawer>
       {error && !open && <p role="alert">{error}</p>}
     </section>
   );
@@ -2056,7 +2064,7 @@ export function PreparationTasks({ base, data }: { base: string; data: PeopleLif
                 <dd>{selectedTask.due_date ?? "No due date"}</dd>
               </dl>
               {selectedTask.clearance_type && (
-                <Link href={`${base}/people/clearance/${selectedTask.case_id}`}>
+                <Link href={canonicalUiHref(`${base}/people/clearance/${selectedTask.case_id}`)}>
                   Open retirement clearance
                 </Link>
               )}
@@ -2108,7 +2116,7 @@ export function LifecycleSettings({
             label: "Default IT task owner",
             ready: !!data.settings.itAssigneeId,
             owner: "HR / IT administrator",
-            href: `${base}/people/settings?section=templates`,
+            href: canonicalUiHref(`${base}/people/settings?section=templates`),
             detail: data.settings.itAssigneeId
               ? "Default owner selected"
               : "Choose a current IT owner below",
@@ -2118,7 +2126,7 @@ export function LifecycleSettings({
             label: "Access package preparation",
             ready: !data.tasks.some((t) => t.kind === "position" && t.status === "pending"),
             owner: "IT",
-            href: `${base}/technology?view=organization`,
+            href: canonicalUiHref(`${base}/technology?view=organization`),
             detail: "IT can prepare access packages for active positions",
           },
         ]}
@@ -2137,17 +2145,17 @@ export function LifecycleSettings({
         {data.settings.onboardingTasks.length} onboarding tasks ·{" "}
         {data.settings.offboardingTasks.length} offboarding tasks
       </p>
-      <Button variant="secondary" type="button" onClick={() => setEditing(true)}>
+      <Button variant="secondary" type="button" disabled={data.purchases?.lifecycle.newWork===false} onClick={() => setEditing(true)}>
         Edit handoff settings
       </Button>
       {saved && <p role="status">Settings saved.</p>}
-      <Dialog
+      <PeopleFormDrawer
+        dismissDisabled={busy}
         open={editing}
         onClose={() => {
           if (!busy) setEditing(false);
         }}
         title="Edit HR to IT handoff"
-        presentation="form-drawer"
       >
         <form
           className={styles.stack}
@@ -2186,12 +2194,12 @@ export function LifecycleSettings({
             Standard offboarding tasks
             <TextArea name="offboarding" defaultValue={data.settings.offboardingTasks.join("\n")} />
           </Field>
-          <Button clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button clientManaged type="submit" variant="primary" disabled={busy || data.purchases?.lifecycle.newWork===false}>
             Save templates & handoff
           </Button>
           {error && <p role="alert">{error}</p>}
         </form>
-      </Dialog>
+      </PeopleFormDrawer>
     </section>
   );
 }

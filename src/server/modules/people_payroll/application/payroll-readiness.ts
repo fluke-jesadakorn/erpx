@@ -46,7 +46,7 @@ guard45(key:string,value:"pay-group",groupId:string,companyId:string,expectedVer
 stageSavePayrollScheduleEffect(enabled:boolean,payDelayDays:number,value:string | null,now:number,groupId:string,companyId:string,expectedVersion:number):Effect;
 readDrainPayrollSchedulesGroups():Promise<{results:(Schedule)[]}>;
 readDrainPayrollSchedulesExisting(company_id:string,id:string,periodStart:string,periodEnd:string):Promise<Record<string,unknown>|null>;
-stageDrainPayrollSchedulesResult(id:string,company_id:string,id2:string,periodStart:string,periodEnd:string,payDate:string,currency:string,timestamp:number,timestamp2:number,company_id2:string,id3:string,periodStart2:string,periodEnd2:string):Promise<{success:boolean;meta:{changes:number;duration?:number;last_row_id?:number|string}}>;
+stageDrainPayrollSchedulesResult(id:string,company_id:string,id2:string,periodStart:string,periodEnd:string,payDate:string,currency:string,timestamp:number,timestamp2:number,company_id2:string,id3:string,periodStart2:string,periodEnd2:string,scheduleVersion:number):Promise<{success:boolean;meta:{changes:number;duration?:number;last_row_id?:number|string}}>;
 readDrainPayrollScheduledPreviewsDue(value:number):Promise<{results:({id:string;timezone:string})[]}>;
 readDrainPayrollScheduledPreviewsRun(id:string):Promise<{
           id:string;company_id:string;pay_group_id:string;period_start:string;period_end:string;pay_date:string;currency:string;
@@ -249,7 +249,7 @@ async function drainPayrollSchedules(now:Date):Promise<number>{
     if(existing)continue;
     const timestamp=now.getTime();
     const id=`payrun-scheduled-${ports.identifiers.next()}`;
-    const result=await repository.stageDrainPayrollSchedulesResult(id,group.company_id,group.id,period.periodStart,period.periodEnd,period.payDate,group.currency,timestamp,timestamp,group.company_id,group.id,period.periodStart,period.periodEnd);
+    const result=await repository.stageDrainPayrollSchedulesResult(id,group.company_id,group.id,period.periodStart,period.periodEnd,period.payDate,group.currency,timestamp,timestamp,group.company_id,group.id,period.periodStart,period.periodEnd,group.schedule_version);
     if(result.meta.changes>0)created++;
   }
   return created;

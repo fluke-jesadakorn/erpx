@@ -5,7 +5,7 @@ import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expe
 import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
 import { createAsset } from "../../../src/server/modules/assets/public/asset-maintenance";
 import { savePreventivePlan, changePreventivePlan } from "../../../src/server/modules/maintenance/public/maintenance-preventive";
-import MaintenancePage from "../../../src/app/holdings/[holdingSlug]/maintenance/[id]/page";
+import MaintenancePage from "../../../src/app/holdings/[holdingSlug]/_presenters/maintenance/[id]/screen";
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
 vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));

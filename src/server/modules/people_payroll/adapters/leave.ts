@@ -1,3 +1,4 @@
+import {workforcePurchaseControls,withWorkforcePurchasedRead,withWorkforcePurchasedCommand} from "./workforce-purchases";
 import { leaveReviewEvidenceFacts } from '../../files/public/leave-review-evidence-facts';
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import "server-only";
@@ -113,9 +114,9 @@ catch (error) {
         throw new ApiError(error.status, error.code, error.message);
     throw error;
 } }
-export async function getLeave(holdingId: string, id: string, context: WorkContext, provided?: SqlDatabase) { return invoke(() => application(provided).getLeave(holdingId, id, context)); }
-export async function createLeave(context: WorkContext, input: z.infer<typeof newLeaveSchema>, key: string) { return invoke(() => application().createLeave(context, input, key)); }
-export async function submitLeave(holdingId: string, id: string, input: z.infer<typeof leaveDraftSchema>, key: string, context: WorkContext) { return invoke(() => application().submitLeave(holdingId, id, input, key, context)); }
-export async function approveLeave(_holdingId: string, id: string, input: z.infer<typeof leaveDecisionSchema>, key: string, context: WorkContext) { return invoke(() => application().approveLeave(_holdingId, id, input, key, context)); }
-export async function transitionLeave(context: WorkContext, id: string, input: z.infer<typeof leaveLifecycleSchema>, key: string) { return invoke(() => application().transitionLeave(context, id, input, key)); }
-export async function decideLeaveCancellation(context: WorkContext, id: string, input: z.infer<typeof leaveDecisionSchema>, key: string, approve: boolean) { return invoke(() => application().decideLeaveCancellation(context, id, input, key, approve)); }
+export async function getLeave(holdingId: string, id: string, context: WorkContext, provided?: SqlDatabase) { return withWorkforcePurchasedRead(context,async tx=>{const data=await invoke(() => application(tx).getLeave(holdingId,id,context)),purchase=await workforcePurchaseControls(context,tx);return {...data,...(purchase?{purchase}:{})};},provided); }
+export async function createLeave(context: WorkContext, input: z.infer<typeof newLeaveSchema>, key: string) { return withWorkforcePurchasedCommand(context,{key,operation:"leave.create",purpose:"new-work",resultKind:"leave"},tx=>invoke(() => application(tx).createLeave(context,input,key))); }
+export async function submitLeave(holdingId: string, id: string, input: z.infer<typeof leaveDraftSchema>, key: string, context: WorkContext) { return withWorkforcePurchasedCommand(context,{key,operation:input.saveOnly?"leave.save":"leave.submit",purpose:"new-work",target:{kind:"leave",id}},tx=>invoke(() => application(tx).submitLeave(holdingId,id,input,key,context))); }
+export async function approveLeave(_holdingId: string, id: string, input: z.infer<typeof leaveDecisionSchema>, key: string, context: WorkContext) { return withWorkforcePurchasedCommand(context,{key,operation:"leave.approve",purpose:"settle-existing",target:{kind:"leave",id}},tx=>invoke(() => application(tx).approveLeave(_holdingId,id,input,key,context))); }
+export async function transitionLeave(context: WorkContext, id: string, input: z.infer<typeof leaveLifecycleSchema>, key: string) { return withWorkforcePurchasedCommand(context,{key,operation:input.action==="reject"?"leave.reject":"leave.cancellation",purpose:"settle-existing",target:{kind:"leave",id}},tx=>invoke(() => application(tx).transitionLeave(context,id,input,key))); }
+export async function decideLeaveCancellation(context: WorkContext, id: string, input: z.infer<typeof leaveDecisionSchema>, key: string, approve: boolean) { return withWorkforcePurchasedCommand(context,{key,operation:approve?"leave.cancellation.approve":"leave.cancellation.reject",purpose:"settle-existing",target:{kind:"leave",id}},tx=>invoke(() => application(tx).decideLeaveCancellation(context,id,input,key,approve))); }

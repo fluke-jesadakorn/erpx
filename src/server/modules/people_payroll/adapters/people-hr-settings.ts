@@ -1,3 +1,4 @@
+import {peoplePurchaseControls} from "./people-purchases";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError } from "@/server/modules/runtime/public/http";
@@ -96,5 +97,5 @@ catch (error) {
 export async function peopleHrSettingsData(actor: WorkContext, topic?: PeopleHrTopic) { return invoke(() => application().peopleHrSettingsData(actor, topic)); }
 export async function peopleWorkingTimeData(actor: WorkContext, engagementId: string) { return invoke(() => application().peopleWorkingTimeData(actor, engagementId)); }
 export async function peoplePositionWorkingTimeData(actor: WorkContext, positionId: string) { return invoke(() => application().peoplePositionWorkingTimeData(actor, positionId)); }
-export async function peopleNewPersonData(actor: WorkContext) { return invoke(() => application().peopleNewPersonData(actor)); }
+export async function peopleNewPersonData(actor: WorkContext) { const data=await invoke(() => application().peopleNewPersonData(actor));return {...data,purchases:await peoplePurchaseControls(actor)}; }
 export async function peopleMoveWorkImpact(actor: WorkContext, engagementIds: string[]) { return invoke(() => application().peopleMoveWorkImpact(actor, engagementIds)); }

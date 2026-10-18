@@ -16,12 +16,14 @@ it('preserves every original cache revision on the populated 1037 upgrade and re
     const revisions = async () => (await db.pool.query('SELECT table_name,revision::text revision FROM work_cache_revisions ORDER BY table_name')).rows;
     const before = await revisions();
     expect(before.length).toBeGreaterThan(100);
-    await migrateDatabase(db,'holding-write');
+    // Isolate 1038; later IAM migrations intentionally update cache facts.
+    await cp('migrations/postgres/holding-write/1038_pms_property_cache_counters.sql',join(root,'holding-write','1038_pms_property_cache_counters.sql'));
+    await migrateDatabase(db,'holding-write',root);
     expect(await revisions()).toEqual(before);
     expect((await db.pool.query('SELECT count(*) n FROM work_cache_revision_scopes')).rows[0].n).toBe(0);
     expect((await db.pool.query('SELECT table_name,revision::text revision FROM work_cache_revision_baselines ORDER BY table_name')).rows).toEqual(before);
     const receipts = (await db.pool.query('SELECT name,checksum FROM erpx_migrations ORDER BY name')).rows;
-    await migrateDatabase(db,'holding-write');
+    await migrateDatabase(db,'holding-write',root);
     expect(await revisions()).toEqual(before);
     expect((await db.pool.query('SELECT name,checksum FROM erpx_migrations ORDER BY name')).rows).toEqual(receipts);
   } finally { await rm(root,{recursive:true,force:true}); }

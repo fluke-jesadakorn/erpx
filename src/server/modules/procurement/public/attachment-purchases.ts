@@ -1,0 +1,1 @@
+export {procurementAttachmentPurchaseScope,authorizeProcurementAttachmentPurchase,procurementAttachmentCommandBoundary,procurementAttachmentFailure,procurementAttachmentSourceReadLocks,type ProcurementAttachmentPurchase} from "../adapters/attachment-purchases";

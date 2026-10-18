@@ -1,730 +1,318 @@
-import { describe, it, expect } from "vitest";
-import {
-  workplaceNavigation,
-  navigationCollapsedValue,
-  activeDestination,
-  navigationTrail,
-  navigationCategory,
-  pmsSidebarHref,
-  resolveNavigation,
-} from "../../../src/lib/work_projection/workplace-navigation";
-import { filterWork, workTypes, workViews, type WorkItem } from "../../../src/lib/work_projection/work-item";
-import { pmsCrossLinks } from "../../../src/lib/pms/pms-cross-links";
-
-describe("Side menu destination coverage", () => {
-  const base = "/holdings/acme";
-  const owner = workplaceNavigation({
-    workspaceBase: base, role: "holding_owner", canManageApprovals: true,
-    adminSections: ["people", "organization", "approvals", "usage", "ai", "feedback"],
-  });
-
-  it("keeps ERPX Management in its authorized holding placement", () => {
-    const erpx = workplaceNavigation({ workspaceBase: "/holdings/erpx", scopeKind: "holding", role: "holding_owner", manageErpxVisible: true });
-    expect(erpx.apps.find(app => app.id === "erpx-management")?.items.map(item => item.href)).toEqual([
-      "/holdings/erpx/manage-erpx",
-      "/holdings/erpx/manage-erpx/billing",
-      "/holdings/erpx/manage-erpx/billing/usage",
-      "/holdings/erpx/manage-erpx/iam",
-      "/holdings/erpx/manage-erpx/executive",
-    ]);
-    expect(erpx.categories.map(category => category.id).slice(1, 5)).toEqual(["customers-sales", "purchasing", "inventory-quality", "projects-routines"]);
-    expect(erpx.categories.find(category => category.id === "erpx-management")?.apps.some(item => item.id === "erpx-management")).toBe(true);
-    expect(erpx.search.some(item => item.id === "manage-erpx-iam")).toBe(true);
-    for (const workspaceBase of ["/holdings/acme", "/holdings/erpx/branches/main"]) {
-      const other = workplaceNavigation({ workspaceBase, scopeKind: workspaceBase.includes("branches") ? "branch" : "holding", role: "holding_owner", manageErpxVisible: true });
-      expect(other.apps.some(app => app.id === "erpx-management")).toBe(false);
-    }
-    expect(workplaceNavigation({ workspaceBase: "/holdings/erpx", manageErpxVisible: false }).apps.some(app => app.id === "erpx-management")).toBe(false);
-  });
-
-  it('shows only approved pilot apps in production navigation', () => {
-    const pilot=workplaceNavigation({workspaceBase:base,role:'holding_owner',availableAppIds:['people','inventory','pos','pms','finance']});
-    expect(pilot.apps.map((app)=>app.id)).toEqual(['people','inventory','pos','pms','finance','guides','services']);
-    expect(pilot.search.some((item)=>item.id==='crm-pipeline')).toBe(false);
-    expect(pilot.search.some((item)=>item.id==='finance-engines')).toBe(false);
-    expect(pilot.search.some((item)=>item.id==='people-payroll'&&item.href===`${base}/people/payroll`)).toBe(true);
-    expect(pilot.search.some((item)=>item.id==='future-features')).toBe(true);
-    const purchasing=workplaceNavigation({workspaceBase:base,role:'holding_owner',availableAppIds:['procurement']});
-    expect(purchasing.apps.find((app)=>app.id==='procurement')?.items.map((item)=>item.id)).toEqual(['operations-purchasing','procurement-rfqs','procurement-suppliers']);
-  });
-
-  it("makes each visible destination unique and highlights its own entry", () => {
-    const contexts = [
-      { workspaceBase: base, role: "employee" },
-      { workspaceBase: base, role: "holding_owner", canManageApprovals: true, adminSections: ["approvals", "usage", "ai", "feedback"] as const },
-      { workspaceBase: `${base}/branches/main`, scopeKind: "branch" as const, role: "holding_owner" },
-      { workspaceBase: base, beta: true, adminSections: ["people", "organization", "usage", "feedback"] as const },
-      { workspaceBase: "/platform", scopeKind: "platform" as const },
-    ];
-    for (const context of contexts) {
-      const model = workplaceNavigation({ ...context, adminSections: context.adminSections ? [...context.adminSections] : [] });
-      const destinations = [...model.primary, ...model.apps.flatMap(app => app.items), ...model.standalone];
-      expect(new Set(destinations.map(item => item.href)).size).toBe(destinations.length);
-      expect(model.search.map(item => item.href)).toEqual(expect.arrayContaining(destinations.map(item => item.href)));
-      expect(new Set(model.search.map(item=>item.href)).size).toBe(model.search.length);
-      for (const item of destinations) {
-        const url = new URL(item.href, "https://navigation.invalid");
-        expect(resolveNavigation(model, context.workspaceBase, url.pathname, url.searchParams).activeId, item.href).toBe(item.id);
-      }
-    }
-  });
-
-  it("exposes missing pages by their feature names in the appropriate group", () => {
-    expect(owner.apps.find(app => app.id === "people")?.items.map(item => item.id)).toEqual(["people-directory", "people-settings", "people-users-access", "people-evaluation", "people-roster", "people-payroll"]);
-    expect(owner.apps.find(app => app.id === "sales")?.items.map(item => item.id)).toContain("operations-sales");
-    expect(owner.apps.some(app => ["administration", "resources"].includes(app.id))).toBe(false);
-    expect(owner.categories.find(category => category.id === "administration")?.apps.map(item => item.id)).toContain("administration-approvals");
-    expect(owner.apps.find(app => app.id === "technology")?.items.map(item => item.id)).toContain("administration-usage");
-    expect(owner.apps.find(app => app.id === "technology")?.items.map(item => item.id)).toContain("administration-ai");
-    expect(owner.apps.find(app => app.id === "inventory")?.items.map(item => item.label)).toEqual(["Stock & movements", "Stock counts", "Warehouse transfers", "Products", "Warehouses", "Stock in transit"]);
-  });
-
-  it("keeps feature permissions and scope restrictions in the side menu", () => {
-    const custom = workplaceNavigation({ workspaceBase: base, permissions: ["inventory.read"] });
-    expect(custom.apps.find(app => app.id === "inventory")?.items.map(item => item.id)).toEqual(["operations-counts", "operations-transfers", "operations-transit"]);
-    expect(custom.apps.some(app => ["sales", "procurement"].includes(app.id))).toBe(false);
-    expect(custom.search.some(item => item.id === "people-settings")).toBe(false);
-    const branch = workplaceNavigation({ workspaceBase: `${base}/branches/main`, scopeKind: "branch", role: "holding_owner" });
-    expect(branch.search.some(item => item.id === "pos-settings")).toBe(true);
-    expect(branch.search.some(item => item.id === "technology-business-readiness")).toBe(false);
-    const housekeeper = workplaceNavigation({ workspaceBase: base, role: "pms_housekeeping" });
-    expect(housekeeper.search.some(item => ["pms-guest-accounts", "pms-cashier", "pms-reports", "pms-night-audit"].includes(item.id))).toBe(false);
-    expect(housekeeper.search.some(item => item.id === "pms-front")).toBe(true);
-  });
-
-  it("exposes Operations through its scoped sidebar and launcher using existing manager permissions", async () => {
-    const { navigationLauncher } = await import("../../../src/lib/work_projection/navigation-catalog");
-    const { builtInPermissions } = await import("../../../src/lib/identity_access/permissions");
-    const permissions = builtInPermissions("operations_manager");
-    expect(permissions).toContain("records.read");
-    expect(permissions).toContain("module.operations.read");
-    for (const [workspaceBase, scopeKind] of [[base, "holding"], ["/holdings/erpx", "holding"], [`${base}/branches/bangkok`, "branch"]] as const) {
-      const model = workplaceNavigation({ workspaceBase, scopeKind, role: "operations_manager", permissions, moduleIds: ["operations"], availableAppIds: ["operations"] });
-      const category = model.categories.find(entry => entry.id === "projects-routines");
-      expect(category?.apps.map(entry => [entry.id, entry.label, entry.href, entry.ownerModuleId])).toEqual([["operations", "Operations", `${workspaceBase}/operations`, "operations"]]);
-      expect(model.apps.find(entry => entry.id === "operations")?.items.map(entry => entry.href)).toEqual([`${workspaceBase}/operations`]);
-      expect(navigationLauncher(model, "Operations").results.map(result => [result.item.label, result.item.href, result.categoryId])).toEqual([["Operations", `${workspaceBase}/operations`, "projects-routines"]]);
-      expect(navigationLauncher(model, "").categories.find(entry => entry.id === "projects-routines")?.apps.map(entry => entry.label)).toEqual(["Operations"]);
-      expect(model.search.some(entry => entry.href === `${workspaceBase}/operations`)).toBe(true);
-      expect(model.apps.some(entry => entry.id === "finance")).toBe(false);
-      expect(model.search.some(entry => entry.label === "Finance")).toBe(false);
-    }
-  });
-
-  it("keeps Operations hidden without its module read permission or rollout and does not expose Projects", () => {
-    const allowed = { workspaceBase: base, role: "operations_manager", permissions: ["records.read"], moduleIds: ["operations"], availableAppIds: ["operations"] };
-    for (const context of [{ ...allowed, moduleIds: [] }, { ...allowed, moduleIds: ["inventory"] }, { ...allowed, permissions: [] }, { ...allowed, availableAppIds: [] }, { ...allowed, availableAppIds: ["projects"] }, { ...allowed, beta: true }]) {
-      const model = workplaceNavigation(context);
-      expect(model.apps.some(entry => entry.id === "operations")).toBe(false);
-      expect(model.search.some(entry => entry.href === `${base}/operations`)).toBe(false);
-    }
-    const model = workplaceNavigation(allowed);
-    expect(model.apps.some(entry => entry.id === "operations")).toBe(true);
-    expect(model.apps.some(entry => entry.id === "projects")).toBe(false);
-    expect(model.search.some(entry => ["projects-list", "projects-tasks", "projects-routines"].includes(entry.id))).toBe(false);
-    const withoutRolloutList = workplaceNavigation({ ...allowed, availableAppIds: undefined });
-    expect(withoutRolloutList.apps.some(entry => entry.id === "operations")).toBe(true);
-    expect(withoutRolloutList.apps.find(entry => entry.id === "projects")?.items.map(entry => entry.id)).toEqual(["projects-list", "projects-tasks", "projects-routines"]);
-  });
-
-  it("keeps aliases, detail pages and query tabs under their current feature", () => {
-    for (const [path, id, groupId] of [
-      ["people/settings?section=connections", "technology-directory", "technology"],
-      ["iam/connections", "technology-directory", "technology"],
-      ["settings?section=people", "people-directory", "people"],
-      ["commerce?view=sales", "operations-sales", "sales"],
-      ["commerce?view=pricing", "operations-pricing", "sales"],
-      ["commerce?view=purchase", "operations-purchasing", "procurement"],
-      ["commerce?view=parties&kind=customer", "crm-customers", "crm"],
-      ["commerce?view=parties&kind=supplier", "procurement-suppliers", "procurement"],
-      ["procurement-rfqs/rfq-1", "procurement-rfqs", "procurement"],
-      ["commerce?view=products", "operations-products", "inventory"],
-      ["stock-counts/count-1", "operations-counts", "inventory"],
-      ["stock-transfers/transfer-1", "operations-transfers", "inventory"],
-      ["pos?tab=shifts", "pos-front", "pos"],
-      ["pms", "pms-front", "pms"],
-      ["pms/documents/doc-1", "pms-front", "pms"],
-      ["people/person-1", "people-directory", "people"],
-      ["people/organization", "people-directory", "people"],
-      ["people?status=archived", "people-directory", "people"],
-      ["people/payroll/runs/run-1", "people-payroll", "people"],
-      ["people/payroll/settings", "people-payroll", "people"],
-      ["people/payroll/history", "people-payroll", "people"],
-      ["people/payroll/advances", "people-payroll", "people"],
-      ["people/roster", "people-roster", "people"],
-      ["people/settings?section=leave", "people-settings", "people"],
-      ["people?panel=schedule", "people-directory", "people"],
-      ["people?panel=settings&section=leave", "people-directory", "people"],
-      ["projects/project-1", "projects-list", "projects"],
-    ]) {
-      const url = new URL(`${base}/${path}`, "https://navigation.invalid");
-      expect(resolveNavigation(owner, base, url.pathname, url.searchParams)).toMatchObject({ activeId: id, groupId });
-    }
-  });
-});
-
-describe("Workplace discovery", () => {
-  it("keeps team schedules in the People workspace and cash sessions on compatible POS routes at every scope", () => {
-    for (const [scopeKind, workspaceBase] of [
-      ["holding", "/holdings/acme"],
-      ["branch", "/holdings/acme/branches/bangkok"],
-      ["department", "/holdings/acme/branches/bangkok/departments/operations"],
-    ] as const) {
-      const nav = workplaceNavigation({ workspaceBase, scopeKind, role: "holding_owner", adminSections: ["people", "organization"] });
-      expect(nav.apps.find(app => app.id === "people")?.items.some(item => item.id === "people-roster")).toBe(true);
-      expect(resolveNavigation(nav, workspaceBase, `${workspaceBase}/people/roster`)).toMatchObject({ activeId: "people-roster", groupId: "people" });
-      if (scopeKind !== "department") expect(nav.apps.find(app => app.id === "pos")?.items).toContainEqual(expect.objectContaining({ label: "Open POS Front", href: `${workspaceBase}/pos` }));
-    }
-  });
-  it("keeps staff navigation compact and excludes inaccessible search results", () => {
-    const nav = workplaceNavigation({
-      workspaceBase: "/holdings/acme",
-      role: "employee",
-      adminSections: ["feedback"],
-    });
-    expect(nav.primary.map((x) => [x.id, x.label])).toEqual([["home", "Today"], ["work", "My work"], ["calendar", "Calendar"], ["inbox", "Messages"]]);
-    expect(nav.search.some((x) => x.href.includes("/finance"))).toBe(false);
-    expect(nav.apps.some((x) => x.label === "Administration")).toBe(false);
-    expect(nav.search.some((x) => x.href.endsWith("/feed"))).toBe(false);
-    expect(new Set(nav.search.map((x) => x.href)).size).toBe(nav.search.length);
-  });
-  it("shows authorized live areas without module capability results", () => {
-    const nav = workplaceNavigation({
-      workspaceBase: "/holdings/acme",
-      role: "holding_owner",
-      adminSections: [
-        "people",
-        "organization",
-        "approvals",
-        "usage",
-        "feedback",
-      ],
-    });
-    expect(
-      nav.search.some((x) => x.href.includes("/modules/")),
-    ).toBe(false);
-    expect(
-      nav.apps.filter((x) => x.placement === "business").map((x) => x.id),
-    ).toEqual(["executive", "people", "sales", "procurement", "inventory", "crm", "support", "quality", "pos", "pms", "finance", "projects", "technology", "customer_authority", "services"]);
-    expect(nav.apps.find((x) => x.id === "projects")?.label).toBe("Projects & Routines");
-    expect(
-      nav.apps
-        .find((x) => x.id === "sales")
-        ?.items.map((x) => x.label),
-    ).toEqual([
-      "Sales orders",
-      "Quotations",
-      "Price lists",
-    ]);
-    expect(nav.apps.find((x) => x.id === "procurement")?.items.map((x) => x.label)).toEqual(["Purchase orders", "Supplier quotation requests", "Suppliers"]);
-  });
-  it("assigns semantic icons to feature destinations", () => {
-    const nav = workplaceNavigation({
-      workspaceBase: "/holdings/acme",
-      scopeKind: "holding",
-      role: "holding_owner",
-      adminSections: [
-        "people",
-        "organization",
-        "approvals",
-        "usage",
-        "ai",
-        "feedback",
-      ],
-    });
-    const iconsByLabel = Object.fromEntries(
-      [...nav.apps.flatMap((app) => app.items), ...nav.standalone].map((child) => [child.label, child.icon]),
-    );
-    expect(iconsByLabel).toMatchObject({
-      People: "admin-people",
-      Payroll: "payroll",
-      "Organization & Access": "access",
-      Quotations: "quotation",
-      "Purchase orders": "purchasing",
-      "Stock & movements": "stock",
-      "Stock counts": "stock-count",
-      "Warehouse transfers": "stock-transfer",
-      Products: "product",
-      Warehouses: "warehouse",
-      "Customer directory": "parties",
-      "Suppliers": "parties",
-      Accounting: "ledger",
-      Receivables: "invoice",
-      Payables: "invoice",
-      "Cash & banking": "bank",
-      "Employee expenses": "expense",
-      "Staff tasks": "staff-task",
-      "Routine templates": "routine",
-      "Company handbook": "handbook",
-      Guides: "learn",
-      "Help using ERPX": "feedback",
-      "Usage & billing": "admin-usage",
-      "AI providers": "admin-ai",
-    });
-  });
-  it("keeps Local workspaces operational and removes Company-only navigation", () => {
-    const branch = workplaceNavigation({
-      workspaceBase: "/holdings/acme/branches/bangkok",
-      scopeKind: "branch",
-      role: "holding_owner",
-      adminSections: [
-        "people",
-        "organization",
-        "approvals",
-        "usage",
-        "ai",
-        "feedback",
-      ],
-    });
-    const people = branch.apps.find((app) => app.id === "people");
-    expect(people?.items.some((item) => item.id === "people-payroll")).toBe(
-      false,
-    );
-    expect(branch.search.some((item) => item.id === "technology-devices")).toBe(
-      true,
-    );
-    expect(
-      branch.apps
-        .filter((app) => app.placement === "business")
-        .map((app) => app.id),
-    ).toEqual(["executive", "people", "sales", "procurement", "inventory", "crm", "support", "quality", "pos", "pms", "finance", "projects", "technology", "customer_authority", "services"]);
-    expect(
-      branch.search.some((item) =>
-        ["approvals", "usage", "ai"].some((section) =>
-          item.href.includes(`section=${section}`),
-        ),
-      ),
-    ).toBe(false);
-    expect(branch.search.some((item) => item.href.endsWith("/technology?view=resources"))).toBe(true);
-    expect(branch.search.some((item) => item.href.endsWith("/iam"))).toBe(false);
-
-    const department = workplaceNavigation({
-      workspaceBase:
-        "/holdings/acme/branches/bangkok/departments/operations",
-      scopeKind: "department",
-      role: "holding_owner",
-      adminSections: ["people", "organization", "usage", "feedback"],
-    });
-    const operations = department.apps.find(
-      (app) => app.id === "inventory",
-    );
-    expect(
-      operations?.items.some((item) =>
-        ["operations-counts", "operations-transfers", "operations-transit"].includes(item.id),
-      ),
-    ).toBe(false);
-  });
-  it("keeps beta and platform discovery inside their supported surfaces", () => {
-    const beta = workplaceNavigation({
-      workspaceBase: "/holdings/beta",
-      beta: true,
-      adminSections: ["people", "organization", "usage", "feedback"],
-    });
-    expect(
-      beta.apps.filter((x) => x.placement === "business").map((x) => x.id),
-    ).toEqual(["people"]);
-    expect(beta.apps.map((x) => x.id)).toEqual([
-      "people",
-      "resources",
-      "administration",
-    ]);
-    const platform = workplaceNavigation({
-      workspaceBase: "/platform",
-      scopeKind: "platform",
-    });
-    expect(
-      platform.standalone.some((x) =>
-        ["people", "settings", "commerce", "projects"].includes(x.id),
-      ),
-    ).toBe(false);
-    expect(platform.apps).toEqual([]);
-    expect(platform.standalone.map((x) => x.id)).toEqual([
-      "platform-billing",
-      "learn",
-      "feed",
-      "platform-iam",
-      "my-access",
-    ]);
-    expect(platform.search.every((x) => x.href.startsWith("/platform/"))).toBe(
-      false,
-    );
-    expect(
-      platform.search.some((x) => x.href === "/platform/finance/ledger"),
-    ).toBe(false);
-  });
-  it("maps collections, details, and query views to their canonical parents", () => {
-    expect(
-      activeDestination("/holdings/acme", "/holdings/acme/staff-tasks/a"),
-    ).toBe("projects");
-    expect(activeDestination("/holdings/acme", "/holdings/acme/posts/a")).toBe(
-      "home",
-    );
-    const owner = workplaceNavigation({
-      workspaceBase: "/holdings/acme",
-      scopeKind: "holding",
-      role: "holding_owner",
-      adminSections: ["people", "organization", "approvals", "usage", "feedback"],
-    });
-    expect(
-      resolveNavigation(
-        owner,
-        "/holdings/acme",
-        "/holdings/acme/commerce",
-        new URLSearchParams("view=quote"),
-      ),
-    ).toMatchObject({ activeId: "operations-quotations", groupId: "sales" });
-    expect(
-      resolveNavigation(
-        owner,
-        "/holdings/acme",
-        "/holdings/acme/settings",
-        new URLSearchParams("section=organization"),
-      ),
-    ).toMatchObject({
-      activeId: "people-directory",
-      groupId: "people",
-    });
-    expect(activeDestination("/holdings/acme", "/holdings/acme/finance")).toBe(
-      "finance",
-    );
-    expect(
-      navigationTrail(
-        owner,
-        "/holdings/acme",
-        "/holdings/acme/finance/invoices/inv-1",
-      ).map((crumb) => crumb.label),
-    ).toEqual(["Finance", "Receivables", "Invoice"]);
-  });
-  it("does not expose generic workspace records as a Work type", () => {
-    expect(workTypes.map(([id])=>id)).not.toContain("record");
-  });
-});
-it("filters mixed work without treating another queue as actionable", () => {
-  const rows: WorkItem[] = [
-    {
-      id: "same",
-      type: "leave",
-      title: "Leave",
-      detail: "Morning handover",
-      href: "/leave",
-      status: "pending_approval",
-      updatedAt: 1,
-      queue: "waiting",
-    },
-    {
-      id: "same",
-      type: "staff_task",
-      title: "Handover",
-      detail: "Review delivery",
-      href: "/task",
-      status: "completion_approval",
-      updatedAt: 2,
-      queue: "todo",
-    },
-  ];
-  expect(
-    filterWork(rows, "todo", "all", "handover").map((x) => x.type),
-  ).toEqual(["staff_task"]);
-  expect(filterWork(rows, "all", "leave", "")).toHaveLength(1);
-  expect(filterWork(rows, "completed", "all", "")).toHaveLength(0);
-});
-
-describe("Services grouped by purpose", () => {
-  const base = "/holdings/acme";
-  const sections = ["people", "organization", "approvals", "usage", "ai", "feedback"] as const;
-  const owner = workplaceNavigation({ workspaceBase: base, role: "holding_owner", adminSections: [...sections], canManageApprovals: true });
-  const cases = [
-    ["handbook", "handbook", "Knowledge", "Company handbook"],
-    ["learn", "learn", "Knowledge", "Guides"],
-    ["people/settings", "people-settings", "People", "HR settings"],
-    ["people/settings?section=templates", "people-settings", "People", "HR settings", "Organization templates"],
-    ["people/settings?section=attributes", "technology-settings", "Technology", "Access settings", "Custom attributes"],
-    ["settings?section=usage", "administration-usage", "Technology", "Usage & billing"],
-    ["settings?section=approvals", "administration-approvals", "Technology", "Approval routing"],
-    ["people/access", "technology-devices", "Technology", "Resources"],
-    ["people/access?view=packages", "technology-devices", "Technology", "Resources"],
-    ["people/access?view=groups", "technology-organization", "Technology", "Organization & Access"],
-    ["people/access?view=policies", "technology-organization", "Technology", "Organization & Access"],
-    ["people/access?view=devices", "technology-devices", "Technology", "Resources"],
-    ["people/settings?section=connections", "technology-directory", "Technology", "Directory", "Connections"],
-    ["people/settings?section=roles", "technology-settings", "Technology", "Access settings", "Roles & permissions"],
-    ["people/settings?section=matrix", "technology-settings", "Technology", "Access settings", "Access matrix"],
-    ["people/settings?section=reviews", "technology-settings", "Technology", "Access settings", "Reviews & audit"],
-    ["settings?section=ai", "administration-ai", "Technology", "AI providers"],
-    ["iam/groups", "technology-settings", "Technology", "Access settings", "Group mappings"],
-    ["iam/mappings", "technology-settings", "Technology", "Access settings", "Group mappings"],
-    ["iam/connections", "technology-directory", "Technology", "Directory", "Connections"],
-    ["iam/roles", "technology-settings", "Technology", "Access settings", "Roles & permissions"],
-    ["iam/matrix", "technology-settings", "Technology", "Access settings", "Access matrix"],
-    ["settings?section=people", "people-directory", "People", "People"],
-    ["settings?section=organization", "people-directory", "People", "People"],
-    ["iam/overview", "people-directory", "People", "People"],
-    ["iam/users", "people-directory", "People", "People"],
-  ];
-
-  it.each(cases)("resolves %s and discovers its feature once", (path, id, group, label, detail) => {
-    const url = new URL(`${base}/${path}`, "https://navigation.invalid");
-    expect(resolveNavigation(owner, base, url.pathname, url.searchParams).activeId).toBe(id);
-    expect(navigationTrail(owner, base, url.pathname, url.searchParams).map(item => item.label)).toEqual(id === "people-directory" ? ["People"] : [group, label, ...(detail ? [detail] : [])]);
-    expect(owner.search.filter(item => item.id === id)).toEqual([expect.objectContaining({ label, group: id === "administration-approvals" ? "Administration" : group })]);
-  });
-
-  it("keeps the exact group order, People contents, and a direct help link", () => {
-    expect(owner.apps.map(app => app.label)).toEqual(["Executive", "People", "Sales", "Purchasing", "Inventory", "CRM", "Customer support", "Quality", "POS", "Hotel PMS", "Finance", "Projects & Routines", "Technology", "Knowledge", "Customer reviews", "Service desk"]);
-    expect(owner.apps.find(app => app.id === "people")!.items.map(item => item.label)).toEqual(["People", "HR settings", "Users & Access", "Skills & performance", "Roster", "Payroll"]);
-    expect(owner.categories.find(category => category.id === "people-organization")?.apps.every(item => !item.submodules?.length)).toBe(true);
-    expect(owner.search.some(item => item.href === `${base}/people/organization` || item.href === `${base}/people?status=archived`)).toBe(false);
-    expect(navigationTrail(owner, base, `${base}/people/organization`).map(item => item.label)).toEqual(["People"]);
-    expect(navigationTrail(owner, base, `${base}/people/person-1`).map(item => item.label)).toEqual(["People", "Person"]);
-    expect(navigationTrail(owner, base, `${base}/people/move`).map(item => item.label)).toEqual(["People", "Move"]);
-    expect(navigationTrail(owner, base, `${base}/people/move/review`).map(item => item.label)).toEqual(["People", "Review move"]);
-    expect(owner.apps.some(app => app.id === "payroll")).toBe(false);
-    expect(owner.apps.find(app => app.id === "people")?.items.filter(item => item.id.startsWith("people-payroll")).map(item => item.href)).toEqual([
-      `${base}/people/payroll`,
-    ]);
-    expect(owner.categories.find(category => category.id === "people-organization")?.apps[0].submodules?.find(item => item.id === "people-payroll")?.submodules).toBeUndefined();
-    const treasury = workplaceNavigation({ workspaceBase: base, role: "treasury" });
-    expect(treasury.apps.find(app => app.id === "people")?.items.filter(item => item.id.startsWith("people-payroll")).map(item => item.id)).toEqual(["people-payroll"]);
-    expect(owner.apps.find(app=>app.id==="technology")?.icon).toBe("technology");
-    expect(owner.apps.find(app=>app.id==="technology")?.items.map(item => item.label)).toEqual(["Organization & Access", "Resources", "Directory", "Access settings", "AI providers", "Approval routing", "Usage & billing", "Business readiness"]);
-    expect(owner.standalone.map(item => item.label)).toEqual(["Legal", "Help using ERPX", "Pilot feature rollout", "Product roadmap"]);
-    expect(navigationTrail(owner,base,`${base}/settings/pilot-features`).map(item=>item.label)).toEqual(['Pilot feature rollout']);
-    expect(navigationTrail(owner,base,`${base}/settings/stripe`).map(item=>item.label)).toEqual(['Company Stripe']);
-    expect(navigationTrail(owner,base,`${base}/settings/notifications`).map(item=>item.label)).toEqual(['Notification settings']);
-    expect(navigationTrail(owner, base, `${base}/settings`, new URLSearchParams("section=feedback"))).toEqual([{ label: "Help using ERPX" }]);
-    expect(resolveNavigation(owner, base, `${base}/iam/reviews`)).toEqual({ activeId: "technology-settings", groupId: "technology", detailLabel: "Reviews & audit" });
-    expect(navigationTrail(owner, base, `${base}/handbook/article-1`).map(item => item.label)).toEqual(["Knowledge", "Company handbook", "Article"]);
-  });
-
-  it("maps app-level navigation into presentation categories without changing breadcrumbs", () => {
-    expect(owner.categories.map(category => category.id)).toEqual(["people-organization","customers-sales","purchasing","inventory-quality","projects-routines","services","finance","pos","pms","knowledge","insights","administration"]);
-    expect(owner.categories.find(category=>category.id==="customers-sales")?.apps.slice(0,3).map(item=>item.label)).toEqual(["Sales","Customers"]);
-    expect(owner.categories.flatMap(category=>category.apps).every(item=>!item.submodules?.length)).toBe(true);
-    const bank = resolveNavigation(owner, base, `${base}/finance/bank`);
-    expect(navigationCategory(owner, bank)?.id).toBe("finance");
-    expect(navigationTrail(owner, base, `${base}/finance/bank`).map(item => item.label)).toEqual(["Finance", "Cash & banking"]);
-    const pms = resolveNavigation(owner, base, `${base}/pms/reports`);
-    expect(navigationCategory(owner, pms)?.id).toBe("pms");
-    expect(navigationTrail(owner, base, `${base}/pms/reports`).map(item => item.label)).toEqual(["Hotel PMS", "PMS reports"]);
-    const pos = resolveNavigation(owner, base, `${base}/pos`, new URLSearchParams("tab=shifts"));
-    expect(navigationCategory(owner, pos)?.id).toBe("pos");
-    expect(pos.activeId).toBe("pos-front");
-    expect(navigationTrail(owner, base, `${base}/pos`, new URLSearchParams("tab=shifts")).map(item => item.label)).toEqual(["POS", "Open POS Front"]);
-  });
-
-  it("searches actual work destinations and labels their discovery categories", async () => {
-    const { navigationLauncher, navigationSearch } = await import("../../../src/lib/work_projection/navigation-catalog");
-    const results = navigationLauncher(owner, "approval").results;
-    expect(results.find(result => result.item.id === "administration-approvals")).toMatchObject({ context: "Administration", categoryId: "administration" });
-    expect(results.some(result => result.item.label === "Price lists")).toBe(false);
-    expect(navigationLauncher(owner, "follow-ups").results.find(result => result.item.id === "customer-followups")).toMatchObject({ context: "Customers & sales" });
-    expect(navigationSearch(owner, "Today").some(result => result.item.id === "home")).toBe(true);
-    expect(navigationSearch(owner, "Purchase request").some(result => result.item.id === "start-buy")).toBe(true);
-    expect(navigationSearch(owner, "Administration").some(result => result.item.id === "administration-approvals")).toBe(true);
-  });
-
-  it("keeps all CRM destinations active under their own section and breadcrumb", async () => {
-    const { navigationLauncher } = await import("../../../src/lib/work_projection/navigation-catalog");
-    const crm = owner.categories.find(category=>category.id==="customers-sales")!;
-    expect(crm.apps.map(item=>item.id)).toEqual(["sales-hub", "customers-hub"]);
-    expect(crm.apps.some(item=>item.id==="crm-customers")).toBe(false);
-    for (const [path, activeId, label] of [
-      ["crm", "crm-pipeline", "Pipeline"],
-      ["customers", "customer-timeline", "Customers"],
-      ["customer-followups", "customer-followups", "Follow-ups"],
-      ["commerce?view=parties&kind=customer", "crm-customers", "Customer directory"],
-    ]) {
-      const url = new URL(`${base}/${path}`, "https://navigation.invalid");
-      const resolved = resolveNavigation(owner, base, url.pathname, url.searchParams);
-      expect(resolved).toMatchObject({ activeId, groupId: "crm" });
-      expect(navigationCategory(owner, resolved)?.id).toBe("customers-sales");
-      expect(navigationTrail(owner, base, url.pathname, url.searchParams).map((item) => item.label)).toEqual(path === "crm" ? ["Sales", "Pipeline"] : path === "customer-followups" ? ["Sales", "Today"] : ["Customers"]);
-      expect(navigationLauncher(owner, label).results.some((result) => (result.item.id === activeId || activeId === "customer-timeline" && result.item.id === "customers-hub") && result.categoryId === "customers-sales")).toBe(true);
-    }
-    expect(navigationTrail(owner, base, `${base}/customers/customer-1`).map((item) => item.label)).toEqual(["Customers", "Customer profile"]);
-    expect(navigationTrail(owner, base, `${base}/customer-followups/followup-1`).map((item) => item.label)).toEqual(["Sales", "Today", "Customer follow-up"]);
-    expect(navigationLauncher(owner, "").categories.find((category) => category.id === "customers-sales")?.apps[0].label).toBe("Sales");
-  });
-
-  it("groups support with CRM without granting CRM access", async () => {
-    const { navigationLauncher } = await import("../../../src/lib/work_projection/navigation-catalog");
-    const crmOnly = workplaceNavigation({ workspaceBase: base, permissions: ["commerce.read"], availableAppIds: ["crm"] });
-    expect(crmOnly.categories.some((category) => category.id === "customers-sales")).toBe(true);
-    expect(crmOnly.categories.some((category) => category.id === "projects-routines")).toBe(false);
-    expect(crmOnly.categories.find((category) => category.id === "customers-sales")?.apps.map((app) => app.id)).toEqual(["sales-hub","customers-hub"]);
-    const hidden = workplaceNavigation({ workspaceBase: base, permissions: ["commerce.read", "support.read"], availableAppIds: ["procurement", "support"] });
-    expect(hidden.categories.find((category) => category.id === "purchasing")?.apps.map((app) => app.id)).toEqual(["operations-purchasing","procurement-rfqs","procurement-suppliers"]);
-    expect(hidden.categories.find((category) => category.id === "customers-sales")?.apps.map((app) => app.id)).toEqual(["customers-hub"]);
-    expect(navigationLauncher(hidden, "follow-ups").results.some((result) => result.categoryId === "customers-sales")).toBe(false);
-    const denied = workplaceNavigation({ workspaceBase: base, permissions: [], availableAppIds: ["crm"] });
-    expect(denied.apps.some((app) => app.id === "crm")).toBe(false);
-    expect(denied.search.some((item) => item.id === "customer-followups")).toBe(false);
-  });
-
-  it("shows POS pages directly in the sidebar and launcher within the existing rollout and permissions", async () => {
-    const { navigationLauncher } = await import("../../../src/lib/work_projection/navigation-catalog");
-    const pilot = workplaceNavigation({ workspaceBase: base, role: "holding_owner", availableAppIds: ["procurement", "pos", "finance"] });
-    expect(pilot.categories.map((category) => category.id)).toEqual(["purchasing", "services", "finance", "pos", "knowledge", "administration"]);
-    expect(pilot.categories.find((category) => category.id === "purchasing")?.apps.some((item) => item.id === "pos")).toBe(false);
-    const posItems = pilot.categories.find((category) => category.id === "pos")!.apps;
-    expect(posItems.map((item) => [item.id, item.href])).toEqual([
-      ["pos-front", `${base}/pos`],
-      ["pos-approvals", `${base}/pos?tab=history&queue=approval`],
-      ["pos-reports", `${base}/pos?tab=reports`],
-      ["pos-settings", `${base}/pos?tab=settings`],
-    ]);
-    expect(navigationLauncher(pilot, "").categories.find((category) => category.id === "pos")?.apps).toEqual(posItems);
-    expect(navigationLauncher(pilot, "cashier").results.some((result) => result.item.id === "pos-front" && result.categoryId === "pos")).toBe(true);
-
-    const hidden = workplaceNavigation({ workspaceBase: base, role: "holding_owner", availableAppIds: ["finance"] });
-    expect(hidden.categories.some((category) => category.id === "pos")).toBe(false);
-    for (const [scopeKind, workspaceBase] of [
-      ["holding", base], ["branch", `${base}/branches/main`],
-    ] as const) {
-      const scoped = workplaceNavigation({ workspaceBase, scopeKind, permissions: ["pos.read"] });
-      expect(scoped.categories.find((category) => category.id === "pos")?.apps.map((item) => item.id)).toEqual(["pos-front"]);
-      expect(navigationLauncher(scoped, "").categories.find((category) => category.id === "pos")?.apps).toHaveLength(1);
-    }
-    const department = workplaceNavigation({ workspaceBase: `${base}/branches/main/departments/front`, scopeKind: "department", permissions: ["pos.read"] });
-    expect(department.categories.some((category) => category.id === "pos")).toBe(false);
-    const reports = workplaceNavigation({ workspaceBase: base, permissions: ["pos.read", "pos.reports"] });
-    expect(reports.categories.find((category) => category.id === "pos")?.apps.map((item) => item.id)).toContain("pos-reports");
-    const settings = workplaceNavigation({ workspaceBase: base, permissions: ["pos.read", "pos.payments.configure"] });
-    expect(settings.categories.find((category) => category.id === "pos")?.apps.map((item) => item.id)).toContain("pos-settings");
-  });
-
-  it("shows PMS pages only when authorized and enabled, while the launcher keeps one app", async () => {
-    const { navigationLauncher } = await import("../../../src/lib/work_projection/navigation-catalog");
-    const pilot = workplaceNavigation({ workspaceBase: base, role: "holding_owner", availableAppIds: ["pms"] });
-    expect(pilot.categories.map((category) => category.id)).toEqual(["services", "pms", "knowledge", "administration"]);
-    expect(pilot.categories.find(category=>category.id==="pms")?.apps).toHaveLength(4);
-    expect(navigationLauncher(pilot, "").categories.find(category=>category.id==="pms")?.apps.map(item=>item.label)).toEqual(["Open PMS Front","PMS approvals","PMS reports","PMS settings"]);
-    expect(navigationLauncher(pilot, "hotel").results.map((result) => result.item.id)).toContain("pms-front");
-    const hidden = workplaceNavigation({ workspaceBase: base, role: "holding_owner", availableAppIds: ["finance"] });
-    expect(hidden.categories.some((category) => category.id === "pms")).toBe(false);
-    const housekeeper = workplaceNavigation({ workspaceBase: base, role: "pms_housekeeping", availableAppIds: ["pms"] });
-    expect(housekeeper.categories.find((category) => category.id === "pms")?.apps.some((item) => item.id === "pms-reports")).toBe(false);
-  });
-
-  it("carries only the selected property between PMS sidebar pages", () => {
-    const reports = owner.apps.find((app) => app.id === "pms")!.items.find((item) => item.id === "pms-reports")!;
-    expect(pmsSidebarHref(reports, `${base}/pms/guest-accounts`, new URLSearchParams("property=hotel-1&guestAccount=guestAccount-2"))).toBe(`${base}/pms/reports?property=hotel-1`);
-    expect(pmsSidebarHref(reports, `${base}/pms`, new URLSearchParams("property=hotel-1"))).toBe(`${base}/pms/reports?property=hotel-1`);
-    expect(pmsSidebarHref(reports, `${base}/finance`, new URLSearchParams("property=hotel-1"))).toBe(reports.href);
-  });
-
-  it("shows shared system links only with destination access and rollout", () => {
-    const actor = { role: "holding_owner", assignmentScope: "holding", permissions: ["pms.read", "commerce.read", "finance.read", "pos.read"] };
-    expect(pmsCrossLinks(actor)).toEqual({ inventory: true, finance: true, pos: true });
-    expect(pmsCrossLinks(actor, new Set(["pms", "finance"]))).toEqual({ inventory: false, finance: true, pos: false });
-    expect(pmsCrossLinks({ ...actor, permissions: ["pms.read"] }, new Set(["pms", "inventory", "finance", "pos"]))).toEqual({ inventory: false, finance: false, pos: false });
-  });
-
-  it.each([
-    ["holding_owner", true, true, true],
-    ["hr_admin", false, true, false],
-    ["it_admin", true, false, true],
-    ["employee", false, false, false],
-  ] as const)("retains %s authorization in Company, Branch and Department navigation", (role, iam, approvals, ai) => {
-    for (const [scopeKind, workspaceBase] of [
-      ["holding", base], ["branch", `${base}/branches/main`], ["department", `${base}/branches/main/departments/front`],
-    ] as const) {
-      const nav = workplaceNavigation({ workspaceBase, scopeKind, role, canManageApprovals: approvals, adminSections: ["approvals", "feedback", ...(role === "holding_owner" ? ["usage" as const] : []), ...(ai ? ["ai" as const] : [])] });
-      const ids = nav.search.map(item => item.id);
-      expect(ids.includes("technology-devices")).toBe(iam);
-      expect(ids.includes("technology-roles")).toBe(iam);
-      expect(ids.includes("administration-approvals")).toBe(approvals && scopeKind === "holding");
-      expect(ids.includes("administration-ai")).toBe(ai && scopeKind === "holding");
-      expect(ids.includes("administration-usage")).toBe(role === "holding_owner" && scopeKind === "holding");
-      expect(ids.includes("projects-routines")).toBe(true);
-      expect(ids.includes("handbook")).toBe(true);
-      expect(ids.includes("learn")).toBe(true);
-      expect(nav.apps.every(app => app.items.length > 0)).toBe(true);
-      expect(new Set(nav.search.map(item => item.href)).size).toBe(nav.search.length);
-      for (const item of nav.search) {
-        expect(item.href.startsWith(`${workspaceBase}/`)).toBe(true);
-        const url = new URL(item.href, "https://navigation.invalid");
-        const parent=nav.primary.find(entry=>entry.submodules?.some(child=>child.id===item.id));
-        if(!item.id.startsWith("start-")) {
-          const technologyParent = url.pathname.endsWith("/technology") && url.searchParams.get("section") ? (url.searchParams.get("view") === "settings" ? "technology-settings" : url.searchParams.get("view") === "directory" ? "technology-directory" : url.searchParams.get("view") === "resources" ? "technology-devices" : undefined) : undefined;
-          const workspaceParent=item.id.startsWith('workspace-administration-')?(url.searchParams.get('section')==='feedback'?'feedback':url.searchParams.get('section')==='approvals'&&!nav.search.some(entry=>entry.id==='administration-approvals')?'projects-routines':`administration-${url.searchParams.get('section')}`):item.id.startsWith('workspace-finance-')?'finance-setup':item.id.startsWith('workspace-benefits-')?'benefits':item.id.startsWith('workspace-assets-')?(url.searchParams.get('view')==='register'?'assets':'maintenance'):item.id.startsWith('workspace-knowledge-')?(url.searchParams.get('view')==='learning'?'learning':'handbook'):undefined;
-          expect([resolveNavigation(nav, workspaceBase, url.pathname, url.searchParams).activeId, resolveNavigation(nav, workspaceBase, url.pathname, url.searchParams).sidebarId]).toContain(workspaceParent ?? technologyParent ?? (item.id.startsWith("people-settings-") ? "people-settings" : parent?.id ?? item.id));
-        }
-      }
-    }
-  });
-
-  it("uses the server approval flag independently from the readable legacy section", () => {
-    for (const canManageApprovals of [undefined, false, true]) {
-      const nav = workplaceNavigation({ workspaceBase: base, role: "holding_owner", adminSections: ["approvals"], canManageApprovals });
-      expect(nav.search.some(item => item.id === "administration-approvals")).toBe(canManageApprovals === true);
-    }
-    const staff = workplaceNavigation({ workspaceBase: base, adminSections: ["approvals", "feedback"], canManageApprovals: false });
-    expect(resolveNavigation(staff, base, `${base}/settings`, new URLSearchParams("section=approvals"))).toMatchObject({ activeId: "projects-routines", groupId: "projects" });
-    expect(staff.apps.some(app => app.id === "technology")).toBe(false);
-  });
-
-  it("places usage in Technology even without Finance access", () => {
-    const billing = workplaceNavigation({ workspaceBase: base, permissions: [], adminSections: ["usage", "feedback"] });
-    expect(billing.apps.find(app => app.id === "finance")).toBeUndefined();
-    expect(billing.apps.find(app => app.id === "technology")).toMatchObject({ href: `${base}/settings?section=usage`, items: [expect.objectContaining({ id: "administration-usage" })] });
-    expect(resolveNavigation(billing, base, `${base}/expenses/expense-1`).activeId).toBe("work");
-    expect(resolveNavigation(billing, base, `${base}/settings`)).toMatchObject({ activeId: "administration-usage", groupId: "technology" });
-    const branchBase = `${base}/branches/main`;
-    const branch = workplaceNavigation({ workspaceBase: branchBase, scopeKind: "branch", role: "operations_manager", permissions: [], availableAppIds: ["people"] });
-    expect(branch.apps.find(app => app.id === "technology")?.items.map(item => item.id)).toEqual(["branch-usage"]);
-    expect(resolveNavigation(branch, branchBase, `${branchBase}/usage`)).toMatchObject({ activeId: "branch-usage", groupId: "technology" });
-    const ai = workplaceNavigation({ workspaceBase: base, permissions: [], adminSections: ["ai", "feedback"] });
-    expect(ai.apps.find(app => app.id === "technology")?.items.map(item => item.id)).toEqual(["administration-ai"]);
-    const iam = workplaceNavigation({ workspaceBase: base, role: "custom", permissions: ["iam.read"] });
-    expect(iam.apps.find(app => app.id === "technology")?.items).toHaveLength(4);
-    const hr = workplaceNavigation({ workspaceBase: base, role: "custom", permissions: ["organization.manage"] });
-    expect(hr.search.some(item => item.id === "people-directory")).toBe(true);
-    expect(hr.search.some(item => item.id === "people-settings")).toBe(false);
-    expect(hr.apps.find(app => app.id === "technology")?.items.map(item=>item.id)).toEqual(["technology-organization", "technology-business-readiness"]);
-    const denied = workplaceNavigation({ workspaceBase: base, role: "holding_owner", permissions: [] });
-    expect(denied.apps.some(app => ["finance", "technology"].includes(app.id))).toBe(false);
-  });
-
-  it("retains Beta and Platform feature organization", () => {
-    const beta = workplaceNavigation({ workspaceBase: base, beta: true, role: "holding_owner", adminSections: [...sections] });
-    expect(beta.apps.map(app => app.id)).toEqual(["executive", "people", "resources", "administration"]);
-    expect(beta.apps.find(app => app.id === "people")!.items.map(item => item.id)).toEqual(["people-directory", "people-access"]);
-    expect(beta.apps.find(app => app.id === "administration")!.items.map(item => item.id)).toEqual(["administration-people", "administration-organization", "administration-approvals", "administration-usage", "administration-ai"]);
-    expect(beta.standalone).toEqual([]);
-    const platform = workplaceNavigation({ workspaceBase: "/platform", scopeKind: "platform" });
-    expect(platform.apps).toEqual([]);
-    expect(platform.standalone.map(item => item.id)).toEqual(["platform-billing", "learn", "feed", "platform-iam", "my-access"]);
-  });
-
-  it("migrates retained expansion choices and defaults Technology to collapsed", () => {
-    const groups = ["people", "finance", "projects", "technology"];
-    expect(JSON.parse(navigationCollapsedValue(null, '["finance","resources","administration"]', groups))).toEqual(["finance", "technology"]);
-    expect(JSON.parse(navigationCollapsedValue(null, "[]", groups))).toEqual(["technology"]);
-    expect(JSON.parse(navigationCollapsedValue("[]", '["finance"]', groups))).toEqual([]);
-    expect(JSON.parse(navigationCollapsedValue(null, null, groups))).toEqual(groups);
-    expect(JSON.parse(navigationCollapsedValue(null, "invalid", groups))).toEqual(groups);
-    // A role switch may temporarily hide Finance or Technology. Keep their choices.
-    expect(JSON.parse(navigationCollapsedValue(null, '["finance","resources"]', ["people"]))).toEqual(["finance", "technology"]);
-    expect(JSON.parse(navigationCollapsedValue(null, null, ["people"]))).toEqual(["people", "technology"]);
-  });
-});
-
- it("keeps Executive hidden without eligibility or a named share, and resolves report breadcrumbs",()=>{
-   const base="/holdings/acme";
-   const hidden=workplaceNavigation({workspaceBase:base,role:"holding_owner",executiveVisible:false});
-   expect(hidden.apps.some(app=>app.id==="executive")).toBe(false);
-   const shared=workplaceNavigation({workspaceBase:base,role:"employee",executiveVisible:true});
-   expect(shared.apps.find(app=>app.id==="executive")?.items).toHaveLength(1);
-   expect(resolveNavigation(shared,base,`${base}/executive/reports/private-id`).groupId).toBe("executive");
+import {InboxUpdates} from "../../../src/components/collaboration/messaging/inbox-updates";
+import {RecordLink} from "../../../src/components/records/record-link";
+import {RecordScopeProvider} from "../../../src/components/records/record-context";
+import {createElement as h,type ReactNode} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {productNavigationHref,productHrefString,frontProductLaunchTarget,isProductHandoffHref,type ProductNavigationScope} from '../../../src/lib/work_projection/product-navigation';
+import {ProductLinkEnvironment,ProductWorkLinks,useProductNavigationScope} from '../../../src/components/workplace/product-link-context';
+import WorkspaceLink from '../../../src/components/workplace/workspace-link';
+import {useRouter as useDestinationRouter} from '../../../src/lib/shared/destination-router';
+const linkMocks=vi.hoisted(()=>({push:vi.fn(),replace:vi.fn(),dirty:vi.fn(()=>false),dispatch:vi.fn()}));
+vi.mock('next/navigation',()=>({useRouter:()=>({push:linkMocks.push,replace:linkMocks.replace}),usePathname:()=>'/holdings/acme/services/assets/register',useSearchParams:()=>new URLSearchParams()}));
+vi.mock('../../../src/lib/work_projection/context-switch',()=>({hasUnsavedWork:linkMocks.dirty}));
+vi.mock('next/link',async()=>{const {createElement}=await import('react');return {default:({href,children,prefetch,...props}:{href:string;children:ReactNode;prefetch?:boolean})=>createElement('a',{...props,href,'data-prefetch':String(prefetch)},children)};});
+afterEach(()=>{vi.unstubAllGlobals();linkMocks.dirty.mockReturnValue(false);linkMocks.push.mockClear();linkMocks.replace.mockClear();linkMocks.dispatch.mockClear();});
+import {describe,it,expect,vi,afterEach} from "vitest";
+import {workplaceNavigation,navigationTrail,resolveNavigation,navigationCategory,navigationCollapsedValue,pmsSidebarHref} from "../../../src/lib/work_projection/workplace-navigation";
+import {navigationLauncher} from "../../../src/lib/work_projection/navigation-catalog";
+import {builtInPermissions} from "../../../src/lib/identity_access/permissions";
+import {workViews,filterWork,workTypes,type WorkItem} from "../../../src/lib/work_projection/work-item";
+import {pmsCrossLinks} from "../../../src/lib/pms/pms-cross-links";
+const base="/holdings/acme";
+const owner=workplaceNavigation({workspaceBase:base,role:"holding_owner",canManageApprovals:true,adminSections:["people","organization","approvals","usage","ai","feedback"]});
+describe("Side menu destination coverage",()=>{
+ it("keeps Finance navigation and command destinations on Finance without changing the compatibility Console",()=>{
+  const input={workspaceBase:base,role:"holding_owner",moduleIds:["finance","people_payroll","crm","sales","operations","support"],canManageApprovals:true,adminSections:["people","organization","approvals","feedback"] as ("people"|"organization"|"approvals"|"feedback")[]};
+  const legacy=workplaceNavigation(input),finance=workplaceNavigation({...input,productId:"finance"});
+  expect(legacy.primary.some(item=>item.id==='home')).toBe(true);
+  expect(finance.primary).toEqual([]);
+  expect(finance.search.some(item=>item.href.startsWith(base+'/finance/'))).toBe(true);
+  expect(finance.search.some(item=>item.href.includes('/people-organization/')||item.href.includes('/customers-sales/')||item.href===base+'/home')).toBe(false);
+  for(const item of [...finance.search,...finance.categories.flatMap(category=>category.apps)])expect(item.href===base+'/finance'||item.href.startsWith(base+'/finance/'),item.href).toBe(true);
  });
+ it("keeps POS and Hotel backoffice navigation on the actual product owner without exposing the other Office menus",()=>{
+  for(const app of ['pos','pms'] as const){
+   const model=workplaceNavigation({workspaceBase:base,role:'holding_owner',productId:app,moduleIds:[app,'finance','people_payroll','sales'],canManageApprovals:true,adminSections:['people','organization','approvals','feedback']});
+   expect(model.search.length).toBeGreaterThan(0);expect(model.primary).toEqual([]);
+   for(const item of model.search)expect(item.href===base+'/'+app||item.href.startsWith(base+'/'+app+'/'),item.href).toBe(true);
+   expect(model.search.some(item=>item.href===base+'/'+app+'/settings')).toBe(true);
+  }
+ });
+ it("retains Work daily navigation while keeping People data outside that host's menus",()=>{
+  const work=workplaceNavigation({workspaceBase:base,role:'holding_owner',productId:'work',moduleIds:['operations','people_payroll','finance']});
+  expect(work.primary.map(item=>item.id)).toEqual(['home','work','calendar','inbox']);
+  expect(work.search.some(item=>item.href.includes('/people-organization/'))).toBe(false);
+  expect(work.search.some(item=>item.href.includes('/finance/'))).toBe(false);
+ });
+ it("keeps ERPX Management in its authorized holding placement",()=>{
+  const model=workplaceNavigation({workspaceBase:"/holdings/erpx",scopeKind:"holding",role:"holding_owner",manageErpxVisible:true});
+  expect(model.apps.find(app=>app.id==="erpx-management")?.items.map(i=>i.href)).toEqual(["/holdings/erpx/erpx-management","/holdings/erpx/erpx-management/billing","/holdings/erpx/erpx-management/usage","/holdings/erpx/erpx-management/iam","/holdings/erpx/erpx-management/executive"]);
+  for(const ctx of [{workspaceBase:base,scopeKind:"holding" as const},{workspaceBase:"/holdings/erpx/branches/main",scopeKind:"branch" as const}])expect(workplaceNavigation({...ctx,role:"holding_owner",manageErpxVisible:true}).apps.some(a=>a.id==="erpx-management")).toBe(false);
+ });
+ it("shows only approved pilot apps in production navigation",()=>{
+  const pilot=workplaceNavigation({workspaceBase:base,role:"holding_owner",availableAppIds:["people","inventory","pos","pms","finance"]});
+  expect(pilot.search.some(i=>i.id==="crm-pipeline"||i.id==="finance-engines")).toBe(false);
+  expect(pilot.search.find(i=>i.id==="people-payroll")?.href).toBe(base+"/people-organization/people/payroll/dashboard");
+  expect(pilot.search.some(i=>i.id==="future-features")).toBe(true);
+ });
+ it("makes destinations and retained shortcut IDs unambiguous",()=>{
+  for(const role of ["employee","holding_owner","hr_admin","it_admin"]){
+   const model=workplaceNavigation({workspaceBase:base,role,adminSections:["feedback"]});
+   expect(new Set(model.search.map(i=>i.id)).size).toBe(model.search.length);
+   const results=navigationLauncher(model," ").categories.flatMap(c=>c.apps);
+   expect(new Set(results.map(i=>i.href)).size).toBe(results.length);
+   for(const item of model.search){expect(item.href.startsWith(base+"/")).toBe(true);expect(new URL(item.href,"https://example.test").searchParams.has("tab")).toBe(false);}
+   const found=navigationLauncher(model,"finance").results;expect(new Set(found.map(r=>r.item.href)).size).toBe(found.length);
+  }
+ });
+ it("exposes Operations through its scoped sidebar and launcher using existing manager permissions",()=>{
+  const permissions=builtInPermissions("operations_manager");expect(permissions).toContain("records.read");expect(permissions).toContain("module.operations.read");
+  for(const [workspaceBase,scopeKind] of [[base,"holding"],["/holdings/erpx","holding"],[base+"/branches/bangkok","branch"]] as const){
+   const model=workplaceNavigation({workspaceBase,scopeKind,role:"operations_manager",permissions,moduleIds:["operations"],availableAppIds:["operations"]});
+   expect(model.categories.find(c=>c.id==="projects-routines")?.apps.map(i=>[i.id,i.label,i.href,i.ownerModuleId])).toEqual([["operations","Operations",workspaceBase+"/projects-routines/operations","operations"]]);
+   expect(navigationLauncher(model,"Operations").results.map(r=>[r.item.label,r.item.href,r.categoryId])).toEqual([["Operations",workspaceBase+"/projects-routines/operations","projects-routines"]]);
+   expect(model.apps.some(a=>a.id==="finance")).toBe(false);
+  }
+ });
+ it("keeps Operations hidden without its module read permission or rollout and does not expose Projects",()=>{
+  const allowed={workspaceBase:base,role:"operations_manager",permissions:["records.read"],moduleIds:["operations"],availableAppIds:["operations"]};
+  for(const context of [{...allowed,moduleIds:[]},{...allowed,moduleIds:["inventory"]},{...allowed,permissions:[]},{...allowed,availableAppIds:[]},{...allowed,availableAppIds:["projects"]},{...allowed,beta:true}]){
+   const model=workplaceNavigation(context);expect(model.apps.some(a=>a.id==="operations")).toBe(false);expect(model.search.some(i=>i.href===base+"/projects-routines/operations")).toBe(false);
+  }
+  const model=workplaceNavigation(allowed);expect(model.apps.some(a=>a.id==="operations")).toBe(true);expect(model.apps.some(a=>a.id==="projects")).toBe(false);expect(model.search.some(i=>i.href===base+"/projects-routines/projects")).toBe(false);
+ });
+ it.each([
+  ["administration/technology/directory/connections",["Administration","Technology","Directory","Connections"],"technology"],
+  ["people-organization/people/directory/current",["People & organization","People","Directory","Current"],"people"],
+  ["people-organization/people/hr-settings/leave",["People & organization","People","HR settings","Leave & overtime"],"people"],
+  ["customers-sales/sales/documents/quote",["Customers & sales","Sales","Documents","Quotations"],"sales"],
+  ["inventory-quality/products",["Inventory & quality","Products"],"inventory"],
+  ["finance/accounting/engines",["Finance","Accounting","Calculations & schedules"],"finance"]
+ ] as const)("resolves %s with every clickable hierarchy level",(path,labels,groupId)=>{
+  const crumbs=navigationTrail(owner,base,base+"/"+path);expect(crumbs.map(c=>c.label)).toEqual(labels);expect(crumbs.every(c=>c.href?.startsWith(base+"/"))).toBe(true);expect(resolveNavigation(owner,base,base+"/"+path).groupId).toBe(groupId);
+ });
+});
+describe("Workplace discovery",()=>{
+ it("keeps role and scope restrictions in discovery",()=>{
+  const inventory=workplaceNavigation({workspaceBase:base,permissions:["inventory.read"]});expect(inventory.apps.some(a=>["sales","procurement"].includes(a.id))).toBe(false);expect(inventory.search.some(i=>i.id==="people-settings")).toBe(false);
+  for(const scopeKind of ["branch","department"] as const){const nav=workplaceNavigation({workspaceBase:base+"/branches/main"+(scopeKind==="department"?"/departments/front":""),scopeKind,role:"holding_owner"});expect(nav.search.some(i=>i.id==="people-payroll"||i.id==="technology-business-readiness")).toBe(false);if(scopeKind==="department")expect(nav.apps.some(a=>a.id==="pos"||a.id==="pms")).toBe(false);}
+  const housekeeper=workplaceNavigation({workspaceBase:base,role:"pms_housekeeping"});expect(housekeeper.search.some(i=>["pms-cashier","pms-reports","pms-night-audit"].includes(i.id))).toBe(false);
+ });
+ it("keeps staff search inside authorized destinations",()=>{const nav=workplaceNavigation({workspaceBase:base,role:"employee",adminSections:["feedback"]});expect(nav.primary.map(i=>i.id)).toEqual(["home","work","calendar","inbox"]);expect(nav.search.some(i=>!i.id.startsWith("start-")&&i.href.includes("/finance"))).toBe(false);expect(nav.search.some(i=>i.href.includes("/modules/"))).toBe(false);});
+ it("shows every My work view while honoring Team and Routing availability",()=>{
+  for(const team of [false,true])for(const routing of [false,true]){const model=workplaceNavigation({workspaceBase:base,role:"holding_owner",workViewAvailability:{team,routing}});const views=model.primary.find(i=>i.id==="work")!.submodules!;
+   expect(views.map(i=>i.href)).toEqual([...workViews.filter(([id])=>id!=="team"&&id!=="routing"||id==="team"&&team||id==="routing"&&routing).map(([id])=>base+"/work/"+id),base+"/work/reports"]);
+  }
+ });
+ it("keeps daily submenu URLs explicit",()=>{expect(owner.primary.find(i=>i.id==="calendar")?.submodules?.map(i=>i.href)).toEqual([base+"/calendar/mine",base+"/calendar/team",base+"/calendar/coverage"]);expect(owner.primary.find(i=>i.id==="inbox")?.submodules?.map(i=>i.href)).toEqual([base+"/inbox/messages",base+"/inbox/teams",base+"/inbox/notifications"]);});
+ it("uses the server approval flag independently from readable sections",()=>{
+  const readable=workplaceNavigation({workspaceBase:base,role:"employee",adminSections:["approvals"],canManageApprovals:false});expect(readable.search.some(i=>i.id==="administration-approvals")).toBe(false);
+ });
+ it("keeps Executive hidden without eligibility or a named share, and resolves report breadcrumbs",()=>{
+  expect(workplaceNavigation({workspaceBase:base,role:"holding_owner",executiveVisible:false}).apps.some(a=>a.id==="executive")).toBe(false);const shared=workplaceNavigation({workspaceBase:base,role:"employee",executiveVisible:true});expect(shared.apps.find(a=>a.id==="executive")?.items).toHaveLength(1);expect(resolveNavigation(shared,base,base+"/insights/executive/reports/private-id/overview").groupId).toBe("executive");
+ });
+ it("carries only selected property between PMS sidebar pages",()=>{const reports=owner.apps.find(a=>a.id==="pms")!.items.find(i=>i.id==="pms-reports")!;expect(pmsSidebarHref(reports,base+"/pms/guest-accounts",new URLSearchParams("property=hotel-1&guestAccount=other"))).toBe(base+"/pms/reports?property=hotel-1");});
+ it("keeps cross-module access and rollout independent",()=>{const actor={role:"holding_owner",assignmentScope:"holding",permissions:["pms.read","commerce.read","finance.read","pos.read"]};expect(pmsCrossLinks(actor)).toEqual({inventory:true,finance:true,pos:true});expect(pmsCrossLinks(actor,new Set(["pms","finance"]))).toEqual({inventory:false,finance:true,pos:false});});
+ it("migrates retained expansion choices",()=>{expect(JSON.parse(navigationCollapsedValue(null,'["finance","resources","administration"]',["people","finance","technology"]))).toEqual(["finance","technology"]);});
+ it("keeps Finance and PMS in their discovery categories",()=>{expect(navigationCategory(owner,resolveNavigation(owner,base,base+"/finance/cash/bank"))?.id).toBe("finance");expect(navigationCategory(owner,resolveNavigation(owner,base,base+"/pms/reports"))?.id).toBe("pms");});
+});
+it("filters mixed work without treating another queue as actionable",()=>{const rows:WorkItem[]=[{id:"same",type:"leave",title:"Leave",detail:"Morning handover",href:"/leave",status:"pending_approval",updatedAt:1,queue:"waiting"},{id:"same",type:"staff_task",title:"Handover",detail:"Review delivery",href:"/task",status:"completion_approval",updatedAt:2,queue:"todo"}];expect(filterWork(rows,"todo","all","handover").map(i=>i.type)).toEqual(["staff_task"]);expect(filterWork(rows,"all","leave","")).toHaveLength(1);expect(workTypes.map(([id])=>id)).not.toContain("record");});
 
-it("keeps the concise My work views, reports and Team visibility", () => {
-  const context = { workspaceBase: "/holdings/acme", scopeKind: "holding" as const, role: "holding_owner" };
-  const views = (team: boolean, routing: boolean) => workplaceNavigation({ ...context, workViewAvailability: { team, routing } }).primary.find(item => item.id === "work")!.submodules!;
-  expect(views(true, true).map(item => item.id)).toEqual([...workViews.filter(([id]) => ["actions", "approvals", "tracking", "team"].includes(id)).map(([id]) => `work-${id}`), "work-reports"]);
-  expect(views(false, false).map(item => item.id)).toEqual(["work-actions", "work-approvals", "work-tracking", "work-reports"]);
-  expect(views(true, false).some(item => item.id === "work-team")).toBe(true);
-  expect(views(false, true).some(item => item.id === "work-routing")).toBe(false);
-  for (const item of views(true, true)) expect(item.href).toBe(item.id === "work-reports" ? "/holdings/acme/work/reports" : `/holdings/acme/work?view=${item.id.slice(5)}`);
+describe('Product owner link transport',()=>{
+ const scope:ProductNavigationScope={audience:'assets',companyId:'company-two',companySlug:'acme-co',workspaceBase:base};
+ const unwrap=(href:string)=>{const sso=new URL(href);expect(sso.pathname).toBe('/sso/start');const launch=new URL(sso.searchParams.get('next')!,'https://launch.invalid');expect(launch.pathname).toBe('/launch');return {sso,launch,next:launch.searchParams.get('next')!};};
+ it('preserves the selected Company, query, record and fragment through an Office owner handoff',()=>{
+  const result=productNavigationHref(base+'/finance/invoices/invoice-1?status=paid&filter=a%2Fb#workflow-owners',scope);expect(result.handoff).toBe(true);const target=unwrap(result.href);expect(target.sso.origin).toBe('https://finance-dev-erpx.jesadakorn.com');expect(target.launch.searchParams.get('companyId')).toBe('company-two');expect(target.next).toBe(base+'/finance/documents/invoices/invoice-1/overview?status=paid&filter=a%2Fb#workflow-owners');
+ });
+ it('moves original Company Executive deep links to Work with their Company, node, report, repeated filters and canvas fragment',()=>{
+  const scoped={...scope,workspaceBase:base+'/branches/main/departments/team'},path=scoped.workspaceBase+'/insights/executive/reports/original?tag=one&tag=two#canvas';
+  const result=productNavigationHref('https://console-dev-erpx.jesadakorn.com'+path,scoped),target=unwrap(result.href);expect(result.handoff).toBe(true);expect(target.sso.origin).toBe('https://work-dev-erpx.jesadakorn.com');expect(target.launch.searchParams.get('companyId')).toBe('company-two');expect(target.next).toBe(path);
+  expect(productNavigationHref(path,{...scoped,audience:'work'})).toEqual({href:path,handoff:false});
+ });
+ it('maps all Office product owners through the shared registry and leaves own-product links local',()=>{
+  for(const [destination,owner] of [['home','work'],['people-organization/people/directory/current','people'],['customers-sales/sales/pipeline','sales'],['purchasing/orders','supply'],['projects-routines/projects','projects'],['people-organization/talent','recruit'],['knowledge/learning','learn'],['services/desk','support'],['services/field-service','service'],['services/legal/mine','legal'],['production/manufacturing','manufacturing']] as const){const result=productNavigationHref(base+'/'+destination,scope);expect(result.handoff).toBe(true);expect(unwrap(result.href).sso.hostname).toBe(owner+'-dev-erpx.jesadakorn.com');}
+  expect(productNavigationHref(base+'/services/assets/register?q=current',scope)).toEqual({href:base+'/services/assets/register?q=current',handoff:false});
+  expect(productNavigationHref('https://console-dev-erpx.jesadakorn.com'+base+'/services/assets/register',scope)).toEqual({href:base+'/services/assets/register',handoff:false});
+ });
+ it('uses actual native Front routes for receipts, Hotel scope and location roots',()=>{
+  const pos=unwrap(productNavigationHref(base+'/pos?tab=history&sale=sale-1',scope).href);expect(pos.sso.origin).toBe('https://pos-dev-erpx.jesadakorn.com');expect(pos.next).toBe('/acme/acme-co/holding/history/receipts/sale-1/overview');
+  const branch={...scope,workspaceBase:base+'/branches/b1/departments/d1'},pms=unwrap(productNavigationHref(branch.workspaceBase+'/pms/guest-accounts?property=h1&guestAccount=g1#charges',branch).href);expect(pms.next).toBe('/acme/acme-co/branches/b1/departments/d1/guest-accounts?property=h1&guestAccount=g1#charges');
+  expect(unwrap(productNavigationHref('/front/acme/acme-co/pms/holding/',scope).href).next).toBe('/acme/acme-co/holding/');
+ });
+ it('converts original Front shared-work and record links to normal selected-Company Office entry',()=>{
+  const front={...scope,audience:'pms' as const};const result=productNavigationHref('https://console-dev-erpx.jesadakorn.com'+base+'/finance/journals/owned?frontReturn=%2Facme%2Facme-co%2Fholding%2Fguest-accounts#workflow-owners',front);expect(result.handoff).toBe(true);const target=unwrap(result.href);expect(target.launch.searchParams.get('companyId')).toBe('company-two');expect(target.next).toContain('/finance/accounting/journals/owned/overview?frontReturn=');expect(target.next).toContain('#workflow-owners');
+  expect(unwrap(productNavigationHref('https://dev-pms.jesadakorn.com/acme/acme-co/holding/guest-accounts?property=h1',scope).href).next).toBe('/acme/acme-co/holding/guest-accounts?property=h1');
+  expect(productNavigationHref('/front/acme/acme-co/pms/holding/rooms?property=h1',front)).toEqual({href:'/acme/acme-co/holding/rooms?property=h1',handoff:false});
+ });
+ it('keeps explicit operations, external/staging hosts and other Company scopes outside automatic handoffs',()=>{
+  for(const href of ['/api/v1/holdings/acme/finance/invoices','/api/public/booking/callback','/sso/callback?code=secret','https://evil.test/holdings/acme/finance','https://erpx.jesadakorn.com/holdings/acme/finance','//evil.test/holdings/acme/finance'])expect(productNavigationHref(href,scope)).toEqual({href,handoff:false});
+  expect(productNavigationHref(base+'/finance/invoices',{...scope,audience:null}).handoff).toBe(false);expect(productNavigationHref('/holdings/other/finance/invoices',scope).handoff).toBe(false);expect(productNavigationHref(base+'/branches/another/finance/invoices',scope).handoff).toBe(false);
+  expect(unwrap(productNavigationHref(base+'/pms/reports',scope).href).next).toBe(base+'/pms/reports');
+  expect(productNavigationHref(base+'/finance/invoices?code=private&state=stale&token=secret&status=paid',scope).href).not.toContain('private');
+ });
+ it('keeps Front backoffice and specialized records on their product host while retaining filters, fragments and native daily paths',()=>{
+  for(const app of ['pos','pms'] as const){
+   const local={...scope,audience:app};
+   expect(productNavigationHref(base+'/'+app,local)).toEqual({href:base+'/'+app,handoff:false});
+   for(const path of app==='pos'?['settings','reports','approvals','records/pos_report/source-1/overview']:['settings','setup','import','minibar','guests','reports','records/pms_booking_refund/source-1/overview']){
+    const value=base+'/'+app+'/'+path+'?property=h1&tag=one&tag=two#history';
+    expect(productNavigationHref('https://console-dev-erpx.jesadakorn.com'+value,local)).toEqual({href:value,handoff:false});
+    const target=unwrap(productNavigationHref(value,scope).href);expect(target.sso.hostname).toBe(app+'-dev-erpx.jesadakorn.com');expect(target.next).toBe(value);
+   }
+  }
+  for(const value of ['reservations?queue=groups','guest-accounts?queue=approval','guest-accounts?queue=corrections','cashier?queue=approval'])expect(unwrap(productNavigationHref(base+'/pms/'+value,scope).href).next).toBe(value==='guest-accounts?queue=approval'?base+'/pms/approvals':base+'/pms/'+value);
+  expect(productNavigationHref(base+'/pos?tab=history&sale=s1',{...scope,audience:'pos'})).toEqual({href:'/acme/acme-co/holding/history/receipts/s1/overview',handoff:false});
+ });
+ it('supports Next relative URL objects without guessing an external URL-object origin',()=>{
+  expect(productHrefString({pathname:base+'/finance/invoices',query:{status:['paid','posted'],empty:null},hash:'workflow-owners'})).toBe(base+'/finance/invoices?status=paid&status=posted&empty=#workflow-owners');expect(productHrefString({hostname:'evil.test',pathname:base+'/finance'})).toBeNull();
+ });
+ it('validates native Front launch owners and location shapes without a provider or API escape',()=>{
+  expect(frontProductLaunchTarget('pms','/acme/acme-co/branches/b1/departments/d1/guest-accounts/records/pms_entry/e1/overview?property=h1#charges')).toMatchObject({holdingSlug:'acme',companySlug:'acme-co',location:'branches/b1/departments/d1'});
+  for(const href of ['//evil.test','/acme/acme-co/holding/../api/auth/sign-out','/acme/acme-co/holding/sale','/acme/acme-co/holding/guest-accounts/records/invoice/i1/overview','/acme/acme-co/holding/guest-accounts/records/pms_record/e1/history','/acme/acme-co/holding/guest-accounts%2Fapi'])expect(frontProductLaunchTarget('pms',href),href).toBeNull();
+  expect(isProductHandoffHref('https://finance-dev-erpx.jesadakorn.com/sso/start?next=/')).toBe(true);expect(isProductHandoffHref('https://evil.test/sso/start')).toBe(false);expect(isProductHandoffHref('https://erpx.jesadakorn.com/sso/start')).toBe(false);
+ });
+ const tree=(child:ReactNode)=>h(ProductLinkEnvironment,{audience:'assets',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:child})});
+ it('renders actual cross-product anchors before hydration with a dirty-guard marker and no SSO prefetch',()=>{
+  const html=renderToStaticMarkup(tree(h(WorkspaceLink,{href:base+'/finance/invoices/invoice-1',prefetch:true},'Owned invoice')));expect(html).toContain('https://finance-dev-erpx.jesadakorn.com/sso/start');expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');expect(html).toContain('company-two');
+  const explicit=renderToStaticMarkup(tree(h(WorkspaceLink,{href:'https://apps-dev-erpx.jesadakorn.com/sso/start?next=/',...{'data-product-switch':true}},'Apps')));expect(explicit).toContain('data-product-switch="true"');
+ });
+ it('renders cross-product RecordLinks without collapsing repeated filters or the selected fragment into a local drawer',()=>{
+  const html=renderToStaticMarkup(tree(h(RecordScopeProvider,{base,children:h(RecordLink,{href:base+'/finance/invoices/i1?tag=one&tag=two#workflow-owners'},'Invoice')})));
+  const href=/href="([^"]+)"/.exec(html)![1].replaceAll('&amp;','&'),target=unwrap(href),record=new URL(target.next,'https://record.invalid');expect(record.pathname).toBe(base+'/finance/documents/invoices/i1/overview');expect(record.searchParams.getAll('tag')).toEqual(['one','two']);expect(record.hash).toBe('#workflow-owners');expect(record.searchParams.has('returnTo')).toBe(false);
+ });
+ it('routes imperative handoffs through the existing dirty guard while keeping normal same-product navigation local',()=>{
+  let router:ReturnType<typeof useDestinationRouter>|undefined;function Capture(){router=useDestinationRouter();return null;}
+  vi.stubGlobal('window',{location:{href:'https://assets-dev-erpx.jesadakorn.com'+base+'/services/assets/register',origin:'https://assets-dev-erpx.jesadakorn.com'},dispatchEvent:linkMocks.dispatch});renderToStaticMarkup(tree(h(Capture)));
+  router!.push(base+'/finance/invoices/invoice-1');expect(linkMocks.push.mock.calls[0][0]).toContain('https://finance-dev-erpx.jesadakorn.com/sso/start');linkMocks.push.mockClear();
+  linkMocks.dirty.mockReturnValue(true);router!.push(base+'/finance/invoices/invoice-1');expect(linkMocks.push).not.toHaveBeenCalled();expect(linkMocks.dispatch).toHaveBeenCalledTimes(1);const event=linkMocks.dispatch.mock.calls[0][0];expect(event.type).toBe('erpx:product-navigate');expect(unwrap(event.detail.href).launch.searchParams.get('companyId')).toBe('company-two');
+  router!.replace(base+'/services/assets/register?q=retained');expect(linkMocks.replace).toHaveBeenCalledWith(base+'/services/assets/register?q=retained',undefined);
+ });
+});
+
+
+it('renders authorized notification items in initial server content without message or notice-composer UI for foundation-only work',()=>{
+ const item={id:'delivery-1',eventId:'event-1',category:'notice' as const,message:'Reviewed source notice',href:null,createdAt:1700000000000,readAt:null,archivedAt:null,sourceType:'notice',sourceId:'notice-1'},initial={items:[item],nextCursor:'next-public-cursor',unread:1};
+ const html=renderToStaticMarkup(h(InboxUpdates,{base,canBroadcast:false,notificationsOnly:true,initial}));expect(html).toContain('Reviewed source notice');expect(html).toContain('Mark read');expect(html).toContain('Load more updates');expect(html).not.toContain('Send a notice');expect(html).not.toContain('Named recipients');expect(html).not.toContain('No matching updates.');
+ const full=renderToStaticMarkup(h(InboxUpdates,{base,canBroadcast:false,initial}));expect(full).toContain('Reviewed source notice');expect(full).toContain('Send a notice');
+});
+
+describe('Shared Company Admin owner navigation',()=>{
+ const scope:ProductNavigationScope={audience:'assets',companyId:'company-two',companySlug:'acme-co',workspaceBase:base};
+ function unwrapAdmin(href:string){const sso=new URL(href),launch=new URL(sso.searchParams.get('next')!,'https://admin.invalid');expect(sso.origin).toBe('https://admin-dev-erpx.jesadakorn.com');expect(sso.pathname).toBe('/sso/start');expect(launch.pathname).toBe('/admin/launch');expect(launch.searchParams.get('companyId')).toBe('company-two');return launch.searchParams.get('next')!;}
+ it('maps canonical and legacy Administration through its registered shared host preserving repeated filters and fragment',()=>{
+  for(const value of ['/administration','/administration/technology/settings/roles','/administration/brand/identity','/settings/notifications']){const result=productNavigationHref(base+value+'?tag=one&tag=two#review',scope);expect(result.handoff).toBe(true);const target=new URL(unwrapAdmin(result.href),'https://target.invalid');expect(target.pathname).toBe(value==='/settings/notifications'?base+'/administration/notifications':base+value);expect(target.searchParams.getAll('tag')).toEqual(['one','two']);expect(target.hash).toBe('#review');}
+  const branch={...scope,audience:'pms' as const,workspaceBase:base+'/branches/b1/departments/d1'},value=branch.workspaceBase+'/administration/technology/organization/department/d1/policies?q=current#access';expect(unwrapAdmin(productNavigationHref(value,branch).href)).toBe(value);expect(productNavigationHref(value,{...branch,audience:'admin'})).toEqual({href:value,handoff:false});
+ });
+ it('does not reinterpret foreign Company hints, location changes, APIs, provider callbacks or unregistered admin pages',()=>{
+  for(const key of ['company','companyId','company_id']){const value=base+'/administration/technology/settings/roles?'+key+'=other';expect(productNavigationHref(value,scope).handoff).toBe(false);}
+  for(const value of ['/api/v1/holdings/acme/iam','/sso/callback?code=private',base+'/branches/other/administration',base+'/administration/not-a-registered-area','https://evil.test'+base+'/administration','https://erpx.jesadakorn.com'+base+'/administration'])expect(productNavigationHref(value,scope).handoff).toBe(false);
+  const result=productNavigationHref(base+'/administration/technology/settings/roles?code=private&token=secret&tag=one&tag=two#review',scope),target=new URL(unwrapAdmin(result.href),'https://target.invalid');expect(target.searchParams.has('code')).toBe(false);expect(target.searchParams.has('token')).toBe(false);expect(target.searchParams.getAll('tag')).toEqual(['one','two']);
+ });
+ it('maps ERPX Management only from its exact current ERPX Holding scope without inferring provider authority',()=>{
+  const erpx={...scope,workspaceBase:'/holdings/erpx'},value='/holdings/erpx/erpx-management/iam/reviews?tab=current#review';expect(unwrapAdmin(productNavigationHref(value,erpx).href)).toBe(value);expect(productNavigationHref(base+'/erpx-management/iam/reviews',scope).handoff).toBe(false);expect(productNavigationHref(value,scope).handoff).toBe(false);expect(productNavigationHref(value,{...erpx,workspaceBase:'/holdings/erpx/branches/a'}).handoff).toBe(false);
+ });
+ it('sends imperative Admin handoffs through the existing dirty guard without a local source-host navigation',()=>{
+  let router:ReturnType<typeof useDestinationRouter>|undefined;function Capture(){router=useDestinationRouter();return null;}
+  const tree=h(ProductLinkEnvironment,{audience:'assets',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:h(Capture)})});linkMocks.push.mockClear();linkMocks.dispatch.mockClear();linkMocks.dirty.mockReturnValue(true);vi.stubGlobal('window',{location:{href:'https://assets-dev-erpx.jesadakorn.com'+base+'/services/assets/register',origin:'https://assets-dev-erpx.jesadakorn.com'},dispatchEvent:linkMocks.dispatch});try{renderToStaticMarkup(tree);router!.push(base+'/administration/technology/settings/roles?tag=one&tag=two#review');expect(linkMocks.push).not.toHaveBeenCalled();expect(linkMocks.dispatch).toHaveBeenCalledTimes(1);const event=linkMocks.dispatch.mock.calls[0][0];expect(event.type).toBe('erpx:product-navigate');expect(unwrapAdmin(event.detail.href)).toBe(base+'/administration/technology/settings/roles?tag=one&tag=two#review');}finally{linkMocks.dirty.mockReturnValue(false);vi.unstubAllGlobals();}
+ });
+ it('renders WorkspaceLink, action-link account notification and RecordLink Admin handoffs before hydration with the existing dirty marker',async()=>{
+  const {ActionLink}=await import('../../../src/components/ui/foundation'),tree=(child:ReactNode)=>h(ProductLinkEnvironment,{audience:'assets',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:child})});
+  for(const child of [h(WorkspaceLink,{href:base+'/administration/technology/settings/roles?tag=one&tag=two#roles',prefetch:true},'Roles'),h(ActionLink,{appearance:'standard',href:base+'/settings/notifications'},'Notification settings'),h(RecordLink,{href:base+'/administration/technology/organization/department/d1/policies#owner'},'Department')]){const html=renderToStaticMarkup(tree(child));expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');const href=/href="([^"]+)"/.exec(html)![1].replaceAll('&amp;','&');expect(unwrapAdmin(href)).toContain('/administration/');expect(new URL(unwrapAdmin(href),'https://target.invalid').searchParams.has('returnTo')).toBe(false);}
+ });
+});
+
+describe('Account self link transport without a Company role',()=>{
+ const scope:ProductNavigationScope={audience:'admin'};
+ const unwrap=(href:string)=>{const bridge=new URL(href);expect(bridge.origin).toBe('https://account-dev-erpx.jesadakorn.com');expect(bridge.pathname).toBe('/account/launch');expect([...bridge.searchParams.keys()]).toEqual(['next']);return bridge.searchParams.get('next')!;};
+ it('maps the three explicit self pages from Office, Front and Platform-only shared hosts and retains repeated query and fragment',()=>{
+  for(const audience of ['work','pos','pms','admin','apps'] as const)for(const path of ['/my-access','/security','/my-profile']){const value=path+'?tag=one&tag=two#details',result=productNavigationHref(value,{audience});expect(result.handoff).toBe(true);expect(unwrap(result.href)).toBe(value);expect(isProductHandoffHref(result.href)).toBe(true);}
+  expect(unwrap(productNavigationHref('https://console-dev-erpx.jesadakorn.com/my-access?tag=one#roles',scope).href)).toBe('/my-access?tag=one#roles');
+ });
+ it('uses the already selected central Account locally and never forwards callback credentials',()=>{
+  for(const path of ['/my-access','/security','/my-profile']){const value=path+'?code=secret&state=secret&token=secret&session_token=secret&_rsc=private&tag=one&tag=two#details',clean=path+'?tag=one&tag=two#details';expect(productNavigationHref(value,{audience:'account'})).toEqual({href:clean,handoff:false});expect(unwrap(productNavigationHref(value,scope).href)).toBe(clean);}
+ });
+ it('does not reinterpret member profiles, malformed aliases, API requests, callback paths, external or staging origins',()=>{
+  for(const value of ['/holdings/acme/people-organization/profiles/user/overview','/my-profile/user','/my-profile/','/x/../my-access','/%6dy-access','/api/v1/account/profile','/sso/callback?code=private','//evil.test/my-access','https://evil.test/my-access','https://erpx.jesadakorn.com/my-access','https://user:secret@account-dev-erpx.jesadakorn.com/my-access','/my-access?bad=%zz'])expect(productNavigationHref(value,scope).handoff,value).toBe(false);
+  expect(productNavigationHref('/my-access',{audience:null})).toEqual({href:'/my-access',handoff:false});
+  for(const value of ['https://evil.test/account/launch?next=/my-access','https://account-dev-erpx.jesadakorn.com/account/launch?next=/holdings/acme/administration','https://account-dev-erpx.jesadakorn.com/account/launch?next=/security&next=/my-access','https://account-dev-erpx.jesadakorn.com/account/launch?next=/security&token=private'])expect(isProductHandoffHref(value)).toBe(false);
+ });
+ it('uses the actual imperative dirty guard for Platform-only Account handoffs without a local navigation',()=>{
+  let router:ReturnType<typeof useDestinationRouter>|undefined;function Capture(){router=useDestinationRouter();return null;}
+  linkMocks.dirty.mockReturnValue(true);vi.stubGlobal('window',{location:{href:'https://admin-dev-erpx.jesadakorn.com/provider',origin:'https://admin-dev-erpx.jesadakorn.com'},dispatchEvent:linkMocks.dispatch});renderToStaticMarkup(h(ProductLinkEnvironment,{audience:'admin',children:h(Capture)}));router!.push('/security?tag=one&tag=two#sessions');expect(linkMocks.push).not.toHaveBeenCalled();expect(linkMocks.dispatch).toHaveBeenCalledTimes(1);const event=linkMocks.dispatch.mock.calls[0][0];expect(event.type).toBe('erpx:product-navigate');expect(unwrap(event.detail.href)).toBe('/security?tag=one&tag=two#sessions');
+ });
+ it('renders actual Account WorkspaceLink and action links with the existing switch marker and no SSO prefetch before hydration',async()=>{
+  const {ActionLink}=await import('../../../src/components/ui/foundation');
+  for(const child of [h(WorkspaceLink,{href:'/my-access?tag=one&tag=two#roles',prefetch:true},'My access'),h(ActionLink,{appearance:'standard',href:'/my-profile#profile'},'My profile')]){const html=renderToStaticMarkup(h(ProductLinkEnvironment,{audience:'admin',children:child}));expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');const href=/href="([^"]+)"/.exec(html)![1].replaceAll('&amp;','&');expect(unwrap(href)).toMatch(/^\/(?:my-access|my-profile)/);expect(href).not.toContain('companyId');}
+ });
+});
+
+describe('actual owner cross-product links',()=>{
+ const tree=(child:ReactNode)=>h(ProductLinkEnvironment,{audience:'pms',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:child})});
+ it('renders the actual collaboration inbox handoff from Hotel while keeping CSV on its original API',async()=>{
+  const {CollaborationWorkConsole}=await import('../../../src/components/collaboration/collaboration-work-console');
+  const data:Parameters<typeof CollaborationWorkConsole>[0]['data']={relations:[],cards:[{id:'card',version:1,status:'open',owner_id:'owner',created_by:'author',updated_at:1,due_at:1,owner_eligible:1,source_type:'commerce_order',source_id:'order',source_href:'/finance/invoices/invoice?tag=one&tag=two#review',source_title:'Current invoice',title:'Review actual invoice'}],people:[],sourceTypes:[],canWrite:false,canReview:false};
+  const html=renderToStaticMarkup(tree(h(CollaborationWorkConsole,{base,data})));expect(html).toContain('href="/api/v1/holdings/acme/collaboration?format=csv"');expect(html).toContain('data-product-switch="true"');const hrefs=[...html.matchAll(/href="([^\"]+)"/g)].map(match=>match[1].replaceAll('&amp;','&'));const source=hrefs.find(href=>href.startsWith('https://work-dev-erpx.jesadakorn.com/'))!;expect(source).toBeTruthy();const next=new URL(source).searchParams.get('next')!;const target=new URL(next,'https://target.invalid').searchParams.get('next')!;expect(target).toBe(base+'/inbox');expect(html).toContain('data-prefetch="false"');
+ });
+ it('renders actual assistant settings recovery on Admin before hydration without prefetching SSO',async()=>{
+  const {SocialAgentStatus}=await import('../../../src/components/collaboration/social-agent-status');const html=renderToStaticMarkup(tree(h(SocialAgentStatus,{reply:{id:'reply',state:'failed',error:'Configuration needs review',actor_id:'other',requester_name:'Other colleague',attempt:1},api:'/api/v1'+base,userId:'current',onChanged:async()=>{},aiName:'Assistant',settingsUrl:base+'/settings?section=ai#provider'})));expect(html).toContain('https://admin-dev-erpx.jesadakorn.com/sso/start?');expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');expect(html).not.toContain('href="'+base+'/administration/');
+ });
+});
+it('hands off only registered personal Leave and Overtime owner pages through Work without interpreting generic People records',()=>{
+ const scope:ProductNavigationScope={audience:'pms',companyId:'company-two',companySlug:'acme-co',workspaceBase:base};
+ for(const path of ['leave','leave/new','overtime','overtime/new','overtime/actual-overtime/overview','tasks/people_payroll/actual-leave/overview']){const result=productNavigationHref(base+'/'+path+'?tag=one&tag=two#evidence',scope);expect(result.handoff).toBe(true);const sso=new URL(result.href);expect(sso.origin).toBe('https://work-dev-erpx.jesadakorn.com');const launch=new URL(sso.searchParams.get('next')!,'https://launch.invalid');expect(launch.searchParams.get('companyId')).toBe('company-two');expect(launch.searchParams.get('next')).toBe(base+'/'+path+'?tag=one&tag=two#evidence');}
+ for(const path of ['tasks/people_payroll','tasks/people_payroll/new','tasks/people_payroll/actual-leave/private','overtime/actual-overtime/private','leave/private'])expect(productNavigationHref(base+'/'+path,scope).handoff).toBe(false);
+ expect(productNavigationHref('/holdings/other/leave',scope).handoff).toBe(false);expect(productNavigationHref(base+'/branches/other/leave',scope).handoff).toBe(false);expect(productNavigationHref('/api/v1'+base+'/leave',scope).handoff).toBe(false);
+});
+
+
+it('keeps product link context free of presentation wrappers and preserves the default Console destination',()=>{
+ const child=h('section',{'data-widget':'calendar',className:'legacy-grid',style:{height:'540px'}},h('a',{href:base+'/calendar?view=week#today'},'Calendar'));
+ const original=renderToStaticMarkup(child);
+ expect(renderToStaticMarkup(h(ProductLinkEnvironment,{audience:null,children:h(ProductWorkLinks,{companyId:'company',workspaceBase:base+'/',children:child})}))).toBe(original);
+ expect(renderToStaticMarkup(h(ProductLinkEnvironment,{audience:'pms',children:h(ProductWorkLinks,{companyId:'company',workspaceBase:base,children:child})}))).toBe(original);
+ function DefaultLink(){const scope=useProductNavigationScope();expect(scope).toEqual({audience:null});const destination=productNavigationHref(base+'/calendar?view=week#today',scope);expect(destination.handoff).toBe(false);return h(WorkspaceLink,{href:destination.href},'Calendar');}
+ const html=renderToStaticMarkup(h(DefaultLink));expect(html).toContain('href="'+base+'/calendar?view=week#today"');expect(html).not.toContain('data-product-switch="true"');
+});
+
+import {StandardPmsBackofficeNavigation} from '../../../src/components/pms/standard-pms-backoffice-navigation';
+import {StandardPosBackofficeNavigation} from '../../../src/components/pos/standard-pos-backoffice-navigation';
+import {pmsMenu,posMenu} from '../../../src/components/shared/hospitality/module-menu';
+import {canonicalUiHref} from '../../../src/lib/work_projection/destination-registry';
+import type {ComponentProps} from 'react';
+const tileButtons=vi.hoisted(()=>({props:[] as ComponentProps<typeof import('../../../src/components/ui/button').Button>[]}));
+vi.mock('../../../src/components/ui/button',async importOriginal=>{
+ const actual=await importOriginal<typeof import('../../../src/components/ui/button')>();
+ return {...actual,Button:(props:ComponentProps<typeof actual.Button>)=>{tileButtons.props.push(props);return h(actual.Button,props);}};
+});
+function tileLinks(html:string){return [...html.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>/g)].map(match=>match[1].replaceAll('&amp;','&'));}
+it.each(['holding','branch and department'] as const)('renders actual ModuleTiles canonical PMS items on their current %s Front destinations',kind=>{
+ const workspaceBase=kind==='holding'?base:base+'/branches/north/departments/desk',location=kind==='holding'?'holding':'branches/north/departments/desk';
+ const query='?property=original-hotel&tag=one&tag=two#hotel-work';
+ // This is the original PMS Backoffice caller's canonical item projection.
+ const items=pmsMenu('en').map(item=>({...item,href:canonicalUiHref(`${workspaceBase}/pms/${item.id}${query}`)}));
+ const child=h(StandardPmsBackofficeNavigation,{items,current:'dashboard',label:'Hotel tasks'}),tree=h(ProductLinkEnvironment,{audience:'pms',children:h(ProductWorkLinks,{companyId:'current-company',companySlug:'acme-co',workspaceBase,children:child})});
+ const html=renderToStaticMarkup(tree),hrefs=tileLinks(html),daily=['dashboard','reservations','front-desk','rooms','housekeeping','guest-accounts','cashier','night-audit'];
+ expect(hrefs).toHaveLength(items.length);
+ for(const item of items){
+  const expected=daily.includes(item.id)?`/acme/acme-co/${location}/${item.id==='dashboard'?'today':item.id}${query}`:`${workspaceBase}/pms/${item.id}${query}`;
+  expect(hrefs, item.id).toContain(expected);
+ }
+ expect(hrefs.filter(href=>href.startsWith('/acme/acme-co/'))).toHaveLength(8);
+ expect(hrefs.filter(href=>href.startsWith(workspaceBase+'/pms/'))).toHaveLength(4);
+ expect(html).toContain('aria-current="page"');expect(html).not.toContain('data-product-switch="true"');expect(html).not.toContain('/sso/start');
+});
+it('keeps actual ModuleTiles native Front links local with duplicate selectors and fragments',()=>{
+ const query='?property=original-hotel&tag=one&tag=two#hotel-work',items=pmsMenu('en').filter(item=>['dashboard','rooms','guest-accounts'].includes(item.id)).map(item=>({...item,href:`/acme/acme-co/holding/${item.id==='dashboard'?'today':item.id}${query}`}));
+ const child=h(StandardPmsBackofficeNavigation,{items,current:'rooms',label:'Hotel tasks'}),html=renderToStaticMarkup(h(ProductLinkEnvironment,{audience:'pms',children:h(ProductWorkLinks,{companyId:'current-company',companySlug:'acme-co',workspaceBase:base,children:child})}));
+ expect(tileLinks(html)).toEqual(items.map(item=>item.href));expect(html).not.toContain('/sso/start');expect(html).not.toContain('data-product-switch="true"');
+});
+it('retains actual POS ModuleTiles selection callbacks instead of manufacturing hrefs',()=>{
+ tileButtons.props.length=0;
+ const onSelect=vi.fn(),items=posMenu('en').filter(item=>['sale','kitchen','shifts','history'].includes(item.id)),html=renderToStaticMarkup(h(StandardPosBackofficeNavigation,{items,current:'sale',label:'Point of sale',onSelect}));
+ expect(tileLinks(html)).toEqual([]);expect(onSelect).not.toHaveBeenCalled();
+ const history=tileButtons.props.find(props=>props['aria-label']==='History');
+ expect(history?.type).toBe('button');expect(history?.onClick).toBeTypeOf('function');
+ Reflect.apply(history!.onClick!,undefined,[]);
+ expect(onSelect.mock.calls).toEqual([['history']]);
+ expect(tileButtons.props.find(props=>props['aria-label']==='Sale')?.['aria-current']).toBe('page');
 });

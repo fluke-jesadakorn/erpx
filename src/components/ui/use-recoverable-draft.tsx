@@ -98,6 +98,8 @@ export function useRecoverableDraft<T extends Record<string, string>>(
     update,
     receiveAi,
     clear,
+    discard,
+    dirty: JSON.stringify(state.fields) !== state.baseline,
     conflict,
     notice: conflict ? (
       <div className="notice" role="alert">

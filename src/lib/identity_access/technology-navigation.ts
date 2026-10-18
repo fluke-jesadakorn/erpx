@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { routeContextHref, type RouteSearch } from "@/lib/shared/route-context";
 
 export const technologySections = {

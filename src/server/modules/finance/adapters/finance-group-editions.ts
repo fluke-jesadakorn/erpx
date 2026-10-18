@@ -1,3 +1,5 @@
+import { withFinancePurchasedCommand, withFinancePurchasedRead } from "./purchase-boundary";
+import { groupCompanyPurchases, groupEditionPurchases, requireGroupCompanyHistory, groupHistoryPredicate, groupSourceSql, groupEditionHistorySql, groupRecordHistorySql } from "./group-purchase-sources";
 import {groupReportingPersonNames} from '../../people_payroll/public/finance-group-person-facts';
 import { intercompanyPairSchema } from '../public/finance-intercompany-pairs';
 import { fiscalCloseSourceSql, capturedFiscalClose } from "@/server/modules/finance/public/finance-fiscal-close-source";
@@ -23,9 +25,11 @@ import { BusinessRuleError } from '../../shared';
 import type { SqlStatement } from '../../runtime/public/runtime/types';
 export { groupReportEditionSchema } from '../domain/finance-group-editions';
 export { groupReportDecisionSchema } from '../domain/finance-group-editions';
-function nativePorts(provided?: SqlDatabase): FinanceGroupEditionsPorts<SqlStatement> {
+function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (company:string)=>string): FinanceGroupEditionsPorts<SqlStatement> {
     let database = provided!;
-    const repository: FinanceGroupEditionsRepository<SqlStatement> = { readSourceRegistration(holdingId: string, companyId: string, chartId: string) {
+    let historySql: (company:string)=>string = inheritedHistory ?? (()=>"TRUE");
+    const repository: FinanceGroupEditionsRepository<SqlStatement> = { async readSourceRegistration(holdingId: string, companyId: string, chartId: string) {
+            await requireGroupCompanyHistory(database,companyId);
             return database.prepare("SELECT e.id,e.company_id,e.reporting_name,e.functional_currency,e.version,c.name chart_name,c.base_currency,c.status chart_status FROM finance_group_entities e JOIN finance_charts c ON c.company_id=e.company_id WHERE e.holding_id=? AND e.company_id=? AND e.status='active' AND c.id=?")
                 .bind(holdingId, companyId, chartId)
                 .first<Row>();
@@ -81,7 +85,7 @@ function nativePorts(provided?: SqlDatabase): FinanceGroupEditionsPorts<SqlState
                 .first<Row>();
         },
         readGetR(id: string, holdingId: string, companyId: string) {
-            return database.prepare("SELECT * FROM finance_group_report_editions WHERE id=? AND holding_id=? AND company_id=?")
+            return database.prepare(groupSourceSql("SELECT * FROM finance_group_report_editions r WHERE id=? AND holding_id=? AND company_id=?", [groupEditionHistorySql("r",historySql)]))
                 .bind(id, holdingId, companyId)
                 .first<Row>();
         },
@@ -101,27 +105,27 @@ function nativePorts(provided?: SqlDatabase): FinanceGroupEditionsPorts<SqlState
                 .bind(value, userId, now, id);
         },
         readGroupReportEditionWorkspaceEffect(holdingId: string, companyId: string) {
-            return database.prepare("SELECT * FROM finance_group_report_editions WHERE holding_id=? AND company_id=? ORDER BY created_at DESC,id LIMIT 100")
+            return database.prepare(groupSourceSql("SELECT * FROM finance_group_report_editions r WHERE holding_id=? AND company_id=? ORDER BY created_at DESC,id LIMIT 100", [groupEditionHistorySql("r",historySql)]))
                 .bind(holdingId, companyId)
                 .all<Row>();
         },
         readGroupExpansionWorkspaceEditionsownershippairschartsperiodsaccountsdocumentscalculations(holdingId: string) {
-            return database.prepare("SELECT c.*,e.reporting_name FROM finance_charts c JOIN finance_group_entities e ON e.company_id=c.company_id AND e.holding_id=? AND e.status='active' WHERE c.status='active' ORDER BY e.reporting_name,c.name,c.id")
+            return database.prepare(groupSourceSql("SELECT c.*,e.reporting_name FROM finance_charts c JOIN finance_group_entities e ON e.company_id=c.company_id AND e.holding_id=? AND e.status='active' WHERE c.status='active' ORDER BY e.reporting_name,c.name,c.id", [historySql("c.company_id")]))
                 .bind(holdingId)
                 .all<Row>();
         },
         readGroupExpansionWorkspaceEditionsownershippairschartsperiodsaccountsdocumentscalculations2(holdingId: string) {
-            return database.prepare("SELECT p.* FROM finance_periods p JOIN finance_group_entities e ON e.company_id=p.company_id AND e.holding_id=? AND e.status='active' WHERE p.state='closed' ORDER BY p.start_date,p.id")
+            return database.prepare(groupSourceSql("SELECT p.* FROM finance_periods p JOIN finance_group_entities e ON e.company_id=p.company_id AND e.holding_id=? AND e.status='active' WHERE p.state='closed' ORDER BY p.start_date,p.id", [historySql("p.company_id")]))
                 .bind(holdingId)
                 .all<Row>();
         },
         readGroupExpansionWorkspaceEditionsownershippairschartsperiodsaccountsdocumentscalculations3(holdingId: string) {
-            return database.prepare("SELECT a.*,e.reporting_name FROM finance_accounts a JOIN finance_group_entities e ON e.company_id=a.company_id AND e.holding_id=? AND e.status='active' ORDER BY e.reporting_name,a.code,a.id")
+            return database.prepare(groupSourceSql("SELECT a.*,e.reporting_name FROM finance_accounts a JOIN finance_group_entities e ON e.company_id=a.company_id AND e.holding_id=? AND e.status='active' ORDER BY e.reporting_name,a.code,a.id", [historySql("a.company_id")]))
                 .bind(holdingId)
                 .all<Row>();
         },
         readGroupExpansionWorkspaceEditionsownershippairschartsperiodsaccountsdocumentscalculations4(holdingId: string) {
-            return database.prepare("SELECT j.id journal_id,j.company_id,j.chart_id,j.entry_date,j.currency,j.source_type,j.source_id,j.memo,e.reporting_name,a.id account_id,a.code,a.name,a.category,SUM(l.debit_minor-l.credit_minor) amount_minor FROM finance_journals j JOIN finance_group_entities e ON e.company_id=j.company_id AND e.holding_id=? AND e.status='active' JOIN finance_journal_lines l ON l.journal_id=j.id JOIN finance_accounts a ON a.id=l.account_id WHERE j.status='posted' GROUP BY j.id,e.reporting_name,a.id HAVING SUM(l.debit_minor-l.credit_minor)<>0 ORDER BY j.entry_date DESC,j.id,a.code LIMIT 1000")
+            return database.prepare(groupSourceSql("SELECT j.id journal_id,j.company_id,j.chart_id,j.entry_date,j.currency,j.source_type,j.source_id,j.memo,e.reporting_name,a.id account_id,a.code,a.name,a.category,SUM(l.debit_minor-l.credit_minor) amount_minor FROM finance_journals j JOIN finance_group_entities e ON e.company_id=j.company_id AND e.holding_id=? AND e.status='active' JOIN finance_journal_lines l ON l.journal_id=j.id JOIN finance_accounts a ON a.id=l.account_id WHERE j.status='posted' GROUP BY j.id,e.reporting_name,a.id HAVING SUM(l.debit_minor-l.credit_minor)<>0 ORDER BY j.entry_date DESC,j.id,a.code LIMIT 1000", [historySql("j.company_id")]))
                 .bind(holdingId)
                 .all<Row>();
         },
@@ -132,16 +136,17 @@ function nativePorts(provided?: SqlDatabase): FinanceGroupEditionsPorts<SqlState
         },
         readGroupRecordNamesPeople(companyId:string,ids:string[]){return groupReportingPersonNames(database,companyId,ids);},
         readGroupExpansionRecordRecord(holdingId: string, companyId: string, id: string, table: string) {
-            return database.prepare(`SELECT * FROM ${table} WHERE holding_id=? AND company_id=? AND id=?`)
+            return database.prepare(groupSourceSql(`SELECT * FROM ${table} WHERE holding_id=? AND company_id=? AND id=?`, [table === "finance_group_report_editions" ? groupEditionHistorySql(table,historySql) : groupRecordHistorySql(table === "finance_ownership_interests" ? "ownership" : table === "finance_acquisitions" ? "acquisition" : "pair",table,historySql)]))
                 .bind(holdingId, companyId, id)
                 .first<Row>();
         } };
     return { repository, parseIntercompanyPair: value => intercompanyPairSchema.parse(value), clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
+            historySql=await groupHistoryPredicate();
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, batch: effects => database.batch(effects), transaction: run => financeTransaction(database, tx => run(nativePorts(tx))), digestBytes: bytes => crypto.subtle.digest('SHA-256', bytes), capturedFiscalClose: (...args) => fromNativeSync(() => capturedFiscalClose(...args)), requirePermission: (...args) => fromNativeSync(() => requirePermission(...args)), requireFinanceTool: (...args) => fromNative(() => requireFinanceTool(database, ...args)), requireFinanceMoneyScale: (...args) => fromNative(() => requireFinanceMoneyScale(database, ...args)), sha256: (...args) => fromNative(() => sha256(...args)), groupOwnershipWorkspace: (...args) => fromNative(() => groupOwnershipWorkspace(...args)), intercompanyPairWorkspace: (...args) => fromNative(() => intercompanyPairWorkspace(...args)), intercompanyPairSource: (...args) => fromNative(() => intercompanyPairSource(database, ...args)) };
+        }, batch: effects => database.batch(effects), transaction: run => owned && provided ? run(nativePorts(provided,true,historySql)) : financeTransaction(database, tx => run(nativePorts(tx,true,historySql))), digestBytes: bytes => crypto.subtle.digest('SHA-256', bytes), capturedFiscalClose: (...args) => fromNativeSync(() => capturedFiscalClose(...args)), requirePermission: (...args) => fromNativeSync(() => requirePermission(...args)), requireFinanceTool: (...args) => fromNative(() => requireFinanceTool(database, ...args)), requireFinanceMoneyScale: (...args) => fromNative(() => requireFinanceMoneyScale(database, ...args)), sha256: (...args) => fromNative(() => sha256(...args)), groupOwnershipWorkspace: (...args) => fromNative(() => groupOwnershipWorkspace(...args)), intercompanyPairWorkspace: (...args) => fromNative(() => intercompanyPairWorkspace(...args)), intercompanyPairSource: (...args) => fromNative(() => intercompanyPairSource(database, ...args)) };
 }
-function application(provided?: SqlDatabase) { return createFinanceGroupEditionsApplication(nativePorts(provided)); }
+function application(provided?: SqlDatabase, owned = false) { return createFinanceGroupEditionsApplication(nativePorts(provided,owned)); }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {
         return await run();
@@ -172,11 +177,11 @@ async function invoke<Result>(run: () => Promise<Result>) {
         throw error;
     }
 }
-export async function prepareGroupReportEdition(actor: WorkContext, raw: z.input<typeof groupReportEditionSchema>, key: string) { return invoke(() => application().prepareGroupReportEdition(actor, raw, key)); }
-export async function decideGroupReportEdition(actor: WorkContext, id: string, raw: z.input<typeof groupReportDecisionSchema>, action: "approve" | "reject", key: string) { return invoke(() => application().decideGroupReportEdition(actor, id, raw, action, key)); }
-export async function groupReportEditionExport(actor: WorkContext, id: string) { return invoke(() => application().groupReportEditionExport(actor, id)); }
-export async function groupEditionSourceJournal(actor: WorkContext, id: string, journalId: string) { return invoke(() => application().groupEditionSourceJournal(actor, id, journalId)); }
-export async function groupReportEditionWorkspace(actor: WorkContext) { return invoke(() => application().groupReportEditionWorkspace(actor)); }
-export async function groupExpansionWorkspace(actor: WorkContext) { return invoke(() => application().groupExpansionWorkspace(actor)); }
-export async function groupExpansionRecord(actor: WorkContext, kind: "finance_group_edition" | "finance_group_ownership" | "finance_group_acquisition" | "finance_group_pair", id: string) { return invoke(() => application().groupExpansionRecord(actor, kind, id)); }
-export async function groupEditionAccountSources(actor: WorkContext, id: string, accountCode: string, page: number) { return invoke(() => application().groupEditionAccountSources(actor, id, accountCode, page)); }
+export async function prepareGroupReportEdition(actor: WorkContext, raw: z.input<typeof groupReportEditionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.group-edition.prepare",purpose:"settle-existing",capability:"finance.advanced",companyPurchases:()=>Promise.resolve(groupCompanyPurchases((raw.entities??[]).map(entity=>entity.companyId)))},tx=>invoke(()=>application(tx,true).prepareGroupReportEdition(actor,raw,key))); }
+export async function decideGroupReportEdition(actor: WorkContext, id: string, raw: z.input<typeof groupReportDecisionSchema>, action: "approve" | "reject", key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.group-edition.${action}`,purpose:"settle-existing",capability:"finance.advanced",companyPurchases:db=>groupEditionPurchases(db,actor,id)},tx=>invoke(()=>application(tx,true).decideGroupReportEdition(actor,id,raw,action,key))); }
+export async function groupReportEditionExport(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>invoke(()=>application(db).groupReportEditionExport(actor, id)),"finance.advanced"); }
+export async function groupEditionSourceJournal(actor: WorkContext, id: string, journalId: string) { return withFinancePurchasedRead(actor,db=>invoke(()=>application(db).groupEditionSourceJournal(actor, id, journalId)),"finance.advanced"); }
+export async function groupReportEditionWorkspace(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>invoke(()=>application(db).groupReportEditionWorkspace(actor)),"finance.advanced"); }
+export async function groupExpansionWorkspace(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>invoke(()=>application(db).groupExpansionWorkspace(actor)),"finance.advanced"); }
+export async function groupExpansionRecord(actor: WorkContext, kind: "finance_group_edition" | "finance_group_ownership" | "finance_group_acquisition" | "finance_group_pair", id: string) { return withFinancePurchasedRead(actor,db=>invoke(()=>application(db).groupExpansionRecord(actor, kind, id)),"finance.advanced"); }
+export async function groupEditionAccountSources(actor: WorkContext, id: string, accountCode: string, page: number) { return withFinancePurchasedRead(actor,db=>invoke(()=>application(db).groupEditionAccountSources(actor, id, accountCode, page)),"finance.advanced"); }

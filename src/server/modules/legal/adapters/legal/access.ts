@@ -1,3 +1,4 @@
+import {requireLegalItemPurchasedRead} from '../purchases';
 import {createLegalAccessApplication} from "../../application/access";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -59,7 +60,7 @@ function application(db:SqlDatabase,a:WorkContext){
   eligible:async(id,scope,permission)=>Boolean(await db.prepare("SELECT 1 WHERE legal_person_eligible(?,?,?,?,?)").bind(a.companyId,id,scope.branch_id,scope.department_id,permission).first()),
  }});
 }
-export function access(db:SqlDatabase,a:WorkContext,id:string,permission="legal.read"){return application(db,a).access(id,permission);}
+export async function access(db:SqlDatabase,a:WorkContext,id:string,permission="legal.read"){const item=await application(db,a).access(id,permission);await requireLegalItemPurchasedRead(db,a,item);return item;}
 export function lock(db: SqlDatabase, company: string) {
   return db
     .prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))")

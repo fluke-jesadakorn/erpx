@@ -1,3 +1,4 @@
+import {withFinancePurchasedCommand,withFinancePurchasedRead} from "./purchase-boundary";
 import { createWithholdingMonth } from '../application/withholding-month';
 import { createWithholdingMonthSource } from '../application/withholding-month-source';
 import "server-only";
@@ -26,8 +27,8 @@ function sourceGuards(db: SqlDatabase, actor: WorkContext, key: string, source: 
         ]),
     ];
 }
-export async function prepareWithholdingPackage(actor: WorkContext, input: z.input<typeof withholdingPackageSchema>, key: string) { return monthlyService().prepareWithholdingPackage(actor, input, key); }
-export async function decideWithholdingPackage(actor: WorkContext, id: string, input: z.input<typeof withholdingPackageDecisionSchema>, key: string) { return monthlyService().decideWithholdingPackage(actor, id, input, key); }
+export async function prepareWithholdingPackage(actor: WorkContext, input: z.input<typeof withholdingPackageSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.withholding.month.prepare",purpose:"settle-existing",capability:"finance.tax"},tx=>monthlyService(tx).prepareWithholdingPackage(actor, input, key)); }
+export async function decideWithholdingPackage(actor: WorkContext, id: string, input: z.input<typeof withholdingPackageDecisionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:`finance.withholding.month.${input.action}`,purpose:"settle-existing",capability:"finance.tax"},tx=>monthlyService(tx).decideWithholdingPackage(actor, id, input, key)); }
 async function bankEvidence(db: SqlDatabase, actor: WorkContext, input: {
     bankTransactionId: string;
     bankVersion: number;
@@ -38,10 +39,10 @@ function bankGuards(db: SqlDatabase, actor: WorkContext, key: string, row: Row, 
     bankVersion: number;
     bankReference: string;
 }, amount: number) { return [assertion(db, key, "monthly-bank", "EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND t.amount_minor=? AND t.external_id=? AND s.bank_account=?)", [input.bankTransactionId, actor.companyId, input.bankVersion, amount, input.bankReference, String(row.bank_account)]), assertion(db, key, "monthly-bank-account", "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status='active' AND control_kind='bank')", [String(row.bank_account), actor.companyId, Number(row.account_version)])]; }
-export async function remitWithholdingPackage(actor: WorkContext, id: string, input: z.input<typeof withholdingRemittanceSchema>, key: string) { return monthlyService().remitWithholdingPackage(actor, id, input, key); }
-export async function reverseWithholdingRemittance(actor: WorkContext, id: string, input: z.input<typeof withholdingRemittanceReversalSchema>, key: string) { return monthlyService().reverseWithholdingRemittance(actor, id, input, key); }
-export async function withholdingMonthlyWorkspace(actor: WorkContext) { return monthlyService().withholdingMonthlyWorkspace(actor); }
-export async function withholdingPackageExport(actor: WorkContext, id: string) { return monthlyService().withholdingPackageExport(actor, id); }
+export async function remitWithholdingPackage(actor: WorkContext, id: string, input: z.input<typeof withholdingRemittanceSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.withholding.month.remit",purpose:"settle-existing",capability:"finance.tax"},tx=>monthlyService(tx).remitWithholdingPackage(actor, id, input, key)); }
+export async function reverseWithholdingRemittance(actor: WorkContext, id: string, input: z.input<typeof withholdingRemittanceReversalSchema>, key: string) { return withFinancePurchasedCommand(actor,{key:key,operation:"finance.withholding.month.reverse",purpose:"settle-existing",capability:"finance.tax"},tx=>monthlyService(tx).reverseWithholdingRemittance(actor, id, input, key)); }
+export async function withholdingMonthlyWorkspace(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>monthlyService(db).withholdingMonthlyWorkspace(actor),"finance.tax"); }
+export async function withholdingPackageExport(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>monthlyService(db).withholdingPackageExport(actor, id),"finance.tax"); }
 function monthlySource(db: SqlDatabase) {
     return createWithholdingMonthSource({ error: (...args) => new ApiError(...args), monthlyRows: async (actor, month, formKind) => (await db.prepare(`SELECT a.id,a.version,a.payment_id,a.payment_date,a.tax_minor,a.income_minor,a.source_fingerprint,a.source_snapshot_json,p.version payment_version,p.journal_id,j.entry_date confirmed_date,
   (SELECT d.id FROM finance_issued_thai_documents d WHERE d.assessment_id=a.id AND NOT EXISTS(SELECT 1 FROM finance_thai_document_events e WHERE e.document_id=d.id AND e.action IN ('cancelled','superseded')) ORDER BY d.edition DESC LIMIT 1) document_id,
@@ -55,8 +56,8 @@ function monthlySource(db: SqlDatabase) {
             id: string;
         }>()).results });
 }
-function monthlyService() {
-    let pending: Promise<SqlDatabase> | undefined;
+function monthlyService(provided?:SqlDatabase) {
+    let pending: Promise<SqlDatabase> | undefined=provided?Promise.resolve(provided):undefined;
     const db = (actor: WorkContext) => pending ??= holdingResources(actor.holdingId).then(r => r.write);
     const journals = new Map<string, Awaited<ReturnType<typeof prepareJournal>>>();
     let stagedMoney: SqlStatement | undefined;

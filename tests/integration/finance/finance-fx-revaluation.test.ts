@@ -1,4 +1,5 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { packageGrantStore } from "../../../src/server/modules/commercial/public/package-grants";
+import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { applyMigrations, env, type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import {
@@ -15,6 +16,7 @@ import { assignFlowPrimary, resolveFlow } from "../../../src/server/modules/work
 vi.mock("server-only", () => ({}));
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
+afterEach(()=>vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 let ids: { payable: string; receivable: string; usdExpense: string; usdRevenue: string; gain: string; loss: string };
 
@@ -53,6 +55,9 @@ describe("controlled period-end FX revaluation", () => {
     expect(before.rows.find(row => row.accountId === ids.payable)).toMatchObject({ ledgerMinor: 350_000, sourceMinor: 350_000, source: expect.objectContaining({ foreignOpenCount: 1 }) });
     expect(before.ready).toBe(false);
 
+
+    const store=packageGrantStore(db,{authorize:async()=>({userId:"isolated-fx-close-review"}),obligations:async()=>{throw Error("No revaluation withdrawal witness");}}),grant={companyId:f.company,packageId:"finance",packageVersion:1,state:"active" as const,startsAt:0,endsAt:null,version:1,reason:"Native retained FX close review",evidence:"test:finance-draining-fx"};
+    await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:"draining",version:2}});vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
     const run = await prepare("36", f.manager);
     expect(run).toMatchObject({ status: "prepared", version: 1, lines: 1, netAdjustment: "100.00" });
     await expect(decideFxRevaluation(f.manager, String(run.id), { expectedVersion: 1, proof: "Self review is forbidden" }, "approve", key())).rejects.toMatchObject({ code: "SELF_REVIEW_FORBIDDEN" });

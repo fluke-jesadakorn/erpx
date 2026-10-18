@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requestedHoldingScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { readSeatForecastBaseline } from "@/server/modules/billing/public/billing-forecast";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -16,7 +17,7 @@ export async function GET(_request: Request, context: { params: Promise<{ holdin
       throw new ApiError(403, "FORBIDDEN", "Only the Holding owner can view this forecast.");
     await requireCompanyAuthority((await holdingResources(actor.holdingId)).write, actor, ["holding_owner"]);
     const db = (await runtimeEnv()).CONTROL_DB as PostgresDatabase;
-    return Response.json({ data: await readSeatForecastBaseline(db, actor.holdingId) },
+    return Response.json(canonicalDestinationLinks({ data: await readSeatForecastBaseline(db, actor.holdingId) }),
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

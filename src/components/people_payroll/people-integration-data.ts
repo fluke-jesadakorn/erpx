@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 
-export function usePeopleIntegrationData<T>(endpoint: string, pagination?: "calendar" | "hierarchy") {
-  const [result, setResult] = useState<{endpoint:string;data:T} | null>(null), [error, setError] = useState<{endpoint:string;message:string}|null>(null), [loading, setLoading] = useState(true);
+export function usePeopleIntegrationData<T>(endpoint: string, pagination?: "calendar" | "hierarchy", initial?: T) {
+  const [result, setResult] = useState<{endpoint:string;data:T} | null>(initial === undefined ? null : {endpoint,data:initial}), [error, setError] = useState<{endpoint:string;message:string}|null>(null), [loading, setLoading] = useState(initial === undefined);
+  const initialEndpoint=useRef(initial === undefined ? null : endpoint);
   const sequence = useRef(0);
   const load = useCallback(async () => {
     const attempt = ++sequence.current;
@@ -34,6 +35,7 @@ export function usePeopleIntegrationData<T>(endpoint: string, pagination?: "cale
     finally { if (attempt === sequence.current) setLoading(false); }
   }, [endpoint,pagination]);
   useEffect(() => {
+    if(initialEndpoint.current===endpoint){return;}
     let active = true;
     const requestSequence = sequence;
     queueMicrotask(() => { if (active) void load(); });

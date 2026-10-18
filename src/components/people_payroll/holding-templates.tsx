@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useState, useRef, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { Dialog } from "@/components/ui/dialog";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { PeopleTemplatesData, HoldingPeopleTemplate } from "@/lib/people_payroll/people-templates";

@@ -5,6 +5,7 @@ import { businessDate as evaluateBusinessDate, type PosAccounts } from "../domai
 import { hasPermission } from "@/lib/identity_access/permissions";
 import { num, str, json, pair, type PosRow } from "../domain/pos-model";
 import { PosStripeApiError, type StripeOptions } from "../domain/stripe";
+import type { PosProviderPurchase } from "../domain/package-commands";
 export type PosRows<Row> = {
     results: Row[];
 };
@@ -430,7 +431,8 @@ export type PosStripeUnit = {
     refundBooking(paymentId: string): Promise<unknown>;
 };
 export type PosStripeRepository = PosStripeUnit & {
-    transaction<Result>(work: (unit: PosStripeRepository) => Promise<Result>): Promise<Result>;
+    transaction<Result>(work: (unit: PosStripeRepository) => Promise<Result>, purchase?: PosProviderPurchase): Promise<Result>;
+    requirePurchase(input: PosProviderPurchase): Promise<void>;
 };
 export function createPosStripe(ports: {
     clock: Clock;
@@ -448,6 +450,7 @@ export function createPosStripe(ports: {
         request(live: boolean, path: string, options?: StripeOptions): Promise<unknown>;
         secret(live: boolean): string;
         origin(): string;
+        settingsReturn?(holdingSlug: string, companyId: string): string;
         fetch(url: string, init: RequestInit & {
             timeoutMs: number;
         }): Promise<{
@@ -586,6 +589,8 @@ export function createPosStripe(ports: {
         await db.audit(actor.companyId, null, actor.userId, 'connection.connected', value.stripe_user_id, { livemode: live });
     }
     async function checkPayment(db: PosStripeRepository, p: PosRow, date?: string) {
+        const purchase: PosProviderPurchase = { companyId: str(p, 'company_id'), operation: 'payment.settle', recordId: str(p, 'id') };
+        await db.requirePurchase(purchase);
         if (!p.provider_id)
             throw new Error('POS_CHECKOUT_NOT_CREATED');
         if (p.method === 'stripe_promptpay' && String(p.provider_id).startsWith('pi_')) {
@@ -593,8 +598,7 @@ export function createPosStripe(ports: {
             if (pi.status === 'succeeded') {
                 if (pi.amount_received !== num(p, 'amount_minor') || pi.currency !== 'thb' || (pi.metadata as Record<string, string>)?.pos_payment_id !== p.id)
                     throw new Error('POS_PROVIDER_PAYMENT_MISMATCH');
-                await db.writePosPayments1({ fact0: ports.clock.now(), id: p.id });
-                await db.transaction(async (tx) => { const current = (await tx.readPosPayments1({ id: p.id }))!; await tx.receivePayment(current, 'system:stripe', date); await tx.enqueue(str(p, 'company_id'), 'complete_sale', str(p, 'sale_id')); });
+                await db.transaction(async (tx) => { const current = (await tx.readPosPayments1({ id: p.id }))!; await tx.writePosPayments1({ fact0: ports.clock.now(), id: str(p, 'id') }); await tx.receivePayment(current, 'system:stripe', date); await tx.enqueue(str(p, 'company_id'), 'complete_sale', str(p, 'sale_id')); }, purchase);
                 return false;
             }
             if (pi.status === 'canceled') {
@@ -604,7 +608,7 @@ export function createPosStripe(ports: {
                         return;
                     await tx.writePosPayments2({ fact0: ports.clock.now(), id: p.id });
                     await tx.releaseUnpaidReservations(str(p, 'sale_id'));
-                });
+                }, purchase);
                 return false;
             }
             if ((p.expires_at && ports.clock.now() >= num(p, 'expires_at')) || pi.status === 'requires_payment_method') {
@@ -618,8 +622,7 @@ export function createPosStripe(ports: {
             const pi = await stripeCall(Boolean(p.livemode), `payment_intents/${String(session.payment_intent)}`, { account: str(p, 'stripe_account') });
             if (pi.status !== 'succeeded' || pi.amount_received !== num(p, 'amount_minor') || pi.currency !== 'thb' || (pi.metadata as Record<string, string>)?.pos_payment_id !== p.id)
                 throw new Error('POS_PROVIDER_PAYMENT_MISMATCH');
-            await db.writePosPayments1({ fact0: ports.clock.now(), id: p.id });
-            await db.transaction(async (tx) => { const current = (await tx.readPosPayments1({ id: p.id }))!; await tx.receivePayment(current, 'system:stripe', date); await tx.enqueue(str(p, 'company_id'), 'complete_sale', str(p, 'sale_id')); });
+            await db.transaction(async (tx) => { const current = (await tx.readPosPayments1({ id: p.id }))!; await tx.writePosPayments1({ fact0: ports.clock.now(), id: str(p, 'id') }); await tx.receivePayment(current, 'system:stripe', date); await tx.enqueue(str(p, 'company_id'), 'complete_sale', str(p, 'sale_id')); }, purchase);
             return false;
         }
         if (session.status === 'expired') {
@@ -629,17 +632,19 @@ export function createPosStripe(ports: {
                     return;
                 await tx.writePosPayments2({ fact0: ports.clock.now(), id: p.id });
                 await tx.releaseUnpaidReservations(str(p, 'sale_id'));
-            });
+            }, purchase);
             return false;
         }
         return true;
     }
     async function checkRefund(db: PosStripeRepository, rp: PosRow, p: PosRow, date?: string) {
+        const purchase: PosProviderPurchase = { companyId: str(p, 'company_id'), operation: 'refund.settle', recordId: str(rp, 'refund_id') };
+        await db.requirePurchase(purchase);
         const refund = await stripeCall(Boolean(p.livemode), `refunds/${rp.provider_id}`, { account: str(p, 'stripe_account') });
         if (refund.amount !== num(rp, 'amount_minor') || (refund.metadata as Record<string, string>)?.pos_refund_payment_id !== rp.id)
             throw new Error('POS_PROVIDER_REFUND_MISMATCH');
         if (refund.status === 'succeeded') {
-            await db.transaction(tx => tx.completeRefundPayment(str(rp, 'id'), 'system:stripe', date));
+            await db.transaction(tx => tx.completeRefundPayment(str(rp, 'id'), 'system:stripe', date), purchase);
             return false;
         }
         if (refund.status === 'failed' || refund.status === 'canceled') {
@@ -889,6 +894,8 @@ export function createPosStripe(ports: {
             }
         }
         if (job.kind === 'connect' || job.kind === 'connect_refresh') {
+            if (!payload.holdingSlug || !/^[A-Za-z0-9_-]+$/.test(payload.holdingSlug))
+                throw new Error('POS_CONNECTION_HOLDING_REQUIRED');
             const assignment = await db.readAssignments1({ assignmentId: payload.assignmentId, userId: payload.userId, company_id: job.company_id, fact3: ports.clock.now(), fact4: ports.clock.now() });
             if (!assignment)
                 throw new Error('POS_CONNECTION_AUTHORITY_CHANGED');
@@ -906,7 +913,8 @@ export function createPosStripe(ports: {
                 throw new Error('POS_CONNECTION_MISSING');
             await bindAccount(db, holdingId, str(job, 'company_id'), String(accountId), Boolean(payload.livemode));
             connection = await db.readPosConnections1({ company_id: job.company_id });
-            const url = `${ports.provider.origin()}/holdings/${payload.holdingSlug}/settings/stripe`;
+            const url = ports.provider.settingsReturn?.(payload.holdingSlug, String(job.company_id))
+                ?? `${ports.provider.origin()}/holdings/${payload.holdingSlug}/settings/stripe`;
             const link = z.object({ url: z.string().url(), expires_at: z.number().int().positive() }).parse(await ports.provider.request(Boolean(connection!.livemode), 'account_links', { method: 'POST', key: `pos-link-${job.id}`, body: { account: String(accountId), type: 'account_onboarding', return_url: url, refresh_url: url } }));
             if (typeof link.url !== 'string' || new URL(link.url).hostname !== 'connect.stripe.com')
                 throw new Error('POS_CONNECT_URL_INVALID');
@@ -919,6 +927,8 @@ export function createPosStripe(ports: {
                 throw new Error('POS_PAYMENT_MISSING');
             if (p.state === 'succeeded' || p.state === 'cancelled')
                 return false;
+            const purchase: PosProviderPurchase = { companyId: str(p, 'company_id'), operation: 'payment.settle', recordId: str(p, 'id') };
+            await db.requirePurchase(purchase);
             if (!p.provider_id) {
                 if (p.method === 'stripe_promptpay') {
                     if (!p.payer_email)
@@ -928,7 +938,7 @@ export function createPosStripe(ports: {
                     const qr = ((pi.next_action as Record<string, unknown> | undefined)?.promptpay_display_qr_code as Record<string, unknown> | undefined)?.data;
                     if (pi.status !== 'requires_action' || typeof qr !== 'string' || !qr)
                         throw new Error('POS_PROMPTPAY_QR_UNAVAILABLE');
-                    await db.transaction(async (tx) => { await tx.writePosPayments5({ id: pi.id, qr: qr, fact2: ports.clock.now() + 30 * 60 * 1000, fact3: ports.clock.now(), id2: p.id }); await tx.enqueue(str(p, 'company_id'), 'check_payment', str(p, 'id')); });
+                    await db.transaction(async (tx) => { await tx.writePosPayments5({ id: pi.id, qr: qr, fact2: ports.clock.now() + 30 * 60 * 1000, fact3: ports.clock.now(), id2: p.id }); await tx.enqueue(str(p, 'company_id'), 'check_payment', str(p, 'id')); }, purchase);
                     return false;
                 }
                 const sale = (await db.readPosSales2({ sale_id: p.sale_id }))!, env = await ports.resources(), binding = await env.control.controlOne4({ arg0: holdingId });
@@ -936,7 +946,7 @@ export function createPosStripe(ports: {
                 const session = await stripeCall(Boolean(p.livemode), 'checkout/sessions', { method: 'POST', account: str(p, 'stripe_account'), key: `pos-checkout-${p.id}`, body: { mode: 'payment', 'payment_method_types[0]': p.method === 'stripe_promptpay' ? 'promptpay' : 'card', 'line_items[0][price_data][currency]': 'thb', 'line_items[0][price_data][unit_amount]': String(p.amount_minor), 'line_items[0][price_data][product_data][name]': String(sale.number), 'line_items[0][quantity]': '1', 'metadata[pos_payment_id]': str(p, 'id'), 'payment_intent_data[metadata][pos_payment_id]': str(p, 'id'), success_url: returnUrl, cancel_url: returnUrl, expires_at: String(Math.floor(Number(p.created_at) / 1000) + 1800) } });
                 if (typeof session.url !== 'string' || new URL(session.url).hostname !== 'checkout.stripe.com')
                     throw new Error('POS_CHECKOUT_URL_INVALID');
-                await db.transaction(async (tx) => { await tx.writePosPayments6({ id: session.id, url: session.url, fact2: ports.clock.now(), id2: p.id }); await tx.enqueue(str(p, 'company_id'), 'check_payment', str(p, 'id')); });
+                await db.transaction(async (tx) => { await tx.writePosPayments6({ id: session.id, url: session.url, fact2: ports.clock.now(), id2: p.id }); await tx.enqueue(str(p, 'company_id'), 'check_payment', str(p, 'id')); }, purchase);
             }
             return false;
         }
@@ -949,6 +959,7 @@ export function createPosStripe(ports: {
             if (job.kind === 'cancel_checkout') {
                 if (!p.provider_id)
                     return true;
+                await db.requirePurchase({ companyId: str(p, 'company_id'), operation: 'payment.settle', recordId: str(p, 'id') });
                 if (p.method === 'stripe_promptpay' && String(p.provider_id).startsWith('pi_')) {
                     const pi = await stripeCall(Boolean(p.livemode), `payment_intents/${p.provider_id}`, { account: str(p, 'stripe_account') });
                     if (pi.status !== 'succeeded' && pi.status !== 'canceled')
@@ -971,7 +982,7 @@ export function createPosStripe(ports: {
                     return true;
                 await tx.completeSale(sale, 'system:stripe', payload.accountingDate);
                 return false;
-            });
+            }, { companyId: str(job, 'company_id'), operation: 'sale.complete', recordId: str(job, 'record_id') });
         }
         if (job.kind === 'refund') {
             const rp = (await db.readPosRefundPayments3({ record_id: job.record_id, company_id: job.company_id }))!;
@@ -980,6 +991,7 @@ export function createPosStripe(ports: {
             if (rp.state === 'succeeded')
                 return false;
             const p = (await db.readPosPayments6({ payment_id: rp.payment_id }))!;
+            await db.requirePurchase({ companyId: str(p, 'company_id'), operation: 'refund.settle', recordId: str(rp, 'refund_id') });
             if (!rp.provider_id) {
                 if (ports.clock.now() - (payload.providerAttemptStartedAt ?? num(job, 'created_at')) > 23 * 60 * 60 * 1000)
                     throw new Error('POS_PROVIDER_LOOKUP_REQUIRED');

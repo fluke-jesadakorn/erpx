@@ -1,5 +1,10 @@
+import {financeExpansionWork} from "../../../src/server/modules/finance/public/finance-expansion-work";
+import {attachmentPolicy,authorizeAttachmentTarget} from "../../../src/server/modules/files/public/attachments/policy";
+import {bindRecordAttachmentSet,listAttachmentSets,attachmentContent} from "../../../src/server/modules/files/public/attachments/service";
+import {enableAttachmentV2ForTest,seedAttachmentSet,attachmentBindingState} from "../../support/helpers/attachment-v2";
+import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
 import {financeExpansionRecord} from "../../../src/server/modules/finance/public/finance-expansion-records";
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
   expenseDb as db,
@@ -18,14 +23,19 @@ import {
   decideInstrumentRun,
   reverseInstrumentRun,
   instrumentEditionSchema,
+  instrumentWorkspace,
 } from "../../../src/server/modules/finance/public/finance-instruments";
 import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
-import {scheduleFinanceDraft,drainFinanceDueDrafts} from "../../../src/server/modules/finance/public/finance-due-drafts";
+import {scheduleFinanceDraft,drainFinanceDueDrafts,decideFinanceDueDraft} from "../../../src/server/modules/finance/public/finance-due-drafts";
 import { trialBalance } from "../../../src/server/modules/finance/public/finance";
+import { financePackageObligations } from "../../../src/server/modules/finance/public/package-obligations";
+import { ownerPackageObligations, withOwnerPackageObligations } from "../../../src/server/modules/commercial/public/owner-package-obligations";
+import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
+afterEach(()=>vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof expenseFixture>>,
   bank: string,
   liability: string,
@@ -518,4 +528,103 @@ it("rejects self approval, stale mappings, reused cash and cross Company authori
       key(),
     ),
   ).rejects.toMatchObject({ code: "INSTRUMENT_NOT_FOUND" });
+});
+
+it("requires the Advanced add-on for direct records and queued legacy financing without consuming a candidate",async()=>{
+ const id=await approved(),bankId=await bankRow("2026-09-30",-10000),schedule=await scheduleFinanceDraft(f.owner,{kind:"instrument_payment",sourceId:id,runOn:"2026-09-30",input:{expectedVersion:2,periodId:f.period,entryDate:"2026-09-30",bankTransactionId:bankId,bankVersion:1,reason:"Retained actual lease installment"},reason:"Retained bank evidence"},key());
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ await expect(prepareInstrument(f.owner,input(),key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await expect(instrumentWorkspace(f.owner)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await expect(financeExpansionRecord(f.owner,"finance_instrument",id)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ expect(await drainFinanceDueDrafts(db,f.owner.holdingId,new Date("2026-09-30T12:00:00Z"))).toBe(0);
+ expect(await db.prepare("SELECT status,attempts FROM finance_due_drafts WHERE id=?").bind(schedule.id).first()).toEqual({status:"scheduled",attempts:0});
+ expect(await db.prepare("SELECT id FROM finance_instrument_runs WHERE instrument_id=?").bind(id).first()).toBeNull();
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","shadow");expect(await instrumentWorkspace(f.owner)).toBeDefined();
+});
+it("settles retained Advanced financing and replays exact schedule receipts while the add-on drains",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ const command=key(),terms=input(),prepared=await prepareInstrument(f.owner,terms,command),id=String(prepared.id);
+ await decideInstrument(f.manager,id,{expectedVersion:1,reason:"Independent retained terms review"},"approve",key());
+ const bankId=await bankRow("2026-09-30",-10000),scheduleKey=key(),scheduleInput={kind:"instrument_payment" as const,sourceId:id,runOn:"2026-09-30",input:{expectedVersion:2,periodId:f.period,entryDate:"2026-09-30",bankTransactionId:bankId,bankVersion:1,reason:"Retained actual lease installment"},reason:"Retained bank evidence"},schedule=await scheduleFinanceDraft(f.owner,scheduleInput,scheduleKey);
+ await reviewedFinanceGrant(db,f.company,"finance-advanced","draining");
+ expect(await prepareInstrument(f.owner,terms,command)).toEqual(prepared);expect(await scheduleFinanceDraft(f.owner,scheduleInput,scheduleKey)).toEqual(schedule);
+ await expect(prepareInstrument(f.owner,input(),key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});
+ expect(await drainFinanceDueDrafts(db,f.owner.holdingId,new Date("2026-09-30T12:00:00Z"))).toBe(1);
+ const row=await db.prepare("SELECT result_json FROM finance_due_drafts WHERE id=?").bind(schedule.id).first<{result_json:string}>(),runId=String(JSON.parse(row!.result_json).id);
+ expect(await financeExpansionRecord(f.owner,"finance_instrument_run",runId)).toBeDefined();
+ await decideInstrumentRun(f.manager,runId,{expectedVersion:1,reason:"Independent original bank evidence review"},"post",key());
+ expect(await db.prepare("SELECT match_status FROM finance_bank_transactions WHERE id=?").bind(bankId).first("match_status")).toBe("matched");
+ const reversalKey=key(),reversalInput={expectedVersion:2,periodId:f.period,entryDate:"2026-09-30",reason:"Reverse retained installment with bank evidence"},reversed=await reverseInstrumentRun(f.manager,runId,reversalInput,reversalKey);
+ expect(await reverseInstrumentRun(f.manager,runId,reversalInput,reversalKey)).toEqual(reversed);
+ expect(await db.prepare("SELECT match_status FROM finance_bank_transactions WHERE id=?").bind(bankId).first("match_status")).toBe("unmatched");
+});
+it("rolls back the owned instrument draft when authority changes after queue completion, then retries once",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ const id=await approved(),bankId=await bankRow("2026-09-30",-10000),schedule=await scheduleFinanceDraft(f.owner,{kind:"instrument_payment",sourceId:id,runOn:"2026-09-30",input:{expectedVersion:2,periodId:f.period,entryDate:"2026-09-30",bankTransactionId:bankId,bankVersion:1,reason:"Retained original installment"},reason:"Retained bank evidence"},key()),fault=`instrument_queue_${key().replaceAll('-','')}`;
+ const tables=["finance_instrument_editions","finance_instrument_runs","finance_journals","finance_journal_lines","finance_financial_events","money_transaction_snapshots","assignments","command_receipts","audit_events","outbox_events"],image=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await image();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.owner.assignmentId}';RETURN NEW;END $$;CREATE TRIGGER ${fault} AFTER UPDATE ON finance_due_drafts FOR EACH ROW WHEN (NEW.id='${schedule.id}' AND NEW.status='prepared') EXECUTE FUNCTION ${fault}()`);
+ try{expect(await drainFinanceDueDrafts(db,f.owner.holdingId,new Date("2026-09-30T12:00:00Z"))).toBe(0);expect(await image()).toEqual(before);expect(await db.prepare("SELECT status,attempts,last_code FROM finance_due_drafts WHERE id=?").bind(schedule.id).first()).toEqual({status:"blocked",attempts:1,last_code:"FINANCE_ACCESS_CHANGED"});}finally{await db.exec(`DROP TRIGGER ${fault} ON finance_due_drafts;DROP FUNCTION ${fault}()`);}
+ await decideFinanceDueDraft(f.owner,String(schedule.id),{expectedVersion:2,reason:"Retry with unchanged current authority"},"retry",key());
+ expect(await drainFinanceDueDrafts(db,f.owner.holdingId,new Date("2026-09-30T12:00:00Z"))).toBe(1);
+ expect(Number(await db.prepare("SELECT count(*) n FROM command_receipts WHERE command_id=?").bind(`${schedule.id}:draft`).first("n"))).toBe(1);
+});
+
+it("Finance source purchase hides legacy Advanced Work and file paths, then binds retained financing evidence while draining",async()=>{
+ enableAttachmentV2ForTest();const draft=await prepareInstrument(f.owner,input(),key()),id=String(draft.id),files=await seedAttachmentSet(db,f.owner,{targetType:"finance_instrument",targetId:id,componentKind:"record",purposeKey:"finance_support",expectedTargetVersion:1});
+ const objectKey=String(await db.prepare("SELECT object_key FROM attachments WHERE id=?").bind(files.sourceId).first("object_key"));await env.H001_FILES.put(objectKey,"%PDF-1.7",{httpMetadata:{contentType:"application/pdf"}});await db.prepare("UPDATE attachments SET legal_hold=1 WHERE id=?").bind(files.sourceId).run();
+ const held=await db.prepare("SELECT checksum_sha256,legal_hold,revoked_at FROM attachments WHERE id=?").bind(files.sourceId).first();
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ expect((await financeExpansionWork(f.manager)).some(item=>item.id===id)).toBe(false);
+ await expect(authorizeAttachmentTarget(db,f.owner,attachmentPolicy("finance_instrument","finance_support","record"),id,"read")).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await expect(listAttachmentSets(db,f.owner,{targetType:"finance_instrument",targetId:id})).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await expect(bindRecordAttachmentSet(db,f.owner,files.setId,1,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await expect(attachmentContent(db,env.H001_FILES,f.owner,files.linkId,"original")).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ expect(await attachmentBindingState(db,files.setId)).toMatchObject({set_state:"draft",link_state:"draft"});
+ await reviewedFinanceGrant(db,f.company,"finance-advanced");await reviewedFinanceGrant(db,f.company,"finance-advanced","draining");
+ expect((await financeExpansionWork(f.manager)).find(item=>item.id===id)).toMatchObject({canAct:true,href:"/finance/instruments"});
+ await bindRecordAttachmentSet(db,f.owner,files.setId,1,key());expect(await attachmentBindingState(db,files.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_id:id});
+ expect((await listAttachmentSets(db,f.owner,{targetType:"finance_instrument",targetId:id})).length).toBe(1);
+ expect(await (await attachmentContent(db,env.H001_FILES,f.owner,files.linkId,"original")).object.text()).toBe("%PDF-1.7");
+ expect(await db.prepare("SELECT checksum_sha256,legal_hold,revoked_at FROM attachments WHERE id=?").bind(files.sourceId).first()).toEqual(held);
+});
+it("Finance source purchase rolls file binding and its receipt back after deferred assignment revocation",async()=>{
+ enableAttachmentV2ForTest();await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ const draft=await prepareInstrument(f.owner,input(),key()),id=String(draft.id),files=await seedAttachmentSet(db,f.owner,{targetType:"finance_instrument",targetId:id,componentKind:"record",purposeKey:"finance_support",expectedTargetVersion:1}),command=key(),fault=`finance_file_${key().replaceAll('-','')}`;
+ const tables=["finance_instrument_editions","attachment_sets","attachment_links","attachment_events","assignments","command_receipts","audit_events","outbox_events"],image=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await image();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.owner.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
+ try{await expect(bindRecordAttachmentSet(db,f.owner,files.setId,1,command)).rejects.toThrow();expect(await image()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${fault} ON audit_events;DROP FUNCTION ${fault}()`);}
+ await bindRecordAttachmentSet(db,f.owner,files.setId,1,command);expect(await attachmentBindingState(db,files.setId)).toMatchObject({set_state:"bound",link_state:"bound"});expect(Number(await db.prepare("SELECT count(*) n FROM command_receipts WHERE command_id=?").bind(command).first("n"))).toBe(1);
+});
+
+it("Finance Advanced withdrawal needs independent retained-terms rejection and preserves its Legal-held files and history", async () => {
+  enableAttachmentV2ForTest(); await reviewedFinanceGrant(db, f.company, "finance"); await reviewedFinanceGrant(db, f.company, "finance-advanced");
+  vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT", "enforced");
+  const draft = await prepareInstrument(f.owner, input(), key()), id = String(draft.id);
+  const files = await seedAttachmentSet(db, f.owner, { targetType: "finance_instrument", targetId: id, componentKind: "record", purposeKey: "finance_support", expectedTargetVersion: 1 });
+  const objectKey = String(await db.prepare("SELECT object_key FROM attachments WHERE id=?").bind(files.sourceId).first("object_key"));
+  await env.H001_FILES.put(objectKey, "%PDF-1.7", { httpMetadata: { contentType: "application/pdf" } });
+  await db.prepare("UPDATE attachments SET legal_hold=1 WHERE id=?").bind(files.sourceId).run();
+  await bindRecordAttachmentSet(db, f.owner, files.setId, 1, key());
+  const file = await db.prepare("SELECT * FROM attachments WHERE id=?").bind(files.sourceId).first();
+  await reviewedFinanceGrant(db, f.company, "finance-advanced", "draining");
+  const scope = () => ({ companyId: f.company, packageId: "finance-advanced", packageVersion: 1, moduleId: "finance", now: Date.now() });
+  const observation = () => withOwnerPackageObligations(db, scope(), tx => financePackageObligations(db, tx, scope()));
+  expect((await observation()).outstanding).toBe(1);
+  const before = await readCompanyPackageGrants(db, f.company), current = before.find(grant => grant.packageId === "finance-advanced")!;
+  const request = { companyId: f.company, expectedRevision: packageGrantRevision(f.company, before), idempotencyKey: key(), changes: [{ expectedVersion: current.version,
+    grant: { ...current, state: "inactive" as const, version: current.version + 1, reason: "Independent financing rejection retains held evidence", evidence: "test:finance-advanced-owner-withdrawal" } }] };
+  const store = packageGrantStore(db, { authorize: async () => ({ userId: "isolated-finance-advanced-lifecycle" }), obligations: (tx, company, packageId) => ownerPackageObligations(db, tx, company, packageId) });
+  const apply = () => withOwnerPackageObligations(db, scope(), tx => store.batch.applyIn(tx, request, async () => {}));
+  await expect(apply()).rejects.toThrow("PACKAGE_OBLIGATIONS_REMAIN");
+  const expectedVersion = Number(await db.prepare("SELECT version FROM finance_instrument_editions WHERE id=?").bind(id).first("version"));
+  const self = { ...f.owner, role: "finance_approver", assignmentId: await f.grant(f.owner, "finance_approver") };
+  await expect(decideInstrument(self, id, { expectedVersion, reason: "The preparer cannot close the retained terms alone" }, "reject", key())).rejects.toMatchObject({ code: "SELF_REVIEW_FORBIDDEN" });
+  await decideInstrument(f.manager, id, { expectedVersion, reason: "Independent review rejected the unactivated agreement" }, "reject", key());
+  expect((await observation()).outstanding).toBe(0);
+  const retained = await db.prepare("SELECT * FROM finance_instrument_editions WHERE id=?").bind(id).first(), result = await apply();
+  expect(await apply()).toEqual(result);
+  expect(await db.prepare("SELECT * FROM finance_instrument_editions WHERE id=?").bind(id).first()).toEqual(retained);
+  expect(await db.prepare("SELECT * FROM attachments WHERE id=?").bind(files.sourceId).first()).toEqual(file);
+  expect(await (await attachmentContent(db, env.H001_FILES, f.owner, files.linkId, "original")).object.text()).toBe("%PDF-1.7");
+  expect((await listAttachmentSets(db, f.owner, { targetType: "finance_instrument", targetId: id })).length).toBe(1);
 });

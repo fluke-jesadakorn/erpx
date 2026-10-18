@@ -13,7 +13,8 @@ import { holdingResources as nativeHoldingResources } from '../../runtime/public
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '../../identity_access/public/iam-read-snapshot';
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '../../workflow/public/commands';
 import { ApiError as NativeApiError } from '../../runtime/public/http';
-import { type HandoverView, type HandoverAcknowledgement } from '../domain/handover';
+import {handoverPublishSchema, type HandoverView, type HandoverAcknowledgement } from '../domain/handover';
+import {withOperationsHandoverPurchaseUnit,withOperationsHandoverAcknowledgement} from '../../collaboration/public/work-social-purchases';
 import { createHandoverApplication, type HandoverRepository } from '../application/handover';
 import { BusinessRuleError } from '../../shared';
 import type { SqlStatement } from '../../runtime/public/runtime/types';
@@ -62,6 +63,12 @@ async function invoke<Result>(run: () => Promise<Result>) {
     }
 }
 export async function handoverView(db: SqlDatabase, actor: WorkContext, snapshot: WorkSnapshot, now = Date.now()): Promise<HandoverView> { return invoke(() => application(db).handoverView(actor, snapshot, now)); }
-export async function publishHandover(db: SqlDatabase, actor: WorkContext, snapshot: WorkSnapshot, raw: unknown, key: string) { return invoke(() => application(db).publishHandover(actor, snapshot, raw, key)); }
+export async function publishHandover(db: SqlDatabase, actor: WorkContext, snapshot: WorkSnapshot, raw: unknown, key: string) { const input=handoverPublishSchema.parse(raw);return withOperationsHandoverPurchaseUnit(db,actor,input,key,tx=>invoke(() => application(tx).publishHandover(actor, snapshot, input, key))); }
 export async function handoverAcknowledgement(db: SqlDatabase, actor: WorkContext, postId: string): Promise<HandoverAcknowledgement> { return invoke(() => application(db).handoverAcknowledgement(actor, postId)); }
-export async function acknowledgeHandover(db: SqlDatabase, actor: WorkContext, postId: string, key: string) { return invoke(() => application(db).acknowledgeHandover(actor, postId, key)); }
+export async function acknowledgeHandover(db: SqlDatabase, actor: WorkContext, postId: string, key: string) { return withOperationsHandoverAcknowledgement(db,actor,postId,key,tx=>invoke(() => application(tx).acknowledgeHandover(actor, postId, key))); }
+
+export async function acknowledgeHandoverVersion(db:SqlDatabase,actor:WorkContext,postId:string,key:string,expectedVersion:number){return withOperationsHandoverAcknowledgement(db,actor,postId,key,tx=>invoke(()=>application(tx).acknowledgeHandoverVersion(actor,postId,key,expectedVersion)));}
+
+/** Explicit receipt-aware publication. Legacy publication keeps its original
+ * active-day validation; recovery never promotes an unproven legacy draft. */
+export async function publishRecoverableHandover(db:SqlDatabase,actor:WorkContext,snapshot:WorkSnapshot,raw:unknown,key:string){const input=handoverPublishSchema.parse(raw);return withOperationsHandoverPurchaseUnit(db,actor,input,key,async tx=>{const id=`post-post-draft-${key}`,prior=await nativeReplayCommand<{id:string;version:number}>(tx,actor,`${key}-operations`,'work.handover.publish',id,input);if(prior){await readablePost(tx,actor,id);return {id:prior.id,version:prior.version};}if(await tx.prepare('SELECT 1 FROM command_receipts WHERE command_id IN(?,?) UNION ALL SELECT 1 FROM social_post_drafts WHERE id=?').bind(key,`${key}-publish`,`post-draft-${key}`).first())throw new NativeApiError(409,'HANDOVER_RECOVERY_UNPROVEN','This legacy submission has no complete original handover receipt. Open its original history before submitting another.');return invoke(()=>application(tx).publishHandover(actor,snapshot,input,key));},true);}

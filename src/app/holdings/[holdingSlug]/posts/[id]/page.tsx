@@ -1,4 +1,6 @@
-import { pageError } from "@/server/modules/work_projection/public/page-error";
-import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { SocialPage } from "@/components/collaboration/social-page";
-export default async function Post({params}:{params:Promise<{holdingSlug:string;id:string}>}){const {holdingSlug,id}=await params;try{return await SocialPage({actor:await requireWorkContext(holdingSlug),postId:id});}catch(e){return pageError(e, holdingSlug);}}
+import Screen from "@/app/holdings/[holdingSlug]/_presenters/posts/[id]/screen";
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;id:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
+ const query={...await searchParams,...{}};
+ const props={params:Promise.resolve({...await params,...{}}),searchParams:Promise.resolve(query)} as Parameters<typeof Screen>[0];
+ return (await Screen(props))??null;
+}

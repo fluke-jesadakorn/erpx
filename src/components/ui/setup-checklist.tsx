@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
 export type SetupItem = {

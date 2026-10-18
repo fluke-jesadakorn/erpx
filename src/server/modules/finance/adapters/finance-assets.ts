@@ -1,3 +1,4 @@
+import { withFinancePurchasedCommand, withFinancePurchasedRead } from "./purchase-boundary";
 import { financeOwnerDecisionEffects } from "../../workflow/public/finance-owner-decision-effects";
 import { financeTransaction } from "@/server/modules/finance/public/finance-transactions";
 import { z } from "zod";
@@ -22,22 +23,22 @@ function assetGuards(write: SqlDatabase, actor: WorkContext, id: string, asset: 
 function event(write: SqlDatabase, actor: WorkContext, key: string, assetId: string, assetVersion: number, type: string, payload: unknown, createdAt: number) {
     return write.prepare("INSERT INTO finance_asset_events(id,asset_id,company_id,event_type,asset_version,command_id,payload_json,actor_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(`asset-event-${key}`, assetId, actor.companyId, type, assetVersion, key, JSON.stringify(payload), actor.userId, createdAt);
 }
-export async function assetDetail(actor: WorkContext, id: string) { return nativeAssets().assetDetail(actor, id); }
-export async function assetPage(actor: WorkContext) { return nativeAssets().assetPage(actor); }
-export async function assetOptions(actor: WorkContext) { return nativeAssets().assetOptions(actor); }
-export async function createAsset(actor: WorkContext, input: z.infer<typeof assetSchema>, key: string) { return nativeAssets().createAsset(actor, input, key); }
-export async function editAsset(actor: WorkContext, id: string, input: z.infer<typeof assetEditSchema>, key: string) { return nativeAssets().editAsset(actor, id, input, key); }
-export async function cancelDraftAsset(actor: WorkContext, id: string, input: z.infer<typeof assetDecisionSchema>, key: string) { return nativeAssets().cancelDraftAsset(actor, id, input, key); }
-export async function activateAsset(actor: WorkContext, id: string, input: z.infer<typeof assetActivationSchema>, key: string) { return nativeAssets().activateAsset(actor, id, input, key); }
-export async function depreciateAsset(actor: WorkContext, id: string, input: z.infer<typeof assetDepreciationSchema>, key: string) { return nativeAssets().depreciateAsset(actor, id, input, key); }
-export async function prepareAssetDisposal(actor: WorkContext, id: string, input: z.infer<typeof assetDisposalSchema>, key: string) { return nativeAssets().prepareAssetDisposal(actor, id, input, key); }
-export async function decideAssetDisposal(actor: WorkContext, id: string, action: "post" | "cancel", input: z.infer<typeof assetDecisionSchema>, key: string) { return nativeAssets().decideAssetDisposal(actor, id, action, input, key); }
-function nativeAssets() {
+export async function assetDetail(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>nativeAssets(db).assetDetail(actor, id),"finance.accounting",false,["finance.asset-recognition","finance.asset-disposal"]); }
+export async function assetPage(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>nativeAssets(db).assetPage(actor),"finance.accounting",false,["finance.asset-recognition","finance.asset-disposal"]); }
+export async function assetOptions(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>nativeAssets(db).assetOptions(actor),"finance.accounting",false,["finance.asset-recognition","finance.asset-disposal"]); }
+export async function createAsset(actor: WorkContext, input: z.infer<typeof assetSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.asset.create",purpose:"new-work", alternativeCapabilities:["finance.asset-recognition"]},tx=>nativeAssets(tx,Boolean(tx)).createAsset(actor, input, key)); }
+export async function editAsset(actor: WorkContext, id: string, input: z.infer<typeof assetEditSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.asset.edit",purpose:"new-work", alternativeCapabilities:["finance.asset-recognition"]},tx=>nativeAssets(tx,Boolean(tx)).editAsset(actor, id, input, key)); }
+export async function cancelDraftAsset(actor: WorkContext, id: string, input: z.infer<typeof assetDecisionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.asset.cancel",purpose:"settle-existing", alternativeCapabilities:["finance.asset-recognition"]},tx=>nativeAssets(tx,Boolean(tx)).cancelDraftAsset(actor, id, input, key)); }
+export async function activateAsset(actor: WorkContext, id: string, input: z.infer<typeof assetActivationSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.asset.activate",purpose:"settle-existing", alternativeCapabilities:["finance.asset-recognition"]},tx=>nativeAssets(tx,Boolean(tx)).activateAsset(actor, id, input, key)); }
+export async function depreciateAsset(actor: WorkContext, id: string, input: z.infer<typeof assetDepreciationSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.asset.depreciate",purpose:"settle-existing"},tx=>nativeAssets(tx,Boolean(tx)).depreciateAsset(actor, id, input, key)); }
+export async function prepareAssetDisposal(actor: WorkContext, id: string, input: z.infer<typeof assetDisposalSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.asset.disposal.prepare",purpose:"settle-existing", alternativeCapabilities:["finance.asset-disposal"]},tx=>nativeAssets(tx,Boolean(tx)).prepareAssetDisposal(actor, id, input, key)); }
+export async function decideAssetDisposal(actor: WorkContext, id: string, action: "post" | "cancel", input: z.infer<typeof assetDecisionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.asset.disposal.${action}`,purpose:"settle-existing", alternativeCapabilities:["finance.asset-disposal"]},tx=>nativeAssets(tx,Boolean(tx)).decideAssetDisposal(actor, id, action, input, key)); }
+function nativeAssets(provided?:SqlDatabase, providedOwned=false) {
     let pending: Promise<SqlDatabase> | undefined, owned: SqlDatabase | undefined;
-    const database = (actor: WorkContext) => owned ? Promise.resolve(owned) : pending ??= holdingResources(actor.holdingId).then(r => r.write);
+    const database = (actor: WorkContext) => owned ? Promise.resolve(owned) : provided ? Promise.resolve(provided) : pending ??= holdingResources(actor.holdingId).then(r => r.write);
     const journals = new Map<string, Awaited<ReturnType<typeof prepareJournal>>>(), moneyPlans = new Map<string, Awaited<ReturnType<typeof snapshotMoney>>>(), policies = new Map<string, Awaited<ReturnType<typeof import("@/server/modules/finance/public/finance-asset-policies")["prepareAssetPolicyDisposal"]>>>();
     let decisionSteps: SqlStatement[] = [];
-    return createAssets({ error: (...args) => new ApiError(...args), permission: requirePermission, now: Date.now, id: () => crypto.randomUUID(), hash: sha256, ready: async (actor) => { await database(actor); }, transaction: async <Result>(actor: WorkContext, work: () => Promise<Result>) => financeTransaction(await database(actor), async (tx) => { owned = tx; try {
+    return createAssets({ error: (...args) => new ApiError(...args), permission: requirePermission, now: Date.now, id: () => crypto.randomUUID(), hash: sha256, ready: async (actor) => { await database(actor); }, transaction: async <Result>(actor: WorkContext, work: () => Promise<Result>) => providedOwned ? work() : financeTransaction(await database(actor), async (tx) => { owned = tx; try {
             return await work();
         }
         finally {
@@ -121,3 +122,16 @@ function nativeAssets() {
         }
     });
 }
+
+import {withAssetsFinancialCommand} from './assets-financial-unit';
+import {assetsFinancialCreateSchema,assetsFinancialEditSchema,assetsFinancialRecognitionSchema,assetsFinancialDecisionSchema,assetsFinancialDisposalSchema,assetsFinancialResultSchema} from '../domain/assets-financial-workflow';
+/** Closed Assets continuation, using the original application in this exact
+ * owned Holding transaction. There is no public database/policy selector. */
+export async function createAssetsFinancialAsset(actor:WorkContext,raw:unknown,key:string){const input=assetsFinancialCreateSchema.parse(raw);return withAssetsFinancialCommand(actor,{key,operation:'finance.asset.create',assetId:`asset-${key}`},async tx=>assetsFinancialResultSchema.parse(await nativeAssets(tx,true).createAsset(actor,input,key)));}
+export async function editAssetsFinancialAsset(actor:WorkContext,id:string,raw:unknown,key:string){const input=assetsFinancialEditSchema.parse(raw);return withAssetsFinancialCommand(actor,{key,operation:'finance.asset.edit',assetId:id},async tx=>assetsFinancialResultSchema.parse(await nativeAssets(tx,true).editAsset(actor,id,input,key)));}
+export async function cancelAssetsFinancialAsset(actor:WorkContext,id:string,raw:unknown,key:string){const input=assetsFinancialDecisionSchema.parse(raw);return withAssetsFinancialCommand(actor,{key,operation:'finance.asset.cancel',assetId:id},async tx=>assetsFinancialResultSchema.parse(await nativeAssets(tx,true).cancelDraftAsset(actor,id,input,key)));}
+export async function recognizeAssetsFinancialAsset(actor:WorkContext,id:string,raw:unknown,key:string){const input=assetsFinancialRecognitionSchema.parse(raw);return withAssetsFinancialCommand(actor,{key,operation:'finance.asset.activate',assetId:id},async tx=>assetsFinancialResultSchema.parse(await nativeAssets(tx,true).activateAsset(actor,id,input,key)));}
+export async function prepareAssetsFinancialDisposal(actor:WorkContext,id:string,raw:unknown,key:string){const input=assetsFinancialDisposalSchema.parse(raw);return withAssetsFinancialCommand(actor,{key,operation:'finance.asset.disposal.prepare',assetId:id},async tx=>assetsFinancialResultSchema.parse(await nativeAssets(tx,true).prepareAssetDisposal(actor,id,input,key)));}
+export async function decideAssetsFinancialDisposal(actor:WorkContext,id:string,action:'post'|'cancel',raw:unknown,key:string){const input=assetsFinancialDecisionSchema.parse(raw);return withAssetsFinancialCommand(actor,{key,operation:action==='post'?'finance.asset.disposal.post':'finance.asset.disposal.cancel',disposalId:id},async tx=>assetsFinancialResultSchema.parse(await nativeAssets(tx,true).decideAssetDisposal(actor,id,action,input,key)));}
+/** Owner-local read composition only; raw rows never cross the named DTO. */
+export async function readAssetsFinancialInTransaction(database:SqlDatabase,actor:WorkContext,id?:string){const app=nativeAssets(database,true),[assets,detail,options]=await Promise.all([id?Promise.resolve([]):app.assetPage(actor),id?app.assetDetail(actor,id):Promise.resolve(null),app.assetOptions(actor)]);return {assets,detail,options};}

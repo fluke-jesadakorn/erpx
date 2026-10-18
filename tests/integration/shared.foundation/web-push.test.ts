@@ -4,7 +4,7 @@ import { hashPassword } from "better-auth/crypto";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { publishInboxEvent } from "../../../src/server/modules/collaboration/public/inbox";
-import { drainWebPush,pushSettings,quietDelayMs,registerPush,removePushDevice,removePushSession,savePushPreferences,validatePushSubscription } from "../../../src/server/modules/collaboration/public/web-push";
+import { allowedPushOrigin,drainWebPush,pushSettings,quietDelayMs,registerPush,removePushDevice,removePushSession,savePushPreferences,validatePushSubscription } from "../../../src/server/modules/collaboration/public/web-push";
 import { leavePushForWorkspaceChange } from "../../../src/lib/shared/push-client";
 import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
@@ -340,4 +340,27 @@ it("cleans only the normally authenticated user and session across Companies whi
   await expect(repeated.json()).resolves.toEqual({data:{removed:true}});
   expect((await db.prepare("SELECT * FROM push_subscriptions WHERE company_id=? AND (user_id=? AND session_id=? OR user_id=?) ORDER BY id")
     .bind(actor.companyId,actor.userId,session,foreign.userId).all()).results).toEqual(preserved);
+});
+
+
+it("uses Work/POS/Hotel owner origins and stops old Console Push at retirement without consuming Inbox history", async () => {
+  const keys=["ERPX_ENVIRONMENT","ERPX_PUBLIC_ORIGIN","ERPX_PRODUCT_ENVIRONMENT","ERPX_PRODUCT_ROUTING","ERPX_PRODUCT_SSO","ERPX_CONSOLE_RETIRED"],previous=keys.map(key=>process.env[key]);
+  try {
+    for(const [key,value] of Object.entries({ERPX_ENVIRONMENT:"local",ERPX_PUBLIC_ORIGIN:"https://console-dev-erpx.jesadakorn.com",ERPX_PRODUCT_ENVIRONMENT:"development",ERPX_PRODUCT_ROUTING:"enabled",ERPX_PRODUCT_SSO:"enabled",ERPX_CONSOLE_RETIRED:"disabled"}))vi.stubEnv(key,value);
+    for(const owner of ["work","pos","pms"])expect(allowedPushOrigin(`https://${owner}-dev-erpx.jesadakorn.com`)).toBe(true);
+    for(const owner of ["account","apps","booking","portal","legal-portal","forms"])expect(allowedPushOrigin(`https://${owner}-dev-erpx.jesadakorn.com`)).toBe(false);
+    expect(allowedPushOrigin("https://work-dev-erpx.jesadakorn.com.foreign.example")).toBe(false);
+    const retiredDevice={...subscription,endpoint:subscription.endpoint+"-retirement-"+crypto.randomUUID()};
+    await registerPush(db,actor,"https://console-dev-erpx.jesadakorn.com","/holdings/test/inbox?tab=updates",retiredDevice);
+    await publishInboxEvent(db,{key:`retired-push:${crypto.randomUUID()}`,companyId:actor.companyId,sourceType:"task",sourceId:"retained-task",sourceVersion:1,category:"work",preview:"Retained private update",recipientIds:[actor.userId]});
+    const before=(await db.prepare("SELECT * FROM inbox_deliveries WHERE company_id=? AND user_id=? ORDER BY id").bind(actor.companyId,actor.userId).all()).results;
+    vi.stubEnv("ERPX_CONSOLE_RETIRED","enabled");
+    expect(allowedPushOrigin("https://console-dev-erpx.jesadakorn.com")).toBe(false);
+    const sentEndpoints:string[]=[];
+    const send=vi.fn(async(device:{endpoint:string})=>{sentEndpoints.push(device.endpoint);return {statusCode:201};});
+    await drainWebPush(db,control,Date.now()+1000,send);
+    expect(sentEndpoints).not.toContain(retiredDevice.endpoint);
+    expect(await db.prepare("SELECT count(*)::int n FROM push_subscriptions WHERE company_id=? AND user_id=?").bind(actor.companyId,actor.userId).first("n")).toBe(0);
+    expect((await db.prepare("SELECT * FROM inbox_deliveries WHERE company_id=? AND user_id=? ORDER BY id").bind(actor.companyId,actor.userId).all()).results).toEqual(before);
+  } finally { keys.forEach((key,index)=>previous[index]===undefined?delete process.env[key]:process.env[key]=previous[index]); }
 });

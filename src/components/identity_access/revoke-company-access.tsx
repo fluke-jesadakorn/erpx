@@ -1,7 +1,7 @@
 "use client";
 import { Button } from "@/components/ui/foundation";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useSocialCommand } from "@/components/collaboration/social-command";
 import { type UiAppearance } from "@/components/ui/foundation";
 

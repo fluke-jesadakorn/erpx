@@ -895,6 +895,22 @@
       }
     },
     {
+      "id": "benefits.services.unit",
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "files": [
+        "tests/unit/benefits/benefits-services.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
       "id": "commercial.beta-auth-billing.integration",
       "lane": "integration",
       "owner": "commercial",
@@ -1766,7 +1782,9 @@
         "finance"
       ],
       "files": [
-        "tests/integration/sales/commerce-returns.test.ts"
+        "tests/integration/sales/commerce-returns.test.ts",
+        "tests/integration/sales/company-service-refund-migration.test.ts",
+        "tests/integration/sales/refund-bank-evidence-migration.test.ts"
       ],
       "fixture": "postgres",
       "requires": {
@@ -5251,7 +5269,9 @@
         "finance"
       ],
       "files": [
-        "tests/unit/finance/finance-command-fetch.test.ts"
+        "tests/unit/finance/finance-command-fetch.test.ts",
+        "tests/unit/finance/finance-command-hooks.test.ts",
+        "tests/unit/finance/finance-bank-command.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -5788,54 +5808,6 @@
       }
     },
     {
-      "id": "shared.evidence.general-company-demo.unit",
-      "lane": "unit",
-      "owner": "shared.evidence",
-      "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
-      ],
-      "files": [
-        "tests/unit/shared.evidence/general-company-demo.test.ts"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      }
-    },
-    {
       "id": "identity_access.gpo-rule-migration.integration",
       "lane": "integration",
       "owner": "identity_access",
@@ -6233,7 +6205,8 @@
         "people_payroll"
       ],
       "files": [
-        "tests/unit/people_payroll/leave-self-service.test.ts"
+        "tests/unit/people_payroll/leave-self-service.test.ts",
+        "tests/unit/people_payroll/time-entry-loader.test.tsx"
       ],
       "fixture": "none",
       "requires": {
@@ -6345,7 +6318,10 @@
         "legal"
       ],
       "files": [
-        "tests/integration/legal/legal-download-route.test.ts"
+        "tests/integration/legal/legal-download-route.test.ts",
+        "tests/integration/legal/legal-portal-download-session.test.ts",
+        "tests/integration/legal/legal-portal-upload-session.test.ts",
+        "tests/integration/legal/legal-portal-quick-access-session.test.ts"
       ],
       "fixture": "postgres",
       "requires": {
@@ -6361,7 +6337,9 @@
         "legal"
       ],
       "files": [
-        "tests/integration/legal/legal-g2.test.ts"
+        "tests/integration/legal/legal-g2.test.ts",
+        "tests/integration/legal/legal-inspection-writers.test.ts",
+        "tests/integration/legal/legal-executed-review-writers.test.ts"
       ],
       "fixture": "postgres",
       "requires": {
@@ -6457,7 +6435,13 @@
         "legal"
       ],
       "files": [
-        "tests/integration/legal/legal.test.ts"
+        "tests/integration/legal/legal.test.ts",
+        "tests/integration/legal/legal-retention-writers.test.ts",
+        "tests/integration/legal/legal-approval-writers.test.ts",
+        "tests/integration/legal/legal-governance-writers.test.ts",
+        "tests/integration/legal/legal-ai-apply-writers.test.ts",
+        "tests/integration/legal/legal-queue-entry-writers.test.ts",
+        "tests/integration/legal/legal-queued-completion-writers.test.ts"
       ],
       "fixture": "postgres",
       "requires": {
@@ -6652,7 +6636,8 @@
         "crm"
       ],
       "files": [
-        "tests/unit/marketing/marketing-editor.test.ts"
+        "tests/unit/marketing/marketing-editor.test.ts",
+        "tests/unit/marketing/public-forms-page.test.tsx"
       ],
       "fixture": "none",
       "requires": {
@@ -6814,7 +6799,8 @@
         "talent"
       ],
       "files": [
-        "tests/integration/shared.runtime/native-runtime.test.ts"
+        "tests/integration/shared.runtime/native-runtime.test.ts",
+        "tests/integration/shared.runtime/migration-status.test.ts"
       ],
       "fixture": "postgres",
       "requires": {
@@ -7284,7 +7270,8 @@
         "people_payroll"
       ],
       "files": [
-        "tests/unit/people_payroll/people-explorer-panels.test.ts"
+        "tests/unit/people_payroll/people-explorer-panels.test.ts",
+        "tests/unit/people_payroll/people-form-drawer.test.tsx"
       ],
       "fixture": "none",
       "requires": {
@@ -8590,7 +8577,8 @@
         "talent"
       ],
       "files": [
-        "tests/unit/shared.runtime/simulation-only-adapters.test.ts"
+        "tests/unit/shared.runtime/simulation-only-adapters.test.ts",
+        "tests/unit/shared.runtime/release-artifact-copy.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -8638,7 +8626,9 @@
         "collaboration"
       ],
       "files": [
-        "tests/unit/collaboration/social-text.test.ts"
+        "tests/unit/collaboration/social-text.test.ts",
+        "tests/unit/collaboration/social-record-mention.test.ts",
+        "tests/unit/collaboration/social-record-mention-api.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -8808,6 +8798,38 @@
       }
     },
     {
+      "id": "operations.work-task-files.integration",
+      "lane": "integration",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/integration/operations/work-task-files.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "operations.work-projections.integration",
+      "lane": "integration",
+      "owner": "operations",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/integration/operations/work-projections.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
       "id": "inventory.stock-reservations.integration",
       "lane": "integration",
       "owner": "inventory",
@@ -8894,6 +8916,23 @@
       }
     },
     {
+      "id": "support.package-commands.unit",
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support",
+        "commercial"
+      ],
+      "files": [
+        "tests/unit/support/package-commands.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
       "id": "support.evidence.integration",
       "lane": "integration",
       "owner": "support",
@@ -8966,6 +9005,63 @@
       ],
       "files": [
         "tests/integration/support/support.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "support.package-obligations.integration",
+      "lane": "integration",
+      "owner": "support",
+      "modules": [
+        "support",
+        "commercial",
+        "identity_access"
+      ],
+      "files": [
+        "tests/integration/support/package-obligations.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "support.package-enforcement.integration",
+      "lane": "integration",
+      "owner": "support",
+      "modules": [
+        "support",
+        "commercial",
+        "identity_access"
+      ],
+      "files": [
+        "tests/integration/support/package-enforcement.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "support.package-surfaces.integration",
+      "lane": "integration",
+      "owner": "support",
+      "modules": [
+        "support",
+        "commercial",
+        "identity_access",
+        "field_service",
+        "sales",
+        "customer_360"
+      ],
+      "files": [
+        "tests/integration/support/package-surfaces.test.ts"
       ],
       "fixture": "postgres",
       "requires": {
@@ -9175,6 +9271,54 @@
       ],
       "files": [
         "tests/unit/shared.ui/ui-standard-guard.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.ui.ui-boundary-adapters.unit",
+      "lane": "unit",
+      "owner": "shared.ui",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/unit/shared.ui/ui-boundary-adapters.test.tsx"
       ],
       "fixture": "none",
       "requires": {
@@ -10591,54 +10735,6 @@
       }
     },
     {
-      "id": "shared.architecture-relocation.unit",
-      "lane": "unit",
-      "owner": "shared.architecture",
-      "modules": [
-        "agent",
-        "assets",
-        "benefits",
-        "brand",
-        "collaboration",
-        "commercial",
-        "crm",
-        "customer_360",
-        "customer_authority",
-        "ecommerce",
-        "field_service",
-        "finance",
-        "identity_access",
-        "inventory",
-        "learning",
-        "legal",
-        "maintenance",
-        "manage_erpx",
-        "manufacturing",
-        "marketing",
-        "operations",
-        "organization",
-        "people_payroll",
-        "planning",
-        "platform_administration",
-        "pms",
-        "pos",
-        "procurement",
-        "projects",
-        "quality",
-        "sales",
-        "support",
-        "talent"
-      ],
-      "files": [
-        "tests/unit/shared.architecture/architecture-relocation.test.ts"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      }
-    },
-    {
       "id": "shared.deterministic-provider-safety.simulation-email.unit",
       "owner": "shared.deterministic-provider-safety",
       "lane": "unit",
@@ -10799,7 +10895,8 @@
         "talent"
       ],
       "files": [
-        "tests/unit/learning/learning-talent-services.test.ts"
+        "tests/unit/learning/learning-talent-services.test.ts",
+        "tests/unit/learning/learning-product-screens.test.tsx"
       ],
       "fixture": "none",
       "requires": {
@@ -10852,7 +10949,8 @@
         "collaboration"
       ],
       "files": [
-        "tests/unit/shared.business-contracts/customer-portal-application.test.ts"
+        "tests/unit/shared.business-contracts/customer-portal-application.test.ts",
+        "tests/unit/shared.business-contracts/customer-portal-page.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -10983,7 +11081,8 @@
         "organization"
       ],
       "files": [
-        "tests/unit/legal/legal-application.test.ts"
+        "tests/unit/legal/legal-application.test.ts",
+        "tests/unit/legal/legal-portal-page.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -11200,7 +11299,9 @@
         "customer_360"
       ],
       "files": [
-        "tests/unit/pms/pms-application.test.ts"
+        "tests/unit/pms/pms-application.test.ts",
+        "tests/unit/pms/booking-property-return-page.test.tsx",
+        "tests/unit/pms/booking-management-workspace.test.tsx"
       ],
       "fixture": "none",
       "requires": {
@@ -11308,7 +11409,8 @@
         "finance"
       ],
       "files": [
-        "tests/unit/finance/finance-refund-services.test.ts"
+        "tests/unit/finance/finance-refund-services.test.ts",
+        "tests/unit/finance/refund-bank-evidence-transport.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -11331,7 +11433,8 @@
         "pms"
       ],
       "files": [
-        "tests/unit/operations/operations-services.test.ts"
+        "tests/unit/operations/operations-services.test.ts",
+        "tests/unit/operations/task-worker-display.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -11366,7 +11469,8 @@
         "collaboration"
       ],
       "files": [
-        "tests/unit/projects/project-services.test.ts"
+        "tests/unit/projects/project-services.test.ts",
+        "tests/unit/projects/project-task-presentation.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -11579,17 +11683,43 @@
       "lane": "unit",
       "owner": "shared.files",
       "modules": [
-        "people_payroll",
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
         "finance",
+        "identity_access",
         "inventory",
-        "pos",
-        "pms",
+        "learning",
         "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
         "support",
-        "collaboration"
+        "talent"
       ],
       "files": [
-        "tests/unit/shared.files/files-application.test.ts"
+        "tests/unit/shared.files/files-application.test.ts",
+        "tests/unit/shared.files/private-read-constructor.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -11640,7 +11770,8 @@
         "finance"
       ],
       "files": [
-        "tests/unit/finance/finance-record-projection-services.test.ts"
+        "tests/unit/finance/finance-record-projection-services.test.ts",
+        "tests/unit/finance/finance-product-presentation.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -11715,7 +11846,8 @@
         "support"
       ],
       "files": [
-        "tests/unit/shared.workflow/workflow-services.test.ts"
+        "tests/unit/shared.workflow/workflow-services.test.ts",
+        "tests/unit/shared.workflow/flow-panel-product-entry.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -12459,7 +12591,8 @@
         "identity_access"
       ],
       "files": [
-        "tests/unit/pms/guest-account-compat.test.ts"
+        "tests/unit/pms/guest-account-compat.test.ts",
+        "tests/unit/pms/front-screen-preferences.test.tsx"
       ],
       "fixture": "none",
       "requires": {
@@ -12984,6 +13117,581 @@
         "tests/e2e/shared.ui/section-workspaces.spec.ts"
       ],
       "fixture": "local-seed",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "commercial.products.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/commercial/product-registry.test.ts",
+        "tests/unit/commercial/provider-commercial-transport.test.ts",
+        "tests/unit/commercial/packages.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "identity_access.product-sso.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/identity_access/product-sso.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "identity_access.product-sso.integration",
+      "lane": "integration",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/integration/identity_access/product-sso.test.ts",
+        "tests/integration/identity_access/product-sso-auth.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "commercial.package-grants.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "identity_access"
+      ],
+      "files": [
+        "tests/integration/commercial/package-grants.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "commercial.purchased-capability-sql.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "files": [
+        "tests/integration/commercial/purchased-capability-sql.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.ui.product-launcher.unit",
+      "lane": "unit",
+      "owner": "shared.ui",
+      "modules": [
+        "commercial",
+        "identity_access",
+        "organization",
+        "pos",
+        "pms"
+      ],
+      "files": [
+        "tests/unit/shared.ui/product-launcher.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "identity_access.product-workspace.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "commercial",
+        "identity_access",
+        "organization"
+      ],
+      "files": [
+        "tests/unit/identity_access/product-workspace.test.ts",
+        "tests/unit/identity_access/admin-workspace.test.ts",
+        "tests/unit/identity_access/work-role-display.test.ts",
+        "tests/unit/identity_access/account-workspace.test.ts",
+        "tests/unit/identity_access/public-surface-entry.test.ts",
+        "tests/unit/identity_access/holding-layout-source.test.ts",
+        "tests/unit/identity_access/page-entry-return.test.tsx",
+        "tests/unit/identity_access/directory-login-transport.test.tsx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "identity_access.work-modules.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access",
+        "commercial",
+        "people_payroll"
+      ],
+      "files": [
+        "tests/unit/identity_access/work-modules.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "commercial.legacy-packages.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/commercial/legacy-packages.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "commercial.legacy-module-preview.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "identity_access",
+        "organization",
+        "people_payroll"
+      ],
+      "files": [
+        "tests/integration/commercial/legacy-module-preview.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "commercial.package-review.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "files": [
+        "tests/unit/commercial/package-review.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "commercial.provider-legacy-grants.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "identity_access",
+        "organization",
+        "people_payroll",
+        "manage_erpx"
+      ],
+      "files": [
+        "tests/integration/commercial/provider-legacy-grants.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "identity_access.product-workspace.integration",
+      "lane": "integration",
+      "owner": "identity_access",
+      "modules": [
+        "commercial",
+        "identity_access",
+        "organization",
+        "sales",
+        "marketing",
+        "finance",
+        "people_payroll"
+      ],
+      "files": [
+        "tests/integration/identity_access/product-workspace.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "identity_access.account-time-preference-snapshot.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/identity_access/account-time-preference-snapshot.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "commercial.package-history.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "support",
+        "identity_access"
+      ],
+      "files": [
+        "tests/integration/commercial/package-history.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "commercial.package-history-migration.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "support",
+        "platform_administration"
+      ],
+      "files": [
+        "tests/integration/commercial/package-history-migration.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "field_service.service-intake-migration.integration",
+      "lane": "integration",
+      "owner": "field_service",
+      "modules": [
+        "field_service",
+        "support",
+        "finance",
+        "commercial"
+      ],
+      "files": [
+        "tests/integration/field_service/service-intake-migration.test.ts"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "identity_access.account-preferences.unit",
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/identity_access/account-preference-snapshot.test.ts",
+        "tests/unit/identity_access/account-preferences-client.test.ts",
+        "tests/unit/identity_access/account-preferences-boundary.test.tsx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "inventory.initial-physical-stock-count.unit",
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory",
+        "sales",
+        "finance"
+      ],
+      "files": [
+        "tests/unit/inventory/initial-physical-stock-client.test.ts",
+        "tests/unit/inventory/initial-physical-stock-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "identity_access.product-hosts.e2e",
+      "lane": "e2e",
+      "owner": "identity_access",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/e2e/identity_access/product-hosts.spec.ts"
+      ],
+      "fixture": "general-company",
+      "requires": {
+        "jobs": true,
+        "scanner": true
+      }
+    },
+    {
+      "id": "shared.test-infrastructure.product-host-cohort.unit",
+      "lane": "unit",
+      "owner": "shared.test-infrastructure",
+      "modules": [
+        "commercial",
+        "identity_access"
+      ],
+      "files": [
+        "tests/unit/shared.test-infrastructure/product-host-cohort.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.attachments.attachment-policy-inventory.unit",
+      "lane": "unit",
+      "owner": "shared.attachments",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/unit/shared.attachments/attachment-policy-inventory.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "finance.finance-operations-attachment-policy.unit",
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "files": [
+        "tests/unit/finance/finance-operations-attachment-policy.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.attachments.sensitive-attachment-policy.unit",
+      "lane": "unit",
+      "owner": "shared.attachments",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/unit/shared.attachments/sensitive-attachment-policy.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.attachments.specialized-attachment-media.unit",
+      "lane": "unit",
+      "owner": "shared.attachments",
+      "modules": [
+        "agent",
+        "assets",
+        "benefits",
+        "brand",
+        "collaboration",
+        "commercial",
+        "crm",
+        "customer_360",
+        "customer_authority",
+        "ecommerce",
+        "field_service",
+        "finance",
+        "identity_access",
+        "inventory",
+        "learning",
+        "legal",
+        "maintenance",
+        "manage_erpx",
+        "manufacturing",
+        "marketing",
+        "operations",
+        "organization",
+        "people_payroll",
+        "planning",
+        "platform_administration",
+        "pms",
+        "pos",
+        "procurement",
+        "projects",
+        "quality",
+        "sales",
+        "support",
+        "talent"
+      ],
+      "files": [
+        "tests/unit/shared.attachments/specialized-attachment-media.test.ts"
+      ],
+      "fixture": "none",
       "requires": {
         "jobs": false,
         "scanner": false

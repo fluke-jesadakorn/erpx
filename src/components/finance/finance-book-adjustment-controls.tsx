@@ -1,7 +1,10 @@
 "use client";
+import { useFinanceActionAllowed } from "./purchase-context";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {FinanceEvidenceDocuments} from "./finance-evidence-documents";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import { financeCsvRows } from "@/lib/finance/finance-csv";
 import {
@@ -36,28 +39,37 @@ export function FinanceBookAdjustmentControls({
   canApprove: boolean;
   userId: string;
 }) {
+  const draftScope=useFinanceDraftScope();
+  const [hasAttempt,setHasAttempt]=useState(false);
   const router = useRouter(),
     [book, setBook] = useState(String(data.books[0]?.id ?? "")),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const canSettle = useFinanceActionAllowed("settle-existing","finance.advanced");
   async function run(path: string, input: unknown) {
+    const completion=captureFinanceForm(),url=`${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/book-adjustments${path}`,payload=JSON.stringify(input);
+    if (!canSettle && !workFetch.hasAttempt(url,payload)) { setError("Existing book adjustments are unavailable for the current package."); return; }
+
+    setHasAttempt(true);
     setBusy(true);
     setError("");
     try {
       const r = await workFetch(
-          `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/book-adjustments${path}`,
+          url,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Idempotency-Key": crypto.randomUUID(),
             },
-            body: JSON.stringify(input),
+            body: payload,
           },
         ),
         body = await r.json();
       if (!r.ok)
         throw new Error(body.error?.message ?? "Book adjustment failed");
+      if (body.data === undefined) throw new Error("Book adjustment acknowledgement is missing. Retry the same action.");
+      acknowledgeFinanceForm(completion);setHasAttempt(false);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Book adjustment failed");
@@ -80,7 +92,7 @@ export function FinanceBookAdjustmentControls({
           drawerTitle="Prepare secondary book adjustment"
         >
           <summary>Prepare adjustment</summary>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={async (e) => {
               e.preventDefault();
@@ -195,7 +207,7 @@ export function FinanceBookAdjustmentControls({
               appearance="standard"
               clientManaged
               type="submit"
-              disabled={busy}
+              disabled={busy || (!canSettle && !hasAttempt)}
             >
               Prepare for approval
             </Button>
@@ -218,17 +230,17 @@ export function FinanceBookAdjustmentControls({
               data.books.find((b) => b.id === r.chart_id)?.name ?? r.chart_id,
             )}
           </p>
-          <RecordLink href={`${base}/finance/journals/${r.primary_journal_id}`}>
+          <RecordLink href={canonicalUiHref(`${base}/finance/journals/${r.primary_journal_id}`)}>
             Business source
           </RecordLink>
           {r.journal_id && (
-            <RecordLink href={`${base}/finance/journals/${r.journal_id}`}>
+            <RecordLink href={canonicalUiHref(`${base}/finance/journals/${r.journal_id}`)}>
               Adjustment journal
             </RecordLink>
           )}
           {r.reversal_journal_id && (
             <RecordLink
-              href={`${base}/finance/journals/${r.reversal_journal_id}`}
+              href={canonicalUiHref(`${base}/finance/journals/${r.reversal_journal_id}`)}
             >
               Reversal journal
             </RecordLink>
@@ -242,7 +254,7 @@ export function FinanceBookAdjustmentControls({
           </details>
           <FinanceEvidenceDocuments base={base} row={r} targetType="finance_book_adjustment" canWrite={canWrite}/>
           {canApprove && r.prepared_by !== userId && r.status === "draft" && (
-            <FormLayout
+            <FormLayout data-finance-draft={draftScope}
               className="ui-form-grid"
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -272,7 +284,7 @@ export function FinanceBookAdjustmentControls({
                   type="submit"
                   name="action"
                   value={a}
-                  disabled={busy}
+                  disabled={busy || (!canSettle && !hasAttempt)}
                   key={a}
                 >
                   {a}
@@ -286,7 +298,7 @@ export function FinanceBookAdjustmentControls({
               drawerTitle="Reverse secondary book adjustment"
             >
               <summary>Reverse adjustment</summary>
-              <FormLayout
+              <FormLayout data-finance-draft={draftScope}
                 className="ui-form-grid"
                 onSubmit={async (e) => {
                   e.preventDefault();
@@ -331,7 +343,7 @@ export function FinanceBookAdjustmentControls({
                   appearance="standard"
                   clientManaged
                   type="submit"
-                  disabled={busy}
+                  disabled={busy || (!canSettle && !hasAttempt)}
                 >
                   Reverse with retained history
                 </Button>

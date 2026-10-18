@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {sessionFromRequest} from '@/server/modules/identity_access/public/auth';
 import {accountTimePreference, changeAccountTimePreference} from '@/server/modules/identity_access/public/account-time-preference';
 import {ApiError, errorResponse} from '@/server/modules/runtime/public/http';
@@ -7,7 +8,7 @@ async function userId(request: Request) {
   if (!session) throw new ApiError(401, 'SIGN_IN_REQUIRED', 'Sign in to edit your time settings.');
   return session.user.id;
 }
-const response = (data: unknown) => Response.json({data}, {headers: {'Cache-Control': 'private, no-store'}});
+const response = (data: unknown) => Response.json(canonicalDestinationLinks({data}), {headers: {'Cache-Control': 'private, no-store'}});
 export async function GET(request: Request) {
   try { return response(await accountTimePreference(await userId(request))); } catch (error) { return errorResponse(error); }
 }

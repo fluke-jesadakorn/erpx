@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/foundation";
 
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { RoleSelect } from "./role-select";
 import { useContextSwitch } from "./context-switch-provider";
-import type { WorkAssignment } from "@/server/modules/identity_access/public/authorization";
+import type {WorkRoleDisplayChoice} from "@/lib/identity_access/work-role-display";
 import styles from "./account.module.css";
 
 export function WorkRolePicker({
@@ -20,7 +20,7 @@ export function WorkRolePicker({
   activeAssignmentId,
 }: {
   base: string;
-  options: (WorkAssignment & { href: string })[];
+  options: readonly WorkRoleDisplayChoice[];
   revision: number;
   from?: string;
   companyId?: string;

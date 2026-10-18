@@ -1,28 +1,36 @@
+import { accountSelfLoginHref, type EntryPageSearchParams } from '@/server/modules/identity_access/public/rules/page-entry-return';
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
 import { permissionDefinition } from "@/lib/identity_access/permissions";
 import { currentSession } from "@/server/modules/identity_access/public/authorization";
-import { ownIamAccess } from "@/server/modules/identity_access/public/iam-my-access";
-import { workspaceChoices } from "@/server/modules/organization/public/workspace-choices";
+import {currentAccountSelfAccess} from '@/server/modules/identity_access/public/account-self-access';
+import {AccountShell} from '@/components/identity_access/account-shell';
+import {configuredProductHandoff,productHostForHost} from '@/lib/runtime/product-hosts';
+import {workspaceChoices} from '@/server/modules/organization/public/workspace-choices';
 import { accountQuickAccessItems } from "@/server/modules/identity_access/public/account-quick-access";
 import { readQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
 import { QuickAccessShelf } from "@/components/work_projection/quick-access/shelf";
 import rail from "@/components/work_projection/quick-access/area-rail.module.css";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/foundation";
-export default async function MyAccessPage() {
-  const session = await currentSession().catch(() =>
-    redirect("/login?next=/my-access"),
+import {cookies,headers} from 'next/headers';
+import {preferredAccountLanguage} from '@/server/modules/identity_access/public/account-preference-snapshot';
+export const dynamic='force-dynamic';
+export default async function MyAccessPage({ searchParams }: { searchParams?: Promise<EntryPageSearchParams> }) {
+  const session = await currentSession().catch(async () =>
+    redirect(accountSelfLoginHref("/my-access", await searchParams ?? {})),
   );
+  const accountHost=productHostForHost((await headers()).get('host'))==='account';
   const [access, choices, preferences] = await Promise.all([
-    ownIamAccess(session.session.user.id),
-    workspaceChoices(),
+    currentAccountSelfAccess(),
+    accountHost?Promise.resolve([]):workspaceChoices(),
     readQuickAccessPreferences(session.session.user.id, "account-my-access", "account"),
   ]);
-  const items = accountQuickAccessItems("my-access", { hasWorkspace: choices.length > 0 });
-  return (
+  const items = accountQuickAccessItems("my-access", { hasWorkspace: choices.length>0 });
+  const language=await preferredAccountLanguage((await cookies()).get('erpx_language')?.value==='th'?'th':'en');
+  const content=(
     <>
     <a href="#my-access-content" className="skip-link">Skip to account access</a>
     <main>
@@ -42,8 +50,8 @@ export default async function MyAccessPage() {
         to use its permissions.
       </p>
       <div className="button-row">
-        <UiActionLink appearance="standard" variant="secondary" href="/">
-          Open workspace
+        <UiActionLink appearance="standard" variant="secondary" href={accountHost?configuredProductHandoff('apps')??'/':'/'} data-product-switch={accountHost||undefined}>
+          {accountHost?'Open Apps':'Open workspace'}
         </UiActionLink>
         <UiActionLink appearance="standard" variant="secondary" href="/security">
           Authenticator & sessions
@@ -90,4 +98,5 @@ export default async function MyAccessPage() {
     </main>
     </>
   );
+  return accountHost?<AccountShell current="access" language={language}>{content}</AccountShell>:content;
 }

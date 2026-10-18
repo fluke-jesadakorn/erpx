@@ -1,12 +1,16 @@
 "use client";
+import { useFinanceActionAllowed } from "./purchase-context";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { FormDisclosure } from "@/components/ui/form-disclosure";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, Table, TableFrame, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { Card, FormLayout } from "@/components/ui/foundation";
 
@@ -40,15 +44,21 @@ type Workspace = {
 };
 
 export function IntercompanyConsole({ base, data }: { base: string; data: Workspace }) {
+  const draftScope=useFinanceDraftScope();
+  const [hasAttempt,setHasAttempt]=useState(false);
   const router = useRouter(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     attempt = useRef<{ signature: string; key: string } | null>(null);
-  const apiBase = base.replace("/holdings/", "/api/v1/holdings/");
+  const apiBase = base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/");
+  const canPrepare=useFinanceActionAllowed("new-work","finance.advanced"),canSettle=useFinanceActionAllowed("settle-existing","finance.advanced");
   async function post(resource: string, path: string, input: Record<string, unknown>) {
+    if (!(path ? canSettle : canPrepare) && !workFetch.hasAttempt(`${apiBase}/finance/${resource}${path}`,JSON.stringify(input))) {setError("This intercompany action is unavailable for the current package.");return;}
+    const completion=captureFinanceForm();
     const signature = `${resource}${path}:${JSON.stringify(input)}`;
     if (attempt.current?.signature !== signature)
       attempt.current = { signature, key: crypto.randomUUID() };
+    setHasAttempt(true);
     setBusy(true);
     setError("");
     try {
@@ -57,8 +67,10 @@ export function IntercompanyConsole({ base, data }: { base: string; data: Worksp
         headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
         body: JSON.stringify(input),
       });
-      const body = (await response.json()) as { error?: { message?: string } };
+      const body = (await response.json()) as { data?: unknown; error?: { message?: string } };
       if (!response.ok) throw new Error(body.error?.message ?? "Unable to save Finance setup.");
+      if (body.data === undefined) throw new Error("Finance acknowledgement is missing. Retry the same action.");
+      acknowledgeFinanceForm(completion);setHasAttempt(false);
       attempt.current = null;
       router.refresh();
     } catch (cause) {
@@ -93,7 +105,7 @@ export function IntercompanyConsole({ base, data }: { base: string; data: Worksp
             Add an active Company organization node before using intercompany matching. This is an
             audited Holding setup change.
           </p>
-          <FormLayout
+          <FormLayout data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(event) => {
               event.preventDefault();
@@ -136,14 +148,15 @@ export function IntercompanyConsole({ base, data }: { base: string; data: Worksp
                 defaultValue="THB"
               />
             </Field>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || (!canPrepare && !hasAttempt)}>
               {busy ? "Registering…" : "Register Group entity"}
             </Button>
           </FormLayout>
         </Card>
       )}
       {data.canWrite && data.entities.length > 0 && (
-        <FormLayout
+        <FormDisclosure appearance="standard" drawerTitle="Create intercompany item" error={error}><summary>Create intercompany item</summary>
+        <FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={(event) => {
             event.preventDefault();
@@ -195,10 +208,10 @@ export function IntercompanyConsole({ base, data }: { base: string; data: Worksp
             Target posted journal
             <TextInput appearance="standard" name="targetJournalId" placeholder="Optional journal id" />
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !targetEntities.length}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || (!canPrepare && !hasAttempt) || !targetEntities.length}>
             {busy ? "Saving…" : "Create intercompany item"}
           </Button>
-        </FormLayout>
+        </FormLayout></FormDisclosure>
       )}
       {!targetEntities.length && data.canWrite && (
         <p className="muted">
@@ -240,7 +253,7 @@ export function IntercompanyConsole({ base, data }: { base: string; data: Worksp
                 return (
                   <tr key={row.id}>
                     <td>
-                      <RecordLink href={`${base}/record-details/intercompany/${encodeURIComponent(row.id)}`}>{row.reference}</RecordLink>
+                      <RecordLink href={canonicalUiHref(`${base}/record-details/intercompany/${encodeURIComponent(row.id)}`)}>{row.reference}</RecordLink>
                       <div className="muted">{row.id}</div>
                     </td>
                     <td>
@@ -252,7 +265,7 @@ export function IntercompanyConsole({ base, data }: { base: string; data: Worksp
                     <td>{row.status}</td>
                     <td>
                       {action ? (
-                        <form
+                        <FormLayout data-finance-draft={draftScope}
                           className="ui-form-actions"
                           onSubmit={(event) => {
                             event.preventDefault();
@@ -271,10 +284,10 @@ export function IntercompanyConsole({ base, data }: { base: string; data: Worksp
                             placeholder="Evidence and reason"
                             aria-label={`Reason to ${action} ${row.reference}`}
                           />
-                          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
+                          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy || (!canSettle && !hasAttempt)}>
                             {action}
                           </Button>
-                        </form>
+                        </FormLayout>
                       ) : row.status === "eliminated" ? (
                         "Complete"
                       ) : (

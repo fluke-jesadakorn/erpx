@@ -140,13 +140,13 @@ export interface PeopleEvaluationRepository<Effect> {
             filename: string;
         })[];
     }>;
-    readEvaluationEvidenceSourcesTasksprojectslearning(companyId: string, userId: string | null, sourceId: string | null, sourceId2: string | null, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null): Promise<{
+    readEvaluationEvidenceSourcesTasksprojectslearning(companyId: string, userId: string | null, sourceId: string | null, sourceId2: string | null, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null, actor: WorkContext): Promise<{
         results: (Row)[];
     }>;
-    readEvaluationEvidenceSourcesTasksprojectslearning2(companyId: string, userId: string | null, sourceId: string | null, sourceId2: string | null, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null): Promise<{
+    readEvaluationEvidenceSourcesTasksprojectslearning2(companyId: string, userId: string | null, sourceId: string | null, sourceId2: string | null, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null, actor: WorkContext): Promise<{
         results: (Row)[];
     }>;
-    readEvaluationEvidenceSourcesTasksprojectslearning3(companyId: string, userId: string | null, sourceId: string | null, sourceId2: string | null, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null): Promise<{
+    readEvaluationEvidenceSourcesTasksprojectslearning3(companyId: string, userId: string | null, sourceId: string | null, sourceId2: string | null, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null, actor: WorkContext): Promise<{
         results: (Row)[];
     }>;
     readAddEvaluationEvidenceLink(sourceId: string | null, assessmentId: string, companyId: string): Promise<Record<string, unknown> | null>;
@@ -224,6 +224,7 @@ export interface PeopleEvaluationPorts<Effect> {
     querySchema: ReturnType<typeof createEvaluationQuerySchema>;
     batch(effects: Effect[]): Promise<unknown>;
     captureAuthority(actor: WorkContext): Promise<WorkContext>;
+    purchasedHistory?(actor:WorkContext):Promise<void>;
     authorityGuards(...args: Tail<Parameters<typeof iamMutationGuards>>): Effect[];
     snapshotMoney(...args: Tail<Parameters<typeof snapshotMoney>>): PortResult<ReturnType<typeof snapshotMoney>, Effect>;
     attachmentLinkStatus(...args: Tail<Parameters<typeof attachmentLinkStatus>>): ReturnType<typeof attachmentLinkStatus>;
@@ -231,6 +232,7 @@ export interface PeopleEvaluationPorts<Effect> {
 export function createPeopleEvaluationApplication<Effect>(ports: PeopleEvaluationPorts<Effect>) {
     const repository = ports.repository;
     async function evaluationAuthority(actor: WorkContext, permission = "people.read") {
+        await ports.purchasedHistory?.(actor);
         if (!actor.iam?.queuedAssignmentVersion)
             actor = await ports.captureAuthority(actor);
         ports.authorize(actor, permission);
@@ -520,6 +522,7 @@ export function createPeopleEvaluationApplication<Effect>(ports: PeopleEvaluatio
             evidence = evidence.filter(e => e.source_type !== "file");
         const history = (await repository.readEvaluationDetailHistory(assessmentId, actor.companyId)).results;
         const sources = await evaluationEvidenceSources(actor, employee);
+        evidence = evidence.filter(item => !["task", "project", "learning"].includes(String(item.source_type)) || sources.some(source => source.type === item.source_type && source.id === item.source_id));
         const salary = hasPermission(actor, "people.compensation.read") ? { wages: (await repository.readEvaluationDetailSalary(employee.id)).results, drafts: (await repository.readEvaluationDetailSalary2(assessmentId, actor.companyId)).results } : undefined;
         const files = hasPermission(actor, "people.compensation.read") && hasPermission(actor, "people.documents.read") ? (await repository.readEvaluationDetailFiles(actor.companyId, assessmentId)).results : [];
         return { evidence, history, sources, salary, files };
@@ -528,9 +531,9 @@ export function createPeopleEvaluationApplication<Effect>(ports: PeopleEvaluatio
         type: string;
     })[]> {
         const [tasks, projects, learning] = await Promise.all([
-            repository.readEvaluationEvidenceSourcesTasksprojectslearning(actor.companyId, employee.userId, sourceId, sourceId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId),
-            repository.readEvaluationEvidenceSourcesTasksprojectslearning2(actor.companyId, employee.userId, sourceId, sourceId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId),
-            repository.readEvaluationEvidenceSourcesTasksprojectslearning3(actor.companyId, employee.userId, sourceId, sourceId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId),
+            repository.readEvaluationEvidenceSourcesTasksprojectslearning(actor.companyId, employee.userId, sourceId, sourceId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor),
+            repository.readEvaluationEvidenceSourcesTasksprojectslearning2(actor.companyId, employee.userId, sourceId, sourceId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor),
+            repository.readEvaluationEvidenceSourcesTasksprojectslearning3(actor.companyId, employee.userId, sourceId, sourceId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor),
         ]);
         return [...tasks.results.map(r => ({ type: "task", ...r })), ...projects.results.map(r => ({ type: "project", ...r })), ...learning.results.map(r => ({ type: "learning", ...r }))];
     }

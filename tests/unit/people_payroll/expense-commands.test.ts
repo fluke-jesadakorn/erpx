@@ -530,3 +530,63 @@ describe("Expense payment and AI evidence source policy", () => {
     expect(preparePosting).not.toHaveBeenCalled();
   });
 });
+
+// Additive native application/client boundary coverage; original suite above is exact.
+import {createCancelExpensePayment,type ExpensePaymentCancellationPorts} from '../../../src/server/modules/people_payroll/application/expense-payment-cancellation';
+import {expensePaymentCancellationSchema,type ExpensePaymentCancellationInput} from '../../../src/server/modules/people_payroll/domain/expense-payment-cancellation';
+import {createExpensePaymentCancellationCommands,type ExpensePaymentCancellationSource} from '../../../src/lib/people_payroll/expense-payment-cancellation';
+import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
+const cancelPaymentInput:ExpensePaymentCancellationInput={expectedVersion:2,expenseVersion:7,reason:'Verified unused preparation; no bank payment executed',paymentNotExecuted:true};
+function cancellationPorts(){
+ const expense={...row,version:7,status:'cancelled',workflow_stage:'cancelled',invoice_id:'invoice',journal_id:'journal',cancelled_at:1000},draft={id:'draft',expense_id:'expense',company_id:'company',version:2,status:'draft',payment_id:null};
+ const result={id:'draft',expenseId:'expense',status:'cancelled' as const,version:3,expenseVersion:7,reason:cancelPaymentInput.reason,paymentNotExecuted:true as const};
+ const ports:ExpensePaymentCancellationPorts={...common(),authorize:vi.fn(),history:vi.fn(async()=>{}),payment:vi.fn(async()=>({expense,draft})),payers:vi.fn(async()=>['payer']),prepare:vi.fn(async()=>({result,native:{owner:true}}))};
+ return {ports,expense,draft,result,payer:{...actor,userId:'payer',assignmentId:'treasury',role:'treasury'} as WorkContext};
+}
+it('cancels only an unexecuted original draft with exact parent and child versions, explicit verification, reason and Expense audit scope',async()=>{
+ const {ports,payer,expense,draft,result}=cancellationPorts();expect(await createCancelExpensePayment(ports)(payer,'expense','draft',cancelPaymentInput,'cancel-payment-key')).toEqual(result);
+ expect(ports.authorize).toHaveBeenCalledWith(payer);expect(ports.prepare).toHaveBeenCalledWith(payer,'draft','expense',cancelPaymentInput,'cancel-payment-key',draft,expense);expect(ports.commit).toHaveBeenCalledWith(payer,'cancel-payment-key','expense.payment.cancel',cancelPaymentInput,'draft',3,expect.objectContaining({result}),{companyId:'company',branchId:'branch',departmentId:'department'});
+ for(const value of [{...cancelPaymentInput,paymentNotExecuted:false},{...cancelPaymentInput,reason:'x'},{...cancelPaymentInput,force:true}])expect(expensePaymentCancellationSchema.safeParse(value).success).toBe(false);
+});
+it('payment cancellation denies stale, foreign, claimant and already confirmed sources before mutation preparation',async()=>{
+ for(const fault of ['parent-version','draft-version','foreign-company','confirmed','paid-pointer','claimant'] as const){const f=cancellationPorts();
+  if(fault==='parent-version')f.expense.version++;if(fault==='draft-version')f.draft.version++;if(fault==='foreign-company')f.draft.company_id='other';if(fault==='confirmed')f.draft.status='confirmed';if(fault==='paid-pointer')vi.mocked(f.ports.payment).mockResolvedValue({expense:f.expense,draft:{...f.draft,payment_id:'actual-recorded-payment'}});if(fault==='claimant')f.expense.claimant_user_id=f.payer.userId;
+  await expect(createCancelExpensePayment(f.ports)(f.payer,'expense','draft',cancelPaymentInput,'cancel-payment-key')).rejects.toMatchObject({code:fault==='foreign-company'?'PAYMENT_DRAFT_NOT_FOUND':fault==='claimant'?'TREASURY_REQUIRED':fault==='parent-version'||fault==='draft-version'?'EXPENSE_PAYMENT_CHANGED':'EXPENSE_PAYMENT_NOT_CANCELLABLE'});expect(f.ports.prepare).not.toHaveBeenCalled();expect(f.ports.commit).not.toHaveBeenCalled();
+ }
+});
+it('exact cancellation replay still requires current Treasury and native retained history while preserving later owner revisions',async()=>{
+ const f=cancellationPorts();vi.mocked(f.ports.replay).mockResolvedValue(f.result);f.draft.version=4;f.expense.version=9;expect(await createCancelExpensePayment(f.ports)(f.payer,'expense','draft',cancelPaymentInput,'cancel-payment-key')).toBe(f.result);expect(f.ports.history).toHaveBeenCalledExactlyOnceWith(f.payer,'expense','draft',cancelPaymentInput);expect(f.ports.payment).not.toHaveBeenCalled();expect(f.ports.prepare).not.toHaveBeenCalled();
+ const denied=Error('Current Treasury duty changed');vi.mocked(f.ports.history).mockRejectedValue(denied);await expect(createCancelExpensePayment(f.ports)(f.payer,'expense','draft',cancelPaymentInput,'cancel-payment-key')).rejects.toBe(denied);expect(f.ports.commit).not.toHaveBeenCalled();
+ vi.mocked(f.ports.authorize).mockImplementation(()=>{throw denied;});vi.mocked(f.ports.replay).mockClear();await expect(createCancelExpensePayment(f.ports)(f.payer,'expense','draft',cancelPaymentInput,'cancel-payment-key')).rejects.toBe(denied);expect(f.ports.replay).not.toHaveBeenCalled();
+});
+function cancellationBrowser(){
+ const node={isConnected:true,dataset:{workUser:'payer',workRevision:'1',workCompany:'company',workAssignment:'treasury',workStale:'false'}},browser=Object.assign(new EventTarget(),{location:{origin:'https://people-dev-erpx.jesadakorn.com'}}),saved:CustomEvent[]=[];
+ browser.addEventListener('erpx:record-command-saved',event=>saved.push(event as CustomEvent));vi.stubGlobal('window',browser);vi.stubGlobal('document',{documentElement:{dataset:{}},querySelector:(selector:string)=>selector==='[data-work-revision]'?node:null});setContextSwitching(false);
+ const source:ExpensePaymentCancellationSource={base:'/holdings/test',companyId:'company',expenseId:'expense',draftId:'draft',expenseVersion:7,draftVersion:2,canCancel:true,history:true,contextKey:'native-owner'};
+ return {node,saved,source};
+}
+it('the actual cancellation submit retains first body/key/completion through lost response, delayed original JSON, context loss and a newer note',async()=>{
+ const {node,saved,source}=cancellationBrowser();let edit='submitted-note',started!:()=>void,controller!:ReadableStreamDefaultController<Uint8Array>;const decoding=new Promise<void>(resolve=>{started=resolve;}),stream=new ReadableStream<Uint8Array>({start(value){controller=value;}}),form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement,seen:{key:string|null;body:BodyInit|null|undefined}[]=[],receipt=cancellationPorts().result;
+ class OriginalBodyResponse extends Response{override json(){started();return super.json();}}
+ vi.stubGlobal('fetch',async(_url:RequestInfo|URL,init?:RequestInit)=>{seen.push({key:new Headers(init?.headers).get('Idempotency-Key'),body:init?.body});if(seen.length===1)throw Error('Lost after native commit');return seen.length===2?new OriginalBodyResponse(stream,{headers:{'Content-Type':'application/json'}}):Response.json({data:receipt});});
+ try{
+  const commands=createExpensePaymentCancellationCommands(()=>source);await expect(commands.submit(cancelPaymentInput,{form,formEditVersion:edit})).rejects.toThrow('Lost after native commit');const pending=commands.retry();await decoding;edit='newer-unsent-note';node.dataset.workRevision='2';controller.enqueue(new TextEncoder().encode(JSON.stringify({data:receipt})));controller.close();await expect(pending).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(saved).toEqual([]);expect(commands.pending()).toBe(true);
+  node.dataset.workRevision='1';const result=await commands.retry();expect(result.unchanged()).toBe(false);expect(result.acknowledge()).toBe(true);expect(new Set(seen.map(item=>item.key)).size).toBe(1);expect(seen.map(item=>item.body)).toEqual(Array(3).fill(JSON.stringify(cancelPaymentInput)));expect(saved).toHaveLength(1);expect(saved[0].detail.formEditVersion).toBe('submitted-note');expect(saved[0].detail.financeAcknowledged).toBe(true);expect(edit).toBe('newer-unsent-note');expect(commands.pending()).toBe(false);
+ }finally{vi.unstubAllGlobals();}
+});
+it('uncertain cancellation never releases its original key on later 4xx or accepts another claim receipt, while history-only exact retry remains possible',async()=>{
+ const {source,saved}=cancellationBrowser(),seen:string[]=[],receipt=cancellationPorts().result;let call=0;
+ vi.stubGlobal('fetch',async(_url:RequestInfo|URL,init?:RequestInit)=>{seen.push(new Headers(init?.headers).get('Idempotency-Key')!);call++;if(call===1)throw Error('Unknown commit');if(call===2)return Response.json({error:{code:'EXPENSE_PAYMENT_CHANGED',message:'Review current status'}},{status:409});if(call===3)return Response.json({data:{...receipt,id:'foreign-draft'}});return Response.json({data:receipt});});
+ try{const commands=createExpensePaymentCancellationCommands(()=>source);await expect(commands.submit(cancelPaymentInput)).rejects.toThrow('Unknown commit');await expect(commands.retry()).rejects.toThrow('Review current status');expect(commands.pending()).toBe(true);await expect(commands.retry()).rejects.toThrow('receipt is incomplete');expect(saved).toEqual([]);expect(()=>commands.submit({...cancelPaymentInput,reason:'Newer unsent reason'})).toThrow('original cancellation first');source.draftVersion=4;source.expenseVersion=9;source.canCancel=false;const result=await commands.retry();expect(result.receipt).toEqual(receipt);expect(result.acknowledge()).toBe(true);expect(new Set(seen).size).toBe(1);}finally{vi.unstubAllGlobals();}
+});
+it('an initial stale cancellation context performs no network request or acknowledgement and leaves no submitted attempt',async()=>{
+ const {node,source,saved}=cancellationBrowser(),fetcher=vi.fn();vi.stubGlobal('fetch',fetcher);node.dataset.workStale='true';
+ try{const commands=createExpensePaymentCancellationCommands(()=>source);await expect(commands.submit(cancelPaymentInput)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(fetcher).not.toHaveBeenCalled();expect(saved).toEqual([]);expect(commands.pending()).toBe(false);}finally{vi.unstubAllGlobals();}
+});
+it('the actual cancellation control is reachable for a server-authorized cancelled-parent duty and absent for an unauthorized reader',async()=>{
+ const route='../../../src/lib/shared/destination-router';vi.doMock(route,()=>({useRouter:()=>({refresh:()=>{}})}));
+ try{const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server'),{ExpensePaymentCancellation}=await import('../../../src/components/people_payroll/expense-payment-cancellation');const f=cancellationPorts();
+  const visible=renderToStaticMarkup(createElement(ExpensePaymentCancellation,{base:'/holdings/test',expense:f.expense,draft:{...f.draft,can_cancel_payment:1}}));expect(visible).toContain('Cancel unused payment preparation');
+  expect(renderToStaticMarkup(createElement(ExpensePaymentCancellation,{base:'/holdings/test',expense:f.expense,draft:{...f.draft,can_cancel_payment:0}}))).toBe('');
+ }finally{vi.doUnmock(route);}
+});

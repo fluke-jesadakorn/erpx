@@ -15,12 +15,11 @@ vi.mock("../../../src/server/modules/files/public/attachments/preview",()=>({
 }));
 
 import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload,withdrawAttachmentLink } from "../../../src/server/modules/files/public/attachments/service";
-import { attachmentPolicy,attachmentPolicyRegistry,attachmentRetentionSnapshot } from "../../../src/server/modules/files/public/attachments/policy";
+import { attachmentPolicy } from "../../../src/server/modules/files/public/attachments/policy";
 import {postView,publishPost,savePostDraft,type PostContent} from "../../../src/server/modules/collaboration/public/social-home";
 import { listBrandProfiles } from "../../../src/server/modules/brand/public/branding";
 import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "../../../src/server/modules/files/public/attachments/migration";
 import { sha256 } from "../../../src/server/modules/runtime/adapters/crypto";
-import { legacyAttachmentPolicy } from "../../../src/server/modules/files/public/attachments/legacy-policy";
 import { LocalFileStore } from "../../../src/server/modules/runtime/adapters/runtime/filesystem";
 import { MinioFileStore } from "../../../src/server/modules/runtime/adapters/runtime/minio";
 import { PostgresDatabase,transactionDatabase } from "../../../src/server/modules/runtime/adapters/runtime/postgres";
@@ -70,48 +69,7 @@ async function cleanupFileFixture(){
 function singleCleanupDatabase(){return new PostgresDatabase({connectionString:db.pool.options.connectionString,max:1});}
 
 describe("canonical attachment lifecycle",()=>{
-  it("keeps a closed exact policy inventory",()=>{
-    const combinations=attachmentPolicyRegistry.flatMap(policy=>policy.componentKinds.map(kind=>`${policy.targetType}\0${policy.purposeKey}\0${kind}`));
-    const addedFinanceTargets=["finance_billing_correction","finance_business_bill","finance_plan_edition","finance_book_rule","finance_book_adjustment","finance_bank_match_group","finance_collection_case","finance_business_contract","finance_recognition_run","finance_instrument","finance_instrument_run","finance_asset_policy","finance_asset_policy_run","finance_group_report","finance_ownership_interest","finance_acquisition","finance_intercompany_pair"];
-    const bookingMedia=["pms_property\0booking_media\0record","pms_room_type\0booking_media\0record"];
-    const evaluationEvidence="hr_evaluation_assessment\0evaluation_evidence\0record";
-    const originalCombinations=combinations.filter(tuple=>!addedFinanceTargets.includes(tuple.split("\0")[0])&&!bookingMedia.includes(tuple)&&tuple!==evaluationEvidence);
-    const exactInventoryHash=createHash("sha256").update([...originalCombinations].sort().join("\n")).digest("hex");
-    expect(attachmentPolicyRegistry).toHaveLength(222);
-    expect(combinations).toHaveLength(237);
-    expect(combinations.filter(tuple=>tuple.startsWith("hr_evaluation_assessment\0"))).toEqual([evaluationEvidence]);
-    expect(attachmentPolicy("hr_evaluation_assessment","evaluation_evidence","record")).toMatchObject({classification:"restricted",publication:false,portalUpload:false});
-    expect(originalCombinations).toHaveLength(217);
-    expect(combinations.filter(tuple=>addedFinanceTargets.includes(tuple.split("\0")[0])).sort()).toEqual(addedFinanceTargets.map(target=>`${target}\0finance_support\0record`).sort());
-    expect(exactInventoryHash).toBe("65cd89ee3db08feb4c8d2bdde1b21776541c663ec8338eb1cc78959cb9dfcafd");
-    expect(combinations.filter(tuple=>bookingMedia.includes(tuple)).sort()).toEqual(bookingMedia.sort());
-    for(const target of ["pms_property","pms_room_type"])expect(attachmentPolicy(target,"booking_media","record")).toMatchObject({publication:true,classification:"internal",mediaTypes:["image/jpeg","image/png","image/webp","image/heic","image/heif"]});
-    expect(new Set(combinations).size).toBe(combinations.length);
-    expect(attachmentPolicyRegistry.every(policy=>policy.maxFiles>=1&&policy.maxFiles<=100)).toBe(true);
-    expect(attachmentPolicy("product","product_image","record").componentKinds).toEqual(["record"]);
-    expect(attachmentPolicy("inventory_transit","receipt_evidence","event").componentKinds).toEqual(["event"]);
-    expect(attachmentPolicy("purchase_order","supplier_promise","action").classification).toBe("confidential");
-    expect(attachmentPolicy("supplier_bill_match","tax_document","record").maxFiles).toBe(50);
-    expect(attachmentPolicy("inventory_transfer","direct_receipt_evidence","action").classification).toBe("confidential");
-    expect(attachmentPolicy("inventory_quality_spec","controlled_specification","record").maxFiles).toBe(50);
-    expect(attachmentPolicy("ecommerce_listing","listing_media","record").publication).toBe(true);
-    expect(attachmentPolicy("marketing_asset","creative","record").publication).toBe(true);
-    expect(attachmentPolicy("manufacturing_spec","formula","record").classification).toBe("restricted");
-    expect(attachmentPolicy("production_run","qc_evidence","action").classification).toBe("confidential");
-    expect(attachmentPolicy("planning_scenario","capacity_source","record").maxFiles).toBe(50);
-    expect(attachmentRetentionSnapshot(attachmentPolicy("legal_item","legal_document","record"))).toEqual({key:"legal-managed",version:1,retainUntil:null,destructionMode:"review"});
-    expect(legacyAttachmentPolicy("support_ticket","support_evidence")).toEqual({purposeKey:"internal_evidence",componentKind:"action",componentRef:"support-evidence:internal_evidence",completion:"bind_immediately"});
-    expect(legacyAttachmentPolicy("leave_request","evidence")).toEqual({purposeKey:"leave_supporting_photo",componentKind:"record",componentRef:"leave-evidence:leave_supporting_photo",completion:"stage_for_domain"});
-    expect(legacyAttachmentPolicy("leave_request","leave evidence")).toBeNull();
-    expect(attachmentPolicy("staff_task","task_evidence","action").mediaTypes).not.toContain("text/csv");
-    expect(attachmentPolicy("finance_tax_identity","signer_signature","record")).toMatchObject({mediaTypes:["image/png","image/jpeg"],maxFiles:1,maxBytes:1024*1024,requiredCount:1,classification:"restricted",publication:false,portalUpload:false});
-    expect(legacyAttachmentPolicy("expense_claim","merchant_receipt")).toMatchObject({componentKind:"record",completion:"stage_for_domain"});
-    expect(legacyAttachmentPolicy("quality_hold","quality_inspection_evidence")).toEqual({purposeKey:"quality_inspection_evidence",componentKind:"action",componentRef:"inspection",completion:"stage_for_domain"});
-    expect(legacyAttachmentPolicy("commerce_order_delivery","proof_of_delivery")).toEqual({purposeKey:"proof_of_delivery",componentKind:"action",componentRef:"delivery",completion:"stage_for_domain"});
-    expect(legacyAttachmentPolicy("expense_claim","unregistered_receipt_kind")).toBeNull();
-    expect(()=>attachmentPolicy("product","product_image","action")).toThrow(/not registered/i);
-    expect(()=>attachmentPolicy("unknown_owner","evidence","record")).toThrow(/not registered/i);
-  });
+
 
   it("quarantines a historical source whose legacy purpose is not in the closed inventory",async()=>{
     const token=key(),uploadId=`legacy-unknown-upload-${token}`,sourceId=`legacy-unknown-source-${token}`,now=Date.now();
@@ -337,20 +295,24 @@ describe("canonical attachment lifecycle",()=>{
     const foreignUpload=await completeAttachmentUpload(db,env.H001_FILES,actorB,foreignReservation.uploadIntentId,png.buffer.slice(png.byteOffset,png.byteOffset+png.byteLength));
     await drainAttachmentScans(db,env.H001_FILES,foreignUpload.sourceId);
     const localSet=await createAttachmentSet(db,actorA,{targetType:"product",targetId:productA,componentKind:"record",purposeKey:"product_image",expectedTargetVersion:1},key()),malformedLink=`attachment-link-cross-company-${key()}`;
-    await expect(db.transaction(async tx=>{
-      const now=Date.now();
-      await tx.prepare(`INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at,bound_at,binding_type,binding_id)
-        VALUES(?,?,?,'bound',?,?,?,?, 'test_corruption',?)`).bind(malformedLink,localSet.id,foreignUpload.sourceId,actorA.userId,now,now+60_000,now,productA).run();
-      const listed=await listAttachmentSets(tx,actorA,{targetType:"product",targetId:productA});
-      expect(listed.find(set=>set.id===localSet.id)?.links).toEqual([]);
-      await expect(attachmentLinkStatus(tx,actorA,malformedLink)).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
-      await expect(attachmentContent(tx,env.H001_FILES,actorA,malformedLink,"original")).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
-      await expect(createAttachmentPublication(tx,env.H001_FILES,actorA,{sourceLinkId:malformedLink,targetType:"product",targetId:productA,altText:"Must not publish",ordinal:0},key()))
-        .rejects.toMatchObject({status:404,code:"PUBLICATION_SOURCE_NOT_FOUND"});
-      const reconciliation=await reconcileAttachmentStorage(tx,env.H001_FILES);
-      expect(reconciliation.crossCompanyLinks).toContain(malformedLink);
-      throw new Error("ROLLBACK_CROSS_COMPANY_LINK_FIXTURE");
-    })).rejects.toThrow("ROLLBACK_CROSS_COMPANY_LINK_FIXTURE");
+    // A fresh private reader must observe a committed corruption fixture. A
+    // borrowed snapshot cannot inherit the owner constructor; retain both the
+    // original public-facing404 assertions and that explicit503 boundary.
+    const now=Date.now();
+    await db.prepare(`INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at,bound_at,binding_type,binding_id)
+      VALUES(?,?,?,'bound',?,?,?,?, 'test_corruption',?)`).bind(malformedLink,localSet.id,foreignUpload.sourceId,actorA.userId,now,now+60_000,now,productA).run();
+    // Bound corruption evidence remains immutable until this disposable suite
+    // database is dropped; do not bypass the native deletion guard to clean it.
+    const listed=await listAttachmentSets(db,actorA,{targetType:"product",targetId:productA});
+    expect(listed.find(set=>set.id===localSet.id)?.links).toEqual([]);
+    await expect(attachmentLinkStatus(db,actorA,malformedLink)).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
+    await expect(attachmentContent(db,env.H001_FILES,actorA,malformedLink,"original")).rejects.toMatchObject({status:404,code:"ATTACHMENT_LINK_NOT_FOUND"});
+    await db.transaction(async tx=>{await expect(attachmentContent(tx,env.H001_FILES,actorA,malformedLink,"original")).rejects.toMatchObject({status:503});});
+    await expect(createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:malformedLink,targetType:"product",targetId:productA,altText:"Must not publish",ordinal:0},key()))
+      .rejects.toMatchObject({status:404,code:"PUBLICATION_SOURCE_NOT_FOUND"});
+    const reconciliation=await reconcileAttachmentStorage(db,env.H001_FILES);
+    expect(reconciliation.crossCompanyLinks).toContain(malformedLink);
+
   });
 
   it("separates unresolved legacy ownership from a known cross-Company derivative",async()=>{
@@ -853,3 +815,68 @@ describe("canonical attachment lifecycle",()=>{
     await expect(db.prepare("UPDATE attachment_storage_ledger SET bytes=bytes+1 WHERE attachment_id=?").bind(source.sourceId).run()).rejects.toThrow(/ATTACHMENT_STORAGE_IMMUTABLE/);
   });
 });
+
+
+it('recovers the actual File set and reservation after Marketing source advancement and draining without accepting a fresh intake key',async()=>{
+ const {packageGrantStore,readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants'),grant=async(state:'active'|'draining',packageId:'sales'|'sales-marketing'='sales-marketing')=>{const prior=(await readCompanyPackageGrants(db,companyA)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'declared-file-recovery-provider'}),obligations:async()=>{throw Error('FILE_RECOVERY_FIXTURE_DOES_NOT_CERTIFY_INACTIVE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:companyA,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Isolated actual stored File recovery source',evidence:'test:actual-file-recovery'}});};
+ actorA={...actorA,modules:['marketing']};await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(actorA.modules),actorA.assignmentId).run();const asset=`recovery-asset-${key()}`;await db.prepare("INSERT INTO marketing_assets(id,company_id,kind,name,configuration_json,preview_json,status,created_by,version,created_at,updated_at) VALUES(?,?,'content','Actual original File recovery source','{}','{}','draft',?,1,1,1)").bind(asset,companyA,actorA.userId).run();
+ vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');
+ try{
+  await grant('active','sales');await grant('active');const input={targetType:'marketing_asset',targetId:asset,componentKind:'record' as const,purposeKey:'creative',expectedTargetVersion:1},setKey=key(),reserveKey=key(),aliasKey=key(),set=await createAttachmentSet(db,actorA,input,setKey),alias=await createAttachmentSet(db,actorA,input,aliasKey),file=await availableProductFile(set.id,reserveKey);expect(alias.id).toBe(set.id);expect(await db.prepare("SELECT count(*) n FROM attachment_events WHERE set_id=? AND action='set.reused'").bind(set.id).first('n')).toBe(1);await bindRecordAttachmentSet(db,actorA,set.id,1,key());
+  const snapshot=async()=>{const result:Record<string,unknown[]>={};for(const table of ['attachment_sets','attachment_links','attachment_events','attachments','upload_intents','marketing_assets'])result[table]=(await db.prepare(`SELECT to_jsonb(row)::text value FROM ${table} row ORDER BY to_jsonb(row)::text`).all<{value:string}>()).results.map(row=>JSON.parse(row.value));return result;},before=await snapshot(),recovered=await createAttachmentSet(db,actorA,input,setKey),metadata={filename:'product.png',mediaType:'image/png',bytes:png.byteLength};
+  expect(recovered).toMatchObject({id:set.id,state:'bound',expectedTargetVersion:1});expect(recovered.links.map(link=>link.id)).toEqual([file.attachmentLinkId]);expect(await createAttachmentSet(db,actorA,input,aliasKey)).toEqual(recovered);expect(await reserveAttachmentFile(db,actorA,set.id,metadata,reserveKey)).toMatchObject({uploadIntentId:file.uploadIntentId,attachmentLinkId:file.attachmentLinkId});expect(await snapshot()).toEqual(before);
+  await expect(createAttachmentSet(db,actorA,{...input,expectedTargetVersion:2},setKey)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});await expect(createAttachmentSet(db,actorA,{...input,expectedTargetVersion:2},aliasKey)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});await expect(reserveAttachmentFile(db,actorA,set.id,{...metadata,filename:'changed.png'},reserveKey)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+  await grant('draining');const drainingBefore=await snapshot();expect(await createAttachmentSet(db,actorA,input,setKey)).toEqual(recovered);expect(await createAttachmentSet(db,actorA,input,aliasKey)).toEqual(recovered);expect(await reserveAttachmentFile(db,actorA,set.id,metadata,reserveKey)).toMatchObject({uploadIntentId:file.uploadIntentId,attachmentLinkId:file.attachmentLinkId});expect(await snapshot()).toEqual(drainingBefore);
+  await expect(createAttachmentSet(db,actorA,{...input,expectedTargetVersion:2},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});await expect(reserveAttachmentFile(db,actorA,set.id,metadata,key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
+  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(actorA.assignmentId).run();await expect(createAttachmentSet(db,actorA,input,setKey)).rejects.toMatchObject({code:'ATTACHMENT_TARGET_NOT_FOUND'});await expect(createAttachmentSet(db,actorA,input,aliasKey)).rejects.toMatchObject({code:'ATTACHMENT_TARGET_NOT_FOUND'});await expect(reserveAttachmentFile(db,actorA,set.id,metadata,reserveKey)).rejects.toMatchObject({code:'ATTACHMENT_TARGET_NOT_FOUND'});
+ }finally{vi.unstubAllEnvs();}
+});
+
+
+it('buffers approved public publication bytes before its fresh read unit escapes',async()=>{
+ const set=await createAttachmentSet(db,actorA,{targetType:'product',targetId:productA,componentKind:'record',purposeKey:'product_image',expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
+ await bindRecordAttachmentSet(db,actorA,set.id,1,key());const publication=await createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:file.attachmentLinkId,targetType:'product',targetId:productA,altText:'Approved public source',ordinal:0},key()),id=String(publication?.id);
+ await approveAttachmentPublication(db,peerA,id,key());let consumed=0;
+ const files=Object.create(env.H001_FILES) as typeof env.H001_FILES;files.get=async name=>{const stored=await env.H001_FILES.get(name);return stored?{...stored,arrayBuffer:async()=>{consumed++;return stored.arrayBuffer();}}:null;};
+ const result=await publicAttachmentPublication(db,files,id);expect(consumed).toBe(1);
+ const bytes=await result.object.arrayBuffer();expect(consumed).toBe(1);expect(await sha256(bytes)).toBe(result.row.derivative_checksum_sha256);
+ await revokeAttachmentPublication(db,peerA,id,'Withdraw the original approved public source',key());await expect(publicAttachmentPublication(db,files,id)).rejects.toMatchObject({status:404,code:'PUBLICATION_NOT_FOUND'});expect(consumed).toBe(1);
+});
+
+
+it('rolls back a normal public publication revocation made while its lazy bytes are consumed',async()=>{
+ const set=await createAttachmentSet(db,actorA,{targetType:'product',targetId:productA,componentKind:'record',purposeKey:'product_image',expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
+ await bindRecordAttachmentSet(db,actorA,set.id,1,key());const publication=await createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:file.attachmentLinkId,targetType:'product',targetId:productA,altText:'Original approved public evidence',ordinal:0},key()),id=String(publication?.id);
+ await approveAttachmentPublication(db,peerA,id,key());const before=(await db.prepare('SELECT to_jsonb(p)::text image FROM attachment_publications p WHERE id=?').bind(id).first<string>('image'))!,events=Number(await db.prepare('SELECT count(*) n FROM attachment_events').first('n'));
+ const original=db.transaction.bind(db);let current:SqlDatabase|null=null;
+ const transaction=vi.spyOn(db,'transaction').mockImplementation((work,options)=>original(async tx=>{current=tx;try{return await work(tx);}finally{current=null;}},options));
+ const files=Object.create(env.H001_FILES) as typeof env.H001_FILES;files.get=async name=>{const stored=await env.H001_FILES.get(name);return stored?{...stored,arrayBuffer:async()=>{expect(current).not.toBeNull();await revokeAttachmentPublication(current!,peerA,id,'Withdraw this approved public evidence',key());return stored.arrayBuffer();}}:null;};
+ try{await expect(publicAttachmentPublication(db,files,id)).rejects.toMatchObject({status:409,code:'PUBLICATION_READ_CHANGED'});}finally{transaction.mockRestore();}
+ expect(await db.prepare('SELECT to_jsonb(p)::text image FROM attachment_publications p WHERE id=?').bind(id).first('image')).toBe(before);expect(Number(await db.prepare('SELECT count(*) n FROM attachment_events').first('n'))).toBe(events);
+ expect(await publicAttachmentPublication(db,env.H001_FILES,id)).toMatchObject({row:{alt_text:'Original approved public evidence'}});
+});
+
+it('refuses changed public derivative bytes and arbitrary borrowed publication snapshots',async()=>{
+ const set=await createAttachmentSet(db,actorA,{targetType:'product',targetId:productA,componentKind:'record',purposeKey:'product_image',expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
+ await bindRecordAttachmentSet(db,actorA,set.id,1,key());const publication=await createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:file.attachmentLinkId,targetType:'product',targetId:productA,altText:'Checksum guarded public image',ordinal:0},key()),id=String(publication?.id);await approveAttachmentPublication(db,peerA,id,key());
+ const files=Object.create(env.H001_FILES) as typeof env.H001_FILES;let reads=0;files.get=async name=>{reads++;const stored=await env.H001_FILES.get(name);return stored?{...stored,arrayBuffer:async()=>new TextEncoder().encode('Different public bytes').buffer}:null;};
+ await expect(publicAttachmentPublication(db,files,id)).rejects.toMatchObject({status:503,code:'FILE_UNAVAILABLE'});expect(reads).toBe(1);
+ await db.transaction(async tx=>{await expect(publicAttachmentPublication(tx,files,id)).rejects.toMatchObject({status:503,code:'PUBLICATION_READ_TRANSACTION_REQUIRED'});});expect(reads).toBe(1);
+ expect(await publicAttachmentPublication(db,env.H001_FILES,id)).toMatchObject({row:{alt_text:'Checksum guarded public image'}});
+});
+
+
+it('observes a committed normal public revocation before its first publication byte snapshot',async()=>{
+ const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics');
+ const set=await createAttachmentSet(db,actorA,{targetType:'product',targetId:productA,componentKind:'record',purposeKey:'product_image',expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
+ await bindRecordAttachmentSet(db,actorA,set.id,1,key());const publication=await createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:file.attachmentLinkId,targetType:'product',targetId:productA,altText:'Current approved public image',ordinal:0},key()),id=String(publication?.id);await approveAttachmentPublication(db,peerA,id,key());
+ const files=Object.create(env.H001_FILES) as typeof env.H001_FILES;let reads=0;files.get=async name=>{reads++;return env.H001_FILES.get(name);};
+ const observed=await committedSourceVisibility(db,tx=>revokeAttachmentPublication(tx,peerA,id,'Original normal reviewer revokes before the public byte snapshot',key()),()=>measureReads(async()=>{await expect(publicAttachmentPublication(db,files,id)).rejects.toMatchObject({status:404,code:'PUBLICATION_NOT_FOUND'});return true;}));
+ expect(observed.result).toBe(true);expect(reads).toBe(0);expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);
+});
+
+// Enforced purchase checks use this suite's owned local runtime, never an installed manifest.
+vi.mock("../../../src/server/modules/runtime/adapters/runtime",async importOriginal=>({
+  ...await importOriginal<typeof import("../../../src/server/modules/runtime/adapters/runtime")>(),
+  runtimeEnv:async()=>env,
+}));

@@ -4,7 +4,7 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Dialog } from "@/components/ui/dialog";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { DailyPlanView } from "@/server/modules/work_projection/public/daily-plan";

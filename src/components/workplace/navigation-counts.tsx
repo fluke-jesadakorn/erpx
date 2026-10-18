@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type { NavigationSnapshot } from "@/server/modules/work_projection/public/navigation-snapshot";
 import { contextIsSwitching } from "@/lib/work_projection/context-switch";
 import { workAttention, type WorkAttention } from "@/lib/work_projection/work-attention";
@@ -54,7 +55,7 @@ export function NavigationCountsProvider({ base, shortcutStorageKey, initial, ch
   const [workChanged, setWorkChanged] = useState(false);
   const [initialPending, setInitialPending] = useState(!!initial);
   const pathname = usePathname();
-  const home = pathname === `${base}/home` || pathname === `${base}/feed`;
+  const home = pathname === canonicalUiHref(`${base}/home`) || pathname === canonicalUiHref(`${base}/feed`);
   const [workViewAvailability, setWorkViewAvailability] = useState<WorkViewAvailability | null>(null);
   const [counts, setCounts] = useState<Counts>(empty);
   const [attention, setAttention] = useState(() => workAttention([]));

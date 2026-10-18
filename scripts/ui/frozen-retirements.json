@@ -1,0 +1,98 @@
+[
+  {
+    "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/page.tsx",
+    "originalCommit": "5d21e544ac1621c434b1f58dde941be92f1be45e",
+    "reviewReason": "Catch-all Front renderer split into canonical daily screens, receipt/detail dispatch and metadata. Authentication, location and role boundaries remain in the individual screens. This records the inherited route split, not visual or workflow acceptance.",
+    "acceptance": "pending",
+    "successors": [
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/front-page.tsx",
+        "fingerprint": "ba823c72c75a51a6d050643c001f1320c87c1439d5b997694a000e99e140d1d8"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/metadata.ts",
+        "fingerprint": "3d1db913a91ce0face8bb62792bd868ab585c8209e598edb11f3ee2b895f014f"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-cashier.tsx",
+        "fingerprint": "eef49698f9737adedb92e90008b03e6e0218fb955d5824619e7c5f540ad6ed98"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-front-desk.tsx",
+        "fingerprint": "eef49698f9737adedb92e90008b03e6e0218fb955d5824619e7c5f540ad6ed98"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-guest-accounts.tsx",
+        "fingerprint": "eef49698f9737adedb92e90008b03e6e0218fb955d5824619e7c5f540ad6ed98"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-housekeeping.tsx",
+        "fingerprint": "eef49698f9737adedb92e90008b03e6e0218fb955d5824619e7c5f540ad6ed98"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-night-audit.tsx",
+        "fingerprint": "8d83ec62edf67dce3fb4f12cda6923cdf8c5eea438f34e0f2aca12c290620710"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-notifications.tsx",
+        "fingerprint": "ec36de89f235c9dcf78a9a97ad9f222b15d3797c3784ce46f02665663315813e"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-reservations.tsx",
+        "fingerprint": "eef49698f9737adedb92e90008b03e6e0218fb955d5824619e7c5f540ad6ed98"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-rooms.tsx",
+        "fingerprint": "eef49698f9737adedb92e90008b03e6e0218fb955d5824619e7c5f540ad6ed98"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pms-today.tsx",
+        "fingerprint": "16e400f0a2a532a48dbd8cfe8279f7707f47d568601305833a2d6adc22bf022e"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pos-history.tsx",
+        "fingerprint": "58de81256d29dd43ee12b2d434ee12fe48f39ef390e24e2bbc7a9ef6b3939cc7"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pos-kitchen.tsx",
+        "fingerprint": "58de81256d29dd43ee12b2d434ee12fe48f39ef390e24e2bbc7a9ef6b3939cc7"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pos-notifications.tsx",
+        "fingerprint": "7037deb1dd831274f3438f18f3450b6318ff0313ce10d43a9a947ef6855294a5"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pos-sale.tsx",
+        "fingerprint": "58de81256d29dd43ee12b2d434ee12fe48f39ef390e24e2bbc7a9ef6b3939cc7"
+      },
+      {
+        "source": "src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/pos-shifts.tsx",
+        "fingerprint": "58de81256d29dd43ee12b2d434ee12fe48f39ef390e24e2bbc7a9ef6b3939cc7"
+      }
+    ]
+  },
+  {
+    "source": "src/app/holdings/[holdingSlug]/hospitality/setup/page.tsx",
+    "originalCommit": "5d21e544ac1621c434b1f58dde941be92f1be45e",
+    "reviewReason": "Setup presenter moved under _presenters and base links use canonicalUiHref; owner reader, context guard, recovery and guide props retained. Specialized acceptance remains pending.",
+    "acceptance": "pending",
+    "successors": [
+      {
+        "source": "src/app/holdings/[holdingSlug]/_presenters/hospitality/setup/screen.tsx",
+        "fingerprint": "8f54624116c874bace078f4ddd23209dbcd3cc497287acfa6912ffe6ad589258"
+      }
+    ]
+  },
+  {
+    "source": "src/app/holdings/[holdingSlug]/pms/[[...section]]/page.tsx",
+    "originalCommit": "5d21e544ac1621c434b1f58dde941be92f1be45e",
+    "reviewReason": "PMS catch-all extracted as the shared presenter for explicit canonical routes; authority, daily Front handoff, list selection and read recovery retained. Specialized acceptance remains pending.",
+    "acceptance": "pending",
+    "successors": [
+      {
+        "source": "src/app/holdings/[holdingSlug]/_presenters/pms/[[...section]]/screen.tsx",
+        "fingerprint": "47a6d95471266db8171289b1022b1aa9f1b250361627d340d5564431aacf8508"
+      }
+    ]
+  }
+]

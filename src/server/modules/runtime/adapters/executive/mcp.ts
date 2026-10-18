@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { createMcpHandler, McpServer, type CallToolResult } from "@modelcontextprotocol/server";
@@ -58,7 +59,7 @@ function failure(error: unknown) {
     return error instanceof ApiError ? error : new ApiError(503, "EXECUTIVE_UNAVAILABLE", "Executive MCP is temporarily unavailable. Retry later.");
 }
 function httpFailure(e: ApiError) {
-    return Response.json({ jsonrpc: "2.0", id: null, error: { code: -32000, message: e.message, data: { code: e.code } } }, { status: e.status, headers: { "Cache-Control": "private, no-store", ...(e.status === 401 ? { "WWW-Authenticate": 'Bearer realm="ERPX Executive"' } : {}), ...(e.status === 429 ? { "Retry-After": String(60 - Math.floor(Date.now() / 1000) % 60) } : {}) } });
+    return Response.json(canonicalDestinationLinks({ jsonrpc: "2.0", id: null, error: { code: -32000, message: e.message, data: { code: e.code } } }), { status: e.status, headers: { "Cache-Control": "private, no-store", ...(e.status === 401 ? { "WWW-Authenticate": 'Bearer realm="ERPX Executive"' } : {}), ...(e.status === 429 ? { "Retry-After": String(60 - Math.floor(Date.now() / 1000) % 60) } : {}) } });
 }
 export async function handleExecutiveMcp(request: Request) {
     const started = Date.now();

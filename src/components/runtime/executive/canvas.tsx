@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
@@ -14,8 +15,8 @@ import {
   type CSSProperties,
   type PointerEvent,
 } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/workplace/workspace-link";
+import { useRouter } from "@/lib/shared/destination-router";
 import {
   Paperclip,
   ArrowLeft,
@@ -948,6 +949,13 @@ type BrandProfileEvidenceDetail = {
   };
   queryHash: string;
 };
+type BenefitEvidenceDetail = {
+  provider: "benefits-current-records";
+  metric: "active-benefit-elections" | "published-benefit-plans";
+  fields: string[];
+  record: {id: string; status: string; version: number; updated_at: number; effective_from: string; effective_to: string | null; href: string};
+  queryHash: string;
+};
 type LearningEvidenceDetail = {
   provider: "learning-assignment-records";
   metric: "learning-completions" | "overdue-required-learning";
@@ -1129,6 +1137,7 @@ type ExecutiveEvidenceDetail =
   | CrmFollowupEvidenceDetail
   | BrandProfileEvidenceDetail
   | LearningEvidenceDetail
+  | BenefitEvidenceDetail
   | TalentEvidenceDetail
   | PosEvidenceDetail
   | MarketingEvidenceDetail
@@ -1190,6 +1199,8 @@ const evidenceMetrics = new Set<string>([
   "brand-profiles",
   "brand-profile-updates",
   "learning-completions",
+  "active-benefit-elections",
+  "published-benefit-plans",
   "overdue-required-learning",
   "open-requisitions",
   "application-stage-counts",
@@ -1548,7 +1559,7 @@ function CustomerActivityEvidence({
         <UiActionLink
           variant="secondary"
           className={styles.secondary}
-          href={`${base}/customers/${encodeURIComponent(detail.record.customer_id)}`}
+          href={canonicalUiHref(`${base}/customers/${encodeURIComponent(detail.record.customer_id)}`)}
         >
           Open Customer 360 timeline
         </UiActionLink>
@@ -3018,6 +3029,15 @@ function BrandProfileEvidence({
     </>
   );
 }
+function BenefitsEvidence({detail,base}:{detail:BenefitEvidenceDetail;base:string}) {
+  return <><dl className={styles.evidenceFields}>
+    <div><dt>Status</dt><dd>{detail.record.status.replaceAll("_", " ")}</dd></div>
+    <div><dt>Effective from</dt><dd>{detail.record.effective_from}</dd></div>
+    <div><dt>Effective to</dt><dd>{detail.record.effective_to ?? "Open ended"}</dd></div>
+    <div><dt>Updated</dt><dd><TimeText value={detail.record.updated_at}/></dd></div>
+  </dl><p className={styles.finePrint}>Record revision {detail.record.version} · Fields read: {detail.fields.join(", ")} · Query {detail.queryHash.slice(0,12)}</p>
+  <UiActionLink variant="secondary" className={styles.secondary} href={`${base}${detail.record.href}`}><ArrowUp size={14}/> Open Benefits record</UiActionLink></>;
+}
 function LearningEvidence({ detail, base }: { detail: LearningEvidenceDetail; base: string }) {
   const completion = detail.metric === "learning-completions";
   return (
@@ -3922,7 +3942,7 @@ export function ExecutiveCanvas({
             Your role, report grant or the publisher’s access changed. Report data and chat have
             been cleared.
           </p>
-          <UiActionLink variant="primary" className={styles.primary} href={`${base}/executive`}>
+          <UiActionLink variant="primary" className={styles.primary} href={canonicalUiHref(`${base}/executive`)}>
             Return to Executive
           </UiActionLink>
         </div>
@@ -3933,7 +3953,7 @@ export function ExecutiveCanvas({
     <div className={`${styles.editor} ${present ? styles.present : ""}`}>
       <header className={styles.editorHeader}>
         <div>
-          <Link href={`${base}/executive`} className={styles.back}>
+          <Link href={canonicalUiHref(`${base}/executive`)} className={styles.back}>
             <ArrowLeft size={15} /> Executive
           </Link>
           <div className={styles.titleLine}>
@@ -4593,7 +4613,9 @@ export function ExecutiveCanvas({
                             ? evidenceDetail.record.receipt_number
                             : evidenceDetail.provider === "talent-recruiting-records"
                               ? evidenceDetail.record.job_title
-                              : evidenceDetail.provider === "learning-assignment-records"
+                              : evidenceDetail.provider === "benefits-current-records"
+                                ? `Benefits · ${evidenceDetail.record.status}`
+                                : evidenceDetail.provider === "learning-assignment-records"
                                 ? evidenceDetail.record.course_title
                                 : evidenceDetail.provider === "brand-profile-records"
                                   ? evidenceDetail.record.branch_name
@@ -4770,7 +4792,9 @@ export function ExecutiveCanvas({
                               ? "Search job title or target start date"
                               : evidenceWidget.metric === "application-stage-counts"
                                 ? "Search job title, stage or update date"
-                                : evidenceWidget.metric === "learning-completions"
+                                : evidenceWidget.metric === "active-benefit-elections" || evidenceWidget.metric === "published-benefit-plans"
+                                  ? "Search status or record ID"
+                                  : evidenceWidget.metric === "learning-completions"
                                   ? "Search course or completion date"
                                   : evidenceWidget.metric === "overdue-required-learning"
                                     ? "Search course, status or due date"
@@ -4897,7 +4921,9 @@ export function ExecutiveCanvas({
                               ? "Search job title or target start date"
                               : evidenceWidget.metric === "application-stage-counts"
                                 ? "Search job title, stage or update date"
-                                : evidenceWidget.metric === "learning-completions"
+                                : evidenceWidget.metric === "active-benefit-elections" || evidenceWidget.metric === "published-benefit-plans"
+                                  ? "Search status or record ID"
+                                  : evidenceWidget.metric === "learning-completions"
                                   ? "Search course or completion date"
                                   : evidenceWidget.metric === "overdue-required-learning"
                                     ? "Search course, status or due date"
@@ -5044,6 +5070,8 @@ export function ExecutiveCanvas({
                     <PosEvidence detail={evidenceDetail} base={base} />
                   ) : evidenceDetail.provider === "talent-recruiting-records" ? (
                     <TalentEvidence detail={evidenceDetail} base={base} />
+                  ) : evidenceDetail.provider === "benefits-current-records" ? (
+                    <BenefitsEvidence detail={evidenceDetail} base={base} />
                   ) : evidenceDetail.provider === "learning-assignment-records" ? (
                     <LearningEvidence detail={evidenceDetail} base={base} />
                   ) : evidenceDetail.provider === "brand-profile-records" ? (
@@ -6646,7 +6674,7 @@ function ShareDialog({
                         expectedVersion: report.version,
                         expectedShares: transferPreview.shares,
                       });
-                      router.replace(`${base}/executive`);
+                      router.replace(canonicalUiHref(`${base}/executive`));
                     } catch (e) {
                       setError(
                         e instanceof Error

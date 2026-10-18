@@ -1,6 +1,6 @@
 import { organizationChangeWork, organizationChangeNotificationTarget } from "../../../src/server/modules/organization/public/organization-work";
 import { listStaffNotifications } from "../../../src/server/modules/collaboration/public/staff-notifications";
-import { beforeAll,beforeEach,expect,it,vi } from "vitest";
+import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
 import { organizationOverview,installStaffLevels,savePosition,positionSchema,saveOrganizationTemplate,applyOrganizationTemplate,organizationGuard,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange } from "../../../src/server/modules/organization/public/organization";
@@ -11,10 +11,16 @@ import { executeCommand } from "../../../src/server/modules/workflow/public/comm
 import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
 import { attachmentBindingState, enableAttachmentV2ForTest, seedAttachmentSet } from "../../support/helpers/attachment-v2";
 import { localSeedLevels } from "../../../fixtures/organization/builders/local-seed-levels";
+import {packageGrantStore,readCompanyPackageGrants} from "../../../src/server/modules/commercial/public/package-grants";
+import {listPeople,getPerson,peopleSummary} from "../../../src/server/modules/people_payroll/public/people-payroll";
+import {peopleReferenceRows} from "../../../src/server/modules/people_payroll/public/people-purchases";
+import {changeAppointment} from "../../../src/server/modules/organization/public/department-authority";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,ceo:string,staffPosition:string,hr:WorkContext;
 const level=(n:number)=>`org-level-${f.company}-${n}`;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);enableAttachmentV2ForTest();});
+afterEach(()=>vi.unstubAllEnvs());
+async function purchasePeople(packageId='people',state:'active'|'draining'='active',endsAt:number|null=null){const store=packageGrantStore(db,{authorize:async(_tx,company)=>{if(company!==f.company)throw Error('FICTIONAL_PEOPLE_PROVIDER_SCOPE');return {userId:'isolated-people-core-provider'};},obligations:async()=>{throw Error('No inactive cutover witness');}}),previous=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);return store.apply({expectedVersion:previous?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt,version:(previous?.version??0)+1,reason:'Reviewed isolated People owner purchase',evidence:'test:people-directory-owner'}});}
 beforeEach(async()=>{
   f=await expenseFixture(false);hr=await f.member("hr","hr_admin");
   await installStaffLevels(db,f.owner,key());
@@ -38,6 +44,20 @@ it("prepares fresh local position levels while retaining a custom numbered level
   expect(Number((await db.prepare("SELECT count(*) n FROM staff_levels WHERE company_id=?").bind(company).first<{n:number}>())?.n)).toBe(6);
 });
 function draft(extra:Record<string,unknown>={}) {return directoryUpdateSchema.parse({legalName:"New staff",email:`${key()}@example.test`,countryCode:"TH",branchId:f.branch,departmentId:f.department,jobTitle:"Operations staff",workerType:"employee",employmentType:"salaried",startDate:"2026-01-01",currency:"THB",expectedVersion:1,...extra});}
+it('People core requires its full directory purchase and preserves Projects and Learning included reference facts',async()=>{
+ await changeAppointment(db,f.owner,{kind:'hr',departmentId:null,positionId:null,personId:`person-${hr.userId}`,expectedVersion:0,reason:'Appoint the actual Company HR owner for private People readers'},key());
+ const input=draft(),command=key();vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');await expect(saveDirectoryPerson(hr,null,input,command)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await expect(listPeople(hr)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await expect(getPerson(hr,`person-${f.claimant.userId}`)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+ await purchasePeople('projects');const workers=await peopleReferenceRows(hr,'worker');expect(workers.some(row=>row.id===`person-${f.claimant.userId}`)).toBe(true);expect(workers.every(row=>!('email'in row)&&!('phone'in row)&&!('base_amount_minor'in row))).toBe(true);await expect(peopleReferenceRows(hr,'learner')).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await purchasePeople('learn');expect((await peopleReferenceRows(hr,'learner')).map(row=>row.id)).toEqual(workers.map(row=>row.id));await expect(listPeople(hr)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+ vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','shadow');const observation=vi.spyOn(console,'info').mockImplementation(()=>{});try{expect((await saveDirectoryPerson(hr,null,input,command)).id).toBe(`person-${command}`);expect(observation.mock.calls.some(args=>String(args[0]).includes('commercial.purchase.shadow'))).toBe(true);}finally{observation.mockRestore();}
+ vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');await purchasePeople();const original=await saveDirectoryPerson(hr,null,input,command);expect(original.id).toBe(`person-${command}`);await purchasePeople('people','draining');expect(await saveDirectoryPerson(hr,null,input,command)).toEqual(original);await expect(saveDirectoryPerson(hr,original.id,{...input,legalName:'Changed while draining',expectedVersion:1},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});expect((await getPerson(hr,original.id)).person.id).toBe(original.id);expect((await listPeople(hr)).some(row=>row.id===original.id)).toBe(true);expect((await peopleSummary(f.owner)).payrollRuns).toBe(0);
+ await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(hr.assignmentId).run();await expect(getPerson(hr,original.id)).rejects.toMatchObject({code:'PEOPLE_ACCESS_CHANGED'});await expect(peopleReferenceRows(hr,'worker')).rejects.toMatchObject({code:'PEOPLE_ACCESS_CHANGED'});
+});
+it.each(['source','authority','expiry'] as const)('People core rolls deferred %s changes back with original record, placement, receipt, audit and outbox',async(change)=>{
+ const input=draft(),command=key(),id=`person-${command}`,fn=`people_core_${key().replaceAll('-','')}`;await purchasePeople('people','active',change==='expiry'?Date.now()+1300:null);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');const original=await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(hr.assignmentId).first();
+ const effect=change==='source'?`UPDATE hr_people SET company_id='foreign-${key()}' WHERE id='${id}'`:change==='authority'?`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${hr.assignmentId}'`:'PERFORM pg_sleep(1.4)';await db.exec(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fn}()`);
+ try{await expect(saveDirectoryPerson(hr,null,input,command)).rejects.toMatchObject({code:change==='source'?'PEOPLE_SOURCE_CHANGED':change==='authority'?'PEOPLE_ACCESS_CHANGED':'PACKAGE_CAPABILITY_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${fn} ON audit_events;DROP FUNCTION ${fn}()`);}
+ expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(hr.assignmentId).first()).toEqual(original);expect(await db.prepare('SELECT 1 FROM hr_people WHERE id=?').bind(id).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM hr_engagements WHERE id=?').bind(`eng-${command}`).first()).toBeNull();for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(command).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM staff_organization_history WHERE command_id=?').bind(command).first()).toBeNull();
+});
 it("keeps legacy ranks unmapped and installs one explicit six-level catalog",async()=>{
   await installStaffLevels(db,hr,key());
   const data=await organizationOverview(db,hr);

@@ -1,59 +1,29 @@
 "use client";
-import { InlineNotice } from "@/components/ui/foundation";
+import {CRMForm as FormLayout,CRMDisclosure as FormDisclosure,CRMDraftBoundary,CRMCommandState,CRMCommandFeedback,useCRMSnapshot} from "./draft-boundary";
+import {useCRMCommand} from "./use-crm-command";
+import {crmCommandAllowed} from "@/lib/crm/purchase-controls";
 
-import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { crmActivityWorkspace } from "@/server/modules/crm/public/crm-activities";
-import { Card, FormLayout } from "@/components/ui/foundation";
+import { Card } from "@/components/ui/foundation";
 type Data = Awaited<ReturnType<typeof crmActivityWorkspace>>;
-export function CRMActivityConsole({ base, data }: { base: string; data: Data }) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    last = useRef<{ fingerprint: string; key: string } | null>(null);
-  async function send(input: unknown) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const fingerprint = JSON.stringify(input);
-    if (last.current?.fingerprint !== fingerprint)
-      last.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/crm/activities`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body: JSON.stringify(input),
-        }),
-        result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(result.error?.message ?? "Unable to save CRM activity.");
-      }
-      last.current = null;
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry the same command.");
-    } finally {
-      setBusy(false);
-    }
-  }
+export function CRMActivityConsole({ base, data: currentData }: { base: string; data: Data }) {
+  const {snapshot:data,rootProps}=useCRMSnapshot(currentData),purchase=currentData.purchase,active=purchase?.newWork!==false,settle=purchase?.settleExisting!==false;
+  const command=useCRMCommand(base,'crm/activities',input=>{const body=input as Record<string,unknown>,item=currentData.items.find(row=>row.id===body.id);return crmCommandAllowed(purchase,input)&&(body.id?!!item&&(item.canComplete||item.canManage):currentData.canCreate);}),{send,busy}=command;
   const reason = (name = "reason") => (
     <TextArea appearance="standard" name={name} minLength={3} maxLength={2000} required />
   );
   return (
-    <Card as="section" appearance="standard" className="ui-panel" id="crm-activities">
+    <CRMCommandState {...command}><CRMDraftBoundary><div {...rootProps}><Card as="section" appearance="standard" className="ui-panel" id="crm-activities">
       <h2>Lead activities</h2>
       <p>
         Schedule the next customer action, assign its owner and record the outcome here. Activities
         remain internal CRM evidence.
       </p>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <CRMCommandFeedback/>
       {data.canCreate && (
-        <FormLayout
+        <FormLayout editorTitle="Schedule lead activity" sourceVersion={JSON.stringify([currentData.lead.version,currentData.recipients.map(row=>row.id)])} allowed={active&&currentData.canCreate}
           className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -109,7 +79,7 @@ export function CRMActivityConsole({ base, data }: { base: string; data: Data })
         </FormLayout>
       )}
       {data.items.map((item) => (
-        <Card as="article" appearance="standard" className="ui-panel" key={`${item.id}:${item.version}`}>
+        <Card as="article" appearance="standard" className="ui-panel" key={item.id}>
           <h3>
             {item.activity_type} · {item.subject}
           </h3>
@@ -121,7 +91,7 @@ export function CRMActivityConsole({ base, data }: { base: string; data: Data })
           {(item.canComplete || item.canManage) && (
             <FormDisclosure appearance="standard">
               <summary>Record activity decision</summary>
-              <FormLayout
+              <FormLayout sourceVersion={currentData.items.find(row=>row.id===item.id)?.version} allowed={settle&&!!currentData.items.find(row=>row.id===item.id&&(row.canComplete||row.canManage))}
                 className="ui-form-grid"
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -191,6 +161,6 @@ export function CRMActivityConsole({ base, data }: { base: string; data: Data })
         </Card>
       ))}
       {!data.items.length && <p>No CRM activities yet.</p>}
-    </Card>
+    </Card></div></CRMDraftBoundary></CRMCommandState>
   );
 }

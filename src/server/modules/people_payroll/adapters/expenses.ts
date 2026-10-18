@@ -1,3 +1,7 @@
+import {expensePaymentCancellations,expensePreparedPaymentSources,expensePaymentTreasurySql} from './expense-payment-cancellation-sources';
+import {requireExpensePortUnit} from "./expense-purchases";
+import {peoplePackageEnforcementMode,readPurchasedAccess} from "../../commercial/public/purchase-command-boundary";
+import {withExpensePurchasedCommand, withExpensePurchasedRead} from "./expense-purchases";
 import { workflowDecisionEffects } from "../../workflow/public/decision-effects";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "../../commerce/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "../../files/public/hospitality-owner-projection-sources";
@@ -28,6 +32,7 @@ import { prepareJournal } from "@/server/modules/finance/public/finance";
 import { sha256 } from "@/server/modules/runtime/public/crypto";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import { departmentRoute } from "@/server/modules/organization/public/department-authority";
+import type {StaffActor} from "../../operations/public/staff-policy";
 import { staffGuard } from "@/server/modules/operations/public/staff-policy";
 import {
   approvalView,
@@ -37,7 +42,7 @@ import {
   participantSql,
 } from "@/server/modules/workflow/public/approvals";
 import { expenseRequirements } from "./expense-drafts";
-import { expenseWorkflowFields, nativeExpenseTransitions } from "./expense-workflow";
+import { expenseWorkflowFields, nativeExpenseTransitions, expensePayers } from "./expense-workflow";
 import {
   attachmentsV2Readable,
   attachmentsV2ReadOnly,
@@ -62,18 +67,22 @@ export const expensePostSchema = z.object({
 export const expenseVersionSchema = z.object({
   expectedVersion: z.number().int().positive(),
 });
-export function canAccountExpenses(actor: WorkContext) {
+export function canAccountExpenses(actor: StaffActor) {
   return hasPermission(actor,"expense.read");
 }
 export function canPostExpenses(actor: WorkContext) {
   return hasPermission(actor,"expense.approve");
 }
 
-function visibility(actor: WorkContext) {
+function visibility(actor: StaffActor) {
   return {
     sql: `x.company_id=? AND (iam_same_person(COALESCE(x.claimant_user_id,p.user_id),?,x.company_id) OR iam_same_person(x.created_by,?,x.company_id) OR iam_same_person(x.approved_by,?,x.company_id) OR ${participantSql("expense", "x", "?", "?")} OR
       ((?::text IS NULL OR x.branch_id=?) AND (?::text IS NULL OR x.department_id=?) AND ?=1 AND x.status IN ('in_review','approved','posted','reimbursed')) OR
-      (x.workflow_version=2 AND x.status IN ('in_review','approved','posted','reimbursed') AND EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) access WHERE access.id=? AND access.company_id=x.company_id AND iam_role_allows(access.role,access.company_id,'expense.review.read') AND access.revoked_at IS NULL AND iam_assignment_active(access.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(access.user_id,access.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND access.valid_from<=? AND access.valid_until>? AND (access.scope_kind='holding' OR (access.scope_kind='branch' AND access.scope_node_id=x.branch_id) OR (access.scope_kind='department' AND access.scope_node_id=x.department_id)))))`,
+      (x.workflow_version=2 AND x.status IN ('in_review','approved','posted','reimbursed') AND EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) access WHERE access.id=? AND access.company_id=x.company_id AND iam_role_allows(access.role,access.company_id,'expense.review.read') AND access.revoked_at IS NULL AND iam_assignment_active(access.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(access.user_id,access.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND access.valid_from<=? AND access.valid_until>? AND (access.scope_kind='holding' OR (access.scope_kind='branch' AND access.scope_node_id=x.branch_id) OR (access.scope_kind='department' AND access.scope_node_id=x.department_id))))
+      OR (x.cancelled_at IS NOT NULL AND (${expensePaymentTreasurySql('x')}) AND EXISTS(SELECT 1 FROM expense_payment_drafts duty
+        WHERE duty.expense_id=x.id AND duty.company_id=x.company_id AND duty.payment_id IS NULL
+        AND ((duty.status='draft' AND EXISTS(SELECT 1 FROM (${expensePreparedPaymentSources}) native WHERE native.id=duty.id AND native.company_id=duty.company_id))
+         OR (duty.status='cancelled' AND EXISTS(SELECT 1 FROM (${expensePaymentCancellations}) terminal WHERE terminal.id=duty.id AND terminal.company_id=duty.company_id))))))`,
     args: [
       actor.companyId,
       actor.userId,
@@ -89,10 +98,12 @@ function visibility(actor: WorkContext) {
       actor.assignmentId,
       Date.now(),
       Date.now(),
+      actor.assignmentId,
+      actor.userId,
     ],
   };
 }
-async function currentExpenseReader(db: SqlDatabase, actor: WorkContext, row: ExpenseRow, facts?:ExpenseBatchFacts) {
+async function currentExpenseReader(db: SqlDatabase, actor: StaffActor, row: ExpenseRow, facts?:ExpenseBatchFacts, inspection = false) {
   return createCurrentExpenseReader({
     async auditReader(actor, row) { if(facts)return facts.auditReader(actor,row); return Boolean(await db
       .prepare(
@@ -113,7 +124,7 @@ async function currentExpenseReader(db: SqlDatabase, actor: WorkContext, row: Ex
       )
       .bind(row.id, actor.companyId, actor.userId)
       .first()); },
-    async canDecide(actor, id) { return (await (facts ? facts.approval(actor,id) : approvalView(db, "expense", id, actor))).canDecide; },
+    async canDecide(actor, id) { return (await (facts ? facts.approval(actor,id) : approvalView(db, "expense", id, inspection ? {...actor,inspection:true} : actor))).canDecide; },
   })(actor, row);
 }
 async function approvalFields(write: SqlDatabase, actor: WorkContext, row: ExpenseRow, facts?:ExpenseBatchFacts): Promise<ExpenseRow> {
@@ -128,7 +139,7 @@ const expenseSelect = `SELECT x.*,COALESCE(p.legal_name,x.claimant_name,'Company
   FROM finance_expenses x LEFT JOIN hr_people p ON p.id=x.employee_id
   LEFT JOIN (${financeProjectionSources.finance_accounts}) a ON a.id=x.category_account_id LEFT JOIN (${financeProjectionSources.finance_invoices}) i ON i.id=x.invoice_id`;
 /** Bind persistence, visibility and actor once, including transaction-owned reads. */
-export function nativeExpenseReads(write: SqlDatabase, actor: WorkContext, options: {batch?:boolean} = {}) {
+function originalNativeExpenseReads(write: SqlDatabase, actor: WorkContext, options: {batch?:boolean} = {}) {
   const scope = visibility(actor);
   const reads = createExpenseReads<ExpenseRow>({
     async legacyIds(context) {
@@ -155,7 +166,7 @@ export function nativeExpenseReads(write: SqlDatabase, actor: WorkContext, optio
 }
 export async function listExpenses(actor: WorkContext): Promise<ExpenseRow[]> {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpenseReads(write, actor).list();
+  return withExpensePurchasedRead(write, actor, tx => nativeExpenseReads(tx, actor).list());
 }
 export async function getExpense(actor: WorkContext, id: string, provided?: SqlDatabase): Promise<ExpenseRow> {
   const write = provided ?? (await holdingResources(actor.holdingId)).write;
@@ -163,15 +174,15 @@ export async function getExpense(actor: WorkContext, id: string, provided?: SqlD
 }
 /** Bound owner read reused by commands inside their caller's transaction. */
 export async function expenseFromDatabase(write: SqlDatabase, actor: WorkContext, id: string): Promise<ExpenseRow> {
-  return nativeExpenseReads(write, actor).get(id);
+  return withExpensePurchasedRead(write, actor, tx => nativeExpenseReads(tx, actor).get(id));
 }
 export function canEditExpense(actor: WorkContext, row: ExpenseRow) {
-  return mayEditExpense(actor, row);
+  return row.expense_purchase_new_work !== 0 && mayEditExpense(actor, row);
 }
 export function canReviewExpense(actor: WorkContext, row: ExpenseRow) {
-  return mayReviewExpense(actor, row);
+  return row.expense_purchase_settle_existing !== 0 && mayReviewExpense(actor, row);
 }
-export function nativeExpenseDetail(write: SqlDatabase) {
+function originalNativeExpenseDetail(write: SqlDatabase) {
   return createExpenseDetail({
     expense: (actor, id) => expenseFromDatabase(write, actor, id),
     async attachments(_actor, id) { return (await write
@@ -206,7 +217,9 @@ export function nativeExpenseDetail(write: SqlDatabase) {
       .all<ExpenseRow>()).results; },
     async paymentDrafts(actor, id) { return (await write
       .prepare(
-        "SELECT * FROM expense_payment_drafts WHERE expense_id=? AND company_id=? ORDER BY created_at",
+        `SELECT d.*,CASE WHEN EXISTS(SELECT 1 FROM (${expensePreparedPaymentSources}) native WHERE native.id=d.id AND native.company_id=d.company_id) THEN 1 ELSE 0 END native_preparation,
+         terminal.reason cancellation_reason FROM expense_payment_drafts d LEFT JOIN (${expensePaymentCancellations}) terminal ON terminal.id=d.id AND terminal.company_id=d.company_id
+         WHERE d.expense_id=? AND d.company_id=? ORDER BY d.created_at`,
       )
       .bind(id, actor.companyId)
       .all<ExpenseRow>()).results; },
@@ -228,9 +241,9 @@ export function nativeExpenseDetail(write: SqlDatabase) {
 }
 export async function expenseDetail(actor: WorkContext, id: string, provided?: SqlDatabase) {
   const write = provided ?? (await holdingResources(actor.holdingId)).write;
-  return nativeExpenseDetail(write)(actor, id);
+  return withExpensePurchasedRead(write, actor, tx => nativeExpenseDetail(tx)(actor, id));
 }
-export function nativeExpenseOptions(write: SqlDatabase) {
+function originalNativeExpenseOptions(write: SqlDatabase) {
   return createExpenseOptions({
     async people(actor) { return (await write
       .prepare(
@@ -270,7 +283,7 @@ export function nativeExpenseOptions(write: SqlDatabase) {
 }
 export async function expenseOptions(actor: WorkContext) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpenseOptions(write)(actor);
+  return withExpensePurchasedRead(write, actor, tx => nativeExpenseOptions(tx)(actor));
 }
 function independentClaimant(
   write: SqlDatabase,
@@ -302,7 +315,7 @@ function versionGuard(
     [id, actor.companyId, version, ...states],
   );
 }
-export function nativeExpenseLifecycle(write: SqlDatabase) {
+function originalNativeExpenseLifecycle(write: SqlDatabase) {
   return createTransitionExpense({
     ...expenseCommandPort(write),
     expense: (actor, id, override) => override ? write.prepare("SELECT * FROM finance_expenses WHERE id=? AND company_id=?").bind(id, actor.companyId).first<ExpenseRow>() : expenseFromDatabase(write, actor, id),
@@ -436,9 +449,9 @@ export function nativeExpenseLifecycle(write: SqlDatabase) {
 }
 export async function transitionExpense(actor: WorkContext, id: string, action: "submit" | "approve" | "reject" | "cancel", input: { expectedVersion: number; reason?: string; override?: boolean }, key: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpenseLifecycle(write)(actor, id, action, input, key);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:action === "submit" ? "new-work" : "settle-existing"}, tx => nativeExpenseLifecycle(tx)(actor, id, action, input, key));
 }
-export function nativeExpenseReceiptRemoval(write: SqlDatabase) {
+function originalNativeExpenseReceiptRemoval(write: SqlDatabase) {
   return createRevokeExpenseAttachment({
     ...expenseCommandPort(write),
     readOnly: attachmentsV2ReadOnly,
@@ -490,9 +503,9 @@ export function nativeExpenseReceiptRemoval(write: SqlDatabase) {
 }
 export async function revokeExpenseAttachment(actor: WorkContext, id: string, attachmentId: string, expectedVersion: number, key: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpenseReceiptRemoval(write)(actor, id, attachmentId, expectedVersion, key);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:"settle-existing"}, tx => nativeExpenseReceiptRemoval(tx)(actor, id, attachmentId, expectedVersion, key));
 }
-export function nativeExpensePosting(write: SqlDatabase) {
+function originalNativeExpensePosting(write: SqlDatabase) {
   return createPostExpense({
     ...expenseCommandPort(write),
     expense: (actor, id) => expenseFromDatabase(write, actor, id),
@@ -505,7 +518,7 @@ export function nativeExpensePosting(write: SqlDatabase) {
 }
 export async function postExpense(actor: WorkContext, id: string, input: z.infer<typeof expensePostSchema>, key: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpensePosting(write)(actor, id, input, key);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:"settle-existing"}, tx => nativeExpensePosting(tx)(actor, id, input, key));
 }
 export function nativeExpensePostingPreparation(write: SqlDatabase) {
   return createPrepareExpensePosting({
@@ -515,6 +528,10 @@ export function nativeExpensePostingPreparation(write: SqlDatabase) {
     async preparePosting(actor, claim, input, key, config, total, invoice, payee, preparedJournal) {
       const journal = preparedJournal.native as Awaited<ReturnType<typeof prepareJournal>>;
       const id = String(claim.id), now = Date.now();
+      const postedMoney = await financeExpenseEffects(write).preparePostedMoney(actor, {
+        journalId: journal.result.id, invoiceId: invoice, transactionDate: input.entryDate,
+        currency: String(claim.currency), totalMinor: total,
+      });
       return expenseMutation({
       id,
       status: "posted",
@@ -561,6 +578,7 @@ export function nativeExpensePostingPreparation(write: SqlDatabase) {
       ]),
       ...journal.steps,
       financeExpenseEffects(write).postPayableInvoice({id:invoice,companyId:actor.companyId,partyId:payee,number:`EXP-${(await sha256(id)).slice(0, 24).toUpperCase()}`,invoiceDate:input.entryDate,dueDate:input.entryDate,currency:claim.currency,subtotalMinor:claim.amount_minor,taxMinor:claim.tax_minor,totalMinor:total,outstandingMinor:total,debitAccountId:claim.category_account_id,creditAccountId:config.payable_account_id,taxAccountId:config.input_tax_account_id,expenseId:id,journalId:journal.result.id,createdBy:claim.prepared_by ?? claim.created_by,approvedBy:claim.approved_by,postedAt:now,createdAt:now,updatedAt:now}),
+      ...postedMoney,
       write
         .prepare(
           "UPDATE finance_expenses SET status='posted',workflow_stage='payment',invoice_id=?,journal_id=?,posted_at=?,version=version+1,updated_at=? WHERE id=?",
@@ -571,6 +589,7 @@ export function nativeExpensePostingPreparation(write: SqlDatabase) {
   });
 }
 export async function prepareExpensePosting(write: SqlDatabase, actor: WorkContext, claim: ExpenseRow, input: z.infer<typeof expensePostSchema>, key: string) {
+  await requireExpensePortUnit(write,actor,key,"expense.post");
   const prepared = await nativeExpensePostingPreparation(write)(actor, claim, input, key);
   return { result: prepared.result, steps: expenseStatements(prepared) };
 }
@@ -578,7 +597,7 @@ export async function prepareExpensePosting(write: SqlDatabase, actor: WorkConte
 export const expenseReversalSchema = expensePostSchema.extend({
   reason: z.string().trim().min(3).max(2000),
 });
-export function nativeExpenseReversal(write: SqlDatabase) {
+function originalNativeExpenseReversal(write: SqlDatabase) {
   return createReverseExpense({
     ...expenseCommandPort(write),
     authorize: actor => requirePermission(actor, "expense.approve"),
@@ -587,6 +606,10 @@ export function nativeExpenseReversal(write: SqlDatabase) {
     journal: (actor, id, claim) => write.prepare(`SELECT * FROM (${financeProjectionSources.finance_journals}) finance_journals WHERE id=? AND company_id=? AND source_type='expense_claim' AND source_id=? AND status='posted'`).bind(claim.journal_id, actor.companyId, id).first<ExpenseRow>(),
     async prepareReversal(actor, id, input, key, claim, invoice, journal) {
       const reversal = `expense-reversal-${key}`, now = Date.now();
+      const reversalMoney = await financeExpenseEffects(write).prepareReversalMoney(actor, {
+        journalId: reversal, originalJournalId: String(journal.id), transactionDate: input.entryDate,
+        currency: String(journal.currency), totalMinor: Number(invoice.total_minor),
+      });
       return expenseMutation({
       id,
       status: "cancelled",
@@ -625,6 +648,7 @@ export function nativeExpenseReversal(write: SqlDatabase) {
       ),
       financeExpenseEffects(write).retainReversalJournal({id:reversal,periodId:input.periodId,number:`REV-${key}`,date:input.entryDate,expenseId:id,reason:input.reason,createdBy:actor.userId,postedBy:actor.userId,postedAt:now,createdAt:now,updatedAt:now,originalJournalId:journal.id}),
       financeExpenseEffects(write).retainReversalLines({prefix:reversal,journalId:reversal,originalJournalId:journal.id}),
+      reversalMoney,
       financeExpenseEffects(write).markJournalReversed({actorId:actor.userId,reversedAt:now,updatedAt:now,journalId:journal.id}),
       financeExpenseEffects(write).voidExpenseInvoice({updatedAt:now,invoiceId:invoice.id}),
       write
@@ -653,5 +677,42 @@ export async function reverseExpense(actor: WorkContext, id: string, input: z.in
   // Resolve resources after the same authorization used by the legacy entry.
   actor = authorizeExpenseReversal(actor, { authorize: value => requirePermission(value, "expense.approve"), error: violation => new ApiError(violation.status, violation.code, violation.message) });
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpenseReversal(write)(actor, id, input, key);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:"settle-existing"}, tx => nativeExpenseReversal(tx)(actor, id, input, key));
+}
+
+export function nativeExpenseLifecycle(database: SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseLifecycle>>)=>withExpensePurchasedCommand(database,args[0],{key:args[4],purpose:args[2] === "submit" ? "new-work" : "settle-existing"},transaction=>originalNativeExpenseLifecycle(transaction)(...args));}
+
+export function nativeExpenseReceiptRemoval(database: SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseReceiptRemoval>>)=>withExpensePurchasedCommand(database,args[0],{key:args[4],purpose:"settle-existing"},transaction=>originalNativeExpenseReceiptRemoval(transaction)(...args));}
+
+export function nativeExpensePosting(database: SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpensePosting>>)=>withExpensePurchasedCommand(database,args[0],{key:args[3],purpose:"settle-existing"},transaction=>originalNativeExpensePosting(transaction)(...args));}
+
+export function nativeExpenseReversal(database: SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseReversal>>)=>withExpensePurchasedCommand(database,args[0],{key:args[3],purpose:"settle-existing"},transaction=>originalNativeExpenseReversal(transaction)(...args));}
+
+export function nativeExpenseReads(database:SqlDatabase,actor:WorkContext,options:{batch?:boolean}={}){return {
+ list:()=>withExpensePurchasedRead(database,actor,async transaction=>expensePresentationRows(transaction,actor,await originalNativeExpenseReads(transaction,actor,options).list())),
+ get:(id:string)=>withExpensePurchasedRead(database,actor,async transaction=>(await expensePresentationRows(transaction,actor,[await originalNativeExpenseReads(transaction,actor,options).get(id)]))[0])
+};}
+export function nativeExpenseDetail(database:SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseDetail>>)=>withExpensePurchasedRead(database,args[0],async transaction=>{
+ const detail=await originalNativeExpenseDetail(transaction)(...args),actor=args[0],expense=detail.expense;
+ const canCancel=expense.workflow_version===2&&['posted','reimbursed','cancelled'].includes(String(expense.status))&&!!expense.invoice_id&&!!expense.journal_id&&hasPermission(actor,'expense.pay')&&expense.expense_purchase_settle_existing!==0&&(await expensePayers(transaction,expense)).includes(actor.userId)&&Boolean(await transaction.prepare(`SELECT EXISTS(SELECT 1 FROM finance_expenses e WHERE e.id=? AND e.company_id=? AND (${expensePaymentTreasurySql('e')})) ok`).bind(expense.id,actor.companyId,actor.assignmentId,actor.userId).first<boolean>('ok'));
+ return {...detail,paymentDrafts:detail.paymentDrafts.map((draft):ExpenseRow & {can_cancel_payment:number}=>({...draft,can_cancel_payment:canCancel&&draft.native_preparation===1&&draft.status==='draft'&&draft.payment_id===null?1:0})),permittedActions:detail.permittedActions.filter(action=>['save','submit'].includes(action)?expense.expense_purchase_new_work!==0:expense.expense_purchase_settle_existing!==0)};
+});}
+export function nativeExpenseOptions(database:SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseOptions>>)=>withExpensePurchasedRead(database,args[0],transaction=>originalNativeExpenseOptions(transaction)(...args));}
+
+async function expensePresentationRows(database:SqlDatabase,actor:WorkContext,rows:ExpenseRow[]):Promise<ExpenseRow[]>{
+ const mode=await peoplePackageEnforcementMode();if(mode==='disabled')return rows;
+ const access=await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'people.expenses'});
+ return rows.map(row=>({...row,expense_purchase_new_work:access.newWork?1:0,expense_purchase_settle_existing:access.settleExisting?1:0,...(!access.settleExisting?{can_decide:0,can_post:0,can_pay:0}:{})}));
+}
+
+/** Shared-record candidates use the original two-stage native reader, before
+ * their caller applies pagination. Only the owned read seam supplies IDs.
+ * No decoration or legacy initialization is needed to decide visibility. */
+export async function expenseVisibleRecordIds(database:SqlDatabase,actor:StaffActor,ids:readonly string[],inspection=false){
+ const scope=visibility(actor),permitted=new Set<string>();
+ for(let start=0;start<ids.length;start+=250){
+  const rows=(await database.prepare(`${expenseSelect} WHERE x.id IN(SELECT value FROM erpx_json_each(?)) AND ${scope.sql}`).bind(JSON.stringify(ids.slice(start,start+250)),...scope.args).all<ExpenseRow>()).results;
+  for(const row of rows)if(await currentExpenseReader(database,actor,row,undefined,inspection))permitted.add(String(row.id));
+ }
+ return permitted;
 }

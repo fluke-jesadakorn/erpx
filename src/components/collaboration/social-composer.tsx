@@ -5,7 +5,6 @@ import socialStyles from "@/components/collaboration/social.module.css";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import { PersonAvatar } from "@/components/ui/person-avatar";
 import dynamic from "next/dynamic";
 import {
@@ -23,6 +22,7 @@ import type { PostContent } from "@/server/modules/collaboration/public/social-h
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { PenLine, ChevronDown } from "lucide-react";
 import { betaFetch } from "@/lib/shared/beta-client";
+import {SocialCommandRecovery} from "./social-command-recovery";
 import { useSocialCommand } from "@/components/collaboration/social-command";
 import type { Meta, Draft, PostPurpose } from "@/components/collaboration/social-types";
 import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/shared/ai/guided-intake";
@@ -75,7 +75,8 @@ export function SocialComposer({
     () => true,
     () => false,
   );
-  const { run, send, busy, message, setMessage } = useSocialCommand();
+  const command=useSocialCommand();
+  const {run,send,uploadImage,busy,message,setMessage}=command;
   const [blocks, setBlocks] = useState<PostEditorBlock[]>([
     { type: "text", id: "initial", text: "", mentions: [] },
   ]);
@@ -158,6 +159,7 @@ export function SocialComposer({
   }
 
   async function save(publish = false) {
+    const submittedForm=document.activeElement?.closest("form"),editVersion=submittedForm?.getAttribute("data-erpx-edit-version");
     const choice = meta.audiences?.find((option) => option.value === audience);
     if (publish && !choice) {
       setMessage("Choose who can see this post before sharing.");
@@ -233,25 +235,7 @@ export function SocialComposer({
           );
           setBlocks(working);
         }
-        const response = await workFetch(uploadUrl, { method: "PUT", body: image.file });
-        const result = (await response.json()) as {
-          data?: { id: string; ownerVersion: number };
-          error?: { message: string; requestId?: string };
-        };
-        if (!response.ok || !result.data) {
-          if (response.status === 404) {
-            working = working.map((block) =>
-              block.type === "image" && block.slotId === image.slotId
-                ? { ...block, uploadUrl: undefined }
-                : block,
-            );
-            setBlocks(working);
-          }
-          const message =
-            result.error?.message ?? "Image upload failed. Your draft is still here; try again.";
-          const requestId = result.error?.requestId ?? response.headers.get("X-Request-ID");
-          throw new Error(requestId ? `${message} (Reference: ${requestId})` : message);
-        }
+        const result={data:await uploadImage(uploadUrl!,image.file!)};
         version = result.data.ownerVersion;
         working = working.map((block) =>
           block.type === "image" && block.slotId === image.slotId
@@ -309,7 +293,7 @@ export function SocialComposer({
         await onPublished();
         // A published draft is committed; reopen with fresh drawer dirty state.
         setComposerRevision((value) => value + 1);
-      } else setMessage("Draft saved. Only you can see it.");
+      } else {if(submittedForm&&submittedForm.getAttribute("data-erpx-edit-version")===editVersion)window.dispatchEvent(new CustomEvent("erpx:record-command-saved",{detail:{form:submittedForm,formEditVersion:editVersion,socialAcknowledged:true}}));setMessage("Draft saved. Only you can see it.");}
     });
   }
   const hasImage = blocks.some((block) => block.type === "image");
@@ -327,7 +311,7 @@ export function SocialComposer({
   ];
   return (
     <>
-      <FormDisclosure finalFocus={() => composer.current?.querySelector<HTMLElement>("summary") ?? null} key={composerRevision} appearance="standard" drawerTitle="Share an update" contentClassName={socialStyles.home} dismissDisabled={busy}
+      <FormDisclosure finalFocus={() => composer.current?.querySelector<HTMLElement>("summary") ?? null} key={composerRevision} appearance="standard" drawerTitle="Share an update" contentClassName={socialStyles.home} dismissDisabled={busy||(!!command.retryAttempt||command.imagePending)} onDiscard={()=>{setBlocks([newPostTextBlock()]);setEditorResetKey(value=>value+1);setDraft(null);setAudience("");setParticipants([]);setSources([]);setSourceChoice("");setPurpose("update");}}
         ref={composer}
         className="ui-panel beta-composer"
         onToggle={(event) => {
@@ -347,7 +331,7 @@ export function SocialComposer({
           <PenLine className="beta-compose-icon" size={18} aria-hidden="true" />
           <ChevronDown className="beta-compose-chevron" size={16} aria-hidden="true" />
         </summary>
-        <fieldset disabled={busy} style={{ display: "contents" }}>
+        <form data-social-draft onSubmit={event=>event.preventDefault()} onChangeCapture={event=>event.currentTarget.setAttribute("data-erpx-edit-version",crypto.randomUUID())}><fieldset disabled={busy||(!!command.retryAttempt||command.imagePending)} style={{ display: "contents" }}>
         {guided && (
           <InlineNotice tone="info" className="notice" role="status">
             <p>
@@ -539,7 +523,7 @@ export function SocialComposer({
           </details>
         )}
       <InlineNotice tone="info" className="beta-status" role="status">{busy ? "Saving…" : message}</InlineNotice>
-        </fieldset>
+        </fieldset><SocialCommandRecovery command={command}/></form>
       </FormDisclosure>
     </>
   );

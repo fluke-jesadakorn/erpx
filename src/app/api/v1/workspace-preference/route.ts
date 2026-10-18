@@ -1,3 +1,5 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePlatformContext, requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
@@ -12,7 +14,7 @@ export async function POST(request:Request) {
     const db=(await runtimeEnv()).CONTROL_DB;
     if(base==='/platform') {
       const actor=await requirePlatformContext();
-      await rememberWorkspace(db,actor.userId,'/platform/home');
+      await rememberWorkspace(db,actor.userId,canonicalUiHref('/platform/home'));
     } else {
       const parts=base.split('/').filter(Boolean);
       const parsed=parts[0]==='holdings' && parts[1] ? parseHoldingWorkspace(parts[1],parts.slice(2)) : null;
@@ -23,6 +25,6 @@ export async function POST(request:Request) {
       const actor=await requireWorkContext(parsed.scope);
       await rememberWorkspace(db,actor.userId,workspaceHref(publicScope(actor)),{holdingId:actor.holdingId,companyId:actor.companyId});
     }
-    return NextResponse.json({data:{saved:true}},{headers:{'Cache-Control':'private, no-store'}});
+    return NextResponse.json(canonicalDestinationLinks({data:{saved:true}}),{headers:{'Cache-Control':'private, no-store'}});
   } catch(error) {return errorResponse(error);}
 }

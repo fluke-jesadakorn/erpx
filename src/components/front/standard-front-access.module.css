@@ -1,0 +1,41 @@
+.page { min-height: 100svh; color: var(--ui-ink); background: var(--ui-paper); padding: clamp(16px, 4vw, 48px); }
+.frame { width: min(1120px, 100%); min-width: 0; margin-inline: auto; }
+.header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding-bottom: 24px; border-bottom: 1px solid var(--ui-line); }
+.brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ui-ink-strong); font-size: 20px; }
+.mark { display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--ui-radius-md); background: var(--ui-brand-soft); color: var(--ui-brand-strong); font-weight: 700; }
+.signInLayout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 440px); align-items: center; gap: clamp(24px, 6vw, 80px); padding-block: clamp(32px, 7vw, 80px); }
+.introduction { display: grid; gap: 20px; min-width: 0; }
+.introduction h1 { max-width: 14ch; margin: 0; color: var(--ui-ink-strong); font-size: clamp(32px, 4vw, 48px); line-height: 1.2; font-weight: 650; }
+.introduction > p { margin: 0; max-width: 46ch; color: var(--ui-muted); font-size: 16px; line-height: 1.6; }
+.features { display: grid; gap: 12px; margin: 8px 0 0; padding-inline-start: 24px; color: var(--ui-muted); font-size: 14px; line-height: 1.5; }
+.features li { padding-inline-start: 8px; }
+.signInCard { min-width: 0; }
+.eyebrow { margin: 0 0 8px; color: var(--ui-muted); font-size: 12px; line-height: 1.5; font-weight: 650; letter-spacing: .04em; }
+.description { margin: 8px 0 0; color: var(--ui-muted); font-size: 14px; line-height: 1.6; max-width: 70ch; }
+.notice { margin-bottom: 20px; }
+.forgot { margin-top: 16px; }
+.footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-block: 20px; border-top: 1px solid var(--ui-line); color: var(--ui-muted); font-size: 12px; line-height: 1.5; }
+.pickerHeader { margin-block: 32px 24px; }
+.pickerHeader .eyebrow { margin-top: 16px; }
+.pickerLayout { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: start; gap: 24px; }
+.shortcuts { min-width: 0; }
+.companyCard { padding: 0; overflow: hidden; }
+.companies { margin: 0; padding: 0; list-style: none; }
+.companies > li + li { border-top: 1px solid var(--ui-line); }
+.companyLink { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; padding: 16px 24px; color: var(--ui-ink-strong); text-decoration: none; font-size: 16px; line-height: 1.5; }
+.companyLink > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.companyLink > span:last-child { color: var(--ui-brand-strong); }
+.companyLink:hover { background: var(--ui-card-2); }
+.companyLink:focus-visible { outline: 2px solid var(--ui-brand); outline-offset: -3px; }
+.companyCard > [role="status"] { margin: 16px; }
+.skipLink { position: absolute; top: -120px; left: 16px; z-index: 60; padding: 12px 16px; background: var(--ui-card); color: var(--ui-ink); border: 2px solid var(--ui-brand); border-radius: var(--ui-radius-md); }
+.skipLink:focus { top: 12px; }
+@media (max-width: 760px) {
+  .signInLayout, .pickerLayout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .signInLayout { padding-block: 32px; }
+  .introduction h1 { max-width: 22ch; font-size: 32px; }
+  .features { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+  .pickerHeader { margin-top: 24px; }
+  .companyLink { padding: 16px; }
+}
+@media (max-width: 420px) { .features { grid-template-columns: minmax(0, 1fr); } }

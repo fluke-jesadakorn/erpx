@@ -355,12 +355,41 @@
 .breadcrumb li {
   display: flex;
   align-items: center;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
   gap: 2px;
+}
+.breadcrumb .breadcrumbFullItem > a,
+.breadcrumb .breadcrumbFullItem > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  line-height: var(--ui-control-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .breadcrumb .breadcrumbCompactOverflow,
 .breadcrumb .breadcrumbCompactCurrent {
   display: none;
+}
+.breadcrumb[data-condensed] .breadcrumbFullItem {
+  display: none;
+}
+.breadcrumb[data-condensed] .breadcrumbCompactOverflow,
+.breadcrumb[data-condensed] .breadcrumbCompactCurrent {
+  display: flex;
+}
+.breadcrumb[data-condensed] .breadcrumbCompactCurrent {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.breadcrumb[data-condensed] .breadcrumbCompactCurrent > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  line-height: var(--ui-control-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .breadcrumbCompactOverflow {
   position: relative;
@@ -1313,6 +1342,17 @@ a.workspaceChoice:hover {
     grid-row: 2;
     justify-self: stretch;
     justify-content: flex-end;
+  }
+}
+
+@container workplace-topbar (max-width: 380px) {
+  .actions {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  .actions > a[data-product-switch] {
+    flex: 0 0 auto;
   }
 }
 

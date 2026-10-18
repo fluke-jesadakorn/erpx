@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button } from "@/components/ui/foundation";
@@ -8,7 +9,7 @@ import { workFetch } from "@/lib/work_projection/work-fetch";
 import { lastWorkChange, scheduleWorkRefresh } from "@/lib/work_projection/work-refresh";
 import type { SelfServiceSeed, SelfServiceSummary } from "@/server/modules/records/public/self-service";
 import { ArrowUpRight, CircleAlert, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import styles from "@/components/people_payroll/self-service/self-service.module.css";
 export function MyDayCard({
@@ -127,7 +128,7 @@ function SelfServiceDay({
               ) : data.unavailableSources.includes("Schedule") ? (
                 <p>Schedule could not refresh.</p>
               ) : data.nextShift ? (
-                <Link className={styles.shift} href={`${base}/people/roster?view=mine`}>
+                <Link className={styles.shift} href={canonicalUiHref(`${base}/people/roster?view=mine`)}>
                   <strong>{data.nextShift.name}</strong>
                   <span>
                     {data.nextShift.local_date} · {data.nextShift.start_time}–
@@ -142,7 +143,7 @@ function SelfServiceDay({
             </div>
           )}
           <div className={styles.dayLinks}>
-            <Link href={`${base}/calendar`}>
+            <Link href={canonicalUiHref(`${base}/calendar`)}>
               Open Calendar <ArrowUpRight size={13} />
             </Link>
             <Button appearance="standard"
@@ -176,7 +177,7 @@ function SelfServiceDay({
                     <li key={b}>{b}</li>
                   ))}
                 </ul>
-                <Link className={styles.setupAction} href={`${base}/people/settings`}>
+                <Link className={styles.setupAction} href={canonicalUiHref(`${base}/people/settings`)}>
                   Open People settings <ArrowUpRight size={13} />
                 </Link>
               </div>

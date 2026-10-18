@@ -6,7 +6,7 @@ import { type ComponentProps, type FormEvent, type ReactNode } from "react";
 import styles from "./pos.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePosConsoleContext} from "./pos-backoffice-console";
+import type {BackofficePosConsoleContext} from "./standard-pos-backoffice-console";
 
 
 type Row = PosRow;

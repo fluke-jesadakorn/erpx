@@ -1,3 +1,4 @@
+import { canonicalUiHref } from '@/lib/work_projection/destination-registry';
 export type RouteSearch = Record<string, string | string[] | undefined>;
 
 export function routeSearchFromParams(params: Pick<URLSearchParams, "keys" | "getAll">): RouteSearch {
@@ -18,5 +19,5 @@ export function routeContextHref(path: string, search: RouteSearch, patch: Recor
     if (value === null) query.delete(key);
     else query.set(key, value);
   }
-  return `${path}${query.size ? `?${query}` : ""}`;
+  return canonicalUiHref(`${path}${query.size ? `?${query}` : ""}`);
 }

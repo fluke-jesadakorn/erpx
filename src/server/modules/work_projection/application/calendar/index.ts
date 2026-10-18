@@ -162,9 +162,10 @@ export function createCalendarIndex(ports: {
             },
             selfPersonId: a.staff?.person_id ?? null,
             canManageRoster: hasPermission(actor, "roster.manage"),
-            canSchedule: true,
-            canAnnounce: hasPermission(actor, "calendar.announcements.publish"),
+            canSchedule: a.manualPurchase?.newWork??true,
+            canAnnounce: hasPermission(actor, "calendar.announcements.publish")&&(a.manualPurchase?.newWork??true),
             teamDefault: a.teamDefault,
+            ...(a.manualPurchase?{purchase:a.manualPurchase}:{}),
         };
     }
     return { calendarData };

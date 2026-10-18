@@ -1,0 +1,97 @@
+{
+  "schema": "erpx-product-migration-native-checkpoint/v1",
+  "sourceFingerprint": "b45a9fe15a2d9fbe688350f3f6b602e52e7d1205b8903d7d3dada75737445f27",
+  "verificationFingerprint": "86d9f459de07dcb3a30683b0754c6c7fa67ff5a289fa9c323e92defe708f32de",
+  "release": {
+    "id": "2026-10-14T12-50-14-168Z",
+    "sourceFingerprint": "b45a9fe15a2d9fbe688350f3f6b602e52e7d1205b8903d7d3dada75737445f27"
+  },
+  "result": "native-static-build-passed",
+  "scope": "baseline and guarded readers; product workflows and full migration not accepted",
+  "unit": {
+    "files": 209,
+    "cases": 2824
+  },
+  "postgres": {
+    "files": 229,
+    "cases": 2138
+  },
+  "focusedPostgres": {
+    "files": 3,
+    "cases": 22
+  },
+  "checks": [
+    {
+      "name": "typecheck",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490"
+    },
+    {
+      "name": "lint",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-lint.log",
+      "sha256": "8f938808979917b124714c53a0d74197d7b7ae453014297508abd1bdbc814c65"
+    },
+    {
+      "name": "architecture",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846"
+    },
+    {
+      "name": "catalogue",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-catalogue.log",
+      "sha256": "45213e318207fc3040df3947846489ffba9baee2b3de62ff8f9184be0719c019"
+    },
+    {
+      "name": "documentation",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-documentation.log",
+      "sha256": "d7b68e33e2c8fcb767141cf22104438e36e9b3c34ff562f18efae5fe2dabd906"
+    },
+    {
+      "name": "products",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-products.log",
+      "sha256": "dccdd861f3d91d35282eb0a5b965e04d97d1023ebaed3dad13d83455ab5df5fa"
+    },
+    {
+      "name": "unit",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-unit.log",
+      "sha256": "1d227b75652a1b0285b5d13774237a6cbc29f4f289db6c812429e1b459fc1f62"
+    },
+    {
+      "name": "focused-postgres",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-focused-postgres.log",
+      "sha256": "d6b59b8fe57c42355bd5c2e5cf7e20c18d5d30919e6aa16bb3bead43c10ed948"
+    },
+    {
+      "name": "build",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-build.log",
+      "sha256": "3ce12946f1bceb134d7f651a0c95fb3821c0ad23aac4903428daa99f593d7d15"
+    },
+    {
+      "name": "integration",
+      "exitCode": 0,
+      "log": ".scratch/dev/product-migration-baseline-2026-10-14/current-integration.log",
+      "sha256": "7d91801f5499a07b20831a5bc1d82e1c471ae8ac12e2216ab8aa728c34e04a3f"
+    }
+  ],
+  "workflowMigrationReceiptsPromoted": 0,
+  "outstanding": [
+    "real Platform package administration",
+    "legacy migration Apply",
+    "owner enforcement and obligations",
+    "all product and public workflows",
+    "SSO/preferences/revocation",
+    "UI guard and full responsive/themes",
+    "concurrent anonymous root timeouts",
+    "comparable compiled performance",
+    "populated restore/schema-compatible rollback"
+  ]
+}

@@ -1,11 +1,13 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 
 import { QuickAccessShelf } from "@/components/work_projection/quick-access/shelf";
 import { defaultWorkCardIds, newWorkHref, workCardIds, type WorkActionCard, type WorkCardId } from "@/lib/work_projection/work-cards";
 import { workCardTone } from "@/lib/work_projection/work-category-tone";
 import type { QuickAccessItem } from "@/lib/work_projection/quick-access";
 import { selfServiceActions } from "@/lib/work_projection/self-service";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { scheduleWorkRefresh } from "@/lib/work_projection/work-refresh";
@@ -72,7 +74,7 @@ export function WorkShortcuts({ base, role, placement = "sidebar", onNavigate }:
   const { quickAccess, quickAccessLoading, quickAccessError, refresh, saveQuickAccess } = useShortcutSummary(base);
   const pathname = usePathname();
   const search = useSearchParams();
-  const current = pathname === `${base}/work` ? search.toString() : "";
+  const current = pathname === canonicalUiHref(`${base}/work`) ? search.toString() : "";
   const cards = quickAccess?.cards ?? [];
   const items: QuickAccessItem[] = cards.map((card) => ({
     id: card.id,

@@ -1,6 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import { WorkspaceFrame, WorkspaceNavigation, WorkspaceSections, WorkspaceContent, WorkspaceContext } from "@/components/ui/workspace";
 import { technologyHref, technologySections } from "@/lib/identity_access/technology-navigation";
 import { routeSearchFromParams } from "@/lib/shared/route-context";

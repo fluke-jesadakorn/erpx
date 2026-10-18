@@ -1,9 +1,11 @@
+import type {WorkContext} from "../../identity_access/public/authorization";
+import {assetSourcePredicate} from "../../assets/public/record-purchases";
 import { finalRootOwnerProjectionSources as people_payrollProjectionSources } from "../../people_payroll/public/final-root-owner-projection-sources";
 import "server-only";
 import type { SqlDatabase } from "../../runtime/public/runtime/types";
 const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
-export function calendarMaintenanceMaintenanceFacts(db: SqlDatabase) {
-    return { read1: (facts: {
+export function calendarMaintenanceMaintenanceFacts(db: SqlDatabase,actor?:WorkContext) {
+    return { read1: async (facts: {
             value1: string;
             value2: string | null;
             value3: string | null;
@@ -16,6 +18,7 @@ export function calendarMaintenanceMaintenanceFacts(db: SqlDatabase) {
             value10: string;
             value11: number;
         }) => {
+            const work=actor?await assetSourcePredicate(db,actor,"s","maintenance_work"):{where:"TRUE",args:[]},plan=actor?await assetSourcePredicate(db,actor,"s","maintenance_plan"):{where:"TRUE",args:[]};
             return db.prepare(`WITH scheduled AS (
   SELECT p.id,'maintenance_plan' source_kind,p.company_id,p.branch_id,p.department_id,p.title,p.status,p.version,p.next_due_at due_at,p.owner_id,p.created_by
   FROM maintenance_preventive_plans p WHERE p.status='active'
@@ -25,7 +28,7 @@ export function calendarMaintenanceMaintenanceFacts(db: SqlDatabase) {
   FROM scheduled s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (?::text IS NULL OR s.department_id=?) AND ${inList('coalesce(s.department_id,s.branch_id)')}
   AND s.due_at>=? AND s.due_at<? AND (?='team' OR s.owner_id=? OR s.created_by=?)
   AND (?::text IS NULL OR s.owner_id IN (SELECT user_id FROM (${people_payrollProjectionSources.hr_people}) hr_people WHERE id=? AND company_id=s.company_id))
-  AND (?='' OR s.title ILIKE '%'||?||'%') ORDER BY s.due_at,s.id LIMIT ?`).bind(facts.value1, facts.value2, facts.value2, facts.value3, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, facts.value8, facts.value9, facts.value9, facts.value10, facts.value10, facts.value11).all<{
+  AND (?='' OR s.title ILIKE '%'||?||'%') AND ((s.source_kind='maintenance_work' AND ${work.where}) OR (s.source_kind='maintenance_plan' AND ${plan.where})) ORDER BY s.due_at,s.id LIMIT ?`).bind(facts.value1, facts.value2, facts.value2, facts.value3, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, facts.value8, facts.value9, facts.value9, facts.value10, facts.value10,...work.args,...plan.args, facts.value11).all<{
                 id: string;
                 source_kind: string;
                 title: string;

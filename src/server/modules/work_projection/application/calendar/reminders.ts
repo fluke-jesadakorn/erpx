@@ -52,6 +52,7 @@ export type CalendarRemindersUnit<Effect> = {
     }): Promise<Record<string, unknown> | null>;
     publish(input: import("../../../collaboration/public/inbox").InboxEventInput): Promise<string>;
     transaction<T>(callback: (tx: CalendarRemindersUnit<Effect>) => Promise<T>): Promise<T>;
+    deliver?(row:Row,occurrence:{key:string;startsAt:number;due:number;now:number},callback:(tx:CalendarRemindersUnit<Effect>)=>Promise<boolean>):Promise<boolean>;
 };
 export function createCalendarReminders<Effect>(ports: {
     clock: Clock;
@@ -106,16 +107,17 @@ export function createCalendarReminders<Effect>(ports: {
                     const due = startsAt - row.reminder_minutes * 60000;
                     if (due > now || startsAt < now - 3600000)
                         continue;
-                    await db.transaction(async (tx) => {
+                    const deliver=async (tx:CalendarRemindersUnit<Effect>) => {
                         await tx.write5({ value1: row.company_id, value2: row.id, value3: occurrence.key, value4: row.user_id, value5: due });
                         const claimed = await tx.read6({ value1: now, value2: row.id, value3: occurrence.key, value4: row.user_id, value5: due });
                         if (!claimed)
-                            return;
+                            return false;
                         await tx.publish({ key: `reminder:${row.id}:${occurrence.key}:${row.user_id}:${due}`, companyId: row.company_id,
-                            sourceType: "calendar_appointment", sourceId: row.id, sourceVersion: 1, category: "calendar", preview: `Meeting soon: ${row.title}`,
+                            sourceType: "calendar_appointment", sourceId: row.id, sourceVersion: row.version, category: "calendar", preview: `Meeting soon: ${row.title}`,
                             recipientIds: [row.user_id], createdAt: now });
-                        sent++;
-                    });
+                        return true;
+                    };
+                    if(await (db.deliver?db.deliver(row,{key:occurrence.key,startsAt,due,now},deliver):db.transaction(deliver)))sent++;
                 }
             }
             if (rows.length < 200)

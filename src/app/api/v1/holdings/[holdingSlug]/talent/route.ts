@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -19,7 +20,7 @@ export async function GET(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       id = new URL(r.url).searchParams.get("id");
     return Response.json(
-      { data: id ? await talentDetail(a, id) : await talentWorkspace(a) },
+      canonicalDestinationLinks({ data: id ? await talentDetail(a, id) : await talentWorkspace(a) }),
       { headers },
     );
   } catch (e) {
@@ -48,8 +49,10 @@ export async function POST(r: Request, c: C) {
       i = await r.json();
     let data;
     if(i.entity==="candidate-privacy"&&typeof i.id==="string")data=await changeCandidatePrivacy(a,i.id,candidatePrivacySchema.parse({action:i.action,expectedVersion:i.expectedVersion,reason:i.reason}),key);
-    else if (typeof i.id === "string")
+    else if (typeof i.id === "string"){
+      if(!["requisition","application","proposal","offer"].includes(i.entity))throw new ApiError(422,"TALENT_ENTITY_REQUIRED","Choose a registered Recruitment record type.");
       data = await changeTalentRecord(a, i.entity, i.id, i, key);
+    }
     else if (i.entity === "requisition")
       data = await createTalentRequisition(a, i, key);
     else if (i.entity === "candidate")
@@ -58,8 +61,9 @@ export async function POST(r: Request, c: C) {
       data = await createTalentApplication(a, i, key);
     else if (i.entity === "proposal")
       data = await createTalentProposal(a, i, key);
-    else data = await createTalentOffer(a, i, key);
-    return Response.json({ data }, { headers });
+    else if(i.entity==="offer")data = await createTalentOffer(a, i, key);
+    else throw new ApiError(422,"TALENT_ENTITY_REQUIRED","Choose a registered Recruitment record type.");
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);
   }

@@ -1,3 +1,5 @@
+import {requireExpensePurchasedHistory,expenseDocumentFlow,withExpenseFlowAssignment} from "../../people_payroll/public/expense-purchases";
+import {requireWorkforceFlowHistory,workforceDocumentFlow,withWorkforceFlowAssignment} from "../../people_payroll/public/workforce-record-purchases";
 import {workflowFinalOwnerProjections as commerceFinalOwnerProjections} from "../../commerce/public/workflow-final-owner-projections";
 const commerceFinalSources=commerceFinalOwnerProjections();
 import {workflowFinalOwnerProjections as financeFinalOwnerProjections} from "../../finance/public/workflow-final-owner-projections";
@@ -36,6 +38,10 @@ import { ApiError as NativeApiError } from '../../runtime/public/http';
 import { type Row, type Route, type DefaultRow, flowRoleAllowed as pureflowRoleAllowed, type FlowHistoryRow, flowCommandTarget as pureflowCommandTarget } from '../domain/flow-routing';
 import { createFlowRoutingApplication, type FlowRoutingRepository } from '../application/flow-routing';
 import { BusinessRuleError } from '../../shared';
+import { payrollDocumentFlow, withPayrollPurchasedCommand } from '../../people_payroll/public/payroll-purchases';
+import {requireCommerceFlowHistory,commerceDocumentFlow,withCommerceFlowAssignment} from '../../commerce/public/workflow-purchases';
+import {requireCountPurchasedRead,countDocumentFlow,withCountPurchasedCommand} from '../../inventory/public/count-purchases';
+import {requireTransferPurchasedRead,transferDocumentFlow,withTransferPurchasedCommand} from '../../inventory/public/transfer-purchases';
 function flowAfterEffects(db: SqlDatabase, actor: StaffActor, key: string, kind: FlowKind, id: string): SqlStatement[] {
     const stateColumn = ["leave", "staff_task", "request", "order"].includes(kind) ? "state" : "status";
     const approvalIndex = `(SELECT current_step FROM approval_instances WHERE company_id=d.company_id AND record_id=d.id ORDER BY insertion_order DESC LIMIT 1)`;
@@ -146,7 +152,15 @@ catch (error) {
 } }
 export async function flowRecord(db: SqlDatabase, companyId: string, kind: FlowKind, id: string): Promise<Row> { return invoke(() => application(db).flowRecord(companyId, kind, id)); }
 export function flowRoleAllowed(authority: string | PermissionActor, step: FlowStep | null) { return invokeSync(() => pureflowRoleAllowed(authority, step)); }
-export async function resolveFlow(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: string): Promise<FlowView> { return invoke(() => application(db).resolveFlow(actor, kind, id)); }
+export async function resolveFlow(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: string): Promise<FlowView> {
+    if(kind === "expense")await requireExpensePurchasedHistory(db,actor);
+    if(kind === "leave")await requireWorkforceFlowHistory(db,actor,id);
+    if(kind === "order")await requireCommerceFlowHistory(db,actor,id);
+    if(kind === "stock_count")await requireCountPurchasedRead(db,actor,id);
+    if(kind === "transfer")await requireTransferPurchasedRead(db,actor,{kind:"transfer",id});
+    const view = await invoke(() => application(db).resolveFlow(actor, kind, id));
+    return kind === "expense" ? expenseDocumentFlow(db,actor,view) : kind === "payroll" ? payrollDocumentFlow(db, actor, view) : kind === "order" ? commerceDocumentFlow(db,actor,view) : kind === "stock_count" ? countDocumentFlow(db,actor,view) : kind === "transfer" ? transferDocumentFlow(db,actor,view) : kind === "leave" ? workforceDocumentFlow(db,actor,view) : view;
+}
 export async function prepareFlowCommand(db: SqlDatabase, actor: StaffActor, key: string, kind: FlowKind, id: string, action: string, input: unknown, version: number): Promise<{
     before: SqlStatement[];
     after: SqlStatement[];
@@ -159,7 +173,14 @@ export async function assignFlowPrimary(db: SqlDatabase, actor: StaffActor, kind
     recordVersion: number;
     reason: string;
     saveDefault: boolean;
-}, key: string): Promise<Record<string, unknown>> { return invoke(() => application(db).assignFlowPrimary(actor, kind, id, input, key)); }
+}, key: string): Promise<Record<string, unknown>> {
+    const run=(database:SqlDatabase)=>invoke(() => application(database).assignFlowPrimary(actor, kind, id, input, key));
+    return kind === "expense" ? withExpenseFlowAssignment(db,actor,id,{key,stepKey:input.stepKey,saveDefault:input.saveDefault},run) : kind === "payroll" ? withPayrollPurchasedCommand(actor, {key,operation:"flow.assign",purpose:"settle-existing"}, tx => run(tx ?? db), db)
+        : kind === "order" ? withCommerceFlowAssignment(db,actor,id,{key,stepKey:input.stepKey,saveDefault:input.saveDefault},run)
+        : kind === "stock_count" ? withCountPurchasedCommand(db,actor,{key,operation:"flow.assign",id,purpose:"settle-existing",permission:"inventory.read",existing:true,flowStep:input.stepKey,saveDefault:input.saveDefault},run)
+        : kind === "leave" ? withWorkforceFlowAssignment(db,actor,id,{key,stepKey:input.stepKey,saveDefault:input.saveDefault},run)
+        : kind === "transfer" ? withTransferPurchasedCommand(db,actor,{key,operation:"flow.assign",target:{kind:"transfer",id},purpose:"settle-existing",permissions:[],existing:true,flowStep:input.stepKey,saveDefault:input.saveDefault},run) : run(db);
+}
 export function flowCommandTarget(operation: string, id: string, input: unknown): {
     kind: FlowKind;
     id: string;

@@ -1,5 +1,7 @@
 # Identity and access — implementation and operations
 
+The prospective [product SSO contract](product-separation.md#sso-protocol) adds creation-time audience/parent binding behind disabled development flags. Legacy login/session behavior remains in effect until product cutover acceptance. The new protocol is not yet accepted for account switching, directory callback migration, Holding tombstones, queued authority or Push.
+
 The approved redesign adds local accounts, optional simultaneous directories, immutable custom roles, scoped grants, an access matrix and reviewed selective migration. [ADR-025](../../adr/ADR-025-multiple-identity-providers-and-scoped-replacement.md) records the identity boundary and supersedes the obsolete single-directory assumptions.
 
 ## Application surfaces
@@ -99,3 +101,7 @@ The application and PostgreSQL adapter tests rehearse local-only operation, inac
 **Live provider acceptance remains environment-dependent:** install approved profiles, certificate trust, reachable LDAP/Keycloak endpoints and Entra tenant consent, then verify all four sign-in paths, refresh/outage behavior and an explicit pilot batch with independent operators. No live provider profile or tenant was supplied for this implementation.
 
 Development must remain on port 3100, with local and public `/api/health` returning 200 and public IAM browser pages verified. The production service on 3101 and Tunnel routing remain intact. Test results for this change are recorded in [IAM acceptance](../../testing/identity-access.md).
+
+## Person field commands without IAM read
+
+A current HR/person-field writer may preview and apply permitted custom values through `people.custom_attributes.write` without acquiring `iam.read`. The command uses only the selected, scope-checked Person, Company field definitions and that Person's current values. Field ownership, read/write roles, Branch override rules, optimistic versions, preview freshness, command receipts and existing reconciliation remain enforced. Its preview does not disclose groups, policies, access candidates or unrelated people. Full management reads continue to require `iam.read`; this does not restore IAM authority removed by the HR/IT separation.

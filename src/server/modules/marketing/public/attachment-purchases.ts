@@ -1,0 +1,1 @@
+export {marketingAttachmentPurchaseScope,authorizeMarketingAttachmentPurchase,marketingAttachmentSourceReadLocks,marketingAttachmentCommandBoundary,marketingAttachmentFailure,type MarketingAttachmentPurchase} from "../adapters/attachment-purchases";

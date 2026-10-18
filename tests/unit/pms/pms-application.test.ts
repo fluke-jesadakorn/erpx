@@ -1,6 +1,8 @@
 import { ownedReleaseReadDiagnostics } from "../../../src/server/modules/runtime/adapters/runtime/read-request";
-import {expect,it} from "vitest";
+import {expect,it,vi} from "vitest";
+import {pmsPackageCommandAllowed} from "../../../src/lib/pms/package-access";
 import {ApiError,errorResponse} from "../../../src/server/modules/runtime/adapters/http";
+
 import {createPmsReportsApplication,type PmsReportsRepository} from "../../../src/server/modules/pms/application/reports";
 import {createGuestBookingDocument,type GuestDocumentUnit} from "../../../src/server/modules/pms/application/guest-document";
 import {createStaffBookingChange} from "../../../src/server/modules/pms/application/staff-booking-changes";
@@ -21,6 +23,27 @@ const actor:WorkContext={userId:"reviewer",name:"Reviewer",email:"reviewer@examp
 const snapshot=()=>newProperty("hotel","company","branch","Hotel","2026-10-05");
 const reports=createPmsReportsApplication({clock:{isoNow:()=>"2026-10-09T00:00:00.000Z"},require:()=>{},error});
 const reportInput={propertyId:"hotel",from:"2026-10-01",to:"2026-10-02"};
+it("the actual PMS endpoint rejects a Finance reservation command before acquiring the Holding database and retains the unchanged transfer command",async()=>{
+ const command=vi.fn(async()=>({id:"transfer",version:2})),resources=vi.fn(async()=>({write:{}}));
+ const modules=["@/server/modules/pms/public/pms","@/server/modules/identity_access/public/authorization","@/server/modules/runtime/public/runtime","@/server/modules/runtime/public/runtime/types","@/server/modules/manage_erpx/public/public-origin","@/server/modules/runtime/public/runtime/read-request","@/server/modules/runtime/public/runtime/read-metrics"];
+ vi.stubEnv("ERPX_PRODUCT_ROUTING","enabled");vi.stubEnv("ERPX_PRODUCT_SSO","enabled");vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT","development");vi.stubEnv("ERPX_ENVIRONMENT","local");
+ vi.doMock(modules[0],()=>({pmsCommand:command,pmsWorkspace:vi.fn()}));
+ vi.doMock(modules[1],()=>({requireWorkContext:async()=>actor}));
+ vi.doMock(modules[2],()=>({holdingResources:resources}));
+ vi.doMock(modules[3],()=>({isTransactionalSqlDatabase:()=>true}));
+ vi.doMock(modules[4],()=>({requestPublicOrigin:()=>"https://finance-dev-erpx.jesadakorn.com"}));
+ vi.doMock(modules[5],()=>({measureReadRequest:async(_name:string,read:()=>Promise<unknown>)=>read()}));
+ vi.doMock(modules[6],()=>({measureReadPhase:async(_name:string,read:()=>Promise<unknown>)=>read()}));
+ try{
+  const {POST}=await import("@/app/api/v1/holdings/[holdingSlug]/pms/route");
+  const request=(body:unknown)=>new Request("https://finance-dev-erpx.jesadakorn.com/api/v1/holdings/test/pms",{method:"POST",headers:{host:"finance-dev-erpx.jesadakorn.com",origin:"https://finance-dev-erpx.jesadakorn.com","Content-Type":"application/json","Idempotency-Key":"same-native-key"},body:JSON.stringify(body)});
+  const denied=await POST(request({operation:"reservation.check_in",propertyId:"hotel",input:{id:"reservation"}}),{params:Promise.resolve({holdingSlug:"test"})});
+  expect(denied.status).toBe(404);expect(await denied.json()).toMatchObject({error:{code:"NOT_FOUND"}});expect(resources).not.toHaveBeenCalled();expect(command).not.toHaveBeenCalled();
+  const body={operation:"payment.verify_transfer",propertyId:"hotel",expectedVersion:3,input:{id:"transfer",expectedTransferVersion:1,bankTransactionId:"bank",bankVersion:2}};
+  const accepted=await POST(request(body),{params:Promise.resolve({holdingSlug:"test"})});
+  expect(accepted.status).toBe(200);expect(resources).toHaveBeenCalledOnce();expect(command).toHaveBeenCalledWith({},actor,body,"same-native-key");
+ }finally{for(const mockedModule of modules)vi.doUnmock(mockedModule);vi.unstubAllEnvs();}
+});
 it("a PMS report rejects a range over ninety-three days before any owner facts",async()=>{await expect(reports.pmsRangeReport(repository<PmsReportsRepository>({}),actor,{...reportInput,to:"2027-10-01"})).rejects.toThrow();});
 it("a PMS report conceals another branch before reading its money and metrics",async()=>{const r=repository<PmsReportsRepository>({property:async()=>({branch_id:"other",config_json:"{}"})});await expect(reports.pmsRangeReport(r,{...actor,branchId:"branch"},reportInput)).rejects.toThrow("PMS_NOT_FOUND");});
 it("PMS report permission withdrawal prevents all repository reads",async()=>{const app=createPmsReportsApplication({clock:{isoNow:()=>"2026-10-09T00:00:00.000Z"},require:()=>{throw error(403,"REVOKED");},error});await expect(app.pmsRangeReport(repository<PmsReportsRepository>({}),actor,reportInput)).rejects.toThrow("REVOKED");});
@@ -112,6 +135,13 @@ for(const operation of ['charge','reverse'] as const)it(`stale POS ${operation} 
 
 import { availability, groupPickupCount, stayTypeOnDate } from "../../../src/lib/pms/pms-inventory-domain";
 import { record, records, type DataMap, type Kind, type Snapshot } from "../../../src/server/modules/pms/public/rules/pms";
+it("inactive Hotel controls retain frozen-mail retry without permitting new booking or settlement",()=>{
+ const purchases={"pms.reservations":{newWork:false,settleExisting:false,history:true}};
+ expect(pmsPackageCommandAllowed(purchases,"booking.retry_email",{id:"existing-failed-mail"})).toBe(true);
+ expect(pmsPackageCommandAllowed(purchases,"booking.save",{})).toBe(false);
+ expect(pmsPackageCommandAllowed(purchases,"reservation.cancel",{id:"existing-stay"})).toBe(false);
+ expect(pmsPackageCommandAllowed({"pms.reservations":{newWork:false,settleExisting:false,history:false}},"booking.retry_email",{id:"existing-failed-mail"})).toBe(false);
+});
 function upgradeGroupFixture() {
   const s = newProperty('hotel', 'company', 'branch', 'Mock Hotel', '2026-09-01');
   s.property.state = 'open';
@@ -244,4 +274,186 @@ it('keeps a quota-only revision claim from consuming physical room capacity twic
   expect(availability(s, 'standard', '2026-09-04')).toMatchObject({ occupied: 1, held: 0, available: 0 });
   record(s, 'block', 'quota-marker').data.state = 'released';
   expect(availability(s, 'standard', '2026-09-04')).toMatchObject({ occupied: 1, held: 0, available: 0 });
+});
+
+import {createPmsHomeApi,type PmsHomeApiRepository} from '../../../src/server/modules/pms/application/home-api';
+function handoverApi(r:Partial<PmsHomeApiRepository>){return createPmsHomeApi({repository:async()=>repository<PmsHomeApiRepository>(r),require:()=>{},error,postDraft:()=>{throw Error('unused');},mentions:()=>[],pmsHotelSources:async()=>{throw Error('unused');},pmsWorkspace:async()=>{throw Error('unused');},pmsHome:async()=>{throw Error('unused');}});}
+it('PMS keeps headerless handover compatibility while the versioned path uses exactly the originally displayed version and key after native scope authorization',async()=>{
+ const calls:unknown[][]=[],post:Awaited<ReturnType<PmsHomeApiRepository['readablePost']>>={id:'post',kind:'team',company_id:actor.companyId,branch_id:null,department_id:null,author_id:'author',author_name:'Author',body:'Actual read handover',mentions_json:'[]',content_json:null,rich_content_json:null,audience_kind:'participants',audience_id:null,purpose:'handover',edited_at:null,retracted_at:null,version:4,state:'published',linked_module:null,created_at:1},app=handoverApi({readablePost:async()=>{calls.push(['scope']);return post;},acknowledgeHandover:async(...args)=>{calls.push(['legacy',...args]);return {postId:'post',postVersion:4,acknowledged:true,canAcknowledge:true,acknowledgedCount:1,recipientCount:1};},acknowledgeHandoverVersion:async(...args)=>{calls.push(['versioned',...args]);return {postId:'post',postVersion:3,acknowledged:true};}});
+ expect(await app.pmsHomeWrite(actor,['handover','post','acknowledgement'],{},'legacy-key')).toMatchObject({postVersion:4});expect(await app.pmsHomeWrite(actor,['handover','post','acknowledgement'],{},'original-key',3)).toEqual({postId:'post',postVersion:3,acknowledged:true});expect(calls).toEqual([['scope'],['legacy',actor,'post','legacy-key'],['scope'],['versioned',actor,'post','original-key',3]]);
+});
+it('PMS current native post scope failure precedes every handover confirmation including exact version retry',async()=>{
+ const app=handoverApi({readablePost:async()=>{throw Error('POST_NOT_FOUND');}});await expect(app.pmsHomeWrite(actor,['handover','post','acknowledgement'],{},'original-key',3)).rejects.toThrow('POST_NOT_FOUND');
+});
+
+// Real Next request contexts and React render the original Today links and
+// drawer caller. Only the drawer's asynchronous owner-read boundary is observed.
+import {createElement,type ReactNode} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {PathnameContext,SearchParamsContext} from 'next/dist/shared/lib/hooks-client-context.shared-runtime';
+import {StandardPmsToday as PmsToday} from '../../../src/components/pms/standard-pms-today';
+import {PmsHotelSources} from '../../../src/components/records/pms-hotel-sources';
+import {CollectionRecordLink} from '../../../src/components/records/record-collection';
+import {CurrencyProvider} from '../../../src/components/finance/money/currency-provider';
+import type {PmsHome} from '../../../src/server/modules/pms/public/pms/home';
+const hotelDrawer=vi.hoisted(()=>({reads:[] as Array<{kind:string;endpoint:string}>}));
+vi.mock('../../../src/components/records/record-collection',async importOriginal=>{
+ const actual=await importOriginal<typeof import('../../../src/components/records/record-collection')>();
+ return {...actual,RecordCollectionDrawer:(props:Parameters<typeof actual.RecordCollectionDrawer>[0])=>{hotelDrawer.reads.push({kind:props.kind,endpoint:props.endpoint});return null;}};
+});
+const sourceHotel:PmsHome['hotels'][number]={id:'original-hotel',name:'Original source hotel',branchId:'branch',businessDate:'2026-10-16',state:'open',currency:'THB',capacity:10,sold:2,inspected:8,roomCount:10,arrivals:1,departures:0,occupancy:0.2,roomRevenue:20000,adr:10000,revpar:2000,receivable:0,advance:0,deposit:0};
+const sourceHome:PmsHome={updatedAt:100,hotels:[sourceHotel],tasks:{items:[],nextCursor:null,previousCursor:null,hasMore:false},counts:[],posts:[],readablePostIds:[],canFinance:false,feedHasMore:false,people:[],userId:actor.userId,view:'company'};
+const sourceApi='/api/v1/holdings/test/pms-home',sourceFront='/test/original-company/holding/';
+function renderHotelRoute(href:string,children:ReactNode){
+ const url=new URL(href,'https://pms-dev-erpx.jesadakorn.com');
+ return renderToStaticMarkup(createElement(PathnameContext,{value:url.pathname},createElement(SearchParamsContext,{value:url.searchParams},children)));
+}
+function metricLink(metric:string){
+ const money:Parameters<typeof CurrencyProvider>[0]={initial:{companyId:actor.companyId,defaultCurrency:'THB',displayCurrency:'THB',scales:{THB:2},rates:[],currencies:[],canConfirmRate:false},apiBase:'/api/v1/holdings/test',children:createElement(PmsToday,{initial:sourceHome,api:sourceApi,frontHref:sourceFront,erpBase:'/holdings/test',branchId:null})};
+ const html=renderHotelRoute('/holdings/test/pms/dashboard?tag=one&tag=two',createElement(CurrencyProvider,money));
+ const hrefs=[...html.matchAll(/href="([^"]+)"/g)].map(match=>match[1].replaceAll('&amp;','&'));
+ const href=hrefs.find(value=>new URL(value,'https://test.invalid').searchParams.get('metric')===metric);
+ expect(href,'The original Today metric must render its owner link.').toBeDefined();
+ return href!;
+}
+function hotelEndpoint(href:string,kind:string){
+ hotelDrawer.reads.length=0;renderHotelRoute(href,createElement(PmsHotelSources,{api:sourceApi,frontHref:sourceFront}));
+ const read=hotelDrawer.reads.find(item=>item.kind===kind);expect(read).toBeDefined();return new URL(read!.endpoint,'https://test.invalid');
+}
+function hotelReadApi(overrides:Partial<Parameters<typeof createPmsHomeApi>[0]>){return createPmsHomeApi({repository:async()=>repository<PmsHomeApiRepository>({}),require:()=>{},error,postDraft:()=>{throw Error('unused');},mentions:()=>[],pmsHotelSources:async()=>{throw Error('unused');},pmsWorkspace:async()=>{throw Error('unused');},pmsHome:async()=>{throw Error('unused');},...overrides});}
+it.each(['occupancy','adr','revpar','room_revenue'] as const)('opens the actual Today %s source link with its original metric and business date through the real owner API',async metric=>{
+ const href=metricLink(metric),url=hotelEndpoint(href,'pms_hotel_sources'),read=vi.fn(async()=>({hotel:sourceHotel,metric,rows:[],page:1,hasNext:false}));
+ const result=await hotelReadApi({pmsHotelSources:read}).pmsHomeRead(actor,['hotel-sources',sourceHotel.id],url.searchParams);
+ expect(result).toMatchObject({hotel:sourceHotel,metric});expect(read).toHaveBeenCalledExactlyOnceWith(actor,sourceHotel.id,metric,sourceHotel.businessDate,1);
+ expect(new URL(href,'https://test.invalid').searchParams.getAll('tag')).toEqual(['one','two']);
+});
+it('opens an actual source-row link with its exact hotel and original record ID through the real detail owner API',async()=>{
+ const link:Parameters<typeof CollectionRecordLink>[0]={kind:'pms_hotel_record',id:'entry:original',args:{property:sourceHotel.id},children:'Original room charge'};
+ const html=renderHotelRoute(metricLink('adr'),createElement(CollectionRecordLink,link));
+ const href=/href="([^"]+)"/.exec(html)?.[1].replaceAll('&amp;','&');expect(href).toBeDefined();
+ const url=hotelEndpoint(href!,'pms_hotel_record'),read=vi.fn(async()=>{throw Error('OWNER_DETAIL_REACHED');});
+ await expect(hotelReadApi({pmsWorkspace:read}).pmsHomeRead(actor,['hotel-record','entry:original'],url.searchParams)).rejects.toThrow('OWNER_DETAIL_REACHED');
+ expect(read).toHaveBeenCalledExactlyOnceWith(actor,sourceHotel.id,false,true,{view:'detail',id:'entry:original'});
+});
+it('retains original JSON drawer arguments while canonical query fields select the current metric, date and hotel',()=>{
+ const legacy=new URLSearchParams({detailKind:'pms_hotel_sources',detailId:sourceHotel.id,detailArgs:JSON.stringify({metric:'adr',businessDate:'2026-09-01',property:'old-hotel'}),detailPage:'2'});
+ const old=hotelEndpoint('/holdings/test/pms/dashboard?'+legacy,'pms_hotel_sources');expect(Object.fromEntries(old.searchParams)).toEqual({metric:'adr',businessDate:'2026-09-01',page:'2'});
+ legacy.set('metric','revpar');legacy.set('businessDate',sourceHotel.businessDate);legacy.set('property',sourceHotel.id);
+ const current=hotelEndpoint('/holdings/test/pms/dashboard?'+legacy,'pms_hotel_sources');expect(Object.fromEntries(current.searchParams)).toEqual({metric:'revpar',businessDate:sourceHotel.businessDate,page:'2'});
+ expect(hotelEndpoint('/holdings/test/pms/dashboard?'+legacy,'pms_hotel_record').searchParams.get('property')).toBe(sourceHotel.id);
+});
+it('keeps malformed canonical metric and date rejected by the original owner API without reaching source facts',async()=>{
+ const read=vi.fn(async()=>{throw Error('unexpected owner read');}),app=hotelReadApi({pmsHotelSources:read});
+ for(const query of [{metric:'unknown',businessDate:sourceHotel.businessDate},{metric:'adr',businessDate:'not-a-date'}]){
+  const url=hotelEndpoint('/holdings/test/pms/dashboard?'+new URLSearchParams({...query,detailKind:'pms_hotel_sources',detailId:sourceHotel.id}),'pms_hotel_sources');
+  await expect(app.pmsHomeRead(actor,['hotel-sources',sourceHotel.id],url.searchParams)).rejects.toThrow();
+ }
+ expect(read).not.toHaveBeenCalled();
+});
+
+
+it("the actual PMS worker uses Booking for newly reconciled guest mail while preserving isolated origins and disabled routing",async()=>{
+ const {readFileSync}=await import('node:fs'),ts=await import('typescript'),{applicationOrigin}=await import('../../../src/lib/runtime/application-origins');
+ const source=readFileSync('src/server/modules/runtime/adapters/runtime/jobs.ts','utf8'),file=ts.createSourceFile('jobs.ts',source,ts.ScriptTarget.Latest,true),declaration=file.statements.find((node):node is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(node)&&node.name?.text==='pmsWork');
+ if(!declaration)throw Error('The original PMS worker is required');
+ const code=ts.transpileModule(declaration.getText(file).replace(/^export\s+/,''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText.replace(/import\(/g,'modules(');
+ const db={},payment=vi.fn(async()=>{}),mail=vi.fn(async()=>{}),drain=vi.fn(async()=>{}),stripe=vi.fn(async()=>{}),send=vi.fn();
+ const modules=async(name:string)=>{
+  if(name.endsWith('/pms-booking'))return {drainBookingPayments:payment,deliverBookingEmails:mail};
+  if(name.endsWith('/simulation-email'))return {simulationBookingEmailProvider:()=>send};
+  if(name.endsWith('/pms-stripe'))return {drainPmsStripePayments:stripe};
+  if(name.endsWith('/pms'))return {drainPms:drain};
+  throw Error('Unexpected worker module: '+name);
+ };
+ const run=new Function('activeSlots','registeredResources','applicationOrigin','modules',code+';return pmsWork;')(async()=>[{id:'H001',beta:false}],()=>({write:db}),applicationOrigin,modules) as (env:Record<string,unknown>)=>Promise<void>;
+ const legacy='https://console-dev-erpx.jesadakorn.com';
+ try{
+  vi.stubEnv('ERPX_PUBLIC_ORIGIN',legacy);vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');
+  const base={BETTER_AUTH_SECRET:'isolated-worker-secret',RESEND_API_KEY:'isolated-mail-key',RESEND_FROM:'hotel@example.test'};
+  for(const [origin,enabled,expected] of [[legacy,true,'https://booking-dev-erpx.jesadakorn.com'],['http://127.0.0.1:3104',true,'http://127.0.0.1:3104'],['https://independent.example.test',true,'https://independent.example.test'],[legacy,false,legacy]] as const){
+   vi.stubEnv('ERPX_PRODUCT_ROUTING',enabled?'enabled':'disabled');payment.mockClear();mail.mockClear();
+   await run({...base,ERPX_PUBLIC_ORIGIN:origin});
+   const forwarded={secret:base.BETTER_AUTH_SECRET,origin:expected,apiKey:base.RESEND_API_KEY,from:base.RESEND_FROM};
+   expect(payment).toHaveBeenCalledExactlyOnceWith(db,forwarded);expect(mail).toHaveBeenCalledExactlyOnceWith(db,forwarded,send);
+  }
+  expect(drain).toHaveBeenCalledTimes(4);expect(stripe).toHaveBeenCalledTimes(4);expect(send).not.toHaveBeenCalled();
+ }finally{vi.unstubAllEnvs();}
+});
+
+
+it("delivers queued legacy Booking links on Booking without replacing their token, tenant, query or unrelated destinations",async()=>{
+ const {bookingEmailDeliveryPayload}=await import('../../../src/server/modules/pms/adapters/booking-email-delivery');
+ const old='https://console-dev-erpx.jesadakorn.com/book/tenant%20one/manage?lang=th#token=original%2Ftoken',other='https://outside.example.test/book/tenant/manage#token=foreign',input=JSON.stringify({from:'hotel@example.test',to:['guest@example.test'],subject:'Original confirmation',text:`Original policy\n${old}\n${other}\nExpires in seven days.`});
+ try{
+  vi.stubEnv('ERPX_PUBLIC_ORIGIN','https://console-dev-erpx.jesadakorn.com');vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');
+  const env={secret:'isolated-secret',origin:'https://booking-dev-erpx.jesadakorn.com'},expected=JSON.parse(input);expected.text=expected.text.replace(old,old.replace('console-dev-erpx','booking-dev-erpx'));
+  const delivered=bookingEmailDeliveryPayload(input,env);expect(JSON.parse(delivered)).toEqual(expected);expect(bookingEmailDeliveryPayload(delivered,env)).toBe(delivered);
+  for(const origin of ['http://127.0.0.1:3104','https://independent.example.test'])expect(bookingEmailDeliveryPayload(input,{...env,origin})).toBe(input);
+  for(const link of [other,'https://console-dev-erpx.jesadakorn.com/book/tenant/manage','https://console-dev-erpx.jesadakorn.com/book/tenant/hotel#token=original','https://console-dev-erpx.jesadakorn.com.evil.test/book/tenant/manage#token=foreign']){const unchanged=JSON.stringify({text:link});expect(bookingEmailDeliveryPayload(unchanged,env)).toBe(unchanged);}
+  vi.stubEnv('ERPX_PRODUCT_ROUTING','disabled');expect(bookingEmailDeliveryPayload(input,env)).toBe(input);
+ }finally{vi.unstubAllEnvs();}
+});
+
+
+// Native command paths, with original receipt IDs and no replacement money.
+function correctedReceiptFixture(){
+ const base=upgradeGroupFixture(),stay=base.book(),s=base.s;
+ s.property.config.approvedBy='independent-finance';let sequence=1000,now=1000;
+ const run=(operation:string,input:unknown,userId='desk')=>executePms(s,operation,input,{userId,now:++now,uuid:()=>`receipt-proof-${++sequence}`,independent:other=>other!==userId});
+ const shift=run('shift.open',{name:'Original correction receipt',opening:0}).id;
+ return {s,run,shift,bill:stay.data.guestAccountId};
+}
+it('a paid native charge correction releases only its consumed original receipt and never funds a second refund',async()=>{
+ const {availableReceiptSources}=await import('../../../src/lib/pms/pms-receipt-funding');
+ const {s,run,shift,bill}=correctedReceiptFixture(),charge=run('charge.add',{guestAccountId:bill,price:1000,description:'Original paid service'}).id,receipt=run('payment.receive',{guestAccountId:bill,amount:1000,method:'cash',shiftId:shift}).id;
+ const original=JSON.stringify(records(s,'entry'));expect(availableReceiptSources(s,bill,'advance')).toEqual([]);
+ run('charge.reverse',{id:charge,reason:'Independently corrected original service'},'reviewer');expect(availableReceiptSources(s,bill,'advance')).toEqual([{entryId:receipt,amount:1000}]);expect(JSON.stringify(records(s,'entry').slice(0,JSON.parse(original).length))).toBe(original);
+ const refund=(amount:number)=>{const id=run('refund.request',{guestAccountId:bill,amount,pocket:'advance',reason:'Original corrected receipt'}).id;run('refund.approve',{id},'reviewer');return run('refund.pay',{id,method:'cash',shiftId:shift}).id;};
+ const first=refund(200);expect(record(s,'entry',first).data.funding).toEqual([{entryId:receipt,amount:200}]);
+ const next=run('charge.add',{guestAccountId:bill,price:300,description:'Actual later service'}).id;expect(availableReceiptSources(s,bill,'advance')).toEqual([{entryId:receipt,amount:500}]);run('charge.reverse',{id:next,reason:'Independent later correction'},'reviewer');
+ const last=refund(800);expect(record(s,'entry',last).data.funding).toEqual([{entryId:receipt,amount:800}]);expect(availableReceiptSources(s,bill,'advance')).toEqual([]);expect(record(s,'guest_account',bill).data.advance).toBe(0);expect(()=>refund(1)).toThrow();
+});
+it('a partial paid correction releases only its actual credit, retaining unrelated consumed source and refund holds',async()=>{
+ const {availableReceiptSources}=await import('../../../src/lib/pms/pms-receipt-funding');const {s,run,shift,bill}=correctedReceiptFixture();
+ const corrected=run('charge.add',{guestAccountId:bill,price:1000,description:'Partially refundable service'}).id;run('charge.add',{guestAccountId:bill,price:1000,description:'Unchanged actual service'});const receipt=run('payment.receive',{guestAccountId:bill,amount:1500,method:'cash',shiftId:shift}).id;
+ const outcome=run('charge.reverse',{id:corrected,reason:'Independent partial credit'},'reviewer');expect(outcome.effects.postings.find(row=>row.source===`${outcome.id}:credit-balance`)?.lines).toEqual([{account:'receivable',debit:500,credit:0},{account:'advance',debit:0,credit:500}]);expect(availableReceiptSources(s,bill,'advance')).toEqual([{entryId:receipt,amount:500}]);
+ record(s,'guest_account',bill).data.refundHolds=[{entryId:receipt,amount:200,pocket:'advance'}];expect(availableReceiptSources(s,bill,'advance')).toEqual([{entryId:receipt,amount:300}]);expect(availableReceiptSources(s,bill,'advance',false)).toEqual([{entryId:receipt,amount:500}]);expect(availableReceiptSources(s,bill,'deposit')).toEqual([]);
+});
+it('a cloned legacy correction needs exact owned credit evidence and cannot release another bill or allocation twice',async()=>{
+ const {availableReceiptSources,captureReceiptAllocationCredit}=await import('../../../src/lib/pms/pms-receipt-funding');const {s,run,shift,bill}=correctedReceiptFixture(),charge=run('charge.add',{guestAccountId:bill,price:1000,description:'Historical paid charge'}).id,receipt=run('payment.receive',{guestAccountId:bill,amount:1000,method:'cash',shiftId:shift}).id,correction=run('charge.reverse',{id:charge,reason:'Historical independently corrected charge'},'reviewer').id;
+ const restored=structuredClone(s),before=JSON.stringify(restored);expect(availableReceiptSources(restored,bill,'advance')).toEqual([]);expect(availableReceiptSources(s,bill,'advance')).toEqual([{entryId:receipt,amount:1000}]);
+ captureReceiptAllocationCredit(restored,correction,1000);captureReceiptAllocationCredit(restored,correction,1000);expect(availableReceiptSources(restored,bill,'advance')).toEqual([{entryId:receipt,amount:1000}]);expect(JSON.stringify(restored)).toBe(before);expect(()=>captureReceiptAllocationCredit(restored,correction,1001)).toThrow('PMS_RECEIPT_CREDIT_CHANGED');
+ const wrongBill=structuredClone(s);record(wrongBill,'entry',correction).data.guestAccountId='other-bill';captureReceiptAllocationCredit(wrongBill,correction,1000);expect(availableReceiptSources(wrongBill,bill,'advance')).toEqual([]);expect(availableReceiptSources(wrongBill,'other-bill','advance')).toEqual([]);
+ const wrongSource=structuredClone(s);record(wrongSource,'entry',charge).data.method='opening';captureReceiptAllocationCredit(wrongSource,correction,1000);expect(availableReceiptSources(wrongSource,bill,'advance')).toEqual([]);
+ const excessive=structuredClone(s);captureReceiptAllocationCredit(excessive,correction,1001);expect(availableReceiptSources(excessive,bill,'advance')).toEqual([]);
+});
+
+for(const lock of [false,true])it(`the actual Booking ${lock?'locked refund':'read quote'} snapshot rehydrates only native correction proof without serializing it`,async()=>{
+ const {availableReceiptSources}=await import('../../../src/lib/pms/pms-receipt-funding');const {s,run,shift,bill}=correctedReceiptFixture(),charge=run('charge.add',{guestAccountId:bill,price:1000,description:'Actual prior corrected charge'}).id,receipt=run('payment.receive',{guestAccountId:bill,amount:1000,method:'cash',shiftId:shift}).id,credit=run('charge.reverse',{id:charge,reason:'Prior independent correction'},'reviewer').id;
+ const native=vi.fn(async(facts:Parameters<PmsUnit<never>['readReceiptAllocationCredits']>[0])=>{expect(facts).toEqual({companyId:s.property.companyId,propertyId:s.property.id,branchId:s.property.branchId,chartId:s.property.config.chartId,currency:s.property.config.currency,receivableAccountId:s.property.config.accounts.receivable,advanceAccountId:s.property.config.accounts.advance,entries:[{id:credit,date:s.property.businessDate}]});return [{entryId:credit,amount:1000}];});
+ const owner=main(),db=repository<PmsBookingUnit<never>>({readPmsProperties1:async facts=>{expect(facts).toEqual({propertyId:s.property.id,lock});const p=s.property;return {id:p.id,company_id:p.companyId,branch_id:p.branchId,name:p.name,business_date:p.businessDate,state:p.state,version:p.version,config_json:JSON.stringify(p.config)};},readPmsRecords2:async()=>s.records.map(row=>({id:row.id,kind:row.kind,data_json:JSON.stringify(row.data),version:row.version,updated_at:row.updatedAt})),hydrateReceiptAllocationCredits:async snapshot=>owner.hydrateReceiptAllocationCredits(repository<PmsUnit<never>>({readReceiptAllocationCredits:native}),snapshot)});
+ const loaded=await createPmsBooking(bookingPorts()).bookingSnapshot(db,s.property.id,undefined,lock);expect(native).toHaveBeenCalledOnce();expect(loaded).not.toBe(s);expect(availableReceiptSources(loaded,bill,'advance')).toEqual([{entryId:receipt,amount:1000}]);expect(availableReceiptSources(JSON.parse(JSON.stringify(loaded)),bill,'advance')).toEqual([]);expect(Object.keys(loaded)).toEqual(['property','records']);
+});
+
+import {StandardPmsHomeEditor} from '../../../src/components/pms/standard-pms-today';
+import {DraftFormDrawer} from '../../../src/components/ui/draft-form-drawer';
+import {Children,isValidElement,type ComponentProps} from 'react';
+it.each([{busy:true,pending:false},{busy:false,pending:true}])('actual standard PMS Home editor retains its native draft/recovery and refuses dismissal for %j',state=>{
+ const close=vi.fn(),fields=createElement('textarea',{defaultValue:'Newer unsent handover text'}),recovery=createElement('button',{type:'button'},'Retry original request');
+ const node=StandardPmsHomeEditor({title:'Original handover',language:'en',open:true,dirty:true,...state,onClose:close,recovery,children:fields});
+ if(!isValidElement<ComponentProps<typeof DraftFormDrawer>>(node))throw Error('The actual editor must use the standard right drawer.');
+ expect(node.type).toBe(DraftFormDrawer);expect(node.props).toMatchObject({appearance:'standard',open:true,title:'Original handover',dirty:true,dismissDisabled:true,retainFormContents:true});expect(Children.toArray(node.props.children).map(child=>isValidElement(child)?child.type:null)).toEqual(['button','textarea']);
+ node.props.onClose();node.props.onDiscard?.();expect(close).not.toHaveBeenCalled();expect(fields.props.defaultValue).toBe('Newer unsent handover text');expect(node.props.children).toEqual([recovery,fields]);
+});
+it.each(['th','en'] as const)('actual standard PMS Home %s editor can close a known idle draft while retaining its controlled values and honest publication copy',language=>{
+ const close=vi.fn(),fields=createElement('textarea',{defaultValue:'Retained original text'}),node=StandardPmsHomeEditor({title:'Native post',language,open:true,dirty:true,busy:false,pending:false,onClose:close,recovery:null,children:fields});
+ node.props.onClose();expect(close).toHaveBeenCalledOnce();expect(node.props.children).toEqual([null,fields]);expect(fields.props.defaultValue).toBe('Retained original text');expect(node.props.discardLabel).toBe(language==='th'?'ปิดโดยไม่เผยแพร่':'Close without publishing');expect(node.props.keepEditingLabel).toBe(language==='th'?'แก้ไขต่อ':'Keep editing');
+});
+it('actual standard PMS Today keeps native hotel sources and handover work selection outside its initially closed long editor',()=>{
+ const network=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>{throw Error('Standard PMS Today SSR must not perform an HTTP request.');});
+ try{
+  const money:Parameters<typeof CurrencyProvider>[0]={initial:{companyId:actor.companyId,defaultCurrency:'THB',displayCurrency:'THB',scales:{THB:2},rates:[],currencies:[],canConfirmRate:false},apiBase:'/api/v1/holdings/test',children:createElement(PmsToday,{initial:sourceHome,api:sourceApi,frontHref:sourceFront,erpBase:'/holdings/test',branchId:null})};
+  const html=renderHotelRoute('/holdings/test/pms/dashboard?homeView=handover',createElement(CurrencyProvider,money));
+  expect(html).toContain('ui-page-header');expect(html).toContain('data-appearance="standard"');expect(html).toContain('id="pms-work"');expect(html).toContain('id="pms-handover"');expect(html).toContain('Prepare handover');expect(html).toContain('Original source hotel');expect(html).not.toContain('name="recipientIds"');expect(network).not.toHaveBeenCalled();
+ }finally{network.mockRestore();}
 });

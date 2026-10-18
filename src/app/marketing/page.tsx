@@ -1,6 +1,6 @@
 import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { cookies, headers } from "next/headers";
 import {
   ArrowRight,
@@ -12,8 +12,9 @@ import {
 } from "lucide-react";
 import { AppearanceSwitcher } from "@/components/brand/appearance-switcher";
 import { ProductBrand } from "@/components/brand/product-brand";
-import { appearancePreference } from "@/lib/shared/appearance-preference";
-import { marketingConsoleUrl, marketingIsIndexable } from "@/lib/runtime/erpx-hosts";
+import { preferredAccountAppearance } from "@/server/modules/identity_access/public/account-preference-snapshot";
+import { marketingIsIndexable } from "@/lib/runtime/erpx-hosts";
+import { applicationUrl } from "@/lib/runtime/application-origins";
 import styles from "./site.module.css";
 
 export const dynamic = "force-dynamic";
@@ -149,8 +150,8 @@ function Preview() {
 }
 
 export default async function MarketingPage() {
-  const consoleHref = marketingConsoleUrl().toString();
-  const theme = appearancePreference((await cookies()).get("erpx_appearance")?.value);
+  const consoleHref = applicationUrl().toString();
+  const theme = await preferredAccountAppearance((await cookies()).get("erpx_appearance")?.value);
   return (
     <div className={styles.site}>
       <a className={styles.skip} href="#main">

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from "@/components/workplace/workspace-link";
 import {StatusBadge} from '@/components/ui/primitives';
 import type {WorkItem} from "@/lib/work_projection/work-item";
 import { Card } from "@/components/ui/foundation";

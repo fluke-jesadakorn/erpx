@@ -3,8 +3,8 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useRef, useState, type FormEvent, type ComponentProps } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter } from "@/lib/shared/destination-router";
+import Link from "@/components/workplace/workspace-link";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
 import { useWorkspaceRouteState } from "@/lib/shared/workspace-route-state";

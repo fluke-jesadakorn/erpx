@@ -1,6 +1,7 @@
+import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { seedLocalFinanceJournal } from "../../../fixtures/shared/builders/local-seed-journals";
 import type { FinanceRow } from "../../../src/server/modules/finance/public/finance";
-import {beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
+import {afterEach,beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 import {mkdir,writeFile} from "node:fs/promises";
@@ -14,6 +15,7 @@ import {decideStatementPackage,decideYearClosing,prepareStatementPackage,prepare
 import {confirmManualRate} from "../../../src/server/modules/finance/public/company-money";
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+afterEach(()=>vi.unstubAllEnvs());
 let f:Awaited<ReturnType<typeof expenseFixture>>,capital:string,retained:string,receivable:string,payable:string;
 const notes={basis:"Prepared on the accrual basis under the approved Company TFRS for NPAEs policy.",policies:"Historical cost, moving-average inventory, straight-line depreciation and current income tax follow approved policy evidence.",going_concern:"Directors reviewed liquidity and expect operations to continue; no material uncertainty is identified in this synthetic Company.",judgments:"Management reviewed recoverability, useful lives and the estimates relevant to these synthetic transactions.",disclosures:"Synthetic Company has no material contingent liabilities or contractual commitments and no adjusting subsequent events."};
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -108,7 +110,9 @@ it("drills retained statement lines into their exact current and comparative acc
  await expect(statementSourceAccounts(f.reviewer,id,{period:'current',line:'cash_equivalents'})).rejects.toMatchObject({code:'STATEMENT_SOURCES_CHANGED'});
 });
 it("rolls back fiscal transfer journal money source revision and retained closing after final outbox failure, then retries once",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
  await post(f.period,'2026-10-31',f.accounts.cash,f.accounts.revenue,'100');
+ await reviewedFinanceGrant(db,f.company,"finance","draining");
  const statement=await prepareStatementPackage(f.reviewer,input(),key());await decideStatementPackage(f.manager,String(statement.id),'issue',review,key());const retainedExport=await statementPackageExport(f.manager,String(statement.id));
  const prepared=await prepareYearClosing(f.reviewer,{chartId:f.chart,startDate:'2026-01-01',endDate:'2026-12-31',periodId:f.period,retainedEarningsAccountId:retained,reason:'Reviewed fiscal transfer from dated posted transactions'},key()),id=String(prepared.id),command=key(),fault=`fiscal_close_fault_${crypto.randomUUID().replaceAll('-','')}`;
  const sourceRevision=await db.prepare('SELECT revision FROM finance_reporting_revisions WHERE chart_id=?').bind(f.chart).first('revision'),old=await db.prepare('SELECT * FROM finance_year_closings WHERE id=?').bind(id).first(),events=(await db.prepare('SELECT * FROM finance_year_closing_events WHERE closing_id=? ORDER BY closing_version').bind(id).all()).results;
@@ -146,4 +150,12 @@ it("seeds complete immutable journal evidence atomically and preserves prepared 
  expect(await db.prepare("SELECT 1 FROM finance_journals WHERE id=?").bind(failed).first()).toBeNull();
  expect(await db.prepare("SELECT 1 FROM finance_journal_lines WHERE journal_id=?").bind(failed).first()).toBeNull();
  expect(await db.prepare("SELECT 1 FROM audit_events WHERE record_id=?").bind(failed).first()).toBeNull();
+});
+
+it("Finance source purchase denies unpurchased statement history and fiscal preparation through direct owner readers",async()=>{
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ await expect(reportingWorkspace(f.reviewer,f.chart)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await expect(prepareStatementPackage(f.reviewer,input(),key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await expect(prepareYearClosing(f.reviewer,{chartId:f.chart,startDate:"2026-01-01",endDate:"2026-12-31",periodId:f.period,retainedEarningsAccountId:retained,reason:"Reviewed fiscal source evidence"},key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ expect(await db.prepare("SELECT id FROM finance_year_closings WHERE company_id=?").bind(f.company).first()).toBeNull();
 });

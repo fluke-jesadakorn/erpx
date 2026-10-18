@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { legalReferences, addLegalReference } from "@/server/modules/legal/public/legal/references";
 import { legalKnowledge, lawCitation } from "@/server/modules/legal/public/legal/knowledge";
 import { legalPeople } from "@/server/modules/legal/public/legal/assignees";
@@ -44,7 +45,7 @@ import {
 } from "@/server/modules/legal/public/legal/documents";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
-import { legalData, detail, legalCommand } from "@/server/modules/legal/public/legal/service";
+import { legalData, legalWorkspaceDetail as detail, legalCommand } from "@/server/modules/legal/public/legal/service";
 import { sendEnvelope, signingAction } from "@/server/modules/legal/public/legal/signing";
 import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
@@ -57,81 +58,81 @@ export async function GET(request: Request, ctx: Context) {
       { write, files } = await holdingResources(a.holdingId);
     const query = new URL(request.url).searchParams;
     if (path.length === 1 && path[0] === "people")
-      return Response.json({ data: await legalPeople(write, a, Object.fromEntries(query)) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await legalPeople(write, a, Object.fromEntries(query)) }), { headers: { "Cache-Control": "private, no-store" } });
     if (path.length === 1 && path[0] === "workspace")
-      return Response.json({ data: await legalWorkspaceView(write, a) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await legalWorkspaceView(write, a) }), { headers: { "Cache-Control": "private, no-store" } });
     if (path.length === 1 && path[0] === "runtime-health")
-      return Response.json({ data: await legalRuntimeHealth(write, a) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await legalRuntimeHealth(write, a) }), { headers: { "Cache-Control": "private, no-store" } });
     if (path.length === 1 && path[0] === "release-acceptance")
-      return Response.json({ data: await releaseAcceptance(write, a, undefined, legalProductionScope.version) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await releaseAcceptance(write, a, undefined, legalProductionScope.version) }), { headers: { "Cache-Control": "private, no-store" } });
     if (path.length === 1 && path[0] === "laws")
-      return Response.json({ data: await lawCorpusView(write, a, query.get("ruleId") ?? undefined) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await lawCorpusView(write, a, query.get("ruleId") ?? undefined) }), { headers: { "Cache-Control": "private, no-store" } });
     if (path.length === 2 && path[0] === "law-citations")
-      return Response.json({ data: await lawCitation(write, a, path[1], query.get("asOf") ?? undefined) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await lawCitation(write, a, path[1], query.get("asOf") ?? undefined) }), { headers: { "Cache-Control": "private, no-store" } });
     if (path.length === 3 && path[0] === "items" && path[2] === "executed-copies")
-      return Response.json({ data: await executedCopies(write, a, path[1]) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await executedCopies(write, a, path[1]) }), { headers: { "Cache-Control": "private, no-store" } });
     if (path[0] === "references" && path.length === 2)
       return Response.json(
-        { data: await legalReferences(write, a, path[1]) },
+        canonicalDestinationLinks({ data: await legalReferences(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path[0] === "knowledge" && path.length === 1)
       return Response.json(
-        {
+        canonicalDestinationLinks({
           data: await legalKnowledge(
             write,
             a,
             new URL(request.url).searchParams.get("q"),
             query.get("asOf") ?? undefined,
           ),
-        },
+        }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path[0] === "rule-impact" && path.length === 2)
       return Response.json(
-        { data: await ruleImpact(write, a, path[1]) },
+        canonicalDestinationLinks({ data: await ruleImpact(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path[0] === "governance" && path.length <= 2)
       return Response.json(
-        { data: await governanceView(write, a, path[1]) },
+        canonicalDestinationLinks({ data: await governanceView(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path.length === 1 && path[0] === "reports")
       return Response.json(
-        { data: await legalReports(write, a) },
+        canonicalDestinationLinks({ data: await legalReports(write, a) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path.length === 2 && path[0] === "approval")
       return Response.json(
-        { data: await legalApprovalView(write, a, path[1]) },
+        canonicalDestinationLinks({ data: await legalApprovalView(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path.length === 2 && path[0] === "features")
       return Response.json(
-        {
+        canonicalDestinationLinks({
           data: await featureDetail(
             write,
             a,
             path[1],
             Object.fromEntries(new URL(request.url).searchParams),
           ),
-        },
+        }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path[0] === "retention" && path.length <= 2)
       return Response.json(
-        { data: await retentionView(write, a, path[1]) },
+        canonicalDestinationLinks({ data: await retentionView(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path[0] === "processing" && path.length === 2)
       return Response.json(
-        { data: await processingStatus(write, a, path[1]) },
+        canonicalDestinationLinks({ data: await processingStatus(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path[0] === "trust" && path.length === 1)
       return Response.json(
-        { data: await trustView(write, a) },
+        canonicalDestinationLinks({ data: await trustView(write, a) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path.length === 2 && path[0] === "submissions") {
@@ -147,7 +148,7 @@ export async function GET(request: Request, ctx: Context) {
     }
     if (path.length === 1 && path[0] === "views")
       return Response.json(
-        { data: await savedViews(write, a) },
+        canonicalDestinationLinks({ data: await savedViews(write, a) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (
@@ -161,7 +162,7 @@ export async function GET(request: Request, ctx: Context) {
             ? await evidenceBundle(write, a, path[1])
             : await holdPreview(write, a, path[1]);
       return Response.json(
-        { data },
+        canonicalDestinationLinks({ data }),
         {
           headers: {
             "Cache-Control": "private, no-store",
@@ -177,7 +178,7 @@ export async function GET(request: Request, ctx: Context) {
     }
     if (path.length === 2 && path[0] === "ai")
       return Response.json(
-        { data: await legalAiHistory(write, a, path[1]) },
+        canonicalDestinationLinks({ data: await legalAiHistory(write, a, path[1]) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     if (path.length === 2 && path[0] === "documents")
@@ -191,7 +192,7 @@ export async function GET(request: Request, ctx: Context) {
     if (path.length > 1)
       throw new ApiError(404, "NOT_FOUND", "Resource not found.");
     return Response.json(
-      {
+      canonicalDestinationLinks({
         data: path.length
           ? await detail(write, a, path[0])
           : await legalData(
@@ -199,7 +200,7 @@ export async function GET(request: Request, ctx: Context) {
               a,
               Object.fromEntries(new URL(request.url).searchParams),
             ),
-      },
+      }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -234,11 +235,11 @@ export async function POST(request: Request, ctx: Context) {
         throw new ApiError(422, "EXECUTED_METADATA_REQUIRED", "Supply the signed file and its signing details.");
       let parsed: unknown;
       try { parsed = JSON.parse(metadata); } catch { throw new ApiError(422, "INVALID_JSON", "Signing details are invalid."); }
-      return Response.json({ data: await importExecutedCopy(write, files, a, path[1], Number(form.get("expectedVersion")), parsed, file.name, file.type, new Uint8Array(await file.arrayBuffer()), key) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await importExecutedCopy(write, files, a, path[1], Number(form.get("expectedVersion")), parsed, file.name, file.type, new Uint8Array(await file.arrayBuffer()), key) }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if (path.length === 2 && path[0] === "upload") {
       const body = await boundedBody(request, 10 * 1024 * 1024);
-      return Response.json({
+      return Response.json(canonicalDestinationLinks({
         data: await uploadDocument(
           write,
           files,
@@ -250,16 +251,16 @@ export async function POST(request: Request, ctx: Context) {
           new Uint8Array(body),
           key,
         ),
-      });
+      }));
     }
     if (
       path.length === 3 &&
       path[0] === "documents" &&
       (path[2] === "ocr" || path[2] === "verify")
     )
-      return Response.json({
+      return Response.json(canonicalDestinationLinks({
         data: await queueInspection(write, a, path[1], path[2], key),
-      });
+      }));
     if (path.length && path[0] !== "release-acceptance")
       throw new ApiError(404, "NOT_FOUND", "Unknown Legal action.");
     const text = new TextDecoder().decode(await boundedBody(request, 500000));
@@ -284,7 +285,7 @@ export async function POST(request: Request, ctx: Context) {
           : path.length === 3 && path[2] === "revoke"
             ? await revokeReleaseAcceptance(write, a, path[1], raw, key)
             : (() => { throw new ApiError(404, "NOT_FOUND", "Unknown release action."); })();
-      return Response.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
     }
     const data =
       raw?.action === "executed.review"
@@ -365,7 +366,7 @@ export async function POST(request: Request, ctx: Context) {
                                               key,
                                             );
     return Response.json(
-      { data },
+      canonicalDestinationLinks({ data }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {

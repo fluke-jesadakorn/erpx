@@ -2,6 +2,16 @@ import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types"
 import { isTransactionalSqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { financialConstraintError } from "@/server/modules/workflow/public/commands";
 import { ApiError } from "@/server/modules/runtime/public/http";
+/** A posted primary journal produces its secondary journals at the deferred
+ * book boundary. Materialize those rows while event capture/final line checks
+ * are still deferred; making every constraint immediate first would capture a
+ * child journal before its lines exist. Keep every original integrity check. */
+export function financeDeferredEffectStatements(database:SqlDatabase) {
+  return [database.prepare("SET CONSTRAINTS finance_book_projection IMMEDIATE"),database.prepare("SET CONSTRAINTS finance_book_projection DEFERRED"),database.prepare("SET CONSTRAINTS ALL IMMEDIATE")];
+}
+export async function flushFinanceDeferredEffects(database: SqlDatabase) {
+  for(const statement of financeDeferredEffectStatements(database))await statement.run();
+}
 /** Includes deferred posting/activation constraints raised at COMMIT. */
 export async function financeTransaction<T>(
   database: SqlDatabase,

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -95,14 +96,14 @@ export async function PUT(
         );
       if (mapped!.completion === "stage_for_domain")
         return Response.json(
-          {
+          canonicalDestinationLinks({
             data: {
               ...uploaded,
               id: uploaded.sourceId,
               state,
               attachmentSetId: universal.attachment_set_id,
             },
-          },
+          }),
           { status: 202 },
         );
       operation = "bind";
@@ -114,9 +115,9 @@ export async function PUT(
         `legacy-upload-bind-${id}`,
         { compatibilityAdapter: true },
       );
-      return Response.json({ data: result }, { status: 201 });
+      return Response.json(canonicalDestinationLinks({ data: result }), { status: 201 });
     }
-    return Response.json({ data: uploaded }, { status: 202 });
+    return Response.json(canonicalDestinationLinks({ data: uploaded }), { status: 202 });
   } catch (error) {
     const response = errorResponse(error instanceof Error && error.name === "XMinioStorageFull"
       ? new ApiError(507, "UPLOAD_STORAGE_FULL", "File storage is temporarily full. Your draft is saved; try the upload again later.")
@@ -135,7 +136,7 @@ export async function PUT(
         errorCode,
       }));
       const body = await response.json() as { error: { code: string; message: string } };
-      return Response.json({ error: { ...body.error, requestId } }, {
+      return Response.json(canonicalDestinationLinks({ error: { ...body.error, requestId } }), {
         status: response.status,
         headers: { "X-Request-ID": requestId },
       });

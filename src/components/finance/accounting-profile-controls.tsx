@@ -1,10 +1,13 @@
 "use client";
+import { useFinanceActionAllowed } from "./purchase-context";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { AccountingProfile } from "@/server/modules/finance/public/accounting-profiles";
 import type { FinanceChart } from "@/components/finance/finance-chart-controls";
@@ -26,19 +29,23 @@ export function AccountingProfileControls({
   canApprove: boolean;
   userId: string;
 }) {
+  const allowedNew = useFinanceActionAllowed("new-work"), allowedSettle = useFinanceActionAllowed("settle-existing");
+  const draftScope = useFinanceDraftScope(), [hasAttempt,setHasAttempt] = useState(false);
   const router = useRouter(),
     [pending, setPending] = useState(false),
     [error, setError] = useState("");
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   async function send(path: string, input: unknown) {
     const fingerprint = path + JSON.stringify(input);
+    if (!(path === "accounting-profiles" ? allowedNew : allowedSettle) && attempt.current?.fingerprint !== fingerprint) {setError("This Finance action is unavailable. Your draft is retained.");return;}
     if (attempt.current?.fingerprint !== fingerprint)
       attempt.current = { fingerprint, key: crypto.randomUUID() };
+    setHasAttempt(true);const completion=captureFinanceForm();
     setPending(true);
     setError("");
     try {
       const response = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
+        `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/${path}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
@@ -46,8 +53,8 @@ export function AccountingProfileControls({
         },
       );
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error?.message ?? "Could not save.");
-      attempt.current = null;
+      if (!response.ok || !result.data || typeof result.data.id !== "string" || !result.data.id) throw new Error(result.error?.message ?? "Could not save.");
+      acknowledgeFinanceForm(completion);attempt.current = null;setHasAttempt(false);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save.");
@@ -79,7 +86,7 @@ export function AccountingProfileControls({
           <p>Eligibility: {String(profile.eligibility_evidence)}</p>
           <p>Policy: {String(profile.policy_evidence)}</p>
           {profile.status === "draft" && canApprove && profile.prepared_by !== userId && (
-            <FormLayout
+            <FormLayout data-finance-draft={draftScope}
               className="ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -101,7 +108,7 @@ export function AccountingProfileControls({
                 Review evidence and reason
                 <TextInput appearance="standard" name="reason" required minLength={10} maxLength={4000} />
               </Field>
-              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending}>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={pending || (!allowedSettle && !hasAttempt)}>
                 Record review decision
               </Button>
             </FormLayout>
@@ -112,7 +119,7 @@ export function AccountingProfileControls({
       {canPrepare && !profiles.some((p) => p.status === "approved") && (
         <FormDisclosure appearance="standard" drawerTitle="Prepare Company accounting policy">
           <summary>Prepare Company accounting policy</summary>
-        <FormLayout
+        <FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -169,7 +176,7 @@ export function AccountingProfileControls({
           <Button appearance="standard"
             clientManaged type="submit"
             variant="primary"
-            disabled={pending || !charts.some((c) => c.base_currency === "THB")}
+            disabled={pending || (!allowedNew && !hasAttempt) || !charts.some((c) => c.base_currency === "THB")}
           >
             Prepare accounting profile for review
           </Button>

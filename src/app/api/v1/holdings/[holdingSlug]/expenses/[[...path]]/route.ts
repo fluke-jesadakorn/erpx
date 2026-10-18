@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -7,6 +8,8 @@ import {
   saveExpenseAccounting,
 } from "@/server/modules/people_payroll/expense";
 import {
+  cancelExpensePayment,
+  expensePaymentCancellationSchema,
   createExpensePayment,
   confirmExpensePayment,
   saveExpensePayment,
@@ -37,9 +40,9 @@ export async function GET(_request: Request, context: Context) {
     const actor = await requireWorkContext(holdingSlug);
     if (p.length === 2 && p[1] === "ai") {
       return Response.json(
-        {
+        canonicalDestinationLinks({
           data: await readExpenseAiStatus(actor, p[0], new URL(_request.url).searchParams.get("payment")),
-        },
+        }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     }
@@ -54,7 +57,7 @@ export async function GET(_request: Request, context: Context) {
           : null;
     if (!data) throw new ApiError(404, "NOT_FOUND", "Expense route not found.");
     return Response.json(
-      { data },
+      canonicalDestinationLinks({ data }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -132,6 +135,8 @@ export async function POST(request: Request, context: Context) {
         expenseVersionSchema.parse(input).expectedVersion,
         key,
       );
+    else if (p.length === 4 && p[1] === "payments" && p[3] === "cancel")
+      data = await cancelExpensePayment(actor,p[0],p[2],expensePaymentCancellationSchema.parse(input),key);
     else if (p.length === 4 && p[1] === "payments" && p[3] === "confirm")
       data = await confirmExpensePayment(
         actor,
@@ -193,7 +198,7 @@ export async function POST(request: Request, context: Context) {
         key,
       );
     else throw new ApiError(404, "NOT_FOUND", "Expense action not found.");
-    return Response.json({ data }, { status: p.length === 0 ? 201 : 200 });
+    return Response.json(canonicalDestinationLinks({ data }), { status: p.length === 0 ? 201 : 200 });
   } catch (e) {
     if (e instanceof z.ZodError)
       return errorResponse(

@@ -5,7 +5,8 @@ import type { SqlDatabase } from "../../../runtime/public/runtime/types";
 import { requirePermission } from "../../../identity_access/public/iam-permissions";
 import { ApiError } from "../../../runtime/public/http";
 import { loadPms } from "../../public/pms";
-import { pmsHotelOverview } from "./home";
+import { pmsFinancialHotelOverview } from "./home";
+import { requirePmsFinancialRead } from "../property-purchase-boundary";
 import { pmsFinancialOverviewFacts } from "../../../finance/public/pms-finance-facts";
 import { createPmsFinancialOverview, type PmsFinancialOverviewRepository } from "../../application/finance";
 function repository(db: SqlDatabase): PmsFinancialOverviewRepository {
@@ -59,8 +60,8 @@ function repository(db: SqlDatabase): PmsFinancialOverviewRepository {
             updated_at: number;
         }>(),
         exceptions: facts => financial.exceptions(facts),
-        documents: facts => financial.documents(facts), hotel: (actor, id) => loadPms(db, actor, id), hotels: (actor, id) => pmsHotelOverview(db, actor, id)
+        documents: facts => financial.documents(facts), hotel: (actor, id) => loadPms(db, actor, id), hotels: (actor, id) => pmsFinancialHotelOverview(db, actor, id)
     };
 }
-const application = createPmsFinancialOverview({ repository: async (actor) => repository((await holdingResources(actor.holdingId)).write), clock: { now: () => Date.now() }, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message) });
+const application = createPmsFinancialOverview({ repository: async (actor) => { const database=(await holdingResources(actor.holdingId)).write; await requirePmsFinancialRead(database,actor,true); return repository(database); }, clock: { now: () => Date.now() }, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message) });
 export const pmsFinanceOverview = application.pmsFinanceOverview;

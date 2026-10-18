@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { serviceTeamOptions } from "@/server/modules/support/public/service-team-options";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
@@ -18,7 +19,7 @@ export async function GET(_request: Request, context: Context) {
     if (path.length)
       throw new ApiError(404, "NOT_FOUND", "Team route not found.");
     return Response.json(
-      { data: await serviceTeamOptions(write, actor) },
+      canonicalDestinationLinks({ data: await serviceTeamOptions(write, actor) }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -33,7 +34,7 @@ export async function POST(request: Request, context: Context) {
       { key, input } = await serviceCommandBody(request);
     if (path.length > 1)
       throw new ApiError(404, "NOT_FOUND", "Team route not found.");
-    return Response.json({
+    return Response.json(canonicalDestinationLinks({
       data: await saveServiceTeam(
         write,
         actor,
@@ -41,7 +42,7 @@ export async function POST(request: Request, context: Context) {
         serviceTeamSchema.parse(input),
         key,
       ),
-    });
+    }));
   } catch (e) {
     return errorResponse(e);
   }

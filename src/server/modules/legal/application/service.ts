@@ -1,3 +1,4 @@
+import {legalCorePermission} from '../domain/purchases';
 import {z} from "zod";
 import type {WorkContext} from "../../identity_access/public/authorization";
 import type {Clock,IdentifierSource} from "../../shared/application/ports";
@@ -79,6 +80,22 @@ commit<Result extends object>(key:string,operation:string,input:unknown,id:strin
 export function createLegalRegisterApplication(ports:{actor:WorkContext;repository:LegalRegisterRepository;clock:Clock;identifiers:IdentifierSource;require(permission:string):void;can(permission:string):boolean;samePerson(userId:string|null|undefined):boolean;permissionCatalog:readonly {id:string}[];error(status:number,code:string,message:string):Error;hash(value:string|Uint8Array):string;utf8Length(value:string):number;access(id:string,permission?:string):Promise<LegalItem>;eligible(userId:string,scope?:{branch_id:string|null;department_id:string|null},permission?:string|null):Promise<void>;people():Promise<{id:string;name:string;role:string}[]>}){
 const a=ports.actor;
 function fail(message:string,code="LEGAL_INVALID",status=422):never{throw ports.error(status,code,message);}
+async function legalRecordData():Promise<LegalData>{
+  ports.require("legal.read");
+  const people=await ports.people();
+  return {
+    enabled: await ports.repository.enabled(),
+    items: [], total: 0, page: 1, counts: [],
+    permissions: ports.permissionCatalog
+      .filter((p) => p.id.startsWith("legal.") && ports.can(p.id))
+      .map((p) => p.id),
+    userId: a.userId,
+    workContext:{companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,assignmentId:a.assignmentId,userId:a.userId},
+    people: people.map((p) =>
+      p.id === a.userId ? { ...p, name: a.name } : p,
+    ),
+  };
+}
 async function legalData(
   query: Record<string, unknown> = {},
 ): Promise<LegalData> {
@@ -92,27 +109,13 @@ async function legalData(
         mine: z.enum(["true", "false"]).default("false"),
       })
       .parse(query);
-  const [items, total, counts, people] = await Promise.all([
+  const [items, total, counts, context] = await Promise.all([
     ports.repository.items(q),
     ports.repository.total(q),
     ports.repository.counts(),
-    ports.people(),
+    legalRecordData(),
   ]);
-  return {
-    enabled: await ports.repository.enabled(),
-    items: items.results.map((i) => ({ ...i, data: {} })),
-    total: total?.n ?? 0,
-    page: q.page,
-    counts: counts.results,
-    permissions: ports.permissionCatalog
-      .filter((p) => p.id.startsWith("legal.") && ports.can(p.id))
-      .map((p) => p.id),
-    userId: a.userId,
-    workContext:{companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,assignmentId:a.assignmentId,userId:a.userId},
-    people: people.map((p) =>
-      p.id === a.userId ? { ...p, name: a.name } : p,
-    ),
-  };
+  return {...context,items:items.results.map(i=>({...i,data:{}})),total:total?.n??0,page:q.page,counts:counts.results};
 }
 async function detail(
   id: string,
@@ -253,28 +256,7 @@ async function legalCommand(
   }
   const id = z.string().min(1).parse(b.id),
     version = z.number().int().positive().parse(b.expectedVersion);
-  const permission =
-    a.role==="legal_requester"&&b.action==="transition"&&input.state==="review"?"legal.edit":b.action === "hold.acknowledge"
-      ? "legal.read"
-      : b.action === "transition"
-        ? input.state === "approved"
-          ? "legal.approve"
-          : input.state === "review" ||
-              input.state === "approval" ||
-              input.state === "rejected"
-            ? "legal.review"
-            : "legal.edit"
-        : b.action.startsWith("hold.")
-          ? b.action === "hold.release"
-            ? "legal.hold.release"
-            : "legal.hold"
-          : b.action === "member"
-            ? "legal.share"
-            : b.action === "share" || b.action === "share.revoke"
-              ? "legal.share"
-              : b.action === "approve"
-                ? "legal.approve"
-                : "legal.edit";
+  const permission=legalCorePermission(a.role,b.action,input.state);
   const r = await ports.access(id,permission);
   if(a.role==="legal_requester"&&(!["update","comment","document","transition"].includes(b.action)||b.action==="transition"&&input.state!=="review"))fail("Requesters can edit their draft, submit it and reply to the Legal team.","LEGAL_REQUESTER_SCOPE",403);
   const prior = await ports.repository.replay<{ id: string; version: number }>(key,`legal.${b.action}`,id,raw);
@@ -583,4 +565,4 @@ async function legalCommand(
   return ports.repository.commit(key,`legal.${b.action}`,raw,id,version + 1,{ id, version: version + 1, state },steps);
 }
 
-return {legalData,detail,legalCommand};}
+return {legalData,legalRecordData,detail,legalCommand};}

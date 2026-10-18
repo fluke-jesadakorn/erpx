@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { CurrentWorkspaceChoice } from "@/lib/work_projection/workspace-choice";
@@ -20,7 +21,7 @@ export async function currentPushSubscription() {
 /** Called while the old account's cookie and company context still exist. */
 export async function leavePushSession(base:string) {
   if(!supportsPush())return;
-  if (!document.querySelector('[data-work-revision]') && base.startsWith('/holdings/')) {
+  if (!document.querySelector('[data-work-revision]') && base.startsWith(canonicalUiHref('/holdings/'))) {
     await leavePushHoldingSession(decodeURIComponent(base.split('/')[2]));
     return;
   }

@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type {WorkContext,publicScope} from "../../identity_access/public/authorization";
 import {workspaceBase} from "@/lib/work_projection/workspace";
 import {sourceRecordLabel} from "@/lib/records/source-record";
@@ -25,7 +26,7 @@ export function createWorkReview(ports:{resource(holdingId:string):Promise<WorkR
 async function getWorkReview(actor: WorkContext, kind: WorkReviewKind, id: string): Promise<WorkReview> {
   const write = await ports.resource(actor.holdingId);
   const base = workspaceBase(ports.publicScope(actor));
-  const href = `${base}/${kind === "expense" ? "expenses" : kind === "leave" ? "tasks/people_payroll" : kind === "staff_task" ? "staff-tasks" : "requests"}/${encodeURIComponent(id)}`;
+  const href = canonicalUiHref(`${base}/${kind === "expense" ? "expenses" : kind === "leave" ? "tasks/people_payroll" : kind === "staff_task" ? "staff-tasks" : "requests"}/${encodeURIComponent(id)}`);
   const result: WorkReview = { source: { kind, id, href, label: sourceRecordLabel(kind) }, title: "", requester: "", status: "", version: 0,
     description: "", facts: [], evidence: [], steps: [], currentStep: "", nextStep: "", blocker: null, permittedActions: [] };
   let actions: string[] = [];

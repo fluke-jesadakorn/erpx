@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextInput } from "@/components/ui/foundation";
@@ -79,7 +80,7 @@ export function LegalKnowledge({
           </p>
           <a
             data-slot="button" className={['ui-standard-control', (s.button)].filter(Boolean).join(' ')}
-            href={`${base}/legal/citations/${encodeURIComponent(d.kind === "law" ? `law:${d.id}` : d.sourceId)}?asOf=${encodeURIComponent(data!.asOf)}`}
+            href={canonicalUiHref(`${base}/legal/citations/${encodeURIComponent(d.kind === "law" ? `law:${d.id}` : d.sourceId)}?asOf=${encodeURIComponent(data!.asOf)}`)}
           >
             Open citation and original
           </a>

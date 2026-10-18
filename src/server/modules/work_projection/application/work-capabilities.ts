@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import {requestActions} from "@/lib/work_projection/request-actions";import {selfServiceHref} from "@/lib/work_projection/self-service";import {workspaceBase} from "@/lib/work_projection/workspace";import type {WorkContext,publicScope} from "../../identity_access/public/authorization";import type {StaffPerson} from "../../operations/public/staff-policy";import type {WorkCapabilities,WorkCreation} from "@/lib/work_projection/work-cards";
 export type WorkCapabilitiesUnit={coveredTeam(actor:WorkContext):Promise<unknown>;activeStaff(actor:WorkContext):Promise<StaffPerson|null>};
 export function createWorkCapabilities(ports:{errorStatus(error:unknown):number|undefined;canPrepareCounts(actor:WorkContext):boolean;canPrepareTransfers(actor:WorkContext):boolean;publicScope:typeof publicScope}){
@@ -43,7 +44,7 @@ async function getWorkCapabilities(
   ].map(([kind, label]) => ({
     kind: kind as WorkCreation["kind"],
     label,
-    href: selfServiceHref(base,kind) ?? (kind === "conversation" ? `${base}/home` : `${base}/work?new=${kind}`),
+    href: selfServiceHref(base,kind) ?? (kind === "conversation" ? canonicalUiHref(`${base}/home`) : canonicalUiHref(`${base}/work?new=${kind}`)),
   }));
   return {
     creation,

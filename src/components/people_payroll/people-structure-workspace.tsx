@@ -1,4 +1,6 @@
 "use client";
+import Link from "@/components/workplace/workspace-link";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Dialog } from "@/components/ui/dialog";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
@@ -11,7 +13,8 @@ import {
   type PointerEvent,
   type KeyboardEvent,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft,
@@ -169,10 +172,12 @@ function LazyDetail({
     }
   const changeContext = filters.toString();
   const key = `${selection.kind}:${selection.id}:${section}:${archived}:${changeContext}`;
-  const [result, setResult] = useState<{ key: string; detail: Detail } | null>(null);
+  const seeded=people.initialDetail?.selection.kind===selection.kind&&people.initialDetail.selection.id===selection.id&&people.initialDetail.tab.toLowerCase()===section.toLowerCase().replaceAll(' ','-')?people.initialDetail:null;
+  const [result, setResult] = useState<{ key: string; detail: Detail } | null>(seeded?{key,detail:seeded}:null);
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    if(seeded && !attempt)return;
     const controller = new AbortController();
     let alive = true;
     const params = new URLSearchParams({
@@ -210,6 +215,7 @@ function LazyDetail({
     key,
     attempt,
     changeContext,
+    seeded,
   ]);
   if (error?.key === key)
     return (
@@ -319,7 +325,7 @@ function NewPersonEditor({
       </p>
     );
   if (!resource.data) return <p role="status">Loading person form…</p>;
-  const { editorNodes, staffOptions, organization, lifecycle } = resource.data;
+  const { editorNodes, staffOptions, organization, lifecycle,purchases } = resource.data;
   if (kind === "position")
     return organization ? (
       <PositionEditor base={base} data={organization} />
@@ -334,6 +340,7 @@ function NewPersonEditor({
     );
   return (
     <PeopleEditor
+      purchases={purchases}
       base={base}
       nodes={editorNodes}
       levels={staffOptions.levels}
@@ -343,7 +350,7 @@ function NewPersonEditor({
       initialPositionId={positionId}
       initialOpen
       alwaysOpen
-      returnTo={`${base}/people`}
+      returnTo={canonicalUiHref(`${base}/people`)}
     />
   );
 }
@@ -440,7 +447,7 @@ export function PeopleStructureWorkspace({
     settingsOpen = panel === "settings" && canOpenHrSettings;
   const addKind = query.get("new");
   const adding =
-    (addKind === "person" && people.canManage) ||
+    (addKind === "person" && people.canManage && people.purchases?.directory.newWork!==false) ||
     (["position", "unit"].includes(addKind ?? "") && people.canManageStructure);
   const detailOpen =
     (adding || !!selection) && !settingsOpen && panel !== "schedule" && panel !== "move";
@@ -464,16 +471,15 @@ export function PeopleStructureWorkspace({
     () => false,
   );
   const backgroundInert = !!moveOpen || (overlay && (detailOpen || settingsOpen));
+  const [pendingPeopleNavigation,setPendingPeopleNavigation]=useState<(()=>void)|null>(null);
   function update(patch: Record<string, string | null>, replace = false) {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(query);
     for (const [key, value] of Object.entries(patch))
       if (value === null) params.delete(key);
       else params.set(key, value);
-    window.history[replace ? "replaceState" : "pushState"](
-      null,
-      "",
-      `${people.base}/people${params.size ? `?${params}` : ""}`,
-    );
+    const navigate=()=>router[replace?'replace':'push'](`${people.base}/people${params.size ? `?${params}` : ""}`,{scroll:false});
+    if(document.querySelector('[data-people-draft][data-work-dirty="true"]')){setPendingPeopleNavigation(()=>navigate);return;}
+    navigate();
   }
   function selectUnit(next: OrganizationSelection) {
     setExpanded((old) => new Set([...old, ...locationPath(data, next).map((item) => item.id)]));
@@ -628,7 +634,7 @@ export function PeopleStructureWorkspace({
       <ItemActions
         name={label(data, source)}
         onMove={movable ? () => openMove(source) : undefined}
-        onAddPerson={addToPositionId ? () => addPerson(addToPositionId) : undefined}
+        onAddPerson={addToPositionId && people.purchases?.directory.newWork!==false ? () => addPerson(addToPositionId) : undefined}
         grip={
           movable && (
             <Button
@@ -890,7 +896,7 @@ export function PeopleStructureWorkspace({
                     }
                   }}
                 >
-                  {["person", ...(people.canManageStructure ? ["position", "unit"] : [])].map(
+                  {[...(people.purchases?.directory.newWork!==false?["person"]:[]), ...(people.canManageStructure ? ["position", "unit"] : [])].map(
                     (kind) => (
                       <Button
                         variant="plain"
@@ -1051,7 +1057,7 @@ export function PeopleStructureWorkspace({
                     {                      group.positions.map((position) => {
                         const holders = holdersByPosition.get(position.id) ?? [],
                           canAdd =
-                            people.canManage &&
+                            people.purchases?.directory.newWork!==false && people.canManage &&
                             position.companyId === people.currentCompanyId &&
                             !archived;
                         return (
@@ -1232,19 +1238,20 @@ export function PeopleStructureWorkspace({
                       Open team schedule
                     </Button>
                   )}
-                  {detailSections.map((section, index) => (
+                  <nav aria-label="Record sections">{detailSections.map(section=>{const next=new URLSearchParams(query);next.set("tab",section.toLowerCase().replaceAll(" ","-"));return <Link key={section} href={canonicalUiHref(`${people.base}/people?${next}`)} aria-current={next.get("tab")===(query.get("tab")??detailSections[0].toLowerCase().replaceAll(" ","-"))?"page":undefined}>{section}</Link>;})}</nav>
+                  {detailSections.filter(section=>section.toLowerCase().replaceAll(' ','-')===(query.get("tab")??detailSections[0]).toLowerCase()).map((section, index) => (
                     <Accordion
                       key={`${selection.kind}:${selection.id}:${section}:${query.get("tab") ?? panel}`}
                       title={section}
                       summary={sectionSummary(section)}
                       initiallyOpen={
                         query.get("tab")
-                          ? query.get("tab")?.toLocaleLowerCase() === section.toLocaleLowerCase()
+                          ? query.get("tab")?.toLocaleLowerCase() === section.toLocaleLowerCase().replaceAll(' ','-')
                           : panel === "history"
                             ? section === "Changes"
                             : index === 0
                       }
-                      onOpen={() => update({ tab: section.toLocaleLowerCase() }, true)}
+                      onOpen={() => update({ tab: section.toLocaleLowerCase().replaceAll(' ','-') }, true)}
                     >
                       {section === "Working time" ? (
                         selection.kind === "person" ? (
@@ -1370,6 +1377,7 @@ export function PeopleStructureWorkspace({
           </div>
         </Dialog>
       )}
+      <Dialog appearance="standard" open={!!pendingPeopleNavigation} title="Discard People changes?" onClose={()=>setPendingPeopleNavigation(null)}><p>Your edited People form has unsaved changes.</p><div className="ui-form-actions"><Button appearance="standard" type="button" variant="secondary" onClick={()=>setPendingPeopleNavigation(null)}>Keep editing</Button><Button appearance="standard" type="button" variant="danger" onClick={()=>{window.dispatchEvent(new CustomEvent("erpx:record-saved",{detail:{root:drawerRef.current}}));const navigate=pendingPeopleNavigation;setPendingPeopleNavigation(null);navigate?.();}}>Discard changes</Button></div></Dialog>
     </section>
   );
 }

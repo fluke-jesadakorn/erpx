@@ -1,1 +1,1 @@
-export { assignmentReadSql } from '../adapters/record-source-authority';
+export { assignmentReadSql,currentAssignmentReadScope } from '../adapters/record-source-authority';

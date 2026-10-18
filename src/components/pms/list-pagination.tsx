@@ -1,11 +1,13 @@
 'use client';
 import {FrontLocalizedTree} from '@/components/front/front-language';
-import {usePathname,useRouter,useSearchParams} from 'next/navigation';
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { usePmsOwnerRouter } from "./pending-command-navigation";
 import {Button,Field,Select,TextInput} from '@/components/ui/foundation';
 import type {pmsWorkspace} from "@/server/modules/pms/public/pms";
 type Meta=NonNullable<NonNullable<Awaited<ReturnType<typeof pmsWorkspace>>['snapshot']>['listMeta']>;
 export function PmsListPagination({meta,roomTypes=[]}:{meta:Meta;roomTypes?:{id:string;name:string}[]}){
- const router=useRouter(),pathname=usePathname(),params=useSearchParams();
+ const router=usePmsOwnerRouter(),pathname=usePathname(),params=useSearchParams();
  const booking=meta.section==='reservations'||meta.section==='front-desk';
  const dated=booking||['cashier','night-audit','inventory'].includes(meta.section);
  const states=meta.kind==='room'?['dirty','clean','inspected']:meta.kind==='guest_account'?['open','closed']:meta.kind==='shift'?['open','closed','reviewed']:meta.kind==='night'?['running','blocked','completed']:[];

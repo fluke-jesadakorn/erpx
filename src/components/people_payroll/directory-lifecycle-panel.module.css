@@ -1,0 +1,12 @@
+.stack, .recipe, .callout { display: grid; gap: 1rem; min-width: 0; }
+.heading, .actions { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.actions { justify-content: flex-start; }
+.case { border-block-start: 1px solid var(--ui-line); padding-block: 1rem; display: grid; gap: .75rem; min-width: 0; overflow-wrap: anywhere; }
+.recipe > div { display: flex; align-items: start; gap: .75rem; }
+.recipe svg { flex-shrink: 0; }
+.muted { color: var(--ui-muted); }
+.pending, .callout { border-inline-start: 3px solid var(--ui-line); padding-inline-start: 1rem; }
+.stack fieldset { min-width: 0; display: grid; gap: 1rem; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md, .5rem); padding: 1rem; }
+.stack legend { font-weight: 600; }
+.steps { display: flex; flex-wrap: wrap; gap: .75rem; margin-block-end: 1rem; color: var(--ui-muted); }
+.steps [data-active="true"] { color: var(--ui-ink); font-weight: 600; }

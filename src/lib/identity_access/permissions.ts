@@ -597,6 +597,15 @@ for (const p of definitions.filter((p) => p.module === "identity_access" && !["i
         ? ["platform_admin", "platform_auditor"]
         : ["platform_admin"],
   });
+for (const operation of ["read", "manage"] as const) definitions.push({
+  id: `platform.commercial.${operation}`,
+  label: operation === "read" ? "Review Company package grants" : "Apply reviewed Company package grants",
+  module: "commercial",
+  roles: operation === "read" ? ["platform_admin", "platform_auditor"] : ["platform_admin"],
+  conditions: operation === "read" ? ["Current Platform authority"] : ["Current Platform authority, reviewed preview and fresh MFA"],
+  risk: operation === "read" ? "normal" : "privileged",
+  availability: "live", namespace: "platform", permittedScopes: ["platform"],
+});
 definitions.push({
   id: "platform.executive.read",
   label: "View Platform Executive insights",

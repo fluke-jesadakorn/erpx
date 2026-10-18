@@ -1,15 +1,17 @@
 "use client";
-import { InlineNotice } from "@/components/ui/foundation";
+import WorkspaceLink from '@/components/workplace/workspace-link';
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import {CRMForm as FormLayout,CRMDisclosure as FormDisclosure,CRMDraftBoundary,CRMCommandState,CRMCommandFeedback,useCRMSnapshot} from "@/components/crm/draft-boundary";
+import {useCRMCommand} from "@/components/crm/use-crm-command";
+import {marketingCommandAllowed} from "@/lib/crm/purchase-controls";
 
-import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import { useState } from "react";
+import { useRouter } from "@/lib/shared/destination-router";
 import { marketingAssetDraft, marketingAssetEditorSchema } from "@/lib/collaboration/marketing-editor";
 import type { marketingDetail, marketingWorkspace } from "@/server/modules/marketing/public/marketing";
-import { FormLayout, Card } from "@/components/ui/foundation";
+import { Card } from "@/components/ui/foundation";
 function displayMinor(minor: string, currency: string) {
   const amount = BigInt(minor),
     scale = BigInt(100),
@@ -19,69 +21,28 @@ function displayMinor(minor: string, currency: string) {
 }
 export function MarketingConsole({
   base,
-  data,
-  detail,
+  data:currentData,
+  detail:currentDetail,
 }: {
   base: string;
   data?: Awaited<ReturnType<typeof marketingWorkspace>>;
   detail?: Awaited<ReturnType<typeof marketingDetail>>;
 }) {
-  const router = useRouter(),
-    last = useRef<{ body: string; key: string } | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [assetKind, setAssetKind] = useState<"form" | "content" | "domain" | "provider">("form"),
-    [assetName, setAssetName] = useState(""),
-    [headline, setHeadline] = useState(""),
-    [summary, setSummary] = useState(""),
-    [reference, setReference] = useState(""),
-    [contentAssetId,setContentAssetId]=useState(""),
-    [mediaPublicationId,setMediaPublicationId]=useState(""),
-    [consentRequired, setConsentRequired] = useState(false);
-  async function send(input: unknown) {
-    const body = JSON.stringify(input);
-    if (last.current?.body !== body) last.current = { body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const r = await workFetch(`/api/v1${base}/marketing`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": last.current.key,
-          },
-          body,
-        }),
-        j = await r.json();
-      if (!r.ok) {
-        if (r.status < 500) last.current = null;
-        throw new Error(j.error?.message ?? "Unable to update Marketing.");
-      }
-      last.current = null;
-      if (
-        input &&
-        typeof input === "object" &&
-        "entity" in input &&
-        input.entity === "candidate" &&
-        !("id" in input)
-      )
-        router.push(`${base}/marketing/${j.data.id}`);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry this action.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const {snapshot,rootProps}=useCRMSnapshot({data:currentData,detail:currentDetail}),{data,detail}=snapshot,router=useRouter();
+  const [assetKind,setAssetKind]=useState<'form'|'content'|'domain'|'provider'>('form'),[assetName,setAssetName]=useState(''),[headline,setHeadline]=useState(''),[summary,setSummary]=useState(''),[reference,setReference]=useState(''),[contentAssetId,setContentAssetId]=useState(''),[mediaPublicationId,setMediaPublicationId]=useState(''),[consentRequired,setConsentRequired]=useState(false);
+  const purchase=currentData?.purchase??currentDetail?.purchase,canWrite=(currentData?.canWrite??currentDetail?.canWrite)!==false,active=canWrite&&purchase?.newWork!==false,settle=canWrite&&purchase?.settleExisting!==false,handoff=settle&&currentDetail?.canHandoff!==false&&currentDetail?.handoffPurchase?.settleExisting!==false,cost=settle&&currentData?.costHistory!==false&&!!currentData?.canLinkCost;
+  const sourceVersion=JSON.stringify([currentDetail?.candidate.version,currentData?.assets.map(row=>[row.id,row.version]),currentData?.campaigns.map(row=>row.id),currentData?.costSources.map(row=>row.source_line_id)]);
+  const resetAsset=()=>{setAssetKind('form');setAssetName('');setHeadline('');setSummary('');setReference('');setContentAssetId('');setMediaPublicationId('');setConsentRequired(false);};
+  const command=useCRMCommand(base,'marketing',input=>{const body=input as Record<string,unknown>;return canWrite&&marketingCommandAllowed(purchase,input,currentDetail?.handoffPurchase)&&(body.action!=='handoff'||currentDetail?.canHandoff!==false)&&(body.action!=='link-cost'||cost);},(receipt,input)=>{if(input.entity==='candidate'&&!input.id)router.push(canonicalUiHref(`${base}/marketing/${receipt.id}`));}),{send,busy,setError}=command;
   const vals = (e: React.FormEvent<HTMLFormElement>) =>
       Object.fromEntries(new FormData(e.currentTarget)),
     c = detail?.candidate;
   return (
-    <>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+    <CRMCommandState {...command}><CRMDraftBoundary><div {...rootProps}>
+      <CRMCommandFeedback/>
       {data && (
         <>
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={active}
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -103,7 +64,7 @@ export function MarketingConsole({
             </Button>
           </FormLayout>
           {data.canLinkCost && (
-            <FormLayout
+            <FormLayout sourceVersion={sourceVersion} allowed={cost}
               className="ui-panel ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -152,7 +113,7 @@ export function MarketingConsole({
               </Button>
             </FormLayout>
           )}
-          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft marketing asset</summary><FormLayout
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy} disabled={!active} onDiscard={resetAsset}><summary>Draft marketing asset</summary><FormLayout sourceVersion={sourceVersion} allowed={active}
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -295,12 +256,12 @@ export function MarketingConsole({
           </FormLayout></FormDisclosure>
           <Card as="section" appearance="standard" className="ui-panel">
             <h2>Public form readiness</h2>
-            {data.formReadiness.length?data.formReadiness.map(readiness=>{const asset=data.assets.find(asset=>asset.id===readiness.id);return <article key={readiness.id}><h3>{String(asset?.name)}</h3><p>{asset?.status==='active'&&readiness.ready?'Ready for consented public submissions':asset?.status==='active'?'Unavailable until supporting content and creative are approved':'Awaiting independent form activation'}</p>{asset?.status==='active'&&readiness.ready&&<a href={`/forms/${encodeURIComponent(base.split('/')[2])}/${encodeURIComponent(readiness.id)}`} target="_blank" rel="noreferrer">Open public form</a>}</article>}):<p>No forms have been drafted.</p>}
+            {data.formReadiness.length?data.formReadiness.map(readiness=>{const asset=data.assets.find(asset=>asset.id===readiness.id);return <article key={readiness.id}><h3>{String(asset?.name)}</h3><p>{asset?.status==='active'&&readiness.ready?'Ready for consented public submissions':asset?.status==='active'?'Unavailable until supporting content and creative are approved':'Awaiting independent form activation'}</p>{asset?.status==='active'&&readiness.ready&&active&&<WorkspaceLink href={`/forms/${encodeURIComponent(base.split('/')[2])}/${encodeURIComponent(readiness.id)}`} target="_blank" rel="noreferrer">Open public form</WorkspaceLink>}</article>}):<p>No forms have been drafted.</p>}
           </Card>
           {data.assets
             .filter((x) => x.status === "draft")
             .map((x) => (
-              <FormLayout
+              <FormLayout editorTitle={`Review marketing asset · ${String(x.name)}`} sourceVersion={currentData?.assets.find(row=>row.id===x.id)?.version??undefined} allowed={settle}
                 className="ui-panel ui-form-grid"
                 key={String(x.id)}
                 onSubmit={(e) => {
@@ -308,23 +269,25 @@ export function MarketingConsole({
                   void send({
                     entity: "asset",
                     id: x.id,
-                    action: "activate",
+                    action: new FormData(e.currentTarget).get('action'),
                     expectedVersion: Number(x.version),
                     reason: String(new FormData(e.currentTarget).get("reason")),
                   });
                 }}
               >
                 <h2>Independent review · {String(x.name)}</h2>
+                <Field appearance="standard">Decision<Select appearance="standard" name="action" defaultValue={active?'activate':'reject'}><option value="activate" disabled={!active}>Activate</option><option value="reject">Reject with reason</option></Select></Field>
                 <Field appearance="standard">
                   Reason
                   <TextArea appearance="standard" name="reason" required minLength={3} />
                 </Field>
                 <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-                  Activate
+                  Save asset review
                 </Button>
               </FormLayout>
             ))}
-          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Capture consented lead</summary><FormLayout
+          {data.assets.filter(asset=>asset.status==='active').map(asset=><FormLayout key={String(asset.id)} editorTitle={`Retire marketing asset · ${String(asset.name)}`} sourceVersion={currentData?.assets.find(row=>row.id===asset.id)?.version??undefined} allowed={settle} className="ui-panel ui-form-grid" onSubmit={event=>{event.preventDefault();void send({entity:'asset',id:asset.id,action:'retire',expectedVersion:Number(asset.version),reason:new FormData(event.currentTarget).get('reason')});}}><Field appearance="standard">Retirement evidence<TextArea appearance="standard" name="reason" required minLength={3}/></Field><Button appearance="standard" type="submit" clientManaged disabled={busy}>Retire asset</Button></FormLayout>)}
+          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy} disabled={!active}><summary>Capture consented lead</summary><FormLayout sourceVersion={sourceVersion} allowed={active}
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -408,7 +371,7 @@ export function MarketingConsole({
       )}
       {c && c.status === "pending" && (
         <>
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={settle}
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -441,7 +404,7 @@ export function MarketingConsole({
               Record
             </Button>
           </FormLayout>
-          <FormLayout
+          <FormLayout sourceVersion={sourceVersion} allowed={handoff}
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -471,6 +434,6 @@ export function MarketingConsole({
           </FormLayout>
         </>
       )}
-    </>
+    </div></CRMDraftBoundary></CRMCommandState>
   );
 }

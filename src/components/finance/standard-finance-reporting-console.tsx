@@ -1,0 +1,116 @@
+"use client";
+import {useEffect,useLayoutEffect,useState,useTransition} from 'react';
+import {useRouter} from '@/lib/shared/destination-router';
+import {canonicalUiHref} from '@/lib/work_projection/destination-registry';
+import {announceWorkChange} from '@/lib/work_projection/work-refresh';
+import {captureWorkCommandContext} from '@/lib/work_projection/command-context';
+import {contextIsSwitching,registerUnsavedWork} from '@/lib/work_projection/context-switch';
+import {RecordLink as Link} from '@/components/records/record-link';
+import {Button,Card,Field,InlineNotice,Select,TextArea,TextInput,Table,TableFrame} from '@/components/ui/foundation';
+import {FormDisclosure} from '@/components/ui/form-disclosure';
+import {financialNoteTitles,financialPresentation,type FinancialPresentationCode} from '@/lib/finance/finance-reporting';
+import {minorToDecimal} from '@/lib/finance/finance-money';
+import {createFinanceReportingCommands,type FinanceReportingCurrent,type FinanceReportingRequest,type FinanceReportingPending,type FinanceReportingView} from '@/lib/finance/finance-reporting-command';
+import {useFinanceActionAllowed} from './purchase-context';
+import {useFinanceDraftScope} from './finance-draft-boundary';
+import styles from './standard-finance-reporting-console.module.css';
+export type StandardFinanceReportingProps={base:string;companyId:string;chartId:string;currency:string;data:FinanceReportingView;periods:Record<string,unknown>[];userId:string;canPrepare:boolean;canApprove:boolean};
+type Editor={kind:'statement-prepare'}|{kind:'closing-prepare'}|{kind:'statement-decision';id:string;version:number}|{kind:'closing-decision';id:string;version:number};
+const fieldText=(form:FormData,name:string)=>String(form.get(name)??'');
+const isPresentation=(value:string):value is FinancialPresentationCode=>Object.hasOwn(financialPresentation,value);
+function requestFor(editor:Editor,form:FormData,p:StandardFinanceReportingProps):FinanceReportingRequest{
+ const reason=fieldText(form,'reason');
+ if(editor.kind==='statement-prepare')return{kind:editor.kind,input:{chartId:p.chartId,startDate:fieldText(form,'startDate'),endDate:fieldText(form,'endDate'),comparativeStartDate:fieldText(form,'comparativeStartDate'),comparativeEndDate:fieldText(form,'comparativeEndDate'),...(fieldText(form,'previous')?{previousPackageId:fieldText(form,'previous')}:{}),presentation:p.data.accounts.flatMap(account=>{const line=fieldText(form,`presentation-${account.id}`);return isPresentation(line)?[{accountId:String(account.id),line}]:[];}),notes:{basis:fieldText(form,'note-basis'),policies:fieldText(form,'note-policies'),going_concern:fieldText(form,'note-going_concern'),judgments:fieldText(form,'note-judgments'),disclosures:fieldText(form,'note-disclosures')},reason}};
+ if(editor.kind==='closing-prepare')return{kind:editor.kind,input:{chartId:p.chartId,startDate:fieldText(form,'startDate'),endDate:fieldText(form,'endDate'),periodId:fieldText(form,'periodId'),retainedEarningsAccountId:fieldText(form,'retained'),reason}};
+ const action=fieldText(form,'action'),input={expectedVersion:editor.version,reason};
+ if(editor.kind==='statement-decision'&&(action==='issue'||action==='reject'||action==='cancel'))return{kind:editor.kind,id:editor.id,action,input};
+ if(editor.kind==='closing-decision'&&(action==='post'||action==='reject'||action==='cancel'))return{kind:editor.kind,id:editor.id,action,input};
+ throw Error('Choose an available native review decision.');
+}
+function editorFor(request:FinanceReportingRequest):Editor{return request.kind==='statement-decision'||request.kind==='closing-decision'?{kind:request.kind,id:request.id,version:request.input.expectedVersion}:{kind:request.kind};}
+function valueFor(request:FinanceReportingRequest|null,name:string){if(!request)return undefined;const input=request.input;if(name==='action'&&('action' in request))return request.action;if(name==='previous'&&'previousPackageId' in input)return input.previousPackageId;if(name==='retained'&&'retainedEarningsAccountId' in input)return input.retainedEarningsAccountId;if(name.startsWith('note-')&&'notes' in input){const key=name.slice(5);if(key==='basis'||key==='policies'||key==='going_concern'||key==='judgments'||key==='disclosures')return input.notes[key];}if(name.startsWith('presentation-')&&'presentation' in input)return input.presentation.find(row=>row.accountId===name.slice(13))?.line;return name==='reason'?input.reason:'startDate'===name&&'startDate' in input?input.startDate:'endDate'===name&&'endDate' in input?input.endDate:'comparativeStartDate'===name&&'comparativeStartDate' in input?input.comparativeStartDate:'comparativeEndDate'===name&&'comparativeEndDate' in input?input.comparativeEndDate:'periodId'===name&&'periodId' in input?input.periodId:undefined;}
+export function StandardFinanceReportingConsole(props:StandardFinanceReportingProps){return <ReportingOwner key={JSON.stringify([props.base,props.companyId,props.userId,props.chartId])} {...props}/>;}
+function ReportingOwner(props:StandardFinanceReportingProps){
+ const router=useRouter(),scope=useFinanceDraftScope(),canStatements=useFinanceActionAllowed('settle-existing','finance.accounting'),canClose=useFinanceActionAllowed('settle-existing','finance.close');
+ const [runtime]=useState(()=>{
+  let committed:FinanceReportingCurrent|null=null,sourceImage='',epoch=0,editorState:{editor:Editor|null;dirty:boolean}={editor:null,dirty:false},listener:(()=>void)|null=null;
+  const commands=createFinanceReportingCommands(()=>committed);
+  function lease(){
+   const original=committed,image=sourceImage,generation=epoch,guard=captureWorkCommandContext(),path=typeof window==='undefined'?null:window.location.pathname,query=typeof window==='undefined'?null:window.location.search;let cancelled=false;
+   return{current(){try{guard();const node=typeof document==='undefined'?null:document.querySelector<HTMLElement>('[data-work-revision]');return !cancelled&&!!original&&!!committed&&generation===epoch&&image===sourceImage&&window.location.pathname===path&&window.location.search===query&&!!node?.isConnected&&node.dataset.workStale!=='true'&&node.dataset.workUser===committed.userId&&node.dataset.workCompany===committed.companyId&&!!node.dataset.workAssignment;}catch{return false;}},cancel(){cancelled=true;}};
+  }
+  return{commands,lease,
+   commit(value:FinanceReportingCurrent,editing:{editor:Editor|null;dirty:boolean}){const image=JSON.stringify(value);if(image!==sourceImage){sourceImage=image;++epoch;}committed=value;editorState=editing;},
+   dispose(){committed=null;sourceImage='';++epoch;},
+   snapshot:()=>committed?{source:committed,...editorState}:null,
+   subscribe(next:()=>void){listener=next;return()=>{if(listener===next)listener=null;};},
+   sync(){listener?.();},
+  };
+ });
+ const {commands}=runtime;
+ const [busy,setBusy]=useState(false),[refreshing,startRefresh]=useTransition(),[error,setError]=useState(''),[notice,setNotice]=useState(''),[pending,setPending]=useState<FinanceReportingPending|null>(null),[editor,setEditor]=useState<Editor|null>(null),[open,setOpen]=useState(false),[dirty,setDirty]=useState(false),[seed,setSeed]=useState<FinanceReportingRequest|null>(null),[confirmation,setConfirmation]=useState<{id:string;family:'statement-packages'|'year-closings'}|null>(null);
+ const initialStamp=JSON.stringify(props),[fresh,setFresh]=useState<{seed:string;view:FinanceReportingView}|null>(null),[formSource,setFormSource]=useState<{data:FinanceReportingView;periods:StandardFinanceReportingProps['periods']}|null>(null),data=fresh?.seed===initialStamp?fresh.view:props.data,effective={...props,data},draftData=formSource?.data??data,draftPeriods=formSource?.periods??props.periods,working=busy||refreshing;
+ const sourceStamp=JSON.stringify({...effective,canStatements,canClose});
+ useLayoutEffect(()=>{runtime.commit({...effective,canStatements,canClose},{editor,dirty});});
+ useLayoutEffect(()=>()=>runtime.dispose(),[runtime]);
+ useEffect(()=>{
+  let cancelled=false,sequence=0;
+  // External storage and controller status are read under a fresh committed
+  // owner/Work lease. This callback never publishes a superseded response.
+  const synchronize=()=>{const token=++sequence,lease=runtime.lease();queueMicrotask(()=>{
+   if(cancelled||token!==sequence||!lease.current())return;
+   try{const original=commands.pending(),snapshot=runtime.snapshot();if(!snapshot||!lease.current())return;setPending(original);setBusy(commands.busy());if(original&&!snapshot.editor&&!snapshot.dirty){setEditor(editorFor(original.request));setSeed(original.request);setFormSource({data:snapshot.source.data,periods:[...snapshot.source.periods]});setNotice('Your original reporting request is retained. Recover it with its original key and fields.');}}
+   catch(cause){if(lease.current())setError(cause instanceof Error?cause.message:String(cause));}
+  });};
+  const unsubscribe=runtime.subscribe(synchronize),retained=()=>{try{return commands.busy()||!!commands.pending();}catch{return true;}},unregister=registerUnsavedWork(retained),unload=(event:BeforeUnloadEvent)=>{if(retained()&&!contextIsSwitching())event.preventDefault();};
+  synchronize();window.addEventListener('beforeunload',unload);for(const name of ['focus','storage','erpx:work-context-changed','erpx:context-switch-started'])window.addEventListener(name,synchronize);
+  return()=>{cancelled=true;++sequence;unsubscribe();unregister();window.removeEventListener('beforeunload',unload);for(const name of ['focus','storage','erpx:work-context-changed','erpx:context-switch-started'])window.removeEventListener(name,synchronize);};
+ },[commands,runtime,sourceStamp]);
+ function begin(next:Editor){if(working)return;try{if(commands.pending()){setError('Recover the original reporting request before selecting another form.');return;}}catch(cause){setError(cause instanceof Error?cause.message:String(cause));return;}if(dirty&&!window.confirm('Discard the newer unsubmitted reporting draft?'))return;setEditor(next);setFormSource({data,periods:props.periods});setSeed(null);setOpen(true);setDirty(false);setError('');setNotice('');setConfirmation(null);}
+ async function save(form?:HTMLFormElement,retry=false){
+  if(working||!editor)return;const lease=runtime.lease();if(!lease.current())return;setBusy(true);setError('');setNotice('');
+  try{
+   const originalRequest=retry?commands.pending()?.request:requestFor(editor,new FormData(form),{...effective,data:draftData});if(!originalRequest)throw Error('There is no saved reporting request.');
+   const result=retry?await commands.retry():await commands.run(originalRequest,form);
+   result.assertCurrent();if(!lease.current())return;const acknowledged=result.acknowledge();if(!acknowledged)throw Error('The original reporting acknowledgement was already consumed.');
+   result.assertCurrent();if(!lease.current())return;setFresh({seed:initialStamp,view:result.view});setConfirmation({id:String(result.data.id),family:originalRequest.kind.startsWith('statement-')?'statement-packages':'year-closings'});
+   if(acknowledged.newer)setNotice('The original reporting request was saved. Retained fields have not been submitted again; your newer draft is preserved.');else{setDirty(false);setEditor(null);setFormSource(null);setSeed(null);setOpen(false);setNotice('Reporting decision saved and confirmed against its native history.');}
+   result.assertCurrent();if(!lease.current())return;announceWorkChange();result.assertCurrent();if(!lease.current())return;startRefresh(()=>{result.assertCurrent();if(lease.current())router.refresh();});
+  }catch(cause){if(lease.current())setError(cause instanceof Error?cause.message:'Recover the original reporting request before submitting again.');}
+  finally{
+   if(lease.current()){setBusy(commands.busy());try{setPending(commands.pending());}catch(cause){if(lease.current())setError(cause instanceof Error?cause.message:String(cause));}}
+   lease.cancel();runtime.sync();
+  }
+ }
+ const row=editor&&'id' in editor?(editor.kind==='statement-decision'?data.packages:data.closings).find(row=>row.id===editor.id):undefined,own=row?.prepared_by===props.userId,decisionActions=editor?.kind==='statement-decision'?[...(props.canApprove&&!own?['issue','reject']:[]),...(props.canPrepare&&(own||props.canApprove)?['cancel']:[])]:[...(props.canApprove&&!own?['post','reject']:[]),...(props.canPrepare&&(own||props.canApprove)?['cancel']:[])],preparation=editor?.kind.endsWith('-prepare'),permitted=editor?.kind.startsWith('statement-')?canStatements:canClose,canSend=!!editor&&permitted&&(preparation?props.canPrepare:row?.status==='draft'&&'version' in editor&&Number(row.version)===editor.version&&decisionActions.length>0),title=editor?.kind==='statement-prepare'?'Prepare statement edition':editor?.kind==='closing-prepare'?'Prepare fiscal closing':editor?.kind==='statement-decision'?'Review statement edition':'Review fiscal closing';
+ const reportingHistory=(id:string,statement:boolean)=>canonicalUiHref(statement?`${props.base}/finance/statement-packages/${encodeURIComponent(id)}`:`${props.base}/finance/reports?${new URLSearchParams({chart:props.chartId})}#fiscal-closing`);
+ const retry=<Button appearance="standard" type="button" disabled={working} onClick={()=>void save(undefined,true)}>Retry original reporting request</Button>;
+ function review(kind:'statement-decision'|'closing-decision',item:FinanceReportingView['packages'][number]){const own=item.prepared_by===props.userId;return item.status==='draft'&&(props.canApprove&&!own||props.canPrepare&&(own||props.canApprove))&&<Button appearance="standard" type="button" disabled={working||!!pending||!(kind==='statement-decision'?canStatements:canClose)} onClick={()=>begin({kind,id:String(item.id),version:Number(item.version)})}>Review draft</Button>;}
+ return <div className={styles.owner} data-finance-reporting-pending={pending?'true':undefined}>
+  <header className={styles.heading}><div><h2>Statements and fiscal closing</h2><p>Retained Company editions and independently reviewed fiscal transfers.</p></div></header>
+  {error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{notice&&<InlineNotice role="status">{notice}</InlineNotice>}
+  {confirmation&&<Link href={reportingHistory(confirmation.id,confirmation.family==='statement-packages')}>Open confirmed native record ({confirmation.id})</Link>}
+  {pending&&<Card appearance="standard" className={styles.recovery}><h3>Retained original reporting request</h3><p>Its action, Company, ledger, work revision, fields and key remain fixed. Current native authority still applies to Retry.</p>{retry}<Button appearance="standard" variant="secondary" type="button" disabled={working} onClick={()=>setOpen(true)}>Open retained draft</Button><Link href={reportingHistory(pending.target?.id??(pending.request.kind==='statement-prepare'?'statement-package-':'year-closing-')+pending.key,pending.request.kind.startsWith('statement-'))}>Review original native history</Link></Card>}
+  <Card appearance="standard" as="section" id="issued-statements"><div className={styles.sectionHeading}><div><h3>NPAEs statement editions</h3><p>Company-approved policies, current and comparative figures, presentation and retained notes.</p></div>{props.canPrepare&&<Button appearance="standard" type="button" disabled={working||!!pending||!canStatements} onClick={()=>begin({kind:'statement-prepare'})}>Prepare statement edition</Button>}</div>
+   <TableFrame appearance="standard" label="Statement editions"><Table><thead><tr><th>Reporting dates</th><th>Edition</th><th>Status</th><th>Evidence and review</th></tr></thead><tbody>{data.packages.map(item=><tr key={String(item.id)}><td>{String(item.start_date)} – {String(item.end_date)}<small>Comparative {String(item.comparative_start_date)} – {String(item.comparative_end_date)}</small></td><td>{String(item.edition)}{item.previous_package_id&&<Link href={canonicalUiHref(`${props.base}/finance/statement-packages/${item.previous_package_id}`)}>Earlier edition</Link>}</td><td>{String(item.status)} · v{String(item.version)}</td><td><Link href={canonicalUiHref(`${props.base}/finance/statement-packages/${item.id}`)}>Open statement and history</Link>{item.status==='issued'&&<a href={`/api/v1${props.base}/finance/statement-packages/${item.id}/export`}>Download retained statement</a>}{review('statement-decision',item)}</td></tr>)}</tbody></Table></TableFrame>{!data.packages.length&&<p>No statement editions have been prepared.</p>}
+  </Card>
+  <Card appearance="standard" as="section" id="fiscal-closing"><div className={styles.sectionHeading}><div><h3>Fiscal year closing</h3><p>Close earlier periods first. A different Finance approver posts the result to retained earnings; complete the final period close afterward.</p></div>{props.canPrepare&&<Button appearance="standard" type="button" disabled={working||!!pending||!canClose} onClick={()=>begin({kind:'closing-prepare'})}>Prepare fiscal closing</Button>}</div>
+   {data.closings.map(item=><article key={String(item.id)} className={styles.record}><div><h4>{String(item.start_date)} – {String(item.end_date)}</h4><p>{String(item.status)} · v{String(item.version)} · Result {props.currency} {minorToDecimal(Number(item.profit_minor))}</p></div><div className={styles.actions}>{item.journal_id&&<Link href={canonicalUiHref(`${props.base}/finance/journals/${item.journal_id}`)}>Posted fiscal transfer</Link>}{review('closing-decision',item)}</div></article>)}{!data.closings.length&&<p>No fiscal closings have been prepared.</p>}
+  </Card>
+  {editor&&<FormDisclosure appearance="standard" open={open} onToggle={event=>setOpen(event.currentTarget.open)} drawerTitle={title} retainFormContents={!!pending||dirty} dismissDisabled={working} error={error} onDiscard={pending?undefined:()=>{setDirty(false);setEditor(null);setFormSource(null);setSeed(null);}} discardLabel={pending?'Close and retain request':undefined}>
+   <summary>{title}</summary><p>Choices retain the source reviewed when this drawer opened. Finance validates the current ledger and authority before saving.</p>{notice&&<InlineNotice role="status">{notice}</InlineNotice>}{pending&&<div className={styles.recovery}><p>Retry submits the original body and key. Changes in this retained drawer remain unsubmitted.</p>{retry}</div>}
+   <form data-finance-draft={scope} className={styles.form} onChangeCapture={event=>{event.currentTarget.setAttribute('data-erpx-edit-version',crypto.randomUUID());setDirty(true);}} onInputCapture={event=>{event.currentTarget.setAttribute('data-erpx-edit-version',crypto.randomUUID());setDirty(true);}} onSubmit={event=>{event.preventDefault();void save(event.currentTarget);}}>
+    {preparation&&<div className={styles.dates}><Field appearance="standard">{editor.kind==='statement-prepare'?'Current start date':'Fiscal start date'}<TextInput appearance="standard" name="startDate" type="date" required defaultValue={valueFor(seed,'startDate')??'2026-01-01'}/></Field><Field appearance="standard">{editor.kind==='statement-prepare'?'Current end date':'Fiscal end date'}<TextInput appearance="standard" name="endDate" type="date" required defaultValue={valueFor(seed,'endDate')??'2026-12-31'}/></Field></div>}
+    {editor.kind==='statement-prepare'&&<><div className={styles.dates}><Field appearance="standard">Comparative start date<TextInput appearance="standard" name="comparativeStartDate" type="date" required defaultValue={valueFor(seed,'comparativeStartDate')??'2025-01-01'}/></Field><Field appearance="standard">Comparative end date<TextInput appearance="standard" name="comparativeEndDate" type="date" required defaultValue={valueFor(seed,'comparativeEndDate')??'2025-12-31'}/></Field></div>
+     <Field appearance="standard">Earlier issued edition, for an amendment<Select appearance="standard" name="previous" defaultValue={valueFor(seed,'previous')??''}><option value="">First edition for these dates</option>{draftData.packages.filter(item=>item.status==='issued').map(item=><option key={String(item.id)} value={String(item.id)}>{String(item.start_date)} – {String(item.end_date)} · Edition {String(item.edition)}</option>)}</Select></Field>
+     <fieldset><legend>Account presentation ({props.currency})</legend><p>Classify every account with activity. Its native ledger category is unchanged.</p>{draftData.accounts.map(account=><Field appearance="standard" key={String(account.id)}>{String(account.code)} · {String(account.name)}<Select appearance="standard" name={`presentation-${account.id}`} defaultValue={valueFor(seed,`presentation-${account.id}`)??''}><option value="">Choose a presentation line</option>{Object.entries(financialPresentation).filter(([,definition])=>definition.category===account.category).map(([code,definition])=><option key={code} value={code}>{definition.label}</option>)}</Select></Field>)}</fieldset>
+     {Object.entries(financialNoteTitles).map(([key,label])=><Field appearance="standard" key={key}>{label}<TextArea appearance="standard" name={`note-${key}`} minLength={10} maxLength={4000} required defaultValue={valueFor(seed,`note-${key}`)}/></Field>)}
+    </>}
+    {editor.kind==='closing-prepare'&&<><Field appearance="standard">Open final accounting period<Select appearance="standard" name="periodId" required defaultValue={valueFor(seed,'periodId')??''}><option value="">Choose the final period</option>{draftPeriods.filter(period=>period.state==='open').map(period=><option key={String(period.id)} value={String(period.id)}>{String(period.name)} · {String(period.end_date)}</option>)}</Select></Field><Field appearance="standard">Retained earnings account<Select appearance="standard" name="retained" required defaultValue={valueFor(seed,'retained')??''}><option value="">Choose retained earnings</option>{draftData.accounts.filter(account=>account.category==='equity'&&account.status==='active').map(account=><option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</Select></Field></>}
+    {!preparation&&<Field appearance="standard">Decision<Select appearance="standard" name="action" defaultValue={valueFor(seed,'action')??decisionActions[0]}>{seed&&'action' in seed&&!decisionActions.includes(seed.action)&&<option value={seed.action}>{seed.action} (original retained decision)</option>}{decisionActions.map(action=><option key={action} value={action}>{action==='issue'?'Issue this edition':action==='post'?'Post fiscal transfer':action==='reject'?'Reject with evidence':'Cancel preparation'}</option>)}</Select></Field>}
+    <Field appearance="standard">{preparation?'Preparation evidence':'Review evidence'}<TextArea appearance="standard" name="reason" required minLength={10} maxLength={4000} defaultValue={valueFor(seed,'reason')}/></Field>
+    <Button appearance="standard" type="submit" variant="primary" disabled={working||!!pending||!canSend}>{editor.kind==='statement-prepare'?'Prepare immutable statement draft':editor.kind==='closing-prepare'?'Prepare fiscal closing':'Record decision'}</Button>
+   </form><Button appearance="standard" type="button" variant="secondary" disabled={working} onClick={()=>setOpen(false)}>Close and retain draft</Button>
+  </FormDisclosure>}
+ </div>;
+}

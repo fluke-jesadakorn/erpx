@@ -1,3 +1,6 @@
+import {legalPackageEnforcementMode} from "../../../commercial/public/purchase-command-boundary";
+import {withLegalPurchasedCommand,requireLegalItemPurchasedRead,inLegacyLegalOperationsUnit} from '../purchases';
+import {samePerson as samePrincipal} from '@/lib/identity_access/iam';
 import "server-only";
 import {samePerson} from "@/lib/identity_access/iam";
 import type {SqlDatabase,SqlStatement} from "../../../runtime/public/runtime/types";
@@ -27,5 +30,10 @@ event:(id,action,note,version,identifier,now)=>stage(db.prepare("INSERT INTO leg
 replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),
 commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_REPOSITORY_MISMATCH");return statement;})),
 }});}
-export function featureDetail(db:SqlDatabase,a:WorkContext,id:string,query:Record<string,unknown>={}){return application(db,a).featureDetail(id,query);}
-export function featureCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).featureCommand(raw,key);}
+export async function featureDetail(db:SqlDatabase,a:WorkContext,id:string,query:Record<string,unknown>={}){if(await legalPackageEnforcementMode()!=="disabled")await requireLegalItemPurchasedRead(db,a,await access(db,a,id),["legal.obligations"]);return application(db,a).featureDetail(id,query);}
+export async function featureCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){
+ if(await legalPackageEnforcementMode()==="disabled")return inLegacyLegalOperationsUnit(db,a.companyId,tx=>application(tx,a).featureCommand(raw,key));
+ const input=(raw&&typeof raw==='object'?raw:{}) as Record<string,unknown>,spec=featureSpecs[input.category as keyof typeof featureSpecs],id=typeof input.id==='string'?input.id:undefined;
+ const row=spec&&typeof input.featureId==='string'?await db.prepare(`SELECT owner_id FROM ${spec.table} WHERE id=? AND item_id=?`).bind(input.featureId,id??null).first<{owner_id:string}>():null,ownerResponse=row&&samePrincipal(a,row.owner_id)&&['intake','policy_ack'].includes(String(input.category))&&input.action!=='feature.create';
+ return withLegalPurchasedCommand(db,a,{key,id,operation:String(input.action),purpose:input.action==='feature.transition'?'settle-existing':'new-work',permission:ownerResponse?'legal.read':'legal.edit',additionalPermissions:(spec?.independentStates as readonly string[]|undefined)?.includes(String(input.state))?['legal.approve']:[],additional:['legal.obligations']},tx=>application(tx,a).featureCommand(raw,key));
+}

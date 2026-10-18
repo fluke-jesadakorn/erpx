@@ -5,6 +5,7 @@ import { sendBetaEmail } from "@/server/modules/manage_erpx/public/beta-email";
 import type { BetaEnvironment } from "@/server/modules/manage_erpx/public/beta-config";
 import { createInvitationDeliveryApplication, type InvitationDeliveryRepository } from "../application/invitation-delivery";
 import type { DeliverableInvitation, InvitationDeliveryJob } from "../domain/invitation-delivery";
+import { applicationOrigin } from "@/lib/runtime/application-origins";
 
 type DeliveryEnv = BetaEnvironment & { BETTER_AUTH_SECRET?: unknown; ERPX_PUBLIC_ORIGIN?: unknown; BETTER_AUTH_URL?: unknown; CONTROL_DB?: SqlDatabase };
 function repository(control: SqlDatabase, holding?: SqlDatabase): InvitationDeliveryRepository {
@@ -27,7 +28,7 @@ export async function promoteAccountInvitationDeliveries(control: SqlDatabase, h
 }
 export async function deliverAccountInvitation(control: SqlDatabase, env: DeliveryEnv, send: (env: DeliveryEnv, to: string, subject: string, url: string, key?: string) => Promise<string | null | void> = sendBetaEmail, now = Date.now()) {
   return createInvitationDeliveryApplication({ repository: repository(control), clock: { now: () => now }, identifiers: { next: () => crypto.randomUUID() },
-    activationLink(id) { const secret = String(env.BETTER_AUTH_SECRET ?? ""), origin = String(env.ERPX_PUBLIC_ORIGIN ?? env.BETTER_AUTH_URL ?? ""); if (!secret) throw new Error("INVITATION_SECRET_NOT_CONFIGURED"); if (!origin) throw new Error("PUBLIC_ORIGIN_NOT_CONFIGURED"); const token = createHmac("sha256", secret).update(`invitation:${id}`).digest("hex"); return new URL(`/activate?token=${encodeURIComponent(token)}`, origin).href; },
+    activationLink(id) { const secret = String(env.BETTER_AUTH_SECRET ?? ""), origin = applicationOrigin("account", String(env.ERPX_PUBLIC_ORIGIN ?? env.BETTER_AUTH_URL ?? "")); if (!secret) throw new Error("INVITATION_SECRET_NOT_CONFIGURED"); if (!origin) throw new Error("PUBLIC_ORIGIN_NOT_CONFIGURED"); const token = createHmac("sha256", secret).update(`invitation:${id}`).digest("hex"); return new URL(`/activate?token=${encodeURIComponent(token)}`, origin).href; },
     send: (to, subject, url, key) => send(env, to, subject, url, key),
   }).deliver();
 }

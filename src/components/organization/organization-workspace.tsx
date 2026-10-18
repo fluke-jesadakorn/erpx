@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
@@ -27,13 +28,13 @@ import {
 import type { PeopleLifecycleData } from "@/lib/people_payroll/people-lifecycle";
 import { Network, UserPlus, Users } from "lucide-react";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import { useState } from "react";
 import { OrganizationChart } from "@/components/organization/organization-chart";
 import styles from "@/components/organization/organization.module.css";
 import { SpendingReadiness } from "@/components/people_payroll/spending-readiness";
 import { SpendingTemplateEditor } from "@/components/people_payroll/spending-template-editor";
-import { useStaffCommand } from "@/components/work_projection/staff-work-controls";
+import { useStaffCommand } from "@/components/work_projection/use-staff-command";
 import { type UiAppearance } from "@/components/ui/foundation";
 
 export function OrganizationWorkspace({ appearance = "legacy",
@@ -72,7 +73,7 @@ export function OrganizationWorkspace({ appearance = "legacy",
       label: "Six staff levels",
       ready: data.levels.length >= 6,
       owner: "Company HR administrator",
-      href: `${base}/people/organization?view=positions`,
+      href: canonicalUiHref(`${base}/people/organization?view=positions`),
       detail:
         data.levels.length >= 6
           ? "The level catalog is installed."
@@ -83,7 +84,7 @@ export function OrganizationWorkspace({ appearance = "legacy",
       label: "Branch and department structure",
       ready: data.nodes.some((node) => node.kind === "branch" && node.status === "active"),
       owner: "Company HR administrator",
-      href: `${base}/people/organization`,
+      href: canonicalUiHref(`${base}/people/organization`),
       detail: data.nodes.some((node) => node.kind === "branch" && node.status === "active")
         ? "At least one active branch is available."
         : "Create and independently approve the first active branch.",
@@ -93,7 +94,7 @@ export function OrganizationWorkspace({ appearance = "legacy",
       label: "Active CEO and reporting anchor",
       ready: ceoReady,
       owner: "People administrator",
-      href: `${base}/people/organization?view=positions`,
+      href: canonicalUiHref(`${base}/people/organization?view=positions`),
       detail: ceoReady
         ? "An active Level 1 position has an assigned person."
         : "Create a Level 1 CEO position and assign an active person.",
@@ -103,7 +104,7 @@ export function OrganizationWorkspace({ appearance = "legacy",
       label: "Staff profiles ready for work",
       ready: issues.length === 0,
       owner: "People manager",
-      href: `${base}/people`,
+      href: canonicalUiHref(`${base}/people`),
       detail:
         issues.length === 0
           ? "All visible staff have valid placement and reporting lines."
@@ -114,7 +115,7 @@ export function OrganizationWorkspace({ appearance = "legacy",
       label: "Approval coverage for reporting teams",
       ready: approvalIssues === 0,
       owner: "Organization administrator",
-      href: `${base}/settings?section=approvals`,
+      href: canonicalUiHref(`${base}/settings?section=approvals`),
       detail:
         approvalIssues === 0
           ? "No missing People Manager coverage is reported."
@@ -147,10 +148,10 @@ export function OrganizationWorkspace({ appearance = "legacy",
         </div>
       </div>
       <div data-ui-appearance={appearance} className={styles.toolbar}>
-        <UiActionLink appearance={appearance} variant="secondary" href={`${base}/people`}>
+        <UiActionLink appearance={appearance} variant="secondary" href={canonicalUiHref(`${base}/people`)}>
           People directory
         </UiActionLink>
-        <UiActionLink appearance={appearance} variant="secondary" href={`${base}/inbox?tab=teams`}>
+        <UiActionLink appearance={appearance} variant="secondary" href={canonicalUiHref(`${base}/inbox?tab=teams`)}>
           Organization channels
         </UiActionLink>
       </div>
@@ -186,7 +187,7 @@ export function OrganizationWorkspace({ appearance = "legacy",
                     </p>
                     {lifecycle.canPrepare && (
                       <Link
-                        href={`${base}/technology?view=organization&position=${encodeURIComponent(id)}`}
+                        href={canonicalUiHref(`${base}/technology?view=organization&position=${encodeURIComponent(id)}`)}
                       >
                         Open position GPO in Technology
                       </Link>
@@ -251,7 +252,7 @@ export function OrganizationWorkspace({ appearance = "legacy",
                   <>
                     <UiActionLink appearance={appearance}
                       variant="secondary"
-                      href={`${base}/people?new=person&position=${encodeURIComponent(position.id)}`}
+                      href={canonicalUiHref(`${base}/people?new=person&position=${encodeURIComponent(position.id)}`)}
                     >
                       Add staff to this position
                     </UiActionLink>
@@ -629,7 +630,7 @@ export function OrganizationChangeQueue({ appearance = "legacy",
     [proof, setProof] = useState<Record<string, AttachmentPanelChange>>({});
   const queue = data.changeQueue;
   const pageLink = (page: number) =>
-    `${base}/people/organization?${new URLSearchParams({ changeState: queue.state, changeQuery: queue.query, changePage: String(page) })}#organization-change-queue`;
+    canonicalUiHref(`${base}/people/organization?${new URLSearchParams({ changeState: queue.state, changeQuery: queue.query, changePage: String(page) })}#organization-change-queue`);
   const timestamp = (value: number) => <TimeText appearance={appearance} value={value} />;
   return (
     <section data-ui-appearance={appearance}
@@ -641,14 +642,14 @@ export function OrganizationChangeQueue({ appearance = "legacy",
       {queue.recordId && (
         <p data-ui-appearance={appearance}>
           Showing the linked request.{" "}
-          <Link href={`${base}/people/organization#organization-change-queue`}>
+          <Link href={canonicalUiHref(`${base}/people/organization#organization-change-queue`)}>
             View all open requests
           </Link>
         </p>
       )}
       <form data-ui-appearance={appearance}
         className={appearance === "standard" ? "ui-form-grid" : "business-form"}
-        action={`${base}/people/organization#organization-change-queue`}
+        action={canonicalUiHref(`${base}/people/organization#organization-change-queue`)}
       >
         <Field appearance={appearance}>
           Change status
@@ -1240,7 +1241,7 @@ export function OrganizationAdvancedTools({ appearance = "legacy",
           {vacancies.length} vacant positions · {issues.length} profiles need review
         </p>
         {issues.length > 0 && (
-          <Link href={`${base}/people?tab=people`}>Review people and reporting warnings</Link>
+          <Link href={canonicalUiHref(`${base}/people?tab=people`)}>Review people and reporting warnings</Link>
         )}
       </section>
       <details data-ui-appearance={appearance}
@@ -1314,11 +1315,11 @@ export function OrganizationAdvancedTools({ appearance = "legacy",
                       {data.people.filter((person) => person.position_id === id).length} people ·
                       Level {position.level_number}
                     </p>
-                    <Link href={`${base}/people?position=${encodeURIComponent(id)}`}>
+                    <Link href={canonicalUiHref(`${base}/people?position=${encodeURIComponent(id)}`)}>
                       Open HR position
                     </Link>
                     <Link
-                      href={`${base}/technology?view=organization&position=${encodeURIComponent(id)}`}
+                      href={canonicalUiHref(`${base}/technology?view=organization&position=${encodeURIComponent(id)}`)}
                     >
                       Open IT policies and delivery
                     </Link>

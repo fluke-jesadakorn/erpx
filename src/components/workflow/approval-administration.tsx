@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { SetupChecklist } from "@/components/ui/setup-checklist";
@@ -28,7 +29,7 @@ export async function ApprovalAdministration({
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Approval issue unavailable</h2>
         <p>This item may have moved on or may no longer be accessible.</p>
-        <Link href={`${base}/settings?section=approvals`}>
+        <Link href={canonicalUiHref(`${base}/settings?section=approvals`)}>
           Back to approval issues
         </Link>
       </Card>
@@ -37,18 +38,18 @@ export async function ApprovalAdministration({
     <>
       <div className="ui-form-actions">
         {!actor.beta && (
-          <UiActionLink appearance="standard" variant="secondary" href={`${base}/routine-templates`}>
+          <UiActionLink appearance="standard" variant="secondary" href={canonicalUiHref(`${base}/routine-templates`)}>
             Routine templates
           </UiActionLink>
         )}
         <UiActionLink appearance="standard" variant="secondary"
 
-          href={`${base}/settings?section=organization`}
+          href={canonicalUiHref(`${base}/settings?section=organization`)}
         >
           Organization settings
         </UiActionLink>
       </div>
-      <SetupChecklist title="Approval readiness" items={rows.some(row=>row.approval.blockedReason) ? rows.filter(row=>row.approval.blockedReason).map(row=>({id:`${row.record_type}:${row.record_id}`,label:`${row.record_type} approval routing`,ready:false,owner:"Organization administrator",href:approvalAdminHref(base,row.record_type,row.record_id),detail:row.approval.blockedReason ?? "Assign an eligible independent approver"})) : [{id:"routing",label:"Approval routing",ready:true,owner:"Organization administrator",href:`${base}/people/organization`,detail:"No blocked approval routes in your visible queue"}]} />
+      <SetupChecklist title="Approval readiness" items={rows.some(row=>row.approval.blockedReason) ? rows.filter(row=>row.approval.blockedReason).map(row=>({id:`${row.record_type}:${row.record_id}`,label:`${row.record_type} approval routing`,ready:false,owner:"Organization administrator",href:approvalAdminHref(base,row.record_type,row.record_id),detail:row.approval.blockedReason ?? "Assign an eligible independent approver"})) : [{id:"routing",label:"Approval routing",ready:true,owner:"Organization administrator",href:canonicalUiHref(`${base}/people/organization`),detail:"No blocked approval routes in your visible queue"}]} />
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Approval issues</h2>
         <p className="muted">
@@ -61,7 +62,7 @@ export async function ApprovalAdministration({
             className="approval-admin-item"
             key={`${row.record_type}:${row.record_id}`}
           >
-            <Link href={`${base}/${row.destination}`}>
+            <Link href={canonicalUiHref(`${base}/${row.destination}`)}>
               {row.record_type === "task"
                 ? "Task"
                 : row.record_type === "leave"

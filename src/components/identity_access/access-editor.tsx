@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
 
@@ -6,7 +7,7 @@ import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { businessRoles, businessRoleLabel } from "@/lib/identity_access/business-roles";
 import { StatusBadge } from "@/components/ui/primitives";
 import { RevokeCompanyAccess } from "@/components/identity_access/revoke-company-access";
@@ -72,7 +73,7 @@ export function AccessEditor({ appearance = "legacy",
   return (
     <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
       <h2 data-ui-appearance={appearance}>Login & access</h2>
-      <UiActionAnchor appearance={appearance} variant="secondary" href={`${base}/iam/users`}>
+      <UiActionAnchor appearance={appearance} variant="secondary" href={canonicalUiHref(`${base}/iam/users`)}>
         Open Identity & access
       </UiActionAnchor>
       <p data-ui-appearance={appearance}>

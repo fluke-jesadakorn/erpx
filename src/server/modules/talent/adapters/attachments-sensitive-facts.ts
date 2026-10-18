@@ -2,6 +2,9 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "../../runtime/public/runtime/types";
 import {assertion} from "../../workflow/public/commands";
 const sensitiveTables:Record<string,string>={talent_candidate:"talent_candidates",talent_offer:"talent_offers"};
+// A document bind advances the Offer version. Keep the immutable accepted
+// source exact until its original HR delivery has actually been consumed.
+const offerFilesMutable=(alias:string)=>`(${alias}.status<>'accepted' OR EXISTS(SELECT 1 FROM talent_hire_handoffs handoff JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=handoff.id AND receipt.company_id=handoff.company_id AND receipt.source_offer_version=handoff.source_offer_version WHERE handoff.offer_id=${alias}.id AND handoff.company_id=${alias}.company_id))`;
 const sensitiveRecordTables = new Set([
   "hr_evaluation_assessment",
   "hr_person",
@@ -32,7 +35,7 @@ function sensitiveAttachmentTargetVersionGuard(
     db,
     commandId,
     `sensitive-attachment-owner-${index}`,
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)`,
+    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?${targetType==="talent_offer"?` AND ${offerFilesMutable(table)}`:""})`,
     [targetId, companyId, version],
   );
 }
@@ -66,7 +69,7 @@ readTalentApplications1:(facts:{userId:string;userId2:string;userId3:string;targ
       owner_department_id: string | null;
       is_owner: number;
     }>(),
-readTalentOffers1:(facts:{targetId:string;companyId:string;})=>db.prepare(`SELECT o.company_id,o.version,r.branch_id,r.department_id,a.owner_id
+readTalentOffers1:(facts:{targetId:string;companyId:string;})=>db.prepare(`SELECT o.company_id,o.version,r.branch_id,r.department_id,a.owner_id,CASE WHEN ${offerFilesMutable("o")} THEN 0 ELSE 1 END pending_hire_delivery
       FROM talent_offers o
       JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id
       JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id
@@ -76,5 +79,6 @@ readTalentOffers1:(facts:{targetId:string;companyId:string;})=>db.prepare(`SELEC
       branch_id: string | null;
       department_id: string | null;
       owner_id: string;
+      pending_hire_delivery: number;
     }>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>sensitiveAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>sensitiveAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

@@ -1,0 +1,15 @@
+.workspace, .quote { display: grid; gap: var(--ui-space-4, 1rem); min-width: 0; color: var(--ui-ink); }
+.workspace h2, .workspace h3, .workspace p { margin-block: 0; }
+.workspace h3 { font-size: var(--ui-font-size-md, 1rem); }
+.grid, .paymentSplit { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--ui-space-4, 1rem); min-width: 0; }
+.paymentSplit p, .quote { overflow-wrap: anywhere; }
+.paymentSplit strong { display: block; margin-block-start: var(--ui-space-2, .5rem); font-size: var(--ui-font-size-lg, 1.125rem); }
+.offer { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: var(--ui-space-4, 1rem); }
+.offer > div { display: grid; gap: var(--ui-space-2, .5rem); min-width: 0; }
+.offer strong { white-space: nowrap; }
+.eyebrow { color: var(--ui-muted); font-size: var(--ui-font-size-sm, .875rem); text-transform: uppercase; letter-spacing: .06em; }
+.notice, .muted { color: var(--ui-muted); }
+.total { font-size: var(--ui-font-size-lg, 1.125rem); font-weight: 600; }
+.fieldset { display: grid; gap: var(--ui-space-4, 1rem); min-width: 0; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md, .5rem); padding: var(--ui-space-4, 1rem); margin: 0; }
+.fieldset legend { padding-inline: var(--ui-space-2, .5rem); font-weight: 600; }
+.recoveryForm { padding-block-start: var(--ui-space-5, 1.25rem); border-block-start: 1px solid var(--ui-line); }

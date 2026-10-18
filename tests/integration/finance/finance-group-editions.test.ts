@@ -1,4 +1,7 @@
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import {financeExpansionWork} from "../../../src/server/modules/finance/public/finance-expansion-work";
+import {attachmentPolicy,authorizeAttachmentTarget} from "../../../src/server/modules/files/public/attachments/policy";
+import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import {
   prepareAccountingProfile,
   decideAccountingProfile,
@@ -24,6 +27,7 @@ import {
 } from "../../../src/server/modules/finance/public/finance";
 import {
   prepareGroupReportEdition,
+  groupReportEditionWorkspace,
   decideGroupReportEdition,
   groupReportEditionExport,
   groupExpansionRecord,
@@ -857,6 +861,7 @@ it("pairs actual posted documents, prevents duplicate claims and self review, an
       .first("status"),
   ).toBe("posted");
 });
+afterEach(()=>vi.unstubAllEnvs());
 let f: Fixture, g: Fixture;
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
@@ -1373,4 +1378,38 @@ it("includes reversed originals and exact inverses, guards period alignment, sta
       key(),
     ),
   ).rejects.toMatchObject({ code: "GROUP_PERIODS_NOT_ALIGNED" });
+});
+
+it("requires purchased source books for a complete group edition without silently replacing a Company with zero",async()=>{
+ await activity(f,"30","10");await activity(g,"20","5");const input=await definition();
+ await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ const command=key();await expect(prepareGroupReportEdition(f.owner,input,command)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ expect(await db.prepare("SELECT id FROM finance_group_report_editions WHERE company_id=?").bind(f.company).first()).toBeNull();
+ await reviewedFinanceGrant(db,g.company,"finance");
+ const edition=await prepareGroupReportEdition(f.owner,input,command),id=String(edition.id);expect((await result(id)).profit).toBe("35.00");
+ expect((await groupExpansionRecord(f.owner,"finance_group_edition",id)).groupData.editions).toHaveLength(1);
+ const code=input.mappings.find(mapping=>mapping.accountId===f.accounts.revenue)!.group.code,sources=await groupEditionAccountSources(f.owner,id,code,1);expect(sources.rows).toHaveLength(2);
+ expect((await groupEditionSourceJournal(f.owner,id,String(sources.rows[0].journal_id))).lines.length).toBeGreaterThan(0);
+ await reviewedFinanceGrant(db,f.company,"finance-advanced","draining");
+ expect(await prepareGroupReportEdition(f.owner,input,command)).toEqual(edition);
+ expect(await decideGroupReportEdition(f.manager,id,{expectedVersion:1,reason:"Independent complete retained Company source review"},"approve",key())).toMatchObject({status:"approved",version:2});
+ expect(await groupReportEditionExport(f.owner,id)).toBeDefined();expect(await groupReportEditionWorkspace(f.owner)).toBeDefined();
+ const ownershipInput={investorCompanyId:f.company,investeeCompanyId:g.company,method:"subsidiary" as const,ownershipBps:8000,votingBps:8000,controlAssessment:"Reviewed retained subsidiary control",effectiveFrom:"2026-01-01",reason:"Reviewed source ownership evidence"};
+ await expect(prepareOwnershipEdition(f.owner,ownershipInput,key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});
+ await reviewedFinanceGrant(db,f.company,"finance-advanced");const interest=await prepareOwnershipEdition(f.owner,ownershipInput,key());
+ await decideOwnershipEdition(f.manager,String(interest.id),{expectedVersion:1,reason:"Independent original ownership evidence"},"approve",key());
+ expect((await groupExpansionRecord(f.owner,"finance_group_ownership",String(interest.id))).row.id).toBe(interest.id);
+ const acquisition=await prepareAcquisitionEdition(f.owner,{ownershipId:String(interest.id),ownershipVersion:2,acquisitionDate:"2026-01-20",currency:"THB",consideration:"100",nciMeasurement:"fair_value",nciFairValue:"20",identifiableNetAssets:"80",cguReference:"Reviewed retained source CGU",reason:"Reviewed original acquisition evidence"},key());
+ expect((await groupExpansionRecord(f.owner,"finance_group_acquisition",String(acquisition.id))).row.id).toBe(acquisition.id);
+
+});
+
+it("Finance source purchase checks every retained Company before exposing group Work or private evidence",async()=>{
+ await activity(f,"30","10");await activity(g,"20","5");const input=await definition(),edition=await prepareGroupReportEdition(f.owner,input,key()),id=String(edition.id);
+ await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ expect((await financeExpansionWork(f.manager)).some(item=>item.id===id)).toBe(false);
+ await expect(authorizeAttachmentTarget(db,f.owner,attachmentPolicy("finance_group_report","finance_support","record"),id,"read")).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ await reviewedFinanceGrant(db,g.company,"finance");
+ expect((await financeExpansionWork(f.manager)).find(item=>item.id===id)).toMatchObject({canAct:true,href:"/finance/group-editions"});
+ expect(await authorizeAttachmentTarget(db,f.owner,attachmentPolicy("finance_group_report","finance_support","record"),id,"read")).toMatchObject({companyId:f.company,version:1});
 });

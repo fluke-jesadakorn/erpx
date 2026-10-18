@@ -1,3 +1,4 @@
+import {withExpensePurchasedCommand} from "./expense-purchases";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "../../commerce/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "../../files/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "../../finance/public/hospitality-owner-projection-sources";
@@ -74,7 +75,7 @@ export async function expenseRequirements(db: SqlDatabase, row: ExpenseRow) {
   return nativeExpenseRequirements(db)(row);
 }
 
-export function nativeExpenseDrafts(write: SqlDatabase) {
+function originalNativeExpenseDrafts(write: SqlDatabase) {
   return createSaveExpenseDraft({
     ...expenseCommandPort(write),
     expense: (actor, id) => expenseFromDatabase(write, actor, id),
@@ -163,5 +164,7 @@ export function nativeExpenseDrafts(write: SqlDatabase) {
 }
 export async function saveExpenseDraft(actor: WorkContext, id: string | null, input: z.infer<typeof expenseUpdateSchema>, key: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpenseDrafts(write)(actor, id, input, key);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:"new-work"}, tx => nativeExpenseDrafts(tx)(actor, id, input, key));
 }
+
+export function nativeExpenseDrafts(database: SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseDrafts>>)=>withExpensePurchasedCommand(database,args[0],{key:args[3],purpose:"new-work"},transaction=>originalNativeExpenseDrafts(transaction)(...args));}

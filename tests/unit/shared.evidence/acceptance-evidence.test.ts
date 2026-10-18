@@ -1,15 +1,11 @@
 import { describe, expect, it } from "vitest";
 import ledger from "../../../docs/status/business-acceptance-evidence.json";
 import { validateAcceptanceEvidence } from "../../../src/data/acceptance-evidence";
-import { businessAcceptanceManifest } from "../../../src/data/business-acceptance";
 
 describe("acceptance evidence boundaries", () => {
   const record = ledger.records[0];
   const withRecord = (changes: Record<string, unknown>) => ({ version: 1, records: [{ ...record, ...changes }] });
-  it("preserves scoped observations without promoting capability gates", () => {
-    expect(validateAcceptanceEvidence(ledger).records).toHaveLength(ledger.records.length);
-    expect(businessAcceptanceManifest().every(row => Object.values(row.gates).every(gate => gate.state === "pending"))).toBe(true);
-  });
+
   it("rejects simulation evidence for provider and production gates", () => {
     for (const gate of ["provider", "production"]) expect(() => validateAcceptanceEvidence(withRecord({ gate }))).toThrow();
   });

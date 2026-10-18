@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Button, Field, Select, Table, TextInput } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import type {
@@ -53,7 +54,7 @@ export function AnalyticsReport({
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>{kind === "crm" ? "CRM analytics" : "Marketing analytics"}</h2>
-      <FilterBar className="ui-filter-bar" method="get" action={workspaceHref ?? `${base}/${kind}`}>
+      <FilterBar className="ui-filter-bar" method="get" action={workspaceHref ?? canonicalUiHref(`${base}/${kind}`)}>
         {workspaceHref && <input type="hidden" name="view" value="reports" />}
         <Field appearance="standard">
           From
@@ -64,9 +65,9 @@ export function AnalyticsReport({
           <TextInput appearance="standard" name="to" type="date" defaultValue={f.to} required />
         </Field>
         {select("branchId", "Company / Branch", options.branches)}
-        {select("propertyId", "Property", options.properties)}
-        {select("campaignId", "Campaign", options.campaigns)}
-        {select("ownerId", "Owner", options.owners)}
+        {(!options.access||options.access.hotel)&&select("propertyId", "Property", options.properties)}
+        {(!options.access||options.access.marketing)&&select("campaignId", "Campaign", options.campaigns)}
+        {(!options.access||options.access.crm)&&select("ownerId", "Owner", options.owners)}
         <Button appearance="standard" type="submit" variant="primary">
           Apply filters
         </Button>
@@ -75,6 +76,10 @@ export function AnalyticsReport({
         Selected dates: {f.from}–{f.to} (Asia/Bangkok). Counts use source records and each metric
         states its formula and unit.
       </p>
+      {report.access&&!report.access.hotel&&<p role="status">Hotel source history is unavailable under current access.</p>}
+      {report.access&&!report.access.marketing&&<p role="status">Marketing campaign history is unavailable under current access.</p>}
+      {kind==='marketing'&&report.access&&!report.access.crm&&<p role="status">CRM outcome and attribution details are unavailable under current access. Original form submissions and handoffs remain visible.</p>}
+      {kind==='marketing'&&report.access&&!report.access.costs&&<p role="status">Finance cost history is unavailable under current access.</p>}
       <div className={styles.metrics}>
         {report.metrics.map((m) => (
           <article className={styles.metric} key={m.id}>
@@ -92,7 +97,7 @@ export function AnalyticsReport({
                 <summary>Source records ({m.drilldown.length})</summary>
                 {m.drilldown.slice(0, 100).map((id) => (
                   <div key={id}>
-                    <Link href={`${base}/${kind}/${id}`}>{id}</Link>
+                    <Link href={canonicalUiHref(`${base}/${kind}/${id}`)}>{id}</Link>
                   </div>
                 ))}
               </details>
@@ -134,8 +139,8 @@ export function AnalyticsReport({
             <ul>
               {report.outcomes.map((x) => (
                 <li key={x.leadId}>
-                  <Link href={`${base}/crm/${x.leadId}`}>
-                    {x.source} · {x.sourceId}
+                  <Link href={canonicalUiHref(`${base}/crm/${x.leadId}`)}>
+                    {x.source} · {x.sourceAvailable?x.sourceId:'Restricted source'}
                   </Link>{" "}
                   · Current source state: {x.currentSourceState}
                 </li>
@@ -159,7 +164,7 @@ export function AnalyticsReport({
           <h3>Last touch</h3>
           <Definition item={report.definitions[1]} />
           <Attribution rows={report.lastTouch} base={base} />
-          <p>Handoffs without campaign evidence: {report.unattributed}</p>
+          <p>Handoffs without campaign evidence: {value(report.unattributed, "count")}</p>
           <Definition item={report.definitions[2]} />
           <SourceLinks base={base} kind="marketing" ids={report.unattributedCandidateIds} />
         </>
@@ -203,7 +208,7 @@ function SourceLinks({
       <summary>Source records ({ids.length})</summary>
       {ids.slice(0, 100).map((id) => (
         <div key={id}>
-          <Link href={`${base}/${kind}/${id}`}>{id}</Link>
+          <Link href={canonicalUiHref(`${base}/${kind}/${id}`)}>{id}</Link>
         </div>
       ))}
     </details>

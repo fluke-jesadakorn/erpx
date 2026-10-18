@@ -29,6 +29,8 @@ bun run seed:local           # development data only; never production
 bun run seed:verify:local   # read-only seed checks
 bun run dev                # :3100 UI development
 bun run deploy:build       # isolated production release
+bun run test                              # fast unit loop
+bun run test:dev --base=<verified-sha>      # impact-aware development check
 bun run lint; bun run typecheck; bun run test:integration
 ```
 

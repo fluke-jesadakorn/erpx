@@ -1,6 +1,7 @@
 import { canonicalGuestAccount, legacyGuestAccount, legacyGuestAccountOperation } from "@/lib/identity_access/guest-account-compat";
 import {BusinessRuleError,type Clock,type IdentifierSource} from '../../shared';
 import {financialConstraintError,type CommandActor} from '../domain/commands';
+export type CommandBoundary<Effect> = { before: Effect[]; after: Effect[] };
 export interface CommandRepository<Effect> {
   receipt(id:string):Promise<{request_hash:string;result_json:string;operation?:string;actor_id?:string;record_id?:string;authority_json?:string|null}|null>;
   clearAssertions(id:string):Effect;
@@ -49,14 +50,14 @@ export function createCommandApplication<Effect>(ports:CommandPorts<Effect>) {
     if(!matches)throw new BusinessRuleError(409,'IDEMPOTENCY_CONFLICT','This command key belongs to a different request.');
     await validateReplayAuthority(actor);return canonicalGuestAccount(JSON.parse(row.result_json)) as Result;
   }
-  async function executeCommand<Result>(actor:CommandActor,id:string,operation:string,input:unknown,recordId:string,version:number,result:Result,effects:Effect[],eventScope:Pick<CommandActor,'companyId'|'branchId'|'departmentId'>=actor):Promise<Result>{
+  async function executeCommand<Result>(actor:CommandActor,id:string,operation:string,input:unknown,recordId:string,version:number,result:Result,effects:Effect[],eventScope:Pick<CommandActor,'companyId'|'branchId'|'departmentId'>=actor,boundary?:CommandBoundary<Effect>):Promise<Result>{
     if(!/^[a-zA-Z0-9:_.-]{8,180}$/.test(id))throw new BusinessRuleError(422,'COMMAND_KEY_REQUIRED','Use a valid Idempotency-Key for this action.');
     const digest=await fingerprint(actor,operation,recordId,input),prior=()=>replayCommand<Result>(actor,id,operation,recordId,input);
     const existing=await prior();if(existing)return existing;
     effects=await ports.prepareOwnerStatements(actor,id,operation,input,recordId,version,effects);
     const now=ports.clock.now(),state=typeof result==='object'&&result!==null?((result as Record<string,unknown>).state??(result as Record<string,unknown>).status):undefined;
     try{
-      await ports.batch([...ports.workContextGuards(actor,id),...ports.iamMutationGuards(actor,id),repository.insertReceipt(actor,id,operation,digest,recordId,result,now),ports.assignmentGuard(actor,id),repository.captureAssignmentAuthority(actor,id),...effects,repository.audit(actor,id,operation,recordId,version,now,ports.identifiers.next()),repository.outbox(actor,id,operation,recordId,version,state,eventScope,now,ports.identifiers.next()),repository.clearAssertions(id)]);
+      await ports.batch([...(boundary?.before??[]),...ports.workContextGuards(actor,id),...ports.iamMutationGuards(actor,id),repository.insertReceipt(actor,id,operation,digest,recordId,result,now),ports.assignmentGuard(actor,id),repository.captureAssignmentAuthority(actor,id),...effects,repository.audit(actor,id,operation,recordId,version,now,ports.identifiers.next()),repository.outbox(actor,id,operation,recordId,version,state,eventScope,now,ports.identifiers.next()),...(boundary?.after??[]),repository.clearAssertions(id)]);
       return result;
     }catch(error){
       // The owning transaction retries the whole handoff for these failures.

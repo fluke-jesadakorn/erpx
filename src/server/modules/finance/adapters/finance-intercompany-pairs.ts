@@ -1,3 +1,5 @@
+import { withFinancePurchasedCommand, withFinancePurchasedRead } from "./purchase-boundary";
+import { groupCompanyPurchases, groupRecordPurchases, requireGroupCompanyHistory, groupHistoryPredicate, groupSourceSql, groupRecordHistorySql } from "./group-purchase-sources";
 import "server-only";
 import type { z } from "zod";
 import { decimalToUnits } from "@/lib/finance/finance-money";
@@ -15,7 +17,7 @@ import { ApiError } from "@/server/modules/runtime/public/http";
 import {createIntercompanyPairService,type IntercompanyPairRepository} from '../application/intercompany-pairs';
 import type {PairFactRow as Row,intercompanyPairSchema,intercompanyPairDecisionSchema} from '../domain/intercompany-pairs';
 export {intercompanyPairSchema,intercompanyPairDecisionSchema} from '../domain/intercompany-pairs';
-function nativePairRepository(db:SqlDatabase):IntercompanyPairRepository{return {moneyScale:(companyId,currency)=>requireFinanceMoneyScale(db,companyId,currency),tool:companyId=>requireFinanceTool(db,companyId,'group_reporting'),replay:(actor,key,op,id,input)=>replayCommand(db,actor,key,op,id,input),entity:async(holdingId,companyId)=>db
+function nativePairRepository(db:SqlDatabase,historySql:(company:string)=>string=()=>"TRUE"):IntercompanyPairRepository{return {moneyScale:(companyId,currency)=>requireFinanceMoneyScale(db,companyId,currency),tool:companyId=>requireFinanceTool(db,companyId,'group_reporting'),replay:(actor,key,op,id,input)=>replayCommand(db,actor,key,op,id,input),entity:async(holdingId,companyId)=>db
         .prepare(
           "SELECT * FROM finance_group_entities WHERE holding_id=? AND company_id=? AND status='active'",
         )
@@ -78,7 +80,7 @@ prepareCommit:async(facts)=>{const {actor,key,op,input,id,e,now}=facts;return ex
     );},
 pair:async(actor,id)=>db
       .prepare(
-        "SELECT * FROM finance_intercompany_document_pairs WHERE id=? AND holding_id=? AND company_id=?",
+        groupSourceSql("SELECT * FROM finance_intercompany_document_pairs WHERE id=? AND holding_id=? AND company_id=?",[groupRecordHistorySql("pair","finance_intercompany_document_pairs",historySql)]),
       )
       .bind(id, actor.holdingId, actor.companyId)
       .first<Row>(),
@@ -121,15 +123,15 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,expected,statu
       { id, status, version: input.expectedVersion + 1 },
       steps,
     );}};}
-function nativePairs(provided?:SqlDatabase){return createIntercompanyPairService({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,hash:sha256,now:Date.now,transaction:async(actor,run)=>financeTransaction(provided??(await holdingResources(actor.holdingId)).write,db=>run(nativePairRepository(db))),workspace:async actor=>{const write=provided??(await holdingResources(actor.holdingId)).write;  return (
+function nativePairs(provided?:SqlDatabase,owned=false){return createIntercompanyPairService({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,hash:sha256,now:Date.now,transaction:async(actor,run)=>{const historySql=await groupHistoryPredicate();return provided&&owned?run(nativePairRepository(provided,historySql)):financeTransaction(provided??(await holdingResources(actor.holdingId)).write,db=>run(nativePairRepository(db,historySql)))},workspace:async actor=>{const historySql=await groupHistoryPredicate();const write=provided??(await holdingResources(actor.holdingId)).write;  return (
     await write
       .prepare(
-        "SELECT * FROM finance_intercompany_document_pairs WHERE holding_id=? AND company_id=? ORDER BY created_at DESC,id LIMIT 200",
+        groupSourceSql("SELECT * FROM finance_intercompany_document_pairs WHERE holding_id=? AND company_id=? ORDER BY created_at DESC,id LIMIT 200",[groupRecordHistorySql("pair","finance_intercompany_document_pairs",historySql)]),
       )
       .bind(actor.holdingId, actor.companyId)
       .all<Row>()
   ).results;}});}
-export const intercompanyPairSource=(db:SqlDatabase,actor:WorkContext,input:z.infer<typeof intercompanyPairSchema>)=>nativePairs(db).intercompanyPairSource(nativePairRepository(db),actor,input);
-export const prepareIntercompanyPair=(actor:WorkContext,raw:z.input<typeof intercompanyPairSchema>,key:string)=>nativePairs().prepareIntercompanyPair(actor,raw,key);
-export const decideIntercompanyPair=(actor:WorkContext,id:string,raw:z.input<typeof intercompanyPairDecisionSchema>,action:'confirm'|'reject'|'reverse',key:string)=>nativePairs().decideIntercompanyPair(actor,id,raw,action,key);
-export const intercompanyPairWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>nativePairs(provided).intercompanyPairWorkspace(actor);
+export const intercompanyPairSource=async(db:SqlDatabase,actor:WorkContext,input:z.infer<typeof intercompanyPairSchema>)=>{for(const source of [input.source,input.target])await requireGroupCompanyHistory(db,source.companyId);return nativePairs(db).intercompanyPairSource(nativePairRepository(db),actor,input);};
+export const prepareIntercompanyPair=(actor:WorkContext,raw:z.input<typeof intercompanyPairSchema>,key:string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.intercompany-pair.prepare",purpose:"settle-existing",capability:"finance.advanced",companyPurchases:()=>Promise.resolve(groupCompanyPurchases([raw.source.companyId,raw.target.companyId]))},tx=>nativePairs(tx,true).prepareIntercompanyPair(actor,raw,key));
+export const decideIntercompanyPair=(actor:WorkContext,id:string,raw:z.input<typeof intercompanyPairDecisionSchema>,action:'confirm'|'reject'|'reverse',key:string)=>withFinancePurchasedCommand(actor,{key,operation:`finance.intercompany-pair.${action}`,purpose:"settle-existing",capability:"finance.advanced",companyPurchases:db=>groupRecordPurchases(db,actor,"pair",id)},tx=>nativePairs(tx,true).decideIntercompanyPair(actor,id,raw,action,key));
+export const intercompanyPairWorkspace=(actor:WorkContext,provided?:SqlDatabase)=>provided?nativePairs(provided).intercompanyPairWorkspace(actor):withFinancePurchasedRead(actor,db=>nativePairs(db).intercompanyPairWorkspace(actor),"finance.advanced");

@@ -1,1 +1,1 @@
-export {collaborationHomeSources} from '../adapters/collaboration-home-sources';
+export {collaborationHomeSources,socialProjectAudienceOptions,socialProjectAudienceSource,socialProjectAudienceReadPredicate} from '../adapters/collaboration-home-sources';

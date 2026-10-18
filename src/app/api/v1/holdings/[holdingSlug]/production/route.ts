@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -25,11 +26,11 @@ export async function GET(r: Request, c: C) {
           ? "planning"
           : "manufacturing";
     return Response.json(
-      {
+      canonicalDestinationLinks({
         data: id
           ? await productionDetail(a, id)
           : await productionWorkspace(a, workspaceModule),
-      },
+      }),
       { headers },
     );
   } catch (e) {
@@ -73,7 +74,7 @@ export async function POST(r: Request, c: C) {
     else if (i.entity === "recommendation")
       data = await reviewPlanningRecommendation(a, i.id, i, key);
     else data = await changeManufacturingOrder(a, i.id, i, key);
-    return Response.json({ data }, { headers });
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (e) {
     return errorResponse(e);
   }

@@ -1,0 +1,6 @@
+import {z} from 'zod';
+
+export type AccountSecuritySeed={accountKey:string;revision:string;mfaEnabled:boolean;mfaFreshUntil:number|null;families:{handle:string;current:boolean;createdAt:number;expiresAt:number;userAgent:string|null;audiences:string[]}[];legacySessions:number};
+export const accountSecuritySeedSchema=z.object({accountKey:z.string().regex(/^[a-f0-9]{64}$/),revision:z.string().regex(/^[a-f0-9]{64}$/),mfaEnabled:z.boolean(),mfaFreshUntil:z.number().int().nonnegative().nullable(),families:z.array(z.object({handle:z.string().regex(/^[a-f0-9]{64}$/),current:z.boolean(),createdAt:z.number().int().nonnegative(),expiresAt:z.number().int().nonnegative(),userAgent:z.string().nullable(),audiences:z.array(z.string())}).strict()),legacySessions:z.number().int().nonnegative()}).strict();
+export const accountSecurityInput=z.object({accountKey:z.string().regex(/^[a-f0-9]{64}$/),expectedRevision:z.string().regex(/^[a-f0-9]{64}$/),scope:z.enum(['family','all']),family:z.string().regex(/^[a-f0-9]{64}$/).optional(),reason:z.string().trim().min(3).max(1000)}).strict().refine(input=>input.scope==='family'?!!input.family:input.family===undefined,{message:'Choose one sign-in family or all your devices.'});
+export type AccountSecurityInput=z.infer<typeof accountSecurityInput>;

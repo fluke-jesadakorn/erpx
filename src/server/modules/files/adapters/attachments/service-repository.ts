@@ -6,7 +6,12 @@ import type { AttachmentSourceState, AttachmentComponentKind } from "../../domai
 import type { SetRow, LinkRow } from "../../domain/attachments/service-models";
 import { assertion } from "../../../workflow/public/commands";
 export function repository(db: SqlDatabase) {
-    return { readAttachmentSets1: (facts: {
+    return {
+        readAttachmentSetAlias: (facts:{id:string;companyId:string;userId:string}) => db.prepare(`SELECT source.* FROM attachment_events receipt JOIN attachment_sets source ON source.id=receipt.set_id AND source.company_id=receipt.company_id AND source.created_by=receipt.actor_id
+          WHERE receipt.id=? AND receipt.company_id=? AND receipt.actor_id=? AND receipt.action='set.reused' AND receipt.details_json::jsonb->>'requestedSetId'=?`).bind(`set-alias-${facts.id}`,facts.companyId,facts.userId,facts.id).first<SetRow>(),
+        stepAttachmentSetAlias: (facts:{id:string;companyId:string;userId:string;setId:string;now:number}) => db.prepare(`INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at)
+          SELECT ?,company_id,id,?,'set.reused',jsonb_build_object('requestedSetId',?::text)::text,? FROM attachment_sets WHERE id=? AND company_id=? AND created_by=? AND state='draft'`).bind(`set-alias-${facts.id}`,facts.userId,facts.id,facts.now,facts.setId,facts.companyId,facts.userId),
+        readAttachmentSets1: (facts: {
             id: string;
             companyId: string;
         }) => { return db.prepare("SELECT * FROM attachment_sets WHERE id=? AND company_id=?").bind(facts.id, facts.companyId).first<SetRow>(); },
@@ -650,6 +655,12 @@ export function repository(db: SqlDatabase) {
         }) => { return db.prepare("SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=?").bind(facts.companyId, facts.targetType, facts.targetId).first<{
             version: number;
         }>(); },
+        readPublicationRevocation: (facts:{eventId:string;companyId:string;userId:string;publicationId:string;reason:string;}) => db.prepare(`SELECT event.id FROM attachment_events event JOIN attachment_publications publication
+          ON publication.id=? AND publication.company_id=event.company_id AND publication.source_link_id=event.link_id
+          AND publication.state='revoked' AND publication.revoked_by=event.actor_id AND publication.revocation_reason=?
+          WHERE event.id=? AND event.company_id=? AND event.actor_id=? AND event.action='publication.revoked'
+          AND event.details_json::jsonb->>'publicationId'=publication.id AND event.details_json::jsonb->>'reason'=publication.revocation_reason`)
+          .bind(facts.publicationId,facts.reason,facts.eventId,facts.companyId,facts.userId).first<{id:string}>(),
         readAttachmentPublications87: (facts: {
             id: string;
             companyId: string;

@@ -52,7 +52,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         values = [...scopeArgs, f.from, f.to];
     }
     if (id === "recent-customer-activity") {
-        const source = customerTimelineEvents(a);
+        const source = await customerTimelineEvents(a,sourceDb);
         const label = breakdown === "month"
             ? "to_char(to_timestamp(e.at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
             : "e.source_type";

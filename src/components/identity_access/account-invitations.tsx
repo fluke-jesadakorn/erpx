@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 import { RecordLink as Link } from "@/components/records/record-link";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -32,7 +33,7 @@ export async function AccountInvitations({
       {invitations.map((invite) => (
         <div className="ui-record-item" key={invite.id}>
           <div className="row-main">
-            <Link href={`${base}/people/${invite.person_id}?tab=access`}>
+            <Link href={canonicalUiHref(`${base}/people/${invite.person_id}?tab=access`)}>
               {invite.email}
             </Link>
             <p className="muted">

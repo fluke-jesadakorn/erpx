@@ -1,4 +1,8 @@
-import Link from "next/link";
+"use client";
+import {DestinationFilterForm} from "./destination-filter-form";
+import {usePathname} from 'next/navigation';
+import {destinationForPath,selectionForPath,workspacePathParts} from '@/lib/work_projection/destination-registry';
+import Link from "@/components/workplace/workspace-link";
 import {routeContextHref} from "@/lib/shared/route-context";
 import { Button, SearchField, Select, FilterBar, type UiAppearance } from "./foundation";
 export function ListFilters({
@@ -20,11 +24,15 @@ export function ListFilters({
   statuses?: readonly (readonly [string, string])[];
   preserve?: Record<string, string | string[]>;
 }) {
-  const Element = appearance === "standard" ? FilterBar : "form";
+  const pathname=usePathname(),parts=workspacePathParts(pathname);
+  const owned=parts?destinationForPath(parts.path):undefined;
+  const target=owned?pathname:action;
+  const retained=Object.fromEntries(Object.entries(preserve).filter(([key])=>!Object.hasOwn(selectionForPath(pathname),key)));
+  const Element = appearance === "standard" ? FilterBar : DestinationFilterForm;
   return (
-    <Element className={appearance === "standard" ? undefined : "work-filters"} action={action} role="search">
-      {Object.entries(preserve).flatMap(([name, value]) => (Array.isArray(value)?value:[value]).map((item,index)=><input key={`${name}:${index}`} type="hidden" name={name} value={item}/>))}
-      <SearchField appearance={appearance}
+    <Element className={appearance === "standard" ? undefined : "work-filters"} action={target} role="search">
+      {Object.entries(retained).flatMap(([name, value]) => (Array.isArray(value)?value:[value]).map((item,index)=><input key={`${name}:${index}`} type="hidden" name={name} value={item}/>))}
+      <SearchField key={query} appearance={appearance}
         name="q"
         aria-label={placeholder}
         placeholder={placeholder}
@@ -47,7 +55,7 @@ export function ListFilters({
         <Link
           className={appearance === "standard" ? "button ghost ui-standard-control" : "button ghost"}
           data-slot="button"
-          href={routeContextHref(action,preserve)}
+          href={routeContextHref(target,retained)}
         >
           Clear filters
         </Link>

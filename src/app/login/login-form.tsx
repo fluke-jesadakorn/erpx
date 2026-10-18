@@ -2,6 +2,8 @@
 import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/identity_access/auth-client";
+import {accountWorkspaceLoginReturn} from '@/server/modules/identity_access/public/rules/account-workspace';
+import {legalEnrollmentReturnPath} from '@/server/modules/identity_access/public/rules/public-surface-entry';
 import { Alert, Button, Field, FormLayout, TextInput, type UiAppearance } from "@/components/ui/foundation";
 const subscribeHydration = () => () => {};
 const clientHydrated = () => true;
@@ -26,6 +28,12 @@ export function LoginForm({ next, frontMode = false, appearance = "legacy" }: { 
       if (result.error) {
         setError(frontMode ? "เข้าสู่ระบบไม่สำเร็จ ตรวจสอบอีเมลและรหัสผ่าน แล้วลองอีกครั้ง" : result.error.message ?? "Sign in failed.");
         setPending(false);
+        return;
+      }
+      // SSO exchanges single-use grants through cross-origin HTTP redirects.
+      // An RSC navigation plus refresh can consume the same exchange twice.
+      if (next?.startsWith("/sso/authorize?") || next&&(accountWorkspaceLoginReturn(next)===next||legalEnrollmentReturnPath(next)===next)) {
+        window.location.assign(next);
         return;
       }
       router.push(next ?? "/");

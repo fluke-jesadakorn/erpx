@@ -1,3 +1,4 @@
+import { withFinancePurchasedCommand, withFinancePurchasedRead } from "./purchase-boundary";
 import {financeCloseManufacturingSource} from "../../manufacturing/public/finance-close-source";
 import { createFinanceEngines } from '../application/engines';
 import type { SqlDatabase } from '@/server/modules/runtime/public/runtime/types';
@@ -12,13 +13,13 @@ type Row = Record<string, string | number | null>;
 export { calculationRunSchema, calculationDecisionSchema } from '../domain/engines';
 import { calculationRunSchema, calculationDecisionSchema } from '../domain/engines';
 async function digest(value: unknown) { return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value))))).map(byte => byte.toString(16).padStart(2, "0")).join(""); }
-export async function financeEngineWorkspace(actor: WorkContext) { return engineService().financeEngineWorkspace(actor); }
-export async function createCalculationRun(actor: WorkContext, raw: z.input<typeof calculationRunSchema>, key: string) { return engineService().createCalculationRun(actor, raw, key); }
-export async function decideCalculationRun(actor: WorkContext, runId: string, input: z.infer<typeof calculationDecisionSchema>, action: "review" | "approve" | "reject", key: string) { return engineService().decideCalculationRun(actor, runId, input, action, key); }
-export async function calculationRunDetail(actor: WorkContext, runId: string) { return engineService().calculationRunDetail(actor, runId); }
-export async function snapshotCloseChecks(actor: WorkContext, periodId: string, key: string) { return engineService().snapshotCloseChecks(actor, periodId, key); }
-function engineService() {
-    let pending: Promise<SqlDatabase> | undefined;
+export async function financeEngineWorkspace(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>engineService(db).financeEngineWorkspace(actor),"finance.advanced"); }
+export async function createCalculationRun(actor: WorkContext, raw: z.input<typeof calculationRunSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.calculation.prepare",purpose:"new-work",capability:"finance.advanced"},tx=>engineService(tx).createCalculationRun(actor,raw,key)); }
+export async function decideCalculationRun(actor: WorkContext, runId: string, input: z.infer<typeof calculationDecisionSchema>, action: "review" | "approve" | "reject", key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.calculation.${action}`,purpose:"settle-existing",capability:"finance.advanced"},tx=>engineService(tx).decideCalculationRun(actor,runId,input,action,key)); }
+export async function calculationRunDetail(actor: WorkContext, runId: string) { return withFinancePurchasedRead(actor,db=>engineService(db).calculationRunDetail(actor,runId),"finance.advanced"); }
+export async function snapshotCloseChecks(actor: WorkContext, periodId: string, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.close.check",purpose:"settle-existing",capability:"finance.close"},tx=>engineService(tx).snapshotCloseChecks(actor,periodId,key)); }
+function engineService(provided?: SqlDatabase) {
+    let pending: Promise<SqlDatabase> | undefined = provided ? Promise.resolve(provided) : undefined;
     const db = (actor: WorkContext) => pending ??= holdingResources(actor.holdingId).then(r => r.write);
     return createFinanceEngines({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, ready: async (actor) => { await db(actor); }, digest, replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), closeCounts: async (actor, period, periodId) => {
             const write = await db(actor);

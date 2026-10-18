@@ -1,4 +1,5 @@
 import 'server-only';
+import {withWorkSocialAiPhase} from './work-social-purchases';
 import type { AiEndpoint as NativeAiEndpoint } from '../../agent/public/ai-transport';
 import { z } from 'zod';
 import type { StaffActor } from '../../operations/public/staff-policy';
@@ -38,6 +39,7 @@ async function exposed<T>(action: () => Promise<T>) {
     }
 }
 function application(db?: SqlDatabase) {
+    const owner=db;
     const repository: SocialAiRepository<SqlStatement> = { async priorDraft(id: string, userId: string) {
             return db!
                 .prepare("SELECT actor_json,post_id,kind,source_hash,result_json,state,source_version,comment_ids_json,expires_at,provider_json FROM social_ai_drafts WHERE id=? AND actor_id=?")
@@ -82,8 +84,8 @@ function application(db?: SqlDatabase) {
             return db!
                 .prepare("UPDATE social_ai_usage SET state='failed',lease_until=0 WHERE id=?")
                 .bind(id);
-        }, ...agent(db!), ...workflow(db!) };
-    return createSocialAiApplication<SqlStatement>({ repository, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, sha256, batch: effects => db!.batch(effects), sourceSnapshot: (...args) => inward(() => sourceSnapshot(db!, ...args)), sourceGuard: (...args) => sourceGuard(db!, ...args), readablePost: (...args) => inward(() => readablePost(db!, ...args)), staffPeople: (...args) => inward(() => staffPeople(db!, ...args)), workContextGuards: (...args) => workContextGuards(db!, ...args), aiRequestQuotaLock: (...args) => aiRequestQuotaLock(db!, ...args), resolveAiProvider: (...args) => inward(() => resolveAiProvider(db!, ...args)), aiSnapshotGuard: (...args) => aiSnapshotGuard(db!, ...args), aiUsageStatement: (...args) => aiUsageStatement(db!, ...args), generateProviderJson: (endpoint, messages, tokens) => inward(() => generateProviderJson(endpoint as NativeAiEndpoint, messages, tokens)), withAiGatewayScope: (endpoint, ...args) => withAiGatewayScope(endpoint as NativeAiEndpoint, ...args) });
+        }, guardQuota:(...args)=>agent(db!).guardQuota(...args),clearReserveAssertions:(...args)=>workflow(db!).clearReserveAssertions(...args),clearFinishAssertions:(...args)=>workflow(db!).clearFinishAssertions(...args) };
+    return createSocialAiApplication<SqlStatement>({ repository, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, sha256, batch: effects => db!.batch(effects), writePhase:(actor,phase,prepare)=>inward(()=>withWorkSocialAiPhase(owner!,actor,phase,async transaction=>{const previous=db;db=transaction;try{return await transaction.batch(await prepare());}finally{db=previous;}})), sourceSnapshot: (...args) => inward(() => sourceSnapshot(db!, ...args)), sourceGuard: (...args) => sourceGuard(db!, ...args), readablePost: (...args) => inward(() => readablePost(db!, ...args)), staffPeople: (...args) => inward(() => staffPeople(db!, ...args)), workContextGuards: (...args) => workContextGuards(db!, ...args), aiRequestQuotaLock: (...args) => aiRequestQuotaLock(db!, ...args), resolveAiProvider: (...args) => inward(() => resolveAiProvider(db!, ...args)), aiSnapshotGuard: (...args) => aiSnapshotGuard(db!, ...args), aiUsageStatement: (...args) => aiUsageStatement(db!, ...args), generateProviderJson: (endpoint, messages, tokens) => inward(() => generateProviderJson(endpoint as NativeAiEndpoint, messages, tokens)), withAiGatewayScope: (endpoint, ...args) => withAiGatewayScope(endpoint as NativeAiEndpoint, ...args) });
 }
 export function callAi(env: BetaEnvironment, input: unknown) { return exposed(() => application().callAi(env, input)); }
 export function createAiDraft(db: SqlDatabase, actor: StaffActor, postId: string, input: z.infer<typeof aiRequestSchema>, env: BetaEnvironment, provider = callAi, commandKey?: string) { return exposed(() => application(db).createAiDraft(actor, postId, input, env, provider, commandKey, provider === callAi)); }

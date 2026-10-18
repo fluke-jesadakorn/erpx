@@ -9,6 +9,7 @@ import {marketingPresentationAssertions} from './public-form';
 import type {PublicMarketingForm} from '../application/public-form';
 import type {PublicMarketingSubmission} from '../domain/public-submission';
 import {createPublicMarketingSubmissionApplication,type PublicMarketingSubmissionUnit} from '../application/public-submission';
+import {withMarketingPublicSubmission} from './purchases';
 function unit(db:SqlDatabase):PublicMarketingSubmissionUnit{return {
  receipt:key=>db.prepare('SELECT request_hash,candidate_id FROM marketing_public_receipts WHERE key=?').bind(key).first<{request_hash:string;candidate_id:string}>(),
  current:row=>db.prepare("SELECT id FROM marketing_assets WHERE id=? AND company_id=? AND version=? AND status='active' FOR SHARE").bind(row.id,row.company_id,row.version).first(),
@@ -21,8 +22,10 @@ function unit(db:SqlDatabase):PublicMarketingSubmissionUnit{return {
  retainReceipt:(key,requestHash,id,now)=>db.prepare('INSERT INTO marketing_public_receipts(key,request_hash,candidate_id,created_at) VALUES(?,?,?,?)').bind(key,requestHash,id,now).run(),
  clearAssertions:key=>clearWorkflowCommandAssertions(db,key).run()
 };}
-export async function submitPublicMarketingForm(db:SqlDatabase,row:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string){
+async function submit(db:SqlDatabase,row:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string,versioned:boolean){
  if(!isTransactionalSqlDatabase(db))throw new ApiError(500,'TRANSACTION_REQUIRED','Form storage is unavailable.');
- const app=createPublicMarketingSubmissionApplication({clock:{now:Date.now},identifiers:{next:randomUUID},hash:value=>createHash('sha256').update(value).digest('hex'),transaction:run=>db.transaction(tx=>run(unit(tx)))});
- try{return await app.submit(row,body,key,ip);}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
+ const app=createPublicMarketingSubmissionApplication({clock:{now:Date.now},identifiers:{next:randomUUID},hash:value=>createHash('sha256').update(value).digest('hex'),transaction:run=>withMarketingPublicSubmission(db,row,key,async(tx,replay)=>{const result=await run(unit(tx));if(!replay){await tx.batch(marketingPresentationAssertions(tx,key,row.company_id,row.configuration_json));await clearWorkflowCommandAssertions(tx,key).run();}return result;})});
+ try{return await (versioned?app.submitVersioned(row,body,key,ip):app.submit(row,body,key,ip));}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 }
+export function submitPublicMarketingForm(db:SqlDatabase,row:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string){return submit(db,row,body,key,ip,false);}
+export function submitVersionedPublicMarketingForm(db:SqlDatabase,row:PublicMarketingForm,body:PublicMarketingSubmission,key:string,ip:string){return submit(db,row,body,key,ip,true);}

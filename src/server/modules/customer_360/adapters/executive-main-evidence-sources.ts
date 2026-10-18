@@ -19,7 +19,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         } | null): Promise<{
             rows: CustomerActivityItem[];
         }> {
-            const source = customerTimelineEvents(actor);
+            const source = await customerTimelineEvents(actor,db);
             const conditions = ["e.at>=?", "e.at<?"];
             const values: unknown[] = [...source.values, Date.parse(input.filters.from), Date.parse(input.filters.to) + 86400000];
             if (input.query) {
@@ -40,7 +40,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }): Promise<{
             row: CustomerActivityItem | null;
         }> {
-            const source = customerTimelineEvents(actor);
+            const source = await customerTimelineEvents(actor,db);
             const row = await db.prepare(`${source.sql} WHERE e.id=? AND e.at>=? AND e.at<? LIMIT 1`)
                 .bind(...source.values, recordId, Date.parse(filters.from), Date.parse(filters.to) + 86400000).first<CustomerActivityItem>();
             return { row };

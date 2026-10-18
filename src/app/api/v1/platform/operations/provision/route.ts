@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 import { errorResponse, ApiError } from "@/server/modules/runtime/public/http";
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
       { ...parsed.data, writeBinding: slot.write, readBinding: slot.read, filesBinding: slot.files },
       key,
     );
-    return Response.json({ data: result }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json(canonicalDestinationLinks({ data: result }), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);
   }
@@ -43,6 +44,6 @@ export async function GET() {
   try {
     await requireManageErpxContext();
     const env=await runtimeEnv();
-    return Response.json({data:await platformProvisioningSnapshot(env.CONTROL_DB,resourceSlots(env))},{headers:{"Cache-Control":"private, no-store"}});
+    return Response.json(canonicalDestinationLinks({data:await platformProvisioningSnapshot(env.CONTROL_DB,resourceSlots(env))}),{headers:{"Cache-Control":"private, no-store"}});
   } catch(error) {return errorResponse(error);}
 }

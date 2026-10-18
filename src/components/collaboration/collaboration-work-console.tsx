@@ -1,4 +1,6 @@
 "use client";
+import WorkspaceLink from '@/components/workplace/workspace-link';
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -6,7 +8,7 @@ import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { PreferredDateTimeField } from "@/components/people_payroll/time/preferred-date-time-field";
 import type { collaborationWorkspace } from "@/server/modules/collaboration/public/collaboration-work";
@@ -55,7 +57,7 @@ export function CollaborationWorkConsole({
     <>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       <p>
-        <a href={`${base}/inbox`}>Open conversations and authorized thread files</a>
+        <WorkspaceLink href={canonicalUiHref(`${base}/inbox`)}>Open conversations and authorized thread files</WorkspaceLink>
       </p>
       <p>
         <a href={`/api/v1${base}/collaboration?format=csv`} download>
@@ -208,7 +210,7 @@ export function CollaborationWorkConsole({
         >
           <h2>{String(x.title)}</h2>
           <div style={{ gridColumn: "1 / -1" }}>
-            <p>Source: <a href={`${base}${String(x.source_href)}`}>{String(x.source_title)}</a></p>
+            <p>Source: <WorkspaceLink href={`${base}${String(x.source_href)}`}>{String(x.source_title)}</WorkspaceLink></p>
             <p>Status: {String(x.status)} · Owner: {String(x.owner_name ?? x.owner_id)}</p>
             <p>Due: <TimeText value={Number(x.due_at)} appearance="standard" /></p>
           </div>

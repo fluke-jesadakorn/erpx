@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "format": "pms-owner-text-baselines-v1",
+  "purpose": "Exact pre-standard source text for explicitly selected historical controller probes; never an app runtime import or a claim that restored originals share this source epoch.",
+  "nativeCommandSemanticsChanged": false,
+  "capturedOwnerDependencies": {
+    "lifetimeHandoff": {
+      "path": ".scratch/dev/pms-command-lifetime-next/handoff.json",
+      "sha256": "344f2af578e83e2c63781a2a5ccd135c1411682e7c41b515f0b54499ef611342"
+    },
+    "backofficeHandoff": {
+      "path": ".scratch/dev/pms-backoffice-standard-next/handoff.json",
+      "sha256": "606813fd63e3ad332c8202e5cf4ea2c107a6862a6687ea486c0faae6278107a9"
+    }
+  },
+  "snapshots": [
+    {
+      "owner": "front",
+      "path": "fixtures/pms/source-baselines/pms-front-workspace-pre-standard.tsx.txt",
+      "source": "src/components/pms/pms-front-workspace.tsx",
+      "sha256": "61d78d6df643999f4190f20224ea53261fcbf7d383eb5edc011f0cfc299c752f",
+      "bytes": 39689,
+      "sourceEpoch": "current active legacy owner after lifetime7; captured before exact original restoration",
+      "restore": {
+        "commit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+        "sha256": "4fd6d583f135b96592d6a4081f8b1633d5bbbfc09d400b519086635aaa298990",
+        "bytes": 35482
+      },
+      "runtimeImport": false
+    },
+    {
+      "owner": "backoffice",
+      "path": "fixtures/pms/source-baselines/pms-backoffice-workspace-pre-standard.tsx.txt",
+      "source": "src/components/pms/pms-backoffice-workspace.tsx",
+      "sha256": "87f620301e1ec4b955fef5a5c41343e7c938c70d46d58aed1ca548e2542adc58",
+      "bytes": 40019,
+      "sourceEpoch": "current active legacy owner after lifetime7; captured before exact original restoration",
+      "restore": {
+        "commit": "43d5b1775120750cb8f5b173146d2e023773d3de",
+        "sha256": "15e1a9e07ce2a6c1f920199ea06304554df84ee4fad7f57a7238ca3938c3ed1c",
+        "bytes": 35589
+      },
+      "runtimeImport": false
+    }
+  ]
+}

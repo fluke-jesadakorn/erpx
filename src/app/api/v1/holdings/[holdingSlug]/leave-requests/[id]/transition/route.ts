@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { transitionLeave,leaveLifecycleSchema } from "@/server/modules/people_payroll/public/leave";
@@ -7,6 +8,6 @@ export async function POST(request:Request,{params}:{params:Promise<{holdingSlug
     const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");
     const key=request.headers.get("Idempotency-Key");if(!key)throw new ApiError(422,"COMMAND_KEY_REQUIRED","Idempotency-Key is required.");
     const input=leaveLifecycleSchema.safeParse(await request.json());if(!input.success)throw new ApiError(422,"VALIDATION_FAILED",input.error.issues[0].message);
-    const {holdingSlug,id}=await params;return Response.json({data:await transitionLeave(await requireWorkContext(holdingSlug),id,input.data,key)});
+    const {holdingSlug,id}=await params;return Response.json(canonicalDestinationLinks({data:await transitionLeave(await requireWorkContext(holdingSlug),id,input.data,key)}));
   }catch(e){return errorResponse(e);}
 }

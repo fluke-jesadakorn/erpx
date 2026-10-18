@@ -1,3 +1,4 @@
+import {workspacePathParts} from "@/lib/work_projection/destination-registry";
 import { hasPermission } from "@/lib/identity_access/permissions";
 import type { NavigationContext, NavigationIconId, NavigationItem } from "@/lib/work_projection/workplace-navigation";
 
@@ -45,6 +46,7 @@ export const financeAreas = [
   { id: "cash", label: "Cash", destination: "finance-payments" },
   { id: "accounting", label: "Accounting", destination: "finance-ledger" },
   { id: "reports", label: "Reports", destination: "finance-reports" },
+  { id: "setup", label: "Setup", destination: "finance-setup" },
 ] as const;
 
 export function financeNavigation(context: NavigationContext): NavigationItem[] {
@@ -75,7 +77,7 @@ export function financeAreaItems(items: readonly NavigationItem[], area: Finance
 export function financeRootItems(items: readonly NavigationItem[]): NavigationItem[] {
   return financeAreas.flatMap(area => {
     const item = items.find(entry => entry.id === area.destination);
-    return item ? [{ ...item, label: area.label }] : [];
+    return item ? [{ ...item, label: area.label,href:`${workspacePathParts(new URL(item.href,"https://finance.invalid").pathname)?.base??""}/finance/${area.id}` }] : [];
   });
 }
 

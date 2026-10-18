@@ -1,3 +1,4 @@
+import {withTalentPurchasedCommand} from "./purchases";
 import "server-only";
 import type {WorkContext} from "@/server/modules/identity_access/public/authorization";
 import type {SqlDatabase} from "@/server/modules/runtime/public/runtime/types";
@@ -9,8 +10,8 @@ import {executeCommand,replayCommand} from "@/server/modules/workflow/public/com
 import {ApiError} from "@/server/modules/runtime/public/http";
 import {BusinessRuleError} from "../../shared";
 import {createTalentRequisitionApplication, type TalentRequisitionInputPorts} from "../application/requisition";
-export async function createTalentRequisition(a:WorkContext,raw:unknown,key:string){
- let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=(holdingResources(a.holdingId).then(x=>x.write));
+async function createTalentRequisitionOwned(a:WorkContext,raw:unknown,key:string,provided?:SqlDatabase){
+ let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=(holdingResources(a.holdingId).then(x=>x.write));
  const ports:TalentRequisitionInputPorts={clock:{now:()=>Date.now()},branchId:a.branchId,
  async authorize(){requirePermission(a,"records.write");if(!hasModuleAccess(a.modules,"talent"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Talent.");if(!hasPermission(a,"records.review"))throw new ApiError(403,"TALENT_PRIVACY_FORBIDDEN","Candidate data requires Talent reviewer access.");},
  async replay(key,operation,id,input){return replayCommand(await database(),a,key,operation,id,input);},
@@ -43,3 +44,5 @@ export async function createTalentRequisition(a:WorkContext,raw:unknown,key:stri
  }
  };try{return await createTalentRequisitionApplication(ports)(raw,key);}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 }
+
+export function createTalentRequisition(a:WorkContext,raw:unknown,key:string){return withTalentPurchasedCommand(a,{key,operation:"talent.requisition.create",capability:"recruit.positions",purpose:"new-work",target:{kind:"requisition",id:`talent-req-${key}`},creating:true,permissions:["records.write","records.review"]},db=>createTalentRequisitionOwned(a,raw,key,db));}

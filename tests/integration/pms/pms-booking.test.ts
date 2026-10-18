@@ -1,3 +1,4 @@
+import {renderToStaticMarkup} from "react-dom/server";
 import { cancellationEligibility, localDeadline } from "../../../src/lib/pms/pms-booking";
 import {
   createPublicReservation,
@@ -21,7 +22,11 @@ import { publicChangeQuote, confirmBookingChange } from "../../../src/server/mod
 import { createHmac } from "node:crypto";
 import { posStripeWebhook,drainPos } from "../../../src/server/modules/pos/public/pos-stripe";
 import {pmsFinanceOverview} from "../../../src/server/modules/pms/public/pms/finance";
-import {createPmsStripePayment,pmsStripePaymentStatus,requestPmsStripeRefund,approvePmsStripeRefund,processPmsStripeRefund,recoverPmsStripeRefund} from "../../../src/server/modules/pms/public/pms-stripe";
+import {createPmsStripePayment,pmsStripePaymentStatus,reconcilePmsStripePayment,requestPmsStripeRefund,approvePmsStripeRefund,processPmsStripeRefund,recoverPmsStripeRefund} from "../../../src/server/modules/pms/public/pms-stripe";
+import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@/server/modules/commercial/public/package-grants";
+import { withOwnerPackageObligations, readOwnerPackageObligations, ownerPackageObligations } from "@/server/modules/commercial/public/owner-package-obligations";
+import { publicBookingDirectory } from "@/server/modules/pms/public/public-booking-directory";
+import { activeHoldingBindings } from "@/server/modules/runtime/public/runtime";
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
@@ -33,7 +38,7 @@ import { confirmManualRate } from "../../../src/server/modules/finance/public/co
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", async () => {
   const { env } = await import("../../support/runtime-env");
-  return { holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv:async()=>({CONTROL_DB:env.CONTROL_DB,BETTER_AUTH_SECRET:"test-booking-secret-32-characters-long",ERPX_PUBLIC_ORIGIN:"https://hotel.example.test",RESEND_API_KEY:"test-key",RESEND_FROM:"hotel@example.test"}) };
+  return { holdingResources: async (id:string) => ({ write: id==="h002"?env.H002_DB:env.H001_DB }), holdingBindingBySlug:async(slug:string)=>({id:slug==="other-tenant"?"h002":"h001",slug}), activeHoldingBindings:vi.fn(async()=>[]),runtimeEnv:async()=>({CONTROL_DB:env.CONTROL_DB,ERPX_ENVIRONMENT:"local",BETTER_AUTH_SECRET:"test-booking-secret-32-characters-long",ERPX_PUBLIC_ORIGIN:"https://hotel.example.test",RESEND_API_KEY:"test-key",RESEND_FROM:"hotel@example.test",ERPX_RESOURCE_SLOTS:JSON.stringify([{id:'h001',write:'H001_DB',read:'H001_READ_DB',files:'H001_FILES'},{id:'h002',write:'H002_DB',read:'H002_READ_DB',files:'H002_FILES',beta:true},{id:'h003',write:'H003_DB',read:'H003_READ_DB',files:'H003_FILES',internal:true}])}) };
 });
 const db = env.H001_DB,
   key = () => crypto.randomUUID();
@@ -667,10 +672,11 @@ it('requires Finance approval and Stripe success before a free-cancellation refu
     if(init?.method==='POST')return new Response(JSON.stringify({id:'cs_hotel',url:'https://checkout.stripe.com/c/pay/hotel'}));
     return new Response(JSON.stringify({id:'cs_hotel',status:'complete',payment_status:'paid',payment_intent:'pi_hotel'}));
   }));
+  await counterPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');
   const pending=await createPublicReservation(db,'acme',await request(),key(),delivery,now);
   attemptId=pending.attemptToken!.split('.')[0];amount=Number((await db.prepare('SELECT amount_minor FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{amount_minor:number}>())!.amount_minor);
   await bookingPaymentStatus(db,pending.attemptToken!,delivery,now+1000);
-  const cancelled=await cancelPublicReservation(db,'acme',await token(pending.id),delivery,now+2000);
+  await counterPackage('draining');const cancelled=await cancelPublicReservation(db,'acme',await token(pending.id),delivery,now+2000);
   expect(cancelled.refundState).toBe('requested');
   expect((await db.prepare('SELECT refund_id FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{refund_id:string|null}>())!.refund_id).toBeNull();
   await expect(approveBookingRefund(db,reviewer,attemptId)).rejects.toMatchObject({code:"PERMISSION_REQUIRED"});
@@ -680,6 +686,111 @@ it('requires Finance approval and Stripe success before a free-cancellation refu
   refundState='succeeded';await processBookingRefund(db,attemptId,now+4000);
   expect((await db.prepare('SELECT refund_state FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{refund_state:string}>())!.refund_state).toBe('succeeded');
   expect(records(await snapshot(),'guest_account')[0].data.advance).toBe(0);
+});
+async function counterPackage(state:"active"|"draining"="active",endsAt:number|null=null) {
+ const current=(await readCompanyPackageGrants(db,f.company)).find(grant=>grant.packageId==='pms');
+ return packageGrantStore(db,{authorize:async()=>({userId:'isolated-counter-package-fixture'}),obligations:async()=>{throw Error('No test withdrawal witness');}}).apply({expectedVersion:current?.version??0,idempotencyKey:key(),
+  grant:{companyId:f.company,packageId:'pms',packageVersion:1,state,startsAt:0,endsAt,version:(current?.version??0)+1,reason:'Native Hotel counter settlement review',evidence:'test:pms-counter-package'}});
+}
+it('package Booking hides unpurchased public inventory and rejects quote and reservation without effects',async()=>{
+ const input=await request(),before=await snapshot();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');
+ expect(await bookingCatalog(db)).toEqual([]);expect(await publicOffers(db,selection(),propertyId)).toEqual([]);
+ await expect(publicQuote(db,propertyId,[selection()],delivery,now)).rejects.toMatchObject({status:404,code:'PMS_NOT_FOUND'});
+ await expect(createPublicReservation(db,'acme',input,key(),delivery,now)).rejects.toMatchObject({status:404,code:'PMS_NOT_FOUND'});expect(await snapshot()).toEqual(before);
+ expect(await db.prepare('SELECT count(*) n FROM pms_booking_receipts WHERE property_id=?').bind(propertyId).first()).toEqual({n:0});
+ vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','shadow');const logs=vi.spyOn(console,'info').mockImplementation(()=>{});
+ try{expect((await bookingCatalog(db)).map(row=>row.id)).toContain(propertyId);expect(logs.mock.calls.some(args=>String(args[0]).includes('commercial.purchase.shadow')&&String(args[0]).includes('PACKAGE_REQUIRED'))).toBe(true);}finally{logs.mockRestore();}
+});
+it('package Booking directory publishes only guest hotel cards in ordinary active holdings',async()=>{
+ vi.mocked(activeHoldingBindings).mockResolvedValue([{id:'h001',slug:'public-stays',displayName:'Private Holding Name'},{id:'h002',slug:'beta-secret',displayName:'Beta private'},{id:'h003',slug:'internal-secret',displayName:'Internal private'},{id:'h004',slug:'unregistered-secret',displayName:'Unregistered private'}]);
+ try{
+  vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','true');vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');
+  expect((await publicBookingDirectory()).find(row=>row.id===propertyId)).toBeUndefined();await counterPackage();
+  const directory=await publicBookingDirectory(),hotel=directory.find(row=>row.id===propertyId)!;
+  expect(hotel).toMatchObject({slug:'public-stays',id:propertyId,name:'Test Hotel'});expect(Object.keys(hotel).sort()).toEqual(['address','description','id','images','name','slug']);
+  expect(directory.every(row=>row.slug==='public-stays')).toBe(true);expect(JSON.stringify(directory)).not.toContain('Private Holding Name');
+  await counterPackage('draining');expect((await publicBookingDirectory()).find(row=>row.id===propertyId)).toBeUndefined();
+  vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','false');expect(await publicBookingDirectory()).toEqual([]);
+ }finally{vi.mocked(activeHoldingBindings).mockResolvedValue([]);}
+});
+it('package Booking retains replay, a shorter stay and cancellation while draining without POS or Finance management',async()=>{
+ await counterPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');const input=await request(),receipt=key(),booking=await createPublicReservation(db,'acme',input,receipt,delivery,now),access=await token(booking.id);
+ const stay=records(await snapshot(),'stay').find(row=>row.data.reservationId===booking.id)!;await counterPackage('draining');
+ expect(await bookingCatalog(db)).toEqual([]);expect((await manageBooking(db,access,now+1000)).purchases).toEqual({newWork:false,settleExisting:true,history:true});
+ expect((await manageBooking(db,access,now+1000)).editableRates.map(row=>row.id)).toContain(rateId);
+ await expect(createPublicReservation(db,'acme',input,key(),delivery,now+1000)).rejects.toMatchObject({status:404});expect(await createPublicReservation(db,'acme',input,receipt,delivery,now+1000)).toEqual(booking);
+ await expect(publicChangeQuote(db,access,'change',{items:[{stayId:stay.id,room:selection({departure:'2026-09-08'})}]},delivery,now+1000)).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
+ const reduced=await publicChangeQuote(db,access,'change',{items:[{stayId:stay.id,room:selection({departure:'2026-09-06'})}]},delivery,now+1000),changeKey=key();
+ await confirmBookingChange(db,'acme',access,reduced.token,changeKey,delivery,now+1001);await confirmBookingChange(db,'acme',access,reduced.token,changeKey,delivery,now+1002);
+ expect(record(await snapshot(),'stay',stay.id).data.departure).toBe('2026-09-06');expect((await cancelPublicReservation(db,'acme',access,delivery,now+2000)).state).toBe('cancelled');
+ expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(['pms']);expect(await db.prepare('SELECT count(*) n FROM command_assertions').first()).toEqual({n:0});
+});
+it('package Booking rolls back public reservation, access mail and receipt when purchase expires after deferred effects',async()=>{
+ const input=await request(),before=await snapshot();await counterPackage('active',Date.now()+1500);vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');
+ const trigger=`booking_package_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(1.6);RETURN NEW;END $$;
+  CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON pms_booking_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.property_id='${propertyId}') EXECUTE FUNCTION ${trigger}()`);
+ try{await expect(createPublicReservation(db,'acme',input,key(),delivery,now)).rejects.toMatchObject({code:'PACKAGE_CAPABILITY_CHANGED'});expect(await snapshot()).toEqual(before);
+  for(const table of ['pms_booking_receipts','pms_booking_tokens','pms_booking_emails'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE property_id=?`).bind(propertyId).first()).toEqual({n:0});}
+ finally{await db.exec(`DROP TRIGGER ${trigger} ON pms_booking_receipts;DROP FUNCTION ${trigger}()`);}
+});
+it('package Booking retains unpaid mail and non-enumerating recovery until history is purchased',async()=>{
+ const booking=await createPublicReservation(db,'acme',await request(),key(),delivery,now),access=await token(booking.id),send=vi.fn<typeof fetch>().mockImplementation(Object.assign(async()=>Response.json({id:'native-mail-only'}),{preconnect:fetch.preconnect}));
+ const mail=await db.prepare('SELECT id,state,attempts FROM pms_booking_emails WHERE reservation_id=?').bind(booking.id).first<{id:string;state:string;attempts:number}>();
+ vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');await expect(manageBooking(db,access,now+1000)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+ expect(await recoverBooking(db,'acme',{number:booking.number,email:'guest@example.test'},delivery,now+1000)).toEqual(await recoverBooking(db,'acme',{number:'missing',email:'nobody@example.test'},delivery,now+1000));
+ expect(await db.prepare('SELECT count(*) n FROM pms_booking_emails WHERE reservation_id=?').bind(booking.id).first()).toEqual({n:1});
+ await db.prepare('UPDATE pms_booking_emails SET next_attempt_at=0 WHERE id=?').bind(mail!.id).run();
+ const ownedSends=()=>send.mock.calls.filter(([,init])=>new Headers(init?.headers).get('Idempotency-Key')===`pms-booking-${mail!.id}`);
+ await deliverBookingEmails(db,delivery,send,now+1000);expect(ownedSends()).toHaveLength(0);expect(await db.prepare('SELECT state,attempts,last_error FROM pms_booking_emails WHERE id=?').bind(mail!.id).first()).toEqual({state:'pending',attempts:mail!.attempts,last_error:'PACKAGE_REQUIRED'});
+ await counterPackage();await counterPackage('draining');await db.prepare('UPDATE pms_booking_emails SET next_attempt_at=0 WHERE id=?').bind(mail!.id).run();await deliverBookingEmails(db,delivery,send,now+62000);expect(ownedSends()).toHaveLength(1);expect(await db.prepare('SELECT state FROM pms_booking_emails WHERE id=?').bind(mail!.id).first()).toEqual({state:'sent'});
+});
+it('package Booking keeps private documents, recovery and failed receipt mail after normal Hotel inactivation',async()=>{
+ await counterPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');
+ const booking=await createPublicReservation(db,'acme',await request(),key(),delivery,now),access=await token(booking.id);await counterPackage('draining');
+ await cancelPublicReservation(db,'acme',access,delivery,now+1000);
+ const bills=records(await snapshot(),'guest_account').filter(row=>row.data.reservationId===booking.id);
+ for(const bill of bills)await cmd('guest_account.close',{id:bill.id});
+ const documents=await manageBooking(db,access,now+2000),document=await guestBookingDocument(db,access,{id:documents.documents[0].id},now+2000);
+ const scope={companyId:f.company,packageId:'pms',packageVersion:1},grants=await readCompanyPackageGrants(db,f.company),current=grants.find(grant=>grant.packageId==='pms')!;
+ const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-booking-history-provider'}),obligations:(tx,company,packageId)=>ownerPackageObligations(db,tx,company,packageId)});
+ const change={companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Hotel settlement completed; retain guest history',evidence:'test:guest-history-inactivation'}}]};
+ await withOwnerPackageObligations(db,scope,async tx=>{expect((await readOwnerPackageObligations(db,tx,{...scope,now:Date.now()})).total).toBe(0);await store.batch.previewIn(tx,change);await store.batch.applyIn(tx,change,async()=>{});});
+ expect((await manageBooking(db,access,now+3000)).purchases).toEqual({newWork:false,settleExisting:false,history:true});expect(await guestBookingDocument(db,access,{id:documents.documents[0].id},now+3000)).toEqual(document);
+ expect(await bookingCatalog(db)).not.toContainEqual(expect.objectContaining({id:propertyId}));
+ await expect(publicChangeQuote(db,access,'cancel',{items:[{stayId:documents.rooms[0].id}]},delivery,now+3000)).rejects.toMatchObject({code:'PACKAGE_INACTIVE'});
+ const fail=vi.fn<typeof fetch>().mockResolvedValue(Response.json({error:'fixture delivery failure'},{status:503}));
+ for(let attempt=0;attempt<8;attempt++){await db.prepare("UPDATE pms_booking_emails SET next_attempt_at=0 WHERE reservation_id=? AND state='pending'").bind(booking.id).run();await deliverBookingEmails(db,delivery,fail,now+4000+attempt*1000);}
+ const failed=(await db.prepare('SELECT id,state,attempts FROM pms_booking_emails WHERE reservation_id=?').bind(booking.id).all<{id:string;state:string;attempts:number}>()).results;
+ expect(failed.length).toBeGreaterThan(0);expect(failed.every(mail=>mail.state==='failed'&&mail.attempts===8)).toBe(true);
+ for(const mail of failed)await cmd('booking.retry_email',{id:mail.id});
+ await recoverBooking(db,'acme',{number:booking.number,email:'guest@example.test'},delivery,now+20000);
+ await db.prepare("UPDATE pms_booking_emails SET next_attempt_at=0 WHERE reservation_id=? AND state='pending'").bind(booking.id).run();
+ const send=vi.fn<typeof fetch>().mockResolvedValue(Response.json({id:'retained-private-receipt'}));await deliverBookingEmails(db,delivery,send,now+21000);
+ expect((await db.prepare('SELECT state FROM pms_booking_emails WHERE reservation_id=?').bind(booking.id).all<{state:string}>()).results.every(mail=>mail.state==='sent')).toBe(true);
+ expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.state)).toEqual(['inactive']);
+});
+it('package Hotel-only counter work blocks unpurchased requests and settles draining funds after cashier revocation',async()=>{
+ vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
+ await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?,'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
+ const reservation=await cmd('reservation.create',{guestId,source:'direct',rooms:[selection()]}),guestAccount=records(await snapshot(),'guest_account').find(item=>item.data.reservationId===reservation.id)!;
+ let paymentId='';const fetcher=vi.fn(async(_url:string|URL|Request,init?:RequestInit)=>{
+  expect(new Headers(init?.headers).get('Stripe-Account')).toBe('acct_hotel');
+  if(init?.method==='POST'){paymentId=(init.body as URLSearchParams).get('metadata[pms_counter_payment_id]')!;return Response.json({id:'pi_package',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'000201'}}});}
+  return Response.json({id:'pi_package',status:'succeeded',amount_received:5000,currency:'thb',metadata:{pms_counter_payment_id:paymentId}});
+ });vi.stubGlobal('fetch',fetcher);vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');
+ const input={propertyId,guestAccountId:guestAccount.id,kind:'receipt',amountMinor:5000,payerEmail:'payer@example.test'};
+ await expect(createPmsStripePayment(db,owner,input,key(),now)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});expect(fetcher).not.toHaveBeenCalled();expect(await db.prepare('SELECT count(*) n FROM pms_stripe_payments WHERE company_id=?').bind(f.company).first()).toEqual({n:0});
+ await counterPackage();const payment=await createPmsStripePayment(db,owner,input,key(),now);await counterPackage('draining');
+ await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(owner.assignmentId).run();
+ await expect(pmsStripePaymentStatus(db,owner,payment.id,now+1000)).rejects.toMatchObject({code:'PMS_ACCESS_CHANGED'});
+ await env.CONTROL_DB.prepare("INSERT INTO pos_stripe_routes(account_id,livemode,holding_id,company_id,created_at) VALUES('acct_hotel',false,'h001',?,0) ON CONFLICT(account_id,livemode) DO UPDATE SET holding_id=excluded.holding_id,company_id=excluded.company_id").bind(f.company).run();
+ vi.stubEnv('POS_STRIPE_TEST_WEBHOOK_SECRET','whsec_package_counter_fixture');
+ const eventId=key(),raw=JSON.stringify({id:eventId,type:'payment_intent.succeeded',account:'acct_hotel',livemode:false,created:Math.floor((now+1000)/1000),data:{object:{id:'pi_package',metadata:{pms_counter_payment_id:payment.id}}}}),timestamp=Math.floor(Date.now()/1000);
+ const signature=`t=${timestamp},v1=${createHmac('sha256','whsec_package_counter_fixture').update(`${timestamp}.${raw}`).digest('hex')}`;
+ await posStripeWebhook(raw,signature);await posStripeWebhook(raw,signature);await drainPos(db,'h001',8,f.company);await reconcilePmsStripePayment(db,payment.id,now+2000);
+ expect(await db.prepare('SELECT count(*) n FROM pos_stripe_events WHERE id=? AND applied_at IS NOT NULL').bind(eventId).first()).toEqual({n:1});
+ expect(record(await snapshot(),'guest_account',guestAccount.id).data.advance).toBe(5000);expect(await db.prepare('SELECT state FROM pms_stripe_payments WHERE id=?').bind(payment.id).first()).toEqual({state:'succeeded'});
+ expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(['pms']);expect(await db.prepare('SELECT count(*) n FROM command_assertions').first()).toEqual({n:0});
 });
 it('posts a counter PromptPay room payment and deposit only after Stripe confirms each intent',async()=>{
   vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
@@ -705,6 +816,7 @@ it('posts a counter PromptPay room payment and deposit only after Stripe confirm
   expect(latest.data.advance).toBe(5000);expect(latest.data.deposit).toBe(2000);
 });
 it('requires an independent Finance approval and Stripe confirmation for a counter refund',async()=>{
+  await counterPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');
   vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
   await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?, 'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
   const reservation=await cmd('reservation.create',{guestId,source:'direct',rooms:[selection()]});
@@ -722,7 +834,7 @@ it('requires an independent Finance approval and Stripe confirmation for a count
   const sourceMoney=await db.prepare("SELECT fx_rate_id,usd_units::text FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_stripe_payment' AND source_id=? AND amount_kind='requested'").bind(f.company,payment.id).first<{fx_rate_id:string;usd_units:string}>();
   await confirmManualRate(reviewer,{currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'40',note:'Provider receipt and refund must retain requested FX'},key());
   await pmsStripePaymentStatus(db,owner,payment.id,now+1000);
-  await requestPmsStripeRefund(db,owner,payment.id,5000,'Guest cancellation');
+  await counterPackage('draining');await requestPmsStripeRefund(db,owner,payment.id,5000,'Guest cancellation');
   await expect(approvePmsStripeRefund(db,owner,payment.id)).rejects.toThrow();
   expect((await db.prepare('SELECT refund_id FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{refund_id:string|null}>())!.refund_id).toBeNull();
   await expect(approvePmsStripeRefund(db,reviewer,payment.id)).rejects.toMatchObject({code:"PMS_APPROVAL_REQUIRED"});
@@ -1084,4 +1196,35 @@ it('refuses ordinary staff release of an internal provider hold without changing
   const { s, hold } = await pendingGroupHoldFixture();
   await expect(cmd('block.release', { id: hold.id })).rejects.toMatchObject({ code: 'PMS_BLOCK_TYPE' });
   expect(await snapshot()).toEqual(s);
+});
+
+it('keeps actual guest receipt recovery and Stripe checkout returns on the configured Booking host without changing payment callbacks or token authority',async()=>{
+ vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');const {bookingEnv}=await import('../../../src/server/modules/pms/public/pms-booking'),configured=await bookingEnv();expect(configured.origin).toBe('https://booking-dev-erpx.jesadakorn.com');
+ await db.prepare("UPDATE pms_booking_emails SET state='sent'").run();const unpaid=await createPublicReservation(db,'acme',await request(),key(),configured,now),send=vi.fn<typeof fetch>().mockResolvedValue(Response.json({id:'sandbox-provider-receipt'}));await deliverBookingEmails(db,configured,send,now);expect(send).toHaveBeenCalledTimes(1);const body=JSON.parse(String(send.mock.calls[0][1]?.body)) as {text:string},links=body.text.match(/https:\/\/booking-dev-erpx\.jesadakorn\.com\/book\/acme\/manage#token=[^\s]+/g);expect(links).toHaveLength(1);if(!links)throw Error('Actual management link missing');const link=new URL(links[0]),access=new URLSearchParams(link.hash.slice(1)).get('token');if(!access)throw Error('Original access token missing');expect((await manageBooking(db,access,now)).id).toBe(unpaid.id);await expect(manageBooking(db,access+'tampered',now)).rejects.toMatchObject({code:'PMS_LINK_EXPIRED'});await cancelPublicReservation(db,'acme',access,configured,now);
+ vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','true');vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_isolated_host_return');await cmd('rate.save',{...record(await snapshot(),'rate',rateId).data,id:rateId,collection:{method:'full',depositPercent:30,changesAllowed:true}});await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?,'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();let success:string|null=null,cancel:string|null=null;vi.stubGlobal('fetch',vi.fn<typeof fetch>(Object.assign(async(url:Parameters<typeof fetch>[0],init?:Parameters<typeof fetch>[1])=>{expect(String(url)).toContain('/checkout/sessions');const form=new URLSearchParams(String(init?.body));success=form.get('success_url');cancel=form.get('cancel_url');return Response.json({id:'cs_isolated_booking_host',url:'https://checkout.stripe.com/c/pay/isolated-booking-host'});},{preconnect:vi.fn()})));const pending=await createPublicReservation(db,'acme',await request(),key(),configured,now);expect(pending.state).toBe('payment_pending');const expected='https://booking-dev-erpx.jesadakorn.com/book/acme/'+propertyId+'?'+new URLSearchParams({attempt:pending.attemptToken!});expect(success).toBe(expected);expect(cancel).toBe(expected);expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+ // A genuine retained checkout must return through the actual Server Page even
+ // after the owner withdraws the property from new public reservations.
+ vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(now);
+ const provider=vi.mocked(fetch);provider.mockImplementation(async(url,init)=>{expect(init?.method).not.toBe('POST');expect(String(url)).toContain('/checkout/sessions/cs_isolated_booking_host');return Response.json({id:'cs_isolated_booking_host',status:'open',payment_status:'unpaid'});});
+ const {default:HotelPage}=await import('../../../src/app/book/[holdingSlug]/[propertyId]/page');
+ const pageInput=(attempt:string|string[]=pending.attemptToken!,id=propertyId,holdingSlug='acme')=>({params:Promise.resolve({holdingSlug,propertyId:id}),searchParams:Promise.resolve({attempt})});
+ const visible=await HotelPage(pageInput());expect(renderToStaticMarkup(visible)).toContain('Waiting for payment');
+ await cmd('booking.save',settings(false));expect((await bookingCatalog(db)).some(hotel=>hotel.id===propertyId)).toBe(false);
+ const page=await HotelPage(pageInput()),html=renderToStaticMarkup(page);expect(html).toContain('Waiting for payment');expect(html).toContain(pending.number);expect(html).not.toContain('Find rooms');expect(html).not.toContain('Guest details');expect(html).not.toContain('Test Hotel');expect(html).not.toContain('test@example');
+ const {createElement}=await import('react'),{FrontLanguageContext}=await import('../../../src/components/front/front-language');const thai=renderToStaticMarkup(createElement(FrontLanguageContext.Provider,{value:'th'},page));expect(thai).toContain('รอการชำระเงิน');expect(thai).toContain('กันห้องไว้ให้ 30 นาที กรุณาชำระผ่าน Stripe Checkout');expect(thai).not.toContain('Waiting for payment');
+ expect(provider).toHaveBeenCalledTimes(3); // checkout creation and one authoritative read per server render; SSR adds no GET
+ await expect(HotelPage({params:Promise.resolve({holdingSlug:'acme',propertyId})})).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404');
+ await expect(HotelPage(pageInput(pending.attemptToken!+'tampered'))).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404');
+ await expect(HotelPage(pageInput([pending.attemptToken!,pending.attemptToken!]))).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404');
+ await expect(HotelPage(pageInput(pending.attemptToken!,key()))).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404');
+ await applyMigrations(env.H002_DB,env.STAFF_TEST_MIGRATIONS);await expect(HotelPage(pageInput(pending.attemptToken!,propertyId,'other-tenant'))).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404');
+ provider.mockRejectedValueOnce(new Error('DECLARED_PROVIDER_OUTAGE'));await expect(HotelPage(pageInput())).rejects.toThrow('DECLARED_PROVIDER_OUTAGE');
+ // Publication is restored independently; draining alone also removes new
+ // inventory, while the original payment's history remains available.
+ await cmd('booking.save',settings());await counterPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');await counterPackage('draining');expect((await bookingCatalog(db)).some(hotel=>hotel.id===propertyId)).toBe(false);
+ const draining=await HotelPage(pageInput());expect(renderToStaticMarkup(draining)).toContain('Waiting for payment');
+ const statusProps=(draining.props.children as {props:{initial:Record<string,unknown>}}).props.initial;expect(Object.keys(statusProps).sort()).toEqual(['checkoutUrl','managementToken','number','paymentState','refundState','state']);expect(JSON.stringify(statusProps)).not.toContain('Test Hotel');
+ vi.setSystemTime(now+31*60*1000);provider.mockImplementation(async(url,init)=>{expect(init?.method).not.toBe('POST');expect(String(url)).toContain('/checkout/sessions/cs_isolated_booking_host');return Response.json({id:'cs_isolated_booking_host',status:'expired',payment_status:'unpaid'});});
+ expect(renderToStaticMarkup(await HotelPage(pageInput()))).toContain('Payment period expired');
+ vi.stubEnv('ERPX_PRODUCT_ROUTING','disabled');expect((await bookingEnv()).origin).toBe(delivery.origin);
 });

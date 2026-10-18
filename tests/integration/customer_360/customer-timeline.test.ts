@@ -7,6 +7,7 @@ import {changeCRMIdentity} from "../../../src/server/modules/crm/public/crm-iden
 import {createCustomerNote,changeCustomerNote} from "../../../src/server/modules/sales/public/customer-notes";
 import {createCustomerFollowup,changeCustomerFollowup} from "../../../src/server/modules/sales/public/customer-followups";
 import {customerDirectory,customerTimeline,customerTimelineEvents} from "../../../src/server/modules/customer_360/public/customer-timeline";
+import {createAgreement,changeAgreement} from "../../../src/server/modules/field_service/public/field-service";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,customer:string,order:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -55,10 +56,12 @@ it('includes Support lifecycle only when the viewer also has the Support owner p
  expect(buyer.coverage).not.toContain('Support case history');
 });
 it('federates scoped Field Service, Finance and Legal state with module and permission gates',async()=>{
- const serviceId=key(),serviceEventId=key(),invoiceId=key(),legalId=key(),legalEventId=key();
- await db.prepare(`INSERT INTO field_service_agreements(id,company_id,branch_id,department_id,customer_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,created_at,updated_at)
-   VALUES(?,?,?,?,?,?,?,?,?,?,'active',?,?,?)`).bind(serviceId,f.company,f.branch,f.department,customer,'Timeline service','2026-09-01','2027-09-01','THB',2500,f.owner.userId,Date.now(),Date.now()).run();
- await db.prepare(`INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,?,?,?,?,?,?)`).bind(serviceEventId,serviceId,1,'activate',f.owner.userId,'Service agreement accepted','active',Date.now()).run();
+ const invoiceId=key(),legalId=key(),legalEventId=key();
+ // The current source projection needs a legitimately reviewed agreement;
+ // immutable 1048 rejects a self-approved active row without its owner event.
+ const serviceId=String((await createAgreement({...f.owner,modules:['field_service']},{branchId:f.branch,departmentId:f.department,
+   customerId:customer,title:'Timeline service',startDate:'2026-09-01',endDate:'2027-09-01',currency:'THB',visitRateMinor:2500,warrantyDiscountBps:0},key())).id);
+ await changeAgreement({...f.tie,modules:['field_service']},serviceId,{action:'activate',expectedVersion:1,reason:'Independent service manager accepted the timeline fixture agreement'},key());
  await db.prepare(`INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,source_type,status,version,created_by,created_at,updated_at)
    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(invoiceId,f.company,customer,'receivable','TIMELINE-INV','2026-09-20','2026-10-20','THB',2500,0,2500,2500,f.accounts.revenue,f.accounts.cash,'standalone','posted',1,f.owner.userId,Date.now(),Date.now()).run();
  await db.prepare(`INSERT INTO legal_items(id,company_id,branch_id,department_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,due_date,owner_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(legalId,f.company,f.branch,f.department,'contract','Timeline legal contract','Scoped legal source','internal','TH','TH','th','THB','Asia/Bangkok','normal','2026-10-01',f.owner.userId,f.owner.userId,Date.now(),Date.now()).run();
@@ -90,7 +93,7 @@ it('applies requester Legal visibility to the shared Customer 360 event projecti
   await db.prepare("INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,'created',?,'Fixture event',1,?)").bind(key(),id,creator,Date.now()).run();
  }
  await db.prepare("INSERT INTO legal_members VALUES(?,?,'read')").bind(ownId,requester.userId).run();
- const projection=customerTimelineEvents(requester);
+ const projection=await customerTimelineEvents(requester,db);
  expect((await db.prepare(`${projection.sql} WHERE e.source_type='legal'`).bind(...projection.values).all<{source_id:string}>()).results.map(r=>r.source_id)).toEqual([ownId]);
  await db.prepare('DELETE FROM legal_members WHERE item_id=? AND user_id=?').bind(ownId,requester.userId).run();
  expect((await db.prepare(`${projection.sql} WHERE e.source_type='legal'`).bind(...projection.values).all()).results).toEqual([]);

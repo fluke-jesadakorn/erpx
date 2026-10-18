@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RecordSections } from "@/components/workplace/record-sections";
 import { InlineNotice } from "@/components/ui/foundation";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
@@ -56,18 +57,18 @@ export async function ExpenseWorkflowPage({
   const missing = JSON.parse(
     String(expense.setup_requirements_json ?? "[]"),
   ) as string[];
-  const profile = !canManagePeople(actor) ? `${base}/profiles/${encodeURIComponent(String(expense.claimant_user_id))}` : actor.beta
-    ? `${base}/people?member=${encodeURIComponent(String(expense.claimant_user_id))}`
+  const profile = !canManagePeople(actor) ? canonicalUiHref(`${base}/profiles/${encodeURIComponent(String(expense.claimant_user_id))}`) : actor.beta
+    ? canonicalUiHref(`${base}/people?member=${encodeURIComponent(String(expense.claimant_user_id))}`)
     : expense.employee_id
-      ? `${base}/people/${expense.employee_id}`
-      : `${base}/people?member=${encodeURIComponent(String(expense.claimant_user_id))}`;
+      ? canonicalUiHref(`${base}/people/${expense.employee_id}`)
+      : canonicalUiHref(`${base}/people?member=${encodeURIComponent(String(expense.claimant_user_id))}`);
   const accounting = JSON.parse(String(expense.accounting_json ?? "{}")) as {
     entryDate?: string;
     note?: string;
   };
   return (
     <Stack as="div" className="ui-stack" data-source="live">
-      <FinanceLegacyHeading><Link className="back-link" href={`${base}/expenses`}>
+      <FinanceLegacyHeading><Link className="back-link" href={canonicalUiHref(`${base}/expenses`)}>
         ← Expense claims
       </Link>
       <header className="ui-section-header">
@@ -211,7 +212,7 @@ export async function ExpenseWorkflowPage({
         profileHref={profile}
         isEditable={false}
       />
-      {["payment", "completed"].includes(stage) && (
+      {(["payment", "completed"].includes(stage)||paymentDrafts.some(draft=>draft.can_cancel_payment===1||draft.status==='cancelled')) && (
         <ExpensePayments
           viewerId={actor.userId}
           base={base}

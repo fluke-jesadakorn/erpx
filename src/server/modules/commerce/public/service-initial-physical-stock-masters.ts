@@ -1,0 +1,2 @@
+export {createServiceInitialPhysicalStockProduct,createServiceInitialPhysicalStockWarehouse} from '../adapters/service-initial-physical-stock-masters';
+export {serviceInitialPhysicalStockProductSchema,serviceInitialPhysicalStockWarehouseSchema,type ServiceInitialPhysicalStockProductInput,type ServiceInitialPhysicalStockWarehouseInput,type ServiceInitialPhysicalStockMasterResult} from '../domain/service-initial-physical-stock-masters';

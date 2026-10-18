@@ -3,9 +3,9 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type { qualityDetail, qualityWorkspace } from "@/server/modules/quality/public/quality";
 import type { qualityAlerts } from "@/server/modules/quality/public/quality-alerts";
 import styles from "@/components/quality/quality-console.module.css";
@@ -13,7 +13,9 @@ import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/files/attachment-panel";
-import { FormLayout } from "@/components/ui/foundation";
+import {QualityTool} from "./quality-tool";
+import {useQualityCommand} from "./use-quality-command";
+import {useQualityPurchaseScope} from "./quality-purchase-context";
 
 export function QualityConsole({
   base,
@@ -26,9 +28,8 @@ export function QualityConsole({
   detail?: Awaited<ReturnType<typeof qualityDetail>>;
   alerts?: Awaited<ReturnType<typeof qualityAlerts>>;
 }) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
+  const command=useQualityCommand(base),scope=useQualityPurchaseScope(),{pending,error:commandError,notice,uncertain,retry,canPrepare,canSettle}=command,
+    [uploadBusy,setUploadBusy]=useState(false),[localError,setError]=useState(""),
     [uploaded, setUploaded] = useState<{ id: string; setId: string; name: string }[]>([]),
     [attachmentsV2, setAttachmentsV2] = useState<boolean | null>(null),
     [inspectionSet, setInspectionSet] = useState<AttachmentPanelChange | null>(null),
@@ -37,8 +38,7 @@ export function QualityConsole({
     [specProduct, setSpecProduct] = useState(""),
     [stockSearch, setStockSearch] = useState(""),
     [stockTarget, setStockTarget] = useState(""),
-    recordVersion = Number(detail?.hold.version ?? 0),
-    retry = useRef<{ fingerprint: string; key: string } | null>(null);
+    recordVersion = Number(detail?.hold.version ?? 0),busy=pending||uploadBusy,error=localError||commandError;
   const products = data?.products ?? [],
     productNeedle = productSearch.trim().toLocaleLowerCase(),
     visibleProducts = products.filter(
@@ -63,37 +63,9 @@ export function QualityConsole({
           .toLocaleLowerCase()
           .includes(stockNeedle),
     );
-  async function send(path: string, input: unknown, navigate = true) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const fingerprint = JSON.stringify({ path, input });
-    if (retry.current?.fingerprint !== fingerprint)
-      retry.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/quality${path}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": retry.current.key },
-          body: JSON.stringify(input),
-        }),
-        result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) retry.current = null;
-        throw new Error(result.error?.message ?? "Command failed.");
-      }
-      retry.current = null;
-      if (!detail && navigate) router.push(`${base}/quality/${result.data.id}`);
-      else router.refresh();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Retry the same action to recover its result.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
+  const send=(path:string,input:unknown,navigate=true)=>{setError("");return command.send(path,input,!detail&&navigate);};
   async function uploadEvidence(file: File) {
-    if (!detail || busy) return;
+    if (!detail || busy || !canSettle) return;
     if (
       !["image/jpeg", "image/png", "image/webp", "application/pdf", "text/csv"].includes(
         file.type,
@@ -102,7 +74,7 @@ export function QualityConsole({
       file.size > 10 * 1024 * 1024
     )
       return setError("Attach a JPEG, PNG, WebP, PDF or CSV file up to 10 MB.");
-    setBusy(true);
+    setUploadBusy(true);
     setError("");
     try {
       const reserve = await workFetch(`/api/v1${base}/uploads`, {
@@ -140,7 +112,7 @@ export function QualityConsole({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Retry this evidence upload.");
     } finally {
-      setBusy(false);
+      setUploadBusy(false);
     }
   }
   const alertsPanel = alerts.length > 0 && (
@@ -159,15 +131,15 @@ export function QualityConsole({
             <p>
               Acknowledged by {String(alert.acknowledged_by)}: {String(alert.reason)}
             </p>
-          ) : alert.can_ack ? (
-            <FormLayout
+          ) : alert.can_ack && (scope.sources?.[String(alert.id)]??scope.purchase)?.settleExisting!==false ? (
+            <QualityTool pending={busy} title="Acknowledge Quality escalation" version={Number(alert.version)}
               className="ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
                 void send(
                   `/${alert.id}/acknowledge`,
                   {
-                    expectedVersion: Number(alert.version),
+                    expectedVersion: Number(new FormData(e.currentTarget).get("sourceVersion")),
                     reason: new FormData(e.currentTarget).get("reason"),
                   },
                   false,
@@ -187,7 +159,7 @@ export function QualityConsole({
               <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy} className="primary">
                 Acknowledge escalation
               </Button>
-            </FormLayout>
+            </QualityTool>
           ) : (
             <p>Waiting for an eligible independent Quality recipient.</p>
           )}
@@ -203,10 +175,11 @@ export function QualityConsole({
         </InlineNotice>
       )}
 
+      {notice&&<p role="status">{notice}</p>}{uncertain&&<Button appearance="standard" type="button" variant="secondary" disabled={busy} onClick={()=>void retry()}>Retry submitted Quality change</Button>}
       {!detail?.canDisposition && alertsPanel}
-      {data?.canManageSpecs && (
+      {data?.canManageSpecs && (canPrepare||canSettle) && (
         <>
-          <form
+          {canPrepare&&<QualityTool pending={busy} title="Prepare product inspection specification" onDiscard={()=>{setProductSearch("");setSpecProduct("");}}
             className={`business-form ${styles.qualityForm} ${styles.specForm}`}
             onSubmit={(e) => {
               e.preventDefault();
@@ -310,7 +283,7 @@ export function QualityConsole({
                 Save draft specification
               </Button>
             </div>
-          </form>
+          </QualityTool>}
           {data.specifications.length > 0 && (
             <section className={styles.specList}>
               <div className={styles.sectionHeading}>
@@ -342,7 +315,7 @@ export function QualityConsole({
                         : ""}
                     </p>
                     {spec.status === "draft" && (
-                      <FormLayout
+                      <QualityTool pending={busy} title="Review inspection specification" version={Number(spec.version)}
                         className="ui-form-grid"
                         onSubmit={(e) => {
                           e.preventDefault();
@@ -350,7 +323,7 @@ export function QualityConsole({
                           void send(
                             `/specifications/${spec.id}`,
                             {
-                              expectedVersion: Number(spec.version),
+                              expectedVersion: Number(new FormData(e.currentTarget).get("sourceVersion")),
                               action: f.get("action"),
                               reason: f.get("reason"),
                             },
@@ -361,7 +334,7 @@ export function QualityConsole({
                         <Field appearance="standard">
                           Decision
                           <Select appearance="standard" name="action">
-                            <option value="activate">Activate for new holds</option>
+                            <option value="activate" disabled={!canPrepare}>Activate for new holds</option>
                             <option value="cancel">Cancel draft</option>
                           </Select>
                         </Field>
@@ -372,7 +345,7 @@ export function QualityConsole({
                         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                           Record specification decision
                         </Button>
-                      </FormLayout>
+                      </QualityTool>
                     )}
                   </article>
                 ))}
@@ -381,8 +354,8 @@ export function QualityConsole({
           )}
         </>
       )}
-      {data?.canHold && (
-        <form
+      {data?.canHold && canPrepare && (
+        <QualityTool pending={busy} title="Quarantine stock" onDiscard={()=>{setStockSearch("");setStockTarget("");}}
           className={`business-form ${styles.qualityForm} ${styles.holdForm}`}
           onSubmit={(e) => {
             e.preventDefault();
@@ -506,16 +479,16 @@ export function QualityConsole({
               Place quality hold
             </Button>
           </div>
-        </form>
+        </QualityTool>
       )}
-      {detail?.canDisposition && (
-        <form
+      {detail?.canDisposition && canSettle && (
+        <QualityTool pending={busy} title="Request controlled scrap" version={recordVersion} onDiscard={()=>setDispositionSet(null)}
           className={`business-form ${styles.detailAction} ${styles.primaryAction}`}
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
             void send(`/${detail.hold.id}/disposition`, {
-              expectedVersion: Number(detail.hold.version),
+              expectedVersion: Number(new FormData(e.currentTarget).get("sourceVersion")),
               attachmentSetIds:
                 dispositionSet?.setId && dispositionSet.readyCount > 0 && dispositionSet.bindable
                   ? [dispositionSet.setId]
@@ -569,11 +542,11 @@ export function QualityConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" className="primary">
             Send scrap request to Finance
           </Button>
-        </form>
+        </QualityTool>
       )}
       {detail?.canDisposition && alertsPanel}
-      {detail?.canInspect && (
-        <form
+      {detail?.canInspect && canSettle && (
+        <QualityTool pending={busy} title="Record inspection" version={recordVersion} onDiscard={()=>{setUploaded([]);setInspectionSet(null);}}
           className={`business-form ${styles.detailAction}`}
           onSubmit={(e) => {
             e.preventDefault();
@@ -591,7 +564,7 @@ export function QualityConsole({
                 ]),
               ];
             void send(`/${detail.hold.id}/inspect`, {
-              expectedVersion: recordVersion,
+              expectedVersion: Number(f.get("sourceVersion")),
               ...(detail.specMetrics.length ? { measurements } : { result: f.get("result") }),
               attachmentIds: [],
               attachmentSetIds,
@@ -670,15 +643,15 @@ export function QualityConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy} className="primary">
             Record inspection
           </Button>
-        </form>
+        </QualityTool>
       )}
-      {detail?.canRelease && (
-        <form
+      {detail?.canRelease && canSettle && (
+        <QualityTool pending={busy} title="Approve release" version={recordVersion}
           className={`business-form ${styles.detailAction}`}
           onSubmit={(e) => {
             e.preventDefault();
             void send(`/${detail.hold.id}/release`, {
-              expectedVersion: Number(detail.hold.version),
+              expectedVersion: Number(new FormData(e.currentTarget).get("sourceVersion")),
               reason: new FormData(e.currentTarget).get("reason"),
             });
           }}
@@ -695,17 +668,17 @@ export function QualityConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" className="primary">
             Release this hold
           </Button>
-        </form>
+        </QualityTool>
       )}
 
-      {detail?.canCancel && (
-        <form
+      {detail?.canCancel && canSettle && (
+        <QualityTool pending={busy} title="Request cancellation" version={recordVersion}
           className={`business-form ${styles.detailAction}`}
           onSubmit={(e) => {
             e.preventDefault();
             void send(`/${detail.hold.id}/cancel`, {
               action: "request",
-              expectedVersion: Number(detail.hold.version),
+              expectedVersion: Number(new FormData(e.currentTarget).get("sourceVersion")),
               reason: new FormData(e.currentTarget).get("reason"),
             });
           }}
@@ -722,17 +695,17 @@ export function QualityConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary">
             Request independent cancellation
           </Button>
-        </form>
+        </QualityTool>
       )}
-      {detail?.canReviewCancellation && (
-        <form
+      {detail?.canReviewCancellation && canSettle && (
+        <QualityTool pending={busy} title="Review cancellation" version={recordVersion}
           className={`business-form ${styles.detailAction}`}
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
             void send(`/${detail.hold.id}/cancel`, {
               action: f.get("action"),
-              expectedVersion: Number(detail.hold.version),
+              expectedVersion: Number(new FormData(e.currentTarget).get("sourceVersion")),
               reason: f.get("reason"),
             });
           }}
@@ -754,14 +727,14 @@ export function QualityConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary">
             Record cancellation decision
           </Button>
-        </form>
+        </QualityTool>
       )}
       {detail?.hold.disposition_count_id && (
         <section>
           <h2>Disposition handoff</h2>
           <p>
             Status: {String(detail.hold.status)} ·{" "}
-            <a href={`${base}/stock-counts/${detail.hold.disposition_count_id}`}>
+            <a href={canonicalUiHref(`${base}/stock-counts/${detail.hold.disposition_count_id}`)}>
               Open controlled stock and accounting adjustment
             </a>
           </p>

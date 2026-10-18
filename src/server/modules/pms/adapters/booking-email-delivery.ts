@@ -1,0 +1,19 @@
+import 'server-only';
+import {applicationOrigin} from '@/lib/runtime/application-origins';
+import {configuredProductOrigin} from '@/lib/runtime/product-hosts';
+import type {BookingEnv} from '../domain/booking';
+
+/** Deliver an already queued private link on its current public host. The
+ * encrypted source, token, expiry and original booking remain unchanged. */
+export function bookingEmailDeliveryPayload(value:string,env:BookingEnv):string{
+ const booking=configuredProductOrigin('booking');
+ if(!booking||applicationOrigin('booking',env.origin)!==booking)return value;
+ const payload:unknown=JSON.parse(value);
+ if(!payload||typeof payload!=='object'||Array.isArray(payload)||!('text' in payload)||typeof payload.text!=='string')return value;
+ const text=payload.text.replace(/https:\/\/console-dev-erpx\.jesadakorn\.com\/book\/[^\s]+/g,original=>{
+  const url=new URL(original);
+  if(url.origin!=='https://console-dev-erpx.jesadakorn.com'||!/^\/book\/[^/]+\/manage$/.test(url.pathname)||!url.hash.startsWith('#token='))return original;
+  return new URL(url.pathname+url.search+url.hash,booking).href;
+ });
+ return text===payload.text?value:JSON.stringify({...payload,text});
+}

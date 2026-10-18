@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
 import { z } from "zod";
 import { bindRecordAttachmentSet } from "@/server/modules/files/public/attachments/service";
@@ -34,7 +35,7 @@ export async function POST(
       );
     const { write } = await holdingResources(actor.holdingId);
     const compatibilityAdapter = await appAttachmentSources(write).compatibilitySet(setId,actor.companyId);
-    return Response.json({
+    return Response.json(canonicalDestinationLinks({
       data: await bindRecordAttachmentSet(
         write,
         actor,
@@ -43,7 +44,7 @@ export async function POST(
         key,
         { compatibilityAdapter },
       ),
-    });
+    }));
   } catch (error) {
     return errorResponse(error);
   }

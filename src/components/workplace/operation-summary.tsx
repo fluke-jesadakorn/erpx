@@ -1,5 +1,5 @@
 import { InlineNotice } from "@/components/ui/foundation";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { StatusBadge } from "@/components/ui/primitives";
 import type { OperationPresentation } from "@/lib/shared/operation-presentation";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";

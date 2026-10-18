@@ -1,55 +1,19 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import { FormDisclosure } from "@/components/ui/form-disclosure";
+import {ProcurementEditor} from "./procurement-editor";
+import {useSupplierBillCommand} from "./use-supplier-bill-command";
+import type {SupplierBillPurchase} from "@/lib/procurement/supplier-bill-command";
 import { Button, Field, Select, Table, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import {useState} from "react";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { Row } from "@/server/modules/commerce/public/commerce";
 import type { supplierBillDetail, supplierInvoicePolicy } from "@/server/modules/procurement/public/supplier-bill-matching";
 import { Card, FormGrid, TableFrame } from "@/components/ui/foundation";
-function useCommand(base: string) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    last = useRef<{ fingerprint: string; key: string } | null>(null);
-  async function send(path: string, input: unknown, invoice = false) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const fingerprint = path + JSON.stringify(input);
-    if (last.current?.fingerprint !== fingerprint)
-      last.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/${path}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body: JSON.stringify(input),
-        }),
-        body = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(body.error?.message ?? "Unable to save supplier invoice.");
-      }
-      last.current = null;
-      router.push(
-        invoice
-          ? `${base}/finance/invoices/${body.data.invoiceId}`
-          : `${base}/supplier-bills/${body.data.id}`,
-      );
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry the same command.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return { busy, error, send };
-}
+function BillCommandState({command}:{command:ReturnType<typeof useSupplierBillCommand>}){return <>{command.error&&<InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}{command.notice&&<InlineNotice>{command.notice}</InlineNotice>}{command.uncertain&&<Button appearance="standard" type="button" disabled={command.busy} onClick={()=>void command.retry()}>Retry submitted supplier invoice change</Button>}{command.savedHref&&command.notice&&<Link href={command.savedHref}>Open saved supplier invoice</Link>}</>;}
 export function SupplierInvoicePolicy({
   base,
   policy,
@@ -57,41 +21,8 @@ export function SupplierInvoicePolicy({
   base: string;
   policy: Awaited<ReturnType<typeof supplierInvoicePolicy>>;
 }) {
-  const router = useRouter(),
-    [ready, setReady] = useState(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    last = useRef<{ fingerprint: string; key: string } | null>(null);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setReady(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  async function save(input: unknown) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const fingerprint = JSON.stringify(input);
-    if (last.current?.fingerprint !== fingerprint)
-      last.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/supplier-bills/policy`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body: fingerprint,
-        }),
-        body = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(body.error?.message ?? "Unable to save supplier invoice policy.");
-      }
-      last.current = null;
-      router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Retry the same policy change.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const command=useSupplierBillCommand(base,policy.purchase,policy.companyId),{busy,ready}=command,[revision,setRevision]=useState(0),[draft,setDraft]=useState({version:policy.version,matchingMode:policy.matchingMode});
+  const reset=()=>{setDraft({version:policy.version,matchingMode:policy.matchingMode});setRevision(value=>value+1);};
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <div className="ui-section-header">
@@ -109,27 +40,23 @@ export function SupplierInvoicePolicy({
           ? "Every purchase receipt must pass independent quantity and price matching before Finance can prepare AP."
           : "Finance may prepare AP directly from a posted receipt. Supplier matching remains available for invoices that need three-way review."}
       </p>
-      {error && (
-        <InlineNotice tone="danger" role="alert" className="error">
-          {error}
-        </InlineNotice>
-      )}
+      <BillCommandState command={command}/>
       {policy.canManage && (
-        <form
+        <ProcurementEditor title="Change supplier invoice matching policy" busy={busy} error={command.error} disabled={policy.purchase?.newWork===false||!ready} onBegin={reset} onDiscard={reset}><form key={revision}
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
-            void save({
+            void command.send("supplier-bills/policy",{
               matchingMode: form.get("matchingMode"),
-              expectedVersion: policy.version,
+              expectedVersion: draft.version,
               reason: form.get("reason"),
-            });
+            },false,event.currentTarget);
           }}
         >
           <FormGrid as="div" className="ui-form-grid">
             <Field appearance="standard">
               Required control
-              <Select appearance="standard" name="matchingMode" defaultValue={policy.matchingMode}>
+              <Select appearance="standard" name="matchingMode" defaultValue={draft.matchingMode}>
                 <option value="required">Require independent matching</option>
                 <option value="optional">Allow direct AP preparation</option>
               </Select>
@@ -139,10 +66,10 @@ export function SupplierInvoicePolicy({
               <TextArea appearance="standard" name="reason" required minLength={3} maxLength={2000} />
             </Field>
           </FormGrid>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !ready}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !ready || policy.purchase?.newWork===false}>
             {busy ? "Saving…" : ready ? "Save company policy" : "Loading policy controls…"}
           </Button>
-        </form>
+        </form></ProcurementEditor>
       )}
       {policy.canManage && !!policy.events.length && (
         <details>
@@ -160,14 +87,16 @@ export function SupplierInvoicePolicy({
 }
 export function SupplierBillCapture({
   base,
-  fulfillments,
-  lines,
+  fulfillments:initialFulfillments,
+  lines:initialLines,
   currency,
+  purchase,
 }: {
   base: string;
   fulfillments: Row[];
   lines: Row[];
   currency: string;
+  purchase?:SupplierBillPurchase;
 }) {
   const compatible = (left: Row | null, right: Row) => {
     if (!left) return true;
@@ -179,11 +108,9 @@ export function SupplierBillCapture({
       same("supplier_id") && same("order_currency") && same("branch_id") && same("department_id")
     );
   };
-  const initial = fulfillments.length
-    ? fulfillments.filter((receipt) => compatible(fulfillments[0], receipt))
-    : [];
-  const { busy, error, send } = useCommand(base),
-    [selected, setSelected] = useState(() => new Set(initial.map((receipt) => String(receipt.id))));
+  const [sources,setSources]=useState({fulfillments:initialFulfillments,lines:initialLines}),{fulfillments,lines}=sources,initial=fulfillments.length?fulfillments.filter(receipt=>compatible(fulfillments[0],receipt)):[];
+  const command=useSupplierBillCommand(base,purchase),{busy,ready,send}=command,[revision,setRevision]=useState(0),[selected,setSelected]=useState(()=>new Set(initial.map(receipt=>String(receipt.id))));
+  const reset=()=>{setSources({fulfillments:initialFulfillments,lines:initialLines});setSelected(new Set(initialFulfillments.filter(receipt=>compatible(initialFulfillments[0]??null,receipt)).map(receipt=>String(receipt.id))));setRevision(value=>value+1);};
   const receipts = fulfillments.filter((receipt) => selected.has(String(receipt.id))),
     anchor = receipts[0],
     receiptIds = new Set(receipts.map((receipt) => String(receipt.id))),
@@ -193,19 +120,15 @@ export function SupplierBillCapture({
     .sort()
     .at(-1);
   return (
-    <FormDisclosure appearance="standard">
-      <summary>
-        Match one supplier invoice to{" "}
-        {fulfillments.length > 1 ? "one or more receipts" : "this receipt"}
-      </summary>
+    <ProcurementEditor title="Match supplier invoice to goods receipts" busy={busy} error={command.error} disabled={!ready||purchase?.settleExisting===false||!initialFulfillments.length} onBegin={reset} onDiscard={reset}>
       <p>
         Select every posted goods receipt covered by the supplier invoice. Receipts can come from
         multiple purchase orders when they share the same supplier, currency, branch and department.
         A different Finance reviewer must accept quantities and price differences before one AP
         invoice is prepared.
       </p>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      <form
+      <BillCommandState command={command}/>
+      <form key={revision}
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
@@ -224,7 +147,7 @@ export function SupplierBillCapture({
               price: form.get(`price-${line.id}`),
               taxBps: Math.round(Number(form.get(`tax-${line.id}`)) * 100),
             })),
-          });
+          },false,event.currentTarget);
         }}
       >
         <fieldset>
@@ -328,12 +251,12 @@ export function SupplierBillCapture({
         <Button appearance="standard"
           clientManaged type="submit"
           variant="primary"
-          disabled={busy || !receipts.length || !items.length}
+          disabled={busy || !ready || purchase?.settleExisting===false || !receipts.length || !items.length}
         >
           Send invoice for independent matching review
         </Button>
       </form>
-    </FormDisclosure>
+    </ProcurementEditor>
   );
 }
 export function SupplierBillConsole({
@@ -343,13 +266,14 @@ export function SupplierBillConsole({
   base: string;
   data: Awaited<ReturnType<typeof supplierBillDetail>>;
 }) {
-  const { busy, error, send } = useCommand(base),
-    r = data.bill,
+  const r = data.bill,command=useSupplierBillCommand(base,data.purchase,String(r.order_id)),{busy,ready,send}=command,[revision,setRevision]=useState(0),[reviewVersion,setReviewVersion]=useState(Number(r.version)),
+    allowedReview=["review","approved","invoiced"].includes(String(r.status))&&data.purchase?.settleExisting!==false,
+    reset=()=>{setReviewVersion(Number(r.version));setRevision(value=>value+1);},
     variance = Number(r.subtotal_minor) - Number(r.expected_subtotal_minor);
   const primary = data.receipts.find((receipt) => receipt.fulfillment_id === r.fulfillment_id);
   return (
     <>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <BillCommandState command={command}/>
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>
           {String(r.reference)} · {String(r.status)}
@@ -405,11 +329,11 @@ export function SupplierBillConsole({
             AP.
           </InlineNotice>
         )}
-        <Link href={`${base}/commerce/orders/${r.order_id}`}>
+        <Link href={canonicalUiHref(`${base}/commerce/orders/${r.order_id}`)}>
           Source purchase order · {String(r.order_number)}
         </Link>
       </Card>
-      {["review", "approved", "invoiced"].includes(String(r.status)) && data.canReview && (
+      {data.canReview && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Independent Finance review</h2>
           {r.status === "invoiced" && (
@@ -424,16 +348,16 @@ export function SupplierBillConsole({
             difference as expense in the account you select. Use the Company’s approved accounting
             policy.
           </p>
-          <form
+          <ProcurementEditor title="Review supplier invoice" busy={busy} error={command.error} disabled={!ready||!allowedReview} onBegin={reset} onDiscard={reset}><form key={revision}
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
               void send(`supplier-bills/${r.id}`, {
                 action: f.get("action"),
-                expectedVersion: Number(r.version),
+                expectedVersion: reviewVersion,
                 reason: f.get("reason"),
                 ...(f.get("account") ? { varianceAccountId: f.get("account") } : {}),
-              });
+              },false,e.currentTarget);
             }}
           >
             <FormGrid as="div" className="ui-form-grid">
@@ -466,10 +390,10 @@ export function SupplierBillConsole({
                 <TextArea appearance="standard" name="reason" required minLength={3} maxLength={2000} />
               </Field>
             </FormGrid>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy||!ready||!allowedReview}>
               Record review
             </Button>
-          </form>
+          </form></ProcurementEditor>
         </Card>
       )}
       {r.status === "approved" && (
@@ -483,7 +407,7 @@ export function SupplierBillConsole({
             <Button appearance="standard"
               type="submit"
               variant="primary"
-              disabled={busy}
+              disabled={busy||!ready||data.purchase?.settleExisting===false}
               onClick={() =>
                 void send(
                   `commerce/fulfillments/${r.fulfillment_id}/invoice`,
@@ -504,7 +428,7 @@ export function SupplierBillConsole({
         </Card>
       )}
       {r.invoice_id && (
-        <Link href={`${base}/finance/invoices/${r.invoice_id}`}>Open matched AP invoice</Link>
+        <Link href={canonicalUiHref(`${base}/finance/invoices/${r.invoice_id}`)}>Open matched AP invoice</Link>
       )}
       <Card as="section" appearance="standard" className="ui-panel">
         <h2>Review history</h2>

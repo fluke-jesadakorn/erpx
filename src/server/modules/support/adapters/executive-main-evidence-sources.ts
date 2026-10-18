@@ -1,3 +1,7 @@
+import { nativeSupportRuntime } from "./command-runtime";
+import { supportTicketReadPredicate } from "./support";
+import { supportIncidentReadPredicate } from "./support-incidents";
+import { supportTicketSourceReadPredicate } from "./ticket-source-read-policy";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
@@ -28,11 +32,13 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }, actor: WorkContext): Promise<{
             rows: SupportIncidentEvidenceRow[];
         }> {
+            if (!(await nativeSupportRuntime(actor, db).purchase("support.incidents")).history) return { rows: [] };
+            const policy = supportIncidentReadPredicate(actor);
             const conditions = [
-                "t.company_id=?", "(?::text IS NULL OR t.branch_id=?)", "(?::text IS NULL OR t.department_id=?)",
+                "t.company_id=?", "(?::text IS NULL OR t.branch_id=?)", "(?::text IS NULL OR t.department_id=?)", policy.sql,
                 "t.status IN ('open','investigating','mitigated')",
             ];
-            const values: unknown[] = [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId];
+            const values: unknown[] = [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, ...policy.bindings];
             if (input.query) {
                 conditions.push("position(lower(?) in lower(t.title||' '||t.severity||' '||t.status||' '||t.id))>0");
                 values.push(input.query);
@@ -61,11 +67,13 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         } | null, overdue: boolean, actor: WorkContext): Promise<{
             rows: SupportTicketEvidenceRow[];
         }> {
+            if (!(await nativeSupportRuntime(actor, db).purchase(overdue ? "support.sla" : "support.tickets")).history) return { rows: [] };
+            const policy = supportTicketReadPredicate(actor), source = await supportTicketSourceReadPredicate(actor);
             const conditions = [
-                "t.company_id=?", "(?::text IS NULL OR t.branch_id=?)", "(?::text IS NULL OR t.department_id=?)",
+                "t.company_id=?", "(?::text IS NULL OR t.branch_id=?)", "(?::text IS NULL OR t.department_id=?)", policy.sql, source.sql,
                 supportTicketStatePredicate(input.metric),
             ];
-            const values: unknown[] = [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId];
+            const values: unknown[] = [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, ...policy.bindings, ...source.bindings];
             if (input.query) {
                 const querySource = overdue
                     ? "concat_ws(' ',t.id,t.title,t.status,t.due_date,t.sla_clock_json->>'state',t.sla_clock_json->>'dueAt')"
@@ -84,9 +92,11 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }, async factsReadSupportTicketEvidence(overdue: boolean, metric: "open-support-tickets" | "overdue-support-sla", id: string, actor: WorkContext): Promise<{
             row: SupportTicketEvidenceRow | null;
         }> {
+            if (!(await nativeSupportRuntime(actor, db).purchase(overdue ? "support.sla" : "support.tickets")).history) return { row: null };
+            const policy = supportTicketReadPredicate(actor), source = await supportTicketSourceReadPredicate(actor);
             const row = await db.prepare(`SELECT t.id,t.title,t.status,t.due_date,t.updated_at,t.version${overdue ? ",t.sla_clock_json->>'state' sla_state,t.sla_clock_json->>'dueAt' sla_due_at" : ""}
-    FROM support_tickets t WHERE t.id=? AND t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND ${supportTicketStatePredicate(metric)} LIMIT 1`)
-                .bind(id, actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId).first<SupportTicketEvidenceRow>();
+    FROM support_tickets t WHERE t.id=? AND t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND ${policy.sql} AND ${source.sql} AND ${supportTicketStatePredicate(metric)} LIMIT 1`)
+                .bind(id, actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, ...policy.bindings, ...source.bindings).first<SupportTicketEvidenceRow>();
             return { row };
         } };
 }

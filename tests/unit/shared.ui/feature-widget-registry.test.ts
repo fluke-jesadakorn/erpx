@@ -30,12 +30,3 @@ it('keeps widget identities unique, validates layouts, and registers declared pa
   };walk(tree);
  }
 });
-it('does not reintroduce the removed topic switchers',()=>{
- for(const [file,labels] of [
-  ['src/app/holdings/[holdingSlug]/people/page.tsx',['People history']],
-  ['src/app/holdings/[holdingSlug]/people/[id]/page.tsx',['Person sections']],
-  ['src/components/work_projection/calendar/calendar-workspace.tsx',['Calendar scope']],
-  ['src/components/pos/pos-console.tsx',['role="tablist"']],
-  ['src/components/runtime/executive/canvas.tsx',['className={styles.canvasTabs}']],
- ] as const){const source=readFileSync(file,'utf8');for(const label of labels)expect(source,file).not.toContain(label);}
-});

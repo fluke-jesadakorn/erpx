@@ -160,6 +160,7 @@ export type PreparationTask = {
   updated_at: number;
 };
 export type PeopleLifecycleData = {
+  purchases?: import("./purchase-controls").PeoplePurchaseControls;
   clearanceOwners?: {id:string;name:string;payroll:boolean;finance:boolean;equipment:boolean}[];
 
   roster: {

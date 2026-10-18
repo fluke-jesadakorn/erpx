@@ -58,3 +58,10 @@ async function loadWorkspaceNavigation(holdingSlug: string) {
   return { context, initialNavigation: read.data.catch(() => null), initialWork: read.work };
 }
 export type NavigationSnapshot = Awaited<ReturnType<typeof navigationSnapshot>>;
+
+/** Included source pages keep the current work role, without reading or
+ * serializing Work attention, counts or unrelated owner snapshots. */
+export async function restrictedWorkspaceNavigation(holdingSlug:string){
+ const context=await measureReadPhase("work_context",()=>requireWorkContext(holdingSlug));
+ return {context,initialNavigation:undefined};
+}

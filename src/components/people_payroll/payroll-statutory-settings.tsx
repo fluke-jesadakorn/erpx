@@ -1,18 +1,20 @@
 "use client";
+import {PayrollCommandRecovery} from "./payroll-command-recovery";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import { Dialog } from "@/components/ui/dialog";
+import {PayrollFormDrawer as Dialog, PayrollForm} from "./payroll-draft-boundary";
 import { useState } from "react";
 import { Button,Field,Select,TextArea,TextInput } from "@/components/ui/foundation";
 import { decimalToMinor,minorToDecimal } from "@/lib/finance/finance-money";
 import { thaiPayroll2026Pack } from "@/lib/people_payroll/thai-payroll-pack";
-import { usePeopleCommand } from "@/components/people_payroll/payroll-controls";
-import { Card, Stack, FormLayout } from "@/components/ui/foundation";
+import {usePayrollCommand as usePeopleCommand} from "./use-payroll-command";
+import { Card, Stack } from "@/components/ui/foundation";
 type Row=Record<string,unknown>;
 
 export function PayrollStatutorySettings({base,packs,profiles,employees,canPrepare,canReview}:{base:string;packs:Row[];profiles:Row[];employees:Row[];canPrepare:boolean;canReview:boolean}){
-  const {send,busy,error}=usePeopleCommand(base),[profileOpen,setProfileOpen]=useState(false),[reason,setReason]=useState("");
+  const {send,busy,error,notice,canPrepare: packagePrepare,canSettle, recovery} = usePeopleCommand(base, "statutory-settings", JSON.stringify([packs, profiles, employees, canPrepare, canReview])),[profileOpen,setProfileOpen]=useState(false),[reason,setReason]=useState("");
   const names=new Map(employees.map(e=>[String(e.id),String(e.legal_name)])),current=packs.filter(p=>p.adapter_id==="thai-payroll-v1"),hasRevision=current.some(p=>p.version===thaiPayroll2026Pack.rules.version&&p.status!=="superseded");
+  canPrepare &&= packagePrepare; canReview &&= canSettle;
   return <Card as="section" appearance="standard" className="ui-panel ui-stack">
     <h2>Thai statutory payroll</h2>
     <p className="muted">Monthly employment income and ordinary Section 33 contributions. The source revision and employee declarations require independent review.</p>
@@ -28,7 +30,7 @@ export function PayrollStatutorySettings({base,packs,profiles,employees,canPrepa
     </Card>)}
     <h3>Employee allowances and opening YTD</h3>
     {canPrepare&&<Button appearance="standard" variant="secondary" onClick={()=>setProfileOpen(!profileOpen)}>{profileOpen?"Close declaration form":"Prepare employee declaration"}</Button>}
-    {profileOpen&&<Dialog appearance="standard" open={profileOpen} onClose={() => setProfileOpen(false)} title="Employee tax declaration" presentation="form-drawer" dismissDisabled={busy}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<FormLayout className="ui-form-grid" onSubmit={async e=>{
+    {profileOpen&&<Dialog appearance="standard" open={profileOpen} onClose={() => setProfileOpen(false)} title="Employee tax declaration" dismissDisabled={busy}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<PayrollForm className="ui-form-grid" onSubmit={async e=>{
       e.preventDefault();const form=new FormData(e.currentTarget),employee=employees.find(p=>p.id===form.get("engagementId"));
       const value=(name:string)=>String(form.get(name)??"");
       if(await send("payroll/thai-profiles",{engagementId:value("engagementId"),expectedEngagementVersion:Number(employee?.version),taxYear:Number(value("taxYear")),effectiveFrom:value("effectiveFrom"),effectiveTo:value("effectiveTo"),verifiedAnnualDeductionsMinor:decimalToMinor(value("annualDeductions")),scheduledPaysInYear:Number(value("scheduledPays")),socialSecurityEligible:value("socialSecurityEligible")==="true",...(value("exemptionEvidence").trim()?{socialSecurityExemptionEvidence:value("exemptionEvidence")} :{}),openingThroughDate:value("openingThroughDate"),openingTaxableMinor:decimalToMinor(value("openingTaxable")),openingIrregularMinor:decimalToMinor(value("openingIrregular")),openingWithheldMinor:decimalToMinor(value("openingWithheld")),priorIncomeComplete:form.get("priorIncomeComplete")==="on",evidenceRef:value("evidenceRef")}))setProfileOpen(false);
@@ -48,7 +50,7 @@ export function PayrollStatutorySettings({base,packs,profiles,employees,canPrepa
       <Field appearance="standard"><label><input name="priorIncomeComplete" type="checkbox" required/> Prior income and withholding have been reconciled</label></Field>
       <Field appearance="standard">Declaration and opening YTD evidence<TextArea appearance="standard" name="evidenceRef" minLength={8} maxLength={2000} required/></Field>
       <Button appearance="standard" clientManaged type="submit" disabled={busy}>Save declaration for review</Button>
-    </FormLayout></Stack></Dialog>}
+    </PayrollForm></Stack></Dialog>}
     {profiles.map(p=><Card as="div" appearance="standard" key={String(p.id)} className="ui-panel">
       <strong>{names.get(String(p.engagement_id))??String(p.engagement_id)}</strong>
       <p>{String(p.tax_year)} · {String(p.effective_from)}–{String(p.effective_to)} · {String(p.status)} · revision {String(p.version)}</p>
@@ -56,6 +58,6 @@ export function PayrollStatutorySettings({base,packs,profiles,employees,canPrepa
       <p>{String(p.evidence_ref)}</p>
       {canReview&&["draft","approved"].includes(String(p.status))&&<Button appearance="standard" variant="secondary" disabled={busy||reason.trim().length<8} onClick={()=>void send(`payroll/thai-profiles/${p.id}/decision`,{action:p.status==="draft"?"approve":"supersede",expectedVersion:Number(p.version),reason})}>{p.status==="draft"?"Approve reviewed declaration":"Supersede declaration"}</Button>}
     </Card>)}
-    {error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+    <PayrollCommandRecovery {...recovery} appearance="standard"/>{error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{notice&&<p role="status">{notice}</p>}
   </Card>;
 }

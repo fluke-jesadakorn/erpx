@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
@@ -7,9 +8,13 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import {workFetch} from "@/lib/work_projection/work-fetch";
+import {useRefundCommand} from "./use-refund-command";
+import {refundSourceCapabilities} from "@/lib/finance/refund-command-controls";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
+import {RefundBankEvidence} from "./refund-bank-evidence";
+import {useLayoutEffect,useRef,useState} from "react";
+import {captureWorkCommandContext} from "@/lib/work_projection/command-context";
 import type { refundWorkspace } from "@/server/modules/finance/public/refunds";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import {
@@ -19,54 +24,46 @@ import {
 import { Stack, Card, FormLayout } from "@/components/ui/foundation";
 type Workspace = Awaited<ReturnType<typeof refundWorkspace>>;
 export function RefundConsole({ base, data }: { base: string; data: Workspace }) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [exported, setExported] = useState<{ content: string; sha256: string } | null>(null),
-    [proofs, setProofs] = useState<Record<string, AttachmentPanelChange>>({}),
-    retry = useRef<{ fingerprint: string; key: string } | null>(null);
-  const row = data.owner,
-    money = (value: unknown) => `${row.currency} ${minorToDecimal(Number(value))}`;
-  async function send(path: string, input: unknown) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const fingerprint = JSON.stringify({ path, input });
-    if (retry.current?.fingerprint !== fingerprint)
-      retry.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/finance/${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": retry.current.key },
-        body: JSON.stringify(input),
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) retry.current = null;
-        throw new Error(body.error?.message ?? "Command failed.");
-      }
-      retry.current = null;
-      if (body.data.content) setExported(body.data);
-      router.refresh();
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "The response was lost. Retry the same action to recover its result.",
-      );
-    } finally {
-      setBusy(false);
-    }
+  const row = data.owner;
+  const sourceOnly=!!data.sourcePurchase && data.sourcePurchase.capability!=="finance.banking";
+  const orderHref=typeof row.order_id==="string" && row.order_id
+    ? canonicalUiHref(`${base}/${data.sourcePurchase?.capability==="finance.inventory-valuation" || row.direction==="incoming" ? "purchasing/orders" : "customers-sales/sales/documents/sales"}/${encodeURIComponent(row.order_id)}/overview`)
+    : null;
+  const invoiceHref=canonicalUiHref(`${base}/finance/invoices/${row.invoice_id}`);
+  const returnHref=sourceOnly ? orderHref ?? invoiceHref : canonicalUiHref(`${base}/finance/refunds`);
+  const {run,busy,error,setError,notice,draftScope,canSettle,canReadHistory}=useRefundCommand(base,refundSourceCapabilities(data.sourcePurchase),{ownerId:String(row.id),instructionIds:data.instructions.map(instruction=>String(instruction.id))});
+  const
+    [exported, setExported] = useState<{ content: string; sha256: string; owner: string; assertCurrent: () => void } | null>(null),
+    [proofs, setProofs] = useState<Record<string, AttachmentPanelChange>>({});
+  const money = (value: unknown) => `${row.currency} ${minorToDecimal(Number(value))}`;
+  const [generations,setGenerations] = useState<Record<string,number>>({});
+  const exportOwner = JSON.stringify([base,row.company_id,row.id]);
+  const recoverGeneration = useRef(0),liveExportSource=useRef<{owner:string;canReadHistory:boolean}|null>({owner:exportOwner,canReadHistory});
+  useLayoutEffect(()=>{liveExportSource.current={owner:exportOwner,canReadHistory};return()=>{liveExportSource.current=null;recoverGeneration.current++;};},[exportOwner,canReadHistory]);
+  function captureExportSource(){
+    const owner=exportOwner,assertWork=captureWorkCommandContext();
+    return ()=>{assertWork();const live=liveExportSource.current;if(!live||live.owner!==owner||!live.canReadHistory)throw Object.assign(Error("Return to the original refund context before retrieving this export."),{code:"WORK_CONTEXT_CHANGED"});};
+  }
+  function resetEditor(key:string,proofId?:string) {setGenerations(current=>({...current,[key]:(current[key] ?? 0)+1}));if(proofId)setProofs(current=>Object.fromEntries(Object.entries(current).filter(([id])=>id!==proofId)));}
+  async function send(path:string,input:unknown){
+    if(busy)return;
+    const assertCurrent=path==="refund-instructions/export"?captureExportSource():undefined;
+    try{assertCurrent?.();const result=await run(path,input);if(assertCurrent&&result?.content&&result.sha256){assertCurrent();setExported({content:result.content,sha256:result.sha256,owner:exportOwner,assertCurrent});}}
+    catch(cause){try{assertCurrent?.();setError(cause instanceof Error?cause.message:"Export unavailable.");}catch{/* The response belongs to an obsolete rendered source. */}}
   }
   async function recover(id: string) {
-    setError("");
+    if (!canReadHistory) return;
+    const generation = ++recoverGeneration.current,assertCurrent=captureExportSource();
     try {
+      assertCurrent();setError("");
       const response = await workFetch(`/api/v1${base}/finance/refund-instructions/${id}/export`);
       const body = await response.json();
+      assertCurrent();
       if (!response.ok) throw new Error(body.error?.message ?? "Export unavailable.");
-      setExported(body.data);
+      if(typeof body.data?.content !== "string" || !body.data.content || typeof body.data?.sha256 !== "string" || !body.data.sha256)throw new Error("Export acknowledgement is missing.");
+      assertCurrent();if(generation === recoverGeneration.current)setExported({content:body.data.content,sha256:body.data.sha256,owner:exportOwner,assertCurrent});
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Export unavailable.");
+      try{assertCurrent();if(generation === recoverGeneration.current)setError(cause instanceof Error ? cause.message : "Export unavailable.");}catch{/* Do not publish an old source's error in the new context. */}
     }
   }
   const reserved = data.instructions
@@ -76,7 +73,7 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
   return (
     <Stack as="div" className="ui-stack">
       <FinanceLegacyHeading>
-        <Link href={`${base}/finance/refunds`}>← Return refunds</Link>
+        <Link href={returnHref}>{sourceOnly ? "← Return to source" : "← Return refunds"}</Link>
         <h1>{String(row.return_number)} · Refund obligation</h1>
       </FinanceLegacyHeading>
       <Card as="section" appearance="standard" className="ui-panel">
@@ -89,10 +86,8 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
           Total {money(row.amount_minor)} · Remaining {money(row.outstanding_minor)} · Reserved{" "}
           {money(reserved)}
         </p>
-        <Link href={`${base}/finance/invoices/${row.invoice_id}`}>Original invoice</Link> ·{" "}
-        <Link href={`${base}/commerce/orders/${row.order_id}`}>
-          Return and goods movement evidence
-        </Link>
+        <Link href={invoiceHref}>Original invoice</Link>
+        {orderHref && <> · <Link href={orderHref}>Return evidence</Link></>}
         <p>
           Created by {String(row.created_by)}
           {row.approved_by && <> · Approved by {String(row.approved_by)}</>}
@@ -106,15 +101,15 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
           </p>
         )}
       </Card>
-      {error && (
+      {notice && <p role="status">{notice}</p>}{error && (
         <InlineNotice tone="danger" className="error" role="alert">
           {error}
         </InlineNotice>
       )}
-      {row.status === "pending" && data.canApprove && (
+      {row.status === "pending" && data.canApprove && canSettle && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Independent approval</h2>
-          <FormLayout
+          <FormDisclosure appearance="standard" error={error} dismissDisabled={busy} drawerTitle="Review refund obligation" onDiscard={()=>resetEditor("approve")}><summary>Review refund obligation</summary><FormLayout key={generations.approve ?? 0} data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(event) => {
               event.preventDefault();
@@ -145,16 +140,17 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
               Source and beneficiary review evidence
               <TextArea appearance="standard" name="reason" required minLength={3} maxLength={1000} />
             </Field>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={!canSettle || busy}>
               Approve refund obligation
             </Button>
-          </FormLayout>
+          </FormLayout></FormDisclosure>
         </Card>
       )}
-      {row.status === "approved" && data.canPay && available > 0 && (
+      {row.status === "approved" && data.canPay && canSettle && available > 0 && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Prepare partial or final instruction</h2>
-          <FormLayout
+          <FormDisclosure appearance="standard" error={error} dismissDisabled={busy} onDiscard={()=>resetEditor("prepare")} drawerTitle="Prepare refund instruction"><summary>Prepare partial or final instruction</summary>
+          <FormLayout key={generations.prepare ?? 0} data-finance-draft={draftScope}
             className="ui-form-grid"
             onSubmit={(event) => {
               event.preventDefault();
@@ -221,17 +217,17 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
                 ))}
               </Select>
             </Field>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={!canSettle || busy}>
               Reserve amount and prepare instruction
             </Button>
-          </FormLayout>
+          </FormLayout></FormDisclosure>
         </Card>
       )}
-      {data.canPay && data.instructions.some((i) => i.status === "prepared") && (
+      {data.canPay && canSettle && data.instructions.some((i) => i.status === "prepared") && (
         <Button appearance="standard"
           type="submit"
           variant="secondary"
-          disabled={busy}
+          disabled={!canSettle || busy}
           onClick={() =>
             void send("refund-instructions/export", {
               instructions: data.instructions
@@ -243,7 +239,7 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
           Export prepared instructions
         </Button>
       )}
-      {exported && (
+      {exported && exported.owner===exportOwner && canReadHistory && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Manual bank instructions</h2>
           <p>
@@ -254,6 +250,7 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
             variant="secondary"
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(exported.content)}`}
             download="refund-instructions.csv"
+            onClick={event=>{try{exported.assertCurrent();}catch{event.preventDefault();}}}
           >
             Download CSV
           </UiActionAnchor>
@@ -275,7 +272,7 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
           {i.export_hash && (
             <p>
               Export SHA-256 <code>{String(i.export_hash)}</code>
-              {data.canPay && (
+              {data.canPay && canReadHistory && (
                 <Button appearance="standard"
                   type="submit"
                   variant="secondary"
@@ -289,10 +286,12 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
           {i.evidence && <p>Evidence: {String(i.evidence)}</p>}
           {i.bank_reference && <p>Bank reference: {String(i.bank_reference)}</p>}
           {i.payment_id && (
-            <Link href={`${base}/finance/bank`}>Matched bank payment · {String(i.payment_id)}</Link>
+            <Link href={canonicalUiHref(`${base}/finance/bank`)}>Matched bank payment · {String(i.payment_id)}</Link>
           )}
-          {["exported", "unknown"].includes(String(i.status)) && data.canPay && (
-            <FormLayout
+          {typeof row.company_id==="string" && <RefundBankEvidence source={{base,companyId:row.company_id,obligationId:String(row.id),instructionId:String(i.id),instructionVersion:Number(i.version),bankAccount:String(i.bank_account),currency:String(row.currency),amountMinor:Number(i.amount_minor),direction:row.direction==="outgoing"?"outgoing":"incoming",plannedDate:String(i.planned_date),functionalCurrency:data.bankEvidenceFunctionalCurrencies?.[String(i.id)]}} canImport={data.bankEvidenceImportable?.[String(i.id)]===true&&data.canPay&&row.status==="approved"&&["exported","unknown"].includes(String(i.status))&&!busy}/>}
+          {["exported", "unknown"].includes(String(i.status)) && data.canPay && canSettle && (
+            <FormDisclosure appearance="standard" error={error} dismissDisabled={busy} onDiscard={()=>resetEditor(`confirm:${i.id}`,String(i.id))} drawerTitle="Confirm refund bank result"><summary>Review bank result and proof</summary>
+            <FormLayout key={generations[`confirm:${i.id}`] ?? 0} data-finance-draft={draftScope}
               className="ui-form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -368,16 +367,16 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
                   setProofs((current) => ({ ...current, [String(i.id)]: change }))
                 }
               />
-              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+              <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={!canSettle || busy}>
                 Confirm bank result and post refund
               </Button>
-            </FormLayout>
+            </FormLayout></FormDisclosure>
           )}
-          {((data.canPay && ["prepared", "exported"].includes(String(i.status))) ||
+          {canSettle && ((data.canPay && ["prepared", "exported"].includes(String(i.status))) ||
             (data.canReviewException &&
               i.prepared_by !== data.userId &&
               ["exported", "unknown"].includes(String(i.status)))) && (
-            <FormLayout
+            <FormDisclosure appearance="standard" error={error} dismissDisabled={busy} onDiscard={()=>resetEditor(`exception:${i.id}`)} drawerTitle="Review refund exception"><summary>Review refund exception</summary><FormLayout key={generations[`exception:${i.id}`] ?? 0} data-finance-draft={draftScope}
               className="ui-form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -409,10 +408,10 @@ export function RefundConsole({ base, data }: { base: string; data: Workspace })
                 Evidence and reason
                 <TextArea appearance="standard" name="evidence" required minLength={3} maxLength={1000} />
               </Field>
-              <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
+              <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={!canSettle || busy}>
                 Record exception
               </Button>
-            </FormLayout>
+            </FormLayout></FormDisclosure>
           )}
         </Card>
       ))}

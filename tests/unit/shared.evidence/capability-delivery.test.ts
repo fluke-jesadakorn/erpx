@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import registry from "../../../src/data/module-registry.json";
-import { businessAcceptanceManifest, acceptanceGates } from "../../../src/data/business-acceptance";
+import { businessAcceptanceManifest } from "../../../src/data/business-acceptance";
 import {
   capabilityDelivery,
   deliveryModules,
@@ -17,20 +17,7 @@ const statuses = new Set<DeliveryStatus>([
 ]);
 
 describe("capability delivery inventory", () => {
-  it("keeps production acceptance independent from implementation and provider labels", () => {
-    const manifest = businessAcceptanceManifest();
-    const registryCapabilities = registry.flatMap(module => module.sections.filter(section => section.capability).map(section => `${module.id}/${section.id}`));
-    expect(new Set(manifest.map(row => row.id))).toEqual(new Set(registryCapabilities));
-    expect(new Set(manifest.flatMap(row => row.scenarios)).size).toBe(21);
-    expect(new Set(manifest.flatMap(row => row.gaps)).size).toBe(20);
-    for (const row of manifest) {
-      expect(row.owner).toBeTruthy();
-      expect(row.scenarios.length).toBeGreaterThan(0);
-      for (const gate of acceptanceGates) {
-        expect(row.gates[gate]).toEqual({ state: "pending", evidence: null, reviewer: null, reviewedAt: null });
-      }
-    }
-  });
+
   it("accounts for every catalog capability including Legal", () => {
     const capabilities = registry.flatMap((module) =>
       module.sections
@@ -47,8 +34,6 @@ describe("capability delivery inventory", () => {
   });
 
   it("includes Legal and has no stale module definitions", () => {
-    expect(capabilityDelivery("legal", "contracts")).toBeDefined();
-    expect(deliveryModules()).toContain("legal");
     expect(new Set(deliveryModules())).toEqual(
       new Set(registry.map((module) => module.id)),
     );

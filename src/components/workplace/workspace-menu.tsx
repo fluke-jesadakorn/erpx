@@ -1,11 +1,12 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Button } from "@/components/ui/foundation";
 
 /* eslint-disable @next/next/no-img-element -- Private workspace logos are served through authenticated attachment routes. */
 
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRef, useState, type MouseEvent } from "react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { usePathname } from "next/navigation";
 import { Building2, ChevronDown, Network, ShieldCheck } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
@@ -63,7 +64,7 @@ export function WorkspaceMenu({ appearance = "legacy",
   );
   const platform = choices.find((choice) => choice.kind === "platform");
   const erpxManagementCurrent =
-    pathname === "/holdings/erpx/manage-erpx" || pathname.startsWith("/holdings/erpx/manage-erpx/");
+    pathname === canonicalUiHref("/holdings/erpx/manage-erpx") || pathname.startsWith(canonicalUiHref("/holdings/erpx/manage-erpx/"));
 
   const companyIsCurrent = (holdingSlug: string, company: WorkspaceCompanyChoice) =>
     current.kind === "holding" &&
@@ -221,10 +222,10 @@ export function WorkspaceMenu({ appearance = "legacy",
             <div data-ui-appearance={appearance} className={styles.workspaceTree}>
               <Link
                 className={styles.workspaceChoice}
-                href="/holdings/erpx/manage-erpx"
+                href={canonicalUiHref("/holdings/erpx/manage-erpx")}
                 aria-current={erpxManagementCurrent ? "location" : undefined}
                 onClick={(event) =>
-                  void navigateWorkspaceLink(event, "erpx", null, "/holdings/erpx/manage-erpx")
+                  void navigateWorkspaceLink(event, "erpx", null, canonicalUiHref("/holdings/erpx/manage-erpx"))
                 }
               >
                 <ShieldCheck size={17} aria-hidden="true" />

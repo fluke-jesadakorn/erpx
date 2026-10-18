@@ -47,7 +47,10 @@ export function createAssetApplication(ports: {
       if (state.status === "retired") return fail(409, "ASSET_RETIRED", "A retired asset cannot receive a current condition.");
       state.condition = input.condition;
     } else if (input.action === "retire-request") {
-      if (!["registered", "in_service"].includes(state.status)) return fail(409, "ASSET_RETIREMENT_BLOCKED", "Return the asset from maintenance before requesting retirement.");
+      if (state.status === "retirement_pending") {
+        const request = (await repository.history(id)).findLast(event => event.action === "retire-request");
+        if (!request || request.actor_id !== ports.actorId) return fail(403, "ASSET_RETIREMENT_REFRESH_FORBIDDEN", "Only the original retirement requester can review and renew this pending request.");
+      } else if (!["registered", "in_service"].includes(state.status)) return fail(409, "ASSET_RETIREMENT_BLOCKED", "Return the asset from maintenance before requesting retirement.");
       state.status = "retirement_pending"; state.retirement = input.reason;
     } else {
       ports.authorizeReview();

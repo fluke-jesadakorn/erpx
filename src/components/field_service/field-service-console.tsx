@@ -1,70 +1,58 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import { createContext, useContext, useEffect, useLayoutEffect, useId, useRef, useState } from "react";
+import { useRouter } from "@/lib/shared/destination-router";
+import WorkspaceLink from "@/components/workplace/workspace-link";
+import {createFieldServiceCommands,fieldServiceOwner,type FieldServiceSource} from "@/lib/field_service/command";
+import {registerUnsavedWork} from "@/lib/work_projection/context-switch";
 import { PreferredDateTimeField } from "@/components/people_payroll/time/preferred-date-time-field";
-import { minorToDecimal } from "@/lib/finance/finance-money";
+import { decimalToMinor, minorToDecimal } from "@/lib/finance/finance-money";
 import { ServiceSpareForm } from "@/components/field_service/service-spare-form";
+import { ServiceAgreementReferenceFields, ServiceRequestReferenceFields, ServiceOrderReferenceFields, ServiceTechnicianField } from "@/components/field_service/service-reference-fields";
 import type { fieldServiceDetail, fieldServiceWorkspace } from "@/server/modules/field_service/public/field-service";
 import { FormLayout, Card } from "@/components/ui/foundation";
-function useCommand(base: string) {
-  const router = useRouter(),
-    last = useRef<{ key: string; body: string } | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function send(input: unknown) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const body = JSON.stringify(input);
-    if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
+function useCommand(current:()=>FieldServiceSource|null,rendered:FieldServiceSource) {
+  const router=useRouter(),commands=useRef<ReturnType<typeof createFieldServiceCommands>|null>(null),inFlight=useRef(false);commands.current??=createFieldServiceCommands(current);
+  const [messageOwner,setMessageOwner]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[uncertain,setUncertain]=useState(false),[notice,setNotice]=useState(""),[saved,setSaved]=useState<{owner:string;id:string;href:string;agreement:boolean}|null>(null);
+  useEffect(()=>registerUnsavedWork(()=>busy||uncertain),[busy,uncertain]);
+  async function send(input:unknown,form?:HTMLFormElement,retry=false,displayed?:FieldServiceSource) {
+    if(inFlight.current)return;const source=current();if(!source)return;const capturedOwner=fieldServiceOwner(source);inFlight.current=true;setMessageOwner(capturedOwner);setBusy(true);setError("");setNotice("");
     try {
-      const response = await workFetch(`/api/v1${base}/field-service`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": last.current.key,
-          },
-          body,
-        }),
-        result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(result.error?.message ?? "Unable to record field service action.");
-      }
-      last.current = null;
-      router.push(
-        `${base}/field-service${input && typeof input === "object" && "entity" in input && input.entity === "agreement" ? "" : `/${result.data.id}`}`,
-      );
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry this action.");
-    } finally {
-      setBusy(false);
-    }
+      const outcome=await(retry?commands.current!.retry():commands.current!.submit(input,form?{form,formEditVersion:form.getAttribute('data-erpx-edit-version')}:undefined,displayed)),unchanged=outcome.unchanged();
+      if(!outcome.acknowledge())throw Error("Confirm the original Service request again.");setUncertain(false);
+      const href=canonicalUiHref(`${source.base}/field-service${outcome.agreement?'':`/${encodeURIComponent(outcome.receipt.id)}`}`);setSaved({owner:capturedOwner,id:outcome.receipt.id,href,agreement:outcome.agreement});setNotice(unchanged?"The original Service request was saved.":"The original Service request was saved. Your newer entries remain unsent.");
+      if(unchanged){outcome.completion()?.form.reset();try{router.push(href);router.refresh();}catch{setError("Saved, but navigation failed. Open the saved original record without submitting a replacement request.");}}
+    } catch(cause) {setUncertain(commands.current!.pending());setError(cause instanceof Error?cause.message:"The result is uncertain. Confirm the original Service request.");}
+    finally {inFlight.current=false;setBusy(false);}
   }
-  return { send, busy, error };
+  const visible=saved&&saved.owner===fieldServiceOwner(rendered)?saved:null;
+  const sameOwner=messageOwner===fieldServiceOwner(rendered);
+  return {send,busy,error:sameOwner?error:"",uncertain,notice:sameOwner?notice:"",saved:visible,retry:()=>send(undefined,undefined,true),clearError:()=>setError(""),fail:(cause:unknown)=>{setMessageOwner(fieldServiceOwner(rendered));setError(cause instanceof Error?cause.message:"Review the form values.");}};
 }
-export function FieldServiceConsole({
+function ServiceConsole({
   base,
   data,
   detail,
+  recovery,
 }: {
+  recovery:ReturnType<typeof useCommand>;
   base: string;
   data?: Awaited<ReturnType<typeof fieldServiceWorkspace>>;
   detail?: Awaited<ReturnType<typeof fieldServiceDetail>>;
 }) {
   const source = data ?? detail!,
-    { send, busy, error } = useCommand(base),
+    { busy, error, clearError, fail } = recovery,
     order = detail?.order;
+  const send=(input:unknown,form?:HTMLFormElement)=>recovery.send(input,form,false,serviceSource({base,data,detail}));
   function action(name: string, title: string, extra?: React.ReactNode) {
+    if (!order || !(name === "release-billing" ? Number(order.can_release_billing) : Number(order.can_work))) return null;
     return (
-      <FormLayout
+      <ServiceDraftDrawer title={title} busy={busy} error={error}><FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
@@ -78,7 +66,7 @@ export function FieldServiceConsole({
             expiresAt: f.expiresAt ? new Date(String(f.expiresAt)).getTime() : undefined,
             quantityMilli: f.quantityMilli ? Number(f.quantityMilli) : undefined,
             laborMinutes: f.laborMinutes ? Number(f.laborMinutes) : undefined,
-          });
+          },e.currentTarget);
         }}
       >
         <h2>{title}</h2>
@@ -90,11 +78,11 @@ export function FieldServiceConsole({
         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           {title}
         </Button>
-      </FormLayout>
+      </FormLayout></ServiceDraftDrawer>
     );
   }
   return (
-    <>
+    <ServiceRecoveryContext.Provider value={recovery}><ServiceCommandErrorContext.Provider value={clearError}>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {detail?.billing && (
         <Card as="section" appearance="standard" className="ui-panel" aria-label="Billing handoff">
@@ -119,70 +107,25 @@ export function FieldServiceConsole({
           )}
         </Card>
       )}
-      {data?.canWrite && (
+      {data && (
         <>
-          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Draft service agreement</summary><FormLayout
+          {source.canCreateAgreement && <ServiceDraftDrawer title="Draft service agreement" busy={busy} error={error}><FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
               const f = Object.fromEntries(new FormData(e.currentTarget));
-              void send({
+              try { void send({
                 ...f,
                 entity: "agreement",
                 departmentId: f.departmentId || null,
                 assetId: f.assetId || null,
-                visitRateMinor: Number(f.visitRateMinor),
-                warrantyDiscountBps: Math.round(Number(f.warrantyDiscountPercent) * 100),
-              });
+                visitRateMinor: decimalToMinor(String(f.visitRate)),
+                warrantyDiscountBps: decimalToMinor(String(f.warrantyDiscountPercent)),
+              },e.currentTarget); } catch (cause) { fail(cause); }
             }}
           >
             <h2>Draft service agreement</h2>
-            <Field appearance="standard">
-              Branch
-              <Select appearance="standard" name="branchId" required>
-                {source.nodes
-                  .filter((n) => ["branch", "headquarters"].includes(String(n.kind)))
-                  .map((n) => (
-                    <option key={String(n.id)} value={String(n.id)}>
-                      {String(n.display_name)}
-                    </option>
-                  ))}
-              </Select>
-            </Field>
-            <Field appearance="standard">
-              Department
-              <Select appearance="standard" name="departmentId">
-                <option value="">No department</option>
-                {source.nodes
-                  .filter((n) => n.kind === "department")
-                  .map((n) => (
-                    <option key={String(n.id)} value={String(n.id)}>
-                      {String(n.display_name)}
-                    </option>
-                  ))}
-              </Select>
-            </Field>
-            <Field appearance="standard">
-              Customer
-              <Select appearance="standard" name="customerId" required>
-                {source.customers.map((x) => (
-                  <option key={String(x.id)} value={String(x.id)}>
-                    {String(x.name)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field appearance="standard">
-              Asset
-              <Select appearance="standard" name="assetId">
-                <option value="">Any covered asset</option>
-                {source.assets.map((x) => (
-                  <option key={String(x.id)} value={String(x.id)}>
-                    {String(x.code)} · {String(x.name)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            <ServiceAgreementReferenceFields source={source} />
             <Field appearance="standard">
               Title
               <TextInput appearance="standard" name="title" required />
@@ -196,12 +139,8 @@ export function FieldServiceConsole({
               <TextInput appearance="standard" name="endDate" type="date" required />
             </Field>
             <Field appearance="standard">
-              Currency
-              <TextInput appearance="standard" name="currency" defaultValue="THB" maxLength={3} required />
-            </Field>
-            <Field appearance="standard">
-              Visit rate (minor units)
-              <TextInput appearance="standard" name="visitRateMinor" type="number" min="0" required />
+              Visit rate
+              <TextInput appearance="standard" name="visitRate" type="number" min="0" step="0.01" required />
             </Field>
             <Field appearance="standard">
               Warranty discount (%)
@@ -210,7 +149,7 @@ export function FieldServiceConsole({
                 type="number"
                 min="0"
                 max="100"
-                step="1"
+                step="0.01"
                 defaultValue="0"
                 required
               />
@@ -221,8 +160,15 @@ export function FieldServiceConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Draft agreement
             </Button>
-          </FormLayout></FormDisclosure>
-          <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Create service order</summary><FormLayout
+          </FormLayout></ServiceDraftDrawer>}
+          {source.canCreateOrder && <ServiceDraftDrawer title="Request field service" busy={busy} error={error}><FormLayout className="ui-panel ui-form-grid"
+            onSubmit={event=>{event.preventDefault();const fields=Object.fromEntries(new FormData(event.currentTarget)),agreement=source.agreements.find(row=>row.id===fields.agreementId);
+              void send({...fields,entity:"request",agreementVersion:Number(agreement?.version),scheduledAt:fields.scheduledAt?new Date(String(fields.scheduledAt)).getTime():null},event.currentTarget);}}>
+            <h2>Request field service</h2>
+            <ServiceRequestReferenceFields source={source} />
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>Request visit</Button>
+          </FormLayout></ServiceDraftDrawer>}
+          {source.canCreateOrder && <ServiceDraftDrawer title="Create service order" busy={busy} error={error}><FormLayout
             className="ui-panel ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -233,76 +179,24 @@ export function FieldServiceConsole({
                 ...f,
                 ticketVersion: Number(ticket?.version),
                 agreementVersion: Number(agreement?.version),
-                assetId: f.assetId || null,
+                assetId: agreement?.asset_id || f.assetId || null,
                 scheduledAt: f.scheduledAt ? new Date(String(f.scheduledAt)).getTime() : null,
-              });
+              },e.currentTarget);
             }}
           >
             <h2>Create service order</h2>
-            <Field appearance="standard">
-              Support case
-              <Select appearance="standard" name="ticketId" required>
-                {source.tickets.map((x) => (
-                  <option key={String(x.id)} value={String(x.id)}>
-                    {String(x.title)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field appearance="standard">
-              Active agreement
-              <Select appearance="standard" name="agreementId" required>
-                {source.agreements
-                  .filter((x) => x.status === "active")
-                  .map((x) => (
-                    <option key={String(x.id)} value={String(x.id)}>
-                      {String(x.title)}
-                    </option>
-                  ))}
-              </Select>
-            </Field>
-            <Field appearance="standard">
-              Asset
-              <Select appearance="standard" name="assetId">
-                <option value="">No linked asset</option>
-                {source.assets.map((x) => (
-                  <option key={String(x.id)} value={String(x.id)}>
-                    {String(x.code)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field appearance="standard">
-              Issue
-              <TextArea appearance="standard" name="issue" required minLength={3} />
-            </Field>
-            <Field appearance="standard">
-              Site
-              <TextInput appearance="standard" name="site" required />
-            </Field>
-            <Field appearance="standard">
-              Technician
-              <Select appearance="standard" name="technicianId" required>
-                {source.people.map((x) => (
-                  <option key={String(x.id)} value={String(x.id)}>
-                    {String(x.name)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <PreferredDateTimeField appearance="standard" name="scheduledAt" label="Schedule" />
+            <ServiceOrderReferenceFields source={source} />
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Create service order
             </Button>
-          </FormLayout></FormDisclosure>
+          </FormLayout></ServiceDraftDrawer>}
         </>
       )}
       {data?.agreements
-        .filter((x) => x.status === "draft")
+        .filter((x) => x.status === "draft" ? Number(x.can_activate) || Number(x.can_reject) : x.status === "active" && Number(x.can_retire))
         .map((x) => (
-          <FormLayout
+          <ServiceDraftDrawer key={String(x.id)} title={`Agreement review · ${String(x.title)}`} busy={busy} error={error}><FormLayout
             className="ui-panel ui-form-grid"
-            key={String(x.id)}
             onSubmit={(e) => {
               e.preventDefault();
               const f = Object.fromEntries(new FormData(e.currentTarget));
@@ -311,15 +205,16 @@ export function FieldServiceConsole({
                 entity: "agreement",
                 id: x.id,
                 expectedVersion: Number(x.version),
-              });
+              },e.currentTarget);
             }}
           >
             <h2>Agreement review · {String(x.title)}</h2>
             <Field appearance="standard">
               Decision
               <Select appearance="standard" name="action">
-                <option value="activate">Activate</option>
-                <option value="reject">Reject</option>
+                {x.status === "draft" && Number(x.can_activate)>0 && <option value="activate">Activate</option>}
+                {x.status === "draft" && Number(x.can_reject)>0 && <option value="reject">Reject</option>}
+                {x.status === "active" && Number(x.can_retire)>0 && <option value="retire">Retire</option>}
               </Select>
             </Field>
             <Field appearance="standard">
@@ -329,7 +224,7 @@ export function FieldServiceConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || !Number(x.can_review)}>
               Record decision
             </Button>
-          </FormLayout>
+          </FormLayout></ServiceDraftDrawer>
         ))}
       {order &&
         ["open", "scheduled"].includes(String(order.status)) &&
@@ -337,49 +232,22 @@ export function FieldServiceConsole({
           "schedule",
           "Schedule or reassign",
           <>
-            <Field appearance="standard">
-              Technician
-              <Select appearance="standard" name="technicianId" defaultValue={String(order.technician_id)}>
-                {source.people.map((x) => (
-                  <option key={String(x.id)} value={String(x.id)}>
-                    {String(x.name)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            <ServiceTechnicianField source={source} branchId={String(order.branch_id)} departmentId={order.department_id?String(order.department_id):null} defaultUserId={String(order.technician_id)} />
             <PreferredDateTimeField appearance="standard" name="scheduledAt" label="Schedule" required />
           </>,
         )}
-      {order &&
-        ["open", "scheduled"].includes(String(order.status)) &&
-        action(
-          "reserve-part",
-          "Reserve part",
-          <>
-            <Field appearance="standard">
-              Warehouse id
-              <TextInput appearance="standard" name="warehouseId" required />
-            </Field>
-            <Field appearance="standard">
-              Product id
-              <TextInput appearance="standard" name="productId" required />
-            </Field>
-            <Field appearance="standard">
-              Quantity milli
-              <TextInput appearance="standard" name="quantityMilli" type="number" min="1" required />
-            </Field>
-            <PreferredDateTimeField appearance="standard" name="expiresAt" label="Expires" required />
-          </>,
-        )}
+      {order && detail && source.canUseParts && Number(order.can_work)>0 && ["open","scheduled"].includes(String(order.status)) &&
+        <ServiceDraftDrawer title="Reserve spare parts" busy={busy} error={error}><ServiceSpareForm mode="reserve" spares={detail.spares} busy={busy}
+          onSubmit={(input,form) => { void send({ ...input,id:order.id,action:"reserve-part",expectedVersion:Number(order.version) },form); }} /></ServiceDraftDrawer>}
       {order && order.status === "scheduled" && action("dispatch", "Dispatch technician")}
       {order && order.status === "dispatched" && action("start", "Start visit")}
       {order &&
         ["dispatched", "in_visit"].includes(String(order.status)) &&
         action("exception", "Record exception")}
       {order && order.status === "exception" && action("resume", "Resume visit")}
-      {order && detail && order.status === "in_visit" && <ServiceSpareForm spares={detail.spares}
+      {order && detail && source.canUseParts && Number(order.can_work)>0 && order.status === "in_visit" && <ServiceDraftDrawer title="Issue spare parts" busy={busy} error={error}><ServiceSpareForm spares={detail.spares}
         reservations={detail.parts.filter(x => Number(x.quantity_milli)>Number(x.consumed_milli)+Number(x.released_milli)).map(x => ({ id:String(x.id),warehouseId:String(x.warehouse_id),productId:String(x.product_id),remainingMilli:Number(x.quantity_milli)-Number(x.consumed_milli)-Number(x.released_milli) }))}
-        busy={busy} onSubmit={input => { void send({ ...input,id:order.id,action:"issue-part",expectedVersion:Number(order.version) }); }} />}
+        busy={busy} onSubmit={(input,form) => { void send({ ...input,id:order.id,action:"issue-part",expectedVersion:Number(order.version) },form); }} /></ServiceDraftDrawer>}
       {order &&
         order.status === "in_visit" &&
         action(
@@ -404,6 +272,44 @@ export function FieldServiceConsole({
       {order &&
         !["completed", "billed", "cancelled"].includes(String(order.status)) &&
         action("cancel", "Cancel service order")}
-    </>
+    </ServiceCommandErrorContext.Provider></ServiceRecoveryContext.Provider>
   );
+}
+
+type ServiceConsoleProps = { base: string; data?: Awaited<ReturnType<typeof fieldServiceWorkspace>>; detail?: Awaited<ReturnType<typeof fieldServiceDetail>> };
+const ServiceEditorContext = createContext<(id: string, open: boolean) => void>(() => {});
+const ServiceCommandErrorContext = createContext<() => void>(() => {});
+const ServiceRecoveryContext=createContext<ReturnType<typeof useCommand>|null>(null);
+function serviceSource(props:ServiceConsoleProps):FieldServiceSource {const source=props.data??props.detail!,targets:FieldServiceSource["targets"]={};for(const row of source.agreements)targets[`agreement:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.orders)targets[`order:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.tickets)targets[`ticket:${row.id}`]={version:Number(row.version),status:String(row.status)};if(props.detail)targets[`order:${props.detail.order.id}`]={version:Number(props.detail.order.version),status:String(props.detail.order.status)};return {base:props.base,workspaceKey:source.workspaceKey,recordId:props.detail?String(props.detail.order.id):null,targets};}
+export function FieldServiceConsole(props: ServiceConsoleProps) {
+  const source = props.data ?? props.detail!;
+  const live=useRef<FieldServiceSource|null>(serviceSource(props));useLayoutEffect(()=>{live.current=serviceSource(props);return()=>{live.current=null;};},[props]);
+  const recovery=useCommand(()=>live.current,serviceSource(props));
+  return <ServiceEditorSession key={`${source.workspaceKey}:${props.detail?.order.id ?? "workspace"}`} {...props} recovery={recovery} />;
+}
+function ServiceEditorSession(props: ServiceConsoleProps&{recovery:ReturnType<typeof useCommand>}) {
+  const [snapshot, setSnapshot] = useState<(ServiceConsoleProps&{recovery:ReturnType<typeof useCommand>}) | null>(null);
+  const editors = useRef(new Set<string>());
+  function editorChanged(id: string, open: boolean) {
+    if (open) {
+      if (!editors.current.size) setSnapshot(props);
+      editors.current.add(id);
+    } else {
+      editors.current.delete(id);
+      if (!editors.current.size) setSnapshot(null);
+    }
+  }
+  // A refreshed status or permission must not remove the parent of an open draft.
+  // Its captured versions still meet the current server guards on submission.
+  // Interaction state continues rendering; do not freeze the form's React nodes.
+  return <ServiceEditorContext.Provider value={editorChanged}><ServiceConsole {...(snapshot ?? props)} recovery={props.recovery} /></ServiceEditorContext.Provider>;
+}
+function ServiceDraftDrawer({ title, busy, error, children }: { title: string; busy: boolean; error: string; children: React.ReactNode }) {
+  const body = useRef<HTMLDivElement>(null);
+  const editorChanged = useContext(ServiceEditorContext), clearError = useContext(ServiceCommandErrorContext), recovery=useContext(ServiceRecoveryContext), id = useId();
+  return <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy||recovery?.uncertain} error={error}
+    onToggle={event => {if(event.currentTarget.open)clearError();editorChanged(id, event.currentTarget.open);}}
+    onDiscard={() => body.current?.querySelectorAll("form").forEach(form => form.reset())}>
+    <summary>{title}</summary><div ref={body}>{recovery?.notice&&<InlineNotice role="status">{recovery.notice}</InlineNotice>}{recovery?.saved&&<p>Saved original ID: {recovery.saved.id} · <WorkspaceLink href={recovery.saved.href}>{recovery.saved.agreement?"Review saved service agreements":"Open the saved original service order"}</WorkspaceLink></p>}{recovery?.uncertain&&<InlineNotice tone="warning">The original request has an uncertain result. Your newer entries are retained.<Button appearance="standard" type="button" disabled={busy} onClick={()=>void recovery.retry()}>Retry original Service request</Button></InlineNotice>}<fieldset disabled={busy||recovery?.uncertain} style={{display:"contents"}}>{children}</fieldset></div>
+  </FormDisclosure>;
 }

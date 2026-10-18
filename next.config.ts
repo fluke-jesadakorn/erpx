@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { dirname, join } from "node:path";
+import { developmentProductOrigin, productIds, sharedHostKeys } from "./src/server/modules/commercial/public/product-registry";
 const cohortDirectory = process.env.ERPX_DATA_DIR;
 // Case apps link dependencies from an immutable sibling fixture template.
 // Turbopack must resolve both inside its filesystem root (see its root guide).
@@ -28,6 +29,12 @@ const nextConfig: NextConfig = {
     proxyClientMaxBodySize: 11 * 1024 * 1024,
   },
   skipProxyUrlNormalize: true,
+  // Retired Console bookmarks must reach the 410 boundary before Next adds
+  // an automatic trailing-slash redirect. Installed environments keep policy.
+  skipTrailingSlashRedirect: process.env.ERPX_CONSOLE_RETIRED === "enabled"
+    && process.env.ERPX_ENVIRONMENT === "local"
+    && process.env.ERPX_PRODUCT_ENVIRONMENT === "development"
+    && /^https:\/\/console-dev-erpx\.jesadakorn\.com\/?$/.test(process.env.ERPX_PUBLIC_ORIGIN ?? ""),
   distDir: process.env.ERPX_BUILD_DIR ?? ".next",
   // Isolated dev experiments let Next update their generated type globs without
   // rewriting the workspace's TypeScript configuration.
@@ -40,6 +47,9 @@ const nextConfig: NextConfig = {
     "console-dev-erpx.jesadakorn.com",
     "dev-pms.jesadakorn.com",
     "dev-pos.jesadakorn.com",
+    ...(process.env.ERPX_ENVIRONMENT === "local" && process.env.ERPX_PRODUCT_ROUTING === "enabled" && process.env.ERPX_PRODUCT_SSO === "enabled" && process.env.ERPX_PRODUCT_ENVIRONMENT === "development"
+      ? [...productIds, ...sharedHostKeys].map(key => new URL(developmentProductOrigin(key)).hostname)
+      : []),
     ...(["3102", "3104"].includes(process.env.ERPX_BROWSER_SIMULATION_PORT ?? "") ? ["dev-pms.localhost", "dev-pos.localhost"] : []),
   ],
   poweredByHeader: false,

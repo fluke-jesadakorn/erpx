@@ -12,6 +12,8 @@ import { pmsSourceRecipients } from "./source";
 import { pmsSourcesSql, pmsSourceReadableSql } from "./source-policy";
 import type { TaskRow } from "../../domain/home";
 import { createPmsHomeApplication, type PmsHomeRepository, type PmsTaskPageOptions } from "../../application/home";
+import { pmsCompanyHistoryAllowed, requirePmsCompanyHistory } from "../read-purchase-boundary";
+import { requirePmsFinancialRead } from "../property-purchase-boundary";
 export type { PmsHomeView, PmsHomeTask, PmsHotelOverview } from "../../domain/home";
 function taskQuery(actor: WorkContext, propertyId?: string, mine = false, selectedLabel?: string) {
     const can = (permission: string) => hasPermission(actor, permission) ? "TRUE" : "FALSE";
@@ -162,9 +164,12 @@ function repository(db: SqlDatabase): PmsHomeRepository {
     };
 }
 const application = createPmsHomeApplication({ resource: async (holdingId) => ({ write: repository((await holdingResources(holdingId)).write) }), clock: { now: () => Date.now() }, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message) });
-export function pmsTaskPage(db: SqlDatabase, actor: WorkContext, options: PmsTaskPageOptions = {}) { return application.pmsTaskPage(repository(db), actor, options); }
-export function pmsOperationalWork(db: SqlDatabase, actor: WorkContext) { return application.pmsOperationalWork(repository(db), actor); }
-export function pmsHotelOverview(db: SqlDatabase, actor: WorkContext, propertyId?: string) { return application.pmsHotelOverview(repository(db), actor, propertyId); }
-export function pmsHome(actor: WorkContext, options: Parameters<typeof application.pmsHome>[1] = {}) { return application.pmsHome(actor, options); }
+export async function pmsTaskPage(db: SqlDatabase, actor: WorkContext, options: PmsTaskPageOptions = {}) { await requirePmsCompanyHistory(db, actor); return application.pmsTaskPage(repository(db), actor, options); }
+export async function pmsOperationalWork(db: SqlDatabase, actor: WorkContext) { if (!await pmsCompanyHistoryAllowed(db, actor)) return []; await requirePmsCompanyHistory(db, actor); return application.pmsOperationalWork(repository(db), actor); }
+export async function pmsHotelOverview(db: SqlDatabase, actor: WorkContext, propertyId?: string) { await requirePmsCompanyHistory(db, actor); if (hasPermission(actor, "pms.reports")) await requirePmsCompanyHistory(db, actor, "pms.reports"); return application.pmsHotelOverview(repository(db), actor, propertyId); }
+/** Finance-owned source view keeps full accounting/included Hotel licensing and
+ * its original Finance plus Hotel-report authority, independent of PMS UI entry. */
+export async function pmsFinancialHotelOverview(db: SqlDatabase, actor: WorkContext, propertyId?: string) { await requirePmsFinancialRead(db, actor, true); return application.pmsHotelOverview(repository(db), actor, propertyId); }
+export async function pmsHome(actor: WorkContext, options: Parameters<typeof application.pmsHome>[1] = {}) { const db=(await holdingResources(actor.holdingId)).write; await requirePmsCompanyHistory(db, actor); if (hasPermission(actor, "pms.reports")) await requirePmsCompanyHistory(db, actor, "pms.reports"); return application.pmsHome(actor, options); }
 export type PmsHome = Awaited<ReturnType<typeof pmsHome>>;
-export function pmsHotelSources(actor: WorkContext, id: string, metric: "occupancy" | "adr" | "revpar" | "room_revenue", businessDate: string, page = 1) { return application.pmsHotelSources(actor, id, metric, businessDate, page); }
+export async function pmsHotelSources(actor: WorkContext, id: string, metric: "occupancy" | "adr" | "revpar" | "room_revenue", businessDate: string, page = 1) { const db=(await holdingResources(actor.holdingId)).write; await requirePmsCompanyHistory(db, actor, metric === "occupancy" ? "pms.read" : "pms.reports"); return application.pmsHotelSources(actor, id, metric, businessDate, page); }

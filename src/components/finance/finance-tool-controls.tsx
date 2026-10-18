@@ -1,6 +1,7 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import {
   Button,
@@ -78,7 +79,7 @@ export function FinanceToolControls({
               const f = new FormData(e.currentTarget);
               try {
                 const r = await workFetch(
-                    `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/company-tools`,
+                    `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/company-tools`,
                     {
                       method: "POST",
                       headers: {

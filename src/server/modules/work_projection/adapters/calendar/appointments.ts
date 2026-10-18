@@ -8,6 +8,7 @@ import { calendarAppointmentsWorkProjectionFacts } from "../../../work_projectio
 import { calendarAppointmentsPeoplePayrollFacts } from "../../../people_payroll/public/calendar-appointments-facts";
 import { calendarAppointmentsIdentityAccessFacts } from "../../../identity_access/public/calendar-appointments-facts";
 import { createCalendarAppointments, type CalendarAppointmentsUnit } from "../../application/calendar/appointments";
+import {calendarPurchaseControls,calendarPurchasedItems} from './purchases';
 const service = createCalendarAppointments({ clock: { now: () => Date.now() }, error: (status, code, message) => new ApiError(status, code, message) });
 export function calendarAppointmentsUnit(db: SqlDatabase): CalendarAppointmentsUnit {
     return { read1: facts => calendarAppointmentsWorkProjectionFacts(db).read1(facts),
@@ -20,7 +21,7 @@ export function calendarAppointmentsUnit(db: SqlDatabase): CalendarAppointmentsU
         read8: facts => calendarAppointmentsWorkProjectionFacts(db).read8(facts),
         read9: async (facts) => calendarAppointmentsIdentityAccessFacts((await runtimeEnv()).CONTROL_DB).read9(facts) };
 }
-export function appointmentRows(db: SqlDatabase, a: CalendarAccess, q: CalendarQuery, from: number, to: number, limit: number) { return service.appointmentRows(calendarAppointmentsUnit(db), a, q, from, to, limit); }
-export function appointmentItems(db: SqlDatabase, a: CalendarAccess, q: CalendarQuery, from: number, to: number, limit: number) { return service.appointmentItems(calendarAppointmentsUnit(db), a, q, from, to, limit); }
+export async function appointmentRows(db: SqlDatabase, a: CalendarAccess, q: CalendarQuery, from: number, to: number, limit: number) {const access=a.manualPurchase??await calendarPurchaseControls(db,a.actor);if(access&&!access.history)return [];return service.appointmentRows(calendarAppointmentsUnit(db), a, q, from, to, limit); }
+export async function appointmentItems(db: SqlDatabase, a: CalendarAccess, q: CalendarQuery, from: number, to: number, limit: number) {const access=a.manualPurchase??await calendarPurchaseControls(db,a.actor);if(access&&!access.history)return [];return calendarPurchasedItems(await service.appointmentItems(calendarAppointmentsUnit(db), a, q, from, to, limit),access); }
 export function appointmentWarningMessages(db: SqlDatabase, companyId: string, ids: string[], start: number, end: number, zone: string, except: string, userIds: string[] = []) { return service.appointmentWarningMessages(calendarAppointmentsUnit(db), companyId, ids, start, end, zone, except, userIds); }
 export type { AppointmentRow } from "../../domain/calendar/appointments";

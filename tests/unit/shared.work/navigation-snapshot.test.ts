@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { navigationSnapshot, workspaceNavigation } from "../../../src/server/modules/work_projection/public/navigation-snapshot";
+import { navigationSnapshot, workspaceNavigation, restrictedWorkspaceNavigation } from "../../../src/server/modules/work_projection/public/navigation-snapshot";
 import { businessRoles } from "../../../src/lib/identity_access/business-roles";
 import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
 import type { WorkSnapshot } from "../../../src/server/modules/work_projection/public/work-items";
@@ -66,4 +66,10 @@ it("rejects denied contexts before starting a read and permits seed failure to r
   reads.work.mockRejectedValueOnce(Error("Offline"));
   const read = await workspaceNavigation("acme");
   expect(await read.initialNavigation).toBeNull();
+});
+
+
+it("keeps an included-source shell on the current context without loading or serializing private Work snapshots",async()=>{
+ fixture();const page=await restrictedWorkspaceNavigation('acme');expect(page.context).toBe(actor);expect(reads.authorize).toHaveBeenCalledExactlyOnceWith('acme');expect(page.initialNavigation).toBeUndefined();expect(Object.keys(page)).not.toContain('initialWork');expect(reads.work).not.toHaveBeenCalled();expect(reads.unread).not.toHaveBeenCalled();expect(reads.capabilities).not.toHaveBeenCalled();expect(JSON.stringify(page)).not.toContain('Later');
+ fixture();const full=await workspaceNavigation('acme');expect(await full.initialNavigation).toMatchObject({work:2});expect(reads.work).toHaveBeenCalledOnce();
 });

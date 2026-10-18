@@ -4,23 +4,23 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, Select, Table, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import styles from "@/components/procurement/supplier-promise-console.module.css";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { supplierPromiseDetail } from "@/server/modules/procurement/public/supplier-promises";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/files/attachment-panel";
+import {useProcurementCommand} from "./use-procurement-command";
+import {ProcurementEditor} from "./procurement-editor";
+import {RecordLink as Link} from "@/components/records/record-link";
 import { Card, TableFrame } from "@/components/ui/foundation";
 type Data = Awaited<ReturnType<typeof supplierPromiseDetail>>;
 export function SupplierPromiseConsole({ base, data }: { base: string; data: Data }) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
+  const {busy,error,send,retry,uncertain,notice,savedHref}=useProcurementCommand(base,data.purchase),
+    [generation,setGeneration]=useState(0),
+    [draftVersion,setDraftVersion]=useState(Number(data.order.version)),
     [kind, setKind] = useState("confirmed"),
-    [attachments, setAttachments] = useState<AttachmentPanelChange | null>(null),
-    retry = useRef<{ fingerprint: string; key: string } | null>(null);
+    [attachments, setAttachments] = useState<AttachmentPanelChange | null>(null);
   const [rows, setRows] = useState(() =>
       data.lines
         .filter((l) => l.outstanding_milli > 0)
@@ -32,50 +32,10 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
         })),
     ),
     serial = useRef(rows.length);
-  async function submit(form: FormData) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const input = {
-      expectedVersion: Number(data.order.version),
-      kind,
-      confirmationDate: form.get("confirmationDate"),
-      supplierReference: form.get("reference"),
-      evidence: form.get("evidence"),
-      attachmentSetIds:
-        attachments?.setId && attachments.readyCount > 0 && attachments.bindable
-          ? [attachments.setId]
-          : [],
-      lines:
-        kind === "withdrawn"
-          ? []
-          : rows.map((r) => ({
-              orderLineId: r.lineId,
-              quantity: r.quantity,
-              promisedDate: r.date,
-            })),
-    };
-    const fingerprint = JSON.stringify(input);
-    if (retry.current?.fingerprint !== fingerprint)
-      retry.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/supplier-promises/${data.order.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": retry.current.key },
-        body: JSON.stringify(input),
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) retry.current = null;
-        throw new Error(body.error?.message ?? "Unable to record supplier confirmation.");
-      }
-      retry.current = null;
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry to recover the same command result.");
-    } finally {
-      setBusy(false);
-    }
+  async function submit(element:HTMLFormElement) {
+    if(busy || !data.canRecord)return;
+    const form=new FormData(element),input={expectedVersion:Number(form.get("expectedVersion")),kind,confirmationDate:form.get("confirmationDate"),supplierReference:form.get("reference"),evidence:form.get("evidence"),attachmentSetIds:attachments?.setId&&attachments.readyCount>0&&attachments.bindable?[attachments.setId]:[],lines:kind==="withdrawn"?[]:rows.map(row=>({orderLineId:row.lineId,quantity:row.quantity,promisedDate:row.date}))};
+    await send(`supplier-promises/${data.order.id}`,input,false,element);
   }
   return (
     <Card as="section" appearance="standard" className="ui-panel" id="supplier-promises">
@@ -121,14 +81,17 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
         <p>No outstanding supplier-confirmed quantities.</p>
       )}
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {data.canRecord && (
-        <form
+      {notice&&<InlineNotice>{notice} {savedHref&&<Link href={savedHref}>Open saved record</Link>}</InlineNotice>}
+      {uncertain&&<Button appearance="standard" type="button" disabled={busy} onClick={()=>void retry()}>Retry submitted purchasing change</Button>}
+      <ProcurementEditor title="Record replacement confirmation" onBegin={()=>setDraftVersion(Number(data.order.version))} error={error} busy={busy} disabled={!data.canRecord} onDiscard={()=>{serial.current=data.lines.filter(line=>line.outstanding_milli>0).length;setKind("confirmed");setAttachments(null);setRows(data.lines.filter(line=>line.outstanding_milli>0).map((line,i)=>({key:i,lineId:String(line.id),quantity:String(line.outstanding_milli/1000),date:""})));setGeneration(value=>value+1);}}>
+        <form key={generation} data-procurement-draft="promise"
           className={`business-form ${styles.form}`}
           onSubmit={(e) => {
             e.preventDefault();
-            void submit(new FormData(e.currentTarget));
+            void submit(e.currentTarget);
           }}
         >
+          <input type="hidden" name="expectedVersion" defaultValue={draftVersion}/><fieldset disabled={!data.canRecord || busy}>
           <h3>Record a replacement confirmation</h3>
           <p>
             Enter the complete current commitment for the remaining order. Earlier versions stay in
@@ -229,7 +192,7 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
                   <Button appearance="standard"
                     variant="secondary"
                     type="button"
-                    onClick={() => setRows((prev) => prev.filter((x) => x.key !== r.key))}
+                    data-procurement-edit onClick={() => setRows((prev) => prev.filter((x) => x.key !== r.key))}
                   >
                     Remove delivery {i + 1}
                   </Button>
@@ -239,7 +202,7 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
                 variant="secondary"
                 type="button"
                 disabled={rows.length >= 100}
-                onClick={() =>
+                data-procurement-edit onClick={() =>
                   setRows((prev) => [
                     ...prev,
                     {
@@ -263,8 +226,9 @@ export function SupplierPromiseConsole({ base, data }: { base: string; data: Dat
           >
             Record supplier evidence
           </Button>
+          </fieldset>
         </form>
-      )}
+      </ProcurementEditor>
       <h3>Immutable confirmation history</h3>
       {data.history.length ? (
         data.history.map((h) => (

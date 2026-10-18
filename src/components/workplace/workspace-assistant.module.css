@@ -335,13 +335,15 @@ button.launcher:hover {
   margin-top: 4px;
 }
 @media (max-width: 700px) {
-  button.launcher {
-    right: 16px;
-    bottom: calc(86px + env(safe-area-inset-bottom));
-    padding: 12px;
+  .entry:has(> button.launcher) {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 16px;
   }
-  .launcher span {
-    display: none;
+  button.launcher {
+    position: static;
+    min-height: 44px;
+    padding: 10px 16px;
   }
   .panel {
     right: 8px;

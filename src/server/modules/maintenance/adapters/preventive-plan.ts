@@ -1,3 +1,5 @@
+import {withAssetPurchasedRead,withAssetPurchasedCommand,assetPurchaseControls} from "../../assets/public/purchases";
+import {preventiveActionSchema} from "../domain/preventive-plan";
 import { finalRootOwnerProjectionSources as assetsProjectionSources } from "../../assets/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "../../identity_access/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as people_payrollProjectionSources } from "../../people_payroll/public/final-root-owner-projection-sources";
@@ -71,8 +73,8 @@ function bindRepository(db:SqlDatabase,a:WorkContext,canStartTransaction:boolean
  };
 }
 function application(a:WorkContext,providedWrite?:SqlDatabase){return createPreventiveApplication({actorId:a.userId,transactionBound:Boolean(providedWrite),authorize:write=>access(a,write),authorizeReview:()=>requirePermission(a,'records.review'),canRead:()=>hasPermission(a,'records.read')&&hasModuleAccess(a.modules,'maintenance'),canWrite:()=>hasPermission(a,'records.write'),canReview:()=>hasPermission(a,'records.review'),clock:{now:()=>Date.now()},error:(status,code,message)=>new ApiError(status,code,message),repository:async()=>bindRepository(providedWrite??(await holdingResources(a.holdingId)).write,a,!providedWrite)});}
-export async function preventivePlans(a:WorkContext,providedWrite?:SqlDatabase){return application(a,providedWrite).preventivePlans();}
-export async function preventivePlanDetail(a:WorkContext,id:string){return application(a).preventivePlanDetail(id);}
-export async function savePreventivePlan(a:WorkContext,id:string|null,raw:unknown,key:string){return application(a).savePreventivePlan(id,raw,key);}
-export async function changePreventivePlan(a:WorkContext,id:string,raw:unknown,key:string,providedWrite?:SqlDatabase){return application(a,providedWrite).changePreventivePlan(id,raw,key);}
-export async function preventivePlanWork(a:WorkContext){return application(a).preventivePlanWork();}
+export async function preventivePlans(a:WorkContext,providedWrite?:SqlDatabase){return withAssetPurchasedRead(a,"assets.preventive",db=>application(a,db).preventivePlans(),providedWrite);}
+export async function preventivePlanDetail(a:WorkContext,id:string){return withAssetPurchasedRead(a,"assets.preventive",async db=>({...await application(a,db).preventivePlanDetail(id),purchases:await assetPurchaseControls(a)}));}
+export async function savePreventivePlan(a:WorkContext,id:string|null,raw:unknown,key:string){return withAssetPurchasedCommand(a,{key,operation:id?"maintenance.plan.revise":"maintenance.plan.create",capability:"assets.preventive",purpose:"new-work",target:{kind:"plan",id:id??`maintenance-plan-${key}`},creating:!id,permissions:["records.write"]},db=>application(a,db).savePreventivePlan(id,raw,key));}
+export async function changePreventivePlan(a:WorkContext,id:string,raw:unknown,key:string,providedWrite?:SqlDatabase){const input=preventiveActionSchema.parse(raw);return withAssetPurchasedCommand(a,{key,operation:`maintenance.plan.${input.action}`,capability:"assets.preventive",purpose:["pause","cancel"].includes(input.action)?"settle-existing":"new-work",target:{kind:"plan",id},permissions:["records.write",...(input.action!=="generate"?["records.review"]:[])]},db=>application(a,db).changePreventivePlan(id,raw,key),providedWrite);}
+export async function preventivePlanWork(a:WorkContext){if(!hasPermission(a,"records.read")||!hasModuleAccess(a.modules,"maintenance"))return [];const purchase=(await assetPurchaseControls(a,["assets.preventive"]))?.["assets.preventive"];if(purchase&&!purchase.history)return [];const items=await withAssetPurchasedRead(a,"assets.preventive",db=>application(a,db).preventivePlanWork());return purchase&&!purchase.newWork?items.map(item=>({...item,canAct:false,queue:"waiting" as const})):items;}

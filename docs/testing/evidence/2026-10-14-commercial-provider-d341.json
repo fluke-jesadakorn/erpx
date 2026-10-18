@@ -1,0 +1,533 @@
+{
+  "schema": "erpx-commercial-provider-checkpoint/v1",
+  "createdAt": "2026-10-14T14:40:22.984178+00:00",
+  "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+  "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb",
+  "release": {
+    "id": "2026-10-14T14-33-32-532Z",
+    "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307"
+  },
+  "scope": "development Commercial provider review, native guards and database restore; complete product migration remains open",
+  "result": "focused-static-build-and-database-restore-passed",
+  "unit": {
+    "files": 212,
+    "cases": 2837
+  },
+  "focusedPostgres": {
+    "files": 5,
+    "cases": 38
+  },
+  "fullCurrentCandidateRegressionAccepted": false,
+  "checks": [
+    {
+      "name": "typecheck",
+      "startedAt": "2026-10-14T14:30:28.541509+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T14:31:06.664581+00:00",
+      "log": ".scratch/dev/commercial-migration-current/provider-current-typecheck.log",
+      "logSha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "sourceAfter": {
+        "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+        "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb"
+      }
+    },
+    {
+      "name": "lint",
+      "startedAt": "2026-10-14T14:31:07.653914+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T14:32:09.292424+00:00",
+      "log": ".scratch/dev/commercial-migration-current/provider-current-lint.log",
+      "logSha256": "8f938808979917b124714c53a0d74197d7b7ae453014297508abd1bdbc814c65",
+      "sourceAfter": {
+        "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+        "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb"
+      }
+    },
+    {
+      "name": "architecture",
+      "startedAt": "2026-10-14T14:32:09.796598+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T14:32:19.860096+00:00",
+      "log": ".scratch/dev/commercial-migration-current/provider-current-architecture.log",
+      "logSha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "sourceAfter": {
+        "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+        "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb"
+      }
+    },
+    {
+      "name": "catalogue",
+      "startedAt": "2026-10-14T14:32:20.341048+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T14:32:20.928102+00:00",
+      "log": ".scratch/dev/commercial-migration-current/provider-current-catalogue.log",
+      "logSha256": "91932b663f37d13d4f7587ef70a123364c3cb7df8daee5d8b0cc6cb67427c23a",
+      "sourceAfter": {
+        "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+        "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb"
+      }
+    },
+    {
+      "name": "documentation",
+      "startedAt": "2026-10-14T14:32:21.300248+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T14:32:21.595973+00:00",
+      "log": ".scratch/dev/commercial-migration-current/provider-current-documentation.log",
+      "logSha256": "d7f31872cfbe451c5f05e93217e71e5bfba4dd64dfe9ad9238f9db5f78f9318d",
+      "sourceAfter": {
+        "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+        "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb"
+      }
+    },
+    {
+      "name": "products",
+      "startedAt": "2026-10-14T14:32:21.973642+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T14:32:22.393501+00:00",
+      "log": ".scratch/dev/commercial-migration-current/provider-current-products.log",
+      "logSha256": "dccdd861f3d91d35282eb0a5b965e04d97d1023ebaed3dad13d83455ab5df5fa",
+      "sourceAfter": {
+        "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+        "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb"
+      }
+    },
+    {
+      "name": "unit",
+      "startedAt": "2026-10-14T14:32:22.772406+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T14:33:04.486426+00:00",
+      "log": ".scratch/dev/commercial-migration-current/provider-current-unit.log",
+      "logSha256": "8c78bd741bf7c0d1dda46109ddacb0e20ba89630636b1a9f0d76808e503a8399",
+      "sourceAfter": {
+        "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+        "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb"
+      }
+    },
+    {
+      "name": "focused-postgres",
+      "startedAt": "2026-10-14T14:33:04.989210+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T14:33:31.926620+00:00",
+      "log": ".scratch/dev/commercial-migration-current/provider-current-focused-postgres.log",
+      "logSha256": "795774399dc8641e3a3a211984404f855a21bd00287e8761962149536f6173bd",
+      "sourceAfter": {
+        "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+        "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb"
+      }
+    },
+    {
+      "name": "build",
+      "startedAt": "2026-10-14T14:33:32.428294+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T14:37:33.350810+00:00",
+      "log": ".scratch/dev/commercial-migration-current/provider-current-build.log",
+      "logSha256": "614e32cffb5242853e11ef2b69e3fb45f1dd4129a29aed3b6898a0922997c8f9",
+      "sourceAfter": {
+        "sourceFingerprint": "d341514111e8991a86f93f72106a10f1d8b50e83b50c176a7d7fe626a2612307",
+        "verificationFingerprint": "9fcdeef513bcc149fcd5d44e2838c10bb9615e3b8131ece409fbac56fd14c4fb"
+      }
+    }
+  ],
+  "schemaApplication": {
+    "migrations": [
+      {
+        "path": "migrations/postgres/control/0034_platform_commercial.sql",
+        "sha256": "d2b8167efd2666a0462133515eae9b1c1ad43e1287a653e1546179f508c06f8d"
+      },
+      {
+        "path": "migrations/postgres/holding-write/1045_company_package_change_sets.sql",
+        "sha256": "c97d3194bafcdd92618c6522dfd0ddf62b2cf8747d9bc8f38b786d67f194044b"
+      },
+      {
+        "path": "migrations/postgres/holding-write/1046_company_package_review_evidence.sql",
+        "sha256": "9c327bed9c615378d3a503b86c6dfee4ab182512504a137c040a26fd614df3e1"
+      }
+    ],
+    "beforeBackups": [
+      {
+        "binding": "CONTROL_DB",
+        "database": "erpx_dev_control",
+        "bytes": 573385,
+        "sha256": "098486f5b1c3ad35ccb221a7785aa9e51e84acc04807736db5b5b873af5072cf",
+        "listItems": 474
+      },
+      {
+        "binding": "H001_DB",
+        "database": "erpx_dev_h001_write",
+        "bytes": 8302268,
+        "sha256": "6bcdacaa6eb86d5ee80cba7b0d07404de6c71b024866bbd16d9a71ade41c46df",
+        "listItems": 6920
+      },
+      {
+        "binding": "H002_DB",
+        "database": "erpx_dev_h002_write",
+        "bytes": 4098943,
+        "sha256": "9ac7928b3379686e234effb71a084364c7076f9b103b5efd14b00a8a52075bbc",
+        "listItems": 6920
+      },
+      {
+        "binding": "H003_DB",
+        "database": "erpx_dev_h003_write",
+        "bytes": 3694204,
+        "sha256": "870a08fbda001ae95f977761275a9c9dd1f311e0e3f97c91bcd77cc745cfbb7c",
+        "listItems": 6920
+      }
+    ],
+    "liveReconciliation": {
+      "observedAt": "2026-10-14T14:10:39.023Z",
+      "reports": [
+        {
+          "binding": "CONTROL_DB",
+          "database": "erpx_dev_control",
+          "checkedTables": 26,
+          "differences": [
+            {
+              "table": "iam_permissions",
+              "before": {
+                "table": "iam_permissions",
+                "rows": 9,
+                "digest": "e8a3ec39c5c99fdf8cfbbfc1500b8e74"
+              },
+              "after": {
+                "rows": 11,
+                "digest": "546ebf30fb238b66e2371170acef70de"
+              }
+            },
+            {
+              "table": "iam_role_revisions",
+              "before": {
+                "table": "iam_role_revisions",
+                "rows": 4,
+                "digest": "0a9f7828841a47f8d68cdb6fae517423"
+              },
+              "after": {
+                "rows": 6,
+                "digest": "bd1e9fa7dea0ad22470d2022ae18c26e"
+              }
+            },
+            {
+              "table": "iam_roles",
+              "before": {
+                "table": "iam_roles",
+                "rows": 2,
+                "digest": "1cc8f79ed2411fcf35e95af899001adb"
+              },
+              "after": {
+                "rows": 2,
+                "digest": "ce1dd2ec8b91b1da9dfef5bbe04ee8ca"
+              }
+            }
+          ],
+          "counts": {
+            "assignments": 4,
+            "commercial_permissions": 2
+          }
+        },
+        {
+          "binding": "H001_DB",
+          "database": "erpx_dev_h001_write",
+          "checkedTables": 263,
+          "differences": [],
+          "counts": {
+            "grants": 0,
+            "events": 0,
+            "changes": 0,
+            "reviews": 0
+          }
+        },
+        {
+          "binding": "H002_DB",
+          "database": "erpx_dev_h002_write",
+          "checkedTables": 263,
+          "differences": [],
+          "counts": {
+            "grants": 0,
+            "events": 0,
+            "changes": 0,
+            "reviews": 0
+          }
+        },
+        {
+          "binding": "H003_DB",
+          "database": "erpx_dev_h003_write",
+          "checkedTables": 263,
+          "differences": [],
+          "counts": {
+            "grants": 0,
+            "events": 0,
+            "changes": 0,
+            "reviews": 0
+          }
+        }
+      ]
+    },
+    "legacyCompanyGrantsApplied": false
+  },
+  "populatedDatabaseRestore": {
+    "beforeMigration": {
+      "checkedTables": 815,
+      "sessionTimezone": "Asia/Bangkok, matching original raw-client metadata",
+      "databases": [
+        {
+          "sourceBinding": "CONTROL_DB",
+          "sourceDatabase": "erpx_dev_control",
+          "backupSha256": "098486f5b1c3ad35ccb221a7785aa9e51e84acc04807736db5b5b873af5072cf",
+          "restored": true,
+          "migrated": true,
+          "cleaned": true,
+          "preDumpLiveMetadataDifferences": [],
+          "liveMetadataMatchesDump": true,
+          "checkedTables": 26,
+          "applied": [
+            "0034_platform_commercial.sql"
+          ],
+          "forwardDifferences": [
+            "iam_permissions",
+            "iam_role_revisions",
+            "iam_roles"
+          ]
+        },
+        {
+          "sourceBinding": "H001_DB",
+          "sourceDatabase": "erpx_dev_h001_write",
+          "backupSha256": "6bcdacaa6eb86d5ee80cba7b0d07404de6c71b024866bbd16d9a71ade41c46df",
+          "restored": true,
+          "migrated": true,
+          "cleaned": true,
+          "preDumpLiveMetadataDifferences": [],
+          "liveMetadataMatchesDump": true,
+          "checkedTables": 263,
+          "applied": [
+            "1046_company_package_review_evidence.sql"
+          ],
+          "forwardDifferences": [],
+          "earlierGrantProjection": {
+            "sha256": "b6d6cde8a0ad7036866dd0f69e532d0a66154d922177fc31f8e8dbbfb0a01ff2",
+            "companyReads": 13,
+            "scope": "pre-provider intermediate source; read projection only, not accepted older-release command rollback"
+          }
+        },
+        {
+          "sourceBinding": "H002_DB",
+          "sourceDatabase": "erpx_dev_h002_write",
+          "backupSha256": "9ac7928b3379686e234effb71a084364c7076f9b103b5efd14b00a8a52075bbc",
+          "restored": true,
+          "migrated": true,
+          "cleaned": true,
+          "preDumpLiveMetadataDifferences": [],
+          "liveMetadataMatchesDump": true,
+          "checkedTables": 263,
+          "applied": [
+            "1046_company_package_review_evidence.sql"
+          ],
+          "forwardDifferences": [],
+          "earlierGrantProjection": {
+            "sha256": "b6d6cde8a0ad7036866dd0f69e532d0a66154d922177fc31f8e8dbbfb0a01ff2",
+            "companyReads": 1,
+            "scope": "pre-provider intermediate source; read projection only, not accepted older-release command rollback"
+          }
+        },
+        {
+          "sourceBinding": "H003_DB",
+          "sourceDatabase": "erpx_dev_h003_write",
+          "backupSha256": "870a08fbda001ae95f977761275a9c9dd1f311e0e3f97c91bcd77cc745cfbb7c",
+          "restored": true,
+          "migrated": true,
+          "cleaned": true,
+          "preDumpLiveMetadataDifferences": [],
+          "liveMetadataMatchesDump": true,
+          "checkedTables": 263,
+          "applied": [
+            "1046_company_package_review_evidence.sql"
+          ],
+          "forwardDifferences": [],
+          "earlierGrantProjection": {
+            "sha256": "b6d6cde8a0ad7036866dd0f69e532d0a66154d922177fc31f8e8dbbfb0a01ff2",
+            "companyReads": 1,
+            "scope": "pre-provider intermediate source; read projection only, not accepted older-release command rollback"
+          }
+        }
+      ]
+    },
+    "currentSameSnapshot": {
+      "checkedTables": 818,
+      "sessionTimezone": "UTC",
+      "exportedSnapshotPerDatabase": true,
+      "backups": [
+        {
+          "binding": "CONTROL_DB",
+          "database": "erpx_dev_control",
+          "bytes": 574007,
+          "sha256": "cc60680f5b45542580837543fd823d16d65337b3ad83da72f6a36aefe00382f1",
+          "listItems": 474
+        },
+        {
+          "binding": "H001_DB",
+          "database": "erpx_dev_h001_write",
+          "bytes": 8306164,
+          "sha256": "85a798124112ffc36352476fc5ee98e9d0f7a050a6363bb3d49b9e5fb48b85e6",
+          "listItems": 6927
+        },
+        {
+          "binding": "H002_DB",
+          "database": "erpx_dev_h002_write",
+          "bytes": 4102816,
+          "sha256": "84daea92415c10612281b916e5e384693bb261a18261e786d739f47dc6a5c05c",
+          "listItems": 6927
+        },
+        {
+          "binding": "H003_DB",
+          "database": "erpx_dev_h003_write",
+          "bytes": 3698083,
+          "sha256": "b6750da34fdd17ab95cb90f3f8fe8fd169d259045927d32ab93554da73bd1a42",
+          "listItems": 6927
+        }
+      ],
+      "databases": [
+        {
+          "sourceBinding": "CONTROL_DB",
+          "sourceDatabase": "erpx_dev_control",
+          "backupSha256": "cc60680f5b45542580837543fd823d16d65337b3ad83da72f6a36aefe00382f1",
+          "restored": true,
+          "migrated": true,
+          "cleaned": true,
+          "preDumpLiveMetadataDifferences": [],
+          "liveMetadataMatchesDump": true,
+          "checkedTables": 26,
+          "applied": [],
+          "forwardDifferences": []
+        },
+        {
+          "sourceBinding": "H001_DB",
+          "sourceDatabase": "erpx_dev_h001_write",
+          "backupSha256": "85a798124112ffc36352476fc5ee98e9d0f7a050a6363bb3d49b9e5fb48b85e6",
+          "restored": true,
+          "migrated": true,
+          "cleaned": true,
+          "preDumpLiveMetadataDifferences": [],
+          "liveMetadataMatchesDump": true,
+          "checkedTables": 264,
+          "applied": [],
+          "forwardDifferences": [],
+          "earlierGrantProjection": {
+            "sha256": "b6d6cde8a0ad7036866dd0f69e532d0a66154d922177fc31f8e8dbbfb0a01ff2",
+            "companyReads": 13,
+            "scope": "pre-provider intermediate source; read projection only, not accepted older-release command rollback"
+          }
+        },
+        {
+          "sourceBinding": "H002_DB",
+          "sourceDatabase": "erpx_dev_h002_write",
+          "backupSha256": "84daea92415c10612281b916e5e384693bb261a18261e786d739f47dc6a5c05c",
+          "restored": true,
+          "migrated": true,
+          "cleaned": true,
+          "preDumpLiveMetadataDifferences": [],
+          "liveMetadataMatchesDump": true,
+          "checkedTables": 264,
+          "applied": [],
+          "forwardDifferences": [],
+          "earlierGrantProjection": {
+            "sha256": "b6d6cde8a0ad7036866dd0f69e532d0a66154d922177fc31f8e8dbbfb0a01ff2",
+            "companyReads": 1,
+            "scope": "pre-provider intermediate source; read projection only, not accepted older-release command rollback"
+          }
+        },
+        {
+          "sourceBinding": "H003_DB",
+          "sourceDatabase": "erpx_dev_h003_write",
+          "backupSha256": "b6750da34fdd17ab95cb90f3f8fe8fd169d259045927d32ab93554da73bd1a42",
+          "restored": true,
+          "migrated": true,
+          "cleaned": true,
+          "preDumpLiveMetadataDifferences": [],
+          "liveMetadataMatchesDump": true,
+          "checkedTables": 264,
+          "applied": [],
+          "forwardDifferences": [],
+          "earlierGrantProjection": {
+            "sha256": "b6d6cde8a0ad7036866dd0f69e532d0a66154d922177fc31f8e8dbbfb0a01ff2",
+            "companyReads": 1,
+            "scope": "pre-provider intermediate source; read projection only, not accepted older-release command rollback"
+          }
+        }
+      ]
+    },
+    "retainedDiagnostic": "Earlier false digest differences in two immutable PMS timestamptz tables were caused by mismatched session timezone, confirmed by strict matched-zone and UTC reruns. No assertion or frozen fingerprint was changed.",
+    "privateFileRestoreAccepted": false,
+    "fullBusinessCommandRollbackAccepted": false
+  },
+  "browser": {
+    "url": "https://admin-dev-erpx.jesadakorn.com/provider/commercial",
+    "authenticatedNormalSso": true,
+    "serverRenderedCompanyChoices": 15,
+    "previewInteractionAccepted": false,
+    "visualAcceptance": false,
+    "observedLimit": "Chrome client assets remained pending over HTTP/3; the rendered form did not hydrate. HTTP/2 main-app asset fetch returned 200. Cause is not established as application code or network alone.",
+    "transportDiagnostic": {
+      "ruleId": "9dbfa9fb6660455d99ced9e2a78e6452",
+      "expression": "(http.host eq \"admin-dev-erpx.jesadakorn.com\")",
+      "attempts": [
+        "set Alt-Svc clear",
+        "remove Alt-Svc"
+      ],
+      "observedHeaderUnchanged": true,
+      "finalStatus": "disabled, verified 0 active response header transform rules",
+      "dnsTunnelCertificateChanges": false,
+      "screenshot": {
+        "path": ".scratch/dev/commercial-migration-current/admin-dev-transport-rule-disabled.jpg",
+        "sha256": "495b554339648c3faf145cf8421c37b9b7d9d04e8463826282729932b9d5b631"
+      }
+    }
+  },
+  "uiGuard": {
+    "result": "failed",
+    "frozenBoundaryChanges": 36,
+    "legacyAdapterMentions": 467,
+    "newProviderFilesReported": false,
+    "frozenFingerprintsRefreshed": false,
+    "log": {
+      "path": ".scratch/dev/commercial-migration-current/provider-ui-guard.log",
+      "sha256": "0e2a394e92476c4c793c2527b757d13d06311a0339d9f2a92a526e30c89516aa"
+    }
+  },
+  "noStagingAccess": true,
+  "noProductionDeployment": true,
+  "noPriceOrCollectionChanges": true,
+  "wholeMigrationAccepted": false,
+  "privateEvidence": [
+    {
+      "path": ".scratch/dev/commercial-migration-current/provider-verification.json",
+      "sha256": "0358ecc92569eeef9da5febaa67891d028202df73a5137bca9219b9aaca6cd68"
+    },
+    {
+      "path": ".scratch/dev/commercial-migration-current/post0034-1046-reconciliation.json",
+      "sha256": "cd7b1189eaccb18ea918f569ee2b54878d90139b2b26088f77dd529b25183433"
+    },
+    {
+      "path": ".scratch/dev/commercial-migration-current/restore-pre-migration-zone-matched/receipt.json",
+      "sha256": "a552d87f203e046fedf1624189d14d3cc5a32d7fcef4a542bd02977b29b25f12"
+    },
+    {
+      "path": ".scratch/dev/commercial-migration-current/restore-coherent-utc/receipt.json",
+      "sha256": "1a048941c4a92b1132dc61e0e3595ecc7842cf4ce43a83eec943a05d0ad2a8d9"
+    },
+    {
+      "path": ".scratch/dev/commercial-migration-current/provider-focused.log",
+      "sha256": "630b9f3606b3086fdb77403afdb64ee376fefe5a9af24039edc1f38c0d1c9178"
+    },
+    {
+      "path": ".scratch/dev/commercial-migration-current/provider-native-final.log",
+      "sha256": "0e6f987e08596bbd6e5bdbc6c6da699415d6888813e37466198c88ff87486b88"
+    }
+  ]
+}

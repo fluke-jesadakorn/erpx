@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import type { NavigationContext } from "@/lib/work_projection/workplace-navigation";
 import { productionPageCut, type PageCutEntry } from "@/lib/shared/hospitality-page-cut";
 import { ComingSoonPage } from "@/components/workplace/coming-soon-page";

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { errorResponse } from "@/server/modules/runtime/public/http";
@@ -13,12 +14,12 @@ export async function GET(_request: Request, context: Context) {
   try {
     const actor = await requireWorkContext((await context.params).holdingSlug);
     return Response.json(
-      {
+      canonicalDestinationLinks({
         data: await readWorkCardPreferences(
           (await holdingResources(actor.holdingId)).write,
           actor,
         ),
-      },
+      }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -37,7 +38,7 @@ export async function POST(request: Request, context: Context) {
       async () => (await getWorkSummary(actor)).cards.map((c) => c.id),
     );
     return Response.json(
-      { data },
+      canonicalDestinationLinks({ data }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {

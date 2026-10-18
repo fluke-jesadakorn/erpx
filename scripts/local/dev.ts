@@ -5,6 +5,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { prepareNextDevelopment } from "./prepare-next-development";
 if (Bun.version !== "1.4.3") throw new Error("Development requires Bun 1.4.3.");
+if (process.env.ERPX_CONSOLE_RETIRED === "enabled") {
+  const preflight = Bun.spawn([process.execPath, resolve("scripts/local/check-console-retirement.ts")], { stdin: "inherit", stdout: "inherit", stderr: "inherit", env: process.env });
+  if (await preflight.exited !== 0) throw new Error("Console retirement acceptance is incomplete; review the preflight before activation.");
+}
 prepareNextDevelopment();
 const node = resolve(process.env.ERPX_NODE_BIN ?? ".runtime/node/node-v26.11.1-darwin-arm64/bin/node");
 if (Bun.spawnSync([node, "--version"]).stdout.toString().trim() !== "v26.11.1")

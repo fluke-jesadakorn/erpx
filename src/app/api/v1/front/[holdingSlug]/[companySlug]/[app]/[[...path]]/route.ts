@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { roomChargeReversalQueue } from "@/server/modules/pos/public/room-charge-reversal-queue";
 import { canonicalGuestAccount, guestAccountOperation } from "@/lib/identity_access/guest-account-compat";
 import { z } from "zod";
@@ -15,8 +16,8 @@ import { pmsReadSelectionFromSearch } from "@/server/modules/pms/public/rules/pm
 import { staffBookingSearch, bookingError } from "@/server/modules/pms/public/pms-booking";
 import { isTransactionalSqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { selectWorkRole } from "@/server/modules/work_projection/public/work-role-store";
-import { frontActionItems } from "@/server/modules/work_projection/public/front-quick-access";
-import { readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/modules/work_projection/public/quick-access-preferences";
+import {frontCompanyQuickAccessRequest} from '@/server/modules/work_projection/public/front-quick-access-request';
+import {boundedBody} from '@/server/modules/legal/public/legal/body';
 import { pmsHomeRead, pmsHomeWrite } from "@/server/modules/pms/public/pms/home-api";
 import { posCustomers } from "@/server/modules/pos/public/pos-daily";
 import { posProductImage } from "@/server/modules/pos/public/pos-images";
@@ -92,42 +93,43 @@ export async function GET(request: Request, { params }: Context) {
     if (path.join("/") === "room-charge-reversals") {
       const actor=await frontActor(request,holdingSlug,companySlug,app);
       const data=await roomChargeReversalQueue(actor,new URL(request.url).searchParams.get("property")??undefined);
-      return Response.json({data:data.filter(row=>row.stage===app)},{headers:{"Cache-Control":"private, no-store"}});
+      return Response.json(canonicalDestinationLinks({data:data.filter(row=>row.stage===app)}),{headers:{"Cache-Control":"private, no-store"}});
     }
     if (path.length === 1 && path[0] === "money") {
       const actor = await frontActor(request, holdingSlug, companySlug, app);
-      return Response.json({ data: { ...await moneyContext(actor), canConfirmRate: false } }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: { ...await moneyContext(actor), canConfirmRate: false } }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if(app==='pms'&&frontPmsAttachmentPaths.has(path[0]))return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,app),path);
     if(path.length===1&&path[0]==='tax-documents'){
       const actor=await frontActor(request,holdingSlug,companySlug,app);
       const invoiceId=z.string().uuid().parse(new URL(request.url).searchParams.get('invoiceId'));
-      return Response.json({data:await frontTaxDocumentView(actor,invoiceId,app)},{headers:{'Cache-Control':'private, no-store'}});
+      return Response.json(canonicalDestinationLinks({data:await frontTaxDocumentView(actor,invoiceId,app)}),{headers:{'Cache-Control':'private, no-store'}});
     }
     if (app === "pms" && path[0] === "home") {
       const actor = await frontActor(request, holdingSlug, companySlug, app);
-      return Response.json({data:await pmsHomeRead(actor,path.slice(1),new URL(request.url).searchParams)}, {headers:{"Cache-Control":"private, no-store"}});
+      return Response.json(canonicalDestinationLinks({data:await pmsHomeRead(actor,path.slice(1),new URL(request.url).searchParams)}), {headers:{"Cache-Control":"private, no-store"}});
     }
     if (path.length === 1 && path[0] === "roles") {
       const brand = await frontCompanyBrand(holdingSlug, companySlug);
       if (!brand) throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
       const location = request.headers.get("x-erpx-front-location")?.trim() || "holding";
       const state = await ensureFrontRole(holdingSlug, brand.companyId, app, location);
-      return Response.json({ data: {
+      return Response.json(canonicalDestinationLinks({ data: {
         valid: !!state.selected,
+        userId: state.access.userId,
         revision: state.selection?.revision ?? 0,
         assignmentId: state.selection?.assignment_id ?? null,
         companyId: brand.companyId,
-      } }, { headers: { "Cache-Control": "private, no-store" } });
+      } }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if (path.length === 1 && path[0] === "quick-access") {
       const actor = await frontActor(request, holdingSlug, companySlug, app);
-      return Response.json({ data: await readQuickAccessPreferences(actor.userId, "front-" + app, actor.companyId) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await frontCompanyQuickAccessRequest(request,app,actor,()=>frontActor(request,holdingSlug,companySlug,app)) }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if(app==='pos'&&path[0]==='images'&&path.length===2)return posProductImage(await frontActor(request,holdingSlug,companySlug,app),path[1]);
     if(app==='pos'&&path.join('/')==='customers/search'){
       const actor=await frontActor(request,holdingSlug,companySlug,app),db=(await holdingResources(actor.holdingId)).write;
-      return Response.json({data:await posCustomers(db,actor,new URL(request.url).searchParams.get('q')??'')},{headers:{'Cache-Control':'private, no-store'}});
+      return Response.json(canonicalDestinationLinks({data:await posCustomers(db,actor,new URL(request.url).searchParams.get('q')??'')}),{headers:{'Cache-Control':'private, no-store'}});
     }
     if (path.length)
       throw new ApiError(403, "FRONT_ROUTE_FORBIDDEN", "This work belongs in ERPX administration.");
@@ -139,12 +141,12 @@ export async function GET(request: Request, { params }: Context) {
       if (!["sale", "kitchen", "shifts", "history"].includes(tab))
         throw new ApiError(403, "FRONT_ROUTE_FORBIDDEN", "This view belongs in ERPX administration.");
       return Response.json(
-        { data: await posWorkspace(actor, search.get("sale") ?? undefined, search.get("q") ?? "", tab, search.get("cursor") ?? undefined, true) },
+        canonicalDestinationLinks({ data: await posWorkspace(actor, search.get("sale") ?? undefined, search.get("q") ?? "", tab, search.get("cursor") ?? undefined, true) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     }
     return Response.json(
-      { data: await pmsWorkspace(actor, search.get("property") ?? undefined, search.get("dayControls") === "1", true, pmsReadSelectionFromSearch(search)) },
+      canonicalDestinationLinks({ data: await pmsWorkspace(actor, search.get("property") ?? undefined, search.get("dayControls") === "1", true, pmsReadSelectionFromSearch(search)) }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
@@ -162,7 +164,9 @@ export async function POST(request: Request, { params }: Context) {
     if(app==='pms'&&frontPmsAttachmentPaths.has(path[0]))return await frontPmsAttachmentRequest(request,await frontActor(request,holdingSlug,companySlug,app),path);
     if (app === "pms" && path[0] === "home") {
       const actor = await frontActor(request, holdingSlug, companySlug, app);
-      return Response.json({data:await pmsHomeWrite(actor,path.slice(1),await request.json(),commandKey(request))}, {headers:{"Cache-Control":"private, no-store"}});
+      const version=path.length===4&&path[1]==='handover'&&path[3]==='acknowledgement'?request.headers.get('x-erpx-handover-version'):null;
+      if(version!==null&&(!/^[1-9][0-9]{0,15}$/.test(version)||!Number.isSafeInteger(Number(version))))throw new ApiError(422,'HANDOVER_VERSION_INVALID','Provide the handover version shown on this page.');
+      return Response.json(canonicalDestinationLinks({data:await pmsHomeWrite(actor,path.slice(1),await request.json(),commandKey(request),version===null?undefined:Number(version))}), {headers:{"Cache-Control":"private, no-store"}});
     }
     if (path.length === 1 && path[0] === "roles") {
       const brand = await frontCompanyBrand(holdingSlug, companySlug);
@@ -176,7 +180,7 @@ export async function POST(request: Request, { params }: Context) {
         assignmentId: assignment.id, assignmentVersion: assignment.version!, revision: input.revision,
         expiresAt: state.access.expiresAt, rememberPreference: false,
       });
-      return Response.json({ data: { assignmentId: assignment.id, revision: selected.revision } }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: { assignmentId: assignment.id, revision: selected.revision } }), { headers: { "Cache-Control": "private, no-store" } });
     }
     const actor = await frontActor(request, holdingSlug, companySlug, app);
 
@@ -186,35 +190,30 @@ export async function POST(request: Request, { params }: Context) {
       const input = await request.json().catch(() => { throw new ApiError(422, "INVALID_JSON", "Use a JSON body."); });
       const parsed = preferenceSchema.safeParse(input);
       if (!parsed.success) throw new ApiError(422, "INVALID_CURRENCY", parsed.error.issues[0]?.message ?? "Invalid currency.");
-      return Response.json({ data: await saveCurrencyPreference(actor, parsed.data, commandKey(request)) }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data: await saveCurrencyPreference(actor, parsed.data, commandKey(request)) }), { headers: { "Cache-Control": "private, no-store" } });
     }
 
     if(path.length===1&&path[0]==='tax-documents'){
       const {command,key}=await taxDocumentRequest(request);
-      return Response.json({data:await frontTaxDocumentCommand(actor,command,key,app)},{headers:{'Cache-Control':'private, no-store'}});
+      return Response.json(canonicalDestinationLinks({data:await frontTaxDocumentCommand(actor,command,key,app)}),{headers:{'Cache-Control':'private, no-store'}});
     }
 
     if (path.length === 1 && path[0] === "quick-access") {
-      const input = z.object({
-        pinnedIds: z.array(z.string().min(1).max(128)).max(6).nullable(),
-        expectedVersion: z.number().int().nonnegative(),
-      }).parse(await request.json());
-      const availableIds = frontActionItems(app, actor, "").map((item) => item.id);
-      return Response.json({ data: await saveQuickAccessPreferences({
-        userId: actor.userId,
-        surface: "front-" + app,
-        contextKey: actor.companyId,
-        pinnedIds: input.pinnedIds,
-        expectedVersion: input.expectedVersion,
-        availableIds,
-        requestKey: commandKey(request),
-      }) }, { headers: { "Cache-Control": "private, no-store" } });
+      const preference=await frontCompanyQuickAccessRequest(request,app,actor,()=>frontActor(request,holdingSlug,companySlug,app),async()=>{
+        let raw:unknown;try{raw=JSON.parse(new TextDecoder().decode(await boundedBody(request,8192)));}catch(error){if(error instanceof SyntaxError)throw new ApiError(422,'INVALID_JSON','Use a JSON body.');throw error;}
+        const input = z.object({
+          pinnedIds: z.array(z.string().min(1).max(128)).max(6).nullable(),
+          expectedVersion: z.number().int().nonnegative(),
+        }).parse(raw);
+        return {...input,requestKey:commandKey(request)};
+      });
+      return Response.json(canonicalDestinationLinks({ data: preference }), { headers: { "Cache-Control": "private, no-store" } });
     }
 
     if (app === "pms" && path.length===2 && path[0]==="room_charge_reversal" && ["approve_pms","reject_pms"].includes(path[1])) {
       const db=(await holdingResources(actor.holdingId)).write;
       if(!isTransactionalSqlDatabase(db))throw new Error("POSTGRES_REQUIRED");
-      return Response.json({data:await posCommand(db as PostgresDatabase,actor,path.join("."),await request.json(),commandKey(request))},{headers:{"Cache-Control":"private, no-store"}});
+      return Response.json(canonicalDestinationLinks({data:await posCommand(db as PostgresDatabase,actor,path.join("."),await request.json(),commandKey(request))}),{headers:{"Cache-Control":"private, no-store"}});
     }
     if (app === "pos") {
       if (path.length !== 2)
@@ -225,7 +224,7 @@ export async function POST(request: Request, { params }: Context) {
       const body = await request.json();
       const db = (await holdingResources(actor.holdingId)).write as PostgresDatabase;
       return Response.json(
-        { data: await posCommand(db, actor, operation, body, commandKey(request)) },
+        canonicalDestinationLinks({ data: await posCommand(db, actor, operation, body, commandKey(request)) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     }
@@ -233,13 +232,13 @@ export async function POST(request: Request, { params }: Context) {
     if(path.length===1&&path[0]==='booking-changes'){
       const db=(await holdingResources(actor.holdingId)).write;
       if(!isTransactionalSqlDatabase(db))throw new Error('POSTGRES_REQUIRED');
-      return Response.json({data:await staffBookingChange(db,actor,holdingSlug,await request.json(),commandKey(request))},{headers:{'Cache-Control':'private, no-store'}});
+      return Response.json(canonicalDestinationLinks({data:await staffBookingChange(db,actor,holdingSlug,await request.json(),commandKey(request))}),{headers:{'Cache-Control':'private, no-store'}});
     }
 
     if (path.length === 1 && (path[0] === "availability" || path[0] === "quote")) {
       const value = z.object({ propertyId: z.string().min(1), input: z.unknown() }).parse(await request.json());
       return Response.json(
-        { data: await staffBookingSearch(actor, value.propertyId, path[0], value.input) },
+        canonicalDestinationLinks({ data: await staffBookingSearch(actor, value.propertyId, path[0], value.input) }),
         { headers: { "Cache-Control": "private, no-store" } },
       );
     }
@@ -254,7 +253,7 @@ export async function POST(request: Request, { params }: Context) {
     const db = (await holdingResources(actor.holdingId)).write;
     if (!isTransactionalSqlDatabase(db)) throw new Error("POSTGRES_REQUIRED");
     return Response.json(
-      { data: await pmsCommand(db, actor, body, key) },
+      canonicalDestinationLinks({ data: await pmsCommand(db, actor, body, key) }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

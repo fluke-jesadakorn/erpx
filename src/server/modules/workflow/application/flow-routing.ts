@@ -417,7 +417,7 @@ export function createFlowRoutingApplication<Effect>(ports: FlowRoutingPorts<Eff
             const payers = row.kind === "payable" ? (await ports.spendingUsers(scope, "treasury")).map(p => p.user_id!) : await roles(["treasury"], true);
             add("posted", row.kind === "receivable" ? "Record receipt and settle receivable" : "Record payment and attach bank slip", "treasury", payers.filter(id => !excludedPayers.has(id)));
             current = current === "in_review" ? "draft" : current === "partially_paid" ? "posted" : current;
-            terminal ||= ["paid", "settled", "voided"].includes(current) || (current === "posted" && Number(row.outstanding_minor) === 0);
+            terminal ||= ["paid", "settled", "voided", "no_charge_confirmed"].includes(current) || (current === "posted" && Number(row.outstanding_minor) === 0);
         }
         else if (kind === "journal") {
             let sourcePrimary: string | undefined;

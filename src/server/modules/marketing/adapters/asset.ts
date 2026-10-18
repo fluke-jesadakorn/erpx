@@ -9,8 +9,10 @@ import {ApiError} from "@/server/modules/runtime/public/http";
 import {BusinessRuleError} from "../../shared";
 import {createAssetApplication, type AssetPorts} from "../application/asset";
 import {marketingPresentationReferences} from "../public/marketing-public-form";
-export async function createMarketingAsset(a:WorkContext,raw:unknown,key:string){
-let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=(holdingResources(a.holdingId).then(x=>x.write));
+import {assetSchema} from "../domain/asset";
+import {withMarketingPurchasedCommand} from "./purchases";
+async function create(a:WorkContext,raw:unknown,key:string,provided?:SqlDatabase){
+let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=(holdingResources(a.holdingId).then(x=>x.write));
 const ports:AssetPorts={clock:{now:()=>Date.now()},async authorize(){requirePermission(a,"records.write");if(!hasModuleAccess(a.modules,"marketing"))throw new ApiError(403,"MODULE_FORBIDDEN","Your current role cannot access Marketing.");},validatePresentation:marketingPresentationReferences,
 async replay(key,op,id,input){return replayCommand<{id:string;status:string;version:number}>(await database(),a,key,op,id,input);},
 async persist(command){const write=await database();const {key,operation:op,id,input:i,now,result}=command;
@@ -39,3 +41,4 @@ async persist(command){const write=await database();const {key,operation:op,id,i
 }
 };try{return await createAssetApplication(ports)(raw,key);}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 }
+export async function createMarketingAsset(a:WorkContext,raw:unknown,key:string){const input=assetSchema.parse(raw);return withMarketingPurchasedCommand(a,{key,operation:'marketing.asset.create',target:{kind:'asset',id:`marketing-${input.kind}-${key}`},purpose:'new-work'},db=>create(a,input,key,db));}

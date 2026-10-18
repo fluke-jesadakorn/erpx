@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type {HoldingWorkspaceScope} from "@/lib/work_projection/workspace";
 export type FrontAppKind = "pos" | "pms";
 export type FrontLocation = { key: string; label: string; path: string };
@@ -45,7 +46,7 @@ export function frontOperationAllowed(app: FrontAppKind, operation: string) {
 }
 export function localPathFromDestination(destination: string | undefined, holdingSlug: string) {
   if (!destination) return null;
-  const prefix = "/holdings/" + encodeURIComponent(holdingSlug);
+  const prefix = canonicalUiHref("/holdings/") + encodeURIComponent(holdingSlug);
   if (!destination.startsWith(prefix)) return null;
   return destination.slice(prefix.length).replace(/\/home(?:\/.*)?$/, "").replace(/^\/+|\/+$/g, "") || "holding";
 }

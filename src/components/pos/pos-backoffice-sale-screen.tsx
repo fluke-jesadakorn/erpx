@@ -1,18 +1,19 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import dynamic from "next/dynamic";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
 import { Button as UiButton, Field, Select, TextInput } from "@/components/ui/foundation";
 import { FeatureWidget as FeatureWidgetBase } from "@/components/shared/features/feature-page";
 import type { PosRow } from "@/server/modules/pos/public/pos-core";
-import Link from "next/link";
-import { useEffect, useRef, type ComponentProps, type FormEvent, type ReactNode } from "react";
+import Link from "@/components/workplace/workspace-link";
+import { useEffect, useLayoutEffect, useRef, type ComponentProps, type FormEvent, type ReactNode } from "react";
 import styles from "./pos.module.css";
 import { SourceSupportLink } from "@/components/support/source-support-link";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
 import { formatUiDateTime } from "@/lib/shared/ui-format";
-import type {BackofficePosConsoleContext} from "./pos-backoffice-console";
+import type {BackofficePosConsoleContext} from "./standard-pos-backoffice-console";
 
 
 const RoomChargeReversalRequest = dynamic(() => import("@/components/shared/hospitality/room-charge-reversals").then(module => module.RoomChargeReversalRequest));
@@ -21,7 +22,7 @@ const RoomChargeReversalRequest = dynamic(() => import("@/components/shared/hosp
 const TaxDocumentReference = dynamic(() => import("@/components/shared/hospitality/tax-document-reference").then(module => module.TaxDocumentReference));
 
 
-const PosPromptPayEmailRecovery = dynamic(() => import("./pos-sales").then(module => module.PosPromptPayEmailRecovery));
+const PosPromptPayEmailRecovery = dynamic(() => import("./standard-pos-sale-workspace").then(module => module.StandardPosPromptPayEmailRecovery));
 
 
 const PosPendingTransfer = dynamic(() => import("@/components/pos/pos-pending-transfer").then(module => module.PosPendingTransfer));
@@ -198,6 +199,7 @@ function Button({
 }
 export function BackofficePosConsoleSaleScreen({context}: {context: BackofficePosConsoleContext}) {
   const {shift, send, register, registerId, setRegisterId, setSelected, data, busy, currentTabLoaded, can, setTab, sale, search, saleCommand, setSearch, category, setCategory, filtered, setProduct, money, product, online, erpBase, saleMoney, due, paymentMethod, setPaymentMethod, setPrinting, pickSale, currency} = context;
+  const latestProduct=useRef(product);useLayoutEffect(()=>{latestProduct.current=product;},[product]);
   return <FrontLocalizedTree>{(
                 <>
                   <FeatureWidget id="pos-new-sale" title="New sale">
@@ -281,7 +283,7 @@ export function BackofficePosConsoleSaleScreen({context}: {context: BackofficePo
                       </Field>
                       <Button
                         type="submit"
-                        disabled={busy || !currentTabLoaded || !shift || !can("pos.sell")}
+                        disabled={busy || !currentTabLoaded || !shift || !can("pos.sell") || data.purchases && (!data.purchases["pos.sales"].newWork || register?.mode === "restaurant" && !data.purchases["pos.restaurant"].newWork)}
                       >
                         Open new sale
                       </Button>
@@ -385,15 +387,14 @@ export function BackofficePosConsoleSaleScreen({context}: {context: BackofficePo
                               className={styles.fields}
                               onSubmit={(e) => {
                                 const f = fields(e);
-                                void saleCommand("sale.add", {
+                                void send("sale.add", {
+                                  id:sale.id,expectedVersion:sale.version,
                                   productId: product.id,
                                   quantityMilli: quantity(f, "qty"),
                                   modifierIds: f.getAll("modifier").map(String),
                                   discountMinor: amount(f, "discount"),
                                   note: text(f, "note"),
-                                })?.then((r) => {
-                                  if (r) setProduct(null);
-                                });
+                                }, false, undefined, {form:e.currentTarget,current:()=>latestProduct.current===product,acknowledged:()=>{setProduct(null);}});
                               }}
                             >
                               <Field>
@@ -723,7 +724,7 @@ export function BackofficePosConsoleSaleScreen({context}: {context: BackofficePo
                                 Print receipt
                               </Button>
                               {sale.invoice_id && (
-                                <Link href={`${erpBase}/finance/invoices/${sale.invoice_id}`}>
+                                <Link href={canonicalUiHref(`${erpBase}/finance/invoices/${sale.invoice_id}`)}>
                                   Accounting document
                                 </Link>
                               )}

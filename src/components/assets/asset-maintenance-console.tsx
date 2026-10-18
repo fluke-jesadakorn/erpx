@@ -1,52 +1,21 @@
 "use client";
+import WorkspaceLink from "@/components/workplace/workspace-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import { FormDisclosure } from "@/components/ui/form-disclosure";
+import {AssetEditor,AssetRecoveryBoundary} from "./asset-editor";
+import {useAssetCommand} from "./use-asset-command";
+import {assetCommandAllowed} from "@/lib/assets/command";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 import { PreferredDateTimeField } from "@/components/people_payroll/time/preferred-date-time-field";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import { ServiceSpareForm } from "@/components/field_service/service-spare-form";
 import type {assetDetail,assetWorkspace} from "@/server/modules/assets/public/asset-maintenance";
 import type {maintenanceDetail,maintenanceWorkspace} from "@/server/modules/maintenance/public/asset-maintenance";
 import { FormLayout } from "@/components/ui/foundation";
-function useCommand(base: string, path: string) {
-  const router = useRouter(),
-    last = useRef<{ key: string; body: string } | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function send(input: unknown) {
-    const form=document.activeElement?.closest("form"),formEditVersion=form?.getAttribute("data-erpx-edit-version");
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const body = JSON.stringify(input);
-    if (last.current?.body !== body) last.current = { key: crypto.randomUUID(), body };
-    try {
-      const response = await workFetch(`/api/v1${base}/${path}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body,
-        }),
-        result = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(result.error?.message ?? "Unable to record this action.");
-      }
-      last.current = null;
-      if(form&&formEditVersion&&form.getAttribute('data-erpx-edit-version')===formEditVersion)window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form,formEditVersion}}));
-      const current=new URL(window.location.href);
-      if(current.pathname===`${base}/assets`&&current.searchParams.has('view')){current.searchParams.set('detailKind',path==='assets'?'asset':'maintenance');current.searchParams.set('detailId',String(result.data.id));router.push(current.pathname+current.search,{scroll:false});}else router.push(`${base}/${path}/${result.data.id}`);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry this action.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return { send, busy, error };
-}
+import {useAccountPreferences} from "@/components/identity_access/account-preferences-context";
+const retirementReviewCopy={
+ en:{title:"Review updated retirement request",description:"Review the current asset and linked Finance source before renewing your retirement request. Enter the current reason and evidence. A different authorized reviewer must approve the renewed request."},
+ th:{title:"ทบทวนคำขอเลิกใช้",description:"ทบทวนทรัพย์สินปัจจุบันและข้อมูล Finance ที่เชื่อมโยงก่อนยืนยันคำขอเลิกใช้อีกครั้ง ระบุเหตุผลและหลักฐานปัจจุบัน โดยผู้ตรวจที่ได้รับสิทธิ์คนอื่นต้องเป็นผู้อนุมัติคำขอที่ทบทวนแล้ว"},
+};
 export function AssetConsole({
   base,
   data,
@@ -56,11 +25,13 @@ export function AssetConsole({
   data?: Awaited<ReturnType<typeof assetWorkspace>>;
   detail?: Awaited<ReturnType<typeof assetDetail>>;
 }) {
-  const { send, busy, error } = useCommand(base, "assets"),
-    r = detail?.asset;
-  function action(name: string, title: string, extra?: React.ReactNode) {
+  const language=useAccountPreferences()?.preference?.language,retirementReview=language==="th"?retirementReviewCopy.th:retirementReviewCopy.en;
+  const purchases=detail?.purchases??data?.purchases,{send,retry,busy,error,notice,saved,uncertain}=useAssetCommand(base,"assets",purchases,detail?.asset),
+    r = detail?.asset,
+    retirementRequest = detail?.history.findLast(event => event.action === "retire-request");
+  function action(name: string, title: string, extra?: React.ReactNode,available=true) {
     return (
-      <FormLayout
+      <AssetEditor key={name} title={title} busy={busy} error={error} visible={available} disabled={detail?.canCreate===false||!assetCommandAllowed("assets",{id:r?.id,action:name},purchases)}><FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
@@ -70,7 +41,7 @@ export function AssetConsole({
             id: r!.id,
             action: name,
             expectedVersion: Number(r!.version),
-          });
+          },e.currentTarget);
         }}
       >
         <h2>{title}</h2>
@@ -82,14 +53,15 @@ export function AssetConsole({
         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           {title}
         </Button>
-      </FormLayout>
+      </FormLayout></AssetEditor>
     );
   }
   return (
-    <>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {data?.canCreate && (
-        <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Register asset</summary><FormLayout
+    <AssetRecoveryBoundary recovery={{retry,busy,uncertain,notice,saved}}>
+      {(data?.canLinkFinance||detail?.canLinkFinance)&&<p><WorkspaceLink href={`${base}/services/assets/accounting`}>{language==="th"?"เตรียมและตรวจสอบการรับรู้หรือจำหน่ายทรัพย์สิน":"Prepare and review asset acquisition or disposal"}</WorkspaceLink></p>}
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{notice&&<InlineNotice role="status">{notice}</InlineNotice>}{saved&&<p>Saved original: <WorkspaceLink href={saved.href}>{saved.id}</WorkspaceLink></p>}{uncertain&&<Button appearance="standard" type="button" disabled={busy} onClick={()=>void retry()}>Retry submitted change</Button>}
+      {data && (
+        <AssetEditor title="Register asset" visible={data.canCreate} busy={busy} error={error} disabled={!assetCommandAllowed("assets",{},purchases)}><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -101,7 +73,7 @@ export function AssetConsole({
               financeAssetVersion: finance ? Number(finance.version) : undefined,
               departmentId: f.departmentId || null,
               warrantyEnd: f.warrantyEnd || null,
-            });
+            },e.currentTarget);
           }}
         >
           <h2>Register asset</h2>
@@ -168,9 +140,9 @@ export function AssetConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Register asset
           </Button>
-        </FormLayout></FormDisclosure>
+        </FormLayout></AssetEditor>
       )}
-      {r && !r.finance_asset_id && detail?.canLinkFinance && action(
+      {r && action(
         "link-finance", "Link recognized Finance asset", <Field appearance="standard">
           Finance asset
           <Select appearance="standard" name="financeAssetId" required onChange={(e) => {
@@ -181,11 +153,9 @@ export function AssetConsole({
             {detail.financeAssets.map(x => <option key={String(x.id)} value={String(x.id)}>{String(x.asset_number)} · {String(x.name)} · {String(x.currency)}</option>)}
           </Select>
           <input name="financeAssetVersion" type="hidden" defaultValue={String(detail.financeAssets[0]?.version ?? "")} />
-        </Field>,
+        </Field>,Boolean(!r.finance_asset_id&&detail?.canLinkFinance),
       )}
-      {r &&
-        ["registered", "in_service"].includes(String(r.lifecycle_status)) &&
-        action(
+      {r && action(
           "place",
           "Place into service",
           <>
@@ -203,11 +173,9 @@ export function AssetConsole({
                 ))}
               </Select>
             </Field>
-          </>,
+          </>,["registered","in_service"].includes(String(r.lifecycle_status)),
         )}
-      {r &&
-        r.lifecycle_status !== "retired" &&
-        action(
+      {r && action(
           "condition",
           "Record condition",
           <Field appearance="standard">
@@ -217,16 +185,11 @@ export function AssetConsole({
               <option value="degraded">Degraded</option>
               <option value="unsafe">Unsafe</option>
             </Select>
-          </Field>,
+          </Field>,r.lifecycle_status!=="retired",
         )}
-      {r &&
-        ["registered", "in_service"].includes(String(r.lifecycle_status)) &&
-        action("retire-request", "Request retirement")}
-      {r &&
-        r.lifecycle_status === "retirement_pending" &&
-        Number(r.can_review) > 0 &&
-        action("retire-approve", "Approve retirement")}
-    </>
+      {r&&action("retire-request",r.lifecycle_status==="retirement_pending"?retirementReview.title:"Request retirement",r.lifecycle_status==="retirement_pending"?<p>{retirementReview.description}</p>:undefined,["registered","in_service"].includes(String(r.lifecycle_status))||r.lifecycle_status==="retirement_pending"&&retirementRequest?.actor_id===detail?.actorId)}
+      {r&&action("retire-approve","Approve retirement",undefined,r.lifecycle_status==="retirement_pending"&&Number(r.can_review)>0)}
+    </AssetRecoveryBoundary>
   );
 }
 export function MaintenanceConsole({
@@ -238,11 +201,11 @@ export function MaintenanceConsole({
   data?: Awaited<ReturnType<typeof maintenanceWorkspace>>;
   detail?: Awaited<ReturnType<typeof maintenanceDetail>>;
 }) {
-  const { send, busy, error } = useCommand(base, "maintenance"),
+  const purchases=detail?.purchases??data?.purchases,{send,retry,busy,error,notice,saved,uncertain}=useAssetCommand(base,"maintenance",purchases,detail?.work),
     r = detail?.work;
-  function action(name: string, title: string, extra?: React.ReactNode) {
+  function action(name: string, title: string, extra?: React.ReactNode,available=true) {
     return (
-      <FormLayout
+      <AssetEditor key={name} title={title} busy={busy} error={error} visible={available} disabled={detail?.canCreate===false||!assetCommandAllowed("maintenance",{id:r?.id,action:name},purchases)}><FormLayout
         className="ui-panel ui-form-grid"
         onSubmit={(e) => {
           e.preventDefault();
@@ -253,7 +216,7 @@ export function MaintenanceConsole({
             action: name,
             expectedVersion: Number(r!.version),
             scheduledAt: f.scheduledAt ? new Date(String(f.scheduledAt)).getTime() : undefined,
-          });
+          },e.currentTarget);
         }}
       >
         <h2>{title}</h2>
@@ -265,14 +228,14 @@ export function MaintenanceConsole({
         <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
           {title}
         </Button>
-      </FormLayout>
+      </FormLayout></AssetEditor>
     );
   }
   return (
-    <>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {data?.canCreate && (
-        <FormDisclosure appearance="standard" className="ui-form-disclosure" dismissDisabled={busy}><summary>Open work order</summary><FormLayout
+    <AssetRecoveryBoundary recovery={{retry,busy,uncertain,notice,saved}}>
+      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{notice&&<InlineNotice role="status">{notice}</InlineNotice>}{saved&&<p>Saved original: <WorkspaceLink href={saved.href}>{saved.id}</WorkspaceLink></p>}{uncertain&&<Button appearance="standard" type="button" disabled={busy} onClick={()=>void retry()}>Retry submitted change</Button>}
+      {data && (
+        <AssetEditor title="Open work order" visible={data.canCreate} busy={busy} error={error} disabled={!assetCommandAllowed("maintenance",{},purchases)}><FormLayout
           className="ui-panel ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -282,7 +245,7 @@ export function MaintenanceConsole({
               ...f,
               assetVersion: Number(asset?.version),
               scheduledAt: f.scheduledAt ? new Date(String(f.scheduledAt)).getTime() : null,
-            });
+            },e.currentTarget);
           }}
         >
           <h2>Open work order</h2>
@@ -326,11 +289,9 @@ export function MaintenanceConsole({
           <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
             Open work order
           </Button>
-        </FormLayout></FormDisclosure>
+        </FormLayout></AssetEditor>
       )}
-      {r &&
-        ["open", "scheduled"].includes(String(r.status)) &&
-        action(
+      {r && action(
           "schedule",
           "Schedule or reassign",
           <>
@@ -339,15 +300,13 @@ export function MaintenanceConsole({
               <TextInput appearance="standard" name="ownerId" defaultValue={String(r.owner_id)} required />
             </Field>
             <PreferredDateTimeField appearance="standard" name="scheduledAt" label="Schedule" required />
-          </>,
+          </>,["open","scheduled"].includes(String(r.status)),
         )}
-      {r && ["open", "scheduled"].includes(String(r.status)) && action("start", "Start work")}
-      {r && r.status === "in_progress" && action("block", "Block work")}
-      {r && detail && r.status === "in_progress" && <ServiceSpareForm spares={detail.spares} busy={busy} onSubmit={input => { void send({ ...input, id:r.id, action:"issue-part", expectedVersion:Number(r.version) }); }} />}
-      {r && r.status === "blocked" && action("resume", "Resume work")}
-      {r &&
-        r.status === "in_progress" &&
-        action(
+      {r&&action("start","Start work",undefined,["open","scheduled"].includes(String(r.status)))}
+      {r&&action("block","Block work",undefined,r.status==="in_progress")}
+      {r&&detail&&<AssetEditor title="Issue spare parts" busy={busy} error={error} visible={r.status==="in_progress"} disabled={detail.canCreate===false||!assetCommandAllowed("maintenance",{id:r.id,action:"issue-part"},purchases)}><ServiceSpareForm spares={detail.spares} busy={busy} onSubmit={input => { void send({ ...input, id:r.id, action:"issue-part", expectedVersion:Number(r.version) },document.activeElement?.closest("form")??undefined); }} /></AssetEditor>}
+      {r&&action("resume","Resume work",undefined,r.status==="blocked")}
+      {r && action(
           "complete",
           "Complete work",
           <>
@@ -363,11 +322,9 @@ export function MaintenanceConsole({
                 <option value="unsafe">Unsafe</option>
               </Select>
             </Field>
-          </>,
+          </>,r.status==="in_progress",
         )}
-      {r &&
-        !["completed", "cancelled"].includes(String(r.status)) &&
-        action("cancel", "Cancel work")}
-    </>
+      {r&&action("cancel","Cancel work",undefined,!["completed","cancelled"].includes(String(r.status)))}
+    </AssetRecoveryBoundary>
   );
 }

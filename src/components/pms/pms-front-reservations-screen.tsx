@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type { Field } from "./workspace-types";
 import { RecordSurface } from "@/components/records/record-surface";
 import { ActionLink as UiActionLink, Field as UiField, TextInput } from "@/components/ui/foundation";
@@ -11,7 +12,7 @@ import dynamic from "next/dynamic";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {FrontPmsDailyContext} from "./pms-front-workspace";
+import type {FrontPmsDailyContext} from "./standard-pms-front-workspace";
 
 
 const RecordDocumentPanel = dynamic(() => import("@/components/files/record-document-panel").then(module => module.RecordDocumentPanel));
@@ -187,7 +188,7 @@ export function FrontPmsDailyReservationsScreen({context}: {context: FrontPmsDai
                 <Panel title="Availability and new reservation">
                   {showReservationForms && property && (
                     <div className="ui-actions">
-                      <UiActionLink href={`${erpBase}/pms/reservations?property=${encodeURIComponent(property.id)}&queue=groups`}>
+                      <UiActionLink href={canonicalUiHref(`${erpBase}/pms/reservations?property=${encodeURIComponent(property.id)}&queue=groups`)}>
                         {tr("Manage group allocations")}
                       </UiActionLink>
                     </div>

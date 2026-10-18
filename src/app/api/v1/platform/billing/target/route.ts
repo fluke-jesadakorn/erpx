@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {appBillingFinanceProjection} from "@/server/modules/billing/public/app-finance-projection-source";
 import {customerHoldingBindingExists} from "@/server/modules/runtime/public/app-native-sources";
 import { billingMonth } from "@/lib/billing/billing";
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
       creditedSatang: Number(receipt.credited_satang), stripeStatus: receipt.stripe_status,
       syncedAt: Number(receipt.synced_at),
     } : null;
-    return Response.json({ data: { ...view, financeProjection } },
+    return Response.json(canonicalDestinationLinks({ data: { ...view, financeProjection } }),
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

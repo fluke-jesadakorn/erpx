@@ -1,3 +1,4 @@
+import { withFinancePurchasedRead, withFinanceConfigurationCommand } from "./purchase-boundary";
 import { financeOwnerDecisionEffects } from "../../workflow/public/finance-owner-decision-effects";
 import { createAccountingProfiles } from '../application/accounting-profiles';
 import type { SqlDatabase } from '@/server/modules/runtime/public/runtime/types';
@@ -10,16 +11,16 @@ import { ApiError } from "@/server/modules/runtime/public/http";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 export { accountingProfileSchema, accountingProfileDecisionSchema, type AccountingProfile } from '../domain/accounting-profiles';
 import { accountingProfileSchema, accountingProfileDecisionSchema, type AccountingProfile } from '../domain/accounting-profiles';
-export async function accountingProfiles(actor: WorkContext) { return profileService().accountingProfiles(actor); }
-export async function prepareAccountingProfile(actor: WorkContext, input: z.input<typeof accountingProfileSchema>, key: string) { return profileService().prepareAccountingProfile(actor, input, key); }
-export async function decideAccountingProfile(actor: WorkContext, id: string, decision: "approve" | "reject", input: z.input<typeof accountingProfileDecisionSchema>, key: string) { return profileService().decideAccountingProfile(actor, id, decision, input, key); }
+export async function accountingProfiles(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>profileService(db).accountingProfiles(actor),"finance.accounting",true); }
+export async function prepareAccountingProfile(actor: WorkContext, input: z.input<typeof accountingProfileSchema>, key: string) { return withFinanceConfigurationCommand(actor,{key,operation:"finance.profile.prepare",purpose:"new-work"},tx=>profileService(tx).prepareAccountingProfile(actor,input,key)); }
+export async function decideAccountingProfile(actor: WorkContext, id: string, decision: "approve" | "reject", input: z.input<typeof accountingProfileDecisionSchema>, key: string) { return withFinanceConfigurationCommand(actor,{key,operation:`finance.profile.${decision}`,purpose:"settle-existing"},tx=>profileService(tx).decideAccountingProfile(actor,id,decision,input,key)); }
 export async function financialEvents(actor: WorkContext, query: {
     chartId: string;
     startDate?: string;
     endDate?: string;
-}) { return profileService().financialEvents(actor, query); }
-function profileService() {
-    let pending: Promise<SqlDatabase> | undefined;
+}) { return withFinancePurchasedRead(actor,db=>profileService(db).financialEvents(actor,query)); }
+function profileService(provided?: SqlDatabase) {
+    let pending: Promise<SqlDatabase> | undefined = provided ? Promise.resolve(provided) : undefined;
     const db = (actor: WorkContext) => pending ??= holdingResources(actor.holdingId).then(r => r.write);
     return createAccountingProfiles({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, now: Date.now, replay: async <Result>(actor:WorkContext,key:string,operation:string,id:string,input:unknown) => replayCommand<Result>(await db(actor), actor, key, operation, id, input), profiles: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT p.*,c.name chart_name,c.base_currency FROM finance_accounting_profiles p JOIN finance_charts c ON c.id=p.statutory_chart_id WHERE p.company_id=? ORDER BY p.created_at DESC,p.id").bind(actor.companyId).all<AccountingProfile>()).results; }, activeChart: async (facts) => {
             const { input, actor } = facts;

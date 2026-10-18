@@ -4,13 +4,13 @@ import { ArrowUpRight, Check, Layers3 } from "lucide-react";
 import { cookies } from "next/headers";
 import { AppearanceSwitcher } from "@/components/brand/appearance-switcher";
 import { marketingOrigin } from "@/lib/runtime/erpx-hosts";
-import { appearancePreference } from "@/lib/shared/appearance-preference";
+import { preferredAccountAppearance } from "@/server/modules/identity_access/public/account-preference-snapshot";
 import { ProductBrand } from "@/components/brand/product-brand";
 import styles from "./login.module.css";
 
 export async function AuthShell({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: ReactNode }) {
   const site = marketingOrigin()?.toString();
-  const theme = appearancePreference((await cookies()).get("erpx_appearance")?.value);
+  const theme = await preferredAccountAppearance((await cookies()).get("erpx_appearance")?.value);
   return <main className={styles.page}>
     <section className={styles.story} aria-label="ERPX introduction">
       <div className={styles.storyTop}><ProductBrand appearance="standard" inverse className={styles.brand} /><span>ONE CONNECTED WORKSPACE</span></div>

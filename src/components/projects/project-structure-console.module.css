@@ -1,0 +1,79 @@
+/* The graph keeps its original native viewBox, node dimensions and edges. */
+.workspace,
+.stack,
+.handoff {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-space-4);
+}
+.workspace h2,
+.workspace h3 {
+  color: var(--ui-ink-strong);
+}
+.workspace p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.graph {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+.graph svg {
+  max-inline-size: none;
+}
+.graph p {
+  margin-block-start: var(--ui-space-2);
+  color: var(--ui-muted);
+  font-size: var(--ui-type-meta);
+}
+.graph:focus-visible,
+.taskLink:focus-visible,
+.snapshot summary:focus-visible {
+  outline: 3px solid var(--ui-brand);
+  outline-offset: 3px;
+}
+.inlineForm {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+.taskRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+  border-block-end: 1px solid var(--ui-line);
+  padding-block: var(--ui-space-3);
+}
+.taskLink {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  color: var(--ui-brand);
+}
+.snapshot {
+  display: grid;
+  gap: var(--ui-space-2);
+  color: var(--ui-muted);
+}
+.snapshot summary {
+  width: fit-content;
+  min-block-size: var(--ui-control-height);
+  align-content: center;
+  cursor: pointer;
+  color: var(--ui-ink-strong);
+  font-weight: 600;
+}
+.handoff {
+  padding: var(--ui-space-4);
+}
+@media (max-width: 640px) {
+  .inlineForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .taskRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

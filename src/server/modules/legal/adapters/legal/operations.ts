@@ -1,3 +1,5 @@
+import {inLegalOwnerUnit,inLegacyLegalOperationsUnit,legalReadScope,withLegalPurchasedCommand,requireLegalItemPurchasedRead} from '../purchases';
+import {legalPackageEnforcementMode} from '../../../commercial/public/purchase-command-boundary';
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "../../../runtime/public/runtime/types";
 import {PostgresDatabase} from "../../../runtime/public/runtime/postgres";
@@ -13,11 +15,11 @@ import {previewLegalImport} from "../../domain/operations";
 import type {LegalItem} from "../../domain/model";
 import type {LegalWrite} from "../../application/service";
 import {createLegalOperationsApplication,type LegalOperationUnit,type LegalOperationsRepository} from "../../application/operations";
-function unit(db:SqlDatabase,a:WorkContext):LegalOperationUnit{const v=visibility(a),writes=new WeakMap<LegalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalWrite{const write:LegalWrite={owner:"legal"};writes.set(write,statement);return write;}function resolve(write:LegalWrite){const statement=writes.get(write);if(!statement)throw new Error("LEGAL_OPERATIONS_REPOSITORY_MISMATCH");return statement;}
+function unit(db:SqlDatabase,a:WorkContext):LegalOperationUnit{let observation:ReturnType<typeof legalReadScope>|undefined;const purchase=()=>observation??=legalReadScope(db,a);const v=visibility(a),writes=new WeakMap<LegalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalWrite{const write:LegalWrite={owner:"legal"};writes.set(write,statement);return write;}function resolve(write:LegalWrite){const statement=writes.get(write);if(!statement)throw new Error("LEGAL_OPERATIONS_REPOSITORY_MISMATCH");return statement;}
 return {
-registerRows:(kind)=>db
+registerRows:async(kind)=>db
       .prepare(
-        `SELECT i.*,t.data FROM legal_items i JOIN ${tables[kind]} t ON t.item_id=i.id WHERE ${v.sql} AND i.kind=? ORDER BY i.id LIMIT 10001`,
+        `SELECT i.*,t.data FROM legal_items i JOIN ${tables[kind]} t ON t.item_id=i.id WHERE ${v.sql} AND ${(await purchase()).where} AND i.kind=? ORDER BY i.id LIMIT 10001`,
       )
       .bind(...v.values, kind)
       .all<LegalItem>(),
@@ -32,9 +34,9 @@ accesses:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_access_events WHE
 evidenceRead:(facts:{identifier:string;id:string;null:null;actorId:string;fact4:"evidence.export";now:number;})=>db.prepare("INSERT INTO legal_access_events VALUES(?,?,?,?,?,?)").bind(facts.identifier,facts.id,facts.null,facts.actorId,facts.fact4,facts.now).run(),
 featureHistory:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_feature_history WHERE item_id=? ORDER BY created_at,id").bind(facts.id).all(),
 retention:(facts:{id:string;})=>db.prepare("SELECT id,state,manifest,requested_by,approved_by,approved_at,completed_at FROM legal_destructions WHERE item_id=? ORDER BY created_at").bind(facts.id).all(),
-holdPreview:(id)=>db
+holdPreview:async(id)=>db
       .prepare(
-        `WITH RECURSIVE linked(id) AS (SELECT ?::text UNION SELECT l.target_id FROM linked t JOIN legal_links l ON l.source_id=t.id WHERE l.relation IN ('evidence','derived','amends','obligation')) SELECT i.id,i.title FROM linked t JOIN legal_items i ON i.id=t.id WHERE ${v.sql}`,
+        `WITH RECURSIVE linked(id) AS (SELECT ?::text UNION SELECT l.target_id FROM linked t JOIN legal_links l ON l.source_id=t.id WHERE l.relation IN ('evidence','derived','amends','obligation')) SELECT i.id,i.title FROM linked t JOIN legal_items i ON i.id=t.id WHERE ${v.sql} AND ${(await purchase()).where}`,
       )
       .bind(id, ...v.values)
       .all(),
@@ -43,15 +45,15 @@ nextDocumentVersion:(facts:{id:string;})=>db.prepare("SELECT coalesce(max(versio
 reviewedAiDocument:(facts:{documentId:string;id:string;next:number;name:string;checksum:string;bytes:number;body:string;actorId:string;now:number;})=>stage(db.prepare("INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,created_by,created_at) VALUES(?,?,?,?,'text/plain',?,?,?,?,?)").bind(facts.documentId,facts.id,facts.next,facts.name,facts.checksum,facts.bytes,facts.body,facts.actorId,facts.now)),
 acceptProposal:(facts:{fact0:string;proposalId:string;})=>stage(db.prepare("UPDATE legal_ai_proposals SET state='accepted',proposal=proposal||?::jsonb WHERE id=?").bind(facts.fact0,facts.proposalId)),
 advanceItem:(facts:{now:number;id:string;})=>stage(db.prepare("UPDATE legal_items SET version=version+1,updated_at=? WHERE id=?").bind(facts.now,facts.id)),
-ruleImpact:(id)=>db
+ruleImpact:async(id)=>db
         .prepare(
-          `SELECT i.id,i.kind,i.title,i.state,i.due_date,i.version FROM legal_items i JOIN legal_links l ON (l.source_id=? AND l.target_id=i.id) OR (l.target_id=? AND l.source_id=i.id) WHERE ${v.sql} ORDER BY i.id LIMIT 500`,
+          `SELECT i.id,i.kind,i.title,i.state,i.due_date,i.version FROM legal_items i JOIN legal_links l ON (l.source_id=? AND l.target_id=i.id) OR (l.target_id=? AND l.source_id=i.id) WHERE ${v.sql} AND ${(await purchase()).where} ORDER BY i.id LIMIT 500`,
         )
         .bind(id, id, ...v.values)
         .all(),
 access:(id,p)=>access(db,a,id,p),command:(raw,key)=>legalCommand(db,a,raw,key),purchase:async(raw,key)=>saveEmployeeRequest(db,a,null,employeeRequestSchema.parse(raw),key),executedCopies:id=>executedCopies(db,a,id),batch:steps=>db.batch(steps.map(resolve)),guardChanges:(id,version,key,edit,allowFrozen,preparation)=>guards(db,a,id,version,key,edit,allowFrozen,preparation).map(stage),event:(id,action,note,version,identifier,now)=>stage(db.prepare("INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,?,?,?,?,?)").bind(identifier,id,action,a.userId,note,version,now)),replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),commit:(key,operation,input,id,version,result,steps)=>executeCommand(db,a,key,operation,input,id,version,result,steps.map(resolve)),
 };}
-function application(db:SqlDatabase,a:WorkContext){const repository:LegalOperationsRepository={...unit(db,a),transaction:work=>{if(!(db instanceof PostgresDatabase))throw new Error("LEGAL_OPERATIONS_TRANSACTION_REQUIRED");return db.transaction(tx=>work(unit(tx,a)));}};return createLegalOperationsApplication({actor:a,repository,require:p=>requirePermission(a,p),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},hash,byteLength:text=>Buffer.byteLength(text),error:(status,code,message)=>new ApiError(status,code,message)});}
+function application(db:SqlDatabase,a:WorkContext){const repository:LegalOperationsRepository={...unit(db,a),transaction:async work=>{if(await legalPackageEnforcementMode()!=="disabled")return inLegalOwnerUnit(db,a.companyId,tx=>work(unit(tx,a)));return inLegacyLegalOperationsUnit(db,a.companyId,tx=>work(unit(tx,a)));}};return createLegalOperationsApplication({actor:a,repository,require:p=>requirePermission(a,p),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},hash,byteLength:text=>Buffer.byteLength(text),error:(status,code,message)=>new ApiError(status,code,message)});}
 export async function importPreview(a:WorkContext,raw:unknown){requirePermission(a,"legal.create");return previewLegalImport(raw,hash);}
 export function importCommit(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).importCommit(raw,key);}
 export function exportRegister(db:SqlDatabase,a:WorkContext,kind:string){return application(db,a).exportRegister(kind);}
@@ -59,9 +61,12 @@ export function savedViews(db:SqlDatabase,a:WorkContext){return application(db,a
 export function saveView(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).saveView(raw,key);}
 export function applyTemplate(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).applyTemplate(raw,key);}
 export function convertRequest(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).convertRequest(raw,key);}
-export function evidenceBundle(db:SqlDatabase,a:WorkContext,id:string){return application(db,a).evidenceBundle(id);}
+export async function evidenceBundle(db:SqlDatabase,a:WorkContext,id:string){if(await legalPackageEnforcementMode()!=="disabled")await requireLegalItemPurchasedRead(db,a,await access(db,a,id),["legal.documents","legal.obligations"]);return application(db,a).evidenceBundle(id);}
 export function holdPreview(db:SqlDatabase,a:WorkContext,id:string){return application(db,a).holdPreview(id);}
-export function applyAiDraft(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).applyAiDraft(raw,key);}
+export async function applyAiDraft(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){
+ if(await legalPackageEnforcementMode()==='disabled')return inLegacyLegalOperationsUnit(db,a.companyId,tx=>application(tx,a).applyAiDraft(raw,key));
+ const input=(raw&&typeof raw==="object"?raw:{}) as Record<string,unknown>;return withLegalPurchasedCommand(db,a,{key,id:typeof input.id==="string"?input.id:undefined,operation:"legal.ai.apply",purpose:"new-work",permission:"legal.ai",additionalPermissions:["legal.edit"],additional:["legal.documents"]},tx=>application(tx,a).applyAiDraft(raw,key));
+}
 export function prepareCounselPurchase(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).prepareCounselPurchase(raw,key);}
 export function startRevision(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).startRevision(raw,key);}
 export function ruleImpact(db:SqlDatabase,a:WorkContext,id:string){return application(db,a).ruleImpact(id);}

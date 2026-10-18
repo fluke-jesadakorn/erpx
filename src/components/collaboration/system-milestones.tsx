@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import Link from "@/components/workplace/workspace-link";
 import type { HomePost } from "@/server/modules/collaboration/public/social-home";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import styles from "@/components/collaboration/social.module.css";
@@ -16,7 +17,7 @@ export function SystemMilestones({ base, posts }: { base: string; posts: HomePos
   return <details className={styles.milestones}>
     <summary>Recent work milestones <span>{contexts.size}</span></summary>
     <ul>{[...contexts.values()].map(({post,count})=><li key={post.id}>
-      <Link href={`${base}/posts/${post.id}`}>{post.body.length > 180 ? `${post.body.slice(0,180)}…` : post.body}</Link>
+      <Link href={canonicalUiHref(`${base}/posts/${post.id}`)}>{post.body.length > 180 ? `${post.body.slice(0,180)}…` : post.body}</Link>
       <small><TimeText appearance="standard" value={post.created_at}/>{count>1?` · ${count} recent updates in this context`:""}</small>
       {post.linkedSources.filter(source=>source.available).map(source=>source.available && <Link key={`${source.kind}:${source.id}`} href={`${base}${source.href}`}>Open linked work · {source.label} ↗</Link>)}
     </li>)}</ul>

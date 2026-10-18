@@ -6,8 +6,9 @@ import {
   useState,
   type HTMLAttributes,
 } from "react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import Link from "@/components/workplace/workspace-link";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import { Settings2 } from "lucide-react";
 import { featureLocation, legacyWidgetTarget, isConfigurablePage } from "@/lib/work_projection/page-layouts-view";
 import { GridLocation, PageDrawer } from "@/components/shared/features/widget-context";

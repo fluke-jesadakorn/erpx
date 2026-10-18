@@ -1,3 +1,4 @@
+import {workRoleDisplayChoices} from "@/lib/identity_access/work-role-display";
 
 import { PageContent } from "@/components/ui/patterns";
 import { assignmentApplies, canEnterManageErpx } from "@/server/modules/identity_access/public/authorization";
@@ -62,7 +63,7 @@ export default async function WorkRolePage({searchParams}:PageProps<'/work-role'
    </aside>
    <div id="work-role-content" tabIndex={-1} className={rail.content}>
    <section style={{display:"grid",gap:16,maxWidth:520}}>
-    <div id="role-picker"><WorkRolePicker base={workspaceBase(parsed.scope)} options={options} revision={selection?.revision??0} from={from} companyId={access.scope.companyId} activeAssignmentId={selected?.id} /></div>
+    <div id="role-picker"><WorkRolePicker base={workspaceBase(parsed.scope)} options={workRoleDisplayChoices(options)} revision={selection?.revision??0} from={from} companyId={access.scope.companyId} activeAssignmentId={selected?.id} /></div>
     <div id="available-workspaces"><WorkspaceMenu appearance="standard" label={access.scope.holdingSlug} choices={choices} current={current} canManageErpx={canManageErpx} /></div>
    </section>
    </div>

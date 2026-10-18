@@ -1,3 +1,4 @@
+import {projectMetricSource} from "./metric-purchases";
 import { inventoryExecutiveOwnerProjections as financeProjectionSources } from "../../finance/public/inventory-executive-owner-projections";
 import { inventoryExecutiveOwnerProjections as people_payrollProjectionSources } from "../../people_payroll/public/inventory-executive-owner-projections";
 import "server-only";
@@ -27,6 +28,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         } | null): Promise<{
             rows: ProjectMilestoneEvidenceRow[];
         }> {
+            const projectSource=await projectMetricSource(db,actor,"overdue-project-milestones");
             const cohort = projectMilestoneOverdueCohort(actor, input.filters, referenceAt);
             const conditions = [cohort.sql];
             const values: unknown[] = [...cohort.values];
@@ -40,10 +42,10 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             }
             const rows = (await db.prepare(`SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.owner_user_id,
       COALESCE(h.legal_name,m.owner_user_id) owner_name,m.state,m.version
-    FROM staff_project_milestones m JOIN staff_projects p ON p.id=m.project_id AND p.company_id=m.company_id
+    FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
     LEFT JOIN (${people_payrollProjectionSources.hr_people}) h ON h.company_id=m.company_id AND h.user_id=m.owner_user_id AND h.merged_into_id IS NULL
     WHERE ${conditions.join(" AND ")} ORDER BY m.due_at,m.id LIMIT ?`)
-                .bind(...values, input.limit + 1).all<ProjectMilestoneEvidenceRow>()).results;
+                .bind(...projectSource.args,...values, input.limit + 1).all<ProjectMilestoneEvidenceRow>()).results;
             return { rows };
         }, async factsReadProjectMilestoneEvidence(actor: WorkContext, filters: {
             from: string;
@@ -52,12 +54,13 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }, referenceAt: number, id: string): Promise<{
             row: ProjectMilestoneEvidenceRow | null;
         }> {
+            const projectSource=await projectMetricSource(db,actor,"overdue-project-milestones");
             const cohort = projectMilestoneOverdueCohort(actor, filters, referenceAt);
             const row = await db.prepare(`SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.owner_user_id,
       COALESCE(h.legal_name,m.owner_user_id) owner_name,m.state,m.version
-    FROM staff_project_milestones m JOIN staff_projects p ON p.id=m.project_id AND p.company_id=m.company_id
+    FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
     LEFT JOIN (${people_payrollProjectionSources.hr_people}) h ON h.company_id=m.company_id AND h.user_id=m.owner_user_id AND h.merged_into_id IS NULL
-    WHERE ${cohort.sql} AND m.id=? LIMIT 1`).bind(...cohort.values, id).first<ProjectMilestoneEvidenceRow>();
+    WHERE ${cohort.sql} AND m.id=? LIMIT 1`).bind(...projectSource.args,...cohort.values, id).first<ProjectMilestoneEvidenceRow>();
             return { row };
         }, async factsSearchProjectDependencyEvidence(actor: WorkContext, input: {
             filters: {
@@ -75,6 +78,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         } | null): Promise<{
             rows: ProjectDependencyEvidenceRow[];
         }> {
+            const projectSource=await projectMetricSource(db,actor,"project-dependency-blockers");
             const cohort = projectDependencyBlockerCohort(actor, input.filters);
             const conditions = [cohort.sql];
             const values: unknown[] = [...cohort.values];
@@ -93,7 +97,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             }
             const rows = (await db.prepare(`SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.state,m.version,
       COALESCE(blockers.items,'[]'::jsonb)::text blockers_json
-    FROM staff_project_milestones m JOIN staff_projects p ON p.id=m.project_id AND p.company_id=m.company_id
+    FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
     LEFT JOIN LATERAL (
       SELECT jsonb_agg(jsonb_build_object('id',pr.id,'title',pr.title,'state',pr.state,'version',pr.version) ORDER BY pr.due_at,pr.title) items
       FROM staff_project_milestone_dependencies dependency
@@ -101,7 +105,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
       WHERE dependency.company_id=p.company_id AND dependency.project_id=p.id AND dependency.successor_milestone_id=m.id AND pr.state<>'completed'
     ) blockers ON true
     WHERE ${conditions.join(" AND ")} ORDER BY m.due_at,m.id LIMIT ?`)
-                .bind(...values, input.limit + 1).all<ProjectDependencyEvidenceRow>()).results;
+                .bind(...projectSource.args,...values, input.limit + 1).all<ProjectDependencyEvidenceRow>()).results;
             return { rows };
         }, async factsReadProjectDependencyEvidence(actor: WorkContext, filters: {
             from: string;
@@ -110,10 +114,11 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }, id: string): Promise<{
             row: ProjectDependencyEvidenceRow | null;
         }> {
+            const projectSource=await projectMetricSource(db,actor,"project-dependency-blockers");
             const cohort = projectDependencyBlockerCohort(actor, filters);
             const row = await db.prepare(`SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.state,m.version,
       COALESCE(blockers.items,'[]'::jsonb)::text blockers_json
-    FROM staff_project_milestones m JOIN staff_projects p ON p.id=m.project_id AND p.company_id=m.company_id
+    FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
     LEFT JOIN LATERAL (
       SELECT jsonb_agg(jsonb_build_object('id',pr.id,'title',pr.title,'state',pr.state,'version',pr.version) ORDER BY pr.due_at,pr.title) items
       FROM staff_project_milestone_dependencies dependency
@@ -121,7 +126,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
       WHERE dependency.company_id=p.company_id AND dependency.project_id=p.id AND dependency.successor_milestone_id=m.id AND pr.state<>'completed'
     ) blockers ON true
     WHERE ${cohort.sql} AND m.id=? LIMIT 1`)
-                .bind(...cohort.values, id).first<ProjectDependencyEvidenceRow>();
+                .bind(...projectSource.args,...cohort.values, id).first<ProjectDependencyEvidenceRow>();
             return { row };
         }, async factsSearchProjectActualEvidence(metric: "project-actual-hours" | "project-posted-cost", input: {
             filters: {
@@ -139,6 +144,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         } | null): Promise<{
             rows: ProjectActualEvidenceRow[];
         }> {
+            const projectSource=await projectMetricSource(db,actor,metric);
             const scope = projectActualScope();
             const conditions = [scope];
             const values: unknown[] = [actor.companyId, actor.branchId, actor.branchId,
@@ -157,7 +163,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 idColumn = "l.id";
                 sql = `SELECT l.id,l.project_id,p.title project_title,l.work_date::text work_date,l.work_date::text sort_date,
         l.minutes,l.user_id,l.state,l.version
-      FROM staff_project_work_logs l JOIN staff_projects p ON p.id=l.project_id AND p.company_id=l.company_id`;
+      FROM staff_project_work_logs l JOIN (${projectSource.sql}) p ON p.id=l.project_id AND p.company_id=l.company_id`;
             }
             else {
                 conditions.push("a.state='approved'", "j.status='posted'", "ac.category IN ('expense','other_expense')", "j.currency=?", "j.entry_date BETWEEN ? AND ?");
@@ -171,7 +177,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 sql = `SELECT a.id,a.project_id,p.title project_title,j.entry_date::text entry_date,j.entry_date::text sort_date,
         j.id journal_id,j.journal_number,j.currency,ac.code account_code,ac.name account_name,
         a.amount_minor::text amount_minor,a.state,a.version
-      FROM staff_project_cost_allocations a JOIN staff_projects p ON p.id=a.project_id AND p.company_id=a.company_id
+      FROM staff_project_cost_allocations a JOIN (${projectSource.sql}) p ON p.id=a.project_id AND p.company_id=a.company_id
       JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
       JOIN (${financeProjectionSources.finance_accounts}) ac ON ac.id=l.account_id`;
             }
@@ -180,7 +186,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 values.push(cursor.date, cursor.id);
             }
             const rows = (await db.prepare(`${sql} WHERE ${conditions.join(" AND ")} ORDER BY ${dateColumn},${idColumn} LIMIT ?`)
-                .bind(...values, input.limit + 1).all<ProjectActualEvidenceRow>()).results;
+                .bind(...projectSource.args,...values, input.limit + 1).all<ProjectActualEvidenceRow>()).results;
             return { rows };
         }, async factsReadProjectActualEvidence(metric: "project-actual-hours" | "project-posted-cost", actor: WorkContext, id: string, filters: {
             from: string;
@@ -189,26 +195,27 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }): Promise<{
             row: ProjectActualEvidenceRow | null;
         }> {
+            const projectSource=await projectMetricSource(db,actor,metric);
             const scope = projectActualScope();
             let row: ProjectActualEvidenceRow | null;
             if (metric === "project-actual-hours") {
                 row = await db.prepare(`SELECT l.id,l.project_id,p.title project_title,l.work_date::text work_date,l.work_date::text sort_date,
         l.minutes,l.user_id,l.state,l.version
-      FROM staff_project_work_logs l JOIN staff_projects p ON p.id=l.project_id AND p.company_id=l.company_id
+      FROM staff_project_work_logs l JOIN (${projectSource.sql}) p ON p.id=l.project_id AND p.company_id=l.company_id
       WHERE ${scope} AND l.id=? AND l.state='approved' AND l.work_date BETWEEN ? AND ?
         AND (iam_same_person(p.owner_user_id,?,p.company_id) OR iam_same_person(l.user_id,?,p.company_id)) LIMIT 1`)
-                    .bind(actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor.userId, actor.userId, id, filters.from, filters.to, actor.userId, actor.userId).first<ProjectActualEvidenceRow>();
+                    .bind(...projectSource.args,actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor.userId, actor.userId, id, filters.from, filters.to, actor.userId, actor.userId).first<ProjectActualEvidenceRow>();
             }
             else {
                 row = await db.prepare(`SELECT a.id,a.project_id,p.title project_title,j.entry_date::text entry_date,j.entry_date::text sort_date,
         j.id journal_id,j.journal_number,j.currency,l.id journal_line_id,ac.code account_code,ac.name account_name,
         a.amount_minor::text amount_minor,a.state,a.version
-      FROM staff_project_cost_allocations a JOIN staff_projects p ON p.id=a.project_id AND p.company_id=a.company_id
+      FROM staff_project_cost_allocations a JOIN (${projectSource.sql}) p ON p.id=a.project_id AND p.company_id=a.company_id
       JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
       JOIN (${financeProjectionSources.finance_accounts}) ac ON ac.id=l.account_id
       WHERE ${scope} AND a.id=? AND a.state='approved' AND j.status='posted' AND ac.category IN ('expense','other_expense')
         AND j.currency=? AND j.entry_date BETWEEN ? AND ? LIMIT 1`)
-                    .bind(actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor.userId, actor.userId, id, filters.currency, filters.from, filters.to).first<ProjectActualEvidenceRow>();
+                    .bind(...projectSource.args,actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor.userId, actor.userId, id, filters.currency, filters.from, filters.to).first<ProjectActualEvidenceRow>();
             }
             return { row };
         } };

@@ -1,0 +1,1 @@
+export {countAttachmentPurchaseScope,countAttachmentSourceReadLocks,authorizeCountAttachmentPurchase,countAttachmentCommandBoundary,countAttachmentFailure,type CountAttachmentPurchase} from "../adapters/count-attachment-purchases";

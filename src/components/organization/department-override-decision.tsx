@@ -1,10 +1,11 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextArea } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { Card } from "@/components/ui/foundation";
 
@@ -50,7 +51,7 @@ export function DepartmentOverrideDecision({
       if (!response.ok) throw new Error(result.error?.message ?? "Decision could not be recorded.");
       attempt.current = null;
       window.dispatchEvent(new Event("erpx:work-changed"));
-      router.push(`${base}/work${returnTo ? `?${returnTo}` : ""}`);
+      router.push(canonicalUiHref(`${base}/work${returnTo ? `?${returnTo}` : ""}`));
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Decision could not be recorded.");

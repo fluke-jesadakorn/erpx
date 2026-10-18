@@ -4,11 +4,17 @@ import type {DocumentVersion} from "../domain/model";
 import type {PortalActor} from "../domain/portal";
 import {refuseLegalSigning} from "../domain/signing";
 import type {PortalAttachment,PortalScope} from "../domain/portal-attachments";
+import {legalPortalUploadFingerprintInput,type LegalPortalUploadNotApplied} from '../domain/portal-upload-recovery';
+import type {PortalAttachmentStageScope,PortalAttachmentRecoverySource} from './portal-attachments';
 export type LegalPortalWrite={owner:"legal"};
 export type LegalPortalRows<Row>={results:Row[]};
+export type LegalPortalShare={id:string;item_id:string;document_id:string;company_id:string;branch_id:string|null;department_id:string|null;item_version:number;kind:string;version:number};
+export type LegalPortalShareFacts={id:string;email:string;actorId:string;now:number};
 export type LegalPortalUnit={
 shares(facts:{email:string;actorId:string;now:number;}):Promise<LegalPortalRows<Record<string, unknown>>>;
 share(facts:{id:string;email:string;actorId:string;now:number;}):Promise<{ id: string; item_id: string; document_id: string; company_id: string; branch_id: string | null; department_id: string | null; item_version: number; kind: string; version: number; } | null>;
+uploadRecoveryShare(facts:LegalPortalShareFacts):Promise<LegalPortalShare|null>;
+uploadRecoverySource(facts:PortalAttachmentStageScope):Promise<PortalAttachmentRecoverySource|null>;
 retentionFrozen(facts:{item_id:string;}):Promise<Record<string, unknown> | null>;
 documentSummary(facts:{document_id:string;}):Promise<Record<string, unknown> | null>;
 comments(facts:{item_id:string;document_id:string;}):Promise<LegalPortalRows<Record<string, unknown>>>;
@@ -45,14 +51,14 @@ lock(companyId:string):Promise<unknown>;
 batch(writes:LegalPortalWrite[]):Promise<unknown>;
 };
 export type LegalPortalRepository=LegalPortalUnit&{transaction<Result>(work:(unit:LegalPortalUnit)=>Promise<Result>):Promise<Result>};
-export function createLegalPortalApplication(ports:{actor:PortalActor;repository:LegalPortalRepository;clock:Clock;identifiers:IdentifierSource;hash(bytes:string|Uint8Array):string;decode(bytes:Uint8Array):string;error(status:number,code:string,message:string):Error;attachments:{read(input:{companyId:string;itemId:string;linkId:string;actorId:string;purposeKey:"legal_document"}):Promise<{bytes:Uint8Array;mediaType:string;filename:string}>;stage(actorId:string,scope:PortalScope,name:string,mediaType:string,bytes:Uint8Array,key:string):Promise<PortalAttachment>}}){const a=ports.actor;function fail(message:string,code="LEGAL_INVALID",status=422):never{throw ports.error(status,code,message);}
+export function createLegalPortalApplication(ports:{requestUploadReplay?:boolean;actor:PortalActor;repository:LegalPortalRepository;clock:Clock;identifiers:IdentifierSource;hash(bytes:string|Uint8Array):string;decode(bytes:Uint8Array):string;error(status:number,code:string,message:string):Error;attachments:{read(input:{companyId:string;itemId:string;linkId:string;actorId:string;purposeKey:"legal_document"}):Promise<{bytes:Uint8Array;mediaType:string;filename:string}>;stage(actorId:string,scope:PortalScope,name:string,mediaType:string,bytes:Uint8Array,key:string):Promise<PortalAttachment>}}){const a=ports.actor;function fail(message:string,code="LEGAL_INVALID",status=422):never{throw ports.error(status,code,message);}
 async function portalList() {
   return (
     await ports.repository.shares({email:a.email,actorId:a.userId,now:ports.clock.now()})
   ).results;
 }
-async function share(unit:LegalPortalUnit,id: string) {
-  const s = await unit.share({id:id,email:a.email,actorId:a.userId,now:ports.clock.now()});
+async function share(unit:LegalPortalUnit,id: string,recovery=false) {
+  const facts={id,email:a.email,actorId:a.userId,now:ports.clock.now()},s = await (recovery?unit.uploadRecoveryShare(facts):unit.share(facts));
   if (!s)
     fail(
       "This share expired or is unavailable.",
@@ -217,7 +223,7 @@ async function portalCommand(
   });
 }
 
-async function portalUpload(
+function uploadInput(
   shareId: string,
   name: string,
   mediaType: string,
@@ -241,14 +247,46 @@ async function portalUpload(
     )
   )
     fail("Upload a PDF or DOCX.");
-  const s = await share(ports.repository,shareId),
-    checksum = ports.hash(bytes),
-    digest = ports.hash(
+  const checksum = ports.hash(bytes),digest = ports.hash(
       JSON.stringify({ userId: a.userId, shareId, name, mediaType, checksum }),
     );
+  return {checksum,digest};
+}
+
+/** Read only. The adapter supplies a fresh source-leased owner read and repeats
+ * this private observation after deferred effects before returning its result. */
+async function portalUploadRecovery(shareId:string,name:string,mediaType:string,bytes:Uint8Array,key:string):Promise<{result:{id:string}|{uploadOutcome:LegalPortalUploadNotApplied}|null;witness:string}>{
+ const {checksum,digest}=uploadInput(shareId,name,mediaType,bytes,key),current=await share(ports.repository,shareId,true),receipt=await ports.repository.receipt({key});
+ if(receipt){
+  if(receipt.user_id!==a.userId||receipt.request_hash!==digest)fail('Upload key conflict.','IDEMPOTENCY_CONFLICT',409);
+  const saved:unknown=JSON.parse(receipt.result_json);
+  if(!saved||typeof saved!=='object'||!('id' in saved)||saved.id!==key)fail('The original upload receipt could not be confirmed.','IDEMPOTENCY_CONFLICT',409);
+  return {result:{id:key},witness:JSON.stringify({current,receipt})};
+ }
+ const setId=`attachment-set-legal-portal-${key}`,linkId=`attachment-link-legal-portal-${key}`,uploadId=`attachment-upload-legal-portal-${key}`,sourceId=`attachment-${uploadId}`;
+ const stage=await ports.repository.uploadRecoverySource({sourceId,companyId:current.company_id,itemId:current.item_id,shareId,actorId:a.userId,setId,linkId,uploadId,commandId:key,objectKey:`legal/${current.company_id}/${current.item_id}/quarantine/${uploadId}/original`,name}),witness=JSON.stringify({current,receipt,stage});
+ if(!stage||stage.scope_matches!==1||stage.recovery_draft!==1||stage.checksum_sha256!==checksum||stage.media_type!==mediaType||Number(stage.bytes)!==bytes.byteLength||typeof stage.expected_target_version!=='number'||!Number.isSafeInteger(stage.expected_target_version)||stage.expected_target_version>=Number(current.item_version))return {result:null,witness};
+ // Original owner versions only advance. This exact still-unbound draft can
+ // no longer bind at its captured version, and its actor/body has no receipt.
+ return {result:{uploadOutcome:{id:key,outcome:'not-applied',requestFingerprint:ports.hash(legalPortalUploadFingerprintInput({shareId,name,mediaType,bytes:bytes.byteLength,checksum}))}},witness};
+}
+
+async function portalUpload(shareId:string,name:string,mediaType:string,bytes:Uint8Array,key:string){
+  const {checksum,digest}=uploadInput(shareId,name,mediaType,bytes,key),s=await share(ports.repository,shareId);
   const prior = await ports.repository.uploadReceipt({key:key,actorId:a.userId});
   if (prior) {
     if (prior.request_hash !== digest) fail("Upload key conflict.");
+    // Normal request recovery repeats its original share and exact receipt in
+    // the complete owner transaction. Legacy direct callers retain the same
+    // historical fast path; no storage or new business work is repeated.
+    if (ports.requestUploadReplay) return ports.repository.transaction(async tx => {
+      await tx.lock(s.company_id);
+      const current = await share(tx, shareId), receipt = await tx.uploadReplay({key,actorId:a.userId});
+      if (current.company_id !== s.company_id || current.item_id !== s.item_id || current.document_id !== s.document_id)
+        fail("The original shared upload source changed.", "LEGAL_SHARE_CHANGED", 409);
+      if (!receipt || receipt.request_hash !== digest) fail("Upload key conflict.");
+      return JSON.parse(receipt.result_json);
+    });
     return JSON.parse(prior.result_json);
   }
   const canonical = await ports.attachments.stage(
@@ -331,4 +369,4 @@ async function portalOutbox(
       }),now:ports.clock.now()});
 }
 
-return {portalList,portalDetail,portalDownload,portalCommand,portalUpload};}
+return {portalList,portalDetail,portalDownload,portalCommand,portalUpload,portalUploadRecovery};}

@@ -1,10 +1,13 @@
 "use client";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import { hasUnsavedWork } from "@/lib/work_projection/context-switch";
+import { useLayoutEffect,useRef, useState } from "react";
+import { useRouter } from "@/lib/shared/destination-router";
 import { FormDrawer } from "@/components/ui/dialog";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Field, FormGrid, InlineNotice, Select, TextArea, TextInput } from "@/components/ui/foundation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
+import {createFinanceSalesCommands} from "@/lib/finance/sales-command";
+import {captureFinanceForm,useFinanceDraftClose,useFinanceDraftScope} from "./finance-draft-boundary";
 import { businessDate } from "@/server/modules/pos/public/rules/pos";
 import { calculateInvoiceLines } from "@/server/modules/finance/public/rules/finance-invoice-lines";
 import { minorToDecimal } from "@/lib/finance/finance-money";
@@ -12,40 +15,49 @@ import type { SalesDefaults } from "@/server/modules/finance/public/sales";
 import type { FinanceRow } from "@/server/modules/finance/public/finance";
 import styles from "./sales-workspace.module.css";
 function useSalesCommand(base: string) {
-  const router = useRouter(), retry = useRef<{ payload: string; key: string } | null>(null);
-  const [pending, setPending] = useState(false), [error, setError] = useState("");
-  async function send(path: string, input: unknown, destination?: (data: Record<string, unknown>) => string) {
-    if (pending) return false;
-    const body = JSON.stringify(input), payload = path + body;
-    if (retry.current?.payload !== payload) retry.current = { payload, key: crypto.randomUUID() };
-    setPending(true); setError("");
-    try {
-      const response = await workFetch(`${base.replace("/holdings/", "/api/v1/holdings/")}/finance/sales/${path}`, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": retry.current.key }, body });
-      const result = await response.json(); if (!response.ok) throw new Error(result.error?.message ?? "Unable to save.");
-      retry.current = null;
-      if (destination) router.push(destination(result.data));
-      router.refresh(); return true;
-    } catch (error) { setError(error instanceof Error ? error.message : "Unable to save."); return false; }
-    finally { setPending(false); }
+  const router=useRouter(),source=useRef<{base:string}|null>({base}),commands=useRef<ReturnType<typeof createFinanceSalesCommands>|null>(null),destinationRef=useRef<((data:Record<string,unknown>)=>string)|undefined>(undefined),busy=useRef(false);
+  useLayoutEffect(()=>{source.current={base};return()=>{source.current=null;};},[base]);commands.current??=createFinanceSalesCommands(()=>source.current);
+  const [pending,setPending]=useState(false),[error,setError]=useState(""),[unresolved,setUnresolved]=useState(false),[saved,setSaved]=useState(false);
+  async function send(path:string,input:unknown,destination?:(data:Record<string,unknown>)=>string,retryOriginal=false){
+    if(busy.current)return false;busy.current=true;setPending(true);setError("");setSaved(false);
+    if(!commands.current!.pending())destinationRef.current=destination;
+    try{
+      const outcome=await(retryOriginal?commands.current!.retry():commands.current!.submit(path,input,captureFinanceForm())),unchanged=outcome.unchanged();
+      if(!outcome.acknowledge())throw Error("Confirm the original Finance request again.");
+      setUnresolved(false);
+      if(unchanged){if(destinationRef.current)router.push(destinationRef.current(outcome.data));router.refresh();}else setSaved(true);
+      destinationRef.current=undefined;return true;
+    }catch(cause){setUnresolved(commands.current!.pending());setError(cause instanceof Error?cause.message:"Unable to confirm the Finance command.");return false;}
+    finally{busy.current=false;setPending(false);}
   }
-  return { send, pending, error };
+  return {send,pending,error,unresolved,saved,retryOriginal:()=>send("",null,destinationRef.current,true)};
 }
 export function IssueCustomerReceipt({ base, paymentId }: { base: string; paymentId: string }) {
-  const { send, pending, error } = useSalesCommand(base);
-  return <><Button appearance="standard" type="button" disabled={pending} onClick={() => void send(`receipts/${paymentId}/issue`, {}, data => `${base}/finance/sales/receipts/${data.id}`)}>Issue receipt</Button>{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}</>;
+  const { send, pending, error,unresolved,saved,retryOriginal } = useSalesCommand(base);
+  return <><Button appearance="standard" type="button" disabled={pending} onClick={() => void send(`receipts/${paymentId}/issue`, {}, data => canonicalUiHref(`${base}/finance/sales/receipts/${data.id}`))}>Issue receipt</Button>{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{unresolved&&<Button appearance="standard" type="button" disabled={pending} onClick={()=>void retryOriginal()}>Retry original confirmation</Button>}{saved&&<InlineNotice role="status">The original request was saved. Your newer edits remain.</InlineNotice>}</>;
 }
 export function PrintReceipt() { return <Button appearance="standard" type="button" onClick={() => window.print()}>Print / Save as PDF</Button>; }
 export function SalesInvoiceEditor({ base, parties, defaults, inline = false }: { base: string; parties: FinanceRow[]; defaults: SalesDefaults[]; inline?: boolean }) {
-  const { send, pending, error } = useSalesCommand(base), router = useRouter();
+  const { send, pending, error,unresolved,saved,retryOriginal } = useSalesCommand(base), router = useRouter(),scope=useFinanceDraftScope();
   const [open, setOpen] = useState(true), [currency, setCurrency] = useState(defaults[0]?.currency ?? "THB");
   const [lines, setLines] = useState([{ description: "", quantity: "1", unitPrice: "", taxBps: 700 }]);
+  const form=useRef<HTMLFormElement>(null),closeEditor=useFinanceDraftClose(()=>{
+    setOpen(false);
+    // Another marked form may share this Sales page. Closing this drawer must
+    // keep that form mounted, including after discarding only this invoice.
+    if(inline || hasUnsavedWork())return;
+    const target=new URL(window.location.href);
+    if(!target.searchParams.getAll("new").includes("invoice"))return;
+    target.searchParams.delete("new","invoice");
+    router.replace(target.pathname+target.search+target.hash,{scroll:false});
+  },{root:()=>form.current});
   const mapping = defaults.find(row => row.currency === currency);
   let total: ReturnType<typeof calculateInvoiceLines> | null = null;
   try { total = calculateInvoiceLines(lines.map(line => ({ ...line, accountId: "preview" }))); } catch { /* Incomplete drafts have no valid total yet. */ }
-  return <FormDrawer appearance="standard" inline={inline} open={open} onClose={() => { setOpen(false); if (!inline) router.replace(`${base}/finance/sales?tab=invoices`); }} title="Invoice completed services" dismissDisabled={pending}>
+  return <FormDrawer appearance="standard" inline={inline} open={open} onClose={closeEditor} title="Invoice completed services" dismissDisabled={pending||unresolved}>
     <p>For services already completed. For goods or a quotation, use a sales order to retain delivery evidence.</p>
-    {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-    <form className={styles.form} onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); void send("invoices", { partyId: values.get("partyId"), invoiceDate: values.get("invoiceDate"), dueDate: values.get("dueDate"), currency, completionConfirmed: values.get("completionConfirmed") === "on", completionNote: values.get("completionNote"), lines }, data => `${base}/finance/invoices/${data.id}`); }}>
+    {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{unresolved&&<Button appearance="standard" type="button" disabled={pending} onClick={()=>void retryOriginal()}>Retry original confirmation</Button>}{saved&&<InlineNotice role="status">The original request was saved. Your newer edits remain.</InlineNotice>}
+    <form ref={form} data-finance-draft={scope} className={styles.form} onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); void send("invoices", { partyId: values.get("partyId"), invoiceDate: values.get("invoiceDate"), dueDate: values.get("dueDate"), currency, completionConfirmed: values.get("completionConfirmed") === "on", completionNote: values.get("completionNote"), lines }, data => canonicalUiHref(`${base}/finance/invoices/${data.id}`)); }}>
       <FormGrid><Field appearance="standard">Customer<Select appearance="standard" name="partyId" required><option value="">Select customer</option>{parties.filter(row => row.kind === "customer" && row.status === "active").map(row => <option key={String(row.id)} value={String(row.id)}>{String(row.name)}</option>)}</Select></Field>
       <Field appearance="standard">Currency<Select appearance="standard" value={currency} onChange={event => setCurrency(event.target.value)}>{defaults.map(row => <option key={row.id} value={row.currency}>{row.currency}</option>)}</Select></Field>
       <Field appearance="standard">Invoice date<TextInput appearance="standard" name="invoiceDate" type="date" required defaultValue={businessDate()} /></Field><Field appearance="standard">Due date<TextInput appearance="standard" name="dueDate" type="date" required defaultValue={businessDate()} /></Field></FormGrid>
@@ -61,24 +73,24 @@ export function SalesInvoiceEditor({ base, parties, defaults, inline = false }: 
       <label><input type="checkbox" name="completionConfirmed" required /> These services are completed and ready to invoice.</label>
       <p className="muted">The document number and accounts are filled from approved Company settings. Finance reviews the posting before approval.</p>
       {!mapping && <InlineNotice tone="danger">Approve sales defaults for this currency before invoicing.</InlineNotice>}
-      {mapping && !mapping.tax_account_id && lines.some(line => line.taxBps > 0) && <InlineNotice tone="warning">Output VAT is missing from these sales defaults. <a href={`${base}/finance/sales/settings`}>Configure and approve a VAT account</a> before preparing a taxable invoice.</InlineNotice>}
+      {mapping && !mapping.tax_account_id && lines.some(line => line.taxBps > 0) && <InlineNotice tone="warning">Output VAT is missing from these sales defaults. <a href={canonicalUiHref(`${base}/finance/sales/settings`)}>Configure and approve a VAT account</a> before preparing a taxable invoice.</InlineNotice>}
       <Button appearance="standard" clientManaged type="submit" disabled={pending || !mapping || !total || !!lines.find(line => line.taxBps > 0 && !mapping?.tax_account_id)}>{pending ? "Saving…" : "Prepare invoice"}</Button>
     </form>
   </FormDrawer>;
 }
 export function SalesDefaultsControls({ base, editions, charts, accounts, canPrepare, canReview, userId }: { base: string; editions: SalesDefaults[]; charts: FinanceRow[]; accounts: FinanceRow[]; canPrepare: boolean; canReview: boolean; userId: string }) {
-  const { send, pending, error } = useSalesCommand(base), [chartId, setChartId] = useState(String(charts[0]?.id ?? ""));
+  const { send, pending, error,unresolved,saved,retryOriginal } = useSalesCommand(base),scope=useFinanceDraftScope(), [chartId, setChartId] = useState(String(charts[0]?.id ?? ""));
   const chart = charts.find(row => row.id === chartId), currency = String(chart?.base_currency ?? "THB");
   const eligible = accounts.filter(row => row.chart_id === chartId && row.currency === currency && row.status === "active");
   const picker = (name: string, label: string, rows: FinanceRow[], required = true) => <Field appearance="standard">{label}<Select appearance="standard" name={name} required={required}><option value="">{required ? "Select account" : "No VAT account"}</option>{rows.map(row => <option key={String(row.id)} value={String(row.id)}>{String(row.code)} · {String(row.name)}</option>)}</Select></Field>;
-  return <div className={styles.form}>{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-    {canPrepare && <FormDisclosure appearance="standard" drawerTitle="Configure sales defaults" dismissDisabled={pending} error={error}><summary>Configure sales accounts</summary><form className={styles.form} onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); void send("defaults", { chartId, currency, receivableAccountId: values.get("receivableAccountId"), revenueAccountId: values.get("revenueAccountId"), ...(values.get("taxAccountId") ? { taxAccountId: values.get("taxAccountId") } : {}), reason: values.get("reason") }); }}>
+  return <div className={styles.form}>{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{unresolved&&<Button appearance="standard" type="button" disabled={pending} onClick={()=>void retryOriginal()}>Retry original confirmation</Button>}{saved&&<InlineNotice role="status">The original request was saved. Your newer edits remain.</InlineNotice>}
+    {canPrepare && <FormDisclosure appearance="standard" drawerTitle="Configure sales defaults" dismissDisabled={pending||unresolved} error={error}><summary>Configure sales accounts</summary><form data-finance-draft={scope} className={styles.form} onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); void send("defaults", { chartId, currency, receivableAccountId: values.get("receivableAccountId"), revenueAccountId: values.get("revenueAccountId"), ...(values.get("taxAccountId") ? { taxAccountId: values.get("taxAccountId") } : {}), reason: values.get("reason") }); }}>
       <Field appearance="standard">Ledger<Select appearance="standard" value={chartId} required onChange={event => setChartId(event.target.value)}>{charts.filter(row => row.status === "active").map(row => <option key={String(row.id)} value={String(row.id)}>{String(row.name)} · {String(row.base_currency)}</option>)}</Select></Field>
       {picker("receivableAccountId", "Trade receivables", eligible.filter(row => row.control_kind === "receivable"))}{picker("revenueAccountId", "Sales revenue", eligible.filter(row => row.category === "revenue"))}{picker("taxAccountId", "Output VAT", eligible.filter(row => row.category === "liability" && row.control_kind === "none"), false)}
       <Field appearance="standard">Reason<TextArea appearance="standard" name="reason" minLength={10} required /></Field><Button appearance="standard" clientManaged type="submit" disabled={pending}>Prepare for independent review</Button>
     </form></FormDisclosure>}
     {editions.map(row => <article className={styles.line} key={row.id}><strong>{row.currency} · {row.status}</strong><p>{row.reason}</p><p className="muted">Receivables: {String(accounts.find(a => a.id === row.receivable_account_id)?.name ?? row.receivable_account_id)} · Revenue: {String(accounts.find(a => a.id === row.revenue_account_id)?.name ?? row.revenue_account_id)} · VAT: {String(accounts.find(a => a.id === row.tax_account_id)?.name ?? "Not configured")}</p>
-      {row.status === "draft" && canReview && row.created_by !== userId && <FormDisclosure appearance="standard" drawerTitle="Review sales defaults" error={error}><summary>Review defaults</summary><form className={styles.form} onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); void send(`defaults/${row.id}/decide`, { expectedVersion: Number(row.version), action: values.get("action"), reason: values.get("reason") }); }}><Field appearance="standard">Decision<Select appearance="standard" name="action"><option value="approve">Approve</option><option value="reject">Reject</option></Select></Field><Field appearance="standard">Review reason<TextArea appearance="standard" name="reason" minLength={10} required /></Field><Button appearance="standard" clientManaged type="submit" disabled={pending}>Record review</Button></form></FormDisclosure>}
+      {row.status === "draft" && canReview && row.created_by !== userId && <FormDisclosure appearance="standard" drawerTitle="Review sales defaults" error={error} dismissDisabled={pending||unresolved}><summary>Review defaults</summary><form data-finance-draft={scope} className={styles.form} onSubmit={event => { event.preventDefault(); const values = new FormData(event.currentTarget); void send(`defaults/${row.id}/decide`, { expectedVersion: Number(row.version), action: values.get("action"), reason: values.get("reason") }); }}><Field appearance="standard">Decision<Select appearance="standard" name="action"><option value="approve">Approve</option><option value="reject">Reject</option></Select></Field><Field appearance="standard">Review reason<TextArea appearance="standard" name="reason" minLength={10} required /></Field><Button appearance="standard" clientManaged type="submit" disabled={pending}>Record review</Button></form></FormDisclosure>}
     </article>)}
   </div>;
 }

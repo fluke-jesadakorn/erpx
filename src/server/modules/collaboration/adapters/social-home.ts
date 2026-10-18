@@ -24,10 +24,13 @@ import { createSocialHomeApplication, type SocialHomeRepository } from '../appli
 import { collaborationHomeSources as pms } from '../../pms/public/collaboration-home-sources';
 import { collaborationHomeSources as organization } from '../../organization/public/collaboration-home-sources';
 import { collaborationHomeSources as projects } from '../../projects/public/collaboration-home-sources';
+import {socialProjectAudienceOptions} from '../../projects/public/collaboration-home-sources';
 import { collaborationHomeSources as identity_access } from '../../identity_access/public/collaboration-home-sources';
 import { collaborationHomeSources as files } from '../../files/public/collaboration-home-sources';
 import { collaborationHomeSources as agent } from '../../agent/public/collaboration-home-sources';
 import { collaborationHomeSources as operations } from '../../operations/public/collaboration-home-sources';
+import {handoverAcknowledgements} from '../../operations/public/handover-acknowledgement-read';
+import {workSocialReadScope,requireWorkSocialDraftRead,withWorkSocialCommand,withWorkSocialUploadCleanup,workSocialPresentation} from './work-social-purchases';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -48,7 +51,7 @@ async function exposed<T>(action: () => Promise<T>) {
         throw error;
     }
 }
-function application(db: SqlDatabase) {
+function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSocialReadScope>>={prefix:'',where:'TRUE',args:[]},audienceProjects?:Awaited<ReturnType<typeof socialProjectAudienceOptions>>) {
     const repository: SocialHomeRepository<SqlStatement> = { async teams(companyId: string, userId: string) {
             return db.prepare(`SELECT t.id,t.name FROM messaging_teams t WHERE t.company_id=? AND NOT t.organization_managed
       AND EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?) ORDER BY t.name,t.id LIMIT 100`)
@@ -120,13 +123,13 @@ function application(db: SqlDatabase) {
     WHERE a.state='published'`)
                 .bind(postId, ...ids).all<CommentRow>();
         }, async posts(ids: string[], companyId: string, userId: string, now: number, now2: number, assignmentId: string) {
-            return db.prepare(`SELECT p.*,
+            return db.prepare(`${purchase.prefix}SELECT p.*,
     CASE WHEN p.audience_kind='team' THEN (SELECT t.name FROM messaging_teams t WHERE t.id=p.audience_id AND t.company_id=p.company_id)
       WHEN p.audience_kind='project' THEN ${socialProjectAudienceName()}
       ELSE ${socialOrganizationAudienceName()} END AS audience_name,
     (SELECT count(*) FROM social_post_participants pp WHERE pp.post_id=p.id AND pp.user_id<>p.author_id) AS audience_count
-    FROM social_posts p WHERE p.id IN (${ids.map(() => '?').join(',')}) AND p.company_id=? AND p.state='published' AND ${sourceAccessSql("p", "?::text")}`)
-                .bind(...ids, companyId, userId, now, now2, assignmentId).all<PostRow & {
+    FROM social_posts p WHERE p.id IN (${ids.map(() => '?').join(',')}) AND p.company_id=? AND p.state='published' AND ${sourceAccessSql("p", "?::text")} AND ${purchase.where}`)
+                .bind(...purchase.args,...ids, companyId, userId, now, now2, assignmentId).all<PostRow & {
                 audience_name: string | null;
                 audience_count: number;
             }>();
@@ -197,20 +200,20 @@ function application(db: SqlDatabase) {
             }>();
         }, async feedIds(companyId: string, userId: string, now: number, now2: number, assignmentId: string, branchId: string | null, branchId2: string | null, value: string | null, value2: string | null, value3: number, value4: number, value5: string, value6: 0 | 1, userId2: string, value7: string | null, value8: string | null, value9: string | null, value10: string | null, value11: string | null, value12: "update" | "plan" | "blocker" | "handover" | "announcement" | null, value13: "update" | "plan" | "blocker" | "handover" | "announcement" | null, value14: string | null, value15: string | null, value16: "conversations" | "milestones" | null, value17: "conversations" | "milestones" | null, value18: "conversations" | "milestones" | null, limit: number) {
             return db
-                .prepare(`SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql("p", "?::text")} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type='post' AND f.target_id=p.id)) AND (?::text IS NULL OR EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=?) OR EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=?))
+                .prepare(`${purchase.prefix}SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql("p", "?::text")} AND ${purchase.where} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type='post' AND f.target_id=p.id)) AND (?::text IS NULL OR EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=?) OR EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=?))
         AND (?::text IS NULL OR (p.audience_kind='team' AND p.audience_id=?))
         AND (?::text IS NULL OR p.purpose=?) AND (?::text IS NULL OR NOT EXISTS(SELECT 1 FROM social_post_sources s WHERE s.post_id=p.id AND s.source_kind='pms_record')
           OR EXISTS(SELECT 1 FROM social_post_sources s JOIN (${pmsSourcesSql}) pr ON pr.id=s.source_id
             WHERE s.post_id=p.id AND s.source_kind='pms_record' AND pr.company_id=p.company_id AND pr.property_id=?))
         AND (?::text IS NULL OR (?='milestones' AND p.kind='system') OR (?='conversations' AND p.kind<>'system'))
         ORDER BY p.created_at DESC,p.id DESC LIMIT ?`)
-                .bind(companyId, userId, now, now2, assignmentId, branchId, branchId2, value, value2, value3, value4, value5, value6, userId2, value7, value8, value9, value10, value11, value12, value13, value14, value15, value16, value17, value18, limit)
+                .bind(...purchase.args,companyId, userId, now, now2, assignmentId, branchId, branchId2, value, value2, value3, value4, value5, value6, userId2, value7, value8, value9, value10, value11, value12, value13, value14, value15, value16, value17, value18, limit)
                 .all<{
                 id: string;
             }>();
         }, async revisionAuthor(id: string, companyId: string, userId: string, now: number, now2: number) {
-            return db.prepare(`SELECT p.author_id FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${sourceAccessSql()}`)
-                .bind(id, companyId, userId, now, now2).first<{
+            return db.prepare(`${purchase.prefix}SELECT p.author_id FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${sourceAccessSql()} AND ${purchase.where}`)
+                .bind(...purchase.args,id, companyId, userId, now, now2).first<{
                 author_id: string;
             }>();
         }, async revisions(id: string) {
@@ -222,7 +225,7 @@ function application(db: SqlDatabase) {
                 body: string;
                 created_at: number;
             }>();
-        }, async hiddenReplayAccess(id: string, companyId: string, userId: string, now: number, now2: number, value: string[], hasAssignment: boolean) { return db.prepare(`SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${sourceAccessSql('p', hasAssignment ? '?::text' : undefined)}`).bind(id, companyId, userId, now, now2, ...value).first(); }, async comment(commentId: string, id: string) {
+        }, async hiddenReplayAccess(id: string, companyId: string, userId: string, now: number, now2: number, value: string[], hasAssignment: boolean) { return db.prepare(`${purchase.prefix}SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${sourceAccessSql('p', hasAssignment ? '?::text' : undefined)} AND ${purchase.where}`).bind(...purchase.args,id, companyId, userId, now, now2, ...value).first(); }, async comment(commentId: string, id: string) {
             return db.prepare("SELECT author_id,author_kind,state,version,rich_content_json,mentions_json FROM social_comments WHERE id=? AND post_id=?")
                 .bind(commentId, id).first<{
                 author_id: string;
@@ -327,7 +330,7 @@ function application(db: SqlDatabase) {
             return db
                 .prepare("UPDATE social_posts SET state='moderated',version=version+1,updated_at=? WHERE id=?")
                 .bind(now, id);
-        }, ...pms(db), ...organization(db), ...projects(db), ...identity_access(db), ...files(db), ...agent(db), ...operations(db) };
+        }, ...pms(db), ...organization(db), ...projects(db), ...identity_access(db), ...files(db), ...agent(db), ...operations(db),...(audienceProjects?{projects:async()=>({results:audienceProjects})}:{}) };
     return createSocialHomeApplication<SqlStatement>({ repository, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, commentsPage: (actor, id, cursor) => readListPage<CommentRow & {
             page_key: string;
         }>(db, {
@@ -335,22 +338,27 @@ function application(db: SqlDatabase) {
             args: [id], scope: [actor.companyId, actor.userId, id], cursor, limit: 20, descending: true,
         }), getTask: (...args) => inward(() => getTask(db, ...args)), getProject: (...args) => inward(() => getProject(db, ...args)), readablePmsSource: (...args) => inward(() => readablePmsSource(db, ...args)), pmsSourceLink, readablePost: (...args) => inward(() => readablePost(db, ...args)), sourceGuard: (...args) => sourceGuard(db, ...args), notification: (...args) => notification(db, ...args), authorityGuard: (...args) => authorityGuard(db, ...args), requireCompanyAuthority: (...args) => inward(() => requireCompanyAuthority(db, ...args)), validateMentions: (...args) => inward(() => validateMentions(db, ...args)), textStatements: (...args) => textStatements(db, ...args) });
 }
-export function socialAudienceOptions(db: SqlDatabase, actor: Actor) {
-  return cachedHomeRead(actor, db, "audience", null,
-    () => exposed(() => application(db).socialAudienceOptions(actor)),
+export async function socialAudienceOptions(db: SqlDatabase, actor: Actor) {
+  // Reauthorize actual Project rows before a cache hit; the exact current
+  // display rows also partition cached options across membership/access changes.
+  const audienceProjects=await socialProjectAudienceOptions(db,actor);
+  return cachedHomeRead(actor, db, "audience", {projects:audienceProjects},
+    () => exposed(() => application(db,undefined,audienceProjects).socialAudienceOptions(actor)),
     { complete: value => Array.isArray(value.audiences) && Array.isArray(value.branches) });
 }
-export function socialUploadOwner(db: SqlDatabase, actor: StaffActor, id: string, edit = false) { return exposed(() => application(db).socialUploadOwner(actor, id, edit)); }
-export function createCommentUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, key: string) { return exposed(() => application(db).createCommentUploadDraft(actor, postId, key)); }
-export function cancelCommentUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return exposed(() => application(db).cancelCommentUploadDraft(actor, id, key)); }
-export function createPostEditUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, expectedVersion: number, key: string) { return exposed(() => application(db).createPostEditUploadDraft(actor, postId, expectedVersion, key)); }
-export function cancelPostEditUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return exposed(() => application(db).cancelPostEditUploadDraft(actor, id, key)); }
-export function savePostDraft(db: SqlDatabase, actor: Actor, id: string | null, input: z.infer<typeof postDraftSchema>, key: string) { return exposed(() => application(db).savePostDraft(actor, id, input, key)); }
-export function publishPost(db: SqlDatabase, actor: Actor, id: string, version: number, key: string) { return exposed(() => application(db).publishPost(actor, id, version, key)); }
-export function postComments(db: SqlDatabase, actor: StaffActor, id: string, cursor?: string) { return exposed(() => application(db).postComments(actor, id, cursor)); }
-export function postViews(db: SqlDatabase, actor: StaffActor, ids: string[], commentLimit: number) { return exposed(() => application(db).postViews(actor, ids, commentLimit)); }
-export function postView(db: SqlDatabase, actor: StaffActor, id: string) { return exposed(() => application(db).postView(actor, id)); }
-export function homePosts(db: SqlDatabase, actor: StaffActor, filter: {
+export async function socialUploadOwner(db: SqlDatabase, actor: StaffActor, id: string, edit = false) { const result=await exposed(() => application(db).socialUploadOwner(actor, id, edit));await requireWorkSocialDraftRead(db,actor,id,edit);return result; }
+export function createCommentUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.comment.upload.create',type:'post',id:postId,purpose:'settle-existing'},tx=>exposed(() => application(tx).createCommentUploadDraft(actor, postId, key))); }
+export function cancelCommentUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return withWorkSocialUploadCleanup(db,actor,{key,id,kind:'comment'},tx=>exposed(() => application(tx).cancelCommentUploadDraft(actor, id, key))); }
+export function createPostEditUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, expectedVersion: number, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.post.edit-upload.create',type:'post',id:postId,purpose:'new-work'},tx=>exposed(() => application(tx).createPostEditUploadDraft(actor, postId, expectedVersion, key))); }
+export function cancelPostEditUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return withWorkSocialUploadCleanup(db,actor,{key,id,kind:'edit'},tx=>exposed(() => application(tx).cancelPostEditUploadDraft(actor, id, key))); }
+export function savePostDraft(db: SqlDatabase, actor: Actor, id: string | null, input: z.infer<typeof postDraftSchema>, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.draft.save',type:'draft',id:id??`post-draft-${key}`,sources:input.sources,audienceProjectId:input.audience?.kind==='project'?input.audience.id:null,purpose:'new-work'},tx=>exposed(() => application(tx).savePostDraft(actor, id, input, key))); }
+export function publishPost(db: SqlDatabase, actor: Actor, id: string, version: number, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.post.publish',type:'draft',id,purpose:'new-work',publishedDraftReplay:true},tx=>exposed(() => application(tx).publishPost(actor, id, version, key))); }
+export function postComments(db: SqlDatabase, actor: StaffActor, id: string, cursor?: string) { return exposed(async() => application(db,await workSocialReadScope(db,actor)).postComments(actor, id, cursor)); }
+async function presentPosts<T extends {id:string;purpose:string;audience_kind:string|null}>(db:SqlDatabase,actor:StaffActor,posts:T[]):Promise<Array<T&{purchase?:import('../domain/social-presentation').SocialPurchase;handoverReceipt?:import('../../operations/public/handover').HandoverAcknowledgement|null}>>{const ids=posts.filter(post=>post.purpose==='handover'&&post.audience_kind==='participants').map(post=>post.id),[view,receipts]=await Promise.all([workSocialPresentation(db,actor,posts.map(post=>post.id)),handoverAcknowledgements(db,actor,ids)]),byId=new Map(receipts.map(receipt=>[receipt.postId,receipt]));return posts.map(post=>({...post,...(ids.includes(post.id)?{handoverReceipt:byId.get(post.id)??null}:{}),...(view.posts?{purchase:view.posts[post.id]??{newWork:false,settleExisting:false,history:false,revision:'unavailable',createTask:false}}:{})}));}
+export function socialPresentation(db:SqlDatabase,actor:StaffActor){return workSocialPresentation(db,actor);}
+export function postViews(db: SqlDatabase, actor: StaffActor, ids: string[], commentLimit: number) { return exposed(async() => presentPosts(db,actor,await application(db,await workSocialReadScope(db,actor)).postViews(actor, ids, commentLimit))); }
+export function postView(db: SqlDatabase, actor: StaffActor, id: string) { return exposed(async() => (await presentPosts(db,actor,[await application(db,await workSocialReadScope(db,actor)).postView(actor, id)]))[0]); }
+export async function homePosts(db: SqlDatabase, actor: StaffActor, filter: {
     tag?: string;
     following?: boolean;
     branchId?: string;
@@ -362,7 +370,10 @@ export function homePosts(db: SqlDatabase, actor: StaffActor, filter: {
     purpose?: PostPurpose;
     stream?: "conversations" | "milestones";
 } = {}) {
-  const load = () => exposed(() => application(db).homePosts(actor, filter));
+  const purchase=await workSocialReadScope(db,actor),load = () => exposed(async() => presentPosts(db,actor,await application(db,purchase).homePosts(actor, filter)));
+  // Original cache revisions predate Commercial source history. Enforced reads
+  // execute their current statement gate rather than returning a stale private feed.
+  if(purchase.prefix)return load();
   // Some semantic source readers pass only a StaffActor. They cannot share a workspace cache.
   if (!("holdingId" in actor) || !("scope" in actor) || !("modules" in actor)) return load();
   const selection = { tag: filter.tag ?? null, following: !!filter.following,
@@ -372,7 +383,7 @@ export function homePosts(db: SqlDatabase, actor: StaffActor, filter: {
   return cachedHomeRead(actor as Actor, db, "feed", selection, load,
     { complete: value => Array.isArray(value) && value.every(post => post.linkedSources.every(source => source.available)) });
 }
-export function postRevisionHistory(db: SqlDatabase, actor: StaffActor, id: string) { return exposed(() => application(db).postRevisionHistory(actor, id)); }
+export function postRevisionHistory(db: SqlDatabase, actor: StaffActor, id: string) { return exposed(async() => application(db,await workSocialReadScope(db,actor)).postRevisionHistory(actor, id)); }
 export function postAction(db: SqlDatabase, actor: Actor, id: string, input: {
     action: "comment" | "delete_comment" | "edit_comment" | "appreciate" | "follow" | "report" | "hide" | "edit" | "retract";
     body?: string;
@@ -386,7 +397,7 @@ export function postAction(db: SqlDatabase, actor: Actor, id: string, input: {
     commentId?: string;
     commentDraftId?: string;
     editDraftId?: string;
-}, key: string) { return exposed(() => application(db).postAction(actor, id, input, key)); }
+}, key: string) { const purpose=input.action==='edit'||input.action==='edit_comment'||(input.action==='appreciate'||input.action==='follow')&&input.active?'new-work':input.action==='comment'?'settle-existing':'history';return withWorkSocialCommand(db,actor,{key,operation:`social.post.${input.action}`,type:'post',id,purpose},async tx=>exposed(() => workSocialReadScope(tx,actor).then(scope=>application(tx,scope).postAction(actor, id, input, key)))); }
 export { postContentSchema, postPurposeSchema, postAudienceSchema, postSourceSchema, postDraftSchema } from '../domain/social-home';
 export type { PostContent, PostPurpose, PostAudience, PostSource, PostDraft } from '../domain/social-home';
 export type HomePost = Awaited<ReturnType<typeof postView>>;

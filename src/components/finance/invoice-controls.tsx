@@ -1,12 +1,15 @@
 "use client";
+import { useFinanceDraftScope, useFinanceDraftClose, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
+import {FormDisclosure} from "@/components/ui/form-disclosure";
 import { FormDrawer } from "@/components/ui/dialog";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { currencyScale, resolveRate } from "@/lib/finance/company-money";
 import { useCurrency } from "@/components/finance/money/currency-provider";
@@ -14,39 +17,55 @@ import { AttachmentPanel,type AttachmentPanelChange } from "@/components/files/a
 import { calculateInvoiceLines, type InvoiceLineInput } from "@/server/modules/finance/public/rules/finance-invoice-lines";
 import type { PersistedInvoiceLine } from "@/server/modules/finance/public/finance-invoice-lines";
 import { Card, Stack, FormLayout } from "@/components/ui/foundation";
+import { useFinanceActionAllowed } from "./purchase-context";
+import {financeDocumentCommandAllowed, financeDocumentCommandContext, financeDocumentFormUnchanged, type FinanceDocumentPostControl} from "@/lib/finance/document-post-control";
+import {announceWorkChange} from "@/lib/work_projection/work-refresh";
 type Row = Record<string, string | number | null>;
 type Options = { charts: Row[]; accounts: Row[]; parties: Row[]; periods: Row[] };
-function useInvoiceCommand(base: string) {
+function useInvoiceCommand(base: string, purpose: "new-work" | "settle-existing", post?: FinanceDocumentPostControl) {
+  const allowed = useFinanceActionAllowed(purpose);
   const router = useRouter(),
     attempt = useRef<{ value: string; key: string } | null>(null);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [hasAttempt, setHasAttempt] = useState(false);
+  const [notice,setNotice] = useState("");
+  const pendingRef = useRef(false);
   async function send(path: string, input: unknown) {
-    const body = JSON.stringify(input);
-    if (attempt.current?.value !== path + body)
-      attempt.current = { value: path + body, key: crypto.randomUUID() };
-    setError("");
+    if (pendingRef.current) return false;
+    const body = JSON.stringify(input), identity = JSON.stringify([financeDocumentCommandContext(),path,body]);
+    if (!financeDocumentCommandAllowed(allowed,path,post) && attempt.current?.value !== identity) {
+      setError("This Finance action is unavailable. Your draft is retained.");
+      return false;
+    }
+    if (attempt.current?.value !== identity)
+      { attempt.current = { value: identity, key: crypto.randomUUID() }; setHasAttempt(true); }
+    pendingRef.current = true; setNotice(""); setError("");
+    const completion = captureFinanceForm();
     setBusy(true);
     try {
       const r = await workFetch(`/api/v1${base}/finance/invoices${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
         body,
-      });
+      }, completion, "caller");
       const v = (await r.json()) as { data: { id: string }; error?: { message: string } };
-      if (!r.ok) throw new Error(v.error?.message ?? "Could not save.");
+      if (!r.ok || !v.data || typeof v.data.id !== "string" || !v.data.id) throw new Error(v.error?.message ?? "Could not save.");
+      acknowledgeFinanceForm(completion); announceWorkChange();
       attempt.current = null;
-      router.push(`${base}/finance/invoices/${v.data.id}`);
+      setHasAttempt(false);
+      if (!financeDocumentFormUnchanged(completion)) {setNotice("Submitted change saved. Your newer draft is retained."); return false;}
+      router.push(canonicalUiHref(`${base}/finance/invoices/${v.data.id}`));
       router.refresh();
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Connection interrupted. Retry.");
       return false;
     } finally {
-      setBusy(false);
+      pendingRef.current = false; setBusy(false);
     }
   }
-  return { send, error, busy };
+  return { send, error, busy, notice, canSend: allowed || hasAttempt, canPostSend: (post ? financeDocumentCommandAllowed(allowed,post.path,post) : allowed) || hasAttempt };
 }
 export function InvoiceEditor({
   base,
@@ -65,8 +84,9 @@ export function InvoiceEditor({
   initialKind?: "receivable" | "payable";
   initialChartId?: string;
 }) {
+  const draftScope = useFinanceDraftScope();
   const selected = useCurrency(),
-    { send, error, busy } = useInvoiceCommand(base);
+    { send, error, busy, canSend } = useInvoiceCommand(base, "new-work");
   const [open, setOpen] = useState(initialOpen),
     [kind, setKind] = useState(String(invoice?.kind ?? initialKind)),
     [chartId, setChartId] = useState(
@@ -82,6 +102,7 @@ export function InvoiceEditor({
     [invoiceDate, setInvoiceDate] = useState(
       String(invoice?.invoice_date ?? new Date().toISOString().slice(0, 10)),
     );
+  const closeEditor = useFinanceDraftClose(() => setOpen(false));
   const currency = currencyOverride ?? String(invoice?.currency ?? selected.displayCurrency);
   const [multiLine,setMultiLine]=useState(invoice?.line_mode==="native_lines"),
     [lines,setLines]=useState<InvoiceLineInput[]>(invoiceLines.filter(line=>line.origin_kind==="native_line").map(line=>({description:line.description,quantity:String(Number(line.quantity_millis)/1000),unitPrice:minorToDecimal(Number(line.unit_price_minor)),taxBps:Number(line.tax_bps),accountId:line.account_id,taxAccountId:line.tax_account_id??undefined})));
@@ -109,13 +130,13 @@ export function InvoiceEditor({
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       {!initialOpen && (
-        <Button appearance="standard" type="button" variant="primary" onClick={() => setOpen(!open)}>
+        <Button appearance="standard" type="button" variant="primary" disabled={!canSend} onClick={() => open ? closeEditor() : setOpen(true)}>
           {invoice ? "Edit invoice draft" : "Create standalone invoice"}
         </Button>
       )}
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {open && (
-        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={() => setOpen(false)} title="Invoice details" dismissDisabled={busy}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<FormLayout
+        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={closeEditor} title="Invoice details" dismissDisabled={busy}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={async (e) => {
             e.preventDefault();
@@ -297,7 +318,7 @@ export function InvoiceEditor({
               Configure a {currency} {kind === "payable" ? "supplier" : "customer"} first.
             </InlineNotice>
           )}
-          <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy || !canSave}>
+          <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy || !canSave || !canSend}>
             Save invoice draft
           </Button>
         </FormLayout></Stack></FormDrawer>
@@ -310,21 +331,27 @@ export function InvoiceActions({
   invoice,
   periods,
   canPost,
+  sourceCanPost,
+  canVoid = true,
   fxAccounts = [],
 }: {
   base: string;
   invoice: Row;
   periods: Row[];
   canPost: boolean;
+  sourceCanPost?: boolean;
+  canVoid?: boolean;
   fxAccounts?: Row[];
 }) {
-  const { send, error, busy } = useInvoiceCommand(base);
+  const draftScope = useFinanceDraftScope();
+  const { send, error, busy, notice, canSend, canPostSend } = useInvoiceCommand(base, "settle-existing", {path:`/${invoice.id}/post`,canPost:sourceCanPost});
   const [reviewEvidence,setReviewEvidence]=useState<AttachmentPanelChange|null>(null);
+  const [generation,setGeneration]=useState(0);
   return (
     <Card as="section" appearance="standard" className="ui-panel">
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {canPost && (
-        <FormLayout
+      {notice && <p role="status">{notice}</p>}{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      {canPost && canPostSend && (
+        <FormDisclosure appearance="standard" drawerTitle="Review invoice posting" error={error || undefined} dismissDisabled={busy} onDiscard={()=>{setReviewEvidence(null);setGeneration(value=>value+1);}}><summary>Review invoice posting</summary><FormLayout key={generation} data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -369,17 +396,17 @@ export function InvoiceActions({
             <Field appearance="standard">Goods FX loss account<Select appearance="standard" name="fxLossAccountId" required defaultValue=""><option value="">Choose reviewed loss account</option>{fxAccounts.filter(account=>account.category==='other_expense').map(account=><option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</Select></Field>
           </>}
           {invoice.kind==="payable"&&<AttachmentPanel appearance="standard" base={base} targetType="supplier_bill" targetId={String(invoice.id)} expectedTargetVersion={Number(invoice.version)} componentKind="action" componentRef="invoice-review" purposeKey="bill_match_support" title="Supplier bill review evidence" description="Attach the matching or correction evidence reviewed for this posting." visibility="Visible only to authorized Finance colleagues in this Company." onChange={setReviewEvidence}/>}
-          <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy||Boolean(reviewEvidence?.links.length&&!reviewEvidence.bindable)}>
+          <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy||!canPostSend||Boolean(reviewEvidence?.links.length&&!reviewEvidence.bindable)}>
             Approve and post invoice
           </Button>
-        </FormLayout>
+        </FormLayout></FormDisclosure>
       )}
-      {invoice.source_type === "standalone" && (
+      {canVoid && invoice.source_type === "standalone" && (
         <>
           <Button appearance="standard"
             type="button"
             variant="secondary"
-            disabled={busy}
+            disabled={busy || !canSend}
             onClick={() => send(`/${invoice.id}/void`, { expectedVersion: invoice.version })}
           >
             Void draft

@@ -5,6 +5,8 @@ import { Button, Field, TextInput } from "@/components/ui/foundation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {accountWorkspaceLoginReturn} from '@/server/modules/identity_access/public/rules/account-workspace';
+import {legalEnrollmentReturnPath} from '@/server/modules/identity_access/public/rules/public-surface-entry';
 import { Card } from "@/components/ui/foundation";
 export function DirectoryLogin({
   id,
@@ -45,6 +47,8 @@ export function DirectoryLogin({
       const r = await response.json();
       if (!response.ok) throw new Error(r.message ?? "Directory sign-in failed.");
       if (r.url) window.location.assign(r.url);
+      // The SSO exchange is single-use; do not follow it with RSC push/refresh.
+      else if(next.startsWith('/sso/authorize?')||accountWorkspaceLoginReturn(next)===next||legalEnrollmentReturnPath(next)===next)window.location.assign(next);
       else {
         router.push(next);
         router.refresh();

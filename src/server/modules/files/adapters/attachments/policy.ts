@@ -1,3 +1,31 @@
+import {authorizeMessagingAttachmentPurchase} from "../../../collaboration/public/messaging-attachment-purchases";
+import {authorizeEcommerceAttachmentPurchase} from "../../../ecommerce/public/attachment-purchases";
+import {authorizeWorkTaskAttachmentPurchase} from "../../../operations/public/task-attachment-purchases";
+import {authorizePortalAttachmentPurchase} from "../../../customer_authority/public/attachment-purchases";
+import {authorizeServiceAttachmentPurchase} from "../../../field_service/public/attachment-purchases";
+import {authorizeBenefitAttachmentPurchase} from "../../../benefits/public/attachment-purchases";
+import {authorizeWorkforceAttachmentPurchase} from "../../../people_payroll/public/workforce-attachment-purchases";
+import {authorizeCRMAttachmentPurchase} from "../../../crm/public/attachment-purchases";
+import {authorizeMarketingAttachmentPurchase} from "../../../marketing/public/attachment-purchases";
+import {authorizeManufacturingAttachmentPurchase} from "../../../manufacturing/public/attachment-purchases";
+import {authorizeLegalAttachmentPurchase} from "../../../legal/public/attachment-purchases";
+import {authorizeTalentAttachmentPurchase} from "../../../talent/public/attachment-purchases";
+import {authorizeLandedCostAttachmentPurchase} from "../../../inventory/public/landed-cost-attachment-purchases";
+import {authorizeInventoryLotAttachmentRead} from '../../../inventory/public/lot-attachment-purchases';
+import {authorizeCommerceProductAttachmentRead} from '../../../commerce/public/product-attachment-purchases';
+import {authorizeAssetAttachmentPurchase} from "../../../assets/public/attachment-purchases";
+import {authorizeLearningAttachmentPurchase} from "../../../learning/public/attachment-purchases";
+import {authorizeQualityAttachmentPurchase} from "../../../quality/public/attachment-purchases";
+import {authorizeProjectAttachmentPurchase} from "../../../projects/public/attachment-purchases";
+import {authorizeTransferAttachmentPurchase} from "../../../inventory/public/transfer-attachment-purchases";
+import {authorizePeopleAttachmentPurchase} from "../../../people_payroll/public/base-attachment-purchases";
+import {authorizeProcurementAttachmentPurchase} from "../../../procurement/public/attachment-purchases";
+import {authorizeFinanceAttachmentPurchase} from "../../../finance/public/attachment-purchases";
+import {authorizeCommerceAttachmentPurchase} from "../../../commerce/public/attachment-purchases";
+import {authorizePayrollAttachmentPurchase} from "../../../people_payroll/public/attachment-purchases";
+import {authorizeCountAttachmentPurchase} from "../../../inventory/public/count-attachment-purchases";
+import { authorizeSupportAttachmentPurchase } from "../../../support/public/attachment-purchases";
+import { authorizeHospitalityAttachmentPurchase } from "./hospitality-purchases";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError } from "@/server/modules/runtime/public/http";
@@ -88,5 +116,5 @@ export const attachmentPolicyRegistry = service.attachmentPolicyRegistry;
 export function attachmentRetentionSnapshot(policy: AttachmentPolicy) { return service.attachmentRetentionSnapshot(policy); }
 export function attachmentPolicy(targetType: string, purposeKey: string, componentKind: AttachmentComponentKind) { return service.attachmentPolicy(targetType, purposeKey, componentKind); }
 export function authorizePosProductImageTarget(db: SqlDatabase, actor: WorkContext, targetId: string, operation: AttachmentOperation) { return service.authorizePosProductImageTarget(unit(db), actor, targetId, operation); }
-export function authorizeAttachmentTarget(db: SqlDatabase, actor: WorkContext, policy: AttachmentPolicy, targetId: string, operation: AttachmentOperation) { return service.authorizeAttachmentTarget(unit(db), actor, policy, targetId, operation); }
+export async function authorizeAttachmentTarget(db: SqlDatabase, actor: WorkContext, policy: AttachmentPolicy, targetId: string, operation: AttachmentOperation) { const scope = await service.authorizeAttachmentTarget(unit(db), actor, policy, targetId, operation); await authorizeInventoryLotAttachmentRead(db,actor,policy.targetType,operation); await authorizeCommerceProductAttachmentRead(db,actor,policy.targetType,operation); await authorizeSupportAttachmentPurchase(db, actor, policy.targetType, operation); await authorizeHospitalityAttachmentPurchase(db, actor, policy, operation); if(["supplier_bill","invoice_payment"].includes(policy.targetType))await authorizeFinanceAttachmentPurchase(db,actor,policy.targetType,targetId,operation);await authorizeCommerceAttachmentPurchase(db,actor,policy,targetId,operation);await authorizePayrollAttachmentPurchase(db,actor,policy.targetType,operation);await authorizeCountAttachmentPurchase(db,actor,policy.targetType,targetId,operation);await authorizeProcurementAttachmentPurchase(db,actor,policy,targetId,operation);await authorizePeopleAttachmentPurchase(db,actor,policy.targetType,operation);await authorizeTransferAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeProjectAttachmentPurchase(db,actor,policy.targetType,targetId,operation);await authorizeQualityAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeLearningAttachmentPurchase(db,actor,policy.targetType,targetId,operation);await authorizeAssetAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeLandedCostAttachmentPurchase(db,actor,policy.targetType,targetId,operation);await authorizeTalentAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeManufacturingAttachmentPurchase(db,actor,policy.targetType,targetId,operation);await authorizeLegalAttachmentPurchase(db,actor,policy.targetType,targetId,operation);await authorizeCRMAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeMarketingAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeWorkforceAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeBenefitAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeServiceAttachmentPurchase(db,actor,policy,targetId,operation);await authorizePortalAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeWorkTaskAttachmentPurchase(db,actor,policy.targetType,targetId,operation);await authorizeEcommerceAttachmentPurchase(db,actor,policy,targetId,operation);await authorizeMessagingAttachmentPurchase(db,actor,policy.targetType,targetId,operation); return scope; }
 export function assertAttachmentMedia(policy: AttachmentPolicy, mediaType: string, bytes: number) { return service.assertAttachmentMedia(policy, mediaType, bytes); }

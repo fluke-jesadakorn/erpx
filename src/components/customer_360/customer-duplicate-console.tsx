@@ -1,10 +1,11 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { hubResultHref } from "@/lib/shared/hub-result";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type {
@@ -44,7 +45,7 @@ export function CustomerDuplicateConsole({
       last.current = null;
       window.dispatchEvent(new Event("erpx:hub-saved"));
       window.dispatchEvent(new Event("erpx:record-saved"));
-      router.push(hubResultHref(window.location.href, base, `${base}/customer-duplicates/${result.data.id}`) ?? `${base}/customer-duplicates/${result.data.id}`, { scroll: false });
+      router.push(hubResultHref(window.location.href, base, canonicalUiHref(`${base}/customer-duplicates/${result.data.id}`)) ?? canonicalUiHref(`${base}/customer-duplicates/${result.data.id}`), { scroll: false });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this command.");

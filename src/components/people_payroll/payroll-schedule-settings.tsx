@@ -1,13 +1,13 @@
 "use client";
+import {PayrollCommandRecovery} from "./payroll-command-recovery";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextInput } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import { payrollErrorMessage, type PayrollApiError } from "@/lib/people_payroll/payroll-errors";
-import { Card, FormLayout } from "@/components/ui/foundation";
+import { useState } from "react";
+import {usePayrollCommand} from "./use-payroll-command";
+import {PayrollForm} from "./payroll-draft-boundary";
+import { Card } from "@/components/ui/foundation";
 type Schedule = {
   id: string;
   frequency: string;
@@ -60,48 +60,17 @@ function ScheduleForm({
   schedule: Schedule;
   name: string;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const {send, busy, error, notice, canPrepare, canSettle, recovery} = usePayrollCommand(base, `schedule:${schedule.id}`, JSON.stringify([schedule]));
   const [enabled, setEnabled] = useState(schedule.enabled);
-  const attempt = useRef<{
-    body: string;
-    key: string;
-  } | null>(null);
   const frequency = schedule.frequency;
   async function save(form: HTMLFormElement) {
     const data = new FormData(form);
-    const input = {
-      enabled,
-      payDelayDays: Number(data.get("payDelayDays")),
-      anchorDate: String(data.get("anchorDate") ?? "") || null,
-      expectedVersion: schedule.version,
-    };
-    const body = JSON.stringify(input),
-      path = `pay-groups/${encodeURIComponent(schedule.id)}/schedule`;
-    if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/people/${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-        body,
-      });
-      const result = (await response.json()) as {
-        error?: PayrollApiError;
-      };
-      if (!response.ok) throw result.error ?? { message: "Could not save the schedule." };
-      attempt.current = null;
-      router.refresh();
-    } catch (cause) {
-      setError(payrollErrorMessage(cause, "Could not save the schedule."));
-    } finally {
-      setBusy(false);
-    }
+    await send(`pay-groups/${encodeURIComponent(schedule.id)}/schedule`, {
+      enabled, payDelayDays: Number(data.get("payDelayDays")), anchorDate: String(data.get("anchorDate") ?? "") || null, expectedVersion: schedule.version,
+    });
   }
   return (
-    <FormLayout
+    <PayrollForm
       className="ui-form-grid"
       onSubmit={(event) => {
         event.preventDefault();
@@ -111,11 +80,12 @@ function ScheduleForm({
       <h3>
         {name} · {schedule.currency} · {frequency}
       </h3>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      <PayrollCommandRecovery {...recovery} appearance="standard"/>{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{notice && <p role="status">{notice}</p>}
       <Field appearance="standard" orientation="inline">
         <TextInput appearance="standard"
           type="checkbox"
           checked={enabled}
+          disabled={!canPrepare && !schedule.enabled || !canSettle}
           onChange={(event) => setEnabled(event.currentTarget.checked)}
         />{" "}
         {"Create scheduled drafts"}
@@ -146,9 +116,9 @@ function ScheduleForm({
       <p className="muted">
         {"Timezone"}: {schedule.timezone} · {"Dates use Gregorian years."}
       </p>
-      <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
+      <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy || (enabled ? !canPrepare : !canSettle)}>
         {busy ? "Saving…" : "Save schedule"}
       </Button>
-    </FormLayout>
+    </PayrollForm>
   );
 }

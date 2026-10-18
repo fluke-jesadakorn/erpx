@@ -6,7 +6,7 @@ import { Button, Field, Select, Table, TextArea, TextInput } from "@/components/
 
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useState } from "react";
 import type {

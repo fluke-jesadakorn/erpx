@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { addEvaluationEvidence, approveEvaluationCompensation, cancelEvaluationCompensation, confirmEvaluationPayBasis, createEvaluationAssessment, createEvaluationCompensationDraft, evaluationDetail, evaluationWorkspace, importEvaluationMarket, readEvaluationEvidence, saveEvaluationAssessment, saveEvaluationDefinition, transitionEvaluationAssessment } from "@/server/modules/people_payroll/public/people-evaluation";
@@ -16,7 +17,7 @@ export async function GET(request: Request, { params }: Context) {
     else if (path[0] === "evidence" && path.length === 2) data = await readEvaluationEvidence(actor, path[1]);
     else if (path[0] === "ai" && path.length === 2) data = await evaluationAiStatus(actor, path[1]);
     else throw new ApiError(404, "NOT_FOUND", "Evaluation endpoint not found.");
-    return Response.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }
 export async function POST(request: Request, { params }: Context) {
@@ -38,6 +39,6 @@ export async function POST(request: Request, { params }: Context) {
     else if (path[0] === "compensation" && path.length === 3 && path[2] === "cancel") data = await cancelEvaluationCompensation(actor, path[1], input, key);
     else if (path[0] === "ai" && path.length === 1) data = await queueEvaluationAi(actor, await runtimeEnv(), input, key);
     else throw new ApiError(404, "NOT_FOUND", "Evaluation command not found.");
-    return Response.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

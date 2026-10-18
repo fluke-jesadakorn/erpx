@@ -14,9 +14,11 @@ import type { Effects } from "@/lib/pms/pms-engine";
 import type { BookingEnv } from "../public/pms-booking";
 import { createPmsBookingRefund, type PmsBookingRefundUnit, type PmsBookingRefundRepository, type Request } from "../application/pms-booking-refunds";
 import { holdingResources as resolveResources } from "../../runtime/public/runtime";
+import { requirePmsPropertyPurchase, requirePmsFinancialRead, withPmsPropertyPurchasedTransaction } from "./property-purchase-boundary";
 function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRefundUnit {
     void _whole;
     return {
+        requirePurchase: input => requirePmsPropertyPurchase(db, input),
         authorize: (actor,permission)=>assertPmsProviderAuthority(db,actor,permission),
         readPmsBookingPayments: (facts: {
             paymentId: string;
@@ -187,8 +189,8 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsBookingRef
         queueMail: (arg0: Snapshot, arg1: string, arg2: string, arg3: "refund", arg4: BookingEnv, arg5: number) => queueMail(db, arg0, arg1, arg2, arg3, arg4, arg5)
     };
 }
-function repository(db: TransactionalSqlDatabase): PmsBookingRefundRepository { return { ...unit(db, db), transaction: work => db.transaction(tx => work(unit(tx, db))) }; }
-const application = createPmsBookingRefund({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await resolveResources(actor.holdingId)).write), stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args), bookingEnv: (...args) => bookingEnv(...args) });
+function repository(db: TransactionalSqlDatabase): PmsBookingRefundRepository { return { ...unit(db, db), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db)), purchase) }; }
+const application = createPmsBookingRefund({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => { const database=(await resolveResources(actor.holdingId)).write; await requirePmsFinancialRead(database,actor); return unit(database); }, stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args), bookingEnv: (...args) => bookingEnv(...args) });
 import { createHash } from "node:crypto";
 export function requestBookingRefund(tx: SqlDatabase, s: Snapshot, paymentId: string, wanted: Array<{
     stayId: string;

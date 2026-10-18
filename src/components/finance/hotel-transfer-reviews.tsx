@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { Button, Field, Select } from "@/components/ui/foundation";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { workFetch } from "@/lib/work_projection/work-fetch";

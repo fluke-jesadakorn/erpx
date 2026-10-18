@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { SectionHeader, Card } from "@/components/ui/foundation";
 import { InlineNotice } from "@/components/ui/foundation";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
@@ -31,7 +32,7 @@ export function FinanceToday({
   const currentPage = Number.isSafeInteger(page) && page > 0 ? page : 1;
   const rows = items.slice((currentPage - 1) * 20, currentPage * 20);
   const href = (values: Record<string, string | number>) =>
-    `${base}/finance?${new URLSearchParams(Object.entries(values).map(([key, value]) => [key, String(value)]))}`;
+    canonicalUiHref(`${base}/finance?${new URLSearchParams(Object.entries(values).map(([key, value]) => [key, String(value)]))}`);
   const returnTo = href({ view, q: query, page: currentPage });
   const signals = attention.filter((item) =>
     ["receivable-overdue", "payable-due", "payment-review", "bank-unmatched"].includes(item.id),
@@ -151,7 +152,7 @@ export function FinanceToday({
           aria-label="Company cash and reconciliation status"
         >
           {signals.map((item) => (
-            <Link key={item.id} href={`${base}/${item.href}`}>
+            <Link key={item.id} href={canonicalUiHref(`${base}/${item.href}`)}>
               <span className="muted">{item.label}</span>
               <strong>{item.count}</strong>
               <small>
@@ -178,7 +179,7 @@ export function FinanceToday({
                 Review blockers and retained evidence before independent approval.
               </p>
             </div>
-            <Link href={`${base}/finance/close`}>Open period close →</Link>
+            <Link href={canonicalUiHref(`${base}/finance/close`)}>Open period close →</Link>
           </SectionHeader>
         </Card>
       )}

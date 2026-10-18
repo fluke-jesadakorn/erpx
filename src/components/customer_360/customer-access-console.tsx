@@ -1,59 +1,32 @@
 "use client";
-import { InlineNotice } from "@/components/ui/foundation";
+import {PortalSupportResponseEditor} from "@/components/customer_authority/portal-support-response-editor";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import {CRMForm as FormLayout,CRMCommandState,CRMCommandFeedback,CRMDraftBoundary,useCRMSnapshot} from '@/components/crm/draft-boundary';
+import {useCRMCommand} from '@/components/crm/use-crm-command';
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { PreferredDateTimeField } from "@/components/people_payroll/time/preferred-date-time-field";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { hubResultHref } from "@/lib/shared/hub-result";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { customerAccessHistory, customerAccessWorkspace } from "@/server/modules/customer_authority/public/customer-access";
-import { Card, FormLayout } from "@/components/ui/foundation";
+import { Card } from "@/components/ui/foundation";
 export function CustomerAccessConsole({
   base,
-  data,
-  detail,
+  data:currentData,
+  detail:currentDetail,
   selectedOrderId,
+  requestFormInline=false,
 }: {
   base: string;
   data?: Awaited<ReturnType<typeof customerAccessWorkspace>>;
   detail?: Awaited<ReturnType<typeof customerAccessHistory>>;
   selectedOrderId?: string;
+  requestFormInline?: boolean;
 }) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    last = useRef<{ body: string; key: string } | null>(null);
-  async function send(input: unknown) {
-    if (busy) return;
-    const body = JSON.stringify(input);
-    if (last.current?.body !== body) last.current = { body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const r = await workFetch(`/api/v1${base}/customer-access`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body,
-        }),
-        result = await r.json();
-      if (!r.ok) {
-        if (r.status < 500) last.current = null;
-        throw new Error(result.error?.message ?? "Unable to save customer access.");
-      }
-      last.current = null;
-      window.dispatchEvent(new Event("erpx:hub-saved"));
-      window.dispatchEvent(new Event("erpx:record-saved"));
-      router.push(hubResultHref(window.location.href, base, `${base}/customer-access/${result.data.id}`) ?? `${base}/customer-access/${result.data.id}`, { scroll: false });
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry this command.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const router=useRouter(),{snapshot,rootProps}=useCRMSnapshot({data:currentData,detail:currentDetail}),{data,detail}=snapshot,purchase=currentData?.purchase??currentDetail?.purchase,active=purchase?.newWork!==false,settle=purchase?.settleExisting!==false,canReview=currentDetail?.binding.canReview!==false,canReject=currentDetail?.binding.canReject!==false;
+  const sourceVersion=JSON.stringify([currentDetail?.binding.version,currentData?.sources.map(row=>[row.id,row.version])]),command=useCRMCommand(base,'customer-access',input=>{if(!input||typeof input!=='object')return false;const value=input as Record<string,unknown>;return !value.action?active:value.action==='approve'?active&&canReview:settle&&(value.action!=='reject'||canReject);},receipt=>{const href=canonicalUiHref(`${base}/customer-access/${receipt.id}`);router.push(hubResultHref(window.location.href,base,href)??href,{scroll:false});}),{send,busy}=command;
   const reason = (
     <Field appearance="standard">
       Authority evidence and reason
@@ -61,12 +34,12 @@ export function CustomerAccessConsole({
     </Field>
   );
   return (
-    <>
-      {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+    <CRMCommandState {...command}><CRMDraftBoundary><div {...rootProps}>
+      <CRMCommandFeedback/>
       {data && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Request source-bound customer access</h2>
-          <FormLayout
+          <FormLayout inline={requestFormInline} sourceVersion={sourceVersion} allowed={active}
             className="ui-form-grid"
             onSubmit={(e) => {
               e.preventDefault();
@@ -112,8 +85,8 @@ export function CustomerAccessConsole({
             {String(detail.binding.email)} · {String(detail.binding.status)} · expires{" "}
             <TimeText appearance="standard" value={Number(detail.binding.expires_at)} />
           </p>
-          {Boolean(detail.binding.canReview) && (
-            <FormLayout
+          {Boolean(detail.binding.canReview||detail.binding.canReject) && (
+            <FormLayout sourceVersion={sourceVersion} allowed={canReview&&active||canReject&&settle}
               className="ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -128,9 +101,9 @@ export function CustomerAccessConsole({
             >
               <Field appearance="standard">
                 Decision
-                <Select appearance="standard" name="action">
-                  <option value="approve">Approve access</option>
-                  <option value="reject">Reject request</option>
+                <Select appearance="standard" name="action" defaultValue={detail.binding.canReview?'approve':'reject'}>
+                  <option value="approve" disabled={!active||!canReview}>Approve access</option>
+                  <option value="reject" disabled={!settle||!canReject}>Reject request</option>
                 </Select>
               </Field>
               {reason}
@@ -141,7 +114,7 @@ export function CustomerAccessConsole({
           )}
           {Boolean(detail.binding.canRevoke) &&
             ["pending", "approved"].includes(String(detail.binding.status)) && (
-              <FormLayout
+              <FormLayout sourceVersion={sourceVersion} allowed={settle}
                 className="ui-form-grid"
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -162,6 +135,7 @@ export function CustomerAccessConsole({
             )}
         </Card>
       )}
-    </>
+      {detail?.supportThreads?.map(thread=><PortalSupportResponseEditor key={thread.requestId} base={base} bindingVersion={Number(detail.binding.version)} thread={thread}/>)}
+    </div></CRMDraftBoundary></CRMCommandState>
   );
 }

@@ -22,7 +22,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import {
   AttachmentApiError,
   type AttachmentComponentKind,

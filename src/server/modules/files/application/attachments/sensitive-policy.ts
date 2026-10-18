@@ -106,6 +106,7 @@ export type SensitiveAttachmentUnit<Effect> = {
         branch_id: string | null;
         department_id: string | null;
         owner_id: string;
+        pending_hire_delivery: number;
     } | null>;
     readLearningAssignments1(facts: {
         userId: string;
@@ -316,6 +317,8 @@ export function createSensitiveAttachmentPolicy<Effect>(ports: {
             (canManage || row.owner_id === actor.userId);
         if (operation === "read" ? !canRead : !canManage)
             privateNotFound();
+        if (operation !== "read" && Number(row.pending_hire_delivery)>0)
+            throw ports.error(409,"HIRE_HANDOFF_PENDING","Complete the original HR hire delivery before changing accepted-offer files.");
         return scope(row, operation !== "read");
     }
     async function learningCourse(db: SensitiveAttachmentUnit<Effect>, actor: WorkContext, targetId: string, operation: AttachmentOperation) {

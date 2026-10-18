@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, TextInput } from "@/components/ui/foundation";
@@ -19,8 +20,8 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/workplace/workspace-link";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useState } from "react";
 import styles from "@/components/runtime/executive/canvas.module.css";
 import { ExecutiveExternalConnections } from "@/components/runtime/executive/external-connections";
@@ -56,7 +57,7 @@ export function ExecutiveLibrary({
       });
       const j = await r.json();
       if (!r.ok) throw Error(j.error?.message ?? "Could not create report.");
-      router.push(`${base}/executive/reports/${j.data.id}`);
+      router.push(canonicalUiHref(`${base}/executive/reports/${j.data.id}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create report.");
       setBusy(false);
@@ -172,7 +173,7 @@ export function ExecutiveLibrary({
                 {reports.map((r) => (
                   <Link
                     className={styles.reportCard}
-                    href={`${base}/executive/reports/${r.id}`}
+                    href={canonicalUiHref(`${base}/executive/reports/${r.id}`)}
                     key={r.id}
                   >
                     <div className={styles.thumbnail} data-theme={r.theme}>
@@ -241,12 +242,12 @@ export function ExecutiveLibrary({
             Author package, then use the existing access review workflow. Source permissions and
             data distribution require separate reviewed grants.
           </p>
-          <Link href={`${base}/people/access?view=packages`}>
+          <Link href={canonicalUiHref(`${base}/people/access?view=packages`)}>
             Review Executive Author package →
           </Link>
           {initial.accessSetup.map((p) => (
             <div key={p.id}>
-              <Link href={`${base}/people/${p.id}`}>{p.name}</Link>
+              <Link href={canonicalUiHref(`${base}/people/${p.id}`)}>{p.name}</Link>
               <span>Level {p.level}</span>
               <strong>{p.ready ? "Grant available" : "Review needed"}</strong>
             </div>

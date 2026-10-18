@@ -81,6 +81,13 @@ describe("Owner presentation query composition", () => {
     await query.queries.getProject(actor, "project");
     expect(state.project).toHaveBeenCalledExactlyOnceWith(state.db, actor, "project");
   });
+  it('requests optional Project choices only for the explicit Routine presentation while preserving the default required context call',async()=>{
+    await staffPresentationQueries('acme',{routineProjects:true});expect(state.staff).toHaveBeenLastCalledWith('acme',{routineProjects:true});await staffPresentationQueries('acme');expect(state.staff).toHaveBeenLastCalledWith('acme');
+  });
+  it('requests optional Project choices explicitly for standalone Tasks without exposing the server-only picker mode',async()=>{
+    state.staff.mockResolvedValueOnce({write:state.db,actor,base:'/holdings/acme',options:{levels:[]},projects:[],staff:null,projectPickerStrict:true});
+    const query=await staffPresentationQueries('acme',{projectOptions:'optional'});expect(state.staff).toHaveBeenCalledExactlyOnceWith('acme',{projectOptions:'optional'});expect(query).not.toHaveProperty('projectPickerStrict');expect(query).not.toHaveProperty('write');
+  });
   it("removes every portal resource while retaining its actor and same-connection document read", async () => {
     const query = await legalPortalPresentationQueries("acme");
     expect(Object.keys(query).sort()).toEqual(["actor", "queries"]);

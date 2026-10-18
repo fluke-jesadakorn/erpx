@@ -1,3 +1,69 @@
+import {withPublicationContentRead} from '../publication-content-read';
+import {messagingAttachmentPurchaseScope,messagingAttachmentSourceReadLocks,messagingAttachmentFailure,type MessagingAttachmentPurchase} from "../../../collaboration/public/messaging-attachment-purchases";
+import {withWorkTaskAttachmentContentRead} from "../../../operations/public/task-attachment-read";
+import {withPortalAttachmentContentRead} from "../../../customer_authority/public/attachment-read";
+import {flushFinanceDeferredEffects} from "../../../finance/public/finance-transactions";
+import {withEcommerceAttachmentContentRead} from "../../../ecommerce/public/attachment-read";
+import {withFinanceTaxSignatureAttachmentContentRead} from "../../../finance/public/tax-signature-attachment-read";
+import {withMessagingAttachmentContentRead} from "../../../collaboration/public/messaging-attachment-read";
+import {withSupportAttachmentContentRead} from "../../../support/public/attachment-read";
+import {withSupportIncidentAttachmentContentRead} from "../../../support/public/incident-attachment-read";
+import {withServiceAttachmentContentRead} from "../../../field_service/public/attachment-read";
+import {isPeopleAttachmentReadTarget} from '../../../people_payroll/public/attachment-read-sources';
+import {withPeopleAttachmentContentRead} from '../../../people_payroll/public/attachment-read';
+import {isProjectAttachmentReadTarget,withProjectAttachmentContentRead} from '../../../projects/public/attachment-read';
+import {isLearningAttachmentReadTarget,withLearningAttachmentContentRead} from '../../../learning/public/attachment-read';
+import {isCRMAttachmentReadTarget,withCRMAttachmentContentRead} from '../../../crm/public/attachment-read';
+import {isMarketingAttachmentReadTarget,withMarketingAttachmentContentRead} from '../../../marketing/public/attachment-read';
+import {isAssetAttachmentReadTarget,withAssetAttachmentContentRead} from '../../../assets/public/attachment-read';
+import {isInventoryAttachmentReadTarget,withInventoryAttachmentContentRead} from '../../../inventory/public/attachment-read';
+import {isManufacturingAttachmentReadTarget,withManufacturingAttachmentContentRead} from '../../../manufacturing/public/attachment-read';
+import {isCommerceAttachmentReadTarget,withCommerceAttachmentContentRead} from '../../../commerce/public/attachment-read';
+import {isProcurementAttachmentReadTarget,withProcurementAttachmentContentRead} from '../../../procurement/public/attachment-read';
+import {isBenefitAttachmentReadTarget,withBenefitAttachmentContentRead} from '../../../benefits/public/attachment-read';
+import {isQualityAttachmentReadTarget,withQualityAttachmentContentRead} from '../../../quality/public/attachment-read';
+import {withLegalCanonicalAttachmentContentRead} from "../../../legal/public/canonical-attachment-read";
+import {hasLegalEvidenceAttachmentReadParent,withLegalEvidenceAttachmentContentRead} from "../../../legal/public/evidence-attachment-read";
+import {isHospitalityAttachmentReadTarget,withHospitalityAttachmentContentRead} from '../hospitality-attachment-read';
+import {isEmployeeEvidenceAttachmentType,withEmployeeEvidenceAttachmentContentRead} from '../employee-evidence-read';
+import {isFinanceAttachmentReadTarget} from '../../../finance/public/attachment-read-sources';
+import {withFinanceAttachmentContentRead} from '../../../finance/public/attachment-read';
+import {withSupplierBillAttachmentContentRead} from '../../../finance/public/supplier-bill-attachment-read';
+import {isTalentAttachmentReadTarget,withTalentAttachmentContentRead} from '../../../talent/public/attachment-read';
+import {isBrandAttachmentReadTarget,withBrandAttachmentContentRead} from '../../../brand/public/attachment-read';
+import {isOrganizationAttachmentReadTarget,withOrganizationAttachmentContentRead} from '../../../organization/public/attachment-read';
+import {isIamAttachmentReadTarget,withIamAttachmentContentRead} from '../../../identity_access/public/attachment-read';
+import {isCompanyReleaseAttachmentReadTarget,withCompanyReleaseAttachmentContentRead} from '../../../platform_administration/public/company-release-attachment-read';
+import {isCompanyProvisioningAttachmentReadTarget,withCompanyProvisioningAttachmentContentRead} from '../../../manage_erpx/public/company-provisioning-attachment-read';
+import {isSocialAttachmentReadTarget,withSocialAttachmentContentRead} from '../../../collaboration/public/social-attachment-read';
+import {attachmentReadRoute,attachmentPrivateReadSourceLocks,type AttachmentReadRoute} from "../../public/private-attachment-reads";
+import {ecommerceAttachmentPurchaseScope,ecommerceAttachmentSourceReadLocks,ecommerceAttachmentFailure,type EcommerceAttachmentPurchase} from "../../../ecommerce/public/attachment-purchases";
+import {workTaskAttachmentPurchaseScope,workTaskAttachmentSourceReadLocks,workTaskAttachmentFailure,type WorkTaskAttachmentPurchase} from "../../../operations/public/task-attachment-purchases";
+import {portalAttachmentPurchaseScope,portalAttachmentSourceReadLocks,portalAttachmentFailure,type PortalAttachmentPurchase} from "../../../customer_authority/public/attachment-purchases";
+import {serviceAttachmentPurchaseScope,serviceAttachmentSourceReadLocks,serviceAttachmentFailure,fieldServiceAttachmentRecordVersionStep,type ServiceAttachmentPurchase} from "../../../field_service/public/attachment-purchases";
+import {benefitAttachmentPurchaseScope,benefitAttachmentSourceReadLocks,benefitAttachmentFailure,type BenefitAttachmentPurchase} from "../../../benefits/public/attachment-purchases";
+import {workforceAttachmentPurchaseScope,workforceAttachmentSourceReadLocks,workforceAttachmentFailure,type WorkforceAttachmentPurchase} from "../../../people_payroll/public/workforce-attachment-purchases";
+import {crmAttachmentPurchaseScope,crmAttachmentSourceReadLocks,crmAttachmentFailure,type CRMAttachmentPurchase} from "../../../crm/public/attachment-purchases";
+import {marketingAttachmentPurchaseScope,marketingAttachmentSourceReadLocks,marketingAttachmentFailure,type MarketingAttachmentPurchase} from "../../../marketing/public/attachment-purchases";
+import {manufacturingAttachmentPurchaseScope,manufacturingAttachmentSourceReadLocks,manufacturingAttachmentFailure,type ManufacturingAttachmentPurchase} from "../../../manufacturing/public/attachment-purchases";
+import {legalAttachmentPurchaseScope,legalAttachmentSourceReadLocks,legalAttachmentFailure,type LegalAttachmentPurchase} from "../../../legal/public/attachment-purchases";
+import {talentAttachmentPurchaseScope,talentAttachmentSourceReadLocks,talentAttachmentFailure,type TalentAttachmentPurchase} from "../../../talent/public/attachment-purchases";
+import {landedCostAttachmentPurchaseScope,landedCostAttachmentSourceReadLocks,landedCostAttachmentFailure,type LandedCostAttachmentPurchase} from "../../../inventory/public/landed-cost-attachment-purchases";
+import {assetAttachmentPurchaseScope,assetAttachmentSourceReadLocks,assetAttachmentFailure,type AssetAttachmentPurchase} from "../../../assets/public/attachment-purchases";
+import {learningAttachmentPurchaseScope,learningAttachmentSourceReadLocks,learningAttachmentFailure,type LearningAttachmentPurchase} from "../../../learning/public/attachment-purchases";
+import {qualityAttachmentPurchaseScope,qualityAttachmentSourceReadLocks,qualityAttachmentFailure,type QualityAttachmentPurchase} from "../../../quality/public/attachment-purchases";
+import {projectAttachmentPurchaseScope,projectAttachmentSourceReadLocks,projectAttachmentFailure,type ProjectAttachmentPurchase} from "../../../projects/public/attachment-purchases";
+import {transferAttachmentPurchaseScope,transferAttachmentFailure,type TransferAttachmentPurchase} from "../../../inventory/public/transfer-attachment-purchases";
+import {peopleAttachmentPurchaseScope,peopleAttachmentSourceReadLocks,type PeopleAttachmentPurchase} from "../../../people_payroll/public/base-attachment-purchases";
+import {procurementAttachmentPurchaseScope,procurementAttachmentFailure,procurementAttachmentSourceReadLocks,type ProcurementAttachmentPurchase} from "../../../procurement/public/attachment-purchases";
+import {financeAttachmentSourceReadLocks} from "../../../finance/public/attachment-purchases";
+import {countAttachmentPurchaseScope,countAttachmentSourceReadLocks,countAttachmentFailure,type CountAttachmentPurchase} from "../../../inventory/public/count-attachment-purchases";
+import {commerceAttachmentPurchaseScope,commerceAttachmentFailure,type CommerceAttachmentPurchase} from "../../../commerce/public/attachment-purchases";
+import {assertExpenseAttachmentPurchases,payrollAttachmentPurchaseScope,type PayrollAttachmentPurchase} from "../../../people_payroll/public/attachment-purchases";
+import {financeAttachmentPurchaseScopes,type FinanceAttachmentPurchase} from "../../../finance/public/attachment-purchases";
+import { supportAttachmentPurchaseScope, type SupportAttachmentPurchase } from "../../../support/public/attachment-purchases";
+import { hospitalityAttachmentPurchaseScope, attachmentPurchaseBoundary, type HospitalityAttachmentPurchase } from "./hospitality-purchases";
+import { purchaseCommandFailure } from "../../../commercial/public/purchase-command-boundary";
 import { supportEvidenceEvent } from "../../../support/public/support-evidence";
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
@@ -10,7 +76,6 @@ import { ApiError } from "@/server/modules/runtime/public/http";
 import type { FileStore, SqlDatabase, SqlStatement } from "@/server/modules/runtime/public/runtime/types";
 import { isTransactionalSqlDatabase } from "@/server/modules/runtime/public/runtime/types";
 import { attachmentUploadsFrozen, attachmentsV2Enabled, attachmentsV2ReadOnly, requireAttachmentsV2, requireAttachmentsV2Read } from "@/server/modules/files/public/attachments/feature";
-import { authorizeAttachmentTarget } from "@/server/modules/files/public/attachments/policy";
 import { attachmentPreviewReadiness, detectedAttachmentMediaType, sanitizedAttachmentPreview } from "@/server/modules/files/public/attachments/preview";
 import { portalCollaborationAttachmentRecordVersionStep, portalCollaborationAttachmentTargetVersionGuard } from "@/server/modules/files/public/attachments/portal-collaboration-policy";
 import { attachmentScannerReadiness, scanAttachmentBytes } from "@/server/modules/files/public/attachments/scanner";
@@ -46,13 +111,26 @@ import { attachmentServiceIdentityAccessFacts } from "../../../identity_access/p
 import { attachmentServiceManageErpxFacts } from "../../../manage_erpx/public/attachments-service-facts";
 import { attachmentServiceBrandFacts } from "../../../brand/public/attachments-service-facts";
 const nativeDatabases = new WeakMap<AttachmentServiceUnit<SqlStatement>, SqlDatabase>();
-function unit(db: SqlDatabase): AttachmentServiceUnit<SqlStatement> {
+const expenseScopesByUnit = new WeakMap<AttachmentServiceUnit<SqlStatement>, readonly PayrollAttachmentPurchase[]>();
+type AttachmentRequestBoundary = {
+    entered: boolean;
+    sourceLocks(database: SqlDatabase): SqlStatement[];
+    assertCurrent(database: SqlDatabase): Promise<void>;
+    projectResult?(database: SqlDatabase): Promise<void>;
+};
+function unit(db: SqlDatabase, inheritedPurchases: readonly SupportAttachmentPurchase[] = [], inheritedHospitality: readonly HospitalityAttachmentPurchase[] = [], inheritedFinance:readonly FinanceAttachmentPurchase[] = [], inheritedCommerce:readonly CommerceAttachmentPurchase[] = [], inheritedPayroll:readonly PayrollAttachmentPurchase[] = [], inheritedCounts:readonly CountAttachmentPurchase[] = [],inheritedProcurement:readonly ProcurementAttachmentPurchase[] = [],inheritedPeople:readonly PeopleAttachmentPurchase[] = [],inheritedTransfers:readonly TransferAttachmentPurchase[] = [],inheritedProjects:readonly ProjectAttachmentPurchase[] = [],inheritedQuality:readonly QualityAttachmentPurchase[] = [],inheritedLearning:readonly LearningAttachmentPurchase[] = [],inheritedAssets:readonly AssetAttachmentPurchase[] = [],inheritedLandedCosts:readonly LandedCostAttachmentPurchase[] = [],inheritedTalent:readonly TalentAttachmentPurchase[] = [],inheritedManufacturing:readonly ManufacturingAttachmentPurchase[] = [],inheritedLegal:readonly LegalAttachmentPurchase[] = [],inheritedCRM:readonly CRMAttachmentPurchase[] = [],inheritedMarketing:readonly MarketingAttachmentPurchase[] = [],inheritedWorkforce:readonly WorkforceAttachmentPurchase[] = [],inheritedBenefits:readonly BenefitAttachmentPurchase[] = [],inheritedService:readonly ServiceAttachmentPurchase[] = [],inheritedPortal:readonly PortalAttachmentPurchase[] = [],inheritedWorkTasks:readonly WorkTaskAttachmentPurchase[] = [],inheritedEcommerce:readonly EcommerceAttachmentPurchase[] = [],inheritedMessaging:readonly MessagingAttachmentPurchase[] = [],requestBoundary?:AttachmentRequestBoundary): AttachmentServiceUnit<SqlStatement> {
+    const purchaseScopes = [...inheritedPurchases];
+    const hospitalityScopes = [...inheritedHospitality];
+    const financeScopes=[...inheritedFinance];
+    const commerceScopes=[...inheritedCommerce],payrollScopes=[...inheritedPayroll],countScopes=[...inheritedCounts],procurementScopes=[...inheritedProcurement],peopleScopes=[...inheritedPeople],transferScopes=[...inheritedTransfers],projectScopes=[...inheritedProjects],qualityScopes=[...inheritedQuality],learningScopes=[...inheritedLearning],assetScopes=[...inheritedAssets],landedCostScopes=[...inheritedLandedCosts],talentScopes=[...inheritedTalent],manufacturingScopes=[...inheritedManufacturing],legalScopes=[...inheritedLegal],crmScopes=[...inheritedCRM],marketingScopes=[...inheritedMarketing],workforceScopes=[...inheritedWorkforce],benefitScopes=[...inheritedBenefits],serviceScopes=[...inheritedService],portalScopes=[...inheritedPortal],workTaskScopes=[...inheritedWorkTasks],ecommerceScopes=[...inheritedEcommerce],messagingScopes=[...inheritedMessaging];
     const context: AttachmentServiceUnit<SqlStatement> = { ownerVersionGuard: (...args) => { const [commandId, targetType, targetId, actor, version, index] = args, companyId = actor.companyId; const special = portalCollaborationAttachmentTargetVersionGuard(db, commandId, targetType, targetId, companyId, version, index) ?? sensitiveAttachmentTargetVersionGuard(db, commandId, targetType, targetId, companyId, version, index) ?? financeOperationsAttachmentTargetVersionGuard(db, commandId, targetType, targetId, companyId, version, index) ?? remainingOperationalAttachmentTargetVersionGuard(db, commandId, targetType, targetId, companyId, version, index); if (special)
             return special; const effect = attachmentServiceOperationsFacts(db).versionGuard(...args) ?? attachmentServicePeoplePayrollFacts(db).versionGuard(...args) ?? attachmentServiceCommerceFacts(db).versionGuard(...args) ?? attachmentServiceLegalFacts(db).versionGuard(...args) ?? attachmentServicePlanningFacts(db).versionGuard(...args) ?? attachmentServiceQualityFacts(db).versionGuard(...args) ?? attachmentServiceInventoryFacts(db).versionGuard(...args) ?? attachmentServiceCollaborationFacts(db).versionGuard(...args) ?? attachmentServiceCrmFacts(db).versionGuard(...args) ?? attachmentServiceProjectsFacts(db).versionGuard(...args) ?? attachmentServiceMaintenanceFacts(db).versionGuard(...args) ?? attachmentServiceRecordsFacts(db).versionGuard(...args) ?? attachmentServiceFinanceFacts(db).versionGuard(...args) ?? attachmentServiceProcurementFacts(db).versionGuard(...args) ?? attachmentServiceMarketingFacts(db).versionGuard(...args) ?? attachmentServiceOrganizationFacts(db).versionGuard(...args) ?? attachmentServiceAssetsFacts(db).versionGuard(...args) ?? attachmentServiceSupportFacts(db).versionGuard(...args) ?? attachmentServiceFieldServiceFacts(db).versionGuard(...args) ?? attachmentServiceManufacturingFacts(db).versionGuard(...args); if (!effect)
             throw new ApiError(422, "ATTACHMENT_TARGET_UNSUPPORTED", "This file target has no atomic version guard."); return effect; },
-        ownerVersionStep: (...args) => { const special = portalCollaborationAttachmentRecordVersionStep(db, ...args) ?? sensitiveAttachmentRecordVersionStep(db, ...args) ?? financeOperationsAttachmentRecordVersionStep(db, ...args) ?? remainingOperationalAttachmentRecordVersionStep(db, ...args); if (special)
+        ownerVersionStep: (targetType,targetId,expectedVersion,now,versionContext) => { const args = [targetType,targetId,expectedVersion,now] as const; const serviceStep=fieldServiceAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now,versionContext); if(serviceStep)return serviceStep; const special = portalCollaborationAttachmentRecordVersionStep(db, ...args) ?? sensitiveAttachmentRecordVersionStep(db, ...args) ?? financeOperationsAttachmentRecordVersionStep(db, ...args) ?? remainingOperationalAttachmentRecordVersionStep(db, ...args); if (special)
             return special; const effect = attachmentServiceOperationsFacts(db).versionStep(...args) ?? attachmentServicePeoplePayrollFacts(db).versionStep(...args) ?? attachmentServiceCommerceFacts(db).versionStep(...args) ?? attachmentServiceLegalFacts(db).versionStep(...args) ?? attachmentServicePlanningFacts(db).versionStep(...args) ?? attachmentServiceQualityFacts(db).versionStep(...args) ?? attachmentServiceInventoryFacts(db).versionStep(...args) ?? attachmentServiceCollaborationFacts(db).versionStep(...args) ?? attachmentServiceCrmFacts(db).versionStep(...args) ?? attachmentServiceProjectsFacts(db).versionStep(...args) ?? attachmentServiceMaintenanceFacts(db).versionStep(...args) ?? attachmentServiceRecordsFacts(db).versionStep(...args) ?? attachmentServiceFinanceFacts(db).versionStep(...args) ?? attachmentServiceProcurementFacts(db).versionStep(...args) ?? attachmentServiceMarketingFacts(db).versionStep(...args) ?? attachmentServiceOrganizationFacts(db).versionStep(...args) ?? attachmentServiceAssetsFacts(db).versionStep(...args) ?? attachmentServiceSupportFacts(db).versionStep(...args) ?? attachmentServiceFieldServiceFacts(db).versionStep(...args) ?? attachmentServiceManufacturingFacts(db).versionStep(...args); if (!effect)
             throw new ApiError(422, "RECORD_ATTACHMENT_BIND_UNSUPPORTED", "This record does not support standalone document binding."); return effect; },
+        readAttachmentSetAlias: facts => repository(db).readAttachmentSetAlias(facts),
+        stepAttachmentSetAlias: facts => repository(db).stepAttachmentSetAlias(facts),
         readAttachmentSets1: facts => repository(db).readAttachmentSets1(facts),
         readActiveWorkContexts2: facts => attachmentServiceIdentityAccessFacts(db).readActiveWorkContexts2(facts),
         readAssignments3: facts => attachmentServiceIdentityAccessFacts(db).readAssignments3(facts),
@@ -137,6 +215,7 @@ function unit(db: SqlDatabase): AttachmentServiceUnit<SqlStatement> {
         readAttachmentPublications84: facts => repository(db).readAttachmentPublications84(facts),
         readAttachmentPublications85: facts => repository(db).readAttachmentPublications85(facts),
         readAttachmentPublicationOrders86: facts => repository(db).readAttachmentPublicationOrders86(facts),
+        readPublicationRevocation: facts => repository(db).readPublicationRevocation(facts),
         readAttachmentPublications87: facts => repository(db).readAttachmentPublications87(facts),
         readAttachmentPublications88: facts => repository(db).readAttachmentPublications88(facts),
         stepAttachmentPublications89: facts => repository(db).stepAttachmentPublications89(facts),
@@ -201,12 +280,26 @@ function unit(db: SqlDatabase): AttachmentServiceUnit<SqlStatement> {
         bindingGuard1: facts => repository(db).bindingGuard1(facts),
         bindingGuard2: facts => repository(db).bindingGuard2(facts),
         bindingGuard3: facts => repository(db).bindingGuard3(facts),
-        atomic: action => isTransactionalSqlDatabase(db) ? db.transaction(tx => action(unit(tx))) : action(context),
-        uploadCleanupLock: key => db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(key).run(), uploadObjectReferenced: (companyId, key) => db.prepare("SELECT 1 FROM attachments WHERE company_id=? AND object_key=?").bind(companyId, key).first(), supportEvidenceEvent: (...args) => supportEvidenceEvent(db, ...args), batch: effects => db.batch(effects),
-        authorizeTarget: (...args) => authorizeAttachmentTarget(db, ...args),
+        atomic: action => isTransactionalSqlDatabase(db) ? db.transaction(async tx => {
+            // This per-call boundary belongs only to the complete native request
+            // unit. Cleanup is a second original atomic unit and must remain
+            // possible after request expiry; it never gains request authority.
+            const request = requestBoundary && !requestBoundary.entered ? requestBoundary : undefined;
+            if (request) { request.entered = true; await tx.batch([...request.sourceLocks(tx),attachmentPrivateReadSourceLocks(tx)]); }
+            await tx.batch(await financeAttachmentSourceReadLocks(tx,financeScopes));await tx.batch(await procurementAttachmentSourceReadLocks(tx,procurementScopes));await tx.batch(await peopleAttachmentSourceReadLocks(tx,peopleScopes));await tx.batch(await projectAttachmentSourceReadLocks(tx,projectScopes));await tx.batch(await countAttachmentSourceReadLocks(tx,countScopes));await tx.batch(await qualityAttachmentSourceReadLocks(tx,qualityScopes));await tx.batch(await learningAttachmentSourceReadLocks(tx,learningScopes));await tx.batch(await assetAttachmentSourceReadLocks(tx,assetScopes));await tx.batch(await landedCostAttachmentSourceReadLocks(tx,landedCostScopes));await tx.batch(await talentAttachmentSourceReadLocks(tx,talentScopes));await tx.batch(await manufacturingAttachmentSourceReadLocks(tx,manufacturingScopes));await tx.batch(await legalAttachmentSourceReadLocks(tx,legalScopes));await tx.batch(await crmAttachmentSourceReadLocks(tx,crmScopes));await tx.batch(await marketingAttachmentSourceReadLocks(tx,marketingScopes));await tx.batch(await workforceAttachmentSourceReadLocks(tx,workforceScopes));await tx.batch(await benefitAttachmentSourceReadLocks(tx,benefitScopes));await tx.batch(await serviceAttachmentSourceReadLocks(tx,serviceScopes));await tx.batch(await portalAttachmentSourceReadLocks(tx,portalScopes));await tx.batch(await workTaskAttachmentSourceReadLocks(tx,workTaskScopes));await tx.batch(await ecommerceAttachmentSourceReadLocks(tx,ecommerceScopes));await tx.batch(await messagingAttachmentSourceReadLocks(tx,messagingScopes));if (request) await request.assertCurrent(tx);
+            const ownedUnit = unit(tx, purchaseScopes, hospitalityScopes,financeScopes,commerceScopes,payrollScopes,countScopes,procurementScopes,peopleScopes,transferScopes,projectScopes,qualityScopes,learningScopes,assetScopes,landedCostScopes,talentScopes,manufacturingScopes,legalScopes,crmScopes,marketingScopes,workforceScopes,benefitScopes,serviceScopes,portalScopes,workTaskScopes,ecommerceScopes,messagingScopes);
+            const result = await action(ownedUnit);
+            if (request) { await flushFinanceDeferredEffects(tx); await request.assertCurrent(tx); if(request.projectResult){await request.projectResult(tx);await request.assertCurrent(tx);} }
+            const expenseScopes = expenseScopesByUnit.get(ownedUnit) ?? [];
+            if (expenseScopes.some(scope => scope.capability === "people.expenses")) { await flushFinanceDeferredEffects(tx); await assertExpenseAttachmentPurchases(tx, expenseScopes); }
+            return result;
+        }) : action(context),
+        uploadCleanupLock: key => db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(key).run(), uploadObjectReferenced: (companyId, key) => db.prepare("SELECT 1 FROM attachments WHERE company_id=? AND object_key=?").bind(companyId, key).first(), supportEvidenceEvent: (...args) => supportEvidenceEvent(db, ...args), batch: async effects => { const boundary = await attachmentPurchaseBoundary(db,purchaseScopes,hospitalityScopes,financeScopes,commerceScopes,payrollScopes,countScopes,procurementScopes,peopleScopes,transferScopes,projectScopes,qualityScopes,learningScopes,assetScopes,landedCostScopes,talentScopes,manufacturingScopes,legalScopes,crmScopes,marketingScopes,workforceScopes,benefitScopes,serviceScopes,portalScopes,workTaskScopes,ecommerceScopes,messagingScopes); try { const results = await db.batch([...(boundary?.before ?? []), ...effects, ...(boundary?.after ?? [])]); boundary?.observe?.(results); return results; } catch (error) { throw messagingAttachmentFailure(error) ?? ecommerceAttachmentFailure(error) ?? workTaskAttachmentFailure(error) ?? portalAttachmentFailure(error) ?? serviceAttachmentFailure(error) ?? benefitAttachmentFailure(error) ?? workforceAttachmentFailure(error) ?? crmAttachmentFailure(error) ?? marketingAttachmentFailure(error) ?? legalAttachmentFailure(error) ?? manufacturingAttachmentFailure(error) ?? talentAttachmentFailure(error) ?? landedCostAttachmentFailure(error) ?? assetAttachmentFailure(error) ?? learningAttachmentFailure(error) ?? qualityAttachmentFailure(error) ?? projectAttachmentFailure(error) ?? transferAttachmentFailure(error) ?? procurementAttachmentFailure(error) ?? countAttachmentFailure(error) ?? commerceAttachmentFailure(error) ?? purchaseCommandFailure(error) ?? error; } },
+        authorizeTarget: async (...args) => { const {authorizeAttachmentTarget}=await import("./policy"); const scope = await authorizeAttachmentTarget(db, ...args); if (args[3] !== "read") { const purchase = supportAttachmentPurchaseScope(args[0], args[1].targetType); if (purchase) purchaseScopes.push(purchase); const hospitality = hospitalityAttachmentPurchaseScope(args[0], args[1]); if (hospitality) hospitalityScopes.push(hospitality); financeScopes.push(...await financeAttachmentPurchaseScopes(db,args[0],args[1].targetType,args[2]));const order=await commerceAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(order)commerceScopes.push(order);const payroll=await payrollAttachmentPurchaseScope(db,args[0],args[1].targetType,args[2]);if(payroll)payrollScopes.push(payroll);const count=await countAttachmentPurchaseScope(db,args[0],args[1].targetType,args[2]);if(count)countScopes.push(count);const rfq=await procurementAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(rfq)procurementScopes.push(rfq);const person=await peopleAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(person)peopleScopes.push(person);const transfer=await transferAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(transfer)transferScopes.push(transfer);const project=await projectAttachmentPurchaseScope(db,args[0],args[1].targetType,args[2]);if(project)projectScopes.push(project);const quality=await qualityAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(quality)qualityScopes.push(quality);const learning=await learningAttachmentPurchaseScope(db,args[0],args[1].targetType,args[2]);if(learning)learningScopes.push(learning);const asset=await assetAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(asset)assetScopes.push(asset);const landed=await landedCostAttachmentPurchaseScope(db,args[0],args[1].targetType,args[2]);if(landed)landedCostScopes.push(landed);const talent=await talentAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(talent)talentScopes.push(talent);const production=await manufacturingAttachmentPurchaseScope(db,args[0],args[1].targetType,args[2]);if(production)manufacturingScopes.push(production);const legal=await legalAttachmentPurchaseScope(db,args[0],args[1].targetType,args[2]);if(legal)legalScopes.push(legal);const crm=await crmAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(crm)crmScopes.push(crm);const marketing=await marketingAttachmentPurchaseScope(db,args[0],args[1],args[2],args[3]);if(marketing)marketingScopes.push(marketing);const workforce=await workforceAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(workforce)workforceScopes.push(workforce);const benefit=await benefitAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(benefit)benefitScopes.push(benefit);const service=await serviceAttachmentPurchaseScope(db,args[0],args[1],args[2]);if(service)serviceScopes.push(service);const portal=await portalAttachmentPurchaseScope(db,args[0],args[1],args[2],args[3]);if(portal)portalScopes.push(portal);const workTask=await workTaskAttachmentPurchaseScope(db,args[0],args[1].targetType,args[2],args[3]);if(workTask)workTaskScopes.push(workTask);const ecommerce=await ecommerceAttachmentPurchaseScope(db,args[0],args[1],args[2],args[3]);if(ecommerce)ecommerceScopes.push(ecommerce);const messaging=await messagingAttachmentPurchaseScope(db,args[0],args[1].targetType,args[2],args[3]);if(messaging)messagingScopes.push(messaging); } return scope; },
         supportEvidenceGuard: async (...args) => await (await import("../../../support/public/support-evidence")).supportEvidenceGuard(db, ...args),
         replayCommand: (...args) => replayCommand(db, ...args),
-        executeCommand: (...args) => executeCommand(db, ...args) };
+        executeCommand: async (...args) => { const boundary = await attachmentPurchaseBoundary(db,purchaseScopes,hospitalityScopes,financeScopes,commerceScopes,payrollScopes,countScopes,procurementScopes,peopleScopes,transferScopes,projectScopes,qualityScopes,learningScopes,assetScopes,landedCostScopes,talentScopes,manufacturingScopes,legalScopes,crmScopes,marketingScopes,workforceScopes,benefitScopes,serviceScopes,portalScopes,workTaskScopes,ecommerceScopes,messagingScopes); try { return await executeCommand(db, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], boundary); } catch (error) { throw messagingAttachmentFailure(error) ?? ecommerceAttachmentFailure(error) ?? workTaskAttachmentFailure(error) ?? portalAttachmentFailure(error) ?? serviceAttachmentFailure(error) ?? benefitAttachmentFailure(error) ?? workforceAttachmentFailure(error) ?? crmAttachmentFailure(error) ?? marketingAttachmentFailure(error) ?? legalAttachmentFailure(error) ?? manufacturingAttachmentFailure(error) ?? talentAttachmentFailure(error) ?? landedCostAttachmentFailure(error) ?? assetAttachmentFailure(error) ?? learningAttachmentFailure(error) ?? qualityAttachmentFailure(error) ?? projectAttachmentFailure(error) ?? transferAttachmentFailure(error) ?? procurementAttachmentFailure(error) ?? countAttachmentFailure(error) ?? commerceAttachmentFailure(error) ?? purchaseCommandFailure(error) ?? error; } } };
+    expenseScopesByUnit.set(context, payrollScopes);
     nativeDatabases.set(context, db);
     return context;
 }
@@ -240,9 +333,113 @@ export function reserveAttachmentFile(db: SqlDatabase, actor: WorkContext, setId
     supersedesLinkId?: string;
 }, idempotencyKey: string, options: AttachmentServiceOptions = {}) { return service.reserveAttachmentFile(unit(db), actor, setId, input, idempotencyKey, options); }
 export function completeAttachmentUpload(db: SqlDatabase, files: FileStore, actor: WorkContext, uploadIntentId: string, buffer: ArrayBuffer, options: AttachmentServiceOptions = {}) { return service.completeAttachmentUpload(unit(db), byteStore(files), actor, uploadIntentId, buffer, options); }
+type PortalAttachmentMetadataCommand =
+    | {kind:'create';input:{targetType:'customer_access_binding';targetId:string;componentKind:'action';componentRef?:string;purposeKey:'customer_support_evidence';expectedTargetVersion:number};key:string}
+    | {kind:'reserve';setId:string;input:{filename:string;mediaType:string;bytes:number;caption?:string};key:string}
+    | {kind:'withdraw';linkId:string;reason:string;key:string};
+type PortalAttachmentMetadataRead =
+    | {kind:'sets';input:{targetType:'customer_access_binding';targetId:string;purposeKey:'customer_support_evidence';componentKind:'action';expectedTargetVersion?:number}}
+    | {kind:'status';linkId:string};
+/** Closed Portal metadata reads keep their original read policies and DTOs.
+ * The final request assertion belongs to this fresh native Holding unit. */
+export async function portalAttachmentMetadataReadForRequest(db:SqlDatabase,actor:WorkContext,read:PortalAttachmentMetadataRead,request:Pick<AttachmentRequestBoundary,'sourceLocks'|'assertCurrent'>){
+    if(!isTransactionalSqlDatabase(db))throw new ApiError(503,'ATTACHMENT_REQUEST_TRANSACTION_REQUIRED','A file request requires its complete fresh native transaction.');
+    return db.transaction(async tx=>{
+        await tx.batch([...request.sourceLocks(tx),attachmentPrivateReadSourceLocks(tx)]);
+        await request.assertCurrent(tx);
+        const result=read.kind==='sets'?await service.listAttachmentSets(unit(tx),actor,read.input):await service.attachmentLinkStatus(unit(tx),actor,read.linkId);
+        await flushFinanceDeferredEffects(tx);await request.assertCurrent(tx);
+        return result;
+    });
+}
+/** The three existing Portal staging commands retain their original receipts
+ * and transaction; the status returned after withdrawal is read before commit. */
+export async function portalAttachmentCommandForRequest(db:SqlDatabase,actor:WorkContext,command:PortalAttachmentMetadataCommand,request:Pick<AttachmentRequestBoundary,'sourceLocks'|'assertCurrent'>){
+    if(!isTransactionalSqlDatabase(db))throw new ApiError(503,'ATTACHMENT_REQUEST_TRANSACTION_REQUIRED','A file request requires its complete fresh native transaction.');
+    let status:Awaited<ReturnType<typeof service.attachmentLinkStatus>>|undefined;
+    const boundary:AttachmentRequestBoundary={...request,entered:false,...(command.kind==='withdraw'?{projectResult:async(database:SqlDatabase)=>{status=await service.attachmentLinkStatus(unit(database),actor,command.linkId);}}:{})};
+    const context=unit(db, [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], boundary);
+    if(command.kind==='create')return service.createAttachmentSet(context,actor,command.input,command.key);
+    if(command.kind==='reserve')return service.reserveAttachmentFile(context,actor,command.setId,command.input,command.key);
+    await service.withdrawAttachmentLink(context,actor,command.linkId,command.reason,command.key);
+    if(!status)throw new Error('PORTAL_WITHDRAWAL_RESULT_REQUIRED');
+    return status;
+}
+/** A request's final assertion runs in the original metadata transaction,
+ * so the application's existing object compensation still catches failure.
+ * There is no authority token or fallible check after a write has committed. */
+export async function completeAttachmentUploadForRequest(db: SqlDatabase, files: FileStore, actor: WorkContext, uploadIntentId: string, buffer: ArrayBuffer, request: Pick<AttachmentRequestBoundary, 'sourceLocks' | 'assertCurrent'>) {
+    if (!isTransactionalSqlDatabase(db)) throw new ApiError(503, 'ATTACHMENT_REQUEST_TRANSACTION_REQUIRED', 'A request upload requires its complete fresh native transaction.');
+    const boundary: AttachmentRequestBoundary = { ...request, entered: false };
+    const context = unit(db, [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], boundary);
+    const result = await service.completeAttachmentUpload(context, byteStore(files), actor, uploadIntentId, buffer);
+    // The original identical uploaded-byte replay bypasses atomic. Repeat its
+    // exact original reader under fresh source leases; require the persisted
+    // completed status before re-entering it, so this unit cannot start a new
+    // object write or a metadata command outside the application's catch.
+    if (!boundary.entered) return db.transaction(async tx => {
+        await tx.batch([...boundary.sourceLocks(tx), attachmentPrivateReadSourceLocks(tx)]);
+        await boundary.assertCurrent(tx);
+        const intent = await repository(tx).readUploadIntents28({uploadIntentId,userId:actor.userId,companyId:actor.companyId});
+        if (!intent || !['uploaded','ready'].includes(String(intent.status))) throw new ApiError(409,'UPLOAD_CONFLICT','The completed upload changed. Reload before retrying.');
+        const replay = await service.completeAttachmentUpload(unit(tx), byteStore(files), actor, uploadIntentId, buffer);
+        await flushFinanceDeferredEffects(tx); await boundary.assertCurrent(tx);
+        return replay;
+    });
+    return result;
+}
 export function attachmentLinkStatus(db: SqlDatabase, actor: WorkContext, linkId: string) { return service.attachmentLinkStatus(unit(db), actor, linkId); }
-export function attachmentContent(db: SqlDatabase, files: FileStore, actor: WorkContext, linkId: string, variant: "original" | "preview", options: AttachmentServiceOptions = {}) { return service.attachmentContent(unit(db), byteStore(files), actor, linkId, variant, options); }
-export function withdrawAttachmentLink(db: SqlDatabase, actor: WorkContext, linkId: string, reason: string, idempotencyKey: string) { return service.withdrawAttachmentLink(unit(db), actor, linkId, reason, idempotencyKey); }
+export async function portalAttachmentContentForRequest(db: SqlDatabase, files: FileStore, actor: WorkContext, linkId: string, assertRequestAuthority: () => Promise<void>) {
+    const selected = await attachmentReadRoute(db, actor.companyId, linkId);
+    if (selected?.targetType !== 'customer_access_binding') throw new ApiError(404, 'ATTACHMENT_LINK_NOT_FOUND', 'File link not found.');
+    const authorize = async (tx: SqlDatabase, source: Pick<AttachmentReadRoute, 'targetType' | 'targetId' | 'purposeKey' | 'componentKind'>) => {
+        const policy = await import('./policy');
+        return policy.authorizeAttachmentTarget(tx, actor, policy.attachmentPolicy(source.targetType, source.purposeKey, source.componentKind), source.targetId, 'read');
+    };
+    return withPortalAttachmentContentRead(db, actor, linkId, selected, tx => service.attachmentContent(unit(tx), byteStore(files), actor, linkId, 'preview'), authorize, assertRequestAuthority);
+}
+export async function attachmentContent(db: SqlDatabase, files: FileStore, actor: WorkContext, linkId: string, variant: "original" | "preview", options: AttachmentServiceOptions = {}) {
+    const selected=await attachmentReadRoute(db,actor.companyId,linkId),read=(tx:SqlDatabase)=>service.attachmentContent(unit(tx),byteStore(files),actor,linkId,variant,options);
+    const authorize=async(tx:SqlDatabase,source:Pick<AttachmentReadRoute,'targetType'|'targetId'|'purposeKey'|'componentKind'>)=>{const policy=await import('./policy');return policy.authorizeAttachmentTarget(tx,actor,policy.attachmentPolicy(source.targetType,source.purposeKey,source.componentKind),source.targetId,'read');};
+    if(selected?.targetType==='staff_task')return withWorkTaskAttachmentContentRead(db,actor,linkId,selected,read,async(tx,source)=>authorize(tx,{...source,targetType:'staff_task'}));
+    if(selected?.targetType==='customer_access_binding')return withPortalAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected?.targetType==='ecommerce_listing')return withEcommerceAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected?.targetType==='finance_tax_identity')return withFinanceTaxSignatureAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected?.targetType==='messaging_room')return withMessagingAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected?.targetType==='legal_item')return withLegalCanonicalAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&hasLegalEvidenceAttachmentReadParent(db))return withLegalEvidenceAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isSocialAttachmentReadTarget(selected.targetType))return withSocialAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isEmployeeEvidenceAttachmentType(selected.targetType))return withEmployeeEvidenceAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected?.targetType==='supplier_bill')return withSupplierBillAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isFinanceAttachmentReadTarget(selected.targetType))return withFinanceAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isHospitalityAttachmentReadTarget(selected.targetType))return withHospitalityAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected?.targetType==='support_incident')return withSupportIncidentAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected?.targetType==='support_ticket')return withSupportAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected?.targetType==='field_service_visit')return withServiceAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isPeopleAttachmentReadTarget(selected.targetType))return withPeopleAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isProjectAttachmentReadTarget(selected.targetType))return withProjectAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isLearningAttachmentReadTarget(selected.targetType))return withLearningAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isCRMAttachmentReadTarget(selected.targetType))return withCRMAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isMarketingAttachmentReadTarget(selected.targetType))return withMarketingAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isAssetAttachmentReadTarget(selected.targetType))return withAssetAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isInventoryAttachmentReadTarget(selected.targetType))return withInventoryAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isManufacturingAttachmentReadTarget(selected.targetType))return withManufacturingAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isCommerceAttachmentReadTarget(selected.targetType))return withCommerceAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isProcurementAttachmentReadTarget(selected.targetType))return withProcurementAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isBenefitAttachmentReadTarget(selected.targetType))return withBenefitAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isQualityAttachmentReadTarget(selected.targetType))return withQualityAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isTalentAttachmentReadTarget(selected.targetType))return withTalentAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isBrandAttachmentReadTarget(selected.targetType))return withBrandAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isOrganizationAttachmentReadTarget(selected.targetType))return withOrganizationAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isIamAttachmentReadTarget(selected.targetType))return withIamAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isCompanyReleaseAttachmentReadTarget(selected.targetType))return withCompanyReleaseAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    if(selected&&isCompanyProvisioningAttachmentReadTarget(selected.targetType))return withCompanyProvisioningAttachmentContentRead(db,actor,linkId,selected,read,authorize);
+    // Other canonical owners still compose with their original Holding unit.
+    // Their complete parent boundary must finish before a shared read unit can
+    // flush deferred Finance or Legal effects.
+    return read(db);
+}
+export function withdrawAttachmentLink(db: SqlDatabase, actor: WorkContext, linkId: string, reason: string, idempotencyKey: string,options?:{compatibilityAdapter?:boolean}) { return options?service.withdrawAttachmentLink(unit(db), actor, linkId, reason, idempotencyKey,options):service.withdrawAttachmentLink(unit(db), actor, linkId, reason, idempotencyKey); }
 export function attestAttachmentSetSanitized(db: SqlDatabase, actor: WorkContext, setId: string, input: {
     confirmed: boolean;
     note: string;
@@ -259,7 +456,7 @@ export function prepareAttachmentBinding(db: SqlDatabase, actor: WorkContext, in
     commandId: string;
     bindingId: string;
 }, options: AttachmentServiceOptions = {}) { return service.prepareAttachmentBinding(unit(db), actor, input, options); }
-export function attachmentRecordVersionStep(db: SqlDatabase, targetType: string, targetId: string, expectedVersion: number, now = Date.now()) { return service.attachmentRecordVersionStep(unit(db), targetType, targetId, expectedVersion, now); }
+export function attachmentRecordVersionStep(db: SqlDatabase, targetType: string, targetId: string, expectedVersion: number, now = Date.now(), context?: {actor:WorkContext;commandId:string}) { return service.attachmentRecordVersionStep(unit(db), targetType, targetId, expectedVersion, now, context); }
 export function bindRecordAttachmentSet(db: SqlDatabase, actor: WorkContext, setId: string, expectedTargetVersion: number, commandId: string, options: AttachmentServiceOptions = {}) { return service.bindRecordAttachmentSet(unit(db), actor, setId, expectedTargetVersion, commandId, options); }
 export function bindCompatibilityAttachmentSet(db: SqlDatabase, actor: WorkContext, setId: string, expectedTargetVersion: number, commandId: string, options: AttachmentServiceOptions = {}) { return service.bindCompatibilityAttachmentSet(unit(db), actor, setId, expectedTargetVersion, commandId, options); }
 export function createAttachmentPublication(db: SqlDatabase, files: FileStore, actor: WorkContext, input: {
@@ -281,7 +478,7 @@ export function reorderAttachmentPublications(db: SqlDatabase, actor: WorkContex
     }>;
 }, idempotencyKey: string) { return service.reorderAttachmentPublications(unit(db), actor, input, idempotencyKey); }
 export function approveAttachmentPublication(db: SqlDatabase, actor: WorkContext, id: string, idempotencyKey: string) { return service.approveAttachmentPublication(unit(db), actor, id, idempotencyKey); }
-export function publicAttachmentPublication(db: SqlDatabase, files: FileStore, id: string) { return service.publicAttachmentPublication(unit(db), byteStore(files), id); }
+export function publicAttachmentPublication(db: SqlDatabase, files: FileStore, id: string) { return withPublicationContentRead(db,id,database=>service.publicAttachmentPublication(unit(database),byteStore(files),id)); }
 export function drainAttachmentScans(db: SqlDatabase, files: FileStore, attachmentId?: string, options: {
     offlineMigration?: boolean;
 } = {}) { return service.drainAttachmentScans(unit(db), byteStore(files), attachmentId, options); }

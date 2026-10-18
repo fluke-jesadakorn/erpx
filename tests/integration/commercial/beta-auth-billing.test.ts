@@ -279,7 +279,7 @@ it("disables legacy checkout and returns portal customers to Usage & billing", a
     await expect(billingLink(configuration, holding, "acme", "owner@example.test", "checkout")).rejects.toMatchObject({code:"LEGACY_CHECKOUT_DISABLED"});
     await billingLink(configuration, holding, "acme", "owner@example.test", "portal");
     const portal = new URLSearchParams(String(fetch.mock.calls[0][1]?.body));
-    const expected = "https://erpx.example.test/holdings/acme/settings?section=usage";
+    const expected = "https://erpx.example.test/holdings/acme/administration/usage";
     expect(portal.get("return_url")).toBe(expected);
   } finally {
     fetch.mockRestore();

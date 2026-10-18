@@ -6,6 +6,7 @@ type Actor = Pick<WorkContext, "userId" | "assignmentId" | "role" | "companyId" 
 
 /** The Expense owner resolves its payment identity; the caller owns the commit. */
 export async function expensePaymentCommandFlow(db: SqlDatabase, actor: Actor, command: string, operation: string, recordId: string, input: unknown, version: number) {
+  if(operation === "expense.payment.cancel")return null;
   const expenseId = operation === "expense.payment.prepare" ? recordId : (await db.prepare("SELECT expense_id FROM expense_payment_drafts WHERE id=? AND company_id=?").bind(recordId, actor.companyId).first<{ expense_id: string }>())?.expense_id;
   return expenseId ? prepareFlowCommand(db, actor, command, "expense", expenseId, "payment", input, version) : null;
 }

@@ -10,7 +10,7 @@ export interface StaffTaskAlertsRepository {
             approver_user_id: string;
         })[];
     }>;
-    stageEscalateStaffTasksResult(value: string, company_id: string, userId: string, value2: "staff_task_alert", id: string, version: number, message: string, now: number, value3: string[]): Promise<{
+    stageEscalateStaffTasksResult(value: string, company_id: string, userId: string, value2: "staff_task_alert", id: string, version: number, message: string, now: number, value3: string[],source?:TaskAlertRow): Promise<{
         success: boolean;
         meta: {
             changes: number;
@@ -54,7 +54,7 @@ export function createStaffTaskAlertsApplication<Effect>(ports: StaffTaskAlertsP
                 recipients.add(approver.approver_user_id);
             recipients.delete("");
             for (const userId of recipients) {
-                const result = await r.stageEscalateStaffTasksResult(`staff-task-alert-${phase}-${task.id}-${task.version}-${userId}`, task.company_id, userId, "staff_task_alert", task.id, task.version, message, now, (ports.production ? [task.company_id] : []));
+                const result = await r.stageEscalateStaffTasksResult(`staff-task-alert-${phase}-${task.id}-${task.version}-${userId}`, task.company_id, userId, "staff_task_alert", task.id, task.version, message, now, (ports.production ? [task.company_id] : []),task);
                 if (Number(result.meta.changes) > 0) {
                     if (isOverdue)
                         overdue += 1;

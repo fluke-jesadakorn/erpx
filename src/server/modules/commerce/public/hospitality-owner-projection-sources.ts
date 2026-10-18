@@ -1,1 +1,1 @@
-export { hospitalityOwnerProjectionSources } from "../adapters/hospitality-owner-projection-sources";
+export { hospitalityOwnerProjectionSources,hospitalitySettlementReferenceReadLocks } from "../adapters/hospitality-owner-projection-sources";

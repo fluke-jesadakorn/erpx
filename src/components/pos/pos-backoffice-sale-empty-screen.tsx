@@ -1,8 +1,9 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import styles from "./pos.module.css";
 import { FrontLocalizedTree } from "@/components/front/front-language";
-import type {BackofficePosConsoleContext} from "./pos-backoffice-console";
+import type {BackofficePosConsoleContext} from "./standard-pos-backoffice-console";
 
 export function BackofficePosConsoleSaleEmptyScreen({context}: {context: BackofficePosConsoleContext}) {
   const {erpBase} = context;
@@ -19,7 +20,7 @@ export function BackofficePosConsoleSaleEmptyScreen({context}: {context: Backoff
                     <UiActionLink
                       variant="primary"
                       className={styles.button}
-                      href={`${erpBase}/commerce`}
+                      href={canonicalUiHref(`${erpBase}/commerce`)}
                     >
                       Open Commerce products
                     </UiActionLink>

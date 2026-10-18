@@ -1,13 +1,14 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import type { ClearanceKind } from "@/lib/people_payroll/retirement";
 import type { clearanceCase } from "@/server/modules/people_payroll/public/retirement-clearance";
 import { StatusBadge } from "@/components/ui/primitives";
@@ -219,7 +220,7 @@ export function ClearanceWorkspace({
                 <p className="muted">
                   Final-pay preview prepared:{" "}
                   <Link
-                    href={`${base}/people/payroll/runs/${encodeURIComponent(task.finalPay.run_id)}`}
+                    href={canonicalUiHref(`${base}/people/payroll/runs/${encodeURIComponent(task.finalPay.run_id)}`)}
                   >
                     {String(task.finalPay.run_id)}
                   </Link>{" "}

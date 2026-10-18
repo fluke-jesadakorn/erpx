@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RecordLink } from "@/components/records/record-link";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/foundation";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { StatusBadge } from "@/components/ui/primitives";
 import { Card, FormLayout } from "@/components/ui/foundation";
@@ -75,7 +76,7 @@ export function InventoryReorderConsole({
     setError("");
     try {
       const response = await workFetch(
-        `${base.replace("/holdings/", "/api/v1/holdings/")}/commerce/reorder-policies${path ? `/${path}` : ""}`,
+        `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/commerce/reorder-policies${path ? `/${path}` : ""}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
@@ -219,7 +220,7 @@ export function InventoryReorderConsole({
               return (
                 <tr key={policy.id}>
                   <td>
-                    <RecordLink href={`${base}/record-details/reorder_policy/${encodeURIComponent(policy.id)}`}>{policy.sku} · {policy.product_name}</RecordLink>
+                    <RecordLink href={canonicalUiHref(`${base}/record-details/reorder_policy/${encodeURIComponent(policy.id)}`)}>{policy.sku} · {policy.product_name}</RecordLink>
                   </td>
                   <td>{policy.warehouse_name}</td>
                   <td>

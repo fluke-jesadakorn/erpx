@@ -13,9 +13,11 @@ import { createPeopleRosterApplication, type PeopleRosterPorts } from '../applic
 import { rosterOrganizationFacts } from '../../organization/public/people-roster-facts';
 import { rosterNotifications } from '../../collaboration/public/people-roster-facts';
 import { rosterIdentityFacts } from '../../identity_access/public/people-roster-facts';
+import { rosterCommandSchema, type RosterCommand } from '../domain/roster';
+import { rosterPurchasedAccess, rosterPurchasePurpose, withRosterCoveragePurchasedTransaction, withRosterPurchasedTransaction } from './roster-purchases';
 const pending = "('pending_coworker','pending_manager')";
 const shiftSelect = "SELECT s.*,w.company_id,w.branch_id,w.department_id,w.week_start,w.timezone,w.state week_state FROM people_roster_shifts s JOIN people_roster_weeks w ON w.id=s.week_id";
-function context(database: SqlDatabase): PeopleRosterPorts<SqlStatement> {
+function context(database: SqlDatabase, purchase?: {actor: WorkContext; input: RosterCommand; key: string}, coverage?: (companyId: string) => Promise<boolean>): PeopleRosterPorts<SqlStatement> {
     return { repository: { readDepartments(...args) { return rosterOrganizationFacts(database).readDepartments(...args); },
             readWeek(fact0: string, fact1: string) { return database.prepare("SELECT * FROM people_roster_weeks WHERE id=? AND company_id=?").bind(fact0, fact1).first<RosterWeek>(); },
             readShift(fact0: string, fact1: string) { return database.prepare(`${shiftSelect} WHERE s.id=? AND w.company_id=?`).bind(fact0, fact1).first<ShiftWithWeek>(); },
@@ -32,7 +34,13 @@ function context(database: SqlDatabase): PeopleRosterPorts<SqlStatement> {
                 }>();
             },
             readRosterGaps(...args) { return rosterOrganizationFacts(database).readRosterGaps(...args); },
-            readEscalateRosterCoverage(...args) { return rosterOrganizationFacts(database).readEscalateRosterCoverage(...args); },
+            async readEscalateRosterCoverage(...args) {
+                const departments = await rosterOrganizationFacts(database).readEscalateRosterCoverage(...args);
+                if (!coverage) return departments;
+                const permitted = [];
+                for (const department of departments) if (await coverage(department.company_id)) permitted.push(department);
+                return permitted;
+            },
             applyEscalateRosterCoverage(...args) { return rosterNotifications(database).applyEscalateRosterCoverage(...args); },
             readAssignmentIssues(fact0: number, fact1: string, fact2: number, fact3: string) {
                 return database.prepare("SELECT to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE ?,'YYYY-MM-DD') first_day,to_char(to_timestamp((?::bigint-1)/1000.0) AT TIME ZONE ?,'YYYY-MM-DD') last_day").bind(fact0, fact1, fact2, fact3).first<{
@@ -135,7 +143,8 @@ function context(database: SqlDatabase): PeopleRosterPorts<SqlStatement> {
             } }, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, today: () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()), commands: { replay: (...args) => replayCommand(database, ...args), commit: (...args) => executeCommand(database, ...args) }, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), rosterStaffPeople: (...args) => rosterStaffPeople(database, ...args), transaction: run => {
             if (!isTransactionalSqlDatabase(database))
                 throw new Error('ROSTER_TRANSACTION_REQUIRED');
-            return database.transaction(tx => run(context(tx)));
+            return purchase ? withRosterPurchasedTransaction(database, purchase.actor, {key: purchase.key, operation: `roster.${purchase.input.action}`, purpose: rosterPurchasePurpose(purchase.input)}, tx => run(context(tx)))
+                : database.transaction(tx => run(context(tx)));
         } };
 }
 async function fromNative<Result>(run: () => Promise<Result>) {
@@ -158,7 +167,9 @@ async function invoke<Result>(run: () => Promise<Result>) {
         throw error;
     }
 }
-export async function escalateRosterCoverage(db: SqlDatabase, today = rosterMonday()) { return invoke(() => createPeopleRosterApplication(context(db)).escalateRosterCoverage(today)); }
+export async function escalateRosterCoverage(db: SqlDatabase, today = rosterMonday()) {
+    return withRosterCoveragePurchasedTransaction(db, (transaction, permitsCompany) => invoke(() => createPeopleRosterApplication(context(transaction, undefined, permitsCompany)).escalateRosterCoverage(today)));
+}
 export async function rescheduleRosterShift(db: SqlDatabase, actor: WorkContext, input: {
     id: string;
     expectedVersion: number;
@@ -167,9 +178,23 @@ export async function rescheduleRosterShift(db: SqlDatabase, actor: WorkContext,
     endTime: string;
     reason: string;
 }) { return invoke(() => createPeopleRosterApplication(context(db)).rescheduleRosterShift(actor, input)); }
-export async function rosterCommand(database: PostgresDatabase, actor: WorkContext, raw: unknown, key: string) { return invoke(() => createPeopleRosterApplication(context(database)).rosterCommand(actor, raw, key)); }
+export async function rosterCommand(database: PostgresDatabase, actor: WorkContext, raw: unknown, key: string) {
+    const parsed = rosterCommandSchema.safeParse(raw);
+    return invoke(() => createPeopleRosterApplication(context(database, parsed.success ? {actor, input: parsed.data, key} : undefined)).rosterCommand(actor, raw, key));
+}
 export async function rosterData(db: SqlDatabase, actor: WorkContext, query: {
     department?: string;
     week?: string;
-} = {}) { return invoke(() => createPeopleRosterApplication(context(db)).rosterData(actor, query)); }
-export async function rosterNotificationLink(db: SqlDatabase, actor: WorkContext, type: string, id: string) { return invoke(() => createPeopleRosterApplication(context(db)).rosterNotificationLink(actor, type, id)); }
+} = {}) {
+    const purchase = await rosterPurchasedAccess(db, actor);
+    const data = await invoke(() => createPeopleRosterApplication(context(db)).rosterData(actor, query));
+    if (purchase) {
+        data.purchase = purchase;
+        if (!purchase.settleExisting) for (const request of data.requests) request.permittedActions = [];
+    }
+    return data;
+}
+export async function rosterNotificationLink(db: SqlDatabase, actor: WorkContext, type: string, id: string) {
+    await rosterPurchasedAccess(db, actor);
+    return invoke(() => createPeopleRosterApplication(context(db)).rosterNotificationLink(actor, type, id));
+}

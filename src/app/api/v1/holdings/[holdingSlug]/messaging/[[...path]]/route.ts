@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
@@ -21,7 +22,7 @@ import {
   sendMessagingMessage,
   teamSchema,
 } from "@/server/modules/collaboration/public/messaging";
-import { uploadMessagingFile } from "@/server/modules/collaboration/public/messaging-files";
+import { uploadMessagingFile,discardMessagingFile } from "@/server/modules/collaboration/public/messaging-files";
 import { attachmentContent } from "@/server/modules/files/public/attachments/service";
 
 export const dynamic = "force-dynamic";
@@ -130,7 +131,8 @@ async function handle(request: Request, context: Context) {
     } else if (request.method === "POST") {
       const input = await request.json(),
         key = request.headers.get("idempotency-key") ?? "";
-      if (p[0] === "rooms" && p.length === 1)
+      if(p[0]==='files'&&p[2]==='discard'&&p.length===3)data=await discardMessagingFile(db,actor,p[1],z.object({reason:z.string().trim().min(3).max(1000)}).parse(input),key);
+      else if (p[0] === "rooms" && p.length === 1)
         data = await createMessagingRoom(
           db,
           actor,
@@ -180,7 +182,7 @@ async function handle(request: Request, context: Context) {
         throw new ApiError(404, "NOT_FOUND", "Messaging endpoint not found.");
     } else throw new ApiError(405, "METHOD_NOT_ALLOWED", "Method not allowed.");
     return Response.json(
-      { data },
+      canonicalDestinationLinks({ data }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {

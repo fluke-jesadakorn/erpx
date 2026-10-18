@@ -75,6 +75,8 @@ export function createChangeSupportTicket(ports: SupportCommandPorts & {
             return prior;
         }
         const r = await ports.ticket(a, id), now = ports.now();
+        if (r.source_kind === 'field_service')
+            throw ports.error(409, 'SOURCE_WORKSPACE_REQUIRED', 'Continue this case in Field Service.');
         if (reporting) {
             if (r.source_kind === 'sales_order' || r.created_by !== a.userId)
                 throw ports.error(403, 'SUPPORT_REPORTER_REQUIRED', 'Only the original reporter can change their report.');

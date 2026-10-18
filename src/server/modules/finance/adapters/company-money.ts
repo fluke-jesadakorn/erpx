@@ -1,3 +1,4 @@
+import { withFinanceConfigurationCommand } from "./purchase-boundary";
 import { createCompanyMoney } from '../application/company-money';
 import type { CarrySource, SnapshotSource, SnapshotInput } from '../domain/company-money';
 import "server-only";
@@ -30,8 +31,10 @@ export async function companyRates(db: SqlDatabase, companyId: string): Promise<
 export async function quoteMoneyConversion(actor: WorkContext, input: z.infer<typeof conversionSchema>) { return moneyService().quoteMoneyConversion(actor, input); }
 export async function moneyContext(actor: WorkContext) { return moneyService().moneyContext(actor); }
 export async function saveCurrencyPreference(actor: WorkContext, input: z.infer<typeof preferenceSchema>, key: string) { return moneyService().saveCurrencyPreference(actor, input, key); }
-export async function confirmManualRate(actor: WorkContext, input: z.infer<typeof manualRateSchema>, key: string) { return moneyService().confirmManualRate(actor, input, key); }
-export async function configureCurrencyScale(actor: WorkContext, input: z.infer<typeof currencyScaleSchema>, key: string) { return moneyService().configureCurrencyScale(actor, input, key); }
+export async function confirmManualRate(actor: WorkContext, input: z.infer<typeof manualRateSchema>, key: string) { return withFinanceConfigurationCommand(actor,{key,operation:"money.rate.confirm",purpose:"new-work"},tx=>moneyService(tx).confirmManualRate(actor,input,key)); }
+
+
+export async function configureCurrencyScale(actor: WorkContext, input: z.infer<typeof currencyScaleSchema>, key: string) { return withFinanceConfigurationCommand(actor,{key,operation:"money.scale.configure",purpose:"new-work"},tx=>moneyService(tx).configureCurrencyScale(actor,input,key)); }
 export async function snapshotMoney(db: SqlDatabase, actor: Pick<WorkContext, "companyId">, input: {
     sourceType: string;
     sourceId: string;
@@ -115,7 +118,13 @@ export async function snapshotMoneyReversal(db: SqlDatabase, actor: Pick<WorkCon
             .bind(actor.companyId, input.sourceType, input.sourceId, input.amountKind, input.transactionDate, plan.currency, plan.currencyScale, plan.amountUnits, "0", plan.rateId, plan.usedLatestFallback, plan.capturedAt, input.original.sourceType, input.original.sourceId, input.original.amountKind),
     };
 }
-function moneyService(provided?: SqlDatabase) {
+/** Finance-internal port for an already-owned posting setup transaction.
+ * The original command service retains its authority, input and native receipt.
+ * Keep this private to Finance adapters; public setup ports own all boundaries. */
+export function confirmPostingRateInTransaction(database:SqlDatabase,actor:WorkContext,input:z.infer<typeof manualRateSchema>,key:string,boundRequest:unknown){
+    return moneyService(database,boundRequest).confirmManualRate(actor,input,key);
+}
+function moneyService(provided?: SqlDatabase,boundRequest?:unknown) {
     let pending: Promise<SqlDatabase> | undefined = provided ? Promise.resolve(provided) : undefined;
     const db = (actor: Pick<WorkContext, 'companyId'> & Partial<Pick<WorkContext, 'holdingId'>>) => pending ??= holdingResources(actor.holdingId!).then(r => r.write);
     return createCompanyMoney({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, now: Date.now, id: () => crypto.randomUUID(), rates: async (companyId) => companyRates(await pending!, companyId), scales: async (companyId, currencies) => currencies ? (await (await pending!).prepare(`SELECT currency,scale FROM company_currency_scales WHERE company_id=? AND currency IN (${currencies.map(() => '?').join(',')})`).bind(companyId, ...currencies).all<{
@@ -137,7 +146,7 @@ function moneyService(provided?: SqlDatabase) {
                     .bind(actor.companyId, actor.userId, input.currency, now)]);
         }, commitRate: async ({ actor, input, key, id, now }) => {
             const write = await db(actor);
-            return executeCommand(write, actor, key, "money.rate.confirm", input, id, 1, { id, currency: input.currency, effectiveDate: input.effectiveDate, currencyPerUsd: input.currencyPerUsd, confirmedAt: now }, [
+            return executeCommand(write, actor, key, "money.rate.confirm", boundRequest??input, id, 1, { id, currency: input.currency, effectiveDate: input.effectiveDate, currencyPerUsd: input.currencyPerUsd, confirmedAt: now }, [
                 write.prepare("INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)")
                     .bind(id, actor.companyId, input.currency, input.effectiveDate, input.currencyPerUsd, actor.userId, now, input.note),
             ]);
@@ -147,3 +156,15 @@ function moneyService(provided?: SqlDatabase) {
                     .bind(actor.companyId, input.currency, input.scale, actor.userId, now)]);
         } });
 }
+
+
+
+
+
+
+
+
+
+
+
+

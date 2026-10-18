@@ -8,11 +8,11 @@ export type FieldServiceMutation<Consumption, Billing> = Command & (
   | { action: "order"; input: OrderAction; order: OrderFacts; transition: OrderTransition; consumption: Consumption | null; billing: Billing | null }
 );
 export interface FieldServicePorts<Consumption, Billing, Spares> {
-  actorId: string; canRead: boolean; canReview: boolean; clock: Clock;
+  actorId: string; actorUserIds?: readonly string[]; canRead: boolean; canReview: boolean; clock: Clock;
   authorize(write?: boolean): Promise<void>; authorizeReview(): Promise<void>;
   replay(key: string, operation: string, id: string, input: unknown): Promise<Record<string, unknown> | null>;
   workspace(): Promise<FieldWorkspace>; agreement(id: string): Promise<Agreement | null>; order(id: string): Promise<OrderFacts | null>;
-  detail(order: FieldWorkspace["orders"][number]): Promise<{ spares: Spares; parts: FieldRow[]; consumptions: FieldRow[]; history: FieldRow[]; billing: FieldRow | null }>;
+  detail(order: FieldWorkspace["orders"][number]): Promise<{ spares: Spares; parts: FieldRow[]; consumptions: FieldRow[]; history: FieldRow[]; billing: FieldRow | null; canEditVisitFiles?:boolean }>;
   reservation(orderId: string, id: string): Promise<FieldRow | null>;
   prepareConsumption(order: OrderFacts, reservation: FieldRow, input: Extract<OrderAction, { action: "issue-part" }>, key: string, now: number): Promise<{ effect: Consumption; id: string; valueMinor: number; journalId: string }>;
   prepareBilling(order: OrderFacts, terms: BillingTerms, key: string, now: number): Promise<Billing>;
@@ -45,7 +45,7 @@ export function createFieldServiceApplication<Consumption, Billing, Spares>(port
       if (prior) return prior;
       const order = await ports.order(id);
       if (!order) throw new BusinessRuleError(404, "FIELD_SERVICE_ORDER_NOT_FOUND", "Service order not found.");
-      const authority = assertOrderAuthority(order, input, ports.actorId, ports.canReview), now = ports.clock.now(), transition = orderTransition(order, input, ports.actorId, authority.manage, now);
+      const authority = assertOrderAuthority(order, input, ports.actorId, ports.canReview), now = ports.clock.now(), transition = orderTransition(order, input, ports.actorId, authority.manage, now, ports.actorUserIds);
       let consumption: Consumption | null = null, billing: Billing | null = null;
       if (input.action === "issue-part") {
         const reservation = await ports.reservation(id, input.reservationId);
@@ -56,6 +56,6 @@ export function createFieldServiceApplication<Consumption, Billing, Spares>(port
       if (transition.billing) billing = await ports.prepareBilling(order, transition.billing, key, now);
       return ports.commit({ action: "order", key, operation, id, input, order, transition, consumption, billing, now }, { id, version: input.expectedVersion + 1, status: transition.status });
     },
-    async work() { if (!ports.canRead) return []; return fieldServiceWorkItems(await workspace(), ports.actorId, ports.canReview); },
+    async work() { if (!ports.canRead) return []; return fieldServiceWorkItems(await workspace(), ports.actorId, ports.canReview, ports.actorUserIds); },
   };
 }

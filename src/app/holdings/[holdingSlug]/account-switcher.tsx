@@ -1,4 +1,6 @@
 "use client";
+import type {WorkRoleDisplayChoice} from "@/lib/identity_access/work-role-display";
+import {accountSelfNavigation} from '@/lib/identity_access/account-self-navigation';
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button, Field, TextInput, Popover, PopoverTrigger, PopoverContent, type UiAppearance } from "@/components/ui/foundation";
@@ -21,8 +23,9 @@ type DeviceSession = {
 };
 
 type Props = {
+  accountNavigation?: boolean;
   appearance?: UiAppearance;
-  assignments?: import("@/server/modules/identity_access/public/authorization").WorkAssignment[];
+  assignments?: readonly WorkRoleDisplayChoice[];
   preferredAssignmentId?: string | null;
   contextRevision?: number;
   companyId?: string;
@@ -32,6 +35,7 @@ type Props = {
 };
 
 export function AccountSwitcher({
+  accountNavigation = false,
   appearance = "legacy",
   workspaceBase,
   activeUser,
@@ -41,6 +45,7 @@ export function AccountSwitcher({
   contextRevision = 0,
   companyId,
 }: Props) {
+  const selfNavigation=accountSelfNavigation(workspaceBase,activeUser.id,accountNavigation);
   const { switchContext, busy } = useContextSwitch();
   const ready = useHydrated();
   const root = useRef<HTMLDivElement>(null);
@@ -277,7 +282,7 @@ export function AccountSwitcher({
               </div>
               <UiActionLink appearance={appearance}
                 variant="ghost"
-                href={`${workspaceBase}/iam/my-access`}
+                href={selfNavigation.access}
                 onClick={() => setOpen(false)}
               >
                 My access & security
@@ -291,13 +296,20 @@ export function AccountSwitcher({
                   Notification settings
                 </UiActionLink>
               )}
-              {workspaceBase !== "/platform" && (
+              {selfNavigation.profile&&<UiActionLink appearance={appearance}
+                variant="ghost"
+                href={selfNavigation.profile}
+                onClick={() => setOpen(false)}
+              >
+                My profile
+              </UiActionLink>}
+              {selfNavigation.companyProfile && (
                 <UiActionLink appearance={appearance}
                   variant="ghost"
-                  href={`${workspaceBase}/profiles/${encodeURIComponent(activeUser.id)}`}
+                  href={selfNavigation.companyProfile}
                   onClick={() => setOpen(false)}
                 >
-                  My profile
+                  Company profile
                 </UiActionLink>
               )}
               {assignments.length > 0 && (

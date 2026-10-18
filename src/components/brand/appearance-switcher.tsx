@@ -14,9 +14,11 @@ function subscribe(changed: () => void) {
 export function AppearanceSwitcher({ appearance = "legacy",
   initialTheme,
   compact = false,
+  labels = {label: "Theme", system: "System", light: "Light", dark: "Dark"},
 }: ({
   initialTheme: AppearancePreference;
   compact?: boolean;
+  labels?: {label: string; system: string; light: string; dark: string};
 }) & { appearance?: UiAppearance }) {
   const id = useId();
   const theme = useSyncExternalStore(
@@ -33,15 +35,15 @@ export function AppearanceSwitcher({ appearance = "legacy",
 
   return (
     <div data-ui-appearance={appearance} className={`${styles.switcher} ${compact ? styles.compact : ""}`}>
-      <label data-ui-appearance={appearance} htmlFor={id}>Theme</label>
+      <label data-ui-appearance={appearance} htmlFor={id}>{labels.label}</label>
       <Select appearance={appearance}
         id={id}
         value={theme}
         onChange={(event) => change(appearancePreference(event.target.value))}
       >
-        <option data-ui-appearance={appearance} value="system">System</option>
-        <option data-ui-appearance={appearance} value="light">Light</option>
-        <option data-ui-appearance={appearance} value="dark">Dark</option>
+        <option data-ui-appearance={appearance} value="system">{labels.system}</option>
+        <option data-ui-appearance={appearance} value="light">{labels.light}</option>
+        <option data-ui-appearance={appearance} value="dark">{labels.dark}</option>
       </Select>
     </div>
   );

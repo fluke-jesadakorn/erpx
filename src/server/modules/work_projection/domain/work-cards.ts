@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { selfServiceHref } from "@/lib/work_projection/self-service";
 
 import {
@@ -60,7 +61,7 @@ export function buildWorkCards(
         href:
           ["shifts","leave","overtime"].includes(card.id)
             ? selfServiceHref(base,card.id)!
-            : card.id === "approvals" ? `${base}/work?view=approvals` : `${base}/work?${query}#work-results`,
+            : card.id === "approvals" ? canonicalUiHref(`${base}/work?view=approvals`) : canonicalUiHref(`${base}/work?${query}#work-results`),
         create,
         toDo: incomplete
           ? null

@@ -178,8 +178,15 @@ export function createHandoverApplication<Effect>(ports: HandoverPorts<Effect>) 
         return { postId, postVersion: post.version, canAcknowledge, acknowledged: canAcknowledge && acknowledgements.some(item => item.user_id === actor.userId),
             recipientCount: ids.length, acknowledgedCount: acknowledgements.length };
     }
-    async function acknowledgeHandover(actor: WorkContext, postId: string, key: string) {
+    async function acknowledgeHandoverVersion(actor:WorkContext,postId:string,key:string,expectedVersion:number){
+        const post=await ports.readablePost(actor,postId),prior=await ports.commands.replay<{postId:string;postVersion:number;acknowledged:true}>(actor,key,"social.handover.acknowledge",postId,{postId,postVersion:expectedVersion});
+        if(prior)return prior;
+        if(post.version!==expectedVersion)throw new BusinessRuleError(409,"HANDOVER_SOURCE_CHANGED","This handover changed. Read the current version before confirming receipt.");
+        return acknowledgeHandover(actor,postId,key,expectedVersion);
+    }
+    async function acknowledgeHandover(actor: WorkContext, postId: string, key: string,expectedVersion?:number) {
         const post = await ports.readablePost(actor, postId);
+        if(expectedVersion!==undefined&&post.version!==expectedVersion)throw new BusinessRuleError(409,"HANDOVER_SOURCE_CHANGED","This handover changed. Read its current version before confirming receipt.");
         const state = await handoverAcknowledgement(actor, postId);
         if (!state.canAcknowledge)
             throw new BusinessRuleError(403, "HANDOVER_RECIPIENT_REQUIRED", "Only an intended recipient can confirm this handover.");
@@ -193,5 +200,5 @@ export function createHandoverApplication<Effect>(ports: HandoverPorts<Effect>) 
         ], { companyId: actor.companyId, branchId: post.branch_id, departmentId: post.department_id });
         return handoverAcknowledgement(actor, postId);
     }
-    return { handoverView, publishHandover, handoverAcknowledgement, acknowledgeHandover };
+    return { handoverView, publishHandover, handoverAcknowledgement, acknowledgeHandover,acknowledgeHandoverVersion };
 }

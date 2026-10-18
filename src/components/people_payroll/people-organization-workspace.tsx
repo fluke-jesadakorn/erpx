@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button } from "@/components/ui/foundation";
@@ -6,8 +7,8 @@ import { Button } from "@/components/ui/foundation";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 
 import { useState, type ComponentProps, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import Link from "@/components/workplace/workspace-link";
 import dynamic from "next/dynamic";
 import type { OrganizationAccessData } from "@/lib/organization/organization-access";
 import type { OrganizationOverview } from "@/lib/organization/organization";
@@ -67,6 +68,7 @@ type Authority = ComponentProps<typeof DepartmentAuthorityWorkspace>["initial"];
 type Branding = ComponentProps<typeof BrandAdministration>;
 
 export type PeopleOrganizationProps = {
+  purchases?: import("@/lib/people_payroll/purchase-controls").PeoplePurchaseControls;
   base: string;
   holdingName: string;
   currentCompanyId: string;
@@ -88,6 +90,7 @@ export type PeopleOrganizationProps = {
   canReadPay: boolean;
   canApprovePay: boolean;
   canOpenHrSettings?: boolean;
+  initialDetail?: Awaited<ReturnType<typeof import("@/server/modules/people_payroll/public/people-explorer-detail").peopleExplorerDetail>>;
 };
 
 function Facts({ values }: { values: [string, ReactNode][] }) {
@@ -201,11 +204,11 @@ export function PeopleOrganizationDetail(
             >
               {editPerson ? "Close editor" : "Edit profile"}
             </Button>
-            <Link href={`${base}/people/${encodeURIComponent(publicPerson.personId)}`}>
+            <Link href={canonicalUiHref(`${base}/people/${encodeURIComponent(publicPerson.personId)}`)}>
               Full HR record and documents
             </Link>
             {publicPerson.userId && (
-              <Link href={`${base}/profiles/${encodeURIComponent(publicPerson.userId)}`}>
+              <Link href={canonicalUiHref(`${base}/profiles/${encodeURIComponent(publicPerson.userId)}`)}>
                 Member profile
               </Link>
             )}
@@ -227,6 +230,7 @@ export function PeopleOrganizationDetail(
             <PeopleEditor
               key={publicPerson.engagementId}
               base={base}
+              purchases={props.purchases}
               person={person}
               nodes={editorNodes}
               levels={staffOptions.levels}
@@ -235,7 +239,7 @@ export function PeopleOrganizationDetail(
               levelManagedSeparately={staffOptions.canManage}
               initialOpen
               alwaysOpen
-              returnTo={`${base}/people?person=${encodeURIComponent(publicPerson.engagementId)}`}
+              returnTo={canonicalUiHref(`${base}/people?person=${encodeURIComponent(publicPerson.engagementId)}`)}
             />
           )}
         </div>
@@ -256,7 +260,7 @@ export function PeopleOrganizationDetail(
           {publicPerson.userId && (
             <UiActionLink
               variant="secondary"
-              href={`${base}/profiles/${encodeURIComponent(publicPerson.userId)}`}
+              href={canonicalUiHref(`${base}/profiles/${encodeURIComponent(publicPerson.userId)}`)}
             >
               Open member profile
             </UiActionLink>
@@ -353,7 +357,7 @@ export function PeopleOrganizationDetail(
               {lifecycle.cases.filter((item) => item.person_id === publicPerson?.personId).length}{" "}
               lifecycle cases recorded.{" "}
               <Link
-                href={`${base}/people/${encodeURIComponent(publicPerson?.personId ?? "")}?tab=work`}
+                href={canonicalUiHref(`${base}/people/${encodeURIComponent(publicPerson?.personId ?? "")}?tab=work`)}
               >
                 Open full work history
               </Link>

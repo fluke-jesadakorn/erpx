@@ -3,12 +3,12 @@ import type { Option, Field } from "./workspace-types";
 import { RecordSurface } from "@/components/records/record-surface";
 import { TextInput } from "@/components/ui/foundation";
 import { FeatureWidget } from "@/components/shared/features/feature-page";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { type ReactNode } from "react";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePmsWorkspaceContext} from "./pms-backoffice-workspace";
+import type {BackofficePmsWorkspaceGuestsScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
 
 
 const field = (

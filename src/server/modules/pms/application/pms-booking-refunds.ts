@@ -1,4 +1,3 @@
-import { hasPermission } from "@/lib/identity_access/permissions";
 import { parseGuestAccountJson } from "@/lib/identity_access/guest-account-compat";
 import { record, records, type Snapshot } from "../domain/pms";
 import { executePms } from "@/lib/pms/pms-engine";
@@ -7,6 +6,7 @@ import type { WorkContext } from "@/server/modules/identity_access/public/author
 import type { Effects } from "@/lib/pms/pms-engine";
 import type { Clock } from "../../shared/application/ports";
 import type { BookingPaymentRow, BookingEnv } from "../public/pms-booking";
+import type { PmsPropertyPurchase, PmsPropertyPurchaseRequest } from "../domain/property-purchases";
 export type PmsProviderRows<Row> = {
     results: Row[];
 };
@@ -14,6 +14,7 @@ export type PmsProviderWrite = {
     run(): Promise<PmsProviderRows<Record<string, unknown>>>;
 };
 export type PmsBookingRefundUnit = {
+    requirePurchase(input: PmsPropertyPurchase): Promise<void>;
     authorize(actor: WorkContext, permission: string): Promise<void>;
     readPmsBookingPayments(facts: {
         paymentId: string;
@@ -184,7 +185,7 @@ export type PmsBookingRefundUnit = {
     queueMail(arg0: Snapshot, arg1: string, arg2: string, arg3: "refund", arg4: BookingEnv, arg5: number): Promise<string>;
 };
 export type PmsBookingRefundRepository = PmsBookingRefundUnit & {
-    transaction<Result>(work: (unit: PmsBookingRefundUnit) => Promise<Result>): Promise<Result>;
+    transaction<Result>(work: (unit: PmsBookingRefundUnit) => Promise<Result>, purchase?: PmsPropertyPurchaseRequest): Promise<Result>;
 };
 export type PmsBookingRefundPorts = {
     clock: Clock;
@@ -287,7 +288,7 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
             await tx.updatePmsBookingRefundRequests({ userId: actor.userId, fact1: ports.clock.now(), id: request.id });
             await tx.updatePmsBookingPayments2({ userId: actor.userId, fact1: ports.clock.now(), payment_id: request.payment_id });
             return { id: request.id, state: 'approved' };
-        });
+        }, { propertyId: found.property_id, purpose: "settle-existing", actor, permission: "pms.approve" });
     }
     async function bookingRefundsForFinance(actor: WorkContext) {
         ports.require(actor, 'finance.read');
@@ -305,6 +306,8 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
         const found = await db.readPmsBookingPayments2({ requestId: requestId, companyId: actor.companyId });
         if (!found?.checkout_id)
             throw ports.error(409, 'PMS_RECEIPT_RECOVERY_UNAVAILABLE', 'Select an original unassigned payment awaiting Finance review');
+        const purchase: PmsPropertyPurchase = { propertyId: found.property_id, purpose: "settle-existing", actor, permission: "finance.approve" };
+        await db.requirePurchase(purchase);
         const session = await ports.stripeCall(Boolean(found.livemode), `checkout/sessions/${found.checkout_id}`, { account: found.account_id });
         const pi = await ports.stripeCall(Boolean(found.livemode), `payment_intents/${String(session.payment_intent)}`, { account: found.account_id });
         if (session.payment_status !== 'paid' || pi.status !== 'succeeded' || pi.amount_received !== Number(found.amount_minor) || pi.currency !== 'thb' || (pi.metadata as Record<string, string> | undefined)?.pms_booking_payment_id !== found.id)
@@ -339,7 +342,7 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
             await tx.persist(s, before);
             await tx.updatePmsBookingPayments3({ succeededAt: succeededAt, succeededAt2: succeededAt, id: pi.id, now: now, id2: found.id });
             return { id: requestId, state: 'receipt_recovered' };
-        });
+        }, purchase);
     }
     async function processBookingRefund(db: PmsBookingRefundRepository, id: string, now = ports.clock.now()) {
         const requests = (await db.readPmsBookingRefundRequests5({ id: id, id2: id })).results;
@@ -347,6 +350,8 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
             const payment = await db.readPmsBookingPayments4({ payment_id: request.payment_id });
             if (!payment?.checkout_id)
                 throw ports.error(409, 'PMS_REFUND_PROVIDER_MISSING', 'Original Checkout session is missing');
+            const purchase: PmsPropertyPurchase = { propertyId: payment.property_id, purpose: "settle-existing" };
+            await db.requirePurchase(purchase);
             let refundId = request.provider_id;
             if (!refundId) {
                 const session = await ports.stripeCall(Boolean(payment.livemode), `checkout/sessions/${payment.checkout_id}`, { account: payment.account_id });
@@ -406,7 +411,7 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
                 await tx.updatePmsBookingRefundRequests5({ now: now, id: current.id });
                 await tx.updatePmsBookingPayments6({ now: now, id: payment.id });
                 await tx.queueMail(s, payment.reservation_id, payment.holding_slug, 'refund', await ports.bookingEnv(), now);
-            });
+            }, purchase);
         }
     }
     /** Retry only after Stripe confirms that the previous refund failed or was cancelled. */
@@ -416,6 +421,8 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
         const found = await db.readPmsBookingRefundRequests7({ id: id, companyId: actor.companyId });
         if (!found || found.state !== 'failed' || !found.provider_id || samePerson(actor, found.requested_by))
             throw ports.error(409, 'PMS_REFUND_RETRY_UNAVAILABLE', 'An independent PMS reviewer must select a failed provider refund');
+        const purchase: PmsPropertyPurchase = { propertyId: found.property_id, purpose: "settle-existing", actor, permission: "pms.approve" };
+        await db.requirePurchase(purchase);
         const provider = await ports.stripeCall(Boolean(found.livemode), `refunds/${found.provider_id}`, { account: found.account_id });
         if (!['failed', 'canceled'].includes(String(provider.status)))
             throw ports.error(409, 'PMS_REFUND_PROVIDER_PENDING', 'Recover the current provider refund without creating another');
@@ -430,7 +437,7 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
             await tx.updatePmsBookingRefundRequests6({ fact0: `Recovery approved by ${actor.userId}: ${reason.trim()}`.slice(0, 500), fact1: ports.clock.now(), id: id });
             await tx.updatePmsBookingPayments7({ fact0: ports.clock.now(), payment_id: current.payment_id });
             return { id, state: 'approved' };
-        });
+        }, purchase);
     }
     return { requestBookingRefund, approveBookingRefund, bookingRefundsForFinance, recoverBookingReceipt, processBookingRefund, retryBookingRefund };
 }

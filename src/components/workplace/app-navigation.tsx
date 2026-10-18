@@ -1,10 +1,12 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type { UiAppearance } from "@/components/ui/appearance";
 
 import { Button, TextInput } from "@/components/ui/foundation";
 
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import Link from "@/components/workplace/workspace-link";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import {
   ArrowUpRight,
   ChevronDown,
@@ -215,7 +217,7 @@ export function AppNavigation({
     const type = query.get("type"), q = query.get("q");
     if (type && type !== "all") params.set("type", type);
     if (q) params.set("q", q);
-    return `${base}/work?${params}`;
+    return canonicalUiHref(`${base}/work?${params}`);
   }
 
   function primaryLink(item: NavigationItem) {
@@ -454,7 +456,7 @@ export function AppNavigation({
               ]
             : [primaryLink(entry)],
         )}
-      {!mobile && base !== "/platform" && (
+      {!mobile && base !== "/platform" && (!context.productId || context.productId === "work") && (
         <Button appearance={appearance}
           variant={appearance === "standard" ? "ghost" : "plain"}
           type="button"
@@ -467,7 +469,7 @@ export function AppNavigation({
           <span>Start</span>
         </Button>
       )}
-      {!mobile && !rail && base !== "/platform" && (
+      {!mobile && !rail && base !== "/platform" && (!context.productId || context.productId === "work") && (
         <WorkShortcuts key={`${base}:${context.role}`} base={base} role={context.role} />
       )}
       {!mobile &&
@@ -529,7 +531,7 @@ export function AppNavigation({
         <nav className={appStyles.content} aria-label="My work views">
           {model.primary.find(entry => entry.id === "work")?.submodules?.map(entry => (
             <Link key={entry.id} className={appStyles.launcherRow} href={primaryViewHref(entry)}
-              aria-current={pathname === `${base}/work` && (query.get("view") ?? "actions") === entry.id.slice(5) ? "page" : undefined}
+              aria-current={pathname === canonicalUiHref(`${base}/work`) && (query.get("view") ?? "actions") === entry.id.slice(5) ? "page" : undefined}
               onClick={() => setWorkViewsOpen(false)}><Icon id={entry.icon} /><span>{entry.label}</span></Link>
           ))}
         </nav>
@@ -542,13 +544,13 @@ export function AppNavigation({
         presentation="responsive-panel"
       >
         <div className={appStyles.content}>
-          {launcherOpen && base !== "/platform" && !search.trim() && (
+          {launcherOpen && base !== "/platform" && !search.trim() && (!context.productId || context.productId === "work") && (
             <WorkShortcuts key={`${base}:${context.role}`} base={base} role={context.role} placement="panel" onNavigate={() => setLauncherOpen(false)} />
           )}
           {model.primary.some((entry) => entry.id === "calendar") && (
             <Link
               className={appStyles.launcherRow}
-              href={`${base}/calendar`}
+              href={canonicalUiHref(`${base}/calendar`)}
               onClick={() => setLauncherOpen(false)}
             >
               <Icon id="calendar" />
@@ -590,7 +592,7 @@ export function AppNavigation({
           )}
         </div>
       </Dialog>
-      <NewWork key={pathname} base={base} creation={[]} current={pathname===`${base}/work`?query.toString():""} launcherOnly/>
+      <NewWork key={pathname} base={base} creation={[]} current={pathname===canonicalUiHref(`${base}/work`)?query.toString():""} launcherOnly/>
       <Dialog appearance={appearance}
         title="Start work"
         open={startOpen}

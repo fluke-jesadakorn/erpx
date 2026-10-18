@@ -4,12 +4,12 @@ import { FeatureWidget } from "@/components/shared/features/feature-page";
 import { nightBlockers } from "@/server/modules/pms/public/rules/pms-read";
 import type { PmsWorkspace } from "@/server/modules/pms/public/pms";
 import { MoonStar } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { type ReactNode } from "react";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {BackofficePmsWorkspaceContext} from "./pms-backoffice-workspace";
+import type {BackofficePmsWorkspaceNightAuditScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
 
 
 

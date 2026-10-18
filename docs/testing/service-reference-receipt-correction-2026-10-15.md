@@ -1,0 +1,5 @@
+# Service reference receipt attribution correction — 2026-10-15
+
+The [corrected receipt](evidence/2026-10-15-service-references-0d48d-corrected.json) supersedes the [original receipt](evidence/2026-10-15-service-references-0d48d.json) for registration. The first `excludedInvocations` entry incorrectly attributed the preliminary Department-scope failure to frozen candidate `26e69c50…`. No fingerprint was captured for that preliminary invocation; it occurred before the scope repair and before the frozen candidate. Its failed log remains excluded and unchanged.
+
+The final `0d48d9f1…` fingerprints, 2,880 unit cases, 79 impacted PostgreSQL cases, 42 Admin/Apps cases, isolated release, browser observations, artifact hashes and acceptance limits are unchanged. The source-change refusal belongs to the later `26e69c50…` invocation as originally recorded. Original receipts and private artifacts remain intact; this corrects provenance wording without promoting any verification or activation phase.

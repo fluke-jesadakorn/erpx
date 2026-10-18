@@ -3,7 +3,7 @@ import { Field, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 export type InvoiceSlipSelection = { sourceId: string; setId: string };
 export function InvoiceSlipUpload({
   base,

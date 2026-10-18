@@ -305,6 +305,31 @@ async function managementSnapshot(
     canReview: hasPermission(actor, "iam.review"),
   };
 }
+// HR value writers do not acquire the IAM read capability. Build only the
+// record/field facts needed for this command; access/group facts stay private.
+async function commandSnapshot(store: UserManagementStore, actor: IamActor, change: ManagementChange): Promise<ManagementSnapshot> {
+  if (change.operation !== "values" || change.input.target !== "person" || hasPermission(actor, "iam.read"))
+    return managementSnapshot(store, actor);
+  ports.authorize(actor, "people.custom_attributes.write");
+  if (actor.platform) fail("Choose a Company workspace.", "SCOPE_FORBIDDEN", 403);
+  await visiblePerson(store, actor, change.input.objectId);
+  const attributes = (await store.attributes({company: actor.companyId}))
+    .filter(row => row.definition.target === "person")
+    .map(row => {
+      const access = attributeAccess(row.definition, actor.role, actor.scopeKind);
+      const companyIt = !row.definition.ownerRole && actor.role === "it_admin" && actor.scopeKind === "holding";
+      return {...row.definition, id: row.id, version: row.version, canView: access.canView || companyIt, canEdit: access.canEdit || companyIt};
+    }).filter(field => field.canView || field.canEdit);
+  const visible = new Set(attributes.filter(field => field.canView).map(field => field.id));
+  const row = await store.lockValues({actor, input: change.input});
+  return {
+    attributes, groups: [], policies: [], attachments: [], people: [], nodes: [], candidates: [],
+    values: row ? [{target: "person", objectId: change.input.objectId, version: row.version, expectedVersion: row.version,
+      values: Object.fromEntries(Object.entries(row.definition).filter(([id]) => visible.has(id))), reason: ""}] : [],
+    canManage: false, canManageGroups: false, canDefine: false, canManagePeople: hasPermission(actor, "people.manage"),
+    canManagePersonAttributes: true, canManageOrganization: false, canReview: false,
+  };
+}
 async function save(
   store:UserManagementStore,
   actor: IamActor,
@@ -377,7 +402,7 @@ async function applyChange(
   change: ManagementChange,
 ) {
   ports.authorize(actor, commandPermission(change, actor));
-  const snapshot = await managementSnapshot(store, actor);
+  const snapshot = await commandSnapshot(store, actor, change);
   if (change.operation === "attribute") {
     if (actor.scopeKind !== "holding")
       fail(
@@ -749,13 +774,13 @@ async function managementCommand(
     await ports.fresh(actor);
   const run = async (store:UserManagementStore) => {
     (await store.lockCommand({actor}));
-    const before = await managementSnapshot(store, actor),
+    const before = await commandSnapshot(store, actor, change),
       stamp = ports.hash({change,snapshot:before});
     if (!preview && stamp !== token)
       fail("The preview changed. Review the latest impact before saving.");
     const id = await applyChange(store, actor, change);
     await reconcileManagement(store, actor.companyId);
-    const after = await managementSnapshot(store, actor),
+    const after = await commandSnapshot(store, actor, change),
       changes = managementImpact(before,after);
     if (change.operation === "group")
       changes.matchingPeople =

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import {
   FrontLanguageContext,
   FrontLocalizedTree,

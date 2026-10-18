@@ -1,9 +1,11 @@
+import {peoplePackageEnforcementMode} from "../../commercial/public/purchase-command-boundary";
+import {withExpensePurchasedRead,expensePurchaseControls} from "./expense-purchases";
 import { runtimeAppSources } from "../../runtime/public/app-native-sources";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources, runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { expenseDraftSchema } from "@/server/modules/people_payroll/adapters/expense-drafts";
-import { expenseOptions, getExpense } from "@/server/modules/people_payroll/adapters/expenses";
+import { expenseFromDatabase,expenseOptions, getExpense } from "@/server/modules/people_payroll/adapters/expenses";
 import { expenseRoute } from "@/server/modules/people_payroll/adapters/expense-routing";
 import { activeStaff } from "@/server/modules/operations/public/staff-policy";
 import { staffSettings } from "@/server/modules/operations/public/staff-settings";
@@ -14,13 +16,14 @@ import { createExpensePreview } from "../application/expense-preview";
 import { createExpensePostingPreview } from "../application/expense-posting-preview";
 import { expenseJournalProjection, expensePostingAccounts } from "@/server/modules/finance/public/expense-posting-projection";
 import { expensePostingConfiguration } from "@/server/modules/commerce/public/expense-posting-configuration";
-import type { ExpenseRow } from "@/server/modules/people_payroll/adapters/expenses";
+import {nativeExpenseOptions,type ExpenseRow} from "./expenses";
 
 export async function expensePostingPreview(actor: WorkContext, expense: ExpenseRow) {
-  return createExpensePostingPreview({ repository: async () => {
-    const { write } = await holdingResources(actor.holdingId);
-    return { posted: journalId => expenseJournalProjection(write, actor.companyId, journalId), configuration: () => expensePostingConfiguration(write, actor.companyId), accounts: () => expensePostingAccounts(write, actor.companyId) };
-  } })(expense);
+  const {write}=await holdingResources(actor.holdingId);
+  return withExpensePurchasedRead(write,actor,async database=>{
+    const current=await peoplePackageEnforcementMode()==='disabled'?expense:await expenseFromDatabase(database,actor,String(expense.id));
+    return createExpensePostingPreview({repository:async()=>({posted:journalId=>expenseJournalProjection(database,actor.companyId,journalId),configuration:()=>expensePostingConfiguration(database,actor.companyId),accounts:()=>expensePostingAccounts(database,actor.companyId)})})(current);
+  });
 }
 
 const preview = createExpensePreview<WorkContext, Awaited<ReturnType<typeof namedRoute>>>({
@@ -41,7 +44,16 @@ const preview = createExpensePreview<WorkContext, Awaited<ReturnType<typeof name
 export async function previewExpense(actor: WorkContext, raw: unknown) {
   const input = expenseDraftSchema.parse(raw);
   const id = raw && typeof raw === "object" && "id" in raw && typeof raw.id === "string" ? raw.id : undefined;
-  return preview(actor, input, id);
+  if(await peoplePackageEnforcementMode()==='disabled')return preview(actor,input,id);
+  const {write}=await holdingResources(actor.holdingId);
+  return withExpensePurchasedRead(write,actor,async database=>createExpensePreview<WorkContext,Awaited<ReturnType<typeof namedRoute>>>({
+    options:context=>nativeExpenseOptions(database)(context),
+    expense:(context,expenseId)=>expenseFromDatabase(database,context,expenseId),
+    staff:(context,claimant)=>activeStaff(database,context.companyId,claimant),
+    route:async(context,claimant,preparers,requestKind)=>namedRoute(database,context,await expenseRoute(database,context.companyId,claimant,preparers,false,requestKind)),
+    error:violation=>new ApiError(violation.status,violation.code,violation.message),
+    blocker:error=>error instanceof ApiError&&[409,422].includes(error.status)?error.message:null,
+  })(actor,input,id));
 }
 
 export async function readExpenseAiStatus(actor: WorkContext, id: string, payment: string | null) {
@@ -53,7 +65,7 @@ export async function readExpenseAiStatus(actor: WorkContext, id: string, paymen
 
 export async function expensePageCapabilities(actor: WorkContext) {
   const { write } = await holdingResources(actor.holdingId);
-  return { canRepair: (await staffSettings(write, actor)).canManage };
+  return { canRepair: (await staffSettings(write, actor)).canManage && (await expensePurchaseControls(actor,write))?.settleExisting !== false };
 }
 
 export async function requestExpenseAi(actor: WorkContext, id: string, input: Parameters<typeof queueExpenseAi>[4], key: string) {

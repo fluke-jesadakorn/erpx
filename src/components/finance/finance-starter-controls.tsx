@@ -1,6 +1,9 @@
 "use client";
+import { useFinanceActionAllowed } from "./purchase-context";
+import { useFinanceDraftScope, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { thaiFinanceStarterAccounts } from "@/lib/finance/finance-starter";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
@@ -17,6 +20,7 @@ import {
 } from "@/components/ui/foundation";
 
 export function FinanceStarterControls({ base }: { base: string }) {
+  const allowed = useFinanceActionAllowed("new-work"), draftScope = useFinanceDraftScope(), [hasAttempt,setHasAttempt] = useState(false);
   const router = useRouter(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -31,13 +35,15 @@ export function FinanceStarterControls({ base }: { base: string }) {
         reason: String(form.get("reason")),
       },
       body = JSON.stringify(input);
+    if (!allowed && retry.current?.body !== body) {setError("This Finance action is unavailable. Your draft is retained.");return;}
     if (retry.current?.body !== body)
       retry.current = { body, key: crypto.randomUUID() };
+    setHasAttempt(true);const completion=captureFinanceForm();
     setBusy(true);
     setError("");
     try {
       const response = await workFetch(
-          `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/setup/starter`,
+          `${base.replace(canonicalUiHref("/holdings/"), "/api/v1/holdings/")}/finance/setup/starter`,
           {
             method: "POST",
             headers: {
@@ -48,14 +54,14 @@ export function FinanceStarterControls({ base }: { base: string }) {
           },
         ),
         result = await response.json();
-      if (!response.ok)
+      if (!response.ok || !result.data || typeof result.data.id !== "string" || !result.data.id)
         throw new Error(
           result.error?.message ??
             "Unable to create the starter configuration.",
         );
-      retry.current = null;
+      acknowledgeFinanceForm(completion);retry.current = null;setHasAttempt(false);
       router.push(
-        `${base}/finance/setup?step=profile&chart=${encodeURIComponent(result.data.id)}`,
+        canonicalUiHref(`${base}/finance/setup?step=profile&chart=${encodeURIComponent(result.data.id)}`),
       );
       router.refresh();
     } catch (e) {
@@ -86,7 +92,7 @@ export function FinanceStarterControls({ base }: { base: string }) {
         drawerTitle="Create a starter ledger"
       >
         <summary>Use starter configuration</summary>
-        <FormLayout
+        <FormLayout data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -167,7 +173,7 @@ export function FinanceStarterControls({ base }: { base: string }) {
             appearance="standard"
             clientManaged
             type="submit"
-            disabled={busy}
+            disabled={busy || (!allowed && !hasAttempt)}
           >
             Create configuration and review policy
           </Button>

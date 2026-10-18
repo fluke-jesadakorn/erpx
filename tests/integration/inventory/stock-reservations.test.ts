@@ -1,5 +1,6 @@
+import {packageGrantStore} from "../../../src/server/modules/commercial/public/package-grants";
 import { fulfillmentSchema } from "../../../src/server/modules/commerce/public/commerce";
-import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
+import {afterEach,beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
@@ -7,6 +8,7 @@ import {changeOrderReservation,fulfillOrder,getOrder,orderSchema,saveMaster,save
 import {escalateInventoryReservations} from "../../../src/server/modules/inventory/public/inventory-reservation-alerts";
 import {listStaffNotifications} from "../../../src/server/modules/collaboration/public/staff-notifications";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+afterEach(()=>vi.unstubAllEnvs());
 let f:Awaited<ReturnType<typeof expenseFixture>>,warehouse:string,product:string,party:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{
@@ -72,4 +74,9 @@ it('warns the sales owner before expiry, escalates after expiry, and deduplicate
  await db.prepare('UPDATE inventory_order_reservations SET created_at=?,expires_at=? WHERE order_line_id=?').bind(now-2,now-1,a.lines[0].id).run();
  expect((await escalateInventoryReservations(db,now)).expired).toBeGreaterThanOrEqual(1);
  expect((await listStaffNotifications(db,f.owner)).filter(n=>n.record_id===a.order.id)).toHaveLength(2);
+});
+
+
+it('keeps new reservations active-only but releases and consumes the actual existing Sales stock reservation while draining',async()=>{
+ vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');const store=packageGrantStore(db,{authorize:async()=>({userId:'fictional-reservation-provider'}),obligations:async()=>{throw new Error('NO_INACTIVE_CUTOVER_IN_RESERVATION_FIXTURE');}}),grant={companyId:f.company,packageId:'sales',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Actual Sales stock reservation fixture',evidence:'test:commerce-stock-foundation'};await store.apply({expectedVersion:0,idempotencyKey:key(),grant});const a=await order(),id=String(a.order.id),line=String(a.lines[0].id),command=key(),expiresAt=Date.now()+3600000,first=await reserve(id,line,'2',3,expiresAt,command);await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:'draining',version:2}});expect(await reserve(id,line,'2',3,expiresAt,command)).toEqual(first);await expect(reserve(id,line,'1',4)).rejects.toMatchObject({code:'PACKAGE_DRAINING'});await changeOrderReservation(f.owner,id,{expectedVersion:4,action:'release',lineId:line,quantity:'1',reason:'Customer released one retained unit'},key());await fulfillOrder(f.owner,id,fulfillmentSchema.parse({expectedVersion:5,date:'2026-09-02',lines:[{lineId:line,quantity:'1'}],...await deliveryEvidence(db,f.owner,id)}),key());expect(await db.prepare('SELECT consumed_milli,released_milli FROM inventory_order_reservations WHERE order_line_id=?').bind(line).first()).toEqual({consumed_milli:1000,released_milli:1000});expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:600});
 });

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import Link from "@/components/workplace/workspace-link";
 import { frontWorkReturn } from "@/lib/work_projection/front-work-return";
 
 export function ReturnToFront({ base, holdingSlug, companySlug, companyId, userId, assignmentId }: { base:string; holdingSlug:string; companySlug?:string; companyId:string; userId:string; assignmentId:string }) {

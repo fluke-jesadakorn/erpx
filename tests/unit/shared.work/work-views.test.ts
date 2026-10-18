@@ -33,13 +33,13 @@ it("shows only permission-filtered app cards before launcher search", () => {
  expect(launcher.categories.map(category => category.id)).toEqual(["people-organization","customers-sales","purchasing","inventory-quality","projects-routines","services","finance","pos","pms","knowledge","insights","administration"]);
  const destinations=launcher.categories.flatMap(category=>category.apps);
  expect(destinations.map(item=>item.id)).toEqual(expect.arrayContaining(["people-directory","customers-hub","sales-hub","operations-purchasing","quality-holds","pilot-features"]));
- expect(destinations.every(item=>!item.submodules?.length)).toBe(true);
+ expect(destinations.some(item=>item.submodules?.length)).toBe(true);
 
 });
 it("searches deep destinations with owning-app context and no duplicate URLs", () => {
  const model = workplaceNavigation({workspaceBase:"/holdings/acme",role:"holding_owner",scopeKind:"holding"});
  const suppliers = navigationLauncher(model,"suppliers").results;
- expect(suppliers).toContainEqual(expect.objectContaining({item:expect.objectContaining({id:"procurement-suppliers",href:"/holdings/acme/commerce?view=parties&kind=supplier"}),context:"Purchasing",categoryId:"purchasing"}));
+ expect(suppliers).toContainEqual(expect.objectContaining({item:expect.objectContaining({id:"procurement-suppliers",href:"/holdings/acme/purchasing/suppliers"}),context:"Purchasing",categoryId:"purchasing"}));
  const bank = navigationLauncher(model,"bank reconciliation").results;
  expect(bank).toEqual([expect.objectContaining({item:expect.objectContaining({id:"finance-bank"}),context:"Finance",categoryId:"finance"})]);
  const urls = navigationLauncher(model,"finance").results.map(result => result.item.href);

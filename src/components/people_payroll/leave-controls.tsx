@@ -1,15 +1,21 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import { FormDrawer } from "@/components/ui/dialog";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
+import {useWorkforceCommand} from "./self-service/use-workforce-command";
+import {WorkforceDraftBoundary} from "./self-service/workforce-draft-boundary";
+import {workforceFormUnchanged} from "@/lib/people_payroll/workforce-command-client";
+import type {WorkforcePurchase} from "@/lib/people_payroll/workforce-controls";
 import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "@/lib/shared/destination-router";
 import { Card, FormLayout, Stack } from "@/components/ui/foundation";
 export function LeaveControls({
   base,
+  workContext,
+  purchase,
   recordId,
   version,
   canReject = false,
@@ -17,132 +23,35 @@ export function LeaveControls({
   initialOpen = false,
 }: {
   base: string;
+  workContext:string;
+  purchase:WorkforcePurchase|undefined;
   recordId?: string;
   version?: number;
   canReject?: boolean;
   canCancel?: boolean;
   initialOpen?: boolean;
 }) {
-  const router = useRouter(),
-    attempt = useRef<{ body: string; key: string } | null>(null);
-  const [open, setOpen] = useState(initialOpen),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function submit(form: FormData, action?: string) {
-    const body = JSON.stringify(
-      recordId
-        ? {
-            action,
-            expectedVersion: version,
-            note: String(form.get("note") ?? ""),
-          }
-        : {
-            startDate: String(form.get("startDate")),
-            days: Number(form.get("days")),
-            handoverNote: String(form.get("handoverNote")),
-          },
-    );
-    if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const r = await workFetch(
-        `/api/v1${base}/leave-requests${recordId ? `/${recordId}/transition` : ""}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": attempt.current.key,
-          },
-          body,
-        },
-      );
-      const result = (await r.json()) as {
-        data?: { id: string };
-        error?: { message: string };
-      };
-      if (!r.ok) throw new Error(result.error?.message ?? "Could not save leave.");
-      if (!recordId) router.push(`${base}/tasks/people_payroll/${result.data?.id}`);
-      else router.refresh();
-      setOpen(false);
-      attempt.current = null;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Connection interrupted. Retry this action.");
-    } finally {
-      setBusy(false);
-    }
+  const router=useRouter(),command=useWorkforceCommand(base,`${workContext}:leave:${recordId??"new"}:legacy`,purchase),{busy,error,notice,pending}=command;
+  const [open,setOpen]=useState(initialOpen);
+  async function completed(result:NonNullable<Awaited<ReturnType<typeof command.send>>>){
+    if(result.completion&&workforceFormUnchanged(result.completion)){setOpen(false);if(!recordId)router.push(canonicalUiHref(`${base}/tasks/people_payroll/${result.receipt.id}`));else router.refresh();}
+    else command.setNotice("The original leave action was saved. Your newer draft is retained.");
   }
-  if (recordId)
-    return (
-      <Card as="section" appearance="standard" className="ui-panel">
-        <FormLayout className="ui-form-grid" onSubmit={(e) => e.preventDefault()}>
-          <Field appearance="standard">
-            Decision note
-            <TextArea appearance="standard" name="note" maxLength={2048} />
-          </Field>
-          <div className="ui-form-actions">
-            {canReject && (
-              <Button appearance="standard"
-                variant="secondary"
-
-                disabled={busy}
-                type="button"
-                onClick={(e) => submit(new FormData(e.currentTarget.form!), "reject")}
-              >
-                Reject request
-              </Button>
-            )}
-            {canCancel && (
-              <Button appearance="standard"
-                variant="secondary"
-
-                disabled={busy}
-                type="button"
-                onClick={(e) => submit(new FormData(e.currentTarget.form!), "cancel")}
-              >
-                Cancel request
-              </Button>
-            )}
-          </div>
-          {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-        </FormLayout>
-      </Card>
-    );
-  return (
-    <Card as="section" appearance="standard" className="ui-panel">
-      <Button appearance="standard" type="submit" variant="primary" onClick={() => setOpen(!open)}>
-        Request leave
-      </Button>
-      {open && (
-        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={() => setOpen(false)} title="Request leave" dismissDisabled={busy}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<FormLayout
-          className="ui-form-grid"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit(new FormData(e.currentTarget));
-          }}
-        >
-          <Field appearance="standard">
-            First day
-            <TextInput appearance="standard" type="date" name="startDate" required />
-          </Field>
-          <Field appearance="standard">
-            Requested working days
-            <TextInput appearance="standard" type="number" name="days" min={1} max={365} defaultValue={1} required />
-          </Field>
-          <Field appearance="standard">
-            Handover plan
-            <TextArea appearance="standard" name="handoverNote" maxLength={2048} />
-          </Field>
-          <p className="muted">
-            Enter working days under your company’s leave policy. Your department approver reviews
-            first, then an independent HR administrator.
-          </p>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
-            Save leave draft
-          </Button>
-          {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-        </FormLayout></Stack></FormDrawer>
-      )}
-    </Card>
-  );
+  async function submit(form:FormData,action?:string){const result=await command.send({kind:"leave",action:recordId?action??"cancel":"create",...(recordId?{id:recordId}:{}),input:recordId?{action,expectedVersion:version,note:String(form.get("note")??"")}:{startDate:String(form.get("startDate")),days:Number(form.get("days")),handoverNote:String(form.get("handoverNote"))}});if(result)await completed(result);}
+  const status=<>{notice&&<InlineNotice role="status">{notice}</InlineNotice>}{pending&&<InlineNotice role="status"><p>Check the original leave action before submitting another draft.</p><Button appearance="standard" disabled={busy} onClick={async()=>{const result=await command.recover();if(result)await completed(result);}}>Check original action</Button></InlineNotice>}</>;
+  if(recordId)return <WorkforceDraftBoundary dirty={Boolean(pending)}><Card as="section" appearance="standard" className="ui-panel">{status}<FormLayout className="ui-form-grid" onSubmit={event=>event.preventDefault()}>
+    <Field appearance="standard">Decision note<TextArea appearance="standard" name="note" maxLength={2048}/></Field>
+    <div className="ui-form-actions">{canReject&&<Button appearance="standard" disabled={busy||!command.allowed("reject")} onClick={event=>void submit(new FormData(event.currentTarget.form!),"reject")}>Reject request</Button>}{canCancel&&<Button appearance="standard" disabled={busy||!command.allowed("cancel")} onClick={event=>void submit(new FormData(event.currentTarget.form!),"cancel")}>Cancel request</Button>}</div>
+    {error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+  </FormLayout></Card></WorkforceDraftBoundary>;
+  return <WorkforceDraftBoundary dirty={Boolean(pending)}><Card as="section" appearance="standard" className="ui-panel">{status}
+    <FormDisclosure appearance="standard" inline={initialOpen} open={open} onToggle={event=>setOpen(event.currentTarget.open)} drawerTitle="Request leave" dismissDisabled={busy} error={error}><summary>Request leave</summary><Stack as="div" className="ui-stack"><FormLayout className="ui-form-grid" onSubmit={event=>{event.preventDefault();void submit(new FormData(event.currentTarget));}}>
+      <Field appearance="standard">First day<TextInput appearance="standard" type="date" name="startDate" required disabled={busy||!command.allowed("create")}/></Field>
+      <Field appearance="standard">Requested working days<TextInput appearance="standard" type="number" name="days" min={1} max={365} defaultValue={1} required disabled={busy||!command.allowed("create")}/></Field>
+      <Field appearance="standard">Handover plan<TextArea appearance="standard" name="handoverNote" maxLength={2048} disabled={busy||!command.allowed("create")}/></Field>
+      <p className="muted">Enter working days under your Company’s leave policy. Your department approver reviews first, then an independent HR administrator.</p>
+      <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy||!command.allowed("create")}>Save leave draft</Button>
+      {error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+    </FormLayout></Stack></FormDisclosure>
+  </Card></WorkforceDraftBoundary>;
 }

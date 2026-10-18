@@ -123,7 +123,7 @@ async function authorizeAttachmentTarget(db: AttachmentPolicyUnit, actor: WorkCo
     return {companyId:String(row.company_id),branchId:row.branch_id?String(row.branch_id):null,departmentId:row.department_id?String(row.department_id):null,version:Number(row.version),editable:operation!=="read"};
   }
   if (policy.targetType === "leave_request") {
-    if (db.leaveAccess) return db.leaveAccess(actor, { leaveRequestId: targetId, purposeKey: policy.purposeKey as "medical_certificate" | "leave_supporting_photo", operation: operation === "publish" ? "read" : operation });
+    if (db.leaveAccess) return db.leaveAccess(actor, { leaveRequestId: targetId, purposeKey: policy.purposeKey as "medical_certificate" | "leave_supporting_photo", operation: operation === "publish" ? "read" : operation === "withdraw" || operation === "revoke" || operation === "revoke-history" ? "write" : operation });
     throw ports.error(503, "LEAVE_ATTACHMENT_ADAPTER_UNAVAILABLE", "Leave evidence access is not ready.");
   }
   if (policy.targetType === "product" && policy.purposeKey === "product_image" &&
@@ -197,6 +197,7 @@ async function authorizeAttachmentTarget(db: AttachmentPolicyUnit, actor: WorkCo
     const manager=hasPermission(actor,"support.manage"),assigned=hasPermission(actor,"support.work")&&row.owner_id===actor.userId&&Number(row.owner_eligible)>0;
     if(policy.purposeKey==="internal_evidence"&&!manager&&!assigned)throw ports.error(403,"ATTACHMENT_FORBIDDEN","Internal evidence is limited to the current assigned Support colleague and Support managers.");
     if(operation!=="read"){
+      if(row.source_kind==="field_service")throw ports.error(409,"SOURCE_WORKSPACE_REQUIRED","Continue this case in Field Service.");
       if(policy.purposeKey==="customer_shareable"&&!manager)throw ports.error(403,"ATTACHMENT_CUSTOMER_SHARE_REVIEW","Only a Support manager may stage customer-shareable evidence.");
       if(!manager&&!assigned)throw ports.error(403,"ATTACHMENT_FORBIDDEN","Current Support responsibility is required.");
       await db.supportEvidenceGuard(actor,targetId,Number(row.version),`attachment-policy-${targetId}`);

@@ -1,3 +1,4 @@
+import {manufacturingMetricSource} from "../public/metric-purchases";
 import { inventoryExecutiveOwnerProjections as commerceProjectionSources } from "../../commerce/public/inventory-executive-owner-projections";
 import { inventoryExecutiveOwnerProjections as financeProjectionSources } from "../../finance/public/inventory-executive-owner-projections";
 import "server-only";
@@ -9,7 +10,8 @@ async function manufacturingCostEvidenceRows(db: SqlDatabase, actor: WorkContext
     postedAt: number;
     id: string;
 }, limit = 25, recordId?: string) {
-    const scoped = manufacturingCostConditions(actor, filters, query, cursor, recordId);
+    const scoped = manufacturingCostConditions(actor, filters, query, cursor, recordId),purchased=await manufacturingMetricSource(db,actor,"production-cost");
+    scoped.conditions.push(`EXISTS(SELECT 1 FROM (${purchased.sql}) purchased_production WHERE purchased_production.id=o.id)`);scoped.values.push(...purchased.args);
     return (await db.prepare(`SELECT m.id,m.order_id,m.movement_kind,m.amount_minor::text amount_minor,j.posted_at,m.version,m.journal_id,
       j.status journal_status,j.currency,o.status order_status,o.version order_version,p.name product_name,w.name warehouse_name
     FROM manufacturing_cost_movements m

@@ -1,11 +1,19 @@
 "use client";
+import WorkspaceLink from '@/components/workplace/workspace-link';
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RequestValidation } from "@/components/workplace/request-validation";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useEffect, useId, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {createLeaveEvidenceClient} from "@/lib/people_payroll/workforce-evidence-client";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
+import {useWorkforceCommand} from "./use-workforce-command";
+import {WorkforceDraftBoundary} from "./workforce-draft-boundary";
+import type {WorkforcePurchase} from "@/lib/people_payroll/workforce-controls";
+import type {WorkforceCommand} from "@/lib/people_payroll/workforce-command-client";
+import { useRouter } from "@/lib/shared/destination-router";
 import { RequestSteps } from "@/components/workplace/request-experience";
 import { ReviewDecisionForm } from "@/components/workplace/review-decision";
 import type { ReviewDecision } from "@/lib/work_projection/work-review";
@@ -54,8 +62,14 @@ export function LeaveEditor({
   evidencePresent = false,
   externalEvidence = false,
   returnTo = "",
+  workContext,
+  purchase,
+  drawer = false,
 }: {
   base: string;
+  workContext:string;
+  purchase:WorkforcePurchase|undefined;
+  drawer?:boolean;
   companyId?: string;
   userId?: string;
   assignmentId?: string;
@@ -67,7 +81,7 @@ export function LeaveEditor({
   returnTo?: string;
 }) {
   const router = useRouter();
-  const recovered = useRecoverableDraft<Draft>(`erpx:leave-draft:${base}:${companyId}:${userId}:${record?.id ?? "new"}`, {
+  const recovered = useRecoverableDraft<Draft>(`erpx:leave-draft:${workContext}:${record?.id ?? "new"}`, {
     leaveTypeId: record?.leave_type_id ?? "",
     startDate: record?.start_date ?? initialDate,
     endDate: record?.end_date ?? record?.start_date ?? initialDate,
@@ -77,7 +91,9 @@ export function LeaveEditor({
   }, "leave request");
   const draft = recovered.fields, setDraft = recovered.update;
   const [createdId,setCreatedId] = useState<string|null>(null);
-  const submitAttempt=useRef<{body:string;key:string}|null>(null);
+  const command=useWorkforceCommand(base,`${workContext}:leave:${record?.id??"new"}:editor`,purchase);
+  const draftRef=useRef(draft),previewSequence=useRef(0);
+  useEffect(()=>{draftRef.current=draft;},[draft]);
   const [guided, setGuided] = useState<Record<string, string> | null>(null);
   useEffect(() => {
     if (record || !companyId || !userId || !assignmentId) return;
@@ -107,14 +123,16 @@ export function LeaveEditor({
   const [preview, setPreview] = useState<Preview | null>(null);
   const formId=useId(),reviewHeading=useRef<HTMLHeadingElement>(null);
   useEffect(()=>{if(preview)reviewHeading.current?.focus();},[preview]);
-  const [busy, setBusy] = useState(false);
+  const [working, setBusy] = useState(false);
+  const busy=working||command.busy;
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploaded, setUploaded] = useState("");
   const [hasEvidence, setHasEvidence] = useState(evidencePresent);
-  const attempt = useRef<{ body: string; key: string } | null>(null);
-  const uploadAttempt = useRef<{ signature: string; key: string; url?: string } | null>(null);
+
+  const evidenceClient=useMemo(()=>createLeaveEvidenceClient(base,`${workContext}:leave:evidence`),[base,workContext]);
+  const pendingEvidence=evidenceClient.pending();
   const selectedType = types.find((item) => item.type.id === draft.leaveTypeId);
   const maySubmit = !record || record.permittedActions.includes("submit");
   const evidenceRequiredBeforeSubmit = Boolean(
@@ -122,12 +140,14 @@ export function LeaveEditor({
   );
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
+    previewSequence.current++;draftRef.current={...draftRef.current,[key]:value};
     setDraft((current) => ({ ...current, [key]: value }));
     setPreview(null);
     setSaved(false);
   }
 
   async function calculate() {
+    if(!command.allowed("save")||recovered.conflict)return;const sequence=++previewSequence.current;
     setBusy(true);
     setError("");
     try {
@@ -135,145 +155,62 @@ export function LeaveEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...draft, id: record?.id }),
-      });
+      },undefined,"caller");
       const body = await response.json();
       if (!response.ok) throw new Error(body.error?.message ?? "Unable to calculate this request.");
-      setPreview(body.data as Preview);
+      if(sequence===previewSequence.current)setPreview(body.data as Preview);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to calculate this request.");
+      if(sequence===previewSequence.current)setError(cause instanceof Error ? cause.message : "Unable to calculate this request.");
     } finally {
       setBusy(false);
     }
   }
 
+  const destination=(id:string)=>canonicalUiHref(base+"/tasks/people_payroll/"+id+"?from=leave"+(returnTo?"&return="+encodeURIComponent(returnTo):""));
+  async function complete(request:WorkforceCommand,id:string){
+    const submitted=request.input,unchanged=Object.keys(draftRef.current).every(key=>draftRef.current[key as keyof Draft]===submitted[key]);
+    if(!record)setCreatedId(id);
+    if(unchanged){recovered.clear();setSaved(true);setPreview(null);if(!record)router.replace(destination(id));else router.refresh();}
+    else command.setNotice("The submitted leave action was saved. Your newer draft is retained; review the saved version before submitting it.");
+  }
   async function save(saveOnly: boolean) {
-    setBusy(true);
-    setError("");
-    if(createdId && !record){router.replace(base+"/tasks/people_payroll/"+createdId+"?from=leave"+(returnTo?"&return="+encodeURIComponent(returnTo):""));setBusy(false);return;}
-    const body = JSON.stringify({
-      ...draft,
-      saveOnly: file ? true : saveOnly,
-      ...(record ? { expectedVersion: record.version } : {}),
-    });
-    const storage = "erpx:leave-command:" + base + ":" + (record?.id ?? "new");
+    if(busy||recovered.conflict||!command.allowed("save"))return;
+    if(createdId&&!record){router.replace(destination(createdId));return;}
+    setBusy(true);setError("");const submitted={...draftRef.current},selectedFile=file;
     try {
-      if (!attempt.current) {
-        try {
-          attempt.current = JSON.parse(sessionStorage.getItem(storage) ?? "null");
-        } catch {
-          /* Start a new command. */
-        }
-      }
-      if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() };
-      sessionStorage.setItem(storage, JSON.stringify(attempt.current));
-      const response = await workFetch(
-        "/api/v1" + base + "/leave-requests" + (record ? "/" + record.id : createdId ? "/" + createdId : ""),
-        {
-          method: record || createdId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-          body,
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error?.message ?? "Unable to save this request.");
-      const savedId = record?.id ?? result.data.id;
-      if(!record)setCreatedId(savedId);
-      if(file){
-        const signature = file.name+":"+file.size+":"+file.lastModified;
-        if(uploadAttempt.current?.signature!==signature)uploadAttempt.current={signature,key:crypto.randomUUID()};
-        if(!uploadAttempt.current.url){
-          const info=await workFetch(`/api/v1${base}/leave-requests/${savedId}`,{cache:"no-store"});const infoBody=await info.json();if(!info.ok)throw Error(infoBody.error?.message??"Unable to read the saved draft.");
-          const uploadResponse=await workFetch(`/api/v1${base}/uploads`,{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":uploadAttempt.current.key},body:JSON.stringify({ownerType:"leave_request",ownerId:savedId,purpose:preview?.evidence.purposeKey??snapshotEvidencePurpose(infoBody.data)??"leave_supporting_photo",filename:file.name,mediaType:file.type,bytes:file.size})});
-          const uploadBody=await uploadResponse.json();if(!uploadResponse.ok)throw Error(uploadBody.error?.message??"Unable to upload evidence.");uploadAttempt.current.url=uploadBody.data.uploadUrl;
-        }
-        const uploadResponse=await workFetch(uploadAttempt.current.url!,{method:"PUT",headers:{"Content-Type":file.type},body:file});if(!uploadResponse.ok)throw Error("Evidence upload failed. Your draft is saved; open it to retry.");
-        setHasEvidence(true);setFile(null);uploadAttempt.current=null;
+      const result=await command.send({kind:"leave",action:record?(saveOnly||selectedFile?"save":"submit"):"create",...(record?{id:record.id}:{}),input:{...submitted,saveOnly:selectedFile?true:saveOnly,...(record?{expectedVersion:record.version}:{})}});
+      if(!result)return;
+      const savedId=result.receipt.id;if(!record)setCreatedId(savedId);
+      if(selectedFile){
+        await uploadFile(savedId,selectedFile);
         if(!saveOnly){
-          const latest=await workFetch(`/api/v1${base}/leave-requests/${savedId}`,{cache:"no-store"});const latestBody=await latest.json();if(!latest.ok)throw Error("Unable to reload the saved draft.");
-          const sendBody=JSON.stringify({...draft,saveOnly:false,expectedVersion:latestBody.data.version});
-          if(submitAttempt.current?.body!==sendBody)submitAttempt.current={body:sendBody,key:crypto.randomUUID()};
-          const sent=await workFetch(`/api/v1${base}/leave-requests/${savedId}`,{method:"PATCH",headers:{"Content-Type":"application/json","Idempotency-Key":submitAttempt.current.key},body:sendBody});const sentBody=await sent.json();if(!sent.ok)throw Error(sentBody.error?.message??"Evidence is saved. Review the draft before submitting again.");
+          const latest=await workFetch(`/api/v1${base}/leave-requests/${savedId}`,{cache:"no-store"}),body=await latest.json();
+          if(!latest.ok||body.data?.id!==savedId||!Number.isInteger(body.data?.version))throw Error("The draft and evidence were saved. Open the saved draft to review submission.");
+          const sent=await command.send({kind:"leave",action:"submit",id:savedId,input:{...submitted,saveOnly:false,expectedVersion:body.data.version}});if(!sent)return;
         }
       }
-      recovered.clear();
-      sessionStorage.removeItem(storage);
-      attempt.current = null;
-      setSaved(true);
-      setPreview(null);
-      window.dispatchEvent(new Event("erpx:work-changed"));
-      if (!record) router.replace(base + "/tasks/people_payroll/" + result.data.id + "?from=leave" + (returnTo ? "&return=" + encodeURIComponent(returnTo) : ""));
-      else router.refresh();
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Connection interrupted. Your entered values are retained.",
-      );
-    } finally {
-      setBusy(false);
-    }
+      await complete(result.request,savedId);
+    }catch(cause){setError(cause instanceof Error?cause.message:"Connection interrupted. Your draft is retained.");}
+    finally{setBusy(false);}
+  }
+  async function uploadFile(id:string,selectedFile:File){
+    await evidenceClient.upload(id,selectedFile,preview?.evidence.purposeKey??snapshotEvidencePurpose(record)??"leave_supporting_photo");
+    setHasEvidence(true);setUploaded(selectedFile.name+" · uploaded and verified");setFile(null);
   }
 
   async function upload() {
-    if (!file || !record) return;
-    setBusy(true);
-    setError("");
-    try {
-      const signature = file.name + ":" + file.size + ":" + file.lastModified;
-      if (uploadAttempt.current?.signature !== signature)
-        uploadAttempt.current = { signature, key: crypto.randomUUID() };
-      if (!uploadAttempt.current.url) {
-        const response = await workFetch("/api/v1" + base + "/uploads", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": uploadAttempt.current.key,
-          },
-          body: JSON.stringify({
-            ownerType: "leave_request",
-            ownerId: record.id,
-            purpose:
-              preview?.evidence.purposeKey ??
-              snapshotEvidencePurpose(record) ??
-              "leave_supporting_photo",
-            filename: file.name,
-            mediaType: file.type,
-            bytes: file.size,
-          }),
-        });
-        const result = await response.json();
-        if (!response.ok)
-          throw new Error(result.error?.message ?? "Unable to start the evidence upload.");
-        uploadAttempt.current.url = result.data.uploadUrl;
-      }
-      const response = await workFetch(uploadAttempt.current.url!, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!response.ok) {
-        const result = await response.json();
-        if (response.status === 410) uploadAttempt.current = null;
-        throw new Error(result.error?.message ?? "Evidence upload interrupted. Retry this file.");
-      }
-      setUploaded(file.name + " · uploaded and verified");
-      setHasEvidence(true);
-      setFile(null);
-      uploadAttempt.current = null;
-      router.refresh();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Evidence upload interrupted. Retry this file.",
-      );
-    } finally {
-      setBusy(false);
-    }
+    if(!file||!record||busy||!command.allowed("save"))return;
+    setBusy(true);setError("");try{await uploadFile(record.id,file);router.refresh();}
+    catch(cause){setError(cause instanceof Error?cause.message:"Evidence upload interrupted. Retry the same file.");}finally{setBusy(false);}
   }
+  const contents=(
 
-  return (
-    <section className={styles.formShell}>
+    <WorkforceDraftBoundary dirty={Boolean(command.pending)||Boolean(file)||evidenceClient.pending()}><section className={styles.formShell}>
+      {command.notice&&<InlineNotice role="status">{command.notice}</InlineNotice>}
+      {command.pending&&<InlineNotice role="status"><p>The original leave action has an uncertain result. Your newer draft is retained.</p><Button appearance="standard" disabled={busy} onClick={async()=>{const result=await command.recover();if(result){if(file||evidenceClient.pending()){setCreatedId(result.receipt.id);command.setNotice("The original draft was saved. Your selected evidence is retained here; open the saved request to finish evidence and submission.");}else await complete(result.request,result.receipt.id);}}}>Check original action</Button></InlineNotice>}
       <RequestSteps reviewing={!!preview} />
       {recovered.notice}
+      {pendingEvidence&&<InlineNotice role="status"><p>The original evidence upload is still pending. Choose the same private file to check it; private bytes are kept only in memory.</p>{evidenceClient.target()&&<WorkspaceLink href={destination(evidenceClient.target()!)}>Open the original saved request</WorkspaceLink>}</InlineNotice>}
 
       <RequestValidation><form id={formId} hidden={!!preview}
         className={styles.leaveForm}
@@ -310,7 +247,7 @@ export function LeaveEditor({
         )}
         <Field appearance="standard" className={styles.field}>
           Leave type
-          <Select appearance="standard"
+          <Select disabled={busy||!command.allowed("save")} appearance="standard"
             required
             value={draft.leaveTypeId}
             onChange={(event) => set("leaveTypeId", event.target.value)}
@@ -342,7 +279,7 @@ export function LeaveEditor({
           <div className={styles.dateFields}>
             <Field appearance="standard" className={styles.field}>
               First day
-              <TextInput appearance="standard"
+              <TextInput disabled={busy||!command.allowed("save")} appearance="standard"
                 required
                 type="date"
                 value={draft.startDate}
@@ -351,7 +288,7 @@ export function LeaveEditor({
             </Field>
             <Field appearance="standard" className={styles.field}>
               Portion
-              <Select appearance="standard"
+              <Select disabled={busy||!command.allowed("save")} appearance="standard"
                 value={draft.startSegment}
                 onChange={(event) => set("startSegment", event.target.value as LeaveSegment)}
               >
@@ -362,7 +299,7 @@ export function LeaveEditor({
             </Field>
             <Field appearance="standard" className={styles.field}>
               Last day
-              <TextInput appearance="standard"
+              <TextInput disabled={busy||!command.allowed("save")} appearance="standard"
                 required
                 type="date"
                 value={draft.endDate}
@@ -371,7 +308,7 @@ export function LeaveEditor({
             </Field>
             <Field appearance="standard" className={styles.field}>
               Portion
-              <Select appearance="standard"
+              <Select disabled={busy||!command.allowed("save")} appearance="standard"
                 value={draft.endSegment}
                 onChange={(event) => set("endSegment", event.target.value as LeaveSegment)}
               >
@@ -387,7 +324,7 @@ export function LeaveEditor({
         </div>
         <Field appearance="standard" className={styles.field}>
           Handover note
-          <TextArea appearance="standard"
+          <TextArea disabled={busy||!command.allowed("save")} appearance="standard"
             maxLength={2048}
             value={draft.handoverNote}
             onChange={(event) => set("handoverNote", event.target.value)}
@@ -398,7 +335,7 @@ export function LeaveEditor({
         </Field>
       </form></RequestValidation>
 
-      {!preview && !externalEvidence &&
+      {!preview && (!externalEvidence||pendingEvidence) &&
         (record ? (
           <section className={styles.evidenceSection}>
             <div>
@@ -410,7 +347,7 @@ export function LeaveEditor({
             </div>
             <Field appearance="standard" className={styles.fileField}>
               Choose a private file
-              <TextInput appearance="standard"
+              <TextInput disabled={busy||!command.allowed("save")} appearance="standard"
                 type="file"
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
@@ -420,7 +357,7 @@ export function LeaveEditor({
               <Button appearance="standard"
                 variant="secondary"
                 type="button"
-                disabled={busy}
+                disabled={busy||!command.allowed("save")}
                 onClick={() => void upload()}
               >
                 {busy ? "Uploading…" : "Upload / retry " + file.name}
@@ -439,22 +376,22 @@ export function LeaveEditor({
             )}
           </section>
         ) : (
-          <section className={styles.evidenceSection}><h3>Supporting evidence</h3><p>Optional unless your policy requires it. Files remain private with this request.</p><Field appearance="standard">Choose a private file<TextInput appearance="standard" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy} onChange={e=>setFile(e.target.files?.[0]??null)} /></Field>{file&&<p>{file.name} · uploaded only when you save or send</p>}</section>
+          <section className={styles.evidenceSection}><h3>Supporting evidence</h3><p>Optional unless your policy requires it. Files remain private with this request.</p><Field appearance="standard">Choose a private file<TextInput disabled={busy||!command.allowed("save")} appearance="standard" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e=>setFile(e.target.files?.[0]??null)} /></Field>{file&&<p>{file.name} · uploaded only when you save or send</p>}</section>
         ))}
 
       {!preview && <>        <div className={`request-footer ${styles.formActions}`}>
           <Button appearance="standard"
             clientManaged variant="secondary"
             type="submit" form={formId}
-            disabled={busy || recovered.conflict || !draft.leaveTypeId || !draft.startDate || !draft.endDate}
+            disabled={busy || !command.allowed("save") || recovered.conflict || !draft.leaveTypeId || !draft.startDate || !draft.endDate}
           >
             {busy ? "Working…" : "Review request"}
           </Button>
           <Button appearance="standard"
             variant="ghost"
             type="button"
-            disabled={busy || recovered.conflict || !draft.leaveTypeId || !draft.startDate || !draft.endDate}
-            onClick={() => void save(true)}
+            disabled={busy || !command.allowed("save") || recovered.conflict || !draft.leaveTypeId || !draft.startDate || !draft.endDate}
+            form={formId} onClick={() => void save(true)}
           >
             Save draft
           </Button>
@@ -544,13 +481,13 @@ export function LeaveEditor({
           )}
           {file && <p>Evidence selected: {file.name} · scanned and locked before submission.</p>}
           <div className={`request-footer ${styles.reviewActions}`}>
-            <Button appearance="standard" type="button" disabled={busy} onClick={()=>setPreview(null)}>Edit details</Button>
+            <Button appearance="standard" type="button" disabled={busy||!command.allowed("save")} onClick={()=>setPreview(null)}>Edit details</Button>
             {preview.canSubmit && maySubmit && (!evidenceRequiredBeforeSubmit || hasEvidence || !!file) && (
               <Button appearance="standard"
                 variant="primary"
                 type="button"
-                disabled={busy}
-                onClick={() => void save(false)}
+                disabled={busy||!command.allowed("save")}
+                form={formId} onClick={() => void save(false)}
               >
                 {busy ? "Submitting…" : "Submit leave request"}
               </Button>
@@ -559,8 +496,8 @@ export function LeaveEditor({
               <Button appearance="standard"
                 variant="secondary"
                 type="button"
-                disabled={busy}
-                onClick={() => void save(true)}
+                disabled={busy||!command.allowed("save")}
+                form={formId} onClick={() => void save(true)}
               >
                 Save draft to attach evidence
               </Button>
@@ -579,11 +516,11 @@ export function LeaveEditor({
         </section>
       )}
 
-      {createdId && error && <p><a href={`${base}/tasks/people_payroll/${createdId}?from=leave`}>Open saved draft and retry evidence / submission</a></p>}
-      {error && (
+      {createdId && (error||command.notice) && <p><WorkspaceLink href={canonicalUiHref(`${base}/tasks/people_payroll/${createdId}?from=leave`)}>Open saved draft and retry evidence / submission</WorkspaceLink></p>}
+      {(error||command.error) && (
         <InlineNotice tone="danger" className={styles.errorBox} role="alert">
-          <p>{error}</p>
-          {record && error.toLowerCase().includes("changed") && (
+          <p>{error||command.error}</p>
+          {record && (error||command.error).toLowerCase().includes("changed") && (
             <Button appearance="standard"
               variant="secondary"
               type="button"
@@ -600,65 +537,23 @@ export function LeaveEditor({
           )}
         </InlineNotice>
       )}
-    </section>
+    </section></WorkforceDraftBoundary>
   );
+  return drawer?<FormDisclosure appearance="standard" drawerTitle="Edit leave request" dismissDisabled={busy} error={error||command.error}><summary>Edit leave request</summary>{contents}</FormDisclosure>:contents;
 }
 
-export function LeaveDecisions({ base, record }: { base: string; record: LeaveRequest }) {
-  const router = useRouter();
-  const [note, setNote] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const attempt = useRef<{ body: string; key: string } | null>(null);
-
-  async function send(action: string) {
-    setBusy(true);
-    setError("");
-    const cancellation = action.endsWith("_cancellation");
-    const body = JSON.stringify({
-      expectedVersion: record.version,
-      note,
-      ...(cancellation
-        ? { decision: action === "approve_cancellation" ? "approve" : "reject" }
-        : action === "approve"
-          ? {}
-          : { action }),
-    });
-    const signature = action + body;
-    if (attempt.current?.body !== signature)
-      attempt.current = { body: signature, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(
-        "/api/v1" +
-          base +
-          "/leave-requests/" +
-          record.id +
-          "/" +
-          (cancellation ? "cancellation-review" : action === "approve" ? "approve" : "transition"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-          body,
-        },
-      );
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error?.message ?? "Unable to record this decision.");
-      attempt.current = null;
-      window.dispatchEvent(new Event("erpx:work-changed"));
-      router.refresh();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Connection interrupted. Retry this action.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
+export function LeaveDecisions({ base, record, workContext, purchase }: { base: string; record: LeaveRequest;workContext:string;purchase:WorkforcePurchase|undefined }) {
+  const router=useRouter(),command=useWorkforceCommand(base,`${workContext}:leave:${record.id}:decisions`,purchase);
+  const [note,setNote]=useState("");const noteRef=useRef(note);const {busy,error}=command;
+  async function complete(request:WorkforceCommand){if(request.input.note===noteRef.current){setNote("");noteRef.current="";router.refresh();}else command.setNotice("The decision was saved. Your newer note is retained.");}
+  async function send(action:string){const result=await command.send({kind:"leave",action,id:record.id,input:{expectedVersion:record.version,note,...(action.endsWith("_cancellation")?{decision:action==="approve_cancellation"?"approve":"reject"}:action==="approve"?{}:{action})}});if(result)await complete(result.request);}
+  function updateNote(value:string){noteRef.current=value;setNote(value);}
   const actions = record.permittedActions.filter((action) => !["save", "submit"].includes(action));
-  if (!actions.length) return null;
+  if (!actions.length&&!command.pending) return null;
   return (
-    <section className={styles.decisionSection}>
+    <WorkforceDraftBoundary dirty={Boolean(note)||Boolean(command.pending)}><section className={styles.decisionSection}>
+      {command.notice&&<InlineNotice role="status">{command.notice}</InlineNotice>}
+      {command.pending&&<InlineNotice role="status"><p>Check the original leave action before another decision.</p><Button appearance="standard" disabled={busy} onClick={async()=>{const result=await command.recover();if(result)await complete(result.request);}}>Check original action</Button></InlineNotice>}
       <div>
         <p className={styles.eyebrow}>Available action</p>
         <h2>Review this request</h2>
@@ -670,7 +565,7 @@ export function LeaveDecisions({ base, record }: { base: string; record: LeaveRe
           className="input"
           value={note}
           maxLength={2048}
-          onChange={(event) => setNote(event.target.value)}
+          onChange={(event) => updateNote(event.target.value)}
         />
       </Field>
       <div className={styles.formActions}>
@@ -691,7 +586,7 @@ export function LeaveDecisions({ base, record }: { base: string; record: LeaveRe
               variant="secondary"
               key={action}
               type="button"
-              disabled={busy || (requiresNote && !note.trim())}
+              disabled={busy || !command.allowed(action) || (requiresNote && !note.trim())}
               onClick={() => void send(action)}
             >
               {busy ? "Saving…" : label}
@@ -699,12 +594,12 @@ export function LeaveDecisions({ base, record }: { base: string; record: LeaveRe
           );
         })}
       </div>
-      {actions.some(a=>["approve","reject"].includes(a)) && <ReviewDecisionForm actions={actions.filter((a):a is ReviewDecision=>["approve","reject"].includes(a))} busy={busy} note={note} onNote={setNote} minimum={a=>a === "approve" ? 0 : 2} onConfirm={a=>void send(a)} />}
+      {actions.some(a=>["approve","reject"].includes(a)) && <ReviewDecisionForm actions={actions.filter((a):a is ReviewDecision=>["approve","reject"].includes(a))} busy={busy||!command.allowed("approve")} note={note} onNote={updateNote} minimum={a=>a === "approve" ? 0 : 2} onConfirm={a=>void send(a)} />}
       {error && (
         <InlineNotice tone="danger" role="alert" className={styles.errorBox}>
           {error}
         </InlineNotice>
       )}
-    </section>
+    </section></WorkforceDraftBoundary>
   );
 }

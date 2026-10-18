@@ -1,3 +1,4 @@
+import {withFinanceConfigurationCommand,withFinancePurchasedRead} from "./purchase-boundary";
 import { createTaxIdentities } from '../application/tax-identities';
 import type { TaxProjection } from '../domain/tax-identities';
 import { taxSignatureMetadata, taxSignatureGuard, taxSignatureWorkspace } from '@/server/modules/files/public/finance-tax-signatures';
@@ -16,14 +17,14 @@ export { taxIdentitySchema, taxIdentityDecisionSchema, type TaxIdentity } from '
 import { taxIdentitySchema, taxIdentityDecisionSchema, type TaxIdentity } from '../domain/tax-identities';
 export function requireCompanyTaxAuthority(actor: WorkContext, permission: "finance.read" | "finance.write" | "finance.approve" | "finance.pay") { return identityService().requireCompanyTaxAuthority(actor, permission); }
 export function taxSourceDigest(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
-export async function prepareTaxIdentity(actor: WorkContext, input: z.input<typeof taxIdentitySchema>, commandId: string, existingId?: string) { return identityService().prepareTaxIdentity(actor, input, commandId, existingId); }
-export async function decideTaxIdentity(actor: WorkContext, id: string, input: z.input<typeof taxIdentityDecisionSchema>, commandId: string) { return identityService().decideTaxIdentity(actor, id, input, commandId); }
+export async function prepareTaxIdentity(actor: WorkContext, input: z.input<typeof taxIdentitySchema>, commandId: string, existingId?: string) { return withFinanceConfigurationCommand(actor,{key:commandId,operation:existingId?"finance.tax-identity.edit":"finance.tax-identity.prepare",purpose:existingId?"settle-existing":"new-work"},tx=>identityService(tx).prepareTaxIdentity(actor,input,commandId,existingId)); }
+export async function decideTaxIdentity(actor: WorkContext, id: string, input: z.input<typeof taxIdentityDecisionSchema>, commandId: string) { return withFinanceConfigurationCommand(actor,{key:commandId,operation:`finance.tax-identity.${input.action}`,purpose:"settle-existing",signatureRecordId:id},tx=>identityService(tx).decideTaxIdentity(actor,id,input,commandId)); }
 export async function reviewedTaxIdentity(db: SqlDatabase, actor: WorkContext, id: string, partyId: string | null, date: string) { return identityService(db).reviewedTaxIdentity(actor, id, partyId, date); }
 export function taxIdentityGuards(db: SqlDatabase, actor: WorkContext, commandId: string, identities: TaxIdentity[], prefix = "tax-identity") {
     return identities.map((identity, index) => assertion(db, commandId, `${prefix}-${index}`, "EXISTS(SELECT 1 FROM finance_tax_identities WHERE id=? AND company_id=? AND status='approved' AND version=? AND rule_pack_version=?)", [identity.id, actor.companyId, identity.version, thaiFinanceTaxPack.version]));
 }
 export async function currentTaxSignerGuards(db: SqlDatabase, actor: WorkContext, payer: TaxIdentity, commandId: string) { await identityService(db).currentTaxSigner(actor, payer); return taxSignatureGuard(db, actor, payer.signature_link_id!, payer.id, payer.signature_sha256!, commandId, 'current-tax-signer'); }
-export async function taxIdentityWorkspace(actor: WorkContext) { return identityService().taxIdentityWorkspace(actor); }
+export async function taxIdentityWorkspace(actor: WorkContext) { return withFinancePurchasedRead(actor,db=>identityService(db).taxIdentityWorkspace(actor),"finance.accounting",true); }
 function identityService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined = provided ? Promise.resolve(provided) : undefined;
     const db = (actor: WorkContext) => pending ??= holdingResources(actor.holdingId).then(r => r.write);

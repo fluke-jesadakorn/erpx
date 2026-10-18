@@ -233,7 +233,7 @@ it("portal file intake refuses unavailable scanner prerequisites before reading 
  await expect(application.stagePortalAttachment("outside",{companyId:"company",branchId:null,departmentId:null,itemId:"item",itemVersion:1,shareId:"share"},"original.pdf","application/pdf",new Uint8Array([1]),portalKey)).rejects.toThrow("ATTACHMENT_SCANNER_UNAVAILABLE");
 });
 it("an existing portal upload key cannot be reused for different file content",async()=>{
- const application=await portalAttachmentApplication({repository:repository<PortalAttachmentPorts["repository"]>({existing:async()=>({object_key:"original",checksum_sha256:"different",media_type:"application/pdf",bytes:1})})});
+ const application=await portalAttachmentApplication({repository:repository<PortalAttachmentPorts["repository"]>({existing:async()=>({object_key:"original",checksum_sha256:"different",media_type:"application/pdf",bytes:1,expected_target_version:1,scope_matches:1})})});
  await expect(application.stagePortalAttachment("outside",{companyId:"company",branchId:null,departmentId:null,itemId:"item",itemVersion:1,shareId:"share"},"original.pdf","application/pdf",new Uint8Array([1]),portalKey)).rejects.toThrow("IDEMPOTENCY_CONFLICT");
 });
 it("reserved and pending portal bytes both count toward Company storage before object writes",async()=>{
@@ -252,4 +252,9 @@ it("a counsel purchase replay requires current Legal edit access before returnin
  const steps:string[]=[];const retained={id:"item",version:2,requestId:"request"};const unit=repository<import("../../../src/server/modules/legal/application/operations").LegalOperationUnit>({access:async(id,permission)=>{steps.push(String(permission));return {...item,version:99};},replay:async<Result extends object=Record<string,unknown>>():Promise<Result|null>=>retained as Result});
  const application=await operationsApplication({repository:repository<OperationsPorts["repository"]>({transaction:async work=>work(unit)})});
  expect(await application.prepareCounselPurchase({id:"item",expectedVersion:1,summary:"Fictional counsel",estimatedCost:"10.00"},portalKey)).toEqual(retained);expect(steps).toEqual(["legal.edit"]);
+});
+
+it('sends configured development document and central enrollment links separately while keeping the invitation token only in its fragment',async()=>{
+ const sent:string[]=[],source=repository<LegalInvitationRepository>({recover:async()=>{},claim:async()=>job,share:async()=>({email:'invited@example.test',expires_at:1000}),sent:async()=>{}});await invitation(source,{publicOrigin:'https://legal-portal-dev-erpx.jesadakorn.com',enrollmentOrigin:'https://account-dev-erpx.jesadakorn.com',shareSpecificLink:true,enrollmentEnabled:true,enrollmentToken:async()=> 'signed.actual.invitation',send:async(_email,_subject,body)=>{sent.push(body);}})();expect(sent).toEqual(['https://legal-portal-dev-erpx.jesadakorn.com/legal-portal/holding?share=share\n\nNew invited account: https://account-dev-erpx.jesadakorn.com/legal-portal/enroll#token=signed.actual.invitation']);expect(sent[0]).not.toContain('?token=');
+ const legacy:string[]=[];await invitation(source,{enrollmentEnabled:true,enrollmentToken:async()=> 'legacy.signed.invitation',send:async(_email,_subject,body)=>{legacy.push(body);}})();expect(legacy).toEqual(['https://console.example.test/legal-portal/holding\n\nNew invited account: https://console.example.test/legal-portal/enroll#token=legacy.signed.invitation']);
 });

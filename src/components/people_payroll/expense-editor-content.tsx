@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { RequestValidation } from "@/components/workplace/request-validation";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -15,7 +16,7 @@ import { ExpenseAiPanel } from "@/components/people_payroll/expense-ai-panel";
 import { createExpenseDraftOnce } from "@/lib/people_payroll/expense-draft-create";
 import styles from "@/components/people_payroll/expense.module.css";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import type { ExpenseRow as Row } from "@/server/modules/people_payroll/expense";
@@ -162,7 +163,7 @@ export function ExpenseEditor({
     }
     try {
       const id = sessionStorage.getItem(`${storageKey}:created`);
-      if (id) router.replace(`${base}/expenses/${encodeURIComponent(id)}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`);
+      if (id) router.replace(canonicalUiHref(`${base}/expenses/${encodeURIComponent(id)}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`));
       else if (sessionStorage.getItem(`${storageKey}:creation`)) {
         creating.current = true;
         // Restore the pending command lock before allowing another draft action.
@@ -173,7 +174,7 @@ export function ExpenseEditor({
           .then((id) => {
             created.current = id;
             setCreatedId(id);
-            router.replace(`${base}/expenses/${encodeURIComponent(id)}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`);
+            router.replace(canonicalUiHref(`${base}/expenses/${encodeURIComponent(id)}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`));
           })
           .catch((e) => {
             try {
@@ -262,7 +263,7 @@ export function ExpenseEditor({
       for (const file of files)
         await upload.current(base, created.current, file, false, setProgress);
       draft.clear();
-      router.push(`${base}/expenses/${created.current}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`);
+      router.push(canonicalUiHref(`${base}/expenses/${created.current}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`));
       router.refresh();
     } catch (e) {
       if (!created.current) {
@@ -298,7 +299,7 @@ export function ExpenseEditor({
       return;
     }
     if (created.current && !submit) {
-      router.push(`${base}/expenses/${created.current}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`);
+      router.push(canonicalUiHref(`${base}/expenses/${created.current}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`));
       return;
     }
     const fieldSignature = JSON.stringify(fields);
@@ -347,7 +348,7 @@ export function ExpenseEditor({
         if (!response.ok || !result.data?.expense)
           throw Error(result.error?.message ?? "Unable to review the saved claim.");
         if (result.data.expense.status !== "draft" && result.data.expense.status !== "rejected") {
-          router.push(`${base}/expenses/${id}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`);
+          router.push(canonicalUiHref(`${base}/expenses/${id}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`));
           return;
         }
         const version = Number(result.data.expense.version);
@@ -368,7 +369,7 @@ export function ExpenseEditor({
       }
       draft.clear();
       setSelectedFiles([]);
-      if (!expense) router.push(`${base}/expenses/${id}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`);
+      if (!expense) router.push(canonicalUiHref(`${base}/expenses/${id}${returnTo ? `?return=${encodeURIComponent(returnTo)}` : ""}`));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save this draft.");
@@ -480,7 +481,7 @@ export function ExpenseEditor({
               Retry receipt upload
             </Button>
           )}{" "}
-          <Link href={`${base}/expenses/${createdId}`}>Open saved draft</Link>
+          <Link href={canonicalUiHref(`${base}/expenses/${createdId}`)}>Open saved draft</Link>
         </div>
       )}
       {!createdId && creationStarted && error && (
@@ -502,7 +503,7 @@ export function ExpenseEditor({
         </InlineNotice>
       )}
       {draft.notice}
-      {!expense && !options.people.some(p=>p.user_id===options.selfUserId) && !fields.personId && <InlineNotice tone="info" role="status"><p>Your draft can be saved now. Company HR must link your active engagement and department before you can submit a personal claim.</p><Link href={`${base}/profiles/${encodeURIComponent(options.selfUserId??"")}`}>Open your profile →</Link></InlineNotice>}
+      {!expense && !options.people.some(p=>p.user_id===options.selfUserId) && !fields.personId && <InlineNotice tone="info" role="status"><p>Your draft can be saved now. Company HR must link your active engagement and department before you can submit a personal claim.</p><Link href={canonicalUiHref(`${base}/profiles/${encodeURIComponent(options.selfUserId??"")}`)}>Open your profile →</Link></InlineNotice>}
       <RequestValidation><form
         onSubmit={(e) => {
           e.preventDefault();

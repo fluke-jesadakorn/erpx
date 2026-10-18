@@ -1,0 +1,199 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "da983a93f2bf0da4ea0cc0229e9b47b1dbb80e0fbbf2dc646cf2ecc82308e656",
+  "verificationFingerprint": "aefd736f8e4394cb654dbd7295d0c53369c43547e69b4b09d01b8017d176b67d",
+  "createdAt": "2026-10-14T18:20:59.231080+00:00",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit",
+    "apps:all-company-branch-department-product-selection"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment."
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it."
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Signed read-only per-Company comparison; expected versions, fresh Platform MFA and normal Commercial applyIn grant/audit/review transaction. The source owns its first snapshot and complete IAM/Organization/People predicates, tracks future eligibility boundaries and verifies source/current Platform authority after the final batch receipt before COMMIT. Six actual old-source late-receipt failures now roll back. Stale-directory review, future HR appointment, committed replay and transaction confinement are covered."
+    },
+    {
+      "workflow": "apps:all-company-branch-department-product-selection",
+      "implementation": [
+        "src/server/modules/work_projection/application/product-launcher.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/app/choose-work-role/page.tsx"
+      ],
+      "behavior": "Enumerates all Company/Branch/Department choices, checks each applicable role independently using purchased entry capabilities/release/owner menu predicates, preserves the live selection and uses explicit versioned same-origin role selection. Assignment rows and original Module IDs remain unchanged. Positive installed-Company acceptance remains open."
+    }
+  ],
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "release": {
+    "id": "2026-10-14T18-06-04-304Z",
+    "sourceFingerprint": "da983a93f2bf0da4ea0cc0229e9b47b1dbb80e0fbbf2dc646cf2ecc82308e656"
+  },
+  "previousImplementation": "docs/testing/evidence/2026-10-15-product-entry-implementation-1051e.json",
+  "checks": {
+    "unit": {
+      "files": 213,
+      "cases": 2856,
+      "result": "passed"
+    },
+    "focusedPostgres": {
+      "files": 7,
+      "cases": 65,
+      "result": "passed"
+    },
+    "currentFullPostgres": "not run; parent 1051 full result is separately sealed",
+    "companyBrowserPreviews": {
+      "passed": 15,
+      "scope": "warmed normal UI comparisons; no Apply"
+    },
+    "transport": {
+      "passed": 44,
+      "scope": "22 public development health/icon/TLS probes only"
+    },
+    "globalUiGuard": {
+      "result": "failed",
+      "frozenBoundaries": 36,
+      "legacyAdapterMentions": 467
+    }
+  },
+  "limits": [
+    "Implementation-only; no workflow verification or activation accepted",
+    "Company grants/events/change sets/revisions/reviews remain zero; no Apply/enforcement, staging, production deployment, prices or live collection changed",
+    "Concrete owner obligations and enforcement, shadow/package-only parity and reviewed populated live migration remain required",
+    "Positive installed-Company entry, owner/public workflows, Account/revocation propagation, global UI guard, comparable compiled performance and whole-workflow/private-file rollback remain open",
+    "Cold Preview returned server HTTP 200 after compilation but lost the retained form before the warm passing comparisons; cause remains unproven and the diagnostic is retained",
+    "Current focused PostgreSQL/native evidence does not replace final same-source full PostgreSQL or all-surface browser acceptance",
+    "Earlier dated evidence is unchanged; parent full lane 232 files/2162 cases certifies only 1051 source"
+  ],
+  "artifacts": [
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/verification.json",
+      "sha256": "5b88b2dec01271c559681eb5d1d288667d22da03f92fac1bb244e85858d00edc"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/merge.json",
+      "sha256": "49411b93c658e8d132c87ea5cc931c11e0ead2a451dd1ac49b6e16b2d357a069"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/verify.py",
+      "sha256": "e8407a459289df517e1f3eecdb15b615ade0b5567b0abe26346a88745ab233f5"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/grant-counts.json",
+      "sha256": "0892bad0a1837b50fbc1c445c561634989f83ff2c490f0194e8587cb815668f0"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/ui-guard.log",
+      "sha256": "a02bd93a555ac4ed35a6e3077e890b237e171996542758f592c404bd288c9769"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/transport/receipt.json",
+      "sha256": "a6123a7cde8111221a2a21dd08c8644ada29545a7cdcf6cbf73b9d294e25a0a0"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/availability.json",
+      "sha256": "a336552af91218d2734d779d456cd2f1cc8996c0bd6fc09cb3ee635d4f46aeba"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/browser/company-previews.json",
+      "sha256": "f60d462aa748af4c6006f5777630535b7c6082311b68cb43ce850f2728a25510"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/browser/acme-preview.jpg",
+      "sha256": "567b9e2e44bd08ae6267167070b1aebc7e0468558572958c13221772bf78ac55"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/browser/cold-preview-diagnostic.json",
+      "sha256": "993d4c7e239ee0fe3d5e57afa55ff859fd2c9631c7c0468cd03b121384575f57"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/browser/console-home.json",
+      "sha256": "b5ad4ba1c5a596f2a53ff66395ee35c2312aa34c986686fbeb44181a207aafad"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/browser/console-home.jpg",
+      "sha256": "df200e7ca18c3a454f02c67f4e36f86b28b4ffaa4e19ab19d9d2f03d063b1891"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-lease-checks/copy-verification.json",
+      "sha256": "130061a3ac7436bb5ff55236f2833e27e240a1765b4a1cf8af001f3a6e29b1f2"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-lease-checks/temporal-red.log",
+      "sha256": "26beb3a3a457d18647b595a830cb939c1be016828d004d631b8f7da339daf2bd"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-lease-checks/temporal-red-bootstrap.log",
+      "sha256": "eaa84dcc7af1f23ef5396531b8138ffffe5126fb096a8856b28f5504e66d80af"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-lease-checks/run-red.py",
+      "sha256": "8923e6d959261f873f94fdcc5cccfd426a0076d190a730e3361e83dcb0b60fb3"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-lease-checks/native.log",
+      "sha256": "1aeb4e37baabe4548e8c17dd1a39f41d0dfe4d738a9144df91302e328e0eb5c2"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/current-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/current-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/current-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/current-catalogue.log",
+      "sha256": "ba72d778e91119958f8815fd0a960fa8953076db08512d8f073689f1ffbe3374"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/current-documentation.log",
+      "sha256": "980d245db1a006cf6ee104a90b79eeca48572b8352ebb6ff0c57dcf7bf16307a"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/current-products.log",
+      "sha256": "dccdd861f3d91d35282eb0a5b965e04d97d1023ebaed3dad13d83455ab5df5fa"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/current-unit.log",
+      "sha256": "d8e3fdc51816877925c8e192f8bb084bf432a6f64b9f735dca9f510ee940b0b3"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/current-focused-postgres.log",
+      "sha256": "fbe9e29b73aa150b25e6d695ba6a13e6fdda2acb513ed4635d713734eb845fe1"
+    },
+    {
+      "path": ".scratch/dev/product-commercial-temporal-current/current-build.log",
+      "sha256": "c8be4a51d92aa6369978df3e9497db2c72cab30877ea89c518ff151efa2e201c"
+    }
+  ]
+}

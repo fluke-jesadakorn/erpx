@@ -3,10 +3,14 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRecoverableDraft } from "@/components/ui/use-recoverable-draft";
-import { useStaffCommand } from "@/components/work_projection/staff-work-controls";
+import {useHandbookCommand} from './use-handbook-command';
+import type {HandbookPurchaseControls} from '@/server/modules/collaboration/public/handbook-purchases';
+import {DraftFormDrawer} from '@/components/ui/draft-form-drawer';
+import {useEffect,useRef,useState} from 'react';
+import {registerUnsavedWork} from '@/lib/work_projection/context-switch';
 import type { HandbookRevision, handbookEditorOptions } from "@/server/modules/runtime/public/handbook";
 import styles from "./services.module.css";
 import { Card } from "@/components/ui/foundation";
@@ -18,6 +22,8 @@ export function HandbookEditor({
   version = 1,
   revision,
   archived = false,
+  purchase,
+  contextKey = base,
 }: {
   base: string;
   companyId: string;
@@ -26,32 +32,31 @@ export function HandbookEditor({
   version?: number;
   revision?: HandbookRevision;
   archived?: boolean;
+  purchase?:HandbookPurchaseControls;
+  contextKey?:string;
 }) {
   const ready = useHydrated(),
     router = useRouter(),
-    command = useStaffCommand(base),
+    command = useHandbookCommand(base,purchase,contextKey),
     initial = {
       title: revision?.title ?? "",
       category: revision?.category ?? "procedure",
       body: revision?.body ?? "",
     };
   const draft = useRecoverableDraft(
-      `erpx:handbook:${companyId}:${userId}:${id ?? "new"}`,
+      `erpx:handbook:${companyId}:${userId}:${contextKey}:${id ?? "new"}`,
       initial,
       "article",
     ),
     f = draft.fields,
-    dirty = JSON.stringify(f) !== JSON.stringify(initial);
-  async function save(e: React.FormEvent) {
+    dirty = draft.dirty,form=useRef<HTMLFormElement>(null);
+  useEffect(()=>registerUnsavedWork(()=>dirty),[dirty]);
+  async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const result = await command.send(`handbook${id ? `/${id}` : ""}`, {
+    await command.send(`handbook${id ? `/${id}` : ""}`, {
       ...f,
       expectedVersion: version,
-    });
-    if (result) {
-      draft.clear();
-      if (!id) router.push(`${base}/handbook/${result.id}?edit=1`);
-    }
+    },e.currentTarget,false,result=>{draft.clear();if(!id)router.push(command.canonicalArticle(result.id));});
   }
   return (
     <Card as="section" appearance="standard" className="ui-panel">
@@ -60,7 +65,7 @@ export function HandbookEditor({
         Saving keeps a private draft. Publish only after reviewing the saved revision.
       </p>
       {draft.notice}
-      <form onSubmit={save}>
+      <form ref={form} data-handbook-draft data-work-dirty={dirty?'true':undefined} onChangeCapture={event=>event.currentTarget.setAttribute('data-erpx-edit-version',crypto.randomUUID())} onReset={()=>draft.discard()} onSubmit={save}>
         <fieldset className={styles.form} disabled={!ready || command.busy}>
           <Field appearance="standard">
             Article title
@@ -92,7 +97,7 @@ export function HandbookEditor({
             />
           </Field>
           <div className={styles.actions}>
-            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={draft.conflict}>
+            <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={draft.conflict||!!purchase&&!purchase.newWork||!!command.retryAttempt}>
               Save draft
             </Button>
             {id && (
@@ -101,12 +106,12 @@ export function HandbookEditor({
                   variant="secondary"
                   type="button"
 
-                  disabled={dirty || draft.conflict}
+                  disabled={dirty || draft.conflict||!!purchase&&!purchase.newWork||!!command.retryAttempt}
                   onClick={() =>
                     void command.send(`handbook/${id}/actions`, {
                       action: "publish",
                       expectedVersion: version,
-                    })
+                    },form.current??undefined)
                   }
                 >
                   Publish saved revision
@@ -114,12 +119,13 @@ export function HandbookEditor({
                 <Button appearance="standard"
                   variant="ghost"
                   type="button"
+                  disabled={dirty||draft.conflict||!!purchase&&!(archived?purchase.newWork:purchase.settleExisting)||!!command.retryAttempt}
 
                   onClick={() =>
                     void command.send(`handbook/${id}/actions`, {
                       action: archived ? "restore" : "archive",
                       expectedVersion: version,
-                    })
+                    },form.current??undefined,!archived)
                   }
                 >
                   {archived ? "Restore article" : "Archive article"}
@@ -130,6 +136,8 @@ export function HandbookEditor({
         </fieldset>
       </form>
       {command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}
+      {command.notice&&<InlineNotice tone="info">{command.notice}</InlineNotice>}
+      {command.retryAttempt&&<Button appearance="standard" disabled={command.busy||!command.retryAllowed} onClick={()=>void command.retry()}>Retry submitted handbook action</Button>}
     </Card>
   );
 }
@@ -139,23 +147,29 @@ export function HandbookEditors({
   userId,
   options,
   members,
+  purchase,
+  contextKey = base,
 }: {
   base: string;
   companyId: string;
   userId: string;
   options: Awaited<ReturnType<typeof handbookEditorOptions>>;
   members: { id: string; name: string }[];
+  purchase?:HandbookPurchaseControls;
+  contextKey?:string;
 }) {
   const ready = useHydrated(),
-    command = useStaffCommand(base),
+    command = useHandbookCommand(base,purchase,contextKey),
+    [open,setOpen]=useState(false),
     draft = useRecoverableDraft(
-      `erpx:handbook-editors:${companyId}:${userId}`,
+      `erpx:handbook-editors:${companyId}:${userId}:${contextKey}`,
       { member: "" },
       "editor access",
     );
+  const dirty=draft.fields.member!=='';
+  useEffect(()=>registerUnsavedWork(()=>open&&dirty),[open,dirty]);
   return (
-    <details className={`card ${styles.details}`}>
-      <summary>Manage handbook editors</summary>
+    <><Button appearance="standard" clientManaged aria-haspopup="dialog" aria-expanded={open} variant="secondary" disabled={!ready||command.busy} onClick={()=>setOpen(true)}>Manage handbook editors</Button><DraftFormDrawer appearance="standard" open={open} dirty={dirty} title="Manage handbook editors" dismissDisabled={command.busy} onClose={()=>setOpen(false)} onDiscard={()=>{draft.discard();setOpen(false);}}>
       {options.editors.map((e) => (
         <div className={styles.actions} key={e.user_id}>
           <p>{members.find((m) => m.id === e.user_id)?.name ?? e.user_id}</p>
@@ -163,13 +177,13 @@ export function HandbookEditors({
             type="submit"
             variant="ghost"
 
-            disabled={!ready || command.busy}
+            disabled={!ready || command.busy||!!purchase&&!purchase.settleExisting||!!command.retryAttempt}
             onClick={() =>
               void command.send("handbook/editors", {
                 userId: e.user_id,
                 active: false,
                 expectedVersion: options.version,
-              })
+              },undefined,true)
             }
           >
             Revoke editor access
@@ -179,14 +193,11 @@ export function HandbookEditors({
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          if (
-            await command.send("handbook/editors", {
+          await command.send("handbook/editors", {
               userId: draft.fields.member,
               active: true,
               expectedVersion: options.version,
-            })
-          )
-            draft.clear();
+            },e.currentTarget,false,()=>draft.discard());
         }}
       >
         <fieldset className={styles.form} disabled={!ready || command.busy}>
@@ -207,12 +218,13 @@ export function HandbookEditors({
                 ))}
             </Select>
           </Field>
-          <Button appearance="standard" clientManaged type="submit" variant="secondary">
+          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={!!purchase&&!purchase.newWork||!!command.retryAttempt}>
             Grant editor access
           </Button>
         </fieldset>
       </form>
       {command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}
-    </details>
+      {command.retryAttempt&&<Button appearance="standard" disabled={command.busy||!command.retryAllowed} onClick={()=>void command.retry()}>Retry submitted handbook action</Button>}
+    </DraftFormDrawer></>
   );
 }

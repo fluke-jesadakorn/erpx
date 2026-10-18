@@ -1,4 +1,6 @@
 "use client";
+import {posReceiptHref} from "@/lib/pos/receipt-route";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import dynamic from "next/dynamic";
 import { PosRecordDetail } from "@/components/records/pos-record-detail";
 import { RecordDrawer } from "@/components/records/record-drawer";
@@ -13,6 +15,7 @@ import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-l
 import { frontText } from "@/lib/shared/front-language";
 import { ModuleTiles } from "@/components/shared/hospitality/module-tiles";
 import { posMenu } from "@/components/shared/hospitality/module-menu";
+import { PosPackageNotice } from "./pos-package-notice";
 
 
 type Row = PosRow;
@@ -130,14 +133,14 @@ function useFrontPosDailyState({
   );
   const tabs = [
     ["sale", tr("Sale"), can("pos.sell")],
-    ["kitchen", tr("Kitchen"), can("pos.kitchen") || can("pos.sell")],
+    ["kitchen", tr("Kitchen"), (can("pos.kitchen") || can("pos.sell")) && (data.purchases?.["pos.kitchen"].history ?? true)],
     ["shifts", tr("Cash shifts"), can("pos.sell") || can("pos.approve")],
     ["history", tr("History"), can("pos.read")],
   ].filter((item) => item[2]) as Array<[string, string, boolean]>;
   const pick = (row: Row) => {
     setSelected(s(row, "id"));
     setRegisterId(s(row, "register_id"));
-    const url = new URL(window.location.href); url.searchParams.set("detailKind", "pos_sale"); url.searchParams.set("detailId", s(row,"id")); window.history.pushState(null,"",url);
+    window.history.pushState(null,"",posReceiptHref(window.location.href,s(row,"id")));
   };
   return {data, tab, setTab, busy, error, notice, send, refresh, registerId, setSelected, setRegisterId, money, can, approvalHref, erpBase, api, recovery, loading, online, language, tr, kitchenStation, setKitchenStation, sale, activeRegisterId, register, openingDraft, setOpeningDraft, ready, tabs, pick};
 }
@@ -197,6 +200,7 @@ function FrontPosDaily(props: {
           </div>
         )}
         {recovery}
+        <PosPackageNotice data={data} />
         {loading ? (
           <section className={styles.panel} role={error ? "alert" : "status"} aria-busy={!error}>
             <p className={styles.empty}>
@@ -272,6 +276,7 @@ export function FrontPosConsole({
   erpBase = base,
   initialTab,
   frontMode = false,
+  frontHref,
   commandScopeKey = base,
   recordOnly = false,
   financeMode = false,
@@ -294,7 +299,7 @@ export function FrontPosConsole({
   const pickSale = (row: Row) => {
     setSelected(s(row, "id"));
     setRegisterId(s(row, "register_id"));
-    const url = new URL(window.location.href); url.searchParams.set("detailKind", "pos_sale"); url.searchParams.set("detailId", s(row,"id")); window.history.pushState(null,"",url);
+    window.history.pushState(null,"",posReceiptHref(window.location.href,s(row,"id")));
     setPrinting(false);
   };
   const recovery = pendingCommand && (
@@ -308,7 +313,7 @@ export function FrontPosConsole({
       </Button>
     </div>
   );
-  const receiptDrawer = searchParams.get("detailKind") === "pos_sale" && searchParams.get("detailId") ? <RecordDrawer title={data.sale ? s(data.sale,"number") : "Receipt"} fullHref={`?tab=sale&sale=${encodeURIComponent(searchParams.get("detailId")!)}`}>
+  const receiptDrawer = searchParams.get("detailKind") === "pos_sale" && searchParams.get("detailId") ? <RecordDrawer title={data.sale ? s(data.sale,"number") : "Receipt"} fullHref={posReceiptHref(frontMode&&frontHref?frontHref+tab:base+"/pos",searchParams.get("detailId")!)}>
     {error && <p role="alert">{error}<Button onClick={()=>void refresh().catch(()=>{})}>Retry</Button></p>}
     {data.sale && s(data.sale,"id") === searchParams.get("detailId") ? <PosRecordDetail key={s(data.sale,"id")} canEdit={can("pos.sell")} canVerifyTransfer={!frontMode && can("finance.approve")} online={online} data={data} api={api} erpBase={erpBase} busy={busy} send={send} registerId={registerId} setRegisterId={setRegisterId} pickSale={pickSale} openShifts={()=>setTab("shifts")}/> : <p role="status">Loading receipt…</p>}
   </RecordDrawer> : null;
@@ -333,7 +338,7 @@ export function FrontPosConsole({
         can={can}
         api={api}
         recovery={recovery}
-        approvalHref={`${erpBase}/pos?tab=history&queue=approval`}
+        approvalHref={canonicalUiHref(`${erpBase}/pos?tab=history&queue=approval`)}
         erpBase={erpBase}
       /></>
     );

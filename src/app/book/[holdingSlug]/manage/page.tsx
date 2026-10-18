@@ -1,4 +1,4 @@
-import { GuestBookingManager } from "@/components/pms/guest-booking-manager";
+import { GuestBookingManagementWorkspace } from "@/components/pms/guest-booking-management-workspace";
 import { BookingCopy } from "@/components/pms/booking-copy";
 import styles from "@/components/pms/booking.module.css";
 export default async function ManageBooking({
@@ -16,7 +16,7 @@ export default async function ManageBooking({
           Review your reservation, change dates and rooms, or cancel selected rooms within the accepted policy. Track payments and refunds here.
         </BookingCopy>
       </header>
-      <GuestBookingManager slug={holdingSlug} />
+      <GuestBookingManagementWorkspace slug={holdingSlug} />
     </main>
   );
 }

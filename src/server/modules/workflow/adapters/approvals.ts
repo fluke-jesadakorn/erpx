@@ -1,3 +1,4 @@
+import {withExpenseApprovalReroute} from "../../people_payroll/public/expense-purchases";
 import {workflowFinalOwnerProjections as peoplepayrollFinalOwnerProjections} from "../../people_payroll/public/workflow-final-owner-projections";
 const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 import { createApprovalsSourceRepository as organization_approvals } from '../../organization/public/workflow-approvals-facts';
@@ -285,5 +286,5 @@ export async function rerouteApproval(db: SqlDatabase, actor: StaffActor, id: st
     instanceVersion: number;
     approverUserId: string;
     reason: string;
-}, key: string): Promise<Record<string, unknown>> { return invoke(() => application(db).rerouteApproval(actor, id, input, key)); }
+}, key: string): Promise<Record<string, unknown>> { return withExpenseApprovalReroute(db,actor,id,key,transaction=>invoke(() => application(transaction).rerouteApproval(actor,id,input,key))); }
 function nativeApprovalRecord(kind: ApprovalKind) { return { table: kind === "leave" || kind === "leave_cancellation" ? "leave_requests" : kind === "overtime" ? "overtime_requests" : kind === "task" ? "staff_tasks" : "finance_expenses", column: kind === "expense" ? "status" : "state" }; }

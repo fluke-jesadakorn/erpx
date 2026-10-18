@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
@@ -6,7 +7,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 import { useTimePreference } from "@/components/people_payroll/time/time-preference-context";
 import { formatPreferredDateTime } from "@/lib/shared/ui-format";
 import { useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { hubResultHref } from "@/lib/shared/hub-result";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { supportDetail, supportWorkspace } from "@/server/modules/support/public/support";
@@ -78,7 +79,7 @@ export function SupportConsole({
       last.current = null;
       window.dispatchEvent(new Event("erpx:hub-saved"));
       window.dispatchEvent(new Event("erpx:record-saved"));
-      router.push(hubResultHref(window.location.href, base, `${base}/support/${result.data.id}`) ?? `${base}/support/${result.data.id}`, { scroll: false });
+      router.push(hubResultHref(window.location.href, base, canonicalUiHref(`${base}/support/${result.data.id}`)) ?? canonicalUiHref(`${base}/support/${result.data.id}`), { scroll: false });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Retry this command.");
@@ -372,7 +373,7 @@ export function SupportConsole({
           )}
         </>
       )}
-      {r && detail?.canManage && r.status === "closed" && (
+      {r && detail?.canReopen && r.status === "closed" && (
         <SupportDecisionForm
           label={r.source_kind !== "sales_order" ? "Reopen reported issue" : "Reopen customer dispute"}
           onSubmit={(data) => {

@@ -1,0 +1,7 @@
+# Retain package history independently of the next operational period
+
+A Company's already effective purchase retains history eligibility when its current grant is inactivated or replaced by a future period. Store immutable, purchase-audit-linked history facts rather than treating the latest period as the whole purchase history or replaying every historical grant on every read. A first future purchase withdrawn before it becomes effective supplies no retained right; history never supplies current release readiness, personal authority or record access, and never authorizes new work or settlement.
+
+Ordinary audited grant mutations queue before/after images and observe only the original committed and final images at the transaction boundary. Transaction-local state retains the original and final images, so intermediate future periods cannot become permanent rights merely because a transaction is delayed. This uses PostgreSQL's [deferred row triggers](https://www.postgresql.org/docs/18/sql-createtrigger.html) and [transaction-local configuration](https://www.postgresql.org/docs/18/functions-admin.html). The additive migration reconstructs eligible prior periods from immutable audit; it does not create packages, roles, rollout, prices or billing events.
+
+This records the development implementation decision. Installed migration, full lifecycle/rollback and product acceptance remain governed by the [production plan](../production-plan.md#product-separation--2026-10-14). New source is not certified by the earlier history-denial checkpoint.

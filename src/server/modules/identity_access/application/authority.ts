@@ -32,7 +32,7 @@ export function createIamAuthority(ports: IamAuthorityPorts) { return async (com
     if (!elevation)
         throw ports.error(403, 'EMERGENCY_ACCESS_REQUIRED', 'Verify MFA and activate a temporary emergency session in account security.');
     emergencyUntil = Number(elevation.expires_at);
-} const hrAppointment = companyId === 'platform' ? null : await ports.hrAppointment(companyId, userId, ports.now()), appointmentPermissions = ['people.read', 'people.manage', 'leave.policy.manage', 'module.people_payroll.read'], basePermissions = roleId === 'hr_admin' && !hrAppointment ? role.permissions.filter(permission => !appointmentPermissions.includes(permission)) : role.permissions, permissions = hrAppointment ? [...new Set([...basePermissions, ...appointmentPermissions])] : basePermissions; return { personUserIds: [...new Set([userId, ...aliases])], emergencyUntil, roleRevision: role.revision, identityVersion: member?.version ?? 0, permissions, hrAppointmentVersion: hrAppointment?.version, grantablePermissions: role.grantablePermissions, principalId: member?.principal_id ?? `local:${userId}`, personId, freshUntil: member?.login_policy === 'directory' ? Number(member.observed_at) + 300000 : null }; }; }
+} const hrAppointment = companyId === 'platform' ? null : await ports.hrAppointment(companyId, userId, ports.now()), permissions = effectiveAuthorityPermissions(roleId, role.permissions, !!hrAppointment); return { personUserIds: [...new Set([userId, ...aliases])], emergencyUntil, roleRevision: role.revision, identityVersion: member?.version ?? 0, permissions, hrAppointmentVersion: hrAppointment?.version, grantablePermissions: role.grantablePermissions, principalId: member?.principal_id ?? `local:${userId}`, personId, freshUntil: member?.login_policy === 'directory' ? Number(member.observed_at) + 300000 : null }; }; }
 export function createPersonIdentityIds(ports: {
     aliases(companyId: string, ids: readonly string[]): Promise<{
         user_id: string;
@@ -50,3 +50,9 @@ export function createCurrentPersonPrincipals(ports: {
     if (matches.length === 1)
         map.set(id, matches[0].current_id);
 } return map; }; }
+
+export function effectiveAuthorityPermissions(roleId: string, permissions: readonly string[], hasHrAppointment: boolean) {
+  const appointment = ["people.read", "people.manage", "leave.policy.manage", "module.people_payroll.read"];
+  const base = roleId === "hr_admin" && !hasHrAppointment ? permissions.filter(permission => !appointment.includes(permission)) : [...permissions];
+  return hasHrAppointment ? [...new Set([...base, ...appointment])] : base;
+}

@@ -5,6 +5,7 @@ import { record, records, dates, plusDays, type Snapshot } from "../domain/pms";
 import { bookingQuote, roomSelectionSchema, type RoomSelection, type BookingQuote } from "@/lib/pms/pms-booking-domain";
 import { availability } from "@/lib/pms/pms-inventory-domain";
 import { availableReceiptSources } from "@/lib/pms/pms-receipt-funding";
+import { bookingRevisionPurchasePurpose, type PmsPropertyPurchase, type PmsPropertyPurchaseRequest } from "../domain/property-purchases";
 import { executePms } from "@/lib/pms/pms-engine";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { Effects } from "@/lib/pms/pms-engine";
@@ -18,6 +19,7 @@ export type PmsProviderWrite = {
     run(): Promise<PmsProviderRows<Record<string, unknown>>>;
 };
 export type PmsBookingChangeUnit = {
+    requirePurchase(input: PmsPropertyPurchase): Promise<void>;
     readPmsRecords(facts: {
         reservationId: string;
     }): Promise<{
@@ -284,7 +286,7 @@ export type PmsBookingChangeUnit = {
     }>;
 };
 export type PmsBookingChangeRepository = PmsBookingChangeUnit & {
-    transaction<Result>(work: (unit: PmsBookingChangeUnit) => Promise<Result>): Promise<Result>;
+    transaction<Result>(work: (unit: PmsBookingChangeUnit) => Promise<Result>, purchase?: PmsPropertyPurchaseRequest): Promise<Result>;
 };
 export type PmsBookingChangePorts = {
     clock: Clock;
@@ -421,7 +423,12 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
                 });
             }
             const proposal: Proposal = { ...(staff ? { staff: { userId: staff.actor.userId, reason: staff.reason.trim(), override: staff.override } } : {}), reservationId: id, version: record(s, 'reservation', id).version, kind, items, expiresAt: now + 15 * 60 * 1000, dueNow: items.reduce((n, p) => n + p.dueNow, 0), refund: items.reduce((n, p) => n + p.refund, 0), fee: items.reduce((n, p) => n + p.fee, 0) };
+            await tx.requirePurchase({ propertyId: s.property.id, purpose: bookingRevisionPurchasePurpose(s, kind, items) });
             return { proposal, token: ports.signed(proposal, env) };
+        }, async () => {
+            const { s } = await bookingAuthority(db, token, now, false, staff);
+            return { propertyId: s.property.id, purpose: bookingRevisionPurchasePurpose(s, kind, input.items), readOnly: true,
+              ...(staff ? { actor: staff.actor, permission: staff.override ? "pms.approve" as const : "pms.reservations" as const } : {}) };
         });
     }
     function releaseHolds(s: Snapshot, id: string, now: number) { for (const b of records(s, 'block').filter(b => b.data.bookingChangeId === id && b.data.state === 'active')) {
@@ -572,6 +579,10 @@ export function createPmsBookingChange(ports: PmsBookingChangePorts) {
             await tx.insertPmsBookingPayments({ attemptId: attemptId, id: s.property.id, id2: id, companyId: s.property.companyId, slug: slug, account_id: connection.account_id, livemode: connection.livemode, dueNow: proposal.dueNow, expiresAt: expiresAt, now: now, now2: now, fact11: JSON.stringify(allocations), fact12: JSON.stringify([...(connection.card_enabled ? ['card'] : []), ...(connection.promptpay_enabled ? ['promptpay'] : [])]), fact13: settings ? (parseGuestAccountJson(settings.accounts_json).stripe || s.property.config.accounts.edc) : s.property.config.accounts.edc, key: key });
             await (await tx.snapshotMoney({ companyId: s.property.companyId }, { sourceType: 'pms_booking_payment', sourceId: attemptId, amountKind: 'requested', transactionDate: s.property.businessDate, currency: 'THB', amountUnits: String(proposal.dueNow) })).statement.run();
             return { summary: ports.bookingSummary(s, id, now), attemptId };
+        }, async () => {
+            const { s } = await bookingAuthority(db, token, now, false, staff);
+            return { propertyId: s.property.id, purpose: bookingRevisionPurchasePurpose(s, proposal.kind, proposal.items), receipt: { kind: "change", id: key },
+              ...(staff ? { actor: staff.actor, permission: staff.override ? "pms.approve" as const : "pms.reservations" as const } : {}) };
         });
         return result.attemptId ? db.bookingCheckout(slug, result.attemptId, env, now) : result.summary;
     }

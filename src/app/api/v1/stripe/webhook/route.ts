@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { stripeWebhook } from "@/server/modules/billing/public/beta-billing";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -22,11 +23,11 @@ export async function POST(request: Request) {
       }
     raw += decoder.decode();
     return Response.json(
-      await stripeWebhook(
+      canonicalDestinationLinks(await stripeWebhook(
         await runtimeEnv(),
         raw,
         request.headers.get("stripe-signature"),
-      ),
+      )),
     );
   } catch (e) {
     return errorResponse(e);

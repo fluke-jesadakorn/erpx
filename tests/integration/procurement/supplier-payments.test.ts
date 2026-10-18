@@ -1,3 +1,7 @@
+import {reviewedSecondaryBook} from "../../support/helpers/finance-book-fixture";
+import {calendarData} from "../../../src/server/modules/work_projection/public/calendar/index";
+import {afterEach} from "vitest";
+import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll,beforeEach,expect,it,vi } from 'vitest';
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
@@ -79,6 +83,17 @@ it('reserves, independently approves and confirms a partial multi-invoice batch 
  expect(await db.prepare('SELECT outstanding_minor,status FROM finance_invoices WHERE id=?').bind(second).first()).toEqual({outstanding_minor:0,status:'paid'});
  expect((await supplierBatchWork(f.manager)).find(x=>x.id===id)).toMatchObject({queue:'completed'});
  expect((await supplierBatchWork(f.manager)).find(x=>x.id===replacementId)).toMatchObject({queue:'completed'});
+ // The retained functional carrying balance must follow a real partial then
+ // final payment, including the last exact remainder and immutable allocations.
+ expect(await db.prepare('SELECT outstanding_minor,base_outstanding_minor FROM finance_invoices WHERE id=?').bind(first).first()).toEqual({outstanding_minor:4000,base_outstanding_minor:4000});
+ const finalVersion=Number(await db.prepare('SELECT version FROM finance_invoices WHERE id=?').bind(first).first('version'));
+ const finalBatch=await createSupplierBatch(f.reviewer,input([entry(first,'40',finalVersion)]),key()),finalId=String(finalBatch.id);
+ await decideSupplierBatch(f.manager,finalId,{expectedVersion:1,reason:'Independently settle the exact final functional carrying remainder'},key(),'approve');await exportSupplierBatch(f.payer,finalId,{expectedVersion:2},key());
+ const finalItem=(await supplierBatchWorkspace(f.payer,finalId)).items[0],finalBank=await bank('40'),finalKey=key(),finalInput={expectedVersion:2,bankTransactionId:finalBank.id,bankVersion:finalBank.version,periodId:f.period,bankReference:'SIM-FINAL-40',evidence:'Actual remaining functional supplier balance and bank evidence checked'};
+ const final=await confirmSupplierInstruction(f.payer,String(finalItem.id),finalInput,finalKey);expect(await confirmSupplierInstruction(f.payer,String(finalItem.id),finalInput,finalKey)).toEqual(final);
+ expect(await db.prepare('SELECT status,outstanding_minor,base_outstanding_minor FROM finance_invoices WHERE id=?').bind(first).first()).toEqual({status:'paid',outstanding_minor:0,base_outstanding_minor:0});
+ expect((await db.prepare('SELECT amount_minor,base_invoice_minor,base_payment_minor,realized_fx_minor FROM finance_allocations WHERE invoice_id=? ORDER BY amount_minor').bind(first).all()).results).toEqual([{amount_minor:4000,base_invoice_minor:4000,base_payment_minor:4000,realized_fx_minor:0},{amount_minor:6000,base_invoice_minor:6000,base_payment_minor:6000,realized_fx_minor:0}]);
+ expect(await db.prepare('SELECT amount_minor,base_amount_minor,fx_rate_micros FROM finance_payments WHERE id=?').bind(final.paymentId).first()).toEqual({amount_minor:4000,base_amount_minor:4000,fx_rate_micros:1000000});
 });
 it('prevents concurrent over-reservation and permits cancellation only before export',async()=>{
  const source=await invoice(),requests=await Promise.allSettled([createSupplierBatch(f.reviewer,input([entry(source,'70')]),key()),createSupplierBatch(f.reviewer,input([entry(source,'70')]),key())]);
@@ -113,7 +128,8 @@ it('rejects wrong ledgers, closed periods, stale versions and revoked treasury a
  const confirmation={expectedVersion:2,bankTransactionId:evidence.id,bankVersion:1,periodId:f.period,bankReference:'SIM-BANK',evidence:'Simulated exact bank transaction reviewed'};
  await expect(confirmSupplierInstruction(f.payer,String(item.id),{...confirmation,bankVersion:2},key())).rejects.toMatchObject({code:'CONFLICT'});
  await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.payer.assignmentId).run();
- await expect(confirmSupplierInstruction(f.payer,String(item.id),confirmation,key())).rejects.toMatchObject({code:'CONFLICT'});
+ // Current authority is denied before the legacy command's SQL assertions.
+ await expect(confirmSupplierInstruction(f.payer,String(item.id),confirmation,key())).rejects.toMatchObject({status:403,code:'FINANCE_ACCESS_CHANGED'});
  expect(await db.prepare('SELECT outstanding_minor FROM finance_invoices WHERE id=?').bind(source).first('outstanding_minor')).toBe(10000);
  expect(await db.prepare('SELECT match_status FROM finance_bank_transactions WHERE id=?').bind(evidence.id).first('match_status')).toBe('unmatched');
 });
@@ -147,4 +163,34 @@ it('rolls back supplier payment accounting, bank match and File binding after th
  expect(await db.prepare("SELECT count(*) n FROM finance_journals WHERE source_type='supplier_batch' AND source_id=?").bind(item.id).first('n')).toBe(1);
  expect(await db.prepare('SELECT count(*) n FROM finance_allocations WHERE invoice_id=?').bind(source).first('n')).toBe(1);
  for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n')).toBe(1);
+});
+
+afterEach(()=>vi.unstubAllEnvs());
+
+it("purchased supplier batching denies an unpurchased bank workflow and Calendar projection without changing invoices",async()=>{
+ const source=await invoice();vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");await expect(supplierBatchWorkspace(f.reviewer)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(createSupplierBatch(f.reviewer,input([entry(source)]),key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await supplierBatchWork(f.manager)).toEqual([]);const emptyCalendar=await calendarData(db,f.payer,{date:"2026-09-03",view:"day",layers:"supplier_batches",mode:"team"});expect(emptyCalendar.sources).toContainEqual({source:"supplier_batches",status:"ready"});expect(emptyCalendar.items).toEqual([]);expect(await db.prepare("SELECT outstanding_minor,status FROM finance_invoices WHERE id=?").bind(source).first()).toEqual({outstanding_minor:10000,status:"posted"});
+});
+it("Finance-only draining reserves real supplier debt and settles independently with exact bank and Files evidence",async()=>{
+ await db.prepare("UPDATE finance_accounts SET control_kind='bank',is_control=1 WHERE id=?").bind(f.accounts.cash).run();
+ const secondary=await reviewedSecondaryBook(db,f.reviewer,f.manager,f.chart,f.period,"2026-09-01");
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const source=await invoice();await reviewedFinanceGrant(db,f.company,"finance","draining");const draft=await createSupplierBatch(f.reviewer,input([entry(source)]),key()),id=String(draft.id);await decideSupplierBatch(f.manager,id,{expectedVersion:1,reason:"Independent retained supplier and beneficiary review"},key(),"approve");const exportKey=key(),exported=await exportSupplierBatch(f.payer,id,{expectedVersion:2},exportKey);expect(await exportSupplierBatch(f.payer,id,{expectedVersion:2},exportKey)).toEqual(exported);expect(await recoverSupplierExport(f.payer,id)).toMatchObject({content:exported.content,sha256:exported.sha256});
+ expect((await calendarData(db,f.payer,{date:"2026-09-03",view:"day",layers:"supplier_batches",mode:"team"})).items.some(item=>item.sourceId===id)).toBe(true);
+ const item=(await supplierBatchWorkspace(f.payer,id)).items[0],proof=await seedAttachmentSet(db,f.payer,{targetType:"finance_supplier_batch",targetId:id,componentKind:"action",componentRef:`supplier-instruction:${item.id}`,purposeKey:"payment_proof",expectedTargetVersion:3}),bankRow=await bank(),payload={expectedVersion:2,bankTransactionId:bankRow.id,bankVersion:bankRow.version,periodId:f.period,bankReference:"ISOLATED-SUPPLIER-100",evidence:"Reviewed actual retained bank debit and counterparty",attachmentSetIds:[proof.setId]},command=key(),result=await confirmSupplierInstruction(f.payer,String(item.id),payload,command);expect(await confirmSupplierInstruction(f.payer,String(item.id),payload,command)).toEqual(result);
+ expect(await attachmentBindingState(db,proof.setId)).toMatchObject({set_state:"bound",link_state:"bound"});expect(await db.prepare("SELECT outstanding_minor,status FROM finance_invoices WHERE id=?").bind(source).first()).toEqual({outstanding_minor:0,status:"paid"});expect(await db.prepare("SELECT match_status,matched_id FROM finance_bank_transactions WHERE id=?").bind(bankRow.id).first()).toEqual({match_status:"matched",matched_id:result.paymentId});
+ const projection=await db.prepare("SELECT id FROM finance_journals WHERE source_type='book_projection' AND source_id=? AND chart_id=? AND status='posted'").bind(result.journalId,secondary.chartId).first<{id:string}>();expect(projection).not.toBeNull();expect(await db.prepare("SELECT SUM(base_debit_minor-base_credit_minor) balance FROM finance_journal_lines WHERE journal_id=?").bind(projection!.id).first("balance")).toBe(0);
+});
+it("purchased supplier confirmation rolls back invoice bank File binding and receipt after deferred payer revocation, then retries once",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const source=await invoice(),draft=await createSupplierBatch(f.reviewer,input([entry(source)]),key()),id=String(draft.id);await decideSupplierBatch(f.manager,id,{expectedVersion:1,reason:"Independent retained batch review"},key(),"approve");await exportSupplierBatch(f.payer,id,{expectedVersion:2},key());
+ const item=(await supplierBatchWorkspace(f.payer,id)).items[0],proof=await seedAttachmentSet(db,f.payer,{targetType:"finance_supplier_batch",targetId:id,componentKind:"action",componentRef:`supplier-instruction:${item.id}`,purposeKey:"payment_proof",expectedTargetVersion:3}),bankRow=await bank(),payload={expectedVersion:2,bankTransactionId:bankRow.id,bankVersion:bankRow.version,periodId:f.period,bankReference:"ISOLATED-LATE-REVOKE",evidence:"Reviewed retained source and original bank debit",attachmentSetIds:[proof.setId]},command=key(),fault=`supplier_purchase_${key().replaceAll("-","")}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.payer.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
+ try{await expect(confirmSupplierInstruction(f.payer,String(item.id),payload,command)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(await db.prepare("SELECT outstanding_minor,status FROM finance_invoices WHERE id=?").bind(source).first()).toEqual({outstanding_minor:10000,status:"posted"});expect(await db.prepare("SELECT match_status,version FROM finance_bank_transactions WHERE id=?").bind(bankRow.id).first()).toEqual({match_status:"unmatched",version:bankRow.version});expect(await attachmentBindingState(db,proof.setId)).toMatchObject({set_state:"draft",link_state:"draft"});for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n")).toBe(0);}finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}()`);}
+ const result=await confirmSupplierInstruction(f.payer,String(item.id),payload,command);expect(await confirmSupplierInstruction(f.payer,String(item.id),payload,command)).toEqual(result);expect(await attachmentBindingState(db,proof.setId)).toMatchObject({set_state:"bound",link_state:"bound"});expect(await db.prepare("SELECT count(*) n FROM command_assertions").first("n")).toBe(0);
+});
+
+it('retains ambiguous historical functional carrying for reconciliation instead of inventing a new supplier payment or changing old money',async()=>{
+ const source=await invoice(),draft=await createSupplierBatch(f.reviewer,input([entry(source)]),key()),id=String(draft.id);await decideSupplierBatch(f.manager,id,{expectedVersion:1,reason:'Independent original payable source review'},key(),'approve');await exportSupplierBatch(f.payer,id,{expectedVersion:2},key());
+ const item=(await supplierBatchWorkspace(f.payer,id)).items[0],evidence=await bank(),command=key(),payload={expectedVersion:2,bankTransactionId:evidence.id,bankVersion:evidence.version,periodId:f.period,bankReference:'LEGACY-CARRYING',evidence:'Original bank observation retained while legacy carrying needs reconciliation'};
+ await db.prepare('UPDATE finance_invoices SET base_outstanding_minor=base_outstanding_minor-1 WHERE id=?').bind(source).run();
+ const tables=['finance_invoices','finance_payments','finance_allocations','finance_journals','finance_journal_lines','finance_financial_events','finance_bank_transactions','command_receipts','audit_events','outbox_events'],snapshot=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(row)::text image FROM ${table} row ORDER BY row_to_json(row)::text`).all()).results)),before=await snapshot();
+ await expect(confirmSupplierInstruction(f.payer,String(item.id),payload,command)).rejects.toMatchObject({code:'SUPPLIER_CARRYING_MISMATCH'});expect(await snapshot()).toEqual(before);
 });

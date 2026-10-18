@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {requireWorkContext} from "@/server/modules/identity_access/public/authorization";
 import {requestPublicOrigin} from "@/server/modules/manage_erpx/public/public-origin";
 import {ApiError,errorResponse} from "@/server/modules/runtime/public/http";
@@ -5,7 +6,7 @@ import {operationsWorkspace,operationsExceptionDetail,draftQueuePolicy,reviewQue
 type Context={params:Promise<{holdingSlug:string}>};
 const headers={"Cache-Control":"private, no-store"};
 export async function GET(r:Request,c:Context){
- try{const a=await requireWorkContext((await c.params).holdingSlug),id=new URL(r.url).searchParams.get("id");return Response.json({data:id?await operationsExceptionDetail(a,id):await operationsWorkspace(a)},{headers});}catch(e){return errorResponse(e);}
+ try{const a=await requireWorkContext((await c.params).holdingSlug),id=new URL(r.url).searchParams.get("id");return Response.json(canonicalDestinationLinks({data:id?await operationsExceptionDetail(a,id):await operationsWorkspace(a)}),{headers});}catch(e){return errorResponse(e);}
 }
 export async function POST(r:Request,c:Context){
  try{
@@ -14,6 +15,6 @@ export async function POST(r:Request,c:Context){
   const a=await requireWorkContext((await c.params).holdingSlug),input=await r.json();
   if(!input||typeof input!=="object"||!["policy","exception"].includes(input.entity))throw new ApiError(422,"OPERATIONS_ENTITY_REQUIRED","Choose a policy or exception command.");
   const data=input.entity==="policy"?typeof input.id==="string"?await reviewQueuePolicy(a,input.id,input,key):await draftQueuePolicy(a,input,key):typeof input.id==="string"?await changeOperationsException(a,input.id,input,key):await openOperationsException(a,input,key);
-  return Response.json({data},{headers});
+  return Response.json(canonicalDestinationLinks({data}),{headers});
  }catch(e){return errorResponse(e);}
 }

@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import Link from "@/components/workplace/workspace-link";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requestAdministrationData } from "@/server/modules/records/public/request-administration";
 import { RequestRepair } from "./service-teams";
@@ -23,7 +24,7 @@ export async function RequestAdministration({
         department approval.
       </p>
       <p>
-        <Link href={`${base}/settings?section=organization#service-teams`}>
+        <Link href={canonicalUiHref(`${base}/settings?section=organization#service-teams`)}>
           Configure service teams and coverage
         </Link>
       </p>
@@ -35,7 +36,7 @@ export async function RequestAdministration({
         return (
           <Card as="article" appearance="standard" className="ui-panel" key={d.request.id}>
             <h3>
-              <Link href={`${base}/requests/${d.request.id}`}>
+              <Link href={canonicalUiHref(`${base}/requests/${d.request.id}`)}>
                 {d.request.title || "Untitled request"}
               </Link>
             </h3>

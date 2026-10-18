@@ -1,3 +1,5 @@
+import {manufacturingInitialPhysicalStockCountLanding} from '../../inventory/public/rules/manufacturing-initial-physical-stock-count';
+import {initialPhysicalStockCountLanding} from "../../inventory/public/rules/initial-physical-stock-count";
 export type DomainWork = import("@/lib/work_projection/work-item").WorkItem;
 import type { listTasks, taskWorkState } from "@/server/modules/operations/public/staff-tasks";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -46,19 +48,22 @@ async function getDomainWork(
       x.claimant_user_id,
     ].includes(actor.userId);
     const financeScope = !actor.branchId && !actor.departmentId;
-    const post =
+    // Missing markers retain the original disabled-mode policy. A retained
+    // Expense history row cannot regain a legacy action from its role/status.
+    const maySettle = x.expense_purchase_settle_existing !== 0;
+    const post = maySettle && (
       x.can_post === 1 || x.workflow_version !== 2 &&
       financeScope &&
       independent &&
       ports.canPostExpenses(actor) &&
-      x.status === "approved";
-    const reimburse =
+      x.status === "approved");
+    const reimburse = maySettle && (
       x.workflow_version === 2
         ? x.can_pay === 1
         : financeScope &&
           independent &&
           hasPermission(actor,"finance.pay") &&
-          x.status === "posted";
+          x.status === "posted");
     const actionable =
       ports.canEditExpense(actor, x) ||
       ports.canReviewExpense(actor, x) ||
@@ -162,7 +167,7 @@ async function getDomainWork(
           : terminal
             ? "Stock count completed"
             : "Waiting for independent finance review",
-      href: `/stock-counts/${x.id}`,
+      href: x.manufacturing_initial_physical_source===1||String(x.manufacturing_initial_physical_source)==="true"?`/${manufacturingInitialPhysicalStockCountLanding}/${encodeURIComponent(String(x.id))}`:x.initial_physical_source===1||String(x.initial_physical_source)==="true"?`/${initialPhysicalStockCountLanding}/${encodeURIComponent(String(x.id))}`:`/stock-counts/${x.id}`,
       status,
       updatedAt: Number(x.updated_at),
       canAct: editable || review,

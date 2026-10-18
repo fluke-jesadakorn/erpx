@@ -29,6 +29,7 @@ export interface FinanceExpansionWorkPorts {
     permission(actor: WorkContext, permission: 'finance.read'): WorkContext;
     ready(actor: WorkContext): Promise<void>;
     today(): string;
+    actionAllowed?(kind:string):boolean;
     rows(actor: WorkContext): Promise<ExpansionWorkRow[]>;
     due(actor: WorkContext): Promise<DueWorkRow[]>;
     periods(actor: WorkContext, today: string): Promise<CloseWorkPeriod[]>;
@@ -42,12 +43,13 @@ export function createFinanceExpansionWork(ports: FinanceExpansionWorkPorts) {
         actor = ports.permission(actor, "finance.read");
         await ports.ready(actor);
         const rows = await ports.rows(actor);
-        const due = actor.scope.kind === "holding" ? (await ports.due(actor)).map((r): WorkItem => ({ id: r.id, type: "finance_review", title: `Scheduled ${r.kind.replaceAll('_', ' ')} draft`, detail: r.last_message ?? `Prepare on ${r.run_on} with retained source evidence`, href: "/finance/due-drafts", status: r.status, updatedAt: r.updated_at, queue: r.status === 'blocked' && hasPermission(actor, 'finance.write') ? 'todo' : 'waiting', canAct: r.status === 'blocked' && hasPermission(actor, 'finance.write'), actionKind: "work", nextAction: r.status === 'blocked' ? 'Resolve the source issue and retry' : 'Waiting for the scheduled date', responsibleQueue: "Company Finance", relationships: ["team"] })) : [];
+        const allowed=(kind:string)=>ports.actionAllowed?.(kind)??true;
+        const due = actor.scope.kind === "holding" ? (await ports.due(actor)).map((r): WorkItem => ({ id: r.id, type: "finance_review", title: `Scheduled ${r.kind.replaceAll('_', ' ')} draft`, detail: r.last_message ?? `Prepare on ${r.run_on} with retained source evidence`, href: "/finance/due-drafts", status: r.status, updatedAt: r.updated_at, queue: r.status === 'blocked' && allowed(r.kind) && hasPermission(actor, 'finance.write') ? 'todo' : 'waiting', canAct: r.status === 'blocked' && allowed(r.kind) && hasPermission(actor, 'finance.write'), actionKind: "work", nextAction: r.status === 'blocked' ? 'Resolve the source issue and retry' : 'Waiting for the scheduled date', responsibleQueue: "Company Finance", relationships: ["team"] })) : [];
         const today = ports.today(), periods = actor.scope.kind === 'holding' ? await ports.periods(actor, today) : [], omitted: WorkItem[] = [];
         for (const period of periods) {
             const missing = await ports.pending(actor.companyId, period.start_date, period.end_date);
             for (const r of missing.filter(r => r.kind.startsWith('due '))) {
-                const href = r.kind.includes('asset') ? '/finance/asset-policies' : r.kind.includes('financing') ? '/finance/instruments' : '/finance/contracts', canAct = hasPermission(actor, 'finance.write');
+                const href = r.kind.includes('asset') ? '/finance/asset-policies' : r.kind.includes('financing') ? '/finance/instruments' : '/finance/contracts', canAct = allowed(r.kind) && hasPermission(actor, 'finance.write');
                 omitted.push({ id: `finance-due-source:${period.id}:${r.kind}:${r.id}`, type: 'finance_review', title: `Prepare ${r.kind.slice(4)}`, detail: `${period.name}: review the source evidence and prepare the missing draft before closing this period.`, href, status: 'source_missing', updatedAt: Date.parse(period.end_date), queue: canAct ? 'todo' : 'waiting', canAct, actionKind: 'work', nextAction: 'Prepare the source draft', responsibleQueue: 'Company Finance', relationships: ['team'] });
             }
         }
@@ -60,15 +62,15 @@ export function createFinanceExpansionWork(ports: FinanceExpansionWorkPorts) {
                 ].includes(r.kind) && actor.scope.kind !== "holding"
                     ? false
                     : delivery
-                        ? hasPermission(actor, "finance.write")
-                        : !self && hasPermission(actor, "finance.approve"), href = [
+                        ? allowed(r.kind) && hasPermission(actor, "finance.write")
+                        : !self && allowed(r.kind) && hasPermission(actor,r.kind==="calculation"&&r.status==="prepared"?"finance.write":"finance.approve"), href = [
                     "group-edition",
                     "ownership",
                     "acquisition",
                     "intercompany-pair",
                 ].includes(r.kind)
                     ? "/finance/group-editions"
-                    : r.kind.startsWith("instrument")
+                    : r.kind === "calculation" ? "/finance/engines" : r.kind.startsWith("instrument")
                         ? "/finance/instruments"
                         : r.kind.startsWith("asset-policy")
                             ? "/finance/asset-policies"
@@ -96,7 +98,7 @@ export function createFinanceExpansionWork(ports: FinanceExpansionWorkPorts) {
                     queue: canAct ? "todo" : "waiting",
                     canAct,
                     actionKind: delivery ? "work" : "approval",
-                    nextAction: delivery
+                    nextAction: !allowed(r.kind)?"View retained Finance history":delivery
                         ? "Record test delivery"
                         : self
                             ? "Waiting for an independent Finance approver"

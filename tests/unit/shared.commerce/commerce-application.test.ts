@@ -1,4 +1,5 @@
-import {expect,it,vi} from "vitest";
+import {commercePackageEnforcementMode} from "../../../src/server/modules/commercial/public/purchase-command-boundary";
+import {afterEach,expect,it,vi} from "vitest";
 import {createCommerceApplication,type CommerceUnit} from "../../../src/server/modules/commerce/application/commerce";
 import {createCommerceDeliveryApplication,type CommerceDeliveryUnit} from "../../../src/server/modules/commerce/application/commerce-delivery-evidence";
 import {createCommerceGoodsApplication,type CommerceGoodsUnit,type CommerceJournal} from "../../../src/server/modules/commerce/application/commerce-goods-accounting";
@@ -39,3 +40,449 @@ it("Commerce sandbox Finance rejects fractional or negative minor units",async()
 it("Commerce sandbox Finance requires paid cash plus pre-credits to reconcile exactly",async()=>{await expect(billing.syncBillingTestFinance({},local,{...invoice,status:"paid",amount_paid:99},[])).rejects.toThrow("TEST_FINANCE_PAYMENT_RECONCILIATION_REQUIRED");});
 it("Commerce sandbox Finance refuses duplicate provider credit evidence",async()=>{const note={id:"cn_test",livemode:false,invoice:"in_test",status:"issued",pre_payment_amount:1};await expect(billing.syncBillingTestFinance({},local,invoice,[note,note])).rejects.toThrow("TEST_FINANCE_DUPLICATE_CREDIT");});
 it("Commerce sandbox Finance cannot credit beyond the issued amount",async()=>{await expect(billing.syncBillingTestFinance({},local,invoice,[{id:"cn_test",livemode:false,invoice:"in_test",status:"issued",pre_payment_amount:101}])).rejects.toThrow("TEST_FINANCE_CREDIT_EXCEEDS_INVOICE");});
+
+
+const purchaseRuntime=vi.hoisted(()=>({environment:'local',resources:0,returnRows:[] as {id:string;has_stock:boolean}[],rows:[] as {kind:string;company_id:string;branch_id:string|null;department_id:string|null}[]}));
+vi.mock("../../../src/server/modules/runtime/public/runtime",()=>({runtimeEnv:async()=>({ERPX_ENVIRONMENT:purchaseRuntime.environment}),holdingResources:async()=>{purchaseRuntime.resources++;return {write:{prepare:(sql:string)=>({bind:()=>({all:async()=>({results:sql.startsWith("SELECT r.id,")?purchaseRuntime.returnRows:purchaseRuntime.rows})})})}}}}));
+afterEach(()=>{vi.unstubAllEnvs();purchaseRuntime.environment='local';purchaseRuntime.resources=0;purchaseRuntime.rows=[];purchaseRuntime.returnRows=[];});
+it("keeps Commerce enforcement independently disabled and permits shadow/enforced only in the local runtime",async()=>{
+ vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT',undefined);expect(await commercePackageEnforcementMode()).toBe('disabled');for(const mode of ['shadow','enforced']){vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT',mode);expect(await commercePackageEnforcementMode()).toBe(mode);}vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','invalid');await expect(commercePackageEnforcementMode()).rejects.toMatchObject({code:'PACKAGE_ENFORCEMENT_CONFIGURATION'});vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');purchaseRuntime.environment='production';await expect(commercePackageEnforcementMode()).rejects.toMatchObject({code:'PACKAGE_ENFORCEMENT_ENVIRONMENT'});
+});
+
+// The owner retains command authority; these controls contain only presentation decisions.
+import {createElement, type ComponentType} from "react";
+import {renderToStaticMarkup} from "react-dom/server";
+import {createCommerceCommandFetch, commerceFormUnchanged, validCommerceAcknowledgement} from "../../../src/lib/commerce/commerce-command-fetch";
+import {workFetch} from '../../../src/lib/work_projection/work-fetch';
+import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
+import {commerceCommandAllowed, commerceCommandPurpose, type CommercePurchaseControls} from "../../../src/lib/commerce/purchase-controls";
+import {CommercePurchaseProvider} from "../../../src/components/commerce/purchase-context";
+import {OrderActions, OrderEditor, StockReservationForm, ServiceCompletionForm, SettlementForm} from "../../../src/components/commerce/commerce-controls";
+vi.mock("next/navigation",async importOriginal=>({...await importOriginal<typeof import("next/navigation")>(),useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>"/holdings/acme/commerce",useSearchParams:()=>new URLSearchParams()}));
+afterEach(()=>vi.unstubAllGlobals());
+const active:CommercePurchaseControls={newWork:true,settleExisting:true,history:true,revision:"opaque",convertNewWork:true,stockNewWork:true,stockSettleExisting:true,financeSettleExisting:true,receivingSettleExisting:true};
+const draining:CommercePurchaseControls={...active,newWork:false,convertNewWork:false,stockNewWork:false};
+const retained:CommercePurchaseControls={...draining,settleExisting:false,stockSettleExisting:false,financeSettleExisting:false,receivingSettleExisting:false};
+function renderCommerce<Props extends object>(Component:ComponentType<Props>,props:Props,purchase?:CommercePurchaseControls){return renderToStaticMarkup(createElement(CommercePurchaseProvider,{purchase},createElement(Component,props)));}
+it("Commerce retains exact retries through lost, truncated, null and empty acknowledgements",async()=>{
+ const seen:string[]=[],request=createCommerceCommandFetch(async(_url,init)=>{seen.push(new Headers(init?.headers).get("Idempotency-Key")!);if(seen.length===1)throw Error("Lost after commit");if(seen.length===2)return new Response("truncated");if(seen.length===3)return Response.json({data:null});if(seen.length===4)return Response.json({data:{id:""}});return Response.json({data:{id:"order",version:2}});});
+ const input={method:"POST",body:'{"expectedVersion":1}'};await expect(request("/order",input)).rejects.toThrow("Lost after commit");await request("/order",input);await request("/order",input);await request("/order",input);expect(request.hasAttempt("/order",input.body)).toBe(true);await request("/order",input);expect(request.hasAttempt("/order",input.body)).toBe(false);await request("/order",input);expect(new Set(seen.slice(0,5)).size).toBe(1);expect(seen[5]).not.toBe(seen[0]);
+});
+it("Commerce separates changed payloads and rendered Company-role contexts",async()=>{
+ const dataset={workUser:"user",workRevision:"1",workCompany:"A",workAssignment:"role-A"};vi.stubGlobal("document",{querySelector:()=>({dataset})});const seen:string[]=[],request=createCommerceCommandFetch(async(_url,init)=>{seen.push(new Headers(init?.headers).get("Idempotency-Key")!);return new Response("unavailable",{status:503});});
+ await request("/order",{body:"first"});await request("/order",{body:"first"});await request("/order",{body:"changed"});dataset.workCompany="B";dataset.workAssignment="role-B";expect(request.hasAttempt("/order","first")).toBe(false);await request("/order",{body:"first"});expect(seen[1]).toBe(seen[0]);expect(seen[2]).not.toBe(seen[0]);expect(seen[3]).not.toBe(seen[0]);
+});
+it("Commerce captured acknowledgements retain later line, allocation or payment edits",async()=>{
+ let edit="submitted";const form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement,completion={form,formEditVersion:edit};expect(commerceFormUnchanged(completion)).toBe(true);edit="later-allocation";expect(commerceFormUnchanged(completion)).toBe(false);
+ const events:Event[]=[];vi.stubGlobal("window",{dispatchEvent:(event:Event)=>{events.push(event);return true;}});await createCommerceCommandFetch(async()=>Response.json({data:{id:"fulfillment"}}))("/fulfill",{body:"submitted"},completion);const ack=events.find(event=>event.type==="erpx:record-command-saved") as CustomEvent;expect(ack.detail.formEditVersion).toBe("submitted");expect(commerceFormUnchanged(ack.detail)).toBe(false);for(const invalid of [null,{},[],{id:""},"saved"])expect(validCommerceAcknowledgement(invalid)).toBe(false);
+});
+it("Commerce purposes retain release and cancellation while requiring active creation and conversion",()=>{
+ for(const path of ["orders","orders/id"])expect(commerceCommandPurpose(path,{})).toBe("new-work");
+ for(const action of ["cancel","return"])expect(commerceCommandAllowed(draining,"orders/id/transition",{action})).toBe(true);
+ for(const action of ["submit","approve","convert"])expect(commerceCommandAllowed(draining,"orders/id/transition",{action})).toBe(false);
+ expect(commerceCommandAllowed(draining,"orders/id/reservations",{action:"release"})).toBe(true);expect(commerceCommandAllowed(draining,"orders/id/reservations",{action:"reserve"})).toBe(false);expect(commerceCommandAllowed({...active,convertNewWork:false},"orders/id/transition",{action:"convert"})).toBe(false);
+ expect(commerceCommandAllowed(retained,"products",{})).toBe(true);expect(commerceCommandPurpose("warehouses",{})).toBe(null);expect(commerceCommandAllowed(undefined,"orders",{})).toBe(true);
+});
+it("Commerce preserves service completion without Stock and stops goods missing actual dependencies",()=>{
+ const service={...draining,stockSettleExisting:false};expect(commerceCommandAllowed(service,"orders/id/fulfill",{completionMode:"service"})).toBe(true);expect(commerceCommandAllowed(service,"orders/id/fulfill",{})).toBe(false);expect(commerceCommandAllowed({...draining,receivingSettleExisting:false},"orders/id/fulfill",{})).toBe(false);expect(commerceCommandAllowed({...draining,financeSettleExisting:false},"invoices/id/settle",{})).toBe(false);
+});
+it("Commerce renders active quote conversion, draining cancellation and retained history separately",()=>{
+ const props={base:"/holdings/acme",order:{id:"order",kind:"quote",state:"confirmed",version:1},canApprove:true};expect(renderCommerce(OrderActions,props,active)).toContain("Create sales order");const settled=renderCommerce(OrderActions,props,draining);expect(settled).toContain("Cancel approved order");expect(settled).not.toContain("Create sales order");const history=renderCommerce(OrderActions,props,retained);expect(history).not.toContain("Cancel approved order");expect(history).not.toContain("Create sales order");expect(renderCommerce(OrderActions,props)).toContain("Create sales order");
+});
+it("Commerce closes new order editors in draining without hiding retained service obligations",()=>{
+ const props={base:"/holdings/acme",options:{products:[],parties:[],warehouses:[],nodes:[],currency:"THB",priceLists:[],priceListItems:[]},kind:"sales"};expect(renderCommerce(OrderEditor,props,draining)).not.toContain("Order details");const service={base:"/holdings/acme",order:{id:"order",version:1},lines:[{id:"line",item_type:"service",quantity_milli:1000,fulfilled_milli:0}]};expect(renderCommerce(ServiceCompletionForm,service,{...draining,stockSettleExisting:false})).toContain("Confirm completed services");expect(renderCommerce(ServiceCompletionForm,service,retained)).not.toContain("Confirm completed services");
+});
+it("Commerce hides history-only reservation and settlement entry points",()=>{
+ const reservation={base:"/holdings/acme",order:{id:"order",version:1},lines:[]};expect(renderCommerce(StockReservationForm,reservation,draining)).toContain("Change reservation");expect(renderCommerce(StockReservationForm,reservation,retained)).toBe("");const settlement={base:"/holdings/acme",invoice:{id:"invoice",kind:"receivable"},periods:[],bankAccounts:[]};expect(renderCommerce(SettlementForm,settlement)).toContain("Record received payment");expect(renderCommerce(SettlementForm,settlement,retained)).toBe("");
+});
+
+import {commercePurchaseControls,commerceReturnPurchaseControls} from "../../../src/server/modules/commerce/public/purchase-controls";
+it("Commerce disabled presentation keeps legacy shape without touching owner resources",async()=>{vi.stubEnv("ERPX_COMMERCE_PACKAGE_ENFORCEMENT",undefined);expect(await commercePurchaseControls(actor,{type:"order",id:"order"})).toBeUndefined();expect(purchaseRuntime.resources).toBe(0);});
+it("Commerce source presentation refuses foreign, ambiguous or unknown order ownership",async()=>{
+ vi.stubEnv("ERPX_COMMERCE_PACKAGE_ENFORCEMENT","enforced");
+ for(const rows of [[{kind:"sales",company_id:"foreign",branch_id:"branch",department_id:"department"}],[{kind:"sales",company_id:"company",branch_id:"other",department_id:"department"}],[{kind:"unknown",company_id:"company",branch_id:"branch",department_id:"department"}],[]]){purchaseRuntime.rows=rows;await expect(commercePurchaseControls(actor,{type:"order",id:"order"})).rejects.toMatchObject({code:"COMMERCE_SOURCE_UNAVAILABLE"});}
+ purchaseRuntime.rows=[{kind:"sales",company_id:"company",branch_id:"branch",department_id:"department"},{kind:"purchase",company_id:"company",branch_id:"branch",department_id:"department"}];await expect(commercePurchaseControls(actor,{type:"invoice",id:"invoice"})).rejects.toMatchObject({code:"COMMERCE_SOURCE_UNAVAILABLE"});
+});
+it("Commerce does not impose a Sales purchase on a standalone or expense invoice",async()=>{vi.stubEnv("ERPX_COMMERCE_PACKAGE_ENFORCEMENT","enforced");purchaseRuntime.rows=[];expect(await commercePurchaseControls(actor,{type:"invoice",id:"standalone"})).toBeUndefined();});
+
+it("Commerce return controls use actual retained service or stock lines without imposing Stock on a service credit",async()=>{
+ const noStock={...draining,stockSettleExisting:false};purchaseRuntime.returnRows=[{id:"service",has_stock:false},{id:"goods",has_stock:true}];const controls=await commerceReturnPurchaseControls(actor,"order",noStock);expect(controls.service.stockSettleExisting).toBe(true);expect(controls.goods.stockSettleExisting).toBe(false);expect(controls.service.revision).toBe(noStock.revision);expect(commerceCommandAllowed(controls.service,"returns/service/approve",{})).toBe(true);expect(commerceCommandAllowed(controls.goods,"returns/goods/approve",{})).toBe(false);expect(await commerceReturnPurchaseControls(actor,"order",undefined)).toEqual({});
+});
+
+it.each(['newer edit','newly focused form'] as const)('Commerce retains its first completion after a lost response despite a %s',async changed=>{
+ let edit='submitted-edit',focused=changed==='newer edit';const form={isConnected:true,getAttribute:()=>edit},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),saved:unknown[]=[];
+ browser.addEventListener('erpx:record-command-saved',event=>saved.push((event as CustomEvent).detail));
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:()=>null,activeElement:{closest:()=>focused?form:null}});
+ let calls=0;vi.stubGlobal('fetch',async()=>{if(++calls===1)throw Error('Original response lost');return Response.json({data:{id:'original-record',version:2}});});
+ const request=createCommerceCommandFetch(workFetch),url='/api/v1/holdings/acme/commerce/orders/original/receive',input={method:'POST',body:'captured-input'};
+ await expect(request(url,input)).rejects.toThrow('Original response lost');edit='newer-edit';focused=true;await request(url,input);
+ if(changed==='newer edit')expect(saved).toEqual([expect.objectContaining({form,formEditVersion:'submitted-edit'})]);else expect(saved).toEqual([]);
+});
+it.each(['revision','stale boundary','removed boundary','switch generation'] as const)('Commerce withholds a late %s cloned acknowledgement and retains its exact original retry',async changed=>{
+ const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment',workStale:'false'}},form={isConnected:true,getAttribute:()=> 'submitted-edit'},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),events:string[]=[];
+ for(const type of ['erpx:record-command-saved','erpx:work-changed'])browser.addEventListener(type,()=>events.push(type));
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'&&node.isConnected?node:null,activeElement:{closest:()=>form},documentElement:{dataset:{}}});
+ let release!:ReadableStreamDefaultController<Uint8Array>,signalBody!:()=>void,calls=0;
+ const bodyStarted=new Promise<void>(resolve=>{signalBody=resolve;}),body=new ReadableStream<Uint8Array>({start(controller){release=controller;}});
+ class CloneBody extends Response{override json(){signalBody();return super.json();}}
+ class LazyResponse extends Response{override clone(){const cloned=super.clone();return new CloneBody(cloned.body,{status:cloned.status,headers:cloned.headers});}}
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>{if(++calls===1)throw Error('Original response lost');return calls===2?new LazyResponse(body,{headers:{'content-type':'application/json'}}):Response.json({data:{id:'original-record',version:2}});});vi.stubGlobal('fetch',network);
+ try{
+  const request=createCommerceCommandFetch(workFetch),url='/api/v1/holdings/acme/commerce/orders/original/receive',input={method:'POST',body:JSON.stringify({id:'original-record',expectedVersion:1,reason:'Captured decision'})};
+  await expect(request(url,input)).rejects.toThrow('Original response lost');expect(request.hasAttempt(url,input.body)).toBe(true);
+  const retry=request(url,input);await bodyStarted;if(changed==='revision')node.dataset.workRevision='8';else if(changed==='stale boundary')node.dataset.workStale='true';else if(changed==='removed boundary')node.isConnected=false;else setContextSwitching(true);
+  release.enqueue(new TextEncoder().encode(JSON.stringify({data:{id:'original-record',version:2}})));release.close();
+  await expect(retry).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(events).toEqual([]);
+  node.dataset.workRevision='7';node.dataset.workStale='false';node.isConnected=true;setContextSwitching(false);expect(request.hasAttempt(url,input.body)).toBe(true);
+  expect((await request(url,input)).ok).toBe(true);expect(request.hasAttempt(url,input.body)).toBe(false);expect(events).toEqual(['erpx:record-command-saved','erpx:work-changed']);
+  expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([input.body,input.body,input.body]);const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(new Set(keys).size).toBe(1);expect(keys[0]).toBeTruthy();
+ }finally{setContextSwitching(false);vi.unstubAllGlobals();}
+});
+
+it.each(['newer edit','newly focused form'] as const)('the actual Commerce caller retains a %s when an original completion is acknowledged on retry',async changed=>{
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../src/components/commerce/use-commerce-command.ts',import.meta.url),'utf8'),file=ts.createSourceFile('actual-commerce-owner.ts',source,ts.ScriptTarget.Latest,true),functions:import('typescript').FunctionDeclaration[]=[];
+ const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='send')functions.push(node);ts.forEachChild(node,visit);};visit(file);if(functions.length!==1)throw Error('Expected the actual Commerce send handler.');
+ const emitted=ts.transpileModule(functions[0].getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const {captureCommerceForm}=await import('../../../src/lib/commerce/commerce-command-fetch'),{canonicalUiHref}=await import('../../../src/lib/work_projection/destination-registry'),{recordTarget,recordDrawerHref}=await import('../../../src/lib/records/record-drawer'),{hubResultHref}=await import('../../../src/lib/shared/hub-result'),{captureWorkCommandContext}=await import('../../../src/lib/work_projection/command-context');
+ let edit='submitted-edit',focused=changed==='newer edit',calls=0;const form={isConnected:true,getAttribute:()=>edit},node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment'}},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com',href:'https://supply-dev-erpx.jesadakorn.com/holdings/acme/purchasing/orders'}}),events:string[]=[];
+ for(const type of ['erpx:hub-saved','erpx:record-saved'])browser.addEventListener(type,()=>events.push(type));
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?node:null,activeElement:{closest:()=>focused?form:null}});
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>{if(++calls===1)throw Error('Original response lost');return Response.json({data:{id:'original-record'}});});vi.stubGlobal('fetch',network);
+ const request=createCommerceCommandFetch(workFetch),router={push:vi.fn(),replace:vi.fn(),refresh:vi.fn()},state:Record<string,unknown[]>={},pendingRef={current:false},setter=(key:string)=>(value:unknown)=>{(state[key]??=[]).push(value);};
+ const names=['pendingRef','base','purchase','commerceCommandAllowed','commerceCommandFetch','captureCommerceForm','captureWorkCommandContext','canonicalUiHref','validCommerceAcknowledgement','commerceFormUnchanged','embedded','recordTarget','recordDrawerHref','hubResultHref','router','setPending','setError','setNotice','setHasAttempt','path','input'],run=new Function(...names,`${emitted}\nreturn send(path,input);`) as (...ports:unknown[])=>Promise<boolean>;
+ const submit=()=>run(pendingRef,'/holdings/acme',undefined,commerceCommandAllowed,request,captureCommerceForm,captureWorkCommandContext,canonicalUiHref,validCommerceAcknowledgement,commerceFormUnchanged,false,recordTarget,recordDrawerHref,hubResultHref,router,...['pending','error','notice','hasAttempt'].map(setter),'orders',{kind:'purchase',reference:'Original captured purchase'});
+ expect(await submit()).toBe(false);expect(state.error.at(-1)).toBe('Original response lost');edit='newer-edit';focused=true;
+ expect(await submit()).toBe(false);expect(state.notice.at(-1)).toContain('newer draft is retained');expect(state.error.at(-1)).toBe('');expect(events).toEqual([]);expect(router.push).not.toHaveBeenCalled();expect(router.replace).not.toHaveBeenCalled();expect(router.refresh).not.toHaveBeenCalled();
+ expect(network.mock.calls[1][1]?.body).toBe(network.mock.calls[0][1]?.body);expect(new Headers(network.mock.calls[1][1]?.headers).get('Idempotency-Key')).toBe(new Headers(network.mock.calls[0][1]?.headers).get('Idempotency-Key'));
+});
+
+// Execute the original owner handler with explicit boundary ports, not mocked React hooks.
+async function actualCommerceCaller(request: ReturnType<typeof createCommerceCommandFetch>) {
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../src/components/commerce/use-commerce-command.ts',import.meta.url),'utf8'),file=ts.createSourceFile('actual-commerce-owner.ts',source,ts.ScriptTarget.Latest,true),functions:import('typescript').FunctionDeclaration[]=[];
+ const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='send')functions.push(node);ts.forEachChild(node,visit);};visit(file);if(functions.length!==1)throw Error('Expected the actual Commerce send handler.');
+ const emitted=ts.transpileModule(functions[0].getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const {captureCommerceForm}=await import('../../../src/lib/commerce/commerce-command-fetch'),{canonicalUiHref}=await import('../../../src/lib/work_projection/destination-registry'),{recordTarget,recordDrawerHref}=await import('../../../src/lib/records/record-drawer'),{hubResultHref}=await import('../../../src/lib/shared/hub-result'),{captureWorkCommandContext}=await import('../../../src/lib/work_projection/command-context');
+ const names=['pendingRef','base','purchase','commerceCommandAllowed','commerceCommandFetch','captureCommerceForm','captureWorkCommandContext','canonicalUiHref','validCommerceAcknowledgement','commerceFormUnchanged','embedded','recordTarget','recordDrawerHref','hubResultHref','router','setPending','setError','setNotice','setHasAttempt','path','input'],run=new Function(...names,`${emitted}\nreturn send(path,input);`) as (...ports:unknown[])=>Promise<boolean>;
+ const router={push:vi.fn(),replace:vi.fn(),refresh:vi.fn()},state:Record<string,unknown[]>={},pendingRef={current:false},setter=(key:string)=>(value:unknown)=>{(state[key]??=[]).push(value);};
+ const submit=()=>run(pendingRef,'/holdings/acme',undefined,commerceCommandAllowed,request,captureCommerceForm,captureWorkCommandContext,canonicalUiHref,validCommerceAcknowledgement,commerceFormUnchanged,false,recordTarget,recordDrawerHref,hubResultHref,router,...['pending','error','notice','hasAttempt'].map(setter),'orders',{kind:'purchase',reference:'Original captured purchase'});
+ return {submit,router,state,url:'/api/v1/holdings/acme/commerce/orders',body:JSON.stringify({kind:'purchase',reference:'Original captured purchase'})};
+}
+
+it.each(['revision','stale boundary','removed boundary','switch generation'] as const)('the actual Commerce caller retains its exact key after a late %s in original JSON',async changed=>{
+ const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment',workStale:'false'}},form={isConnected:true,getAttribute:()=> 'submitted-edit'},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com',href:'https://supply-dev-erpx.jesadakorn.com/holdings/acme/purchasing/orders'}}),events:string[]=[];
+ for(const type of ['erpx:record-command-saved','erpx:work-changed','erpx:hub-saved','erpx:record-saved'])browser.addEventListener(type,()=>events.push(type));
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'&&node.isConnected?node:null,activeElement:{closest:()=>form},documentElement:{dataset:{}}});
+ let startBody!:()=>void,releaseBody!:()=>void,calls=0;
+ const bodyStarted=new Promise<void>(resolve=>{startBody=resolve;}),released=new Promise<void>(resolve=>{releaseBody=resolve;});
+ // The real clone is already readable; only the caller's original JSON is delayed.
+ class OriginalBody extends Response {override async json(){startBody();await released;return super.json();}}
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>++calls===1?new OriginalBody(JSON.stringify({data:{id:'original-record'}}),{headers:{'content-type':'application/json'}}):Response.json({data:{id:'original-record'}}));vi.stubGlobal('fetch',network);
+ const request=createCommerceCommandFetch(workFetch),caller=await actualCommerceCaller(request);
+ try{
+  const submission=caller.submit();await bodyStarted;
+  const attemptBeforeOriginalBody=request.hasAttempt(caller.url,caller.body),eventsBeforeOriginalBody=[...events];
+  if(changed==='revision')node.dataset.workRevision='8';else if(changed==='stale boundary')node.dataset.workStale='true';else if(changed==='removed boundary')node.isConnected=false;else setContextSwitching(true);
+  releaseBody();expect(await submission).toBe(false);expect(caller.state.error.at(-1)).toContain('Return to the original work context');expect(caller.state.hasAttempt.at(-1)).toBe(true);expect(caller.router.push).not.toHaveBeenCalled();expect(caller.router.refresh).not.toHaveBeenCalled();
+  node.dataset.workRevision='7';node.dataset.workStale='false';node.isConnected=true;setContextSwitching(false);
+  const attemptAfterRefusal=request.hasAttempt(caller.url,caller.body),eventsAfterRefusal=[...events];
+  expect(await caller.submit()).toBe(true);
+  const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));
+  expect(keys[0]).toBeTruthy();expect(keys[1]).toBe(keys[0]);expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([caller.body,caller.body]);
+  expect(attemptBeforeOriginalBody).toBe(true);expect(attemptAfterRefusal).toBe(true);expect(eventsBeforeOriginalBody).toEqual([]);expect(eventsAfterRefusal).toEqual([]);
+  expect(request.hasAttempt(caller.url,caller.body)).toBe(false);expect(caller.state.hasAttempt.at(-1)).toBe(false);expect(caller.router.push).toHaveBeenCalledOnce();expect(caller.router.refresh).toHaveBeenCalledOnce();expect(events).toEqual(['erpx:record-command-saved','erpx:work-changed','erpx:hub-saved','erpx:record-saved']);
+ }finally{releaseBody();setContextSwitching(false);vi.unstubAllGlobals();}
+});
+
+it.each(['unreadable','incomplete'] as const)('the actual Commerce caller retains an %s original receipt despite a valid clone',async receipt=>{
+ const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment'}},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com',href:'https://supply-dev-erpx.jesadakorn.com/holdings/acme/purchasing/orders'}}),events:string[]=[];
+ for(const type of ['erpx:record-command-saved','erpx:work-changed','erpx:hub-saved','erpx:record-saved'])browser.addEventListener(type,()=>events.push(type));
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?node:null,activeElement:null});
+ class OriginalReceipt extends Response {override async json(){if(receipt==='unreadable')throw new SyntaxError('Original JSON was truncated');return {data:{id:''}};}}
+ let calls=0;const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>++calls===1?new OriginalReceipt(JSON.stringify({data:{id:'original-record'}}),{headers:{'content-type':'application/json'}}):Response.json({data:{id:'original-record'}}));vi.stubGlobal('fetch',network);
+ const request=createCommerceCommandFetch(workFetch),caller=await actualCommerceCaller(request);
+ expect(await caller.submit()).toBe(false);const retained=request.hasAttempt(caller.url,caller.body),premature=[...events];expect(caller.router.push).not.toHaveBeenCalled();expect(caller.state.hasAttempt.at(-1)).toBe(true);
+ expect(await caller.submit()).toBe(true);const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(keys[0]).toBeTruthy();expect(keys[1]).toBe(keys[0]);expect(retained).toBe(true);expect(premature).toEqual([]);expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([caller.body,caller.body]);
+ expect(request.hasAttempt(caller.url,caller.body)).toBe(false);expect(caller.router.push).toHaveBeenCalledOnce();expect(caller.router.refresh).toHaveBeenCalledOnce();
+});
+
+it('Commerce caller acknowledgement completes only its exact bound attempt once',async()=>{
+ const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment'}},form={isConnected:true,getAttribute:()=> 'submitted-edit'},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),events:string[]=[];
+ for(const type of ['erpx:record-command-saved','erpx:work-changed'])browser.addEventListener(type,()=>events.push(type));
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?node:null,activeElement:{closest:()=>form}});
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>Response.json({data:{id:'original-record'}}));vi.stubGlobal('fetch',network);
+ const request=createCommerceCommandFetch(workFetch),url='/api/v1/holdings/acme/commerce/orders',input={method:'POST',body:JSON.stringify({kind:'purchase',reference:'Original captured purchase'})};
+ const earlier=await request(url,input,undefined,'caller'),retry=await request(url,input,undefined,'caller');
+ expect(request.hasAttempt(url,input.body)).toBe(true);expect(events).toEqual([]);expect(request.acknowledge(Response.json({data:{id:'original-record'}}))).toBe(false);
+ expect(request.acknowledge(retry)).toBe(true);expect(request.acknowledge(retry)).toBe(false);expect(request.hasAttempt(url,input.body)).toBe(false);
+ const next=await request(url,input,undefined,'caller');expect(request.acknowledge(earlier)).toBe(false);expect(request.hasAttempt(url,input.body)).toBe(true);expect(events).toEqual(['erpx:record-command-saved','erpx:work-changed']);
+ expect(request.acknowledge(next)).toBe(true);expect(request.acknowledge(next)).toBe(false);expect(request.hasAttempt(url,input.body)).toBe(false);expect(events).toEqual(['erpx:record-command-saved','erpx:work-changed','erpx:record-command-saved','erpx:work-changed']);
+ const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(keys[0]).toBeTruthy();expect(keys[1]).toBe(keys[0]);expect(keys[2]).not.toBe(keys[0]);expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([input.body,input.body,input.body]);
+});
+
+// Supply setup uses explicit owner entry, not the broad Commerce/Sales reader.
+import {CommercePostingSetup} from '../../../src/components/commerce/commerce-posting-setup';
+import {createPostingSetupCommands,postingSetupViewState,validPostingSetupReceipt} from '../../../src/lib/commerce/posting-setup-command';
+import type {CommercePostingSetupInput,CommercePostingSetupView} from '../../../src/server/modules/commerce/public/posting-setup';
+const setupPorts=vi.hoisted(()=>({read:vi.fn(),initialize:vi.fn(),work:vi.fn(),page:vi.fn(),overview:vi.fn(),release:vi.fn(),inspectDrawer:false,drawers:[] as Array<{appearance?:string;dirty:boolean}>}));
+const prerequisitePorts=vi.hoisted(()=>({read:vi.fn(),charts:vi.fn(),accounts:vi.fn(),periods:vi.fn(),rates:vi.fn()}));
+vi.mock('../../../src/server/modules/finance/public/supply-posting-prerequisites',async()=>({...await import('../../../src/server/modules/finance/domain/supply-posting-prerequisites'),supplyPostingPrerequisites:prerequisitePorts.read,createSupplyPostingChart:prerequisitePorts.charts,createSupplyPostingAccount:prerequisitePorts.accounts,createSupplyPostingPeriod:prerequisitePorts.periods,confirmSupplyPostingRate:prerequisitePorts.rates}));
+vi.mock('../../../src/server/modules/commerce/public/posting-setup',async()=>({commercePostingSetupSchema:(await import('../../../src/server/modules/commerce/domain/posting-setup')).commercePostingSetupSchema,commercePostingSetup:setupPorts.read,initializeCommercePostingSetup:setupPorts.initialize}));
+vi.mock('../../../src/server/modules/identity_access/public/authorization',async importOriginal=>({...await importOriginal<typeof import('../../../src/server/modules/identity_access/public/authorization')>(),requireWorkContext:setupPorts.work}));
+vi.mock('../../../src/server/modules/commerce/public/commerce',async importOriginal=>({...await importOriginal<typeof import('../../../src/server/modules/commerce/public/commerce')>(),commerceOverview:setupPorts.overview,commercePage:setupPorts.page}));
+vi.mock('../../../src/server/modules/pms/public/hospitality-rollout',async importOriginal=>({...await importOriginal<typeof import('../../../src/server/modules/pms/public/hospitality-rollout')>(),assertProductionModuleEnabled:setupPorts.release}));
+vi.mock('../../../src/server/modules/manage_erpx/public/public-origin',()=>({requestPublicOrigin:(request:Request)=>new URL(request.url).origin}));
+vi.mock('../../../src/server/modules/work_projection/public/page-error',()=>({pageError:(error:unknown)=>{throw error;}}));
+vi.mock('../../../src/components/ui/draft-form-drawer',async importOriginal=>{const actual=await importOriginal<typeof import('../../../src/components/ui/draft-form-drawer')>();return {...actual,DraftFormDrawer:(props:Parameters<typeof actual.DraftFormDrawer>[0])=>{if(setupPorts.inspectDrawer){setupPorts.drawers.push({appearance:props.appearance,dirty:props.dirty});return createElement('section',{'data-owner-drawer':true},props.children);}return createElement(actual.DraftFormDrawer,props);}};});
+afterEach(()=>{setupPorts.inspectDrawer=false;setupPorts.drawers=[];});
+const setupInput:CommercePostingSetupInput={expectedVersion:0,contextKey:'a'.repeat(64),chartId:'actual-chart',currency:'USD',reason:'Reviewed source posting',receivableAccountId:'ar',payableAccountId:'ap',revenueAccountId:'revenue',inventoryAccountId:'stock',clearingAccountId:'clearing',cogsAccountId:'cogs',inputTaxAccountId:'input-tax',outputTaxAccountId:'output-tax',cashAccountId:'bank'};
+const setupFields=['receivableAccountId','payableAccountId','revenueAccountId','inventoryAccountId','clearingAccountId','cogsAccountId','inputTaxAccountId','outputTaxAccountId','cashAccountId'] as const;
+function setupView():CommercePostingSetupView{return {companyId:actor.companyId,available:true,configured:false,version:0,canConfigure:true,contextKey:setupInput.contextKey,configuration:null,unavailableReason:null,charts:[{id:'actual-chart',name:'Actual Company chart',baseCurrency:'THB'}],accounts:setupFields.map((key,index)=>({id:setupInput[key],chartId:'actual-chart',code:String(index+100),name:`Actual ${key}`,category:'asset',currency:index===0||index===1||index===8?'USD':'THB',controlKind:index===0?'receivable':index===1?'payable':index===8?'bank':''}))};}
+function setupBrowser(){
+ const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:actor.companyId,workAssignment:'finance-company',workStale:'false'}},browser=Object.assign(new EventTarget(),{location:{origin:'https://supply-dev-erpx.jesadakorn.com'}}),events:string[]=[];
+ for(const type of ['erpx:record-command-saved','erpx:work-changed'])browser.addEventListener(type,()=>events.push(type));
+ vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'&&node.isConnected?node:null,activeElement:{closest:()=>null},documentElement:{dataset:{}}});
+ return {node,events};
+}
+it('renders all nine deliberate empty account choices in the standard owner drawer from the server seed, without an initial GET',()=>{
+ const network=vi.fn();vi.stubGlobal('fetch',network);setupPorts.inspectDrawer=true;setupPorts.drawers=[];
+ const html=renderToStaticMarkup(createElement(CommercePostingSetup,{base:'/holdings/test',initial:setupView()}));
+ expect(setupPorts.drawers).toEqual([{appearance:'standard',dirty:false}]);expect(html).toContain('Posting accounts have not been configured.');
+ for(const key of setupFields)expect(html).toContain(`name="${key}" required="" disabled=""`);
+ expect((html.match(/value="" disabled="" selected=""/g)??[])).toHaveLength(10);expect(html).not.toContain('Create account');expect(network).not.toHaveBeenCalled();
+});
+it('renders unavailable and populated setup read-only without offering initialization or account rebinding',()=>{
+ const network=vi.fn();vi.stubGlobal('fetch',network);const denied:CommercePostingSetupView={companyId:actor.companyId,available:false,configured:null,version:null,canConfigure:false,contextKey:null,configuration:null,charts:[],accounts:[],unavailableReason:'purchase-required'};
+ const unavailable=renderToStaticMarkup(createElement(CommercePostingSetup,{base:'/holdings/test',initial:denied}));expect(unavailable).toContain('Active receiving and inventory valuation');expect(unavailable).not.toContain('Select posting accounts');
+ const {expectedVersion:_,contextKey:__,reason:___,...configuration}=setupInput;void _;void __;void ___;
+ const html=renderToStaticMarkup(createElement(CommercePostingSetup,{base:'/holdings/test',initial:{...setupView(),configured:true,version:1,canConfigure:false,configuration}}));expect(html).toContain('Saved posting configuration');expect(html).toContain('Read-only');for(const key of setupFields)expect(html).toContain(`Actual ${key}`);expect(html).not.toContain('Save initial configuration');expect(network).not.toHaveBeenCalled();
+});
+it.each(['revision','stale','removed','generation'] as const)('retains exact posting setup input/key after a late %s in the original response body',async changed=>{
+ const browser=setupBrowser(),source={base:'/holdings/test',companyId:actor.companyId,contextKey:setupInput.contextKey};let start!:()=>void,release!:()=>void,calls=0;const started=new Promise<void>(resolve=>{start=resolve;}),released=new Promise<void>(resolve=>{release=resolve;});
+ class LazyBody extends Response{override async json(){start();await released;return super.json();}}
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>++calls===1?new LazyBody(JSON.stringify({data:{id:actor.companyId,status:'configured',version:1}}),{headers:{'content-type':'application/json'}}):Response.json({data:{id:actor.companyId,status:'configured',version:1}}));vi.stubGlobal('fetch',network);
+ const commands=createPostingSetupCommands(()=>source);
+ try{const pending=commands.submit(setupInput);await started;expect(browser.events).toEqual([]);expect(commands.pending()).toBe(true);
+  if(changed==='revision')browser.node.dataset.workRevision='8';else if(changed==='stale')browser.node.dataset.workStale='true';else if(changed==='removed')browser.node.isConnected=false;else setContextSwitching(true);
+  release();await expect(pending).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(commands.pending()).toBe(true);expect(browser.events).toEqual([]);
+  browser.node.dataset.workRevision='7';browser.node.dataset.workStale='false';browser.node.isConnected=true;setContextSwitching(false);
+  const replay=await commands.retry();expect(replay.acknowledge()).toBe(true);expect(replay.acknowledge()).toBe(false);expect(commands.pending()).toBe(false);expect(browser.events).toEqual(['erpx:work-changed']);
+  expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([JSON.stringify(setupInput),JSON.stringify(setupInput)]);const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(keys[0]).toBeTruthy();expect(keys[1]).toBe(keys[0]);
+ }finally{release();setContextSwitching(false);}
+});
+it('requires the exact Company/configured/version receipt and preserves a newer form revision through uncertain replay',async()=>{
+ const browser=setupBrowser();let edit='original',calls=0;const form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement,network=vi.fn(async()=>{if(++calls===1)throw Error('Lost after commit');return Response.json({data:{id:actor.companyId,status:'configured',version:1}});});vi.stubGlobal('fetch',network);
+ const commands=createPostingSetupCommands(()=>({base:'/holdings/test',companyId:actor.companyId,contextKey:setupInput.contextKey}));await expect(commands.submit(setupInput,{form,formEditVersion:edit})).rejects.toThrow('Lost after commit');edit='later';
+ expect(()=>commands.submit({...setupInput,reason:'Later input'})).toThrow('Retry the submitted');const outcome=await commands.retry();expect(outcome.unchanged()).toBe(false);expect(outcome.acknowledge()).toBe(true);expect(browser.events).toEqual(['erpx:record-command-saved','erpx:work-changed']);
+ for(const value of [{id:'foreign',status:'configured',version:1},{id:actor.companyId,status:'configured',version:2},{id:actor.companyId,version:1},null])expect(validPostingSetupReceipt(value,actor.companyId)).toBe(false);
+});
+it.each(['GET','POST'] as const)('uses only the exact setup owner %s entry and preserves production Procurement selection, origin, key and private response',async method=>{
+ setupPorts.overview.mockClear();setupPorts.release.mockClear();
+ const {GET,POST}=await import('../../../src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route');const current={...actor,branchId:null,departmentId:null,modules:[]};setupPorts.work.mockResolvedValue(current);setupPorts.read.mockResolvedValue(setupView());setupPorts.initialize.mockResolvedValue({id:actor.companyId,status:'configured',version:1});setupPorts.overview.mockImplementation(()=>{throw Error('Broad Commerce overview must not supply posting setup.');});setupPorts.release.mockImplementation(async(_db:unknown,_company:string,module:string)=>{if(module==='sales')throw Error('Sales module is unrelated to Supply setup.');});vi.stubEnv('NODE_ENV','production');
+ const url='https://supply-dev-erpx.jesadakorn.com/api/v1/holdings/test/commerce/posting-setup',context={params:Promise.resolve({holdingSlug:'test',path:['posting-setup']})},request=new Request(url,{method,headers:{origin:'https://supply-dev-erpx.jesadakorn.com','Content-Type':'application/json','Idempotency-Key':'original-setup-key'},...(method==='POST'?{body:JSON.stringify(setupInput)}:{})});
+ const response=await(method==='GET'?GET(request,context):POST(request,context));expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toContain('no-store');
+ if(method==='GET')expect(setupPorts.read).toHaveBeenCalledWith(current);else{expect(setupPorts.initialize).toHaveBeenCalledWith(current,setupInput,'original-setup-key');expect(setupPorts.release).toHaveBeenCalledWith(expect.anything(),actor.companyId,'procurement');}
+ expect(setupPorts.overview).not.toHaveBeenCalled();
+});
+it('renders the original missing-setup Purchase failure as an explicit recovery link without loading strict choices',async()=>{
+ const {ApiError}=await import('../../../src/server/modules/runtime/public/http'),{default:PurchasePage}=await import('../../../src/app/holdings/[holdingSlug]/purchasing/orders/_screen');setupPorts.work.mockResolvedValue({...actor,branchId:null,departmentId:null});setupPorts.page.mockRejectedValue(new ApiError(409,'COMMERCE_SETUP_REQUIRED','Original owner setup missing.'));setupPorts.read.mockClear();
+ const node=await PurchasePage({params:Promise.resolve({holdingSlug:'test'}),searchParams:Promise.resolve({})}),html=renderToStaticMarkup(node);expect(html).toContain('/holdings/test/purchasing/setup/posting');expect(html).toContain('Purchasing posting setup required');expect(setupPorts.read).not.toHaveBeenCalled();
+});
+it('denies setup suffixes, foreign origin, missing key and incomplete nine-account input before owner initialization',async()=>{
+ const {GET,POST}=await import('../../../src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route');setupPorts.work.mockResolvedValue({...actor,branchId:null,departmentId:null});setupPorts.initialize.mockClear();setupPorts.read.mockClear();setupPorts.overview.mockClear();
+ const url='https://supply-dev-erpx.jesadakorn.com/api/v1/holdings/test/commerce/posting-setup',ctx=(path:string[])=>({params:Promise.resolve({holdingSlug:'test',path})});
+ expect((await GET(new Request(url+'/extra'),ctx(['posting-setup','extra']))).status).toBe(404);
+ const request=(body:unknown,headers:Record<string,string>)=>new Request(url,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
+ expect((await POST(request(setupInput,{origin:'https://foreign.invalid','Idempotency-Key':'original'}),ctx(['posting-setup']))).status).toBe(403);
+ expect((await POST(request(setupInput,{}),ctx(['posting-setup']))).status).toBe(422);
+ expect((await POST(request({...setupInput,cashAccountId:''},{'Idempotency-Key':'original'}),ctx(['posting-setup']))).status).toBe(422);
+ expect((await POST(request(setupInput,{'Idempotency-Key':'original'}),ctx(['posting-setup','extra']))).status).toBe(404);
+ expect(setupPorts.initialize).not.toHaveBeenCalled();expect(setupPorts.read).not.toHaveBeenCalled();expect(setupPorts.overview).not.toHaveBeenCalled();
+});
+it('the dedicated setup Server page loads only its minimal named owner seed, once, without a mount GET',async()=>{
+ const {default:Page}=await import('../../../src/app/holdings/[holdingSlug]/purchasing/setup/posting/page'),current={...actor,branchId:null,departmentId:null,modules:[]};setupPorts.work.mockResolvedValue(current);setupPorts.read.mockClear();setupPorts.read.mockResolvedValue(setupView());setupPorts.page.mockClear();setupPorts.overview.mockClear();const network=vi.fn();vi.stubGlobal('fetch',network);
+ const node=await Page({params:Promise.resolve({holdingSlug:'test'})}),html=renderToStaticMarkup(node);expect(html).toContain('Posting accounts have not been configured.');expect(setupPorts.read).toHaveBeenCalledExactlyOnceWith(current);expect(setupPorts.page).not.toHaveBeenCalled();expect(setupPorts.overview).not.toHaveBeenCalled();expect(network).not.toHaveBeenCalled();
+});
+it('leaves a configured legacy Purchase list on its original reader and propagates unrelated failures without opening strict setup',async()=>{
+ const {default:Page}=await import('../../../src/app/holdings/[holdingSlug]/purchasing/orders/_screen'),{ApiError}=await import('../../../src/server/modules/runtime/public/http');setupPorts.work.mockResolvedValue({...actor,branchId:null,departmentId:null});setupPorts.read.mockClear();setupPorts.page.mockResolvedValue({orders:[],products:[],parties:[],warehouses:[],stock:[],moves:[],nodes:[],currency:'THB',page:{items:[],nextCursor:null,hasMore:false},movementPage:null,options:null,inTransit:[]});
+ const node=await Page({params:Promise.resolve({holdingSlug:'test'}),searchParams:Promise.resolve({})}),html=renderToStaticMarkup(node);expect(html).toContain('Purchase orders');expect(html).toContain('/holdings/test/purchasing/setup/posting');expect(setupPorts.read).not.toHaveBeenCalled();
+ const unknown=new ApiError(409,'UNRELATED_SOURCE_CHANGED','The original source failed.');setupPorts.page.mockRejectedValue(unknown);await expect(Page({params:Promise.resolve({holdingSlug:'test'}),searchParams:Promise.resolve({})})).rejects.toBe(unknown);expect(setupPorts.read).not.toHaveBeenCalled();
+});
+it('does not finalize a receipt if the owner seed changes after original JSON, and retries the original body/key after recovery',async()=>{
+ const browser=setupBrowser(),source={base:'/holdings/test',companyId:actor.companyId,contextKey:setupInput.contextKey},network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>Response.json({data:{id:actor.companyId,status:'configured',version:1}}));vi.stubGlobal('fetch',network);const commands=createPostingSetupCommands(()=>source),outcome=await commands.submit(setupInput);source.contextKey='b'.repeat(64);
+ expect(()=>outcome.acknowledge()).toThrow('context changed');expect(commands.pending()).toBe(true);expect(browser.events).toEqual([]);source.contextKey=setupInput.contextKey;const replay=await commands.retry();expect(replay.acknowledge()).toBe(true);const keys=network.mock.calls.map(call=>new Headers(call[1]?.headers).get('Idempotency-Key'));expect(keys[1]).toBe(keys[0]);expect(network.mock.calls.map(call=>call[1]?.body)).toEqual([JSON.stringify(setupInput),JSON.stringify(setupInput)]);
+});
+
+it.each([
+ {label:'Company',base:'/holdings/test',companyId:'other-company'},
+ {label:'Holding',base:'/holdings/other',companyId:actor.companyId},
+])('does not display a local saved mapping or success notice under another $label',({base,companyId})=>{
+ const original={base:'/holdings/test',companyId:actor.companyId,contextKey:setupInput.contextKey},saved={...original,input:setupInput},scope=JSON.stringify([original.base,original.companyId,original.contextKey]);
+ const view=postingSetupViewState({base,companyId,contextKey:'b'.repeat(64)},{saved,notice:'The submitted mapping was saved.',seed:original.contextKey,draftScope:scope,dirty:false,pending:false});
+ expect(view.saved).toBeNull();expect(view.notice).toBe('');expect(view.seed).toBe('b'.repeat(64));expect(view.draftScope).toBe(view.currentScope);
+ // The original receipt remains local for returning to its actual owner.
+ expect(postingSetupViewState(original,{saved,notice:'The submitted mapping was saved.',seed:original.contextKey,draftScope:scope,dirty:false,pending:false}).saved).toBe(setupInput);
+});
+it('keeps the saved mapping and its notice in the original Company when only its reference seed refreshes',()=>{
+ const source={base:'/holdings/test',companyId:actor.companyId,contextKey:setupInput.contextKey},saved={...source,input:setupInput},notice='The submitted mapping was saved. Your newer selections are retained locally.';
+ const view=postingSetupViewState({...source,contextKey:'b'.repeat(64)},{saved,notice,seed:source.contextKey,draftScope:JSON.stringify([source.base,source.companyId,source.contextKey]),dirty:false,pending:false});
+ expect(view.saved).toBe(setupInput);expect(view.notice).toBe(notice);expect(view.seed).toBe('b'.repeat(64));expect(view.draftScope).toBe(view.currentScope);
+});
+it.each([
+ {label:'edited',dirty:true,pending:false},
+ {label:'submitted',dirty:false,pending:true},
+ {label:'uncertain',dirty:true,pending:true},
+])('retains the original $label draft seed and scope instead of adopting refreshed references',({dirty,pending})=>{
+ const source={base:'/holdings/test',companyId:actor.companyId,contextKey:setupInput.contextKey},scope=JSON.stringify([source.base,source.companyId,source.contextKey]);
+ const view=postingSetupViewState({...source,companyId:'other-company',contextKey:'b'.repeat(64)},{saved:null,notice:'',seed:source.contextKey,draftScope:scope,dirty,pending});
+ expect(view.seed).toBe(setupInput.contextKey);expect(view.draftScope).toBe(scope);expect(view.draftScope).not.toBe(view.currentScope);expect(view.saved).toBeNull();
+});
+it('the actual setup editor binds its first edit to a fresh clean seed, then retains that seed through another refresh',async()=>{
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../src/components/commerce/commerce-posting-setup.tsx',import.meta.url),'utf8'),file=ts.createSourceFile('actual-posting-editor.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),declarations:import('typescript').VariableDeclaration[]=[];
+ const visit=(node:import('typescript').Node)=>{if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='changeDraft')declarations.push(node);ts.forEachChild(node,visit);};visit(file);if(declarations.length!==1)throw Error('Expected the actual setup draft-change handler.');
+ const emitted=ts.transpileModule(`const ${declarations[0].getText(file)};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const original={base:'/holdings/test',companyId:actor.companyId,contextKey:setupInput.contextKey},fresh={...original,contextKey:'b'.repeat(64)},oldScope=JSON.stringify([original.base,original.companyId,original.contextKey]),view=postingSetupViewState(fresh,{saved:null,notice:'',seed:original.contextKey,draftScope:oldScope,dirty:false,pending:false});
+ let draft={chartId:'',currency:'',reason:'',receivableAccountId:'',payableAccountId:'',revenueAccountId:'',inventoryAccountId:'',clearingAccountId:'',cogsAccountId:'',inputTaxAccountId:'',outputTaxAccountId:'',cashAccountId:''},seed:string|null=original.contextKey,scope=oldScope;
+ const run=new Function('setSeed','setDraftScope','setDraft','view','update',`${emitted}\nchangeDraft(update);`) as (...ports:unknown[])=>void;
+ run((value:string|null)=>{seed=value;},(value:string)=>{scope=value;},(update:(previous:typeof draft)=>typeof draft)=>{draft=update(draft);},view,(previous:typeof draft)=>({...previous,reason:'First deliberate edit after refresh'}));
+ expect(seed).toBe(fresh.contextKey);expect(scope).toBe(view.currentScope);expect(draft.reason).toBe('First deliberate edit after refresh');
+ const later=postingSetupViewState({...fresh,contextKey:'c'.repeat(64)},{saved:null,notice:'',seed,draftScope:scope,dirty:true,pending:false});expect(later.seed).toBe(fresh.contextKey);expect(later.draftScope).toBe(scope);expect(later.draftScope).not.toBe(later.currentScope);
+});
+
+import {createPostingPrerequisiteCommands,validPostingPrerequisites,validPostingSetupSeed,validPostingPrerequisiteReceipt,type PostingPrerequisiteRequest} from '../../../src/lib/commerce/posting-setup-prerequisite-command';
+import type {SupplyPostingPrerequisitesView} from '../../../src/server/modules/finance/public/supply-posting-prerequisites';
+const preparationRequests:PostingPrerequisiteRequest[]=[
+ {kind:'charts',body:{expectedVersion:0,contextKey:'d'.repeat(64),input:{name:'Actual initial chart',baseCurrency:'THB',accountingBasis:'IFRS'}}},
+ {kind:'accounts',body:{expectedVersion:0,contextKey:'d'.repeat(64),input:{chartId:'actual-chart',code:'1101',name:'Actual control bank',category:'asset',currency:'THB',controlKind:'bank',isControl:true}}},
+ {kind:'periods',body:{expectedVersion:0,contextKey:'d'.repeat(64),input:{name:'Actual open September',startDate:'2026-09-01',endDate:'2026-09-30'}}},
+ {kind:'rates',body:{expectedVersion:0,contextKey:'d'.repeat(64),input:{currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'36',note:'Original Company approver reviewed an actual quote'}}},
+];
+function prerequisiteView():SupplyPostingPrerequisitesView{return {companyId:actor.companyId,available:true,configured:false,contextKey:'d'.repeat(64),canCreateChart:true,canCreateAccount:true,canCreatePeriod:true,canConfirmRate:true,charts:setupView().charts,accounts:setupView().accounts,periods:[],rates:[],unavailableReason:null};}
+function preparationReceipt(request:PostingPrerequisiteRequest):Record<string,unknown>&{id:string}{return request.kind==='rates'?{id:'actual-created-rate',currency:request.body.input.currency,effectiveDate:request.body.input.effectiveDate,currencyPerUsd:request.body.input.currencyPerUsd,confirmedAt:12345}:request.kind==='periods'?{id:'actual-created-period',companyId:actor.companyId,...request.body.input,state:'open',version:0}:{id:`actual-created-${request.kind}`,companyId:actor.companyId,...request.body.input,version:1};}
+function viewAfter(request:PostingPrerequisiteRequest):SupplyPostingPrerequisitesView{
+ const view=prerequisiteView(),receipt=preparationReceipt(request);view.contextKey='e'.repeat(64);
+ if(request.kind==='charts')view.charts.push({id:receipt.id,name:request.body.input.name,baseCurrency:request.body.input.baseCurrency});
+ else if(request.kind==='accounts'){const {chartId,code,name,category,currency,controlKind}=request.body.input;view.accounts.push({id:receipt.id,chartId,code,name,category,currency,controlKind});}
+ else if(request.kind==='periods')view.periods.push({id:receipt.id,...request.body.input,state:'open',version:0});
+ else {const {currency,effectiveDate,currencyPerUsd}=request.body.input;view.rates.push({id:receipt.id,currency,effectiveDate,currencyPerUsd,confirmedAt:12345});}return view;
+}
+function preparationResponse(request:PostingPrerequisiteRequest,url:RequestInfo|URL,init?:RequestInit){return init?.method==='POST'?Response.json({data:preparationReceipt(request)},{status:201}):String(url).endsWith('/prerequisites')?Response.json({data:viewAfter(request)}):Response.json({data:setupView()});}
+it.each(preparationRequests)('confirms $kind only after the actual original receipt, fresh prerequisite and mapping seeds, and acknowledges once',async request=>{
+ const browser=setupBrowser(),network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async(url,init)=>preparationResponse(request,url,init));vi.stubGlobal('fetch',network);
+ const commands=createPostingPrerequisiteCommands(()=>({base:'/holdings/test',companyId:actor.companyId,contextKey:request.body.contextKey})),outcome=await commands.submit(request);
+ expect(browser.events).toEqual([]);expect(commands.pending()).toBe(true);expect(outcome.receipt).toEqual(preparationReceipt(request));expect(outcome.prerequisites).toEqual(viewAfter(request));expect(outcome.posting).toEqual(setupView());
+ expect(network.mock.calls.map(([url])=>String(url))).toEqual([`/api/v1/holdings/test/commerce/posting-setup/${request.kind}`,'/api/v1/holdings/test/commerce/posting-setup/prerequisites','/api/v1/holdings/test/commerce/posting-setup']);
+ expect(network.mock.calls[0][1]?.body).toBe(JSON.stringify(request.body));expect(outcome.acknowledge()).toBe(true);expect(outcome.acknowledge()).toBe(false);expect(commands.pending()).toBe(false);expect(browser.events).toEqual(['erpx:work-changed']);
+});
+it.each(['revision','stale','removed','generation'] as const)('retains prerequisite key/body and suppresses events after a late %s in original POST JSON',async changed=>{
+ const browser=setupBrowser(),request=preparationRequests[0],source={base:'/holdings/test',companyId:actor.companyId,contextKey:request.body.contextKey};let release!:()=>void,started!:()=>void,calls=0;const ready=new Promise<void>(resolve=>{started=resolve;}),paused=new Promise<void>(resolve=>{release=resolve;});
+ class DelayedOriginal extends Response{override async json(){started();await paused;return super.json();}}
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async(url,init)=>++calls===1?new DelayedOriginal(JSON.stringify({data:preparationReceipt(request)}),{status:201,headers:{'content-type':'application/json'}}):preparationResponse(request,url,init));vi.stubGlobal('fetch',network);const commands=createPostingPrerequisiteCommands(()=>source);
+ try{const result=commands.submit(request);await ready;if(changed==='revision')browser.node.dataset.workRevision='8';else if(changed==='stale')browser.node.dataset.workStale='true';else if(changed==='removed')browser.node.isConnected=false;else setContextSwitching(true);release();await expect(result).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(commands.pending()).toBe(true);expect(browser.events).toEqual([]);
+  browser.node.dataset.workRevision='7';browser.node.dataset.workStale='false';browser.node.isConnected=true;setContextSwitching(false);const replay=await commands.retry();expect(replay.acknowledge()).toBe(true);const posts=network.mock.calls.filter(([,init])=>init?.method==='POST');expect(posts).toHaveLength(2);expect(posts[1][1]?.body).toBe(posts[0][1]?.body);expect(new Headers(posts[1][1]?.headers).get('Idempotency-Key')).toBe(new Headers(posts[0][1]?.headers).get('Idempotency-Key'));expect(browser.events).toEqual(['erpx:work-changed']);
+ }finally{release();setContextSwitching(false);}
+});
+it.each(['prerequisites','mapping'] as const)('withholds local preparation publication after Company change during the %s body and replays the same key after return',async stage=>{
+ const browser=setupBrowser(),request=preparationRequests[2],source={base:'/holdings/test',companyId:actor.companyId,contextKey:request.body.contextKey};let release!:()=>void,started!:()=>void,delayed=false;const ready=new Promise<void>(resolve=>{started=resolve;}),paused=new Promise<void>(resolve=>{release=resolve;});
+ class DelayedSeed extends Response{override async json(){started();await paused;return super.json();}}
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async(url,init)=>{const response=preparationResponse(request,url,init),target=init?.method!=='POST'&&(stage==='prerequisites'?String(url).endsWith('/prerequisites'):!String(url).endsWith('/prerequisites'));if(target&&!delayed){delayed=true;return new DelayedSeed(await response.text(),{headers:{'content-type':'application/json'}});}return response;});vi.stubGlobal('fetch',network);const commands=createPostingPrerequisiteCommands(()=>source);
+ try{const result=commands.submit(request);await ready;source.companyId='other-company';release();await expect(result).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(commands.applied()).toBe(true);expect(commands.pending()).toBe(true);expect(browser.events).toEqual([]);await expect(commands.retry()).rejects.toThrow('original Company');source.companyId=actor.companyId;const replay=await commands.retry();expect(replay.acknowledge()).toBe(true);const posts=network.mock.calls.filter(([,init])=>init?.method==='POST');expect(posts[1][1]?.body).toBe(posts[0][1]?.body);expect(new Headers(posts[1][1]?.headers).get('Idempotency-Key')).toBe(new Headers(posts[0][1]?.headers).get('Idempotency-Key'));expect(browser.events).toEqual(['erpx:work-changed']);}finally{release();}
+});
+it('retains a valid saved preparation receipt across failed reload and refuses another creation until exact confirmation',async()=>{
+ const browser=setupBrowser(),request=preparationRequests[1];let failed=false;const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async(url,init)=>{if(!failed&&init?.method!=='POST'){failed=true;return Response.json({error:{message:'Current owner read unavailable'}},{status:503});}return preparationResponse(request,url,init);});vi.stubGlobal('fetch',network);const commands=createPostingPrerequisiteCommands(()=>({base:'/holdings/test',companyId:actor.companyId,contextKey:request.body.contextKey}));
+ await expect(commands.submit(request)).rejects.toThrow('Current owner read unavailable');expect(commands.applied()).toBe(true);expect(commands.pending()).toBe(true);expect(browser.events).toEqual([]);expect(()=>commands.submit(preparationRequests[0])).toThrow('Retry the submitted');const replay=await commands.retry();expect(replay.acknowledge()).toBe(true);const posts=network.mock.calls.filter(([,init])=>init?.method==='POST');expect(new Headers(posts[1][1]?.headers).get('Idempotency-Key')).toBe(new Headers(posts[0][1]?.headers).get('Idempotency-Key'));
+});
+it('accepts the actual rate-only reader with unavailable mapping authority and preserves newer original-form edits after replay',async()=>{
+ const browser=setupBrowser(),request=preparationRequests[3];let edit='original',calls=0;const form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement,unavailable:CommercePostingSetupView={...setupView(),available:false,configured:null,version:null,contextKey:null,configuration:null,canConfigure:false,charts:[],accounts:[],unavailableReason:'authority-required'};
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async(url,init)=>{if(++calls===1)throw Error('Original result lost');if(init?.method!=='POST'&&!String(url).endsWith('/prerequisites'))return Response.json({data:unavailable});return preparationResponse(request,url,init);});vi.stubGlobal('fetch',network);const commands=createPostingPrerequisiteCommands(()=>({base:'/holdings/test',companyId:actor.companyId,contextKey:request.body.contextKey}));
+ await expect(commands.submit(request,{form,formEditVersion:edit})).rejects.toThrow('Original result lost');edit='newer';const replay=await commands.retry();expect(replay.unchanged()).toBe(false);expect(replay.posting).toEqual(unavailable);expect(replay.acknowledge()).toBe(true);expect(browser.events).toEqual(['erpx:record-command-saved','erpx:work-changed']);
+});
+it('validates original period version0, rate without invented fields and explicit historical reader semantics',()=>{
+ const period=preparationRequests[2],rate=preparationRequests[3];expect(validPostingPrerequisiteReceipt(preparationReceipt(period),period,actor.companyId)).toBe(true);expect(validPostingPrerequisiteReceipt({...preparationReceipt(period),version:1},period,actor.companyId)).toBe(false);expect(validPostingPrerequisiteReceipt(preparationReceipt(rate),rate,actor.companyId)).toBe(true);expect(validPostingPrerequisiteReceipt({...preparationReceipt(rate),currencyPerUsd:'1'},rate,actor.companyId)).toBe(false);
+ expect(validPostingPrerequisites({...prerequisiteView(),unavailableReason:'history-requires-review',canCreateChart:false,canCreateAccount:false},actor.companyId)).toBe(true);expect(validPostingPrerequisites({...prerequisiteView(),companyId:'other'},actor.companyId)).toBe(false);expect(validPostingSetupSeed({...setupView(),configuration:{chartId:'synthetic'}},actor.companyId)).toBe(false);
+});
+it.each(preparationRequests)('the exact Commerce $kind controller uses strict owner schema/command and original Procurement readiness only',async request=>{
+ const {POST}=await import('../../../src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route'),current={...actor,branchId:null,departmentId:null,modules:[]},command=prerequisitePorts[request.kind];command.mockClear();command.mockResolvedValue(preparationReceipt(request));setupPorts.work.mockResolvedValue(current);setupPorts.release.mockClear();setupPorts.release.mockResolvedValue(undefined);vi.stubEnv('NODE_ENV','production');
+ const url=`https://supply-dev-erpx.jesadakorn.com/api/v1/holdings/test/commerce/posting-setup/${request.kind}`,response=await POST(new Request(url,{method:'POST',headers:{origin:'https://supply-dev-erpx.jesadakorn.com','Content-Type':'application/json','Idempotency-Key':'original-prerequisite'},body:JSON.stringify(request.body)}),{params:Promise.resolve({holdingSlug:'test',path:['posting-setup',request.kind]})});expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toContain('no-store');expect(command).toHaveBeenCalledExactlyOnceWith(current,request.body,'original-prerequisite');expect(setupPorts.release).toHaveBeenCalledWith(expect.anything(),actor.companyId,'procurement');
+});
+it('the minimal prerequisite GET is exact and private, while child GET and unknown/deeper POST suffixes remain closed',async()=>{
+ const {GET,POST}=await import('../../../src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route');setupPorts.work.mockResolvedValue({...actor,branchId:null,departmentId:null});prerequisitePorts.read.mockResolvedValue(prerequisiteView());const url='https://supply-dev-erpx.jesadakorn.com/api/v1/holdings/test/commerce/posting-setup',context=(path:string[])=>({params:Promise.resolve({holdingSlug:'test',path})});
+ const response=await GET(new Request(url+'/prerequisites'),context(['posting-setup','prerequisites']));expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toContain('no-store');expect((await response.json()).data).toEqual(prerequisiteView());
+ for(const suffix of [['charts'],['prerequisites','extra']])expect((await GET(new Request(url+'/'+suffix.join('/')),context(['posting-setup',...suffix]))).status).toBe(404);
+ for(const suffix of [['charts','extra'],['prerequisites'],['unknown']])expect((await POST(new Request(url+'/'+suffix.join('/'),{method:'POST',headers:{'Idempotency-Key':'original'},body:JSON.stringify(preparationRequests[0].body)}),context(['posting-setup',...suffix]))).status).toBe(404);
+});
+it('the actual Supply Server page supplies both minimal seeds without a mount request or full Finance reader',async()=>{
+ const {default:Page}=await import('../../../src/app/holdings/[holdingSlug]/purchasing/setup/posting/page');setupPorts.work.mockResolvedValue({...actor,branchId:null,departmentId:null});setupPorts.read.mockResolvedValue(setupView());prerequisitePorts.read.mockClear();prerequisitePorts.read.mockResolvedValue(prerequisiteView());const network=vi.fn();vi.stubGlobal('fetch',network);const html=renderToStaticMarkup(await Page({params:Promise.resolve({holdingSlug:'test'})}));
+ expect(html).toContain('Create a chart');expect(html).toContain('Add an actual account');expect(html).toContain('Create an open period');expect(html).toContain('Confirm a manual rate');expect(prerequisitePorts.read).toHaveBeenCalledOnce();expect(network).not.toHaveBeenCalled();
+});
+it('keeps period/rate continuation after configuration and accurately presents a rightful rate-only approver',()=>{
+ const {expectedVersion:_,contextKey:__,reason:___,...configuration}=setupInput;void _;void __;void ___;const view={...prerequisiteView(),configured:true,canCreateChart:false,canCreateAccount:false};
+ const html=renderToStaticMarkup(createElement(CommercePostingSetup,{base:'/holdings/test',initial:{...setupView(),configured:true,version:1,canConfigure:false,configuration},initialPrerequisites:view}));expect(html).toContain('Create an open period');expect(html).toContain('Confirm a manual rate');expect(html).not.toContain('Create a chart');expect(html).not.toContain('Add an actual account');expect(html).toContain('Saved posting configuration');
+ const denied:CommercePostingSetupView={...setupView(),available:false,configured:null,version:null,contextKey:null,configuration:null,canConfigure:false,charts:[],accounts:[],unavailableReason:'authority-required'},approver=renderToStaticMarkup(createElement(CommercePostingSetup,{base:'/holdings/test',initial:denied,initialPrerequisites:{...view,canCreatePeriod:false}}));expect(approver).toContain('Confirm a manual rate');expect(approver).toContain('Editing the posting mapping requires Finance preparation authority.');expect(approver).not.toContain('Use an authorized Company Finance role to begin setup.');expect(approver).not.toContain('Create an open period');
+});
+it.each(['mapping','prerequisites'] as const)('a first authoritative stale-seed rejection releases only the %s attempt so the retained draft can be reviewed',async target=>{
+ const browser=setupBrowser(),source={base:'/holdings/test',companyId:actor.companyId,contextKey:target==='mapping'?setupInput.contextKey:preparationRequests[0].body.contextKey};let posts=0;
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async(url,init)=>{if(init?.method==='POST'&&++posts===1)return Response.json({error:{code:'COMMERCE_POSTING_CONTEXT_CHANGED',message:'The current source changed; this transaction rolled back.'}},{status:409});return target==='mapping'?Response.json({data:{id:actor.companyId,status:'configured',version:1}}):preparationResponse(preparationRequests[0],url,init);});vi.stubGlobal('fetch',network);
+ const commands=target==='mapping'?createPostingSetupCommands(()=>source):createPostingPrerequisiteCommands(()=>source),original=JSON.stringify(target==='mapping'?setupInput:preparationRequests[0]);
+ const first=target==='mapping'?(commands as ReturnType<typeof createPostingSetupCommands>).submit(setupInput):(commands as ReturnType<typeof createPostingPrerequisiteCommands>).submit(preparationRequests[0]);await expect(first).rejects.toMatchObject({code:'COMMERCE_POSTING_CONTEXT_CHANGED'});expect(commands.pending()).toBe(false);expect(browser.events).toEqual([]);
+ source.contextKey='f'.repeat(64);const outcome=target==='mapping'?await(commands as ReturnType<typeof createPostingSetupCommands>).submit({...setupInput,contextKey:source.contextKey}):await(commands as ReturnType<typeof createPostingPrerequisiteCommands>).submit({...preparationRequests[0],body:{...preparationRequests[0].body,contextKey:source.contextKey}} as PostingPrerequisiteRequest);expect(outcome.acknowledge()).toBe(true);
+ const sent=network.mock.calls.filter(([,init])=>init?.method==='POST');expect(new Headers(sent[1][1]?.headers).get('Idempotency-Key')).not.toBe(new Headers(sent[0][1]?.headers).get('Idempotency-Key'));expect(JSON.stringify(target==='mapping'?setupInput:preparationRequests[0])).toBe(original);
+});
+it.each(['mapping','prerequisites'] as const)('a prior unknown %s outcome stays bound to its original key even if a retry returns owner stale-context',async target=>{
+ const browser=setupBrowser(),source={base:'/holdings/test',companyId:actor.companyId,contextKey:target==='mapping'?setupInput.contextKey:preparationRequests[0].body.contextKey};let posts=0;
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async(url,init)=>{if(init?.method==='POST'){posts++;if(posts===1)throw Error('Unknown original outcome');if(posts===2)return Response.json({error:{code:'COMMERCE_POSTING_CONTEXT_CHANGED',message:'Owner source changed.'}},{status:409});}return target==='mapping'?Response.json({data:{id:actor.companyId,status:'configured',version:1}}):preparationResponse(preparationRequests[0],url,init);});vi.stubGlobal('fetch',network);
+ const mapping=createPostingSetupCommands(()=>source),preparation=createPostingPrerequisiteCommands(()=>source),commands=target==='mapping'?mapping:preparation;await expect(target==='mapping'?mapping.submit(setupInput):preparation.submit(preparationRequests[0])).rejects.toThrow('Unknown original outcome');await expect(commands.retry()).rejects.toMatchObject({code:'COMMERCE_POSTING_CONTEXT_CHANGED'});expect(commands.pending()).toBe(true);expect(browser.events).toEqual([]);const replay=await commands.retry();expect(replay.acknowledge()).toBe(true);
+ const sent=network.mock.calls.filter(([,init])=>init?.method==='POST');expect(new Set(sent.map(([,init])=>new Headers(init?.headers).get('Idempotency-Key'))).size).toBe(1);expect(new Set(sent.map(([,init])=>init?.body)).size).toBe(1);expect(browser.events).toEqual(['erpx:work-changed']);
+});
+it.each(['mapping','prerequisites'] as const)('a synthetic Work context refusal never clears the %s attempt',async target=>{
+ setupBrowser();const source={base:'/holdings/test',companyId:actor.companyId,contextKey:target==='mapping'?setupInput.contextKey:preparationRequests[0].body.contextKey};vi.stubGlobal('fetch',vi.fn(async()=>Response.json({error:{code:'WORK_CONTEXT_CHANGED',message:'The Work response could not be used.'}},{status:409})));const mapping=createPostingSetupCommands(()=>source),preparation=createPostingPrerequisiteCommands(()=>source),commands=target==='mapping'?mapping:preparation;await expect(target==='mapping'?mapping.submit(setupInput):preparation.submit(preparationRequests[0])).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(commands.pending()).toBe(true);
+});
+async function actualPrerequisiteCode(name:'request'|'submit'){
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../src/components/commerce/posting-setup-prerequisites.tsx',import.meta.url),'utf8'),file=ts.createSourceFile('actual-prerequisite-owner.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions:import('typescript').FunctionDeclaration[]=[],helpers:import('typescript').VariableDeclaration[]=[];
+ const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text===name)functions.push(node);if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&['categories','controls','isCategory','isControl'].includes(node.name.text))helpers.push(node);ts.forEachChild(node,visit);};visit(file);if(functions.length!==1)throw Error('Expected the actual prerequisite handler.');return ts.transpileModule(`${helpers.map(node=>`const ${node.getText(file)};`).join('\n')}\n${functions[0].getText(file)}`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+}
+it.each(preparationRequests)('the actual $kind form handler constructs only its explicit owner envelope and original fields',async request=>{
+ const emitted=await actualPrerequisiteCode('request'),run=new Function('kind','fields','draft','t',`${emitted}\nreturn request();`) as (...ports:unknown[])=>PostingPrerequisiteRequest,fields=Object.fromEntries(Object.entries(request.body.input).map(([key,value])=>[key,String(value)]));expect(run(request.kind,fields,{seed:request.body.contextKey},(_th:string,en:string)=>en)).toEqual(request);
+});
+it.each([false,true])('the actual prerequisite submit handler publishes its verified current seed and preserves newer edits=%s',async newer=>{
+ const browser=setupBrowser(),request=preparationRequests[1],emitted=await actualPrerequisiteCode('submit');let edit='captured',started!:()=>void,release!:()=>void,delayed=false;const ready=new Promise<void>(resolve=>{started=resolve;}),paused=new Promise<void>(resolve=>{release=resolve;});class OriginalJSON extends Response{override async json(){started();await paused;return super.json();}}
+ const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async(url,init)=>{if(!delayed){delayed=true;return new OriginalJSON(JSON.stringify({data:preparationReceipt(request)}),{status:201,headers:{'content-type':'application/json'}});}return preparationResponse(request,url,init);});vi.stubGlobal('fetch',network);
+ const form={isConnected:true,getAttribute:()=>edit} as unknown as HTMLFormElement,commands={current:createPostingPrerequisiteCommands(()=>({base:'/holdings/test',companyId:actor.companyId,contextKey:request.body.contextKey}))},state:Record<string,unknown[]>={},setter=(key:string)=>(value:unknown)=>{(state[key]??=[]).push(value);},onPrepared=vi.fn(),names=['busyRef','setBusy','setError','setNotice','allowed','t','commands','request','base','initial','onPrepared','setRefreshed','setUncertain','setApplied','currentOwner','setFields','setOpen','form'];
+ const run=new Function(...names,`${emitted}\nreturn submit(form);`) as (...ports:unknown[])=>Promise<void>,pending=run({current:false},setter('busy'),setter('error'),setter('notice'),true,(_th:string,en:string)=>en,commands,()=>request,'/holdings/test',prerequisiteView(),onPrepared,setter('refreshed'),setter('uncertain'),setter('applied'),'original-Company',setter('fields'),setter('open'),form);
+ try{await ready;if(newer)edit='newer';release();await pending;expect(onPrepared).toHaveBeenCalledExactlyOnceWith(setupView(),viewAfter(request));expect(state.refreshed).toHaveLength(1);expect(state.error.at(-1)).toBe('');expect(commands.current.pending()).toBe(false);expect(browser.events).toEqual(['erpx:record-command-saved','erpx:work-changed']);if(newer){expect(state.fields).toBeUndefined();expect(state.open).toBeUndefined();expect(state.notice.at(-1)).toMatchObject({text:expect.stringContaining('Newer edits are retained')});}else{expect(state.fields).toEqual([{}]);expect(state.open).toEqual([false]);}}finally{release();}
+});
+it.each(['receipt','prerequisite-seed','mapping-seed'] as const)('retains the exact preparation when its %s is malformed or belongs to another Company',async fault=>{
+ const browser=setupBrowser(),request=preparationRequests[0];let failed=false;const network=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async(url,init)=>{const target=fault==='receipt'?init?.method==='POST':init?.method!=='POST'&&(fault==='prerequisite-seed'?String(url).endsWith('/prerequisites'):!String(url).endsWith('/prerequisites'));if(target&&!failed){failed=true;return fault==='receipt'?Response.json({data:{...preparationReceipt(request),version:2}}):Response.json({data:fault==='prerequisite-seed'?{...viewAfter(request),companyId:'foreign'}:{...setupView(),companyId:'foreign'}});}return preparationResponse(request,url,init);});vi.stubGlobal('fetch',network);const commands=createPostingPrerequisiteCommands(()=>({base:'/holdings/test',companyId:actor.companyId,contextKey:request.body.contextKey}));
+ await expect(commands.submit(request)).rejects.toThrow();expect(commands.pending()).toBe(true);expect(browser.events).toEqual([]);const replay=await commands.retry();expect(replay.acknowledge()).toBe(true);const posts=network.mock.calls.filter(([,init])=>init?.method==='POST');expect(new Headers(posts[1][1]?.headers).get('Idempotency-Key')).toBe(new Headers(posts[0][1]?.headers).get('Idempotency-Key'));expect(posts[1][1]?.body).toBe(posts[0][1]?.body);
+});
+it('does not offer mapping reconstruction for orphaned Commerce history while keeping rightful period/rate preparation',()=>{
+ const network=vi.fn();vi.stubGlobal('fetch',network);const initial=setupView(),prerequisites={...prerequisiteView(),unavailableReason:'history-requires-review' as const,canCreateChart:false,canCreateAccount:false};expect(initial.canConfigure).toBe(true);
+ const html=renderToStaticMarkup(createElement(CommercePostingSetup,{base:'/holdings/test',initial,initialPrerequisites:prerequisites}));expect(html).toContain('Existing history needs owner review');expect(html).toContain('Create an open period');expect(html).toContain('Confirm a manual rate');expect(html).not.toContain('Select posting accounts');expect(html).not.toContain('Save initial configuration');expect(html).not.toContain('Create a chart');expect(html).not.toContain('Add an actual account');expect(network).not.toHaveBeenCalled();
+});
+
+import {decimalToUnits,unitsToDecimal} from '../../../src/lib/finance/finance-money';
+import {returnRequestSchema} from '../../../src/server/modules/commerce/domain/commerce';
+// Actual owner form callbacks and their production payload function. Native
+// FormData is populated explicitly; no React hooks or owner policy are mocked.
+async function actualGoodsAllocatedSubmit(kind:'delivery'|'return',quantities:readonly string[]){
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../src/components/commerce/commerce-controls.tsx',import.meta.url),'utf8'),tree=ts.createSourceFile('actual-commerce-quantities.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),component=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text===(kind==='delivery'?'FulfillmentForm':'ReturnRequestForm'));
+ if(!component)throw Error('Original Commerce form required');const helpers:import('typescript').FunctionDeclaration[]=[],handlers:import('typescript').ArrowFunction[]=[];
+ const helper=tree.statements.find((node):node is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(node)&&node.name?.text==='allocationQuantityTotal');if(helper)helpers.push(helper);
+ const visit=(node:import('typescript').Node)=>{if(kind==='delivery'&&ts.isFunctionDeclaration(node)&&node.name?.text==='payloadLines')helpers.push(node);if(ts.isJsxAttribute(node)&&node.name.getText(tree)==='onSubmit'&&node.initializer&&ts.isJsxExpression(node.initializer)&&node.initializer.expression&&ts.isArrowFunction(node.initializer.expression))handlers.push(node.initializer.expression);ts.forEachChild(node,visit);};visit(component);expect(handlers).toHaveLength(1);
+ const emitted=ts.transpileModule(helpers.map(node=>node.getText(tree)).join('\n')+`\nconst onSubmit=${handlers[0].getText(tree)};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,form={},values=new FormData(),errors:unknown[]=[],send=vi.fn();values.set('date','2026-10-17');values.set('reason','Customer returned both original observed lots');values.set('evidenceNote','Recipient confirmed these exact original lots');values.set('condition:line','unopened');values.set('condition-note:line','Original packaging independently observed');values.set('quality-due:line','');
+ for(let index=0;index<quantities.length;index++)values.set(`lot:line:lot-${index}`,quantities[index]);
+ class ActualFormData extends FormData{constructor(snapshot:unknown){super();if(snapshot!==form)throw Error('Original form snapshot required');for(const [key,value] of values)this.append(key,value);}}
+ const ports={decimalToUnits,unitsToDecimal,quantitySource:'original-owner-version',setQuantityError:(value:unknown)=>errors.push(value),FormData:ActualFormData,openLines:[{id:'line',tracking_mode:'lot'}],lineAllocations:()=>quantities.map((quantity,index)=>({key:`draft-${index}`,lotId:`lot-${index}`,quantity})),quantities:{},send,order:{id:'sales-order',version:3},incoming:false,stagedEvidence:null,attachmentsV2:true,evidenceId:'',selectedSetIds:['actual-delivery-evidence-set'],available:[{id:'line'}],lotAllocations:quantities.map((_,index)=>({fulfillment_line_id:'line',lot_id:`lot-${index}`})),fulfillment:{id:'original-delivery',version:1},attachmentSet:{setId:'actual-return-evidence-set',readyCount:1,bindable:true}},onSubmit=new Function(...Object.keys(ports),`${emitted}\nreturn onSubmit;`)(...Object.values(ports)) as (event:{preventDefault():void;currentTarget:object})=>void;
+ return {send,errors,values,run:()=>onSubmit({preventDefault:()=>{},currentTarget:form})};
+}
+it.each(['delivery','return'] as const)('actual Goods %s form preserves two fractional lot quantities and satisfies its original owner schema',async kind=>{
+ const caller=await actualGoodsAllocatedSubmit(kind,['0.1','0.2']);caller.run();expect(caller.send).toHaveBeenCalledOnce();const [path,input]=caller.send.mock.calls[0];expect(path).toBe(kind==='delivery'?'orders/sales-order/fulfill':'fulfillments/original-delivery/returns');expect(input.lines).toEqual([expect.objectContaining({lineId:'line',quantity:'0.300',allocations:[expect.objectContaining({lotId:'lot-0',quantity:'0.1'}),expect.objectContaining({lotId:'lot-1',quantity:'0.2'})]})]);expect((kind==='delivery'?fulfillmentSchema:returnRequestSchema).safeParse(input).success).toBe(true);expect(caller.errors).toEqual([null]);expect(caller.values.get('reason')).toBe('Customer returned both original observed lots');
+});
+it.each(['delivery','return'] as const)('actual Goods %s preserves the original maximum-safe milli range including valid thirteen-digit quantities',async kind=>{
+ const caller=await actualGoodsAllocatedSubmit(kind,['9007199254740.990','0.001']);caller.run();expect(caller.send).toHaveBeenCalledOnce();expect(caller.send.mock.calls[0][1].lines[0].quantity).toBe('9007199254740.991');
+});
+it.each(['delivery','return'] as const)('actual Goods %s refuses malformed precision sign exponent and total overflow without sending or clearing its entered values',async kind=>{
+ for(const values of [['0.1','0.0001'],['0.1','1.0000'],['0.1','-0.1'],['0.1','1e3'],['0.1',' 0.2 '],['9007199254740.991','0.001']]){const caller=await actualGoodsAllocatedSubmit(kind,values);caller.run();expect(caller.send,values.join('+')).not.toHaveBeenCalled();expect(caller.errors.at(-1)).toMatchObject({source:'original-owner-version',message:expect.stringMatching(/quantity|quantities/i)});expect(values.map((_,index)=>caller.values.get(`lot:line:lot-${index}`))).toEqual(values);}
+});
+it('actual Goods return keeps zero and blank lot choices optional while summing only explicitly selected quantities',async()=>{
+ const caller=await actualGoodsAllocatedSubmit('return',['','0.000','0.2']);caller.run();expect(caller.send).toHaveBeenCalledOnce();expect(caller.send.mock.calls[0][1].lines[0]).toMatchObject({quantity:'0.200',allocations:[{lotId:'lot-2',quantity:'0.2'}]});expect(returnRequestSchema.safeParse(caller.send.mock.calls[0][1]).success).toBe(true);
+});

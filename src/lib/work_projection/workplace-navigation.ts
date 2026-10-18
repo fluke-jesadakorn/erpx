@@ -1,4 +1,8 @@
+import {destinationAvailable} from './destination-access';
+import { productOfficeNavigation } from "./product-office-navigation";
+import type { ProductHostKey } from "@/server/modules/commercial/public/rules/product-registry";
 import {hasModuleAccess} from "@/data/module-access";
+import {destinations, parentLabels, canonicalUiHref, destinationForPath, destinationTrail, selectionForPath, sourcePath} from './destination-registry';
 import {sectionWorkspaceTopics,legacyWorkspaceDestination} from "./section-workspaces";
 import { hrSettingsTopics } from "@/lib/people_payroll/hr-settings-navigation";
 import { technologySections } from "@/lib/identity_access/technology-navigation";
@@ -19,6 +23,8 @@ export type NavigationScopeKind =
 
 export type NavigationContext = {
   workspaceBase: string;
+  /** Exact server-selected product host; absent on the compatibility Console. */
+  productId?: ProductHostKey;
   workViewAvailability?: WorkViewAvailability | null;
   handbookAccess?: {editor:boolean;owner:boolean};
   /** Daily POS/PMS links are rendered in the separate staff Front surface. */
@@ -223,7 +229,7 @@ export function workplaceNavigation(
   ): NavigationItem => ({
     id,
     label,
-    href: route.startsWith("/") ? route : `${base}/${route}`,
+    href: canonicalUiHref(route.startsWith("/") ? route : canonicalUiHref(`${base}/${route}`)),
     group,
     icon,
     ...(openInNewTab ? { openInNewTab: true } : {}),
@@ -244,7 +250,7 @@ export function workplaceNavigation(
       ];
   if (!platform) {
     primary.find((entry) => entry.id === "work")!.submodules = workViews
-      .filter(([id]) => ["actions", "approvals", "tracking", "team"].includes(id))
+
       .filter(([id]) => context.workViewAvailability === undefined || workViewAvailable(id, context.workViewAvailability))
       .map(([id, label]) => item(`work-${id}`, label, `work?view=${id}`, "My work", "work"));
     primary.find((entry) => entry.id === "work")!.submodules!.push(item("work-reports", "Work reports", "work/reports", "My work", "work"));
@@ -265,7 +271,7 @@ export function workplaceNavigation(
   if (platform) {
     const standalone = [
       ...(context.executiveVisible
-        ? [item("platform-executive", "Executive", "/platform/executive", "Platform", "finance", ["analytics", "provisioning", "health"])]
+        ? [item("platform-executive", "Executive", canonicalUiHref("/platform/executive"), "Platform", "finance", ["analytics", "provisioning", "health"])]
         : []),
       item("platform-billing", "Billing", "billing", "Platform", "settings", ["invoices", "support", "costs"]),
       item("learn", "Learn", "learn", "Platform", "learn"),
@@ -294,7 +300,7 @@ export function workplaceNavigation(
       apps: [],
       categories: [],
       standalone,
-      search: uniqueDestinations([...primary, ...standalone]),
+      search: uniqueDestinationIds([...primary, ...standalone]),
     };
   }
 
@@ -319,7 +325,7 @@ export function workplaceNavigation(
     });
 
   if ((context.executiveVisible ?? hasPermission(actor, "executive.access"))) {
-    group("executive", "Executive", "finance", "business", [item("executive-canvas", "AI Live Canvas", "executive", "Executive", "finance", ["reports", "dashboard", "analytics", "AI", "widgets"])], `${base}/executive`);
+    group("executive", "Executive", "finance", "business", [item("executive-canvas", "AI Live Canvas", "executive", "Executive", "finance", ["reports", "dashboard", "analytics", "AI", "widgets"])], canonicalUiHref(`${base}/executive`));
   }
 
   const peopleItems = [
@@ -353,7 +359,7 @@ export function workplaceNavigation(
     "people",
     "business",
     peopleItems,
-    `${base}/people`,
+    canonicalUiHref(`${base}/people`),
     ["directory", "employees"],
   );
 
@@ -391,7 +397,7 @@ export function workplaceNavigation(
           ["price lists", "discount controls", "pricing rules"],
         )] : []),
       ],
-      `${base}/commerce`,
+      canonicalUiHref(`${base}/commerce`),
       ["sales orders", "quotations", "pricing"],
     );
     group(
@@ -425,7 +431,7 @@ export function workplaceNavigation(
           ["vendors", "supplier directory"],
         ),
       ],
-      `${base}/commerce?view=purchase`,
+      canonicalUiHref(`${base}/commerce?view=purchase`),
       ["purchasing", "suppliers", "RFQ"],
     );
     group(
@@ -479,7 +485,7 @@ export function workplaceNavigation(
           ["locations"],
         ),
       ],
-      `${base}/commerce?view=stock`,
+      canonicalUiHref(`${base}/commerce?view=stock`),
       ["stock", "products", "warehouses"],
     );
   }
@@ -489,7 +495,7 @@ export function workplaceNavigation(
     group("inventory", "Inventory", "warehouse", "business", [
       item("operations-counts", "Stock counts", "stock-counts", "Inventory", "stock-count"),
       item("operations-transfers", "Warehouse transfers", "stock-transfers", "Inventory", "stock-transfer"),
-    ], `${base}/stock-counts`);
+    ], canonicalUiHref(`${base}/stock-counts`));
   }
 
   if (!beta && hasPermission(actor, "inventory.read") && scopeKind !== "department") {
@@ -498,32 +504,32 @@ export function workplaceNavigation(
   }
 
   if (!beta && hasPermission(actor, "commerce.read")) {
-    group("crm", "CRM", "parties", "business", [item("customer-timeline","Customers","customers","CRM","parties",["Customer 360","accounts","contacts","directory"]),item("crm-pipeline","Pipeline","crm","CRM","quotation",["leads","opportunities","activities"]),item("customer-followups","Follow-ups","customer-followups","CRM","calendar"),item("crm-customers","Customer directory","commerce?view=parties&kind=customer","CRM","parties",["customers","contacts"])], `${base}/customers`);
+    group("crm", "CRM", "parties", "business", [item("customer-timeline","Customers","customers","CRM","parties",["Customer 360","accounts","contacts","directory"]),item("crm-pipeline","Pipeline","crm","CRM","quotation",["leads","opportunities","activities"]),item("customer-followups","Follow-ups","customer-followups","CRM","calendar"),item("crm-customers","Customer directory","commerce?view=parties&kind=customer","CRM","parties",["customers","contacts"])], canonicalUiHref(`${base}/customers`));
   }
   if (!beta && hasPermission(actor, "support.read")) {
-    group("support", "Customer support", "feedback", "business", [item("support-cases","Support cases","support","Customer support","feedback")], `${base}/support`);
+    group("support", "Customer support", "feedback", "business", [item("support-cases","Support cases","support","Customer support","feedback")], canonicalUiHref(`${base}/support`));
   }
 
   if (!beta && hasPermission(actor, "quality.read") && scopeKind !== "department") {
-    group("quality", "Quality", "warehouse", "business", [item("quality-holds", "Quality holds", "quality", "Quality", "stock-count", ["inspection", "quarantine", "release"])], `${base}/quality`);
+    group("quality", "Quality", "warehouse", "business", [item("quality-holds", "Quality holds", "quality", "Quality", "stock-count", ["inspection", "quarantine", "release"])], canonicalUiHref(`${base}/quality`));
   }
 
   if (!beta && hasPermission(actor, "pos.read")) {
     group("pos", "POS", "commerce", "business", [
-      item("pos-front", "Open POS Front", context.frontPosHref ?? `${base}/pos`, "POS", "product", ["cashier", "sales floor"], true),
+      item("pos-front", "Open POS Front", context.frontPosHref ?? canonicalUiHref(`${base}/pos`), "POS", "product", ["cashier", "sales floor"], true),
       ...(hasPermission(actor, "pos.approve") ? [item("pos-approvals", "POS approvals", "pos?tab=history&queue=approval", "POS", "admin-approvals")] : []),
       ...(hasPermission(actor, "pos.reports") ? [item("pos-reports", "POS reports", "pos?tab=reports", "POS", "ledger")] : []),
       ...(hasPermission(actor, "pos.configure") || hasPermission(actor, "pos.payments.configure") ? [item("pos-settings", "POS settings", "pos?tab=settings", "POS", "settings")] : []),
-    ], context.frontPosHref ?? `${base}/pos`);
+    ], context.frontPosHref ?? canonicalUiHref(`${base}/pos`));
   }
 
   if (!beta && scopeKind !== "department" && hasPermission(actor,"pms.read")) {
     group("pms", "Hotel PMS", "pms", "business", [
-      item("pms-front", "Open PMS Front", context.frontPmsHref ?? `${base}/pms/dashboard`, "Hotel PMS", "pms", ["hotel", "reservation", "housekeeping", "rooms", "book room"], true),
+      item("pms-front", "Open PMS Front", context.frontPmsHref ?? canonicalUiHref(`${base}/pms/dashboard`), "Hotel PMS", "pms", ["hotel", "reservation", "housekeeping", "rooms", "book room"], true),
       ...(hasPermission(actor, "pms.approve") ? [item("pms-approvals", "PMS approvals", "pms/guest-accounts?queue=approval", "Hotel PMS", "admin-approvals")] : []),
       ...(hasPermission(actor, "pms.reports") ? [item("pms-reports", "PMS reports", "pms/reports", "Hotel PMS", "ledger")] : []),
       ...(hasPermission(actor, "pms.configure") || hasPermission(actor, "pms.accounting.prepare") || hasPermission(actor, "pms.accounting.approve") ? [item("pms-settings", "PMS settings", "pms/settings", "Hotel PMS", "settings")] : []),
-    ], context.frontPmsHref ?? `${base}/pms/dashboard`, ["hotel", "reservation", "housekeeping", "rooms", "book room"]);
+    ], context.frontPmsHref ?? canonicalUiHref(`${base}/pms/dashboard`), ["hotel", "reservation", "housekeeping", "rooms", "book room"]);
   }
   if (!beta) {
     const financeItems = hasPermission(actor, "finance.read") ? [
@@ -585,7 +591,7 @@ export function workplaceNavigation(
           ["routines", "schedules"],
         ),
       ],
-      `${base}/projects`,
+      canonicalUiHref(`${base}/projects`),
       ["project list"],
     );
 
@@ -593,7 +599,7 @@ export function workplaceNavigation(
         (!context.availableAppIds || context.availableAppIds.includes("operations"))) {
       group("operations", "Operations", "projects", "business", [
         item("operations", "Operations", "operations", "Operations", "projects"),
-      ], `${base}/operations`);
+      ], canonicalUiHref(`${base}/operations`));
     }
 
     const technologyItems = hasPermission(actor, "iam.read") ? [
@@ -695,7 +701,7 @@ export function workplaceNavigation(
     ] as const;
     for (const [module, label, route, icon] of extraModules) {
       if (modules.includes(module) && hasPermission(actor, module === "ecommerce" ? "commerce.read" : "records.read"))
-        group(module, label, icon, "business", [item(route, label, route, label, icon)], `${base}/${route}`);
+        group(module, label, icon, "business", [item(route, label, route, label, icon)], canonicalUiHref(`${base}/${route}`));
     }
     if (hasPermission(actor, "commerce.read") && hasPermission(actor, "commerce.sales") &&
         (!context.availableAppIds || context.availableAppIds.includes("customer_authority")))
@@ -725,14 +731,14 @@ export function workplaceNavigation(
     ]);
   }
 
-  if (scopeKind === "holding" && base === "/holdings/erpx" && context.manageErpxVisible) {
+  if (scopeKind === "holding" && base === canonicalUiHref("/holdings/erpx") && context.manageErpxVisible) {
     group("erpx-management", "ERPX Management", "technology", "business", [
       item("erpx-management", "Overview", "manage-erpx", "ERPX Management", "technology", ["customers", "provisioning", "recovery"]),
       item("manage-erpx-billing", "Customer billing", "manage-erpx/billing", "ERPX Management", "finance"),
       item("manage-erpx-usage", "Customer usage", "manage-erpx/billing/usage", "ERPX Management", "admin-usage"),
       item("manage-erpx-iam", "Platform IAM", "manage-erpx/iam", "ERPX Management", "access"),
       item("manage-erpx-executive", "Platform Executive", "manage-erpx/executive", "ERPX Management", "projects"),
-    ], `${base}/manage-erpx`, ["platform", "customers", "system"]);
+    ], canonicalUiHref(`${base}/manage-erpx`), ["platform", "customers", "system"]);
   }
 
   const standalone = beta ? [] : [
@@ -798,7 +804,7 @@ export function workplaceNavigation(
     .filter(entry => entry.id !== "crm-customers");
   const categories = workplaceCategories.flatMap(([id, label, icon]): NavigationCategory[] => {
     let entries = categoryEntries.filter(entry => entry.categoryId === id);
-    for(const [family,ids,label] of [['assets',['assets','maintenance'],'Assets & maintenance'],['knowledge',['handbook','learning'],'Knowledge']] as const){const matching=entries.filter(entry=>(ids as readonly string[]).includes(entry.id));if(matching.length){const preferred=matching.find(entry=>entry.id===ids[0])??matching[0];entries=entries.filter(entry=>!(ids as readonly string[]).includes(entry.id));entries.push({...preferred,label,href:family==='assets'?`${base}/assets${preferred.id==='maintenance'?'?view=maintenance':''}`:`${base}/knowledge${preferred.id==='learning'?'?view=learning&section=courses':''}`});}}
+    for(const [family,ids,label] of [['assets',['assets','maintenance'],'Assets & maintenance']] as const){const matching=entries.filter(entry=>(ids as readonly string[]).includes(entry.id));if(matching.length){const preferred=matching.find(entry=>entry.id===ids[0])??matching[0];entries=entries.filter(entry=>!(ids as readonly string[]).includes(entry.id));entries.push({...preferred,label,href:family==='assets'?canonicalUiHref(`${base}/assets${preferred.id==='maintenance'?'?view=maintenance':''}`):canonicalUiHref(`${base}/knowledge${preferred.id==='learning'?'?view=learning&section=courses':''}`)});}}
 
     if (id === "customers-sales") {
       const secondaryItems = entries.filter(entry => ["marketing", "ecommerce"].includes(entry.id));
@@ -815,24 +821,38 @@ export function workplaceNavigation(
     .map(topic => metadata(item(`people-settings-${topic.id}`, topic.title, `people/settings?section=${topic.id}`, "People", "settings", [topic.description]), "people")) : [];
 
   const workspaceAliases=Object.entries(sectionWorkspaceTopics).filter(([family])=>family!=='projects').flatMap(([family,topics])=>topics.filter(topic=>{const moduleId=family==='administration'?null:family==='assets'?(topic.id==='register'?'assets':'maintenance'):family==='knowledge'?(topic.id.startsWith('learning:')?'learning':null):family==='catalog'?(topic.id==='pricing'?'sales':'inventory'):family;return !moduleId||context.availableAppIds===undefined||context.availableAppIds.includes(moduleId);}).filter(topic=>family==='administration'?visibleAdminSections.includes((topic.query as Record<string,string>).section as AdminSection)&&(topic.id!=='brand:media'||visibleAdminSections.includes('organization')):family==='assets'?hasPermission(actor,'records.read')&&hasModuleAccess(context.moduleIds??[],topic.id==='register'?'assets':'maintenance'):family==='knowledge'?(topic.id.startsWith('handbook:')?(topic.id==='handbook:published'||topic.id==='handbook:drafts'&&context.handbookAccess?.editor||topic.id==='handbook:editors'&&context.handbookAccess?.owner):hasPermission(actor,'records.read')&&hasModuleAccess(context.moduleIds??[],'learning')):family==='benefits'?hasPermission(actor,'records.read')&&hasModuleAccess(context.moduleIds??[],'benefits'):family==='finance'?hasPermission(actor,'finance.read'):hasPermission(actor,'commerce.read')&&(topic.id!=='pricing'||hubAccess.pricing)).map(topic=>({...item(family==='catalog'?`operations-${topic.id}`:`workspace-${family}-${topic.id}`,topic.title,`${topic.path}?${new URLSearchParams(topic.query)}`,family==='knowledge'?'Knowledge':family==='assets'?'Assets & maintenance':family,'settings'),categoryId:(family==='administration'?'administration':family==='knowledge'?'knowledge':family==='finance'?'finance':family==='catalog'?'inventory-quality':family==='benefits'?'people-organization':'services') as NavigationCategory["id"]})));
-  return {
+  const known=[...primary,...primary.flatMap(entry=>entry.submodules??[]),...appDestinations,...workspaceAliases,...technologyAliases,...hrAliases,...standalone.map(movedDestination)];
+  const registered=destinations.filter(destination=>destinationAvailable(context,destination)).map(destination=>{
+    const href=`${base}/${destination.path}`,existing=known.find(entry=>entry.href.split('?')[0]===href);
+    const parent=destination.path.split('/').slice(0,-1).join('/');
+    return {...(existing??item(`destination:${destination.path}`,destination.label,href,parentLabels[parent]??destination.label,'settings')),label:destination.label,href,categoryId:(['home','work','calendar','inbox'].includes(destination.path.split('/')[0])?'daily':destination.path.split('/')[0]) as NavigationItem['categoryId']};
+  });
+  function withSubmodules(entry:NavigationItem){const url=new URL(entry.href,'https://navigation.invalid');if(!url.pathname.startsWith(base+'/'))return entry;const path=url.pathname.slice(base.length+1),parent=Object.hasOwn(parentLabels,path)?path:path.split('/').slice(0,-1).join('/');if(parent.split('/').length<2||parent===entry.categoryId)return entry;const children=registered.filter(child=>{const childPath=child.href.slice(base.length+1);return child.id!==entry.id&&childPath!==path&&childPath.startsWith(parent+'/')&&childPath.slice(parent.length+1).split('/').length===1;});return children.length?{...entry,submodules:uniqueDestinations(children)}:entry;}
+
+  for(const category of categories)category.apps=category.apps.map(withSubmodules);
+  for(const app of apps)app.items=app.items.map(withSubmodules);
+  const work=primary.find(entry=>entry.id==='work');if(work)work.submodules=registered.filter(entry=>entry.href.startsWith(base+'/work/'));
+  const model: WorkplaceNavigationModel = {
     primary,
     apps,
     categories,
     standalone:standalone.map(movedDestination),
-    search: uniqueDestinations([...primary.map(entry => metadata(entry)), ...primary.flatMap(entry => entry.submodules ?? []).map(entry => ({...metadata(entry), categoryId: "daily" as const})), ...hubEntries, ...hubTools, ...appDestinations, ...workspaceAliases, ...technologyAliases, ...hrAliases, ...standalone.map(entry => movedDestination(metadata(entry))),
+    search: uniqueDestinationIds([...primary.map(entry => metadata(entry)), ...primary.flatMap(entry => entry.submodules ?? []).map(entry => ({...metadata(entry), categoryId: "daily" as const})), ...hubEntries, ...hubTools, ...appDestinations, ...workspaceAliases, ...technologyAliases, ...hrAliases, ...registered, ...standalone.map(entry => movedDestination(metadata(entry))),
       ...workplaceStartActions.map(action=>({...item(`start-${action.id}`,action.label,`${base}${action.path}`,"Start","work"),categoryId:"daily" as const,ownerModuleId:action.owner,objective:action.objective,aiSupport:"prepare" as const}))]),
     settingsDefault: sectionWorkspaceTopics.administration.find(topic=>visibleAdminSections.includes(topic.query.section as AdminSection))?.query.section as AdminSection ?? "feedback",
   };
+  return context.productId ? productOfficeNavigation(model, context.productId) : model;
 }
+
+function uniqueDestinationIds(items:NavigationItem[]){const seen=new Set<string>();return items.filter(item=>!seen.has(item.id)&&!!seen.add(item.id));}
 
 function queryValue(searchParams: SearchParamsLike | undefined, key: string) {
   return searchParams?.get(key) ?? "";
 }
 
 function relativeSegments(base: string, pathname: string | null) {
-  pathname ??= `${base}/home`;
-  const relative = pathname.startsWith(`${base}/`)
+  pathname ??= canonicalUiHref(`${base}/home`);
+  const relative = pathname.startsWith(canonicalUiHref(`${base}/`))
     ? pathname.slice(base.length + 1)
     : pathname.startsWith("/")
       ? pathname.slice(1)
@@ -856,6 +876,23 @@ export function resolveNavigation(
   pathname: string,
   searchParams?: SearchParamsLike,
 ): NavigationResolution {
+  const publicPath = pathname.startsWith(base + '/') ? pathname.slice(base.length + 1) : '';
+  const roots=[...model.primary,...model.categories.flatMap(category=>[...category.apps,...category.secondaryItems??[]]),...model.apps.flatMap(app=>app.items),...model.standalone];
+  const direct=roots.find(item=>new URL(item.href,'https://navigation.invalid').pathname===pathname);
+  if(direct){const app=model.apps.find(app=>app.items.some(item=>item.id===direct.id||item.submodules?.some(child=>child.id===direct.id)));return {activeId:direct.id,sidebarId:app?.id==='finance'?financeSidebarId(direct.id):direct.id,...(app?{groupId:app.id}:{})};}
+  const exact=model.search.find(item=>new URL(item.href,'https://navigation.invalid').pathname===pathname);
+  if(exact&&destinationForPath(publicPath)){const parent=roots.filter(item=>{const path=new URL(item.href,'https://navigation.invalid').pathname;return pathname.startsWith(path+'/');}).sort((a,b)=>b.href.length-a.href.length)[0];const app=model.apps.find(app=>app.items.some(item=>item.id===parent?.id||item.submodules?.some(child=>child.id===exact.id)))??model.apps.find(app=>app.items.some(item=>sourcePath(new URL(item.href,'https://navigation.invalid').pathname.slice(base.length+1))===destinationForPath(publicPath)?.source));const owner=parent??app?.items.find(item=>sourcePath(new URL(item.href,'https://navigation.invalid').pathname.slice(base.length+1))===destinationForPath(publicPath)?.source);return {activeId:exact.id,...(owner?{sidebarId:app?.id==='finance'?financeSidebarId(exact.id):owner.id}:{}),...(app?{groupId:app.id}:{})};}
+
+  const destination = destinationForPath(publicPath);
+  const areaParent=publicPath.match(/^finance\/(today|documents|cash|accounting|reports|setup)$/)?.[1];if(areaParent&&hasApp(model,'finance')){const id=({today:'finance-overview',documents:'finance-sales',cash:'finance-payments',accounting:'finance-ledger',reports:'finance-reports',setup:'finance-setup'} as Record<string,string>)[areaParent];return {activeId:id,sidebarId:id,groupId:'finance'};}
+  if (destination || sourcePath(publicPath) !== publicPath) {
+    const query = new URLSearchParams(Object.entries(selectionForPath(pathname)));
+    for (const key of ['q','kind','view','type','section','tab','queue']) {
+      const value=searchParams?.get(key); if(value!==null&&value!==undefined&&!query.has(key))query.set(key,value);
+    }
+    pathname=`${base}/${sourcePath(publicPath)}`;
+    searchParams=query;
+  }
   const [route, second, third] = relativeSegments(base, pathname);
   const standard = base !== "/platform" && !hasApp(model, "resources");
   if (base !== "/platform") {
@@ -886,7 +923,7 @@ export function resolveNavigation(
   if (route === "legal") return { activeId: "legal" };
   if (route === "calendar") return { activeId: "calendar" };
   if (route === "inbox") return { activeId: "inbox" };
-  if (route === "manage-erpx" && base === "/holdings/erpx") {
+  if (route === "manage-erpx" && base === canonicalUiHref("/holdings/erpx")) {
     const activeId =
       second === "billing"
         ? third === "usage" ? "manage-erpx-usage" : "manage-erpx-billing"
@@ -1137,7 +1174,7 @@ export function resolveNavigation(
   }
   if (route === "iam") {
     if (base !== "/platform") {
-      const destination = new URL(`${base}/${peopleIamDestination(second ?? "overview")}`, "https://navigation.invalid");
+      const destination = new URL(canonicalUiHref(`${base}/${peopleIamDestination(second ?? "overview")}`), "https://navigation.invalid");
       return resolveNavigation(model, base, destination.pathname, destination.searchParams);
     }
     return {
@@ -1157,29 +1194,31 @@ export function navigationTrail(
   pathname: string,
   searchParams?: SearchParamsLike,
 ): NavigationTrailItem[] {
-  if (pathname.replace(/\/$/, "") === `${base}/settings/stripe`)
+  const relative=pathname.startsWith(base+'/')?pathname.slice(base.length+1):'';
+  if(relative&&relative!=='home')return destinationTrail(base,relative);
+  if (pathname.replace(/\/$/, "") === canonicalUiHref(`${base}/settings/stripe`))
     return [{ label: "Company Stripe" }];
-  if (pathname.replace(/\/$/, "") === `${base}/settings/notifications`)
+  if (pathname.replace(/\/$/, "") === canonicalUiHref(`${base}/settings/notifications`))
     return [{ label: "Notification settings" }];
-  if(pathname===`${base}/assets`){const view=queryValue(searchParams,'view')||'register',topic=sectionWorkspaceTopics.assets.find(item=>item.id===view);return [{label:'Assets & maintenance',href:`${base}/assets`},...(topic?[{label:topic.title}]:[])];}
-  if(pathname===`${base}/knowledge`){const view=queryValue(searchParams,'view')||'handbook',section=queryValue(searchParams,'section')||(view==='learning'?'courses':'published'),topic=sectionWorkspaceTopics.knowledge.find(item=>item.id===`${view}:${section}`);return [{label:'Knowledge',href:`${base}/knowledge`},...(topic?[{label:topic.title}]:[])];}
+  if(pathname===canonicalUiHref(`${base}/assets`)){const view=queryValue(searchParams,'view')||'register',topic=sectionWorkspaceTopics.assets.find(item=>item.id===view);return [{label:'Assets & maintenance',href:canonicalUiHref(`${base}/assets`)},...(topic?[{label:topic.title}]:[])];}
+  if(pathname===canonicalUiHref(`${base}/knowledge`)){const view=queryValue(searchParams,'view')||'handbook',section=queryValue(searchParams,'section')||(view==='learning'?'courses':'published'),topic=sectionWorkspaceTopics.knowledge.find(item=>item.id===`${view}:${section}`);return [{label:'Knowledge',href:canonicalUiHref(`${base}/knowledge`)},...(topic?[{label:topic.title}]:[])];}
   const resolved = resolveNavigation(model, base, pathname, searchParams);
   if (!resolved.activeId || resolved.activeId === "home") return [];
   if (["sales-hub", "customers-hub"].includes(resolved.sidebarId ?? "")) {
     const hub = resolved.sidebarId === "sales-hub" ? "sales" : "customers", labels: Record<string, string> = { "sales-today": "Today", "crm-pipeline": "Pipeline", "customer-followups": "Today", "operations-sales": "Sales documents", "operations-quotations": "Sales documents", "operations-pricing": "Price lists", "crm-reports": "Reports", "crm-contacts": "Prospects & contacts", "customer-timeline": "Customers", "crm-customers": "Customers", "support-cases": "Service", "customer-identity": "Review customer data", "customer-duplicates": "Review customer data", "customer-access": "Review customer data" };
     const label = labels[resolved.activeId], detail = resolved.detailLabel ?? (queryValue(searchParams, "detailId") ? ({ customer: "Customer profile", order: "Sales document", crm_lead: "CRM case", customer_followup: "Customer follow-up", support_ticket: "Support case" } as Record<string, string>)[queryValue(searchParams, "detailKind")] ?? "Record" : undefined);
-    return [{ label: hub === "sales" ? "Sales" : "Customers", href: `${base}/${hub}` }, ...(label && label !== "Customers" ? [{ label }] : []), ...(detail ? [{ label: detail }] : [])];
+    return [{ label: hub === "sales" ? "Sales" : "Customers", href: canonicalUiHref(`${base}/${hub}`) }, ...(label && label !== "Customers" ? [{ label }] : []), ...(detail ? [{ label: detail }] : [])];
   }
   if (resolved.activeId === "people-directory" && resolved.groupId === "people")
     return [
-      { label: "People", ...(resolved.detailLabel ? { href: `${base}/people` } : {}) },
+      { label: "People", ...(resolved.detailLabel ? { href: canonicalUiHref(`${base}/people`) } : {}) },
       ...(resolved.detailLabel ? [{ label: resolved.detailLabel }] : []),
     ];
-  const payrollBase = `${base}/people/payroll`;
+  const payrollBase = canonicalUiHref(`${base}/people/payroll`);
   if (pathname === payrollBase || pathname.startsWith(`${payrollBase}/`)) {
     const section = pathname.slice(payrollBase.length).split("/")[1];
     return [
-      { label: "People", href: `${base}/people` },
+      { label: "People", href: canonicalUiHref(`${base}/people`) },
       { label: "Payroll", ...(section ? { href: payrollBase } : {}) },
       ...(section ? [{ label: section === "history" ? "History" : section === "advances" ? "Advances" : section === "settings" ? "Settings" : "Payroll run" }] : []),
     ];

@@ -1,10 +1,14 @@
+import {calendarData} from "../../../src/server/modules/work_projection/public/calendar/index";
+import {packageGrantStore} from "../../../src/server/modules/commercial/public/package-grants";
+import {afterEach} from "vitest";
+import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import {beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {approvePayment,confirmPayment,createInvoice,createJournal,createParty,createPayment,importBankStatement,postInvoice,postJournal,releasePayment} from "../../../src/server/modules/finance/public/finance";
 import {confirmManualRate} from "../../../src/server/modules/finance/public/company-money";
 import {assignFlowPrimary,resolveFlow} from "../../../src/server/modules/workflow/public/flow-routing";
-import {approveRefund,confirmRefundInstruction,exportRefundInstructions,prepareRefundInstruction,recoverRefundExport,refundConfirmationSchema,refundInstructionSchema,refundWorkspace} from "../../../src/server/modules/finance/public/refunds";
+import {approveRefund,confirmRefundInstruction,exportRefundInstructions,prepareRefundInstruction,recoverRefundExport,refundConfirmationSchema,refundInstructionSchema,refundWorkspace,refundWork,listRefunds} from "../../../src/server/modules/finance/public/refunds";
 import {invoiceHistoryCte} from "../../../src/server/modules/finance/public/finance-history";
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
@@ -99,4 +103,32 @@ describe("foreign refund cash and carrying evidence",()=>{
   expect(Number(await db.prepare("SELECT COUNT(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=?").bind(f.company,`refund-payment-${command}`).first("n"))).toBe(1);
   expect(await recoverRefundExport(f.payer,instructionId)).toMatchObject({content:exported.content,sha256:exported.sha256});
  });
+});
+
+afterEach(()=>vi.unstubAllEnvs());
+
+it("purchased Finance refund denies unpurchased bank work and Calendar rows, while shadow preserves original authority",async()=>{
+ const s=await source("outgoing");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");for(const read of [()=>refundWorkspace(f.payer,s.obligation),()=>listRefunds(f.payer)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await refundWork(f.payer)).toEqual([]);
+ await expect(prepareRefundInstruction(f.payer,s.obligation,{expectedVersion:2,amount:"100",plannedDate:"2026-09-05",bankAccount:s.ids.bank,cashAccountId:s.ids.bank},key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ const emptyCalendar=await calendarData(db,f.payer,{date:"2026-09-05",view:"day",layers:"refunds",mode:"team"});expect(emptyCalendar.sources).toContainEqual({source:"refunds",status:"ready"});expect(emptyCalendar.items).toEqual([]);
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","shadow");const telemetry=vi.spyOn(console,"info").mockImplementation(()=>{});try{expect((await refundWorkspace(f.payer,s.obligation)).owner.id).toBe(s.obligation);expect(telemetry.mock.calls.some(args=>String(args[0]).includes("PACKAGE_REQUIRED"))).toBe(true);}finally{telemetry.mockRestore();}
+});
+it("Finance-only draining settles retained foreign refund cash and preserves exact export and source carrying",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const s=await source("outgoing");await confirmManualRate(f.manager,{currency:"THB",effectiveDate:"2026-09-05",currencyPerUsd:"36",note:"Reviewed original bank-date refund rate"},key());await reviewedFinanceGrant(db,f.company,"finance","draining");
+ const result=await confirm(s.obligation,s.ids,"100");expect(result).toMatchObject({baseCarryingMinor:350000,cashBaseMinor:360000,realizedFxMinor:-10000});expect((await refundWorkspace(f.payer,s.obligation)).owner).toMatchObject({status:"settled",outstanding_minor:0});
+ await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.payer.assignmentId).run();await expect(recoverRefundExport(f.payer,result.instructionId)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(await refundWork(f.payer)).toEqual([]);expect((await calendarData(db,f.payer,{date:"2026-09-05",view:"day",layers:"refunds",mode:"team"})).items).toEqual([]);
+});
+it("purchased refund final revocation rolls back cash FX carrying snapshots and receipts then retries once",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const s=await source("incoming"),owner=(await refundWorkspace(f.payer,s.obligation)).owner,instruction=await prepareRefundInstruction(f.payer,s.obligation,refundInstructionSchema.parse({expectedVersion:Number(owner.version),amount:"40.01",plannedDate:"2026-09-05",bankAccount:s.ids.bank,cashAccountId:s.ids.bank,fxGainAccountId:s.ids.gain,fxLossAccountId:s.ids.loss}),key()),id=String(instruction.id);await exportRefundInstructions(f.payer,{instructions:[{id,expectedVersion:1}]},key());
+ const statement=await importBankStatement(f.reviewer,{bankAccount:s.ids.bank,statementNumber:key(),statementDate:"2026-09-05",opening:"0",closing:"40.01",sourceHash:key(),rows:[{externalId:key(),transactionDate:"2026-09-05",amount:"40.01",currency:"USD"}]},key()),bankId=String(await db.prepare("SELECT id FROM finance_bank_transactions WHERE statement_id=?").bind(statement.id).first("id")),command=key(),payload=refundConfirmationSchema.parse({expectedVersion:2,bankTransactionId:bankId,bankVersion:1,periodId:f.period,bankReference:"ISOLATED-REFUND-PROOF",evidence:"Reviewed exact retained refund bank evidence"}),fault=`refund_purchase_${key().replaceAll("-","")}`;
+ const snapshot=async()=>Promise.all(["finance_refund_obligations","finance_refund_instructions","finance_payments","finance_journals","finance_journal_lines","finance_bank_transactions","money_transaction_snapshots","command_receipts","audit_events","outbox_events"].map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await snapshot();
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.payer.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
+ try{await expect(confirmRefundInstruction(f.payer,id,payload,command)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(await snapshot()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}()`);}
+ const result=await confirmRefundInstruction(f.payer,id,payload,command);expect(await confirmRefundInstruction(f.payer,id,payload,command)).toEqual(result);expect(result).toMatchObject({status:"confirmed",baseCarryingMinor:140035,cashBaseMinor:140035});
+});
+it("expired Finance keeps existing refund settlement and Calendar until owner-checked inactivation",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const s=await source("outgoing"),owner=(await refundWorkspace(f.payer,s.obligation)).owner,instruction=await prepareRefundInstruction(f.payer,s.obligation,{expectedVersion:Number(owner.version),amount:"100",plannedDate:"2026-09-05",bankAccount:s.ids.bank,cashAccountId:s.ids.bank,fxGainAccountId:s.ids.gain,fxLossAccountId:s.ids.loss},key());
+ await packageGrantStore(db,{authorize:async()=>({userId:"isolated-expiry-review"}),obligations:async()=>{throw Error("No withdrawal witness");}}).apply({expectedVersion:1,idempotencyKey:key(),grant:{companyId:f.company,packageId:"finance",packageVersion:1,state:"active",startsAt:0,endsAt:Date.now()-1000,version:2,reason:"Expired prior effective period retains its exact history",evidence:"test:refund-expiry"}});
+ expect((await refundWorkspace(f.payer,s.obligation)).instructions.map(row=>row.id)).toContain(instruction.id);expect((await calendarData(db,f.payer,{date:"2026-09-05",view:"day",layers:"refunds",mode:"team"})).items.some(row=>row.sourceId===instruction.id)).toBe(true);
+ expect((await refundWork(f.payer)).find(row=>row.id===s.obligation)).toMatchObject({canAct:true,queue:"todo",nextAction:"Review export and bank confirmation",relationships:["approval"]});expect(await exportRefundInstructions(f.payer,{instructions:[{id:String(instruction.id),expectedVersion:1}]},key())).toMatchObject({confirmationRequired:true});
 });

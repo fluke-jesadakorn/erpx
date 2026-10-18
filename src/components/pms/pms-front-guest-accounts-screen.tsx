@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type { Option, Field } from "./workspace-types";
 import { CollectionRecordLink } from "@/components/records/record-collection";
 import { RecordSurface } from "@/components/records/record-surface";
@@ -11,7 +12,7 @@ import { type ReactNode } from "react";
 import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
-import type {FrontPmsDailyContext} from "./pms-front-workspace";
+import type {FrontPmsDailyContext} from "./standard-pms-front-workspace";
 
 
 function StatAmount({ formatted }: { formatted: string }) {
@@ -222,7 +223,7 @@ export function FrontPmsDailyGuestAccountsScreen({context}: {context: FrontPmsDa
                     {propertyId && (
                       <UiActionLink
                         variant="secondary"
-                        href={`${erpBase}/pms/guest-accounts?property=${encodeURIComponent(propertyId)}&queue=corrections`}
+                        href={canonicalUiHref(`${erpBase}/pms/guest-accounts?property=${encodeURIComponent(propertyId)}&queue=corrections`)}
                       >
                         {tr("Manage guest account corrections in ERPX")}
                       </UiActionLink>
@@ -320,7 +321,7 @@ export function FrontPmsDailyGuestAccountsScreen({context}: {context: FrontPmsDa
                         <a
                           className={styles.record}
                           key={document.id}
-                          href={`${erpBase}/pms/documents/${document.id}?property=${propertyId}`}
+                          href={canonicalUiHref(`${erpBase}/pms/documents/${document.id}?property=${propertyId}`)}
                         >
                           {tr(
                             document.kind === "receipt"

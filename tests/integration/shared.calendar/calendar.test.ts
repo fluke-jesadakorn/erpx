@@ -1,4 +1,7 @@
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
+import {mkdtemp,mkdir,readdir,cp,rm} from "node:fs/promises";
+import {resolve,join} from "node:path";
+import {migrateDatabase} from "../../../src/server/modules/runtime/public/runtime/migrations";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import {
@@ -12,6 +15,8 @@ import { localInterval } from "../../../src/server/modules/work_projection/publi
 import {drainCalendarReminders} from "../../../src/server/modules/work_projection/public/calendar/reminders";
 import {calendarAvailability} from "../../../src/server/modules/work_projection/public/calendar/availability";
 import { rosterMonday, addDays } from "../../../src/lib/people_payroll/people-roster";
+import { packageGrantStore } from "../../../src/server/modules/commercial/public/package-grants";
+import { calendarRosterPeoplePayrollFacts } from "../../../src/server/modules/people_payroll/public/calendar-roster-facts";
 import { calendarQuerySchema, itemOnDate } from "../../../src/lib/work_projection/calendar";
 import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
@@ -21,6 +26,7 @@ vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
 const db = env.H001_DB,
   key = () => crypto.randomUUID(),
   person = (a: WorkContext) => `person-${a.userId}`;
+afterEach(()=>vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;
 const privateGuestPhone = "+66-555-010-1234";
 const date = addDays(rosterMonday(), 14),
@@ -714,4 +720,95 @@ it("shows verified directory work in its own week even after the departure windo
     verifiedAt,
   );
   expect(d.items.some((i) => i.kind === "cutoff")).toBe(false);
+});
+
+it("keeps unpurchased Roster rows and occupants out of Calendar while retaining other sources and draining rescheduling", async () => {
+  const roster = await shift(), meeting = await command(appointment({organizerPersonId:person(f.manager),participantIds:[person(f.claimant)],title:"Independent Calendar source"}));
+  const store=packageGrantStore(db,{authorize:async()=>({userId:"isolated-calendar-purchase-review"}),obligations:async()=>{throw Error("No invented People withdrawal witness");}});
+  const grant=async(packageId:"people"|"people-workforce",state:"active"|"draining",expectedVersion:number)=>store.apply({expectedVersion,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:expectedVersion+1,reason:"Declared isolated Roster Calendar purchase",evidence:"test:roster-calendar-purchase"}});
+  try {
+    vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","enforced");
+    for(const baseOnly of [false,true]){
+      if(baseOnly)await grant("people","active",0);
+      const hidden=await read(f.manager,{view:"week"});
+      expect(hidden.sources.every(source=>source.status==="ready")).toBe(true);
+      expect(hidden.items.some(item=>item.kind==="shift")).toBe(false);
+      expect(hidden.items.some(item=>item.sourceId===meeting.id)).toBe(true);
+      expect(await calendarRosterPeoplePayrollFacts(db).read2({value1:JSON.stringify([roster.s.id])})).toEqual([]);
+    }
+    await grant("people-workforce","active",0);
+    const active=(await read(f.manager,{view:"week"})).items.find(item=>item.sourceId===roster.s.id);
+    expect(active).toMatchObject({capacity:2,assigned:1,participants:[{id:person(f.claimant)}]});
+    expect(active?.permittedActions).toEqual(expect.arrayContaining(["roster.open","roster.manage","shift.reschedule"]));
+    await grant("people-workforce","draining",1);
+    const before=await db.prepare("SELECT count(*) n FROM command_receipts").first("n"),retained=(await read(f.manager,{view:"week"})).items.find(item=>item.sourceId===roster.s.id);
+    expect(retained).toMatchObject({capacity:2,assigned:1});
+    expect(retained?.permittedActions).toContain("shift.reschedule");
+    expect(retained?.permittedActions).not.toContain("roster.manage");
+    expect(await db.prepare("SELECT count(*) n FROM command_receipts").first("n")).toBe(before);
+    expect(await db.prepare("SELECT count(*) n FROM command_assertions").first("n")).toBe(0);
+  } finally {vi.unstubAllEnvs();}
+});
+
+async function workCalendarGrant(state:'active'|'draining'='active'){
+ const {readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants'),old=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='work');
+ return packageGrantStore(db,{authorize:async()=>({userId:'isolated-calendar-provider'}),obligations:async()=>{throw Error('CALENDAR_TEST_CANNOT_FABRICATE_ALL_WORK_CLOSURE');}}).apply({expectedVersion:old?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'work',packageVersion:1,state,startsAt:0,endsAt:null,version:(old?.version??0)+1,reason:'Actual original Calendar owner fixture',evidence:'test:work-calendar-owner'}});
+}
+it('purchasedCalendar keeps manual records and commands on Work while actual existing settlement and exact replay remain available during draining',async()=>{
+ const saved=await command(appointment(),f.claimant),receipt=key(),newInput=appointment({title:'Actual purchased Calendar meeting'});vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ const hidden=await read(f.claimant,{layers:'appointments,announcements'});expect(hidden.sources.every(source=>source.status==='ready')).toBe(true);expect(hidden.items).toEqual([]);expect(hidden).toMatchObject({canSchedule:false,canAnnounce:false,purchase:{newWork:false,history:false}});await expect(command(newInput,f.claimant,receipt)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+ await workCalendarGrant();const created=await command(newInput,f.claimant,receipt);expect(await command(newInput,f.claimant,receipt)).toEqual(created);const active=await read(f.claimant,{layers:'appointments'});expect(active.items.map(item=>item.sourceId)).toEqual(expect.arrayContaining([saved.id,created.id]));expect(active.purchase).toMatchObject({newWork:true,settleExisting:true,history:true});
+ await workCalendarGrant('draining');await expect(command(appointment({title:'Unlicensed new draining intake'}),f.claimant)).rejects.toMatchObject({code:'PACKAGE_DRAINING'});const retained=await read(f.claimant,{layers:'appointments'}),item=retained.items.find(row=>row.sourceId===created.id)!;expect(item.permittedActions).not.toContain('appointment.save');expect(item.permittedActions).toContain('appointment.reschedule');expect(retained.canSchedule).toBe(false);
+ const moved=await command({action:'appointment.reschedule',id:created.id,expectedVersion:created.version,startLocal:`${date}T11:00`,endLocal:`${date}T12:00`,timezone:'Asia/Bangkok'},f.claimant);await command({action:'appointment.respond',id:created.id,expectedVersion:moved.version,response:'accepted'},f.tie);await command({action:'appointment.reminder.set',id:created.id,minutes:null},f.tie);await expect(command({action:'appointment.reminder.set',id:created.id,minutes:30},f.tie)).rejects.toMatchObject({code:'PACKAGE_DRAINING'});expect(await command(newInput,f.claimant,receipt)).toEqual(created);
+});
+
+it('purchasedCalendar repeats actual completed source and current actor after deferred effects and rolls the whole original source history notice and receipt back before unchanged retry',async()=>{
+ await workCalendarGrant();vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ for(const kind of ['source','iam'] as const){const commandId=key(),id=`calendar-${commandId}`,input=appointment({title:`Original Calendar ${kind} deferred proof`}),fault=`calendar_final_${kind}_${key().replaceAll('-','')}`,effect=kind==='source'?`UPDATE calendar_appointments SET title='Unreviewed deferred private meeting' WHERE id='${id}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.claimant.assignmentId}'`;
+  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${commandId}') EXECUTE FUNCTION ${fault}()`);
+  try{await expect(command(input,f.claimant,commandId)).rejects.toMatchObject(kind==='source'?{code:'CALENDAR_SOURCE_CHANGED'}:{code:'CALENDAR_AUTHORITY_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}()`);}
+  expect(await db.prepare('SELECT id FROM calendar_appointments WHERE id=?').bind(id).first()).toBeNull();expect(await db.prepare('SELECT record_id FROM calendar_history WHERE record_id=?').bind(id).first()).toBeNull();expect(await db.prepare('SELECT command_id FROM command_receipts WHERE command_id=?').bind(commandId).first()).toBeNull();expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.claimant.assignmentId).first()).toEqual({revoked_at:null,version:1});
+  const actual=await command(input,f.claimant,commandId);expect(await command(input,f.claimant,commandId)).toEqual(actual);expect(await db.prepare('SELECT title FROM calendar_appointments WHERE id=?').bind(id).first('title')).toBe(input.title);
+ }
+});
+
+it('purchasedCalendar preserves the original independent Roster projection and shift action without buying Work manual Calendar',async()=>{
+ const roster=await shift();vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');const independent=await read(f.manager,{layers:'roster,appointments',view:'week'});expect(independent.sources.every(source=>source.status==='ready')).toBe(true);expect(independent.items.find(item=>item.sourceId===roster.s.id)).toMatchObject({kind:'shift',capacity:2,assigned:1});expect(independent.canSchedule).toBe(false);expect(independent.items.find(item=>item.sourceId===roster.s.id)?.permittedActions).toContain('shift.reschedule');
+});
+
+it('purchasedCalendarReminder captures a real account without HR and delivers original reminders once while draining without authorizing legacy queues',async()=>{
+ const legacy=await command(appointment({organizerPersonId:undefined,participantIds:[]}),f.claimant),account=await f.member('calendar-account-only','employee',1,f.department,false);await workCalendarGrant();vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ expect(await db.prepare('SELECT 1 FROM hr_people WHERE user_id=?').bind(account.userId).first()).toBeNull();
+ const created=await command(appointment({organizerPersonId:undefined,participantIds:[],title:'Account-only queued original meeting'}),account),source=await db.prepare('SELECT starts_at FROM calendar_appointments WHERE id=?').bind(created.id).first<{starts_at:number}>(),due=source!.starts_at-15*60000;
+ const captured=await db.prepare('SELECT actor_id,assignment_id,recipient_id,source_version FROM calendar_reminder_execution_authorizations WHERE appointment_id=?').bind(created.id).first();expect(captured).toEqual({actor_id:account.userId,assignment_id:account.assignmentId,recipient_id:account.userId,source_version:created.version});await workCalendarGrant('draining');
+ expect(await drainCalendarReminders(db,due)).toBeGreaterThanOrEqual(1);expect(await drainCalendarReminders(db,due)).toBe(0);expect(await db.prepare('SELECT count(*) n FROM calendar_reminder_deliveries WHERE appointment_id=? AND delivered_at IS NOT NULL').bind(created.id).first('n')).toBe(1);expect(await db.prepare('SELECT 1 FROM calendar_reminder_deliveries WHERE appointment_id=?').bind(legacy.id).first()).toBeNull();
+ expect(await db.prepare("SELECT source_version,preview FROM inbox_events WHERE source_id=? AND event_key LIKE 'reminder:%'").bind(created.id).first()).toEqual({source_version:created.version,preview:'Meeting soon: Account-only queued original meeting'});
+ await db.transaction(async tx=>{await expect(drainCalendarReminders(tx,due)).rejects.toMatchObject({code:'CALENDAR_REMINDER_UNIT_REQUIRED'});});
+});
+
+it('purchasedCalendarReminder rolls private notification and ledger back after real deferred source or original queued authority revocation then permits unchanged delivery',async()=>{
+ await workCalendarGrant();vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ for(const fault of ['source','actor','recipient'] as const){const account=await f.member(`reminder-${fault}-account`,'employee',1,f.department,false),recipient=await f.member(`reminder-${fault}-recipient`,'employee',1,f.department,false),saved=await command(appointment({organizerPersonId:undefined,participantIds:[],attendees:[{userId:recipient.userId,attendance:'required'}],title:`Retained private ${fault} reminder`}),account),source=await db.prepare('SELECT starts_at FROM calendar_appointments WHERE id=?').bind(saved.id).first<{starts_at:number}>(),due=source!.starts_at-15*60000,name=`reminder_final_${key().replaceAll('-','')}`,effect=fault==='source'?`UPDATE calendar_appointments SET title='Private changed after delivery' WHERE id='${saved.id}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${fault==='actor'?account.assignmentId:recipient.assignmentId}'`;
+  await db.exec(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${name} AFTER INSERT ON inbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.source_id='${saved.id}' AND NEW.event_key LIKE 'reminder:%'${fault==='recipient'?` AND NEW.event_key LIKE '%:${recipient.userId}:%'`:''}) EXECUTE FUNCTION ${name}()`);
+  try{await drainCalendarReminders(db,due);}finally{await db.exec(`DROP TRIGGER ${name} ON inbox_events;DROP FUNCTION ${name}()`);}
+  expect(await db.prepare("SELECT 1 FROM inbox_events event JOIN inbox_deliveries delivery ON delivery.event_id=event.id WHERE event.source_id=? AND event.event_key LIKE 'reminder:%' AND delivery.user_id=?").bind(saved.id,recipient.userId).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM calendar_reminder_deliveries WHERE appointment_id=? AND user_id=?').bind(saved.id,recipient.userId).first()).toBeNull();expect(await db.prepare('SELECT title FROM calendar_appointments WHERE id=?').bind(saved.id).first('title')).toBe(`Retained private ${fault} reminder`);
+  expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(fault==='actor'?account.assignmentId:recipient.assignmentId).first()).toEqual({revoked_at:null,version:1});expect(await drainCalendarReminders(db,due)).toBeGreaterThanOrEqual(1);expect(await drainCalendarReminders(db,due)).toBe(0);
+ }
+});
+
+it('purchasedCalendarReminder accepts normal response and future-series lineage but rejects an unwitnessed source version before sending',async()=>{
+ await workCalendarGrant();vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');const organizer=await f.member('calendar-lineage-account','employee',1,f.department,false),saved=await command(appointment({organizerPersonId:undefined,participantIds:[],attendees:[{userId:f.tie.userId,attendance:'required'}],title:'Version-witness meeting'}),organizer),responded=await command({action:'appointment.respond',id:saved.id,expectedVersion:saved.version,response:'accepted'},f.tie),source=await db.prepare('SELECT starts_at FROM calendar_appointments WHERE id=?').bind(saved.id).first<{starts_at:number}>(),due=source!.starts_at-15*60000;
+ await db.prepare('UPDATE calendar_appointments SET version=version+1 WHERE id=?').bind(saved.id).run();await drainCalendarReminders(db,due);expect(await db.prepare("SELECT 1 FROM inbox_events WHERE source_id=? AND event_key LIKE 'reminder:%'").bind(saved.id).first()).toBeNull();expect(await db.prepare('SELECT 1 FROM calendar_reminder_deliveries WHERE appointment_id=?').bind(saved.id).first()).toBeNull();await db.prepare('UPDATE calendar_appointments SET version=? WHERE id=?').bind(responded.version,saved.id).run();expect(await drainCalendarReminders(db,due)).toBeGreaterThanOrEqual(1);expect((await db.prepare("SELECT DISTINCT source_version FROM inbox_events WHERE source_id=? AND event_key LIKE 'reminder:%'").bind(saved.id).all<{source_version:number}>()).results).toEqual([{source_version:responded.version}]);
+ const series=await command(appointment({organizerPersonId:undefined,participantIds:[],title:'Original future split',recurrence:{frequency:'daily',intervalCount:1,weekdays:[],endKind:'count',occurrenceCount:3}}),organizer),future=addDays(date,1),splitKey=key();await command({action:'appointment.reschedule',id:series.id,expectedVersion:series.version,occurrenceId:`${future}T09:00`,scope:'future',startLocal:`${future}T11:00`,endLocal:`${future}T12:00`,timezone:'Asia/Bangkok'},organizer,splitKey);const splitId=`calendar-${splitKey}`,split=await db.prepare('SELECT starts_at,version FROM calendar_appointments WHERE id=?').bind(splitId).first<{starts_at:number;version:number}>();expect(await drainCalendarReminders(db,split!.starts_at-15*60000)).toBeGreaterThanOrEqual(1);expect(await db.prepare("SELECT source_version FROM inbox_events WHERE source_id=? AND event_key LIKE 'reminder:%'").bind(splitId).first('source_version')).toBe(split!.version);
+});
+
+
+it('purchasedCalendarReminder upgrades populated1053 history without fabricating queued authority and preserves disabled schema-compatible owner execution',async()=>{
+ const database=env.H002_DB,oldRoot=await mkdtemp(resolve('.runtime/tests/calendar-before-')),currentRoot=await mkdtemp(resolve('.runtime/tests/calendar-current-')),source=resolve('migrations/postgres/holding-write');
+ try{for(const directory of [oldRoot,currentRoot])await mkdir(join(directory,'holding-write'),{recursive:true});for(const file of (await readdir(source)).filter(name=>name.endsWith('.sql')&&Number(name.slice(0,4))<=1054)){await cp(join(source,file),join(currentRoot,'holding-write',file));if(Number(file.slice(0,4))<=1053)await cp(join(source,file),join(oldRoot,'holding-write',file));}
+  await migrateDatabase(database,'holding-write',oldRoot);const old=await seedExpenseCompany(database,env.H002_FILES),input=appointment({organizerPersonId:undefined,participantIds:[],title:'Retained pre1054 Calendar source'}),original=await calendarCommand(database,old.claimant,input,key());expect(await database.prepare("SELECT to_regclass('calendar_reminder_execution_authorizations') relation").first('relation')).toBeNull();
+  const tables=(await database.prepare("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename<>'erpx_migrations' ORDER BY tablename").all<{tablename:string}>()).results.map(row=>row.tablename),snapshot=async()=>{const rows=[];for(const table of tables){if(!/^[a-z][a-z0-9_]*$/.test(table))throw Error('DECLARED_CALENDAR_SCHEMA_TABLE_REQUIRED');rows.push({table,...await database.prepare(`SELECT count(*) rows,md5(coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text) digest FROM "${table}" t${table==='work_cache_revision_baselines'?" WHERE table_name<>'calendar_reminder_execution_authorizations'":''}`).first()});}return rows;},before=await snapshot(),receipts=(await database.prepare('SELECT name,checksum FROM erpx_migrations ORDER BY name').all()).results;
+  await migrateDatabase(database,'holding-write',currentRoot);expect(await snapshot()).toEqual(before);expect((await database.prepare("SELECT name,checksum FROM erpx_migrations WHERE name NOT LIKE '1054_%' ORDER BY name").all()).results).toEqual(receipts);expect(await database.prepare('SELECT count(*) count FROM calendar_reminder_execution_authorizations').first('count')).toBe(0);
+  const sourceRow=await database.prepare('SELECT starts_at FROM calendar_appointments WHERE id=?').bind(original.id).first<{starts_at:number}>(),due=sourceRow!.starts_at-15*60000;vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');expect(await drainCalendarReminders(database,due)).toBe(0);expect(await database.prepare('SELECT 1 FROM calendar_reminder_deliveries WHERE appointment_id=?').bind(original.id).first()).toBeNull();vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','disabled');await migrateDatabase(database,'holding-write',oldRoot);expect(await drainCalendarReminders(database,due)).toBe(1);expect(await database.prepare('SELECT count(*) count FROM calendar_reminder_execution_authorizations').first('count')).toBe(0);expect(await calendarCommand(database,old.claimant,{action:'appointment.status',id:original.id,expectedVersion:original.version,status:'cancelled'},key())).toMatchObject({id:original.id,status:'cancelled'});expect(await database.prepare('SELECT count(*) count FROM company_package_grants').first('count')).toBe(0);
+ }finally{await rm(oldRoot,{recursive:true,force:true});await rm(currentRoot,{recursive:true,force:true});}
 });

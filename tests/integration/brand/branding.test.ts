@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { beforeAll, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import {
   completeBrandUpload,
   completeStorefrontBrandUpload,
@@ -12,17 +12,22 @@ import {
 } from "../../../src/server/modules/brand/public/branding";
 import { matchesUploadSignature } from "../../../src/server/modules/files/public/upload-validation";
 import { applyMigrations, env } from "../../support/runtime-env";
-import { expenseDb as db, expenseFixture } from "../../support/helpers/expense-fixture";
+import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
+import {enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
+import type {FileStore} from "../../../src/server/modules/runtime/public/runtime/types";
+import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
 
 let fixture: Awaited<ReturnType<typeof expenseFixture>>;
 
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
+  enableAttachmentV2ForTest();
 });
 
 beforeEach(async () => {
   fixture = await expenseFixture();
 });
+afterEach(()=>{vi.unstubAllEnvs();});
 
 it("accepts real PNG/WebP signatures and rejects a MIME mismatch", async () => {
   const png = await sharp({ create: { width: 64, height: 64, channels: 4, background: "transparent" } }).png().toBuffer();
@@ -182,4 +187,33 @@ it("rolls back every owner write and compensates the stored object after a late 
   expect(await db.prepare("SELECT count(*) count FROM organization_brand_profiles WHERE scope_kind='branch' AND scope_id=?").bind(fixture.branch).first("count")).toBe(0);
   for(const table of ["command_receipts","audit_events","outbox_events"])expect(await db.prepare(`SELECT count(*) count FROM ${table} WHERE command_id=?`).bind(`upload-${upload.intent.id}`).first("count")).toBe(0);
   expect(await env.H001_FILES.head(upload.key)).toBeNull();
+});
+
+it.each(['disabled','enforced'] as const)('buffers the original three Brand sources without purchasing a product or granting employee management (%s)',async mode=>{
+ const {attachmentContent,bindRecordAttachmentSet}=await import('../../../src/server/modules/files/public/attachments/service');
+ vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT',mode);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT',mode);vi.stubEnv('ERPX_POS_PACKAGE_ENFORCEMENT',mode);
+ for(const source of [{targetType:'holding_brand',targetId:fixture.owner.holdingId,purposeKey:'primary'},{targetType:'branch_brand',targetId:fixture.branch,purposeKey:'primary'},{targetType:'company_storefront_brand',targetId:fixture.company,purposeKey:'logo'}] as const){
+  if(source.targetType==='company_storefront_brand')await updateStorefrontAppBrand(db,fixture.owner,{shortName:'Native private Brand',accentColor:'#123456',commandId:key()});else await updateBrandProfile(db,fixture.owner,{scopeKind:source.targetType==='holding_brand'?'holding':'branch',scopeId:source.targetId,documentMode:source.targetType==='holding_brand'?'holding':'branch',commandId:key()});
+  const document=await seedAttachmentSet(db,fixture.owner,{...source,componentKind:'publication',mediaType:'image/png',expectedTargetVersion:1});await bindRecordAttachmentSet(db,fixture.owner,document.setId,1,key());const objectKey=await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(document.sourceId).first<string>('object_key');if(!objectKey)throw Error('ACTUAL_PRIVATE_BRAND_SOURCE_REQUIRED');const bytes=`Original ${source.targetType} source before publication`;await env.H001_FILES.put(objectKey,bytes);let consumed=0;
+  const files:FileStore={put:(...args)=>env.H001_FILES.put(...args),get:async(...args)=>{const value=await env.H001_FILES.get(...args);return value?{...value,arrayBuffer:async()=>{consumed++;return value.arrayBuffer();}}:null;},head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args)};
+  const tables=['organization_brand_profiles','storefront_app_brands','organization_nodes','attachments','attachment_links','attachment_access_events','assignments'],snapshot=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(r)::text image FROM ${table} r ORDER BY row_to_json(r)::text`).all()).results));
+  for(const kind of ['brand','organization','file','iam'] as const){
+   const fault=`brand_private_${key().replaceAll('-','')}`,effect=kind==='brand'?(source.targetType==='company_storefront_brand'?`UPDATE storefront_app_brands SET short_name='Late native storefront source' WHERE company_id='${fixture.company}'`:`UPDATE organization_brand_profiles SET updated_at=updated_at+1 WHERE scope_kind='${source.targetType==='holding_brand'?'holding':'branch'}' AND scope_id='${source.targetId}'`):kind==='organization'?`UPDATE organization_nodes SET display_name='Late native Company identity' WHERE id='${fixture.company}'`:kind==='file'?`UPDATE attachments SET legal_hold=1 WHERE id='${document.sourceId}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${fixture.claimant.assignmentId}'`,before=await snapshot();
+   await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${document.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${fault}()`);
+   try{await expect(attachmentContent(db,files,fixture.claimant,document.linkId,'original')).rejects.toMatchObject({code:'BRAND_FILE_READ_CHANGED'});expect(await snapshot()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${fault} ON attachment_access_events;DROP FUNCTION ${fault}()`);}
+  }
+  expect(consumed).toBe(4);await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(document.sourceId).run();expect(await(await attachmentContent(db,files,fixture.claimant,document.linkId,'original')).object.text()).toBe(bytes);expect(consumed).toBe(5);await expect(db.transaction(tx=>attachmentContent(tx,files,fixture.claimant,document.linkId,'original'))).rejects.toMatchObject({code:'BRAND_FILE_READ_TRANSACTION_REQUIRED'});expect(consumed).toBe(5);
+  await expect(requireBrandManagement(db,fixture.claimant,source.targetType,source.targetId)).rejects.toMatchObject({code:'BRAND_MANAGEMENT_FORBIDDEN'});
+ }
+ expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=?').bind(fixture.company).all()).results).toEqual([]);
+});
+it('observes a committed normal Brand profile command before its private snapshot and isolates two Company source-writing reads',async()=>{
+ const {attachmentContent,bindRecordAttachmentSet}=await import('../../../src/server/modules/files/public/attachments/service'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{companyPurchaseReadLocks}=await import('../../../src/server/modules/commercial/public/purchase-command-boundary'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),first=fixture;
+ await updateBrandProfile(db,first.owner,{scopeKind:'branch',scopeId:first.branch,documentMode:'branch',commandId:key()});const file=await seedAttachmentSet(db,first.owner,{targetType:'branch_brand',targetId:first.branch,purposeKey:'primary',componentKind:'publication',mediaType:'image/png',expectedTargetVersion:1});await bindRecordAttachmentSet(db,first.owner,file.setId,1,key());const objectKey=await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first<string>('object_key');if(!objectKey)throw Error('ACTUAL_BRAND_PROFILE_DOCUMENT_REQUIRED');await env.H001_FILES.put(objectKey,'Native retained Branch image');const fault=`brand_visible_${key().replaceAll('-','')}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF (SELECT document_mode FROM organization_brand_profiles WHERE scope_kind='branch' AND scope_id='${first.branch}')<>'both' THEN RAISE EXCEPTION 'STALE_NATIVE_BRAND_PROFILE';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${fault}()`);
+ try{const observed=await committedSourceVisibility(db,async tx=>{await tx.batch(companyPurchaseReadLocks(tx,first.company));await updateBrandProfile(tx,first.owner,{scopeKind:'branch',scopeId:first.branch,documentMode:'both',commandId:key()});},()=>measureReads(()=>attachmentContent(db,env.H001_FILES,first.claimant,file.linkId,'original')));expect(await observed.result.object.text()).toBe('Native retained Branch image');expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${fault} ON attachment_access_events;DROP FUNCTION ${fault}()`);}
+ const second=await expenseFixture(),rows:{actor:WorkContext;file:Awaited<ReturnType<typeof seedAttachmentSet>>;bytes:string}[]=[];
+ for(const source of [first,second]){await updateStorefrontAppBrand(db,source.owner,{shortName:'Private native storefront',accentColor:'#123456',commandId:key()});const document=await seedAttachmentSet(db,source.owner,{targetType:'company_storefront_brand',targetId:source.company,purposeKey:'logo',componentKind:'publication',mediaType:'image/png',expectedTargetVersion:1});await bindRecordAttachmentSet(db,source.owner,document.setId,1,key());const stored=await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(document.sourceId).first<string>('object_key');if(!stored)throw Error('ACTUAL_COMPANY_BRAND_FILE_REQUIRED');const bytes=`Company native brand ${source.company}`;await env.H001_FILES.put(stored,bytes);rows.push({actor:source.claimant,file:document,bytes});}
+ const parallel=`brand_bytes_parallel_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${parallel}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(0.08);UPDATE storefront_app_brands SET short_name=short_name WHERE company_id=NEW.company_id;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${parallel} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id IN ('${rows[0].file.linkId}','${rows[1].file.linkId}') AND NEW.outcome='allowed') EXECUTE FUNCTION ${parallel}()`);
+ try{const observed=await measureReads(()=>Promise.all(rows.map(row=>attachmentContent(db,env.H001_FILES,row.actor,row.file.linkId,'original'))));for(let index=0;index<rows.length;index++)expect(await observed.result[index].object.text()).toBe(rows[index].bytes);expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${parallel} ON attachment_access_events;DROP FUNCTION ${parallel}()`);}
 });

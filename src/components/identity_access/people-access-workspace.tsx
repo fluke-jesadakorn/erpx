@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import {useSearchParams} from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import { Button, Field, TextInput, Select, TextArea } from "@/components/ui/foundation";
 import { FormDrawer } from "@/components/ui/dialog";
 import { workFetch } from "@/lib/work_projection/work-fetch";
@@ -13,7 +14,9 @@ export function PeopleAccessWorkspace({ initial, api, initialView = "users" }: {
   const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer); }, []);
-  const [view, setView] = useState<string>(initialView), [query, setQuery] = useState(""), [kind, setKind] = useState("all");
+  const route=useSearchParams(),view=route.get("section")??initialView;
+  const setView=(value:string)=>router.push(`?${new URLSearchParams({...Object.fromEntries(route),section:value})}`,{scroll:false});
+  const [query, setQuery] = useState(""), [kind, setKind] = useState("all");
   const [editor, setEditor] = useState<Editor | null>(null), [preview, setPreview] = useState<PeopleAccessPreview | null>(null);
   const [pending, setPending] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [organization, setOrganization] = useState(""), [scopeKind, setScopeKind] = useState("department");

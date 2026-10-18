@@ -6,7 +6,8 @@ import { Button, Field, TextArea, TextInput } from "@/components/ui/foundation";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, FormLayout } from "@/components/ui/foundation";
-export function AccountSecurity() {
+import type {currentAccountSecurity} from '@/server/modules/identity_access/public/account-security';
+export function AccountSecurity({initialEmergency}:{initialEmergency?:Awaited<ReturnType<typeof currentAccountSecurity>>['emergency']}) {
   const [message, setMessage] = useState(""),
     [secret, setSecret] = useState(""),
     [busy, setBusy] = useState(false),
@@ -19,9 +20,9 @@ export function AccountSecurity() {
         reason: string;
         expiresAt: number;
       }[]
-    >([]),
-    [emergencyUnavailable, setEmergencyUnavailable] = useState<string[]>([]),
-    [emergencyLoading, setEmergencyLoading] = useState(true),
+    >(initialEmergency?.access??[]),
+    [emergencyUnavailable, setEmergencyUnavailable] = useState<string[]>(initialEmergency?.unavailableScopes??[]),
+    [emergencyLoading, setEmergencyLoading] = useState(initialEmergency===undefined),
     [emergencyError, setEmergencyError] = useState(""),
     commandKeys = useRef(new Map<string, string>());
   const refreshEmergencyAccess = useCallback(async () => {
@@ -42,6 +43,7 @@ export function AccountSecurity() {
     }
   }, []);
   useEffect(() => {
+    if(initialEmergency!==undefined)return;
     let current = true;
     void fetch("/api/v1/account/iam/emergency/active", { cache: "no-store" })
       .then(async (r) => {
@@ -64,7 +66,7 @@ export function AccountSecurity() {
     return () => {
       current = false;
     };
-  }, []);
+  }, [initialEmergency]);
   async function send(path: string, body: unknown) {
     setBusy(true);
     setError("");
@@ -94,6 +96,7 @@ export function AccountSecurity() {
         await refreshEmergencyAccess();
       }
       if (v.data.secret) setSecret(v.data.secret);
+      if(path==='mfa/verify'||path==='mfa/enroll')window.dispatchEvent(new CustomEvent('erpx:account-security-updated'));
       setMessage(
         v.data.message ??
           "Authenticator verified. Sensitive actions are available for five minutes.",

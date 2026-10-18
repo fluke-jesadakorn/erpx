@@ -1,3 +1,4 @@
+import {withFinancePurchasedCommand,withFinancePurchasedRead} from "./purchase-boundary";
 import { salesInvoiceLines } from "./sales-lines";
 import type { IssueSummary } from '../domain/thai-documents';
 import { createThaiDocuments } from '../application/thai-documents';
@@ -39,11 +40,11 @@ export async function prepareThaiDocumentIssue(db: SqlDatabase, actor: WorkConte
             db.prepare("INSERT INTO finance_thai_document_events(id,document_id,company_id,action,reason,actor_id,command_id,created_at) VALUES(?,?,?,'issued',?,?,?,?)").bind(`thai-event-${commandId}`, id, actor.companyId, snapshot.reason, actor.userId, commandId, now),
         ] };
 }
-export async function issueThaiTaxInvoice(actor: WorkContext, invoiceId: string, input: z.input<typeof thaiInvoiceIssueSchema>, commandId: string) { return documentService().issueThaiTaxInvoice(actor, invoiceId, input, commandId); }
-export async function thaiDocumentDetail(actor: WorkContext, id: string) { return documentService().thaiDocumentDetail(actor, id); }
-export async function thaiDocumentExport(actor: WorkContext, id: string) { return documentService().thaiDocumentExport(actor, id); }
-export async function prepareThaiDocumentChange(actor: WorkContext, documentId: string, input: z.input<typeof thaiDocumentChangeSchema>, commandId: string) { return documentService().prepareThaiDocumentChange(actor, documentId, input, commandId); }
-export async function decideThaiDocumentChange(actor: WorkContext, id: string, input: z.input<typeof thaiDocumentDecisionSchema>, commandId: string) { return documentService().decideThaiDocumentChange(actor, id, input, commandId); }
+export async function issueThaiTaxInvoice(actor: WorkContext, invoiceId: string, input: z.input<typeof thaiInvoiceIssueSchema>, commandId: string) { return withFinancePurchasedCommand(actor,{key:commandId,operation:"finance.thai-tax-invoice.issue",purpose:"settle-existing",capability:"finance.tax"},tx=>documentService(tx).issueThaiTaxInvoice(actor, invoiceId, input, commandId)); }
+export async function thaiDocumentDetail(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>documentService(db).thaiDocumentDetail(actor, id),"finance.tax"); }
+export async function thaiDocumentExport(actor: WorkContext, id: string) { return withFinancePurchasedRead(actor,db=>documentService(db).thaiDocumentExport(actor, id),"finance.tax"); }
+export async function prepareThaiDocumentChange(actor: WorkContext, documentId: string, input: z.input<typeof thaiDocumentChangeSchema>, commandId: string) { return withFinancePurchasedCommand(actor,{key:commandId,operation:"finance.thai-document.change.prepare",purpose:"settle-existing",capability:"finance.tax"},tx=>documentService(tx).prepareThaiDocumentChange(actor, documentId, input, commandId)); }
+export async function decideThaiDocumentChange(actor: WorkContext, id: string, input: z.input<typeof thaiDocumentDecisionSchema>, commandId: string) { return withFinancePurchasedCommand(actor,{key:commandId,operation:`finance.thai-document.change.${input.action}`,purpose:"settle-existing",capability:"finance.tax"},tx=>documentService(tx).decideThaiDocumentChange(actor, id, input, commandId)); }
 function documentService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined = provided ? Promise.resolve(provided) : undefined;
     const db = (actor: WorkContext) => pending ??= holdingResources(actor.holdingId).then(r => r.write);

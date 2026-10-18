@@ -1,4 +1,6 @@
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
+import { packageGrantStore, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
+import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {prepareBookAdjustment,decideBookAdjustment,reverseBookAdjustment} from "../../../src/server/modules/finance/public/finance-book-adjustments";
 import {
@@ -29,6 +31,7 @@ vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
+afterEach(()=>vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
@@ -125,6 +128,7 @@ it('rolls back the reviewed secondary opening and rule approval after final outb
  for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(command).first('n'))).toBe(1);
 });
 it('rolls back secondary adjustment journal and Workflow decision proof after final outbox failure, then retries and replays once',async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");await reviewedFinanceGrant(db,f.company,"finance-advanced");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
  const s=await setup();await decideBookRule(f.manager,String(s.rule.id),{expectedVersion:1,reason:'Opening and mapping reviewed'},'approve',key());
  const source=await journal();await postJournal(f.manager,String(source.id),key(),{expectedVersion:1});
  const expense=s.mappings.find(m=>m.primaryAccountId===f.accounts.expense)!.secondaryAccountId,noncontrol=s.mappings.find(m=>m.primaryAccountId===f.accounts.tax)!.secondaryAccountId,adjustment=await prepareBookAdjustment(f.owner,{chartId:s.chart,primaryJournalId:String(source.id),periodId:f.period,entryDate:'2026-09-04',reason:'Reviewed secondary policy difference',lines:[{accountId:expense,debit:'10.01',credit:'0'},{accountId:noncontrol,debit:'0',credit:'10.01'}]},key()),id=String(adjustment.id),command=key(),input={expectedVersion:1,reason:'Independent secondary correction approval'},fault=`book_adjustment_fault_${crypto.randomUUID().replaceAll('-','')}`,before=await db.prepare('SELECT * FROM finance_book_adjustments WHERE id=?').bind(id).first(),originalSource=await db.prepare('SELECT * FROM finance_journals WHERE id=?').bind(source.id).first();
@@ -204,7 +208,13 @@ it("serializes a monthly close racing an annual-period draft without leaving a d
     expect({state,drafts}).toEqual(results[0].status==="fulfilled"?{state:"open",drafts:1}:{state:"closing",drafts:0});
   }
 });
+async function reviewedFinanceBookPurchase(state:"active"|"draining") {
+ const prior=(await readCompanyPackageGrants(db,f.company)).find(grant=>grant.packageId==="finance");
+ await packageGrantStore(db,{authorize:async()=>({userId:"isolated-book-purchase-review"}),obligations:async()=>{throw Error("No book withdrawal witness");}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:"finance",packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:"Reviewed Finance book lifecycle",evidence:"test:finance-book-purchase"}});
+}
 it("reviews an opening independently and atomically mirrors postings, evidence and reversals", async () => {
+  await reviewedFinanceBookPurchase("active");
+  vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
   const first = await journal("2026-09-02");
   await postJournal(f.manager, String(first.id), key(), { expectedVersion: 1 });
   const s = await setup(),
@@ -222,6 +232,7 @@ it("reviews an opening independently and atomically mirrors postings, evidence a
       key(),
     ),
   ).rejects.toMatchObject({ code: "SELF_REVIEW_FORBIDDEN" });
+  await reviewedFinanceBookPurchase("draining");
   const k = key();
   await decideBookRule(
     f.manager,
@@ -237,6 +248,7 @@ it("reviews an opening independently and atomically mirrors postings, evidence a
     "approve",
     k,
   );
+  await reviewedFinanceBookPurchase("active");
   const second = await journal();
   await postJournal(f.manager, String(second.id), key(), {
     expectedVersion: 1,
@@ -405,4 +417,12 @@ it("preserves the original foreign transaction and functional-currency rounding 
  const s=await setup();await decideBookRule(f.manager,String(s.rule.id),{expectedVersion:1,reason:"Foreign transactions keep original carrying values"},"approve",key());
  const j=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-04",currency:"USD",fxRate:"35.5",lines:[{accountId:f.accounts.expense,debit:"1.01",credit:"0"},{accountId:f.accounts.payable,debit:"0",credit:"1.01"}]}),key());await postJournal(f.manager,String(j.id),key(),{expectedVersion:1});
  const mirror=await db.prepare("SELECT secondary_journal_id FROM finance_book_postings WHERE primary_journal_id=?").bind(j.id).first<{secondary_journal_id:string}>();expect(await db.prepare("SELECT debit_minor,credit_minor,base_debit_minor,base_credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal").bind(mirror!.secondary_journal_id).all().then(r=>r.results)).toEqual([{debit_minor:101,credit_minor:0,base_debit_minor:3586,base_credit_minor:0},{debit_minor:0,credit_minor:101,base_debit_minor:0,base_credit_minor:3586}]);
+});
+
+it("package book projection final authority revocation rolls back source, secondary book, evidence and command together",async()=>{
+ const secondary=await setup("2026-09-01");await decideBookRule(f.manager,String(secondary.rule.id),{expectedVersion:1,reason:"Independent review of all retained opening accounts"},"approve",key());const draft=await journal(),prior=(await readCompanyPackageGrants(db,f.company)).find(grant=>grant.packageId==="finance");expect(prior).toBeUndefined();
+ await packageGrantStore(db,{authorize:async()=>({userId:"isolated-book-expiry-review"}),obligations:async()=>{throw Error("No book expiry withdrawal witness");}}).apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.company,packageId:"finance",packageVersion:1,state:"active",startsAt:0,endsAt:null,version:1,reason:"Native reviewed book posting purchase",evidence:"test:finance-book-final-authority"}});vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ const tables=["finance_journals","finance_journal_lines","finance_book_postings","finance_financial_events","money_transaction_snapshots","assignments","command_receipts","audit_events","outbox_events"],image=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await image(),trigger=`book_expiry_${key().replaceAll('-','')}`;
+ await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.manager.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.action='finance.journal.post' AND NEW.authority_json::jsonb->>'companyId'='${f.company}') EXECUTE FUNCTION ${trigger}()`);
+ try{await expect(postJournal(f.manager,String(draft.id),key(),{expectedVersion:1})).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(await image()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${trigger} ON audit_events;DROP FUNCTION ${trigger}()`);}
 });

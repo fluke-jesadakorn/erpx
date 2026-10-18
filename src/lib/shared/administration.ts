@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 export const adminSections = [
   ["brand", "Brand & identity"],
   ["people", "People & access"],
@@ -16,5 +17,5 @@ export type AdminAccess = {
   manageAiProviders: boolean;
 };
 export function approvalAdminHref(base: string, kind: string, id: string) {
-  return `${base}/settings?${new URLSearchParams({ section: "approvals", kind, record: id })}`;
+  return canonicalUiHref(`${base}/settings?${new URLSearchParams({ section: "approvals", kind, record: id })}`);
 }

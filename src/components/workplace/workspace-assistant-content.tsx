@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
@@ -6,7 +7,8 @@ import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import {
   BookOpen,
   MessageSquare,
@@ -17,7 +19,7 @@ import {
   LoaderCircle,
   CirclePlus,
 } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { assistantPage, assistantSupport, type AssistantView } from "@/lib/work_projection/ai/workspace-assistant";
 import {
   intakeFields,
@@ -92,7 +94,7 @@ export function WorkspaceAssistantContent({
   if (!path) return null;
   const guide = assistantPage(path).guide;
   return (
-    <div data-app-chrome>
+    <div data-app-chrome className={styles.entry}>
       {!open && (
         <Button appearance="standard"
           type="submit"
@@ -252,7 +254,7 @@ export function WorkspaceAssistantContent({
                 Workflow guidance is available even when AI is offline. Company rules come from your
                 published handbook.
               </p>
-              <Link href={`${base}/handbook`}>Open company handbook →</Link>
+              <Link href={canonicalUiHref(`${base}/handbook`)}>Open company handbook →</Link>
             </div>
           ) : tab === "intake" ? (
             <GuidedIntakePanel

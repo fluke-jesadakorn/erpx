@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterEach,beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import { projectSchema, saveProject } from "../../../src/server/modules/operations/public/staff-tasks";
@@ -20,15 +20,50 @@ import { queryMetric } from "../../../src/server/modules/runtime/public/executiv
 import { readExecutiveEvidence, searchExecutiveEvidence } from "../../../src/server/modules/runtime/public/executive/evidence";
 import { createReport, saveReport, saveShare, saveSchema } from "../../../src/server/modules/runtime/public/executive/reports";
 import { defaultFilters, definitionSchema, emptyDefinition, shareSchema } from "../../../src/lib/shared/executive/canvas";
-import { listAttachmentSets,prepareAttachmentBinding } from "../../../src/server/modules/files/public/attachments/service";
+import { listAttachmentSets,prepareAttachmentBinding,bindRecordAttachmentSet,attachmentContent } from "../../../src/server/modules/files/public/attachments/service";
 import { attachmentPolicy,authorizeAttachmentTarget } from "../../../src/server/modules/files/public/attachments/policy";
 import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from "../../support/helpers/attachment-v2";
+import {packageGrantStore,readCompanyPackageGrants} from "../../../src/server/modules/commercial/public/package-grants";
+import {saveTask,taskSchema,transitionTask,taskActionSchema} from "../../../src/server/modules/operations/public/staff-tasks";
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => { enableAttachmentV2ForTest();await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => { f = await expenseFixture(); });
+afterEach(()=>vi.unstubAllEnvs());
+async function projectGrant(state:'active'|'draining'='active'){
+ const before=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='projects'),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-files-provider'}),obligations:async()=>{throw new Error('PROJECT_FILES_CANNOT_INACTIVATE');}});
+ return store.apply({expectedVersion:before?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'projects',packageVersion:1,state,startsAt:0,endsAt:null,version:(before?.version??0)+1,reason:'Isolated actual Project Files workflow',evidence:'test:project-files-owner'}});
+}
+it('retains actual Project documents and task action bytes during draining without granting People or losing original Files authority',async()=>{
+ const p=await saveProject(db,f.owner,null,projectSchema.parse({title:'Retained Project evidence',memberUserIds:[f.claimant.userId]}),key()),document=await seedAttachmentSet(db,f.owner,{targetType:'project',targetId:p.id,componentKind:'record',purposeKey:'project_document',expectedTargetVersion:1}),task=await saveTask(db,f.owner,null,taskSchema.parse({title:'Actual project evidence completion',assigneeUserId:f.claimant.userId,projectId:p.id}),key()),evidence=await seedAttachmentSet(db,f.claimant,{targetType:'staff_task',targetId:task.id,componentKind:'action',componentRef:'task:ready',purposeKey:'task_evidence',expectedTargetVersion:1});
+ vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
+ await expect(listAttachmentSets(db,f.owner,{targetType:'project',targetId:p.id,purposeKey:'project_document',componentKind:'record'})).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+ await expect(bindRecordAttachmentSet(db,f.owner,document.setId,1,key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+ await projectGrant();await projectGrant('draining');
+ const docReceipt=key();await bindRecordAttachmentSet(db,f.owner,document.setId,1,docReceipt);await bindRecordAttachmentSet(db,f.owner,document.setId,1,docReceipt);
+ const receipt=key(),input=taskActionSchema.parse({action:'complete',expectedVersion:1,note:'Completed actual Project work and reviewed evidence.',attachmentSetIds:[evidence.setId]}),completed=await transitionTask(db,f.claimant,task.id,input,receipt);
+ expect(completed).toMatchObject({id:task.id,state:'completed',version:2});expect(await transitionTask(db,f.claimant,task.id,input,receipt)).toEqual(completed);expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'task_action'});
+ for(const [file,body,actor] of [[document,'Project document retained under Legal hold',f.owner],[evidence,'Actual completed task evidence bytes retained',f.claimant]] as const){
+  const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key'));await env.H001_FILES.put(objectKey,body,{httpMetadata:{contentType:'application/pdf'}});await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(file.sourceId).run();expect(await (await attachmentContent(db,env.H001_FILES,actor,file.linkId,'original')).object.text()).toBe(body);
+ }
+ await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),f.claimant.assignmentId).run();await expect(attachmentContent(db,env.H001_FILES,f.claimant,evidence.linkId,'original')).rejects.toMatchObject({status:404});
+ expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['projects']);
+});
+it('rolls Project evidence and receipt back after deferred original owner or current assignment changes, then retries the same binding once',async()=>{
+ await projectGrant();vi.stubEnv('ERPX_PROJECTS_PACKAGE_ENFORCEMENT','enforced');
+ const p=await saveProject(db,f.owner,null,projectSchema.parse({title:'Atomic project document source',memberUserIds:[f.claimant.userId]}),key()),file=await seedAttachmentSet(db,f.owner,{targetType:'project',targetId:p.id,componentKind:'record',purposeKey:'project_document',expectedTargetVersion:1});
+ const receipt=key(),name=`project_file_source_${key().replaceAll('-','')}`;
+ await db.prepare(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE staff_projects SET owner_user_id='${f.claimant.userId}' WHERE id='${p.id}'; RETURN NEW; END $$`).run();await db.prepare(`CREATE CONSTRAINT TRIGGER ${name} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.command_id='${receipt}') EXECUTE FUNCTION ${name}()`).run();
+ try{await expect(bindRecordAttachmentSet(db,f.owner,file.setId,1,receipt)).rejects.toMatchObject({code:'PROJECT_ATTACHMENT_CHANGED'});}finally{await db.prepare(`DROP TRIGGER ${name} ON command_receipts`).run();await db.prepare(`DROP FUNCTION ${name}()`).run();}
+ expect(await attachmentBindingState(db,file.setId)).toMatchObject({set_state:'draft',link_state:'draft'});expect(await db.prepare('SELECT owner_user_id,version FROM staff_projects WHERE id=?').bind(p.id).first()).toEqual({owner_user_id:f.owner.userId,version:1});for(const table of ['command_receipts','audit_events','outbox_events'])expect(await db.prepare(`SELECT 1 FROM ${table} WHERE command_id=?`).bind(receipt).first()).toBeNull();
+ await bindRecordAttachmentSet(db,f.owner,file.setId,1,receipt);expect(await attachmentBindingState(db,file.setId)).toMatchObject({set_state:'bound',link_state:'bound'});
+ const second=await seedAttachmentSet(db,f.owner,{targetType:'project',targetId:p.id,componentKind:'record',purposeKey:'project_document',expectedTargetVersion:2}),revoked=key(),revokeName=`project_file_iam_${key().replaceAll('-','')}`;
+ await db.prepare(`CREATE FUNCTION ${revokeName}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.owner.assignmentId}'; RETURN NEW; END $$`).run();await db.prepare(`CREATE CONSTRAINT TRIGGER ${revokeName} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.command_id='${revoked}') EXECUTE FUNCTION ${revokeName}()`).run();
+ try{await expect(bindRecordAttachmentSet(db,f.owner,second.setId,2,revoked)).rejects.toMatchObject({status:409});}finally{await db.prepare(`DROP TRIGGER ${revokeName} ON command_receipts`).run();await db.prepare(`DROP FUNCTION ${revokeName}()`).run();}
+ expect(await db.prepare('SELECT revoked_at FROM assignments WHERE id=?').bind(f.owner.assignmentId).first()).toEqual({revoked_at:null});expect(await attachmentBindingState(db,second.setId)).toMatchObject({set_state:'draft',link_state:'draft'});await bindRecordAttachmentSet(db,f.owner,second.setId,2,revoked);
+});
 
 it("keeps project documents inside exact project membership and owner authority",async()=>{
   const project=await saveProject(db,f.owner,null,projectSchema.parse({title:"Attachment ownership fixture",memberUserIds:[f.claimant.userId]}),key());

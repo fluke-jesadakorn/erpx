@@ -1,5 +1,5 @@
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import type { RecordScope } from "@/server/modules/operations/public/staff-policy";
+import type { StaffActor, RecordScope } from "@/server/modules/operations/public/staff-policy";
 import { expensePermittedActions } from "../domain/expense-permitted-actions";
 import type { ExpenseRecord } from "./expense-commands";
 import type { ExpenseCommandPort } from "./expense-commands";
@@ -48,8 +48,8 @@ export function createExpenseWorkflowFields(ports: ExpenseWorkflowProjectionPort
   };
 }
 
-export function createCurrentExpenseReader(ports: { auditReader(actor: WorkContext, row: ExpenseRecord): Promise<boolean>; participant(actor: WorkContext, row: ExpenseRecord): Promise<boolean>; canDecide(actor: WorkContext, id: string): Promise<boolean> }) {
-  return async (actor: WorkContext, row: ExpenseRecord) => {
+export function createCurrentExpenseReader(ports: { auditReader(actor: StaffActor, row: ExpenseRecord): Promise<boolean>; participant(actor: StaffActor, row: ExpenseRecord): Promise<boolean>; canDecide(actor: StaffActor, id: string): Promise<boolean> }) {
+  return async (actor: StaffActor, row: ExpenseRecord) => {
     if (row.workflow_version !== 2 || [row.claimant_user_id, row.created_by, row.approved_by].includes(actor.userId)) return true;
     if (await ports.auditReader(actor, row)) return true;
     if (await ports.participant(actor, row)) return true;

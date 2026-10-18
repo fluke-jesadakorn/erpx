@@ -1,3 +1,5 @@
+import {providerContextSelectedAssignment} from './provider-context-selection';
+import {productHostForHost} from '@/lib/runtime/product-hosts';
 import { accountAuthoritySnapshot } from './account-authority-snapshot';
 import { memoizeInRequest } from "../../runtime/public/runtime/request-memo";
 import {identitySnapshotSources as organizationSnapshotSources} from '../../organization/public/identity-snapshot-sources';
@@ -156,7 +158,7 @@ export async function requirePlatformContext(): Promise<PlatformContext> {
             id: string;
             role: string;
             modules_json: string;
-        }>()).results, revoked: async (sessionId, userId) => Boolean(await env.CONTROL_DB.prepare("SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id='platform' AND user_id=?").bind(sessionId, userId).first()), preference: userId => readWorkspacePreference(env.CONTROL_DB, userId), authority: (userId, role, sessionId) => loadIamAuthority(env.CONTROL_DB, 'platform', userId, role, sessionId) })();
+        }>()).results, revoked: async (sessionId, userId) => Boolean(await env.CONTROL_DB.prepare("SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id='platform' AND user_id=?").bind(sessionId, userId).first()), preference: userId => readWorkspacePreference(env.CONTROL_DB, userId), selection: (userId,sessionId,requestHeaders) => productHostForHost(requestHeaders.get('host'))==='admin'?providerContextSelectedAssignment(env.CONTROL_DB,userId,sessionId):Promise.resolve(null), authority: (userId, role, sessionId) => loadIamAuthority(env.CONTROL_DB, 'platform', userId, role, sessionId) })();
 }
 export async function canEnterManageErpx() {
     let write: SqlDatabase;

@@ -1,25 +1,31 @@
 "use client";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
+import {usePathname} from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { Button } from "@/components/ui/button";
 import { RecordDrawer } from "./record-drawer";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
 
 export function CollectionRecordLink({kind,id,children,args}: {kind:string;id:string;children:ReactNode;args?:Record<string,string>}) {
- const query=useSearchParams(),q=new URLSearchParams(query.toString());
- q.set('detailKind',kind);q.set('detailId',id);q.delete('detailMode');q.delete('detailArgs');q.delete('detailPage');
- if(args)q.set('detailArgs',JSON.stringify(args));
- return <Link href={`?${q}`} scroll={false} data-record-link="true" onClick={event=>{
+ const pathname=usePathname(),query=useSearchParams(),q=new URLSearchParams(query.toString());
+ const collection=pathname.replace(/\/records\/[^/]+\/[^/]+\/overview$/,'');
+ for(const key of ['detailKind','detailId','detailMode','detailArgs','detailPage'])q.delete(key);
+ for(const [key,value] of Object.entries(args??{}))q.set(key,value);
+ const returnQuery=new URLSearchParams(q);returnQuery.delete('returnTo');
+ q.set('returnTo',`${collection}${returnQuery.size?'?'+returnQuery:''}`);
+ const href=`${collection}/records/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/overview?${q}`;
+ return <Link href={href} scroll={false} data-record-link="true" onClick={event=>{
   if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
   if(window.getSelection()?.toString()){event.preventDefault();return;}
   event.currentTarget.setAttribute('data-record-trigger','true');
-  if(document.querySelector('[data-record-drawer-content][data-record-dirty="true"]')){event.preventDefault();window.dispatchEvent(new CustomEvent('erpx:record-navigate',{detail:{href:`${window.location.pathname}?${q}`}}));}
+  if(document.querySelector('[data-record-drawer-content][data-record-dirty="true"]')){event.preventDefault();window.dispatchEvent(new CustomEvent('erpx:record-navigate',{detail:{href}}));}
  }}>{children}</Link>;
 }
 /** The owning API returns its authorized snapshot; presentation never widens scope. */
-export function RecordCollectionDrawer<T>({kind,title,endpoint,select,render}: {kind:string;title:string;endpoint:string;select:(snapshot:T,id:string)=>Record<string,unknown>|null;render?:(record:Record<string,unknown>,snapshot:T)=>ReactNode}) {
+export function RecordCollectionDrawer<T>({kind,title,endpoint,select,render,recovery}: {kind:string;title:string;endpoint:string;recovery?:ReactNode;select:(snapshot:T,id:string)=>Record<string,unknown>|null;render?:(record:Record<string,unknown>,snapshot:T)=>ReactNode}) {
+ const pathname=usePathname();
  const query=useSearchParams(),id=query.get('detailKind')===kind?query.get('detailId'):null;
  const [loaded,setLoaded]=useState<{id:string;endpoint:string;record:Record<string,unknown>;snapshot:T}|null>(null),[error,setError]=useState<{id:string;endpoint:string;message:string}|null>(null),[retry,setRetry]=useState(0);
  const selector=useRef(select);
@@ -43,7 +49,7 @@ export function RecordCollectionDrawer<T>({kind,title,endpoint,select,render}: {
  const full=new URLSearchParams(query.toString());full.set('detailMode','page');
  const currentError=error?.id===id&&error.endpoint===endpoint?error.message:null;
  const content=currentError?<div role="alert"><p>{currentError}</p><Button appearance="standard" onClick={()=>{setError(null);setRetry(retry+1);}}>Retry</Button></div>:loaded?.id===id&&loaded.endpoint===endpoint?<div className="ui-stack"><h1>{title}</h1>{render?render(loaded.record,loaded.snapshot):<RecordFacts record={loaded.record}/>}</div>:<p role="status">Loading record details…</p>;
- return query.get('detailMode')==='page'?<section className="ui-panel" data-record-fullpage>{content}</section>:<RecordDrawer key={`${kind}:${id}`} title={title} fullHref={`?${full}`}>{content}</RecordDrawer>;
+ return <RecordDrawer key={`${kind}:${id}`} title={title} fullHref={`${pathname}?${full}`}>{recovery?<>{recovery}{content}</>:content}</RecordDrawer>;
 }
 /** Deliberate field selection avoids exposing credentials or raw internal payloads. */
 export function RecordFacts({record,fields}: {record:Record<string,unknown>;fields?:string[]}) {

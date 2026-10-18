@@ -1,18 +1,4 @@
-import { peoplePayrollPresentationQueries } from "@/server/modules/people_payroll/public/presentation-queries";
-
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/shared/features/feature-page";
-import { OvertimeForm } from "@/components/records/loaders/self-service--overtime";
-import styles from "@/components/people_payroll/self-service/self-service.module.css";
-import { workspaceBase } from "@/lib/work_projection/workspace";
-import { publicScope,requireWorkContext } from "@/server/modules/identity_access/public/authorization";
-import { getOvertime } from "@/server/modules/people_payroll/public/overtime";
-import { pageError } from "@/server/modules/work_projection/public/page-error";
-
-
-import { RecordLink as Link } from "@/components/records/record-link";
-export default async function OvertimeDetail({params,searchParams}:{params:Promise<{holdingSlug:string;id:string}>;searchParams:Promise<{shift?:string}>}) {
- const {holdingSlug,id}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor)),record=id==='new'?undefined:await getOvertime(actor,id).catch(e=>pageError(e,holdingSlug));
- let initial={};const {shift}=await searchParams;
- if(id==='new'&&shift){const presentation=await peoplePayrollPresentationQueries(actor.holdingId),staff=await presentation.activeStaff(actor.companyId, actor.userId);const row=await presentation.overtimeRosterShift(shift, actor.companyId, staff.engagement_id);if(row)initial={rosterShiftId:row.id,startLocal:`${row.local_date}T${row.start_time}`,endLocal:row.end_local,timezone:row.timezone};}
- return <FeaturePage className={`content ${styles.workspace}`}><Link href={`${base}/overtime`}>← My overtime</Link><header className={styles.heading}><div><p className={styles.eyebrow}>Personal request</p><h1>{record?'Overtime request':'Request overtime'}</h1><p>Enter details, review calculated hours, then submit.</p></div></header><FeatureTabs/><WidgetGrid pageKey="overtime-detail"><FeatureWidget id="overtime-request" title="Overtime request"><OvertimeForm key={`${actor.companyId}:${actor.userId}:${record?.id??'new'}`} base={base} record={record} initial={initial}/></FeatureWidget></WidgetGrid></FeaturePage>;
-}
+import Screen from "@/app/holdings/[holdingSlug]/_presenters/overtime/screen";
+import {notFound} from 'next/navigation';
+import {recordSections,defaultRecordSection} from '@/lib/records/record-drawer';
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;id:string;recordSection?:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {const p={...await params,recordSection:"overview"};if(!(recordSections["overtime"]??[defaultRecordSection("overtime")]).includes(p.recordSection))notFound();const props={params:Promise.resolve({...p,...{}}),searchParams:Promise.resolve({...await searchParams,...{},detailKind:"overtime",detailId:p.id})} as Parameters<typeof Screen>[0]; return (await Screen(props))??null;}

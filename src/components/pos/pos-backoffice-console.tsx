@@ -1,4 +1,7 @@
 "use client";
+import { PosPackageNotice } from "./pos-package-notice";
+import {posReceiptHref} from "@/lib/pos/receipt-route";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import dynamic from "next/dynamic";
 import { PosRecordDetail } from "@/components/records/pos-record-detail";
 import { RecordDrawer } from "@/components/records/record-drawer";
@@ -160,7 +163,7 @@ function useBackofficePosConsoleState({
     sale = data.sale,
     register = data.registers.find((r) => r.id === registerId),
     shift = data.shifts.find((sh) => sh.register_id === registerId && sh.state === "open");
-  const dailyPosRoot = frontHref ?? `${base}/pos`;
+  const dailyPosRoot = frontHref ?? canonicalUiHref(`${base}/pos`);
   const due = sale
     ? Math.max(
         0,
@@ -175,7 +178,7 @@ function useBackofficePosConsoleState({
   const pickSale = (row: Row) => {
     setSelected(s(row, "id"));
     setRegisterId(s(row, "register_id"));
-    const url = new URL(window.location.href); url.searchParams.set("detailKind", "pos_sale"); url.searchParams.set("detailId", s(row,"id")); window.history.pushState(null,"",url);
+    window.history.pushState(null,"",posReceiptHref(window.location.href,s(row,"id")));
     setPrinting(false);
   };
   const filtered = data.products.filter(
@@ -194,7 +197,7 @@ function useBackofficePosConsoleState({
       </Button>
     </div>
   );
-  const receiptDrawer = searchParams.get("detailKind") === "pos_sale" && searchParams.get("detailId") ? <RecordDrawer title={data.sale ? s(data.sale,"number") : "Receipt"} fullHref={`?tab=sale&sale=${encodeURIComponent(searchParams.get("detailId")!)}`}>
+  const receiptDrawer = searchParams.get("detailKind") === "pos_sale" && searchParams.get("detailId") ? <RecordDrawer title={data.sale ? s(data.sale,"number") : "Receipt"} fullHref={posReceiptHref(window.location.href,searchParams.get("detailId")!)}>
     {error && <p role="alert">{error}<Button onClick={()=>void refresh().catch(()=>{})}>Retry</Button></p>}
     {data.sale && s(data.sale,"id") === searchParams.get("detailId") ? <PosRecordDetail key={s(data.sale,"id")} canEdit={can("pos.sell")} canVerifyTransfer={!frontMode && can("finance.approve")} online={online} data={data} api={api} erpBase={erpBase} busy={busy} send={send} registerId={registerId} setRegisterId={setRegisterId} pickSale={pickSale} openShifts={()=>setTab("shifts")}/> : <p role="status">Loading receipt…</p>}
   </RecordDrawer> : null;
@@ -245,7 +248,7 @@ export function BackofficePosConsole(props: {
               (
                 ({
                   sale: can("pos.sell"),
-                  kitchen: can("pos.kitchen") || can("pos.sell"),
+                  kitchen: (can("pos.kitchen") || can("pos.sell")) && (data.purchases?.["pos.kitchen"].history ?? true),
                   shifts: can("pos.sell") || can("pos.approve"),
                   history: can("pos.read"),
                   reports: can("pos.reports"),
@@ -257,6 +260,7 @@ export function BackofficePosConsole(props: {
         />
         {!financeMode && can("pos.approve") && tab === "history" && <BackofficePosConsoleHistoryReversalsScreen context={context}/>}
         <WidgetGrid>
+          <PosPackageNotice data={data} />
           {error && (
             <div className={`${styles.alert} ${styles.error}`} role="alert">
               {tr(error)}

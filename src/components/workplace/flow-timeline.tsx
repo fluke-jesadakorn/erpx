@@ -6,7 +6,7 @@ import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import type { FlowView } from "@/lib/shared/flow";
 import styles from "./flow.module.css";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "admin:platform-only-entry",
+      "phase": "implemented",
+      "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+      "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
+      "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
+    },
+    {
+      "id": "admin:provider-authority-separation",
+      "phase": "implemented",
+      "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+      "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
+      "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
+    },
+    {
+      "id": "admin:legacy-preview-apply-and-audit",
+      "phase": "implemented",
+      "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+      "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
+      "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
+    },
+    {
+      "id": "apps:all-company-branch-department-product-selection",
+      "phase": "implemented",
+      "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
+      "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
+      "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
+    }
+  ]
+}

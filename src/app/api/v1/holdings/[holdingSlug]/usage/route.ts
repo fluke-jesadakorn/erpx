@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext, requestedHoldingScope } from "@/server/modules/identity_access/public/authorization";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { readHoldingUsage, usageMonth } from "@/server/modules/commercial/public/usage";
@@ -42,7 +43,7 @@ export async function GET(request: Request, context: { params: Promise<{ holding
       inputTokens: item.inputTokens, outputTokens: item.outputTokens,
       occurredAt: item.occurredAt, requestStatus: item.requestStatus,
     }));
-    return Response.json({ data: { month, scope: owner ? "holding" : "branch", holdings: [visibleHolding], items: visibleItems, measured: true, coverage: "partial" } },
+    return Response.json(canonicalDestinationLinks({ data: { month, scope: owner ? "holding" : "branch", holdings: [visibleHolding], items: visibleItems, measured: true, coverage: "partial" } }),
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

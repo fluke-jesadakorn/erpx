@@ -3,7 +3,8 @@
 /** Throwaway, development-only UI exploration. All actions affect memory only. */
 import Image from 'next/image';
 import { useEffect, useState, type FormEvent } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import { ArrowLeft, ArrowRight, CalendarDays, BedDouble, CheckCircle2, ClipboardList, MoonStar, Users, Search, ArrowUpRight, Building2, ImageIcon } from 'lucide-react';
 import { Button, Field, Select, TextInput, TextArea } from '@/components/ui/foundation';
 import { Dialog } from '@/components/ui/dialog';

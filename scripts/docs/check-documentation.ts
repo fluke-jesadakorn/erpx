@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
+import { execFileSync } from 'node:child_process';
 
 const root = resolve(import.meta.dir, "../..");
 const errors: string[] = [];
@@ -10,6 +11,12 @@ const ledger = JSON.parse(read(resolve(root, "docs/status/business-acceptance-ev
   records: Array<{ evidence: Array<{ path: string; sha256: string }> }>;
 };
 const protectedPaths = new Set(ledger.records.flatMap(row => row.evidence.map(item => item.path)));
+const sourceSnapshots=JSON.parse(read(resolve(root,'docs/status/historical-source-snapshots.json'))) as {entries:Array<{document:string;commit:string}>};
+function historicalSource(document:string,file:string) {
+ const snapshot=sourceSnapshots.entries.find(entry=>entry.document===document);
+ if(!snapshot||!file.startsWith('src/')||!/^[a-f0-9]{40}$/.test(snapshot.commit))return false;
+ try {execFileSync('git',['cat-file','-e',`${snapshot.commit}:${file}`],{cwd:root,stdio:'ignore'});return true;}catch{return false;}
+}
 for (const row of ledger.records) for (const evidence of row.evidence) {
   const path = resolve(root, evidence.path);
   if (!existsSync(path) || hash(path) !== evidence.sha256) errors.push(`Missing/changed evidence: ${evidence.path}`);
@@ -61,7 +68,7 @@ for (const path of documents) {
     const [destination, fragment] = raw.split("#");
     const resolved = destination ? resolve(dirname(path), decodeURIComponent(destination)) : path;
     checked++;
-    if (!existsSync(resolved)) errors.push(`${name}: missing local link ${raw}`);
+    if (!existsSync(resolved)&&!historicalSource(name,relative(root,resolved))) errors.push(`${name}: missing local link ${raw}`);
     else if (fragment && /\.mdx?$/.test(resolved) && !anchors(resolved).has(decodeURIComponent(fragment)))
       errors.push(`${name}: missing anchor ${raw}`);
   }

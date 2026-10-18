@@ -15,6 +15,8 @@ export type PaymentCreateInput = {
     currency: string;
     amount: string;
     bankAccount?: string;
+    settlementInvoiceId?: string;
+    correctionPaymentId?: string;
 };
 export type PaymentDecisionInput = {
     expectedVersion: number;
@@ -41,6 +43,7 @@ export interface FinancePaymentPorts {
     now(): number;
     id(): string;
     ready(actor: WorkContext): Promise<void>;
+    settlementInvoice(actor: WorkContext, id: string): Promise<FinanceRow | null>;
     prior<Result=Record<string,unknown>>(actor: WorkContext, key: string, operation: string, input: unknown): Promise<Result|null>;
     replay<Result=Record<string,unknown>>(actor: WorkContext, key: string, operation: string, id: string, input: unknown): Promise<Result|null>;
     moneyScale(companyId: string, currency: string): Promise<number>;
@@ -192,6 +195,8 @@ export function createFinancePayments(ports: FinancePaymentPorts) {
         currency: string;
         amount: string;
         bankAccount?: string;
+        settlementInvoiceId?: string;
+    correctionPaymentId?: string;
     }, id: string) {
         actor = ports.authorize(actor, "finance.write");
         if (actor.branchId || actor.departmentId)
@@ -210,8 +215,13 @@ export function createFinancePayments(ports: FinancePaymentPorts) {
             throw ports.error(422, "INVALID_PAYMENT_AMOUNT", "Payment amount must be greater than zero.");
         const currency = input.currency.toUpperCase(), now = ports.now();
         await ports.moneyScale(actor.companyId, currency);
+        if (input.settlementInvoiceId) {
+            const invoice = await ports.settlementInvoice(actor, input.settlementInvoiceId);
+            if (!invoice || invoice.party_id !== input.partyId || invoice.currency !== currency || invoice.kind !== (input.kind === "receipt" ? "receivable" : "payable") || !["posted", "partially_paid"].includes(String(invoice.status)) || invoice.source_type === "expense_claim" || Number(invoice.outstanding_minor) < amount)
+                throw ports.error(422, "PAYMENT_SETTLEMENT_SOURCE_INVALID", "Choose an open invoice for the same party, currency and payment amount.");
+        }
         await ports.prepareRequestedMoney(actor, paymentId, input, currency, amount);
-        const output = { id: paymentId, amount: minorToDecimal(amount), outstanding: minorToDecimal(amount), status: "draft", version: 1 };
+        const output = { id: paymentId, amount: minorToDecimal(amount), outstanding: minorToDecimal(amount), status: "draft", version: 1, ...(input.settlementInvoiceId ? { settlementInvoiceId: input.settlementInvoiceId } : {}), ...(input.correctionPaymentId ? {correctionPaymentId:input.correctionPaymentId} : {}) };
         return ports.commitCreate({ actor, input, id, paymentId, amount, currency, now, output });
     }
     async function approvePayment(actor: WorkContext, paymentId: string, input: {
@@ -292,6 +302,8 @@ export function createFinancePayments(ports: FinancePaymentPorts) {
         if (input.attachmentSetIds.length)
             await ports.prepareAttachments(actor, paymentId, input, key);
         const ids = input.allocations.map(item => item.invoiceId);
+        if (payment.settlement_invoice_id && (ids.length !== 1 || ids[0] !== payment.settlement_invoice_id))
+            throw ports.error(422, "PAYMENT_SETTLEMENT_SOURCE_CHANGED", "Confirm this payment against its original invoice.");
         if (new Set(ids).size !== ids.length)
             throw ports.error(422, "DUPLICATE_ALLOCATION", "Each invoice may appear once.");
         const amounts = input.allocations.map(item => decimalToMinor(item.amount));
@@ -417,7 +429,7 @@ export function createFinancePayments(ports: FinancePaymentPorts) {
 }
 
 
-export type CommitCreateResult = { id: string; amount: string; outstanding: string; status: string; version: number; };
+export type CommitCreateResult = { id: string; amount: string; outstanding: string; status: string; version: number; settlementInvoiceId?: string; correctionPaymentId?: string; };
 export type CommitApproveResult = { id: string; status: string; version: number; };
 export type CommitReleaseResult = { id: string; status: string; version: number; bankEvidenceRequired: boolean; };
 export type CommitConfirmResult = { id: string; status: string; version: number; journalId: string; fxJournalId: string | null; realizedFx: string; bankTransactionId: string | number | null; withheldMinor: number; netBankMinor: number; withholdingDocumentId: string | null; };

@@ -4,7 +4,11 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { workFetch } from "@/lib/work_projection/work-fetch";
-import { useRef, useState } from "react";
+import {Dialog} from "@/components/ui/dialog";
+import {DraftFormDrawer} from "@/components/ui/draft-form-drawer";
+import {registerUnsavedWork} from "@/lib/work_projection/context-switch";
+import {SocialCommandRecovery} from "./social-command-recovery";
+import { useEffect,useRef, useState } from "react";
 import type { Mention } from "@/server/modules/collaboration/public/rules/social-text";
 import type { JSONContent } from "@tiptap/core";
 import { plainRichContent } from "@/lib/shared/home-rich-content";
@@ -14,7 +18,7 @@ import { SocialAgentStatus } from "@/components/collaboration/social-agent-statu
 import type { HomePost } from "@/server/modules/collaboration/public/social-home";
 import { useSocialCommand } from "@/components/collaboration/social-command";
 import { ImagePlus, Link2, MoreHorizontal, Pencil, Send, Trash2, X } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 
 type CommentImage = {
   slotId: string;
@@ -95,11 +99,14 @@ export function SocialComments({
   const [commentDraftId, setCommentDraftId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDirty,setEditDirty]=useState(false),[confirmEditClose,setConfirmEditClose]=useState(false);
   const [editBody, setEditBody] = useState("");
   const [editMentions, setEditMentions] = useState<Mention[]>([]);
   const [editRichDoc, setEditRichDoc] = useState<JSONContent | null>(null);
   const replyComposerRef = useRef<HTMLFormElement>(null);
-  const { run, send, busy, message } = useSocialCommand();
+  const command=useSocialCommand();const {run,send,uploadImage,busy,message}=command;
+  const newWork=post.purchase?.newWork!==false,settle=post.purchase?.settleExisting!==false,history=post.purchase?.history!==false;
+  useEffect(()=>registerUnsavedWork(()=>!!body.trim()||images.length>0||editingId!==null&&editDirty||(!!command.retryAttempt||command.imagePending)),[body,images.length,editingId,editDirty,command.retryAttempt,command.imagePending]);
 
   const loadOlder = () =>
     run(async () => {
@@ -136,7 +143,7 @@ export function SocialComments({
     });
   };
   const startEdit = (comment: (typeof comments)[number]) => {
-    setEditingId(comment.id);
+    setEditDirty(false);setEditingId(comment.id);
     setEditBody(comment.body);
     setEditMentions(comment.mentions);
     setEditRichDoc(
@@ -174,6 +181,7 @@ export function SocialComments({
     return (
       <form
         ref={replyComposerRef}
+        data-social-draft onChangeCapture={event=>event.currentTarget.setAttribute("data-erpx-edit-version",crypto.randomUUID())}
         className="beta-comment-form"
         key={replyTo?.id ?? "new-comment"}
         aria-label={replyTo ? `Reply to ${replyTo.name}` : "Write a comment"}
@@ -206,20 +214,7 @@ export function SocialComments({
                 );
                 setImages(working);
               }
-              const response = await workFetch(uploadUrl!, { method: "PUT", body: image.file });
-              const result = (await response.json()) as {
-                data?: { id: string };
-                error?: { message: string };
-              };
-              if (!response.ok || !result.data) {
-                if (response.status === 404) {
-                  working = working.map((item) =>
-                    item.slotId === image.slotId ? { ...item, uploadUrl: undefined } : item,
-                  );
-                  setImages(working);
-                }
-                throw Error(result.error?.message ?? "Image upload failed. Try again.");
-              }
+              const result={data:await uploadImage(uploadUrl!,image.file!)};
               working = working.map((item) =>
                 item.slotId === image.slotId
                   ? {
@@ -316,7 +311,7 @@ export function SocialComments({
             maxLength={10000}
             label={replyTo ? `Reply to ${replyTo.name}` : "Write a comment"}
             placeholder={replyTo ? `Reply to ${replyTo.name}…` : "Add to the conversation…"}
-            disabled={busy}
+            disabled={busy||!settle||(!!command.retryAttempt||command.imagePending)}
           />
         </div>
         {images.length > 0 && (
@@ -431,12 +426,12 @@ export function SocialComments({
             clientManaged variant="ghost"
             type="submit"
             className="beta-comment-submit"
-            disabled={busy || (!body.trim() && !images.length)}
+            disabled={busy || !settle||(!!command.retryAttempt||command.imagePending)|| (!body.trim() && !images.length)}
           >
             <Send size={16} aria-hidden="true" /> {replyTo ? "Reply" : "Comment"}
           </Button>
         </div>
-      </form>
+      <SocialCommandRecovery command={command} history={history}/></form>
     );
   }
 
@@ -497,7 +492,7 @@ export function SocialComments({
                     <Button appearance="standard"
                       variant="ghost"
                       type="button"
-                      disabled={busy}
+                      disabled={busy||!newWork||(!!command.retryAttempt||command.imagePending)}
                       onClick={(event) => {
                         event.currentTarget.closest("details")!.open = false;
                         startEdit(comment);
@@ -513,7 +508,7 @@ export function SocialComments({
                     <Button appearance="standard"
                       variant="ghost"
                       type="button"
-                      disabled={busy}
+                      disabled={busy||!history||(!!command.retryAttempt||command.imagePending)}
                       onClick={(event) => {
                         event.currentTarget.closest("details")!.open = false;
                         deleteComment(comment.id);
@@ -550,20 +545,32 @@ export function SocialComments({
               {comment.parent_comment_id && (
                 <small>Reply to {comment.parent_author_name ?? "an earlier comment"}</small>
               )}
-              {editingId === comment.id ? (
-                <div className="beta-comment-edit">
+
+                <SocialTextBody appearance="standard"
+                  body={comment.body}
+                  mentions={comment.mentions}
+                  base={api.replace(/^\/api\/v1/, "")}
+                  doc={
+                    comment.richContent?.blocks[0]?.type === "text"
+                      ? comment.richContent.blocks[0].doc
+                      : null
+                  }
+                />
+              <DraftFormDrawer open={editingId===comment.id} title="Edit comment" dirty={editDirty} onClose={()=>setEditingId(null)} onDiscard={()=>{setEditDirty(false);setEditingId(null);}} dismissDisabled={busy||(!!command.retryAttempt||command.imagePending)}>
+
+                <form className="beta-comment-edit" data-social-draft onSubmit={event=>event.preventDefault()} onChangeCapture={event=>event.currentTarget.setAttribute("data-erpx-edit-version",crypto.randomUUID())}>
                   <SocialTextInput appearance="standard"
                     api={api}
                     value={editBody}
                     mentions={editMentions}
                     richDoc={editRichDoc}
                     onChange={(nextBody, nextMentions) => {
-                      setEditBody(nextBody);
+                      setEditDirty(true);setEditBody(nextBody);
                       setEditMentions(nextMentions);
                       setEditRichDoc(null);
                     }}
                     onRichChange={(nextBody, nextMentions, doc) => {
-                      setEditBody(nextBody);
+                      setEditDirty(true);setEditBody(nextBody);
                       setEditMentions(nextMentions);
                       setEditRichDoc(doc);
                     }}
@@ -577,32 +584,23 @@ export function SocialComments({
                       variant="ghost"
                       type="button"
                       disabled={busy}
-                      onClick={() => setEditingId(null)}
+                      onClick={()=>editDirty?setConfirmEditClose(true):setEditingId(null)}
                     >
                       Cancel
                     </Button>
                     <Button appearance="standard"
                       variant="ghost"
                       type="button"
-                      disabled={busy || !editBody.trim()}
+                      disabled={busy || !newWork||(!!command.retryAttempt||command.imagePending)|| !editBody.trim()}
                       onClick={() => saveEdit(comment)}
                     >
                       Save
                     </Button>
                   </div>
-                </div>
-              ) : (
-                <SocialTextBody appearance="standard"
-                  body={comment.body}
-                  mentions={comment.mentions}
-                  base={api.replace(/^\/api\/v1/, "")}
-                  doc={
-                    comment.richContent?.blocks[0]?.type === "text"
-                      ? comment.richContent.blocks[0].doc
-                      : null
-                  }
-                />
-              )}
+                </form>
+                <SocialCommandRecovery command={command} history={history}/>
+                <Dialog appearance="standard" open={confirmEditClose&&editingId===comment.id} title="Discard changes?" onClose={()=>setConfirmEditClose(false)}><p>Your comment edit has not been saved.</p><Button appearance="standard" onClick={()=>setConfirmEditClose(false)}>Keep editing</Button><Button appearance="standard" variant="danger" disabled={busy||(!!command.retryAttempt||command.imagePending)} onClick={()=>{setConfirmEditClose(false);setEditDirty(false);setEditingId(null);}}>Discard draft</Button></Dialog>
+              </DraftFormDrawer>
               {comment.richContent?.blocks
                 .filter((block) => block.type === "image")
                 .map((image) => (
@@ -636,6 +634,7 @@ export function SocialComments({
                     api={api}
                     userId={userId}
                     onChanged={onChanged}
+                    purchase={post.purchase}
                     aiName={post.aiName}
                     settingsUrl={settingsUrl}
                   />

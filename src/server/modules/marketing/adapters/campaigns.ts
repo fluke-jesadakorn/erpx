@@ -11,9 +11,11 @@ import {assertion,executeCommand,replayCommand} from "@/server/modules/workflow/
 import type {SqlDatabase} from "../../runtime/public/runtime/types";
 import {marketingExpenseSources,prepareMarketingExpenseGuard} from "../../finance/public/marketing-expenses";
 import {createMarketingCampaignApplication,type MarketingCampaignMutation} from "../application/campaigns";
+import {marketingCampaignCommand} from "../domain/campaigns";
+import {requireMarketingPurchasedRead,marketingFinanceHistory,withMarketingPurchasedCommand} from "./purchases";
 export type {MarketingCostSource} from "../domain/campaigns";
 function access(a:WorkContext,write=false){requirePermission(a,write?'records.write':'records.read');if(!hasModuleAccess(a.modules,'marketing'))throw new ApiError(403,'MODULE_FORBIDDEN','Marketing access required.');}
-function application(a:WorkContext){let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);return createMarketingCampaignApplication({clock:{now:()=>Date.now()},authorize:write=>access(a,write),authorizeFinance:()=>{requirePermission(a,'finance.read');},
+function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);return createMarketingCampaignApplication({clock:{now:()=>Date.now()},authorize:write=>access(a,write),authorizeFinance:()=>{requirePermission(a,'finance.read');},
 async campaigns(){return ((await database()).prepare('SELECT id,code,name,version FROM marketing_campaigns WHERE company_id=? ORDER BY code').bind(a.companyId).all<Row>()).then(x=>x.results);},
 costSources:async()=>marketingExpenseSources(await database(),a.companyId),replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),commit:async(mutation,result)=>commit(await database(),a,mutation,result),
 });}
@@ -25,6 +27,6 @@ async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingCampaig
  ];
  return executeCommand(write,a,key,op,i,id,1,result,steps);
 }
-export function marketingCampaigns(a:WorkContext){return application(a).campaigns();}
-export function marketingCostSources(a:WorkContext){return application(a).costSources();}
-export function changeMarketingCampaign(a:WorkContext,raw:unknown,key:string){return application(a).change(raw,key);}
+export async function marketingCampaigns(a:WorkContext){const db=(await holdingResources(a.holdingId)).write;await requireMarketingPurchasedRead(db,a);return application(a,db).campaigns();}
+export async function marketingCostSources(a:WorkContext){const db=(await holdingResources(a.holdingId)).write;await requireMarketingPurchasedRead(db,a);return await marketingFinanceHistory(db,a)?application(a,db).costSources():[];}
+export function changeMarketingCampaign(a:WorkContext,raw:unknown,key:string){const input=marketingCampaignCommand.parse(raw);return withMarketingPurchasedCommand(a,{key,operation:`marketing.campaign.${input.action}`,target:{kind:input.action==='create'?'campaign':'campaign-cost',id:input.action==='create'?`campaign-${key}`:`campaign-cost-${key}`},purpose:input.action==='create'?'new-work':'settle-existing',sources:input.action==='link-cost'?[{kind:'campaign',id:input.campaignId}]:[],finance:input.action==='link-cost'},db=>application(a,db).change(input,key));}

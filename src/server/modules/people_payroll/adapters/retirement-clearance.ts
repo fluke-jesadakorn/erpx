@@ -1,3 +1,5 @@
+import {withPeoplePurchasedRead} from "./people-purchases";
+import {filterPeopleLifecycleWork} from "./record-purchases";
 import "server-only";
 import { type ClearanceKind, type ClearanceReference } from "@/lib/people_payroll/retirement";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -96,6 +98,6 @@ export async function requireClearanceCompletion(db: SqlDatabase, actor: WorkCon
     references?: ClearanceReference[];
 }) { return invoke(() => application(db).requireClearanceCompletion(actor, task, input)); }
 export async function requireClearancePlan(db: SqlDatabase, actor: WorkContext, task: PreparationTask, assigneeId: string | null) { return invoke(() => application(db).requireClearancePlan(actor, task, assigneeId)); }
-export async function retirementWork(db: SqlDatabase, actor: WorkContext) { return invoke(() => application(db).retirementWork(actor)); }
-export async function clearanceCase(db: SqlDatabase, actor: WorkContext, id: string) { return invoke(() => application(db).clearanceCase(actor, id)); }
+export async function retirementWork(db: SqlDatabase, actor: WorkContext) { return filterPeopleLifecycleWork(db,actor,await invoke(() => application(db).retirementWork(actor))); }
+export async function clearanceCase(db: SqlDatabase, actor: WorkContext, id: string) { return withPeoplePurchasedRead(actor,"people.lifecycle",(tx,current)=>invoke(() => application(tx).clearanceCase(current,id)),undefined,db); }
 export async function clearanceOwners(db: SqlDatabase, actor: WorkContext) { return invoke(() => application(db).clearanceOwners(actor)); }

@@ -1,3 +1,5 @@
+import {projectTaskAlertReadScope} from "../../projects/public/scheduled-tasks";
+import {workTaskAlertReadScope,withWorkTaskAlert} from "./work-task-alert-purchases";
 import { finalRootOwnerProjectionSources as projectsProjectionSources } from "../../projects/public/final-root-owner-projection-sources";
 import "server-only";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
@@ -15,8 +17,9 @@ import { StaffTaskAlertsCollaborationFacts } from '../../collaboration/public/op
 export type { StaffTaskAlertResult } from '../domain/staff-task-alerts';
 function application(provided?: SqlDatabase) {
     let database = provided!;
-    const repository: StaffTaskAlertsRepository = { readEscalateStaffTasksRows(now: number, now2: number, value: number) {
-            return database.prepare(`SELECT t.id,t.company_id,t.title,t.due_at,t.version,t.assignee_user_id,
+    const repository: StaffTaskAlertsRepository = { async readEscalateStaffTasksRows(now: number, now2: number, value: number) {
+            const projectRead=await projectTaskAlertReadScope(now),workRead=await workTaskAlertReadScope(now,value);
+            return database.prepare(`${workRead.prefix}SELECT t.id,t.company_id,t.project_id,t.title,t.due_at,t.version,t.assignee_user_id,
           t.creator_user_id,p.owner_user_id project_owner_id,d.delegate_user_id
          FROM staff_tasks t
          LEFT JOIN (${projectsProjectionSources.staff_projects}) p ON p.id=t.project_id AND p.company_id=t.company_id
@@ -25,14 +28,16 @@ function application(provided?: SqlDatabase) {
              AND sd.starts_at<=? AND sd.expires_at>?
            ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1) d ON TRUE
          WHERE t.state NOT IN ('completed','cancelled') AND t.due_at IS NOT NULL AND t.due_at<=?
-           AND ${scheduledFeaturePredicate("t.company_id", "operations")}
+           AND ${scheduledFeaturePredicate("t.company_id", "operations")} AND (${projectRead}) AND (${workRead.where})
          ORDER BY t.due_at,t.id
          LIMIT 500`)
-                .bind(now, now2, value)
+                .bind(...workRead.args,now, now2, value)
                 .all<TaskAlertRow>();
         },
         readEscalateStaffTasksApprovers(...args) { return StaffTaskAlertsWorkflowFacts(database).readEscalateStaffTasksApprovers(...args); },
-        stageEscalateStaffTasksResult(...args) { return StaffTaskAlertsCollaborationFacts(database).stageEscalateStaffTasksResult(...args); } };
+        async stageEscalateStaffTasksResult(value,companyId,userId,recordType,id,version,message,now,releaseArgs,source) {
+          return await withWorkTaskAlert(database,source,{id,companyId,userId,version},transaction=>StaffTaskAlertsCollaborationFacts(transaction).stageEscalateStaffTasksResult(value,companyId,userId,recordType,id,version,message,now,releaseArgs))??{success:true,meta:{changes:0,duration:0}};
+        } };
     return createStaffTaskAlertsApplication<SqlStatement>({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => { if (!provided)
             database = (await nativeHoldingResources(holding)).write; }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, });
 }

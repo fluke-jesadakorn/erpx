@@ -1,7 +1,9 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import type { HoldingWorkspaceScope } from "@/lib/work_projection/workspace";
 import type { RoleRevision, PermissionActor } from "@/lib/identity_access/iam";
 import { hasPermission } from "@/lib/identity_access/permissions";
 import { modulesForRole } from "@/lib/identity_access/business-roles";
+import { effectiveWorkModules } from "../domain/work-modules";
 import { assignmentApplies, isRoleValidAtScope } from "../domain/workspace-access";
 import type { ActiveWorkSelection } from "@/server/modules/work_projection/public/work-role-store";
 import { cookieValue, type IdentitySession, type WorkspaceBinding, type OrganizationNode, type WorkspaceResolutionOptions, type ResolvedWorkspaceScope, type WorkspaceCompany, type AccountAccessContext, type WorkContext, type PlatformContext, type WorkAssignment, type AuthorizedWorkspace, type WorkspaceGrantFact, type WorkspaceNodeFact } from "../domain/authorization";
@@ -124,7 +126,7 @@ export function createWorkContext(ports: {
 }) { return async (requested: HoldingWorkspaceScope, options: WorkspaceResolutionOptions = {}): Promise<WorkContext> => { const access = await ports.access(requested, options), { scope } = access; await ports.ready(scope); const eligible = access.assignments.filter(a => assignmentApplies(a, scope)), selection = await ports.selection(access, eligible); if (!selection)
     throw ports.error(409, 'WORK_ROLE_REQUIRED', 'Choose a work role to continue.'); const assignment = eligible.find(a => a.id === selection.assignment_id && a.version === selection.assignment_version); if (!assignment || selection.expires_at <= ports.now())
     throw ports.error(409, 'WORK_ROLE_UNAVAILABLE', 'Your selected role no longer covers this workspace. Choose an available role.'); const method = access.requestHeaders.get('x-erpx-method'); if ((access.requestHeaders.has('x-erpx-context-revision') || method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) && (access.requestHeaders.get('x-erpx-context-revision') !== String(selection.revision) || access.requestHeaders.get('x-erpx-context-company') !== scope.companyId || access.requestHeaders.get('x-erpx-context-assignment') !== assignment.id))
-    throw ports.error(409, 'WORK_CONTEXT_CHANGED', 'Your work role changed. Reload and review before submitting.'); const [beta, iam] = await Promise.all([ports.beta(scope, access.requestHeaders), ports.authority(scope, access.userId, assignment.role, access.sessionId)]), assignedModules = beta ? [] : assignment.role.startsWith('custom_') ? [...new Set(iam.permissions.filter(p => p.startsWith('module.')).map(p => p.split('.')[1]))] : modulesForRole(assignment.role, assignment.modules), modules = iam.permissions.includes('module.people_payroll.read') ? [...new Set([...assignedModules, 'people_payroll'])] : assignedModules.filter(module => module !== 'people_payroll'); await ports.feature(scope, access.requestHeaders.get('x-erpx-destination') ?? '', method ?? 'GET'); return { ...(access.requestHeaders.get('x-erpx-api') === 'false' ? { pageRequest: true as const } : {}), iam, userId: access.userId, name: access.name, email: access.email, assignmentId: assignment.id, role: assignment.role, companyId: scope.companyId, branchId: scope.kind === 'holding' ? null : scope.branchId, departmentId: scope.kind === 'department' ? scope.departmentId : null, holdingId: scope.holdingId, holdingSlug: scope.holdingSlug, holdingName: scope.holdingName, beta, scope, assignmentScope: assignment.scopeKind, inherited: assignment.scopeKind !== scope.kind, modules, assignments: [assignment], availableAssignments: access.assignments, authority: { sessionId: access.sessionId, revision: selection.revision, assignmentVersion: assignment.version! }, workspaces: await ports.workspaces(scope, access.assignments) }; }; }
+    throw ports.error(409, 'WORK_CONTEXT_CHANGED', 'Your work role changed. Reload and review before submitting.'); const [beta, iam] = await Promise.all([ports.beta(scope, access.requestHeaders), ports.authority(scope, access.userId, assignment.role, access.sessionId)]), modules = effectiveWorkModules(assignment.role, assignment.modules, iam.permissions, beta); await ports.feature(scope, access.requestHeaders.get('x-erpx-destination') ?? '', method ?? 'GET'); return { ...(access.requestHeaders.get('x-erpx-api') === 'false' ? { pageRequest: true as const } : {}), iam, userId: access.userId, name: access.name, email: access.email, assignmentId: assignment.id, role: assignment.role, companyId: scope.companyId, branchId: scope.kind === 'holding' ? null : scope.branchId, departmentId: scope.kind === 'department' ? scope.departmentId : null, holdingId: scope.holdingId, holdingSlug: scope.holdingSlug, holdingName: scope.holdingName, beta, scope, assignmentScope: assignment.scopeKind, inherited: assignment.scopeKind !== scope.kind, modules, assignments: [assignment], availableAssignments: access.assignments, authority: { sessionId: access.sessionId, revision: selection.revision, assignmentVersion: assignment.version! }, workspaces: await ports.workspaces(scope, access.assignments) }; }; }
 export function createAuthorizedWorkspaces(ports: {
     nodes(companyId: string): Promise<WorkspaceNodeFact[]>;
 }) {
@@ -135,7 +137,7 @@ export function createAuthorizedWorkspaces(ports: {
         if (holdingGrant)
             workspaces.push({
                 key: `holding:${holdingSlug}`,
-                href: `/holdings/${encodeURIComponent(holdingSlug)}/home`,
+                href: canonicalUiHref(`/holdings/${encodeURIComponent(holdingSlug)}/home`),
                 label: "Holding",
                 kind: "holding",
                 inherited: false,
@@ -147,7 +149,7 @@ export function createAuthorizedWorkspaces(ports: {
                     assignment.scopeNodeId === node.branch_id);
             if (!holdingGrant && !exact && !branchGrant)
                 continue;
-            const prefix = `/holdings/${encodeURIComponent(holdingSlug)}`;
+            const prefix = canonicalUiHref(`/holdings/${encodeURIComponent(holdingSlug)}`);
             const href = node.kind === "branch"
                 ? `${prefix}/branches/${encodeURIComponent(node.slug)}/home`
                 : node.branch_slug
@@ -185,10 +187,11 @@ export function createPlatformContext(ports: {
     preference(userId: string): Promise<{
         platform_assignment_id: string | null;
     } | null>;
+    selection?(userId: string,sessionId: string,requestHeaders: Headers): Promise<string | null>;
     authority(userId: string, role: string, sessionId: string): Promise<NonNullable<PermissionActor['iam']>>;
     error: IdentityError;
 }) { return async (): Promise<PlatformContext> => { const { session, requestHeaders } = await ports.session(); await ports.ready(); const now = ports.now(), rows = await ports.assignments(session.user.id, now), assignments: WorkAssignment[] = rows.map(assignment => ({ id: assignment.id, role: assignment.role, companyId: null, branchId: null, modules: JSON.parse(assignment.modules_json) as string[], scopeKind: 'platform' as const, scopeNodeId: null })).filter(assignment => isRoleValidAtScope(assignment.role, 'platform')); if (await ports.revoked(session.session.id, session.user.id))
-    throw ports.error(401, 'SESSION_REVOKED', 'Sign in again to continue.'); const saved = await ports.preference(session.user.id), selectedId = cookieValue(requestHeaders.get('cookie'), 'erpx_assignment_platform') ?? saved?.platform_assignment_id, assignment = assignments.find(item => item.id === selectedId) ?? assignments[0]; if (!assignment)
+    throw ports.error(401, 'SESSION_REVOKED', 'Sign in again to continue.'); const saved = await ports.preference(session.user.id), selectedId = (await ports.selection?.(session.user.id,session.session.id,requestHeaders)) ?? cookieValue(requestHeaders.get('cookie'), 'erpx_assignment_platform') ?? saved?.platform_assignment_id, assignment = assignments.find(item => item.id === selectedId) ?? assignments[0]; if (!assignment)
     throw new Error('FORBIDDEN'); return { iam: await ports.authority(session.user.id, assignment.role, session.session.id), userId: session.user.id, name: session.user.name, email: session.user.email, assignmentId: assignment.id, role: assignment.role, scope: { kind: 'platform' }, modules: modulesForRole(assignment.role, assignment.modules), assignments }; }; }
 export function createCanEnterManageErpx(ports: {
     session(): Promise<{

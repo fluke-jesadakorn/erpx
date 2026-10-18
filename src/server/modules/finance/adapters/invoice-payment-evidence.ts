@@ -7,7 +7,7 @@ import { assertion } from "@/server/modules/workflow/public/commands";
 import { expenseAuthoritySnapshot } from "@/server/modules/people_payroll/public/expense-routing";
 
 export async function invoicePaymentOwner(db:SqlDatabase,actor:WorkContext,id:string,editable=false) {
-  const {invoice}=await getInvoice(actor,id);
+  const {invoice}=await getInvoice(actor,id,db);
   if(invoice.kind!=="payable")throw new ApiError(422,"PAYABLE_REQUIRED","Payment slips belong to supplier bills.");
   if(editable){
     const flow=await resolveFlow(db,actor,"invoice",id);

@@ -1,12 +1,12 @@
 "use client";
 import { InlineNotice } from "@/components/ui/foundation";
 
-import { FormDisclosure } from "@/components/ui/form-disclosure";
+import {TransferForm,TransferDisclosure} from "./transfer-draft-boundary";
+import {useTransferCommand} from "./use-transfer-command";
+import {transferEditorDraft,acknowledgedTransferDraft,currentTransferDraft,type TransferItem,type TransferEditorDraft} from "@/lib/inventory/transfer-editor-draft";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { TransferRow as Row } from "@/server/modules/inventory/public/inventory-transfers";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import {
@@ -15,43 +15,6 @@ import {
 } from "@/components/files/attachment-panel";
 import { FormGrid, Stack, Card } from "@/components/ui/foundation";
 type Options = { warehouses: Row[]; sources: Row[]; stock: Row[]; lots: Row[] };
-function useTransferCommand(base: string) {
-  const router = useRouter(),
-    last = useRef<{ fingerprint: string; key: string } | null>(null),
-    [error, setError] = useState(""),
-    [pending, setPending] = useState(false);
-  async function send(path: string, input: unknown, create = false) {
-    const body = JSON.stringify(input),
-      fingerprint = path + body;
-    if (last.current?.fingerprint !== fingerprint)
-      last.current = { fingerprint, key: crypto.randomUUID() };
-    setPending(true);
-    setError("");
-    try {
-      const r = await workFetch(`/api/v1${base}/stock-transfers${path}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": last.current.key,
-        },
-        body,
-      });
-      const data = (await r.json()) as {
-        data: { id: string };
-        error?: { message: string };
-      };
-      if (!r.ok) throw new Error(data.error?.message ?? "Unable to save transfer.");
-      last.current = null;
-      if (create) router.push(`${base}/stock-transfers/${data.data.id}`);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save transfer.");
-    } finally {
-      setPending(false);
-    }
-  }
-  return { send, error, pending };
-}
 export function TransferEditor({
   base,
   options,
@@ -59,6 +22,7 @@ export function TransferEditor({
   lines,
   allocations,
   initialOpen = false,
+  drawer = false,
 }: {
   base: string;
   options: Options;
@@ -66,33 +30,20 @@ export function TransferEditor({
   lines?: Row[];
   allocations?: Row[];
   initialOpen?: boolean;
+  drawer?: boolean;
 }) {
-  const { send, error, pending } = useTransferCommand(base),
-    [source, setSource] = useState(
-      String(transfer?.source_warehouse_id ?? options.sources[0]?.id ?? ""),
-    ),
-    [target, setTarget] = useState(String(transfer?.target_warehouse_id ?? "")),
-    [product, setProduct] = useState("");
-  const [items, setItems] = useState(
-    (lines ?? []).map((l) => ({
-      productId: String(l.product_id),
-      quantity: String(Number(l.quantity_milli) / 1000),
-      description: String(l.description),
-      trackingMode: String(l.tracking_mode ?? "none"),
-      allocations: (allocations ?? [])
-        .filter((a) => a.transfer_line_id === l.id)
-        .map((a) => ({
-          lotId: String(a.lot_id),
-          quantity: String(Number(a.quantity_milli) / 1000),
-        })),
-    })),
-  );
+  const {send,retry,error,notice,pending,uncertain,canPrepare}=useTransferCommand(base);
+  const [seed]=useState(()=>transferEditorDraft(options,transfer,lines,allocations)),baseline=useRef(seed),recordRef=useRef(seed.record);
+  const [record,setRecord]=useState(seed.record),[source,setSource]=useState(seed.source),[target,setTarget]=useState(seed.target),[product,setProduct]=useState(seed.product),[items,setItems]=useState<TransferItem[]>(seed.items),[date,setDate]=useState(seed.date),[due,setDue]=useState(seed.due),[mode,setMode]=useState(seed.mode),[reason,setReason]=useState(seed.reason),[generation,setGeneration]=useState(0),[editorOpen,setEditorOpen]=useState(initialOpen);
+  const inline=initialOpen&&!drawer&&!transfer;
+  function resetDraft(){const next=currentTransferDraft(baseline.current,transferEditorDraft(options,transfer,lines,allocations));baseline.current=next;recordRef.current=next.record;setRecord(next.record);setSource(next.source);setTarget(next.target);setProduct(next.product);setItems(next.items);setDate(next.date);setDue(next.due);setMode(next.mode);setReason(next.reason);setGeneration(value=>value+1);}
+  if(!canPrepare&&!editorOpen&&!inline)return <p role="status">New transfer plans and amendments are unavailable for the current package.</p>;
   const available = options.stock.filter(
     (s) => s.warehouse_id === source && !items.some((l) => l.productId === s.product_id),
   );
   return (
-    <FormDisclosure appearance="standard" inline={Boolean(!!transfer || initialOpen)} className="ui-panel" open={!!transfer || initialOpen}>
-      <summary>{transfer ? "Edit transfer quantities" : "New warehouse transfer"}</summary>
+    <>{notice&&<p role="status">{notice}</p>}{uncertain&&<Button appearance="standard" type="button" variant="secondary" disabled={pending} onClick={()=>void retry().then(saved=>{if(saved)setEditorOpen(false);})}>Retry submitted transfer change</Button>}<TransferDisclosure appearance="standard" inline={inline} open={editorOpen} onOpenChange={setEditorOpen} onBeforeOpen={resetDraft} drawerTitle={record?"Edit transfer quantities":"New warehouse transfer"} error={error||undefined} dismissDisabled={pending} onDiscard={()=>{resetDraft();setEditorOpen(false);}}>
+      <summary>{record ? "Edit transfer quantities" : "New warehouse transfer"}</summary>
       <p className="muted">
         Choose a completed direct movement or staged dispatch and receiving. Staged transport
         preserves goods in transit until receipt or independently approved loss. Source cost is
@@ -103,12 +54,12 @@ export function TransferEditor({
           {error}
         </InlineNotice>
       )}
-      <form
+      <TransferForm key={generation}
         onSubmit={(e) => {
           e.preventDefault();
-          const f = new FormData(e.currentTarget);
+          const f = new FormData(e.currentTarget),submitted:TransferEditorDraft={source,target,product,items,date,due,mode,reason,...(recordRef.current?{record:recordRef.current}:{})};
           void send(
-            transfer ? `/${transfer.id}` : "",
+            recordRef.current ? `/${recordRef.current.id}` : "",
             {
               sourceWarehouseId: source,
               targetWarehouseId: target,
@@ -124,10 +75,11 @@ export function TransferEditor({
                     : String(l.allocations.reduce((sum, a) => sum + Number(a.quantity || 0), 0)),
                 allocations: l.allocations,
               })),
-              ...(transfer ? { expectedVersion: transfer.version } : {}),
+              ...(recordRef.current ? { expectedVersion: recordRef.current.version } : {}),
             },
-            !transfer,
-          );
+            !recordRef.current,
+            receipt=>{baseline.current=acknowledgedTransferDraft(submitted,receipt);recordRef.current=baseline.current.record;setRecord(baseline.current.record);},
+          ).then(saved=>{if(saved)setEditorOpen(false);});
         }}
       >
         <FormGrid as="div" className="ui-form-grid">
@@ -135,14 +87,14 @@ export function TransferEditor({
             Transport mode
             <Select appearance="standard"
               name="deliveryMode"
-              defaultValue={String(transfer?.delivery_mode ?? "direct")}
-              disabled={!!transfer}
+              value={mode} onChange={event=>setMode(event.target.value)}
+              disabled={!!record}
             >
               <option value="direct">Completed direct movement</option>
               <option value="transit">Dispatch and receive separately</option>
             </Select>
-            {transfer && (
-              <TextInput appearance="standard" type="hidden" name="deliveryMode" value={String(transfer.delivery_mode)} />
+            {record && (
+              <TextInput appearance="standard" type="hidden" name="deliveryMode" value={mode} />
             )}
           </Field>
           <Field appearance="standard">
@@ -150,14 +102,14 @@ export function TransferEditor({
             <TextInput appearance="standard"
               type="date"
               name="arrivalDueDate"
-              defaultValue={String(transfer?.arrival_due_date ?? "")}
+              value={due} onChange={event=>setDue(event.target.value)}
             />
           </Field>
           <Field appearance="standard">
             Source warehouse
             <Select appearance="standard"
               required
-              disabled={!!transfer}
+              disabled={!!record}
               value={source}
               onChange={(e) => {
                 setSource(e.target.value);
@@ -177,7 +129,7 @@ export function TransferEditor({
             Receiving warehouse
             <Select appearance="standard"
               required
-              disabled={!!transfer}
+              disabled={!!record}
               value={target}
               onChange={(e) => setTarget(e.target.value)}
             >
@@ -197,9 +149,7 @@ export function TransferEditor({
               type="date"
               name="transferDate"
               required
-              defaultValue={String(
-                transfer?.transfer_date ?? new Date().toISOString().slice(0, 10),
-              )}
+              value={date} onChange={event=>setDate(event.target.value)}
             />
           </Field>
           <Field appearance="standard">
@@ -209,7 +159,7 @@ export function TransferEditor({
               required
               minLength={5}
               maxLength={2000}
-              defaultValue={String(transfer?.reason ?? "")}
+              value={reason} onChange={event=>setReason(event.target.value)}
               placeholder="Replenishment or installation staging"
             />
           </Field>
@@ -435,12 +385,12 @@ export function TransferEditor({
           clientManaged type="submit"
           variant="primary"
 
-          disabled={pending || !items.length || !source || !target}
+          disabled={pending || !canPrepare || !items.length || !source || !target || !!(transfer && record && transfer.id===record.id && Number(transfer.version)>record.version)}
         >
-          {pending ? "Saving…" : transfer ? "Save transfer changes" : "Save transfer draft"}
+          {pending ? "Saving…" : record ? "Save transfer changes" : "Save transfer draft"}
         </Button>
-      </form>
-    </FormDisclosure>
+      </TransferForm>
+    </TransferDisclosure></>
   );
 }
 export function TransferActions({
@@ -456,9 +406,9 @@ export function TransferActions({
   reviewable: boolean;
   stale: boolean;
 }) {
-  const { send, error, pending } = useTransferCommand(base),
+  const { send,retry,error,notice,pending,uncertain,canPrepare,canSettle } = useTransferCommand(base),
     [reason, setReason] = useState(""),
-    [directEvidence, setDirectEvidence] = useState<AttachmentPanelChange | null>(null);
+    [directEvidence, setDirectEvidence] = useState<AttachmentPanelChange | null>(null),[generation,setGeneration]=useState(0),[open,setOpen]=useState(false);
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>Transfer workflow</h2>
@@ -473,8 +423,9 @@ export function TransferActions({
           posting.
         </p>
       )}
-      {(editable || reviewable) && (
-        <>
+      {notice&&<p role="status">{notice}</p>}{uncertain&&<Button appearance="standard" type="button" variant="secondary" disabled={pending} onClick={()=>void retry().then(saved=>{if(saved)setOpen(false);})}>Retry submitted transfer decision</Button>}
+      {(editable || reviewable) && (canPrepare || canSettle) && (
+        <TransferDisclosure drawerTitle="Transfer receipt or decision" open={open} onOpenChange={setOpen} dismissDisabled={pending} onDiscard={()=>{setReason("");setDirectEvidence(null);setGeneration(value=>value+1);}}><summary>Review transfer workflow</summary><TransferForm key={generation} onSubmit={event=>event.preventDefault()}>
           <Field appearance="standard">
             Receipt or decision reason
             <TextArea appearance="standard"
@@ -503,10 +454,10 @@ export function TransferActions({
             {editable && (
               <>
                 <Button appearance="standard"
-                  type="submit"
+                  type="button"
                   variant="primary"
 
-                  disabled={pending || stale}
+                  disabled={pending || !canPrepare || stale}
                   onClick={() =>
                     void send(`/${transfer.id}/submit`, {
                       expectedVersion: transfer.version,
@@ -518,10 +469,10 @@ export function TransferActions({
                     : "Submit transfer for receipt review"}
                 </Button>
                 <Button appearance="standard"
-                  type="submit"
+                  type="button"
                   variant="secondary"
 
-                  disabled={pending || reason.trim().length < 3}
+                  disabled={pending || !canSettle || reason.trim().length < 3}
                   onClick={() =>
                     void send(`/${transfer.id}/cancel`, {
                       expectedVersion: transfer.version,
@@ -536,10 +487,10 @@ export function TransferActions({
             {reviewable && (
               <>
                 <Button appearance="standard"
-                  type="submit"
+                  type="button"
                   variant="primary"
 
-                  disabled={pending || stale || reason.trim().length < 3}
+                  disabled={pending || !canSettle || stale || reason.trim().length < 3}
                   onClick={() =>
                     void send(`/${transfer.id}/post`, {
                       expectedVersion: transfer.version,
@@ -558,10 +509,10 @@ export function TransferActions({
                     : "Confirm receipt and post transfer"}
                 </Button>
                 <Button appearance="standard"
-                  type="submit"
+                  type="button"
                   variant="secondary"
 
-                  disabled={pending || reason.trim().length < 3}
+                  disabled={pending || !canSettle || reason.trim().length < 3}
                   onClick={() =>
                     void send(`/${transfer.id}/reject`, {
                       expectedVersion: transfer.version,
@@ -574,7 +525,7 @@ export function TransferActions({
               </>
             )}
           </div>
-        </>
+        </TransferForm></TransferDisclosure>
       )}
       {!editable && !reviewable && (
         <p className="muted">

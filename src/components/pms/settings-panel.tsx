@@ -1,6 +1,7 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import type {ReactNode} from "react";
 import type {PmsWorkspace} from "@/server/modules/pms/public/pms";
 import {accountLabels,pmsAccountKeys,type Kind,type PmsRecord,type DataMap} from "@/server/modules/pms/public/rules/pms-model";
@@ -10,7 +11,7 @@ import {FrontLocalizedTree,useFrontLanguage} from "@/components/front/front-lang
 import {frontText} from "@/lib/shared/front-language";
 import type {Field,Option,PmsForm,Send} from "./workspace-types";
 import styles from "./workspace.module.css";
-const BookingSettings=dynamic(()=>import("./booking-settings").then(m=>m.BookingSettings));
+const BookingSettings=dynamic(()=>import("./standard-booking-settings").then(m=>m.StandardBookingSettings));
 const BookingOnlineAccounts=dynamic(()=>import("./booking-policy-settings").then(m=>m.BookingOnlineAccounts));
 const BookingFeeAccounts=dynamic(()=>import("./booking-policy-settings").then(m=>m.BookingFeeAccounts));
 const field = (
@@ -60,7 +61,7 @@ export function PmsSettingsPanel({can,erpBase,s,send,data,p,base,rows,tr,form,to
                 <FrontLocalizedTree>
                   {(can("pms.configure") || can("pms.accounting.approve")) && (
                     <Panel title="Hotel cutover">
-                      <Link href={`${erpBase}/pms/import?property=${p.id}`}>
+                      <Link href={canonicalUiHref(`${erpBase}/pms/import?property=${p.id}`)}>
                         Preview imported hotel records and Finance-approved opening balances →
                       </Link>
                     </Panel>
@@ -236,7 +237,7 @@ export function PmsSettingsPanel({can,erpBase,s,send,data,p,base,rows,tr,form,to
                     ))}
                   </Panel>
                   <Panel title="Accounting & tax">
-                    <Link href={`${erpBase}/hospitality/setup`}>Hotel + Restaurant Setup</Link>
+                    <Link href={canonicalUiHref(`${erpBase}/hospitality/setup`)}>Hotel + Restaurant Setup</Link>
                     <p>Pilot currency THB · The preparer and approver must be different people.</p>
                     <Badge tone={p.config.approvedBy ? "good" : "warn"}>
                       {p.config.approvedBy ? "Approved" : "Awaiting approval"} · Revision{" "}

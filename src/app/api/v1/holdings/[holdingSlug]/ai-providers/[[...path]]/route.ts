@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -33,7 +34,7 @@ export async function GET(_request: Request, context: Context) {
     if (!data)
       throw new ApiError(404, "NOT_FOUND", "AI settings resource not found.");
     return Response.json(
-      { data },
+      canonicalDestinationLinks({ data }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {
@@ -56,7 +57,7 @@ export async function POST(request: Request, context: Context) {
       key = request.headers.get("Idempotency-Key");
     if (path.length === 1 && path[0] === "discover") {
       const data = await discoverAiModelsInput(write, actor, env, aiDiscoverySchema.parse(await request.json()));
-      return Response.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
+      return Response.json(canonicalDestinationLinks({ data }), { headers: { "Cache-Control": "private, no-store" } });
     }
     if (!key)
       throw new ApiError(
@@ -122,7 +123,7 @@ export async function POST(request: Request, context: Context) {
         key,
       );
     else throw new ApiError(404, "NOT_FOUND", "AI settings action not found.");
-    return Response.json({ data }, { status: path.length === 0 ? 201 : 200 });
+    return Response.json(canonicalDestinationLinks({ data }), { status: path.length === 0 ? 201 : 200 });
   } catch (e) {
     if (e instanceof z.ZodError)
       return errorResponse(

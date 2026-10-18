@@ -45,7 +45,7 @@ export function pmsSourceAllowed(actor: StaffActor, source: PmsSource) {
         default: return false;
     }
 }
-export function pmsSourceLink(source: PmsSource) {
+export function pmsSourceLink(source: Pick<PmsSource, "id" | "property_id" | "kind" | "data" | "version" | "property_name">) {
     const section = source.kind === "stay" ? "front-desk" : source.kind === "reservation" ? "reservations"
         : ["room", "task", "block"].includes(source.kind) ? "housekeeping" : source.kind === "shift" ? "cashier"
             : source.kind === "night" ? "night-audit" : "guest-accounts";

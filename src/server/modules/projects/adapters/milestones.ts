@@ -10,6 +10,7 @@ import { getProject } from '../public/staff-projects';
 import { BusinessRuleError } from '../../shared';
 import { projectMilestoneTransitionSchema, type ProjectMilestoneRow, type MilestoneInput, type MilestoneEventAction } from '../domain/milestones';
 import { createProjectMilestoneApplication, type ProjectMilestoneRepository } from '../application/milestones';
+import {requireProjectPurchasedRead,withProjectPurchasedCommand} from './purchases';
 async function inward<T>(action: () => Promise<T>) { try {
     return await action();
 }
@@ -198,6 +199,6 @@ catch (failure) {
     }
     throw failure;
 } }
-export async function listProjectMilestones(db: SqlDatabase, actor: StaffActor, projectId: string) { return exposed(() => application(db).listProjectMilestones(actor, projectId)); }
-export async function saveProjectMilestone(db: SqlDatabase, actor: StaffActor, projectId: string, milestoneId: string | null, input: MilestoneInput, key: string) { return exposed(() => application(db).saveProjectMilestone(actor, projectId, milestoneId, input, key)); }
-export async function transitionProjectMilestone(db: SqlDatabase, actor: StaffActor, projectId: string, milestoneId: string, input: z.infer<typeof projectMilestoneTransitionSchema>, key: string) { return exposed(() => application(db).transitionProjectMilestone(actor, projectId, milestoneId, input, key)); }
+export async function listProjectMilestones(db: SqlDatabase, actor: StaffActor, projectId: string) { await requireProjectPurchasedRead(db,actor,projectId);return exposed(() => application(db).listProjectMilestones(actor, projectId)); }
+export async function saveProjectMilestone(db: SqlDatabase, actor: StaffActor, projectId: string, milestoneId: string | null, input: MilestoneInput, key: string) { return withProjectPurchasedCommand(db,actor,{key,operations:[milestoneId?'project.milestone.revise':'project.milestone.create'],projectId,purpose:'new-work',existing:true,target:{kind:'milestone',id:milestoneId??`milestone-${key}`}},tx=>exposed(() => application(tx).saveProjectMilestone(actor, projectId, milestoneId, input, key))); }
+export async function transitionProjectMilestone(db: SqlDatabase, actor: StaffActor, projectId: string, milestoneId: string, input: z.infer<typeof projectMilestoneTransitionSchema>, key: string) { return withProjectPurchasedCommand(db,actor,{key,operations:[`project.milestone.${input.action}`],projectId,purpose:input.action==='reopen'?'new-work':'settle-existing',existing:true,target:{kind:'milestone',id:milestoneId}},tx=>exposed(() => application(tx).transitionProjectMilestone(actor, projectId, milestoneId, input, key))); }

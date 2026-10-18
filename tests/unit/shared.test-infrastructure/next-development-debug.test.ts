@@ -54,6 +54,28 @@ describe.each([
     expect(sandbox.isInitializingDebugInfo).toBe(false);
   });
 
+  it("bounds optional debug ancestry while leaving the actual page model and tracing state intact", () => {
+    let ancestry: unknown = null;
+    for (let index = 0; index < 8192; index++) ancestry = { status: "pending", _debugChunk: ancestry };
+    const debug = { status: "resolved_model", _debugChunk: ancestry };
+    const chunk = { _debugChunk: debug, _debugInfo: [], value: "actual page model" };
+    const { calls, sandbox } = initialize(patched, chunk);
+    expect(calls).toEqual([]);
+    expect(chunk._debugChunk).toBeNull();
+    expect(chunk._debugInfo).toEqual([]);
+    expect(chunk.value).toBe("actual page model");
+    expect(sandbox.isInitializingDebugInfo).toBe(false);
+  });
+
+  it("retains ordinary nontrivial debug ancestry and its original index", () => {
+    let ancestry: unknown = null;
+    for (let index = 0; index < 32; index++) ancestry = { status: "pending", _debugChunk: ancestry };
+    const chunk = { _debugChunk: { status: "resolved_model", _debugChunk: ancestry }, _debugInfo: [] as unknown[] };
+    expect(initialize(patched, chunk).calls).toEqual(["model"]);
+    expect(chunk._debugInfo).toHaveLength(33);
+    expect(chunk._debugInfo[32]).toBe("rendered");
+  });
+
   it("is idempotent and fails explicitly if the upstream code changes", () => {
     expect(guardDebugChunkCycles(patched)).toBe(patched);
     expect(() => guardDebugChunkCycles("changed runtime")).toThrow("no longer matches");

@@ -1,3 +1,6 @@
+import type {readBenefitEvidence,searchBenefitEvidence} from "../../../benefits/public/executive-evidence";
+import {benefitEvidenceMetrics} from "../../../benefits/public/rules/executive-evidence";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { z } from 'zod';
 import { type Filters, type MetricId } from "@/server/modules/runtime/public/rules/canvas-domain";
 import type { WorkContext } from '../../../identity_access/public/authorization';
@@ -883,6 +886,8 @@ export interface ExecutiveEvidencePorts {
     readPosEvidence(...args: Tail<Parameters<typeof readPosEvidence>>): ReturnType<typeof readPosEvidence>;
     searchMarketingEvidence(...args: Tail<Parameters<typeof searchMarketingEvidence>>): ReturnType<typeof searchMarketingEvidence>;
     readMarketingEvidence(...args: Tail<Parameters<typeof readMarketingEvidence>>): ReturnType<typeof readMarketingEvidence>;
+    searchBenefitEvidence(...args: Tail<Parameters<typeof searchBenefitEvidence>>): ReturnType<typeof searchBenefitEvidence>;
+    readBenefitEvidence(...args: Tail<Parameters<typeof readBenefitEvidence>>): ReturnType<typeof readBenefitEvidence>;
     searchPlanningEvidence(...args: Tail<Parameters<typeof searchPlanningEvidence>>): ReturnType<typeof searchPlanningEvidence>;
     readPlanningEvidence(...args: Tail<Parameters<typeof readPlanningEvidence>>): ReturnType<typeof readPlanningEvidence>;
 }
@@ -2847,7 +2852,7 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
             items: items.map((row) => {
                 const blockers = projectDependencyBlockers(row.blockers_json);
                 return { id: row.id, label: row.title, summary: `${row.project_title} · ${blockers.length} incomplete prerequisite${blockers.length === 1 ? "" : "s"}`,
-                    status: row.state, version: row.version, href: `/holdings/${encodeURIComponent(actor.holdingSlug)}/projects/${encodeURIComponent(row.project_id)}` };
+                    status: row.state, version: row.version, href: canonicalUiHref(`/holdings/${encodeURIComponent(actor.holdingSlug)}/projects/${encodeURIComponent(row.project_id)}`) };
             }),
             hasMore,
             nextCursor: hasMore && items.length ? Buffer.from(JSON.stringify({ dueAt: items.at(-1)!.due_at, id: items.at(-1)!.id })).toString("base64url") : null,
@@ -2863,7 +2868,7 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
         const blockers = projectDependencyBlockers(row.blockers_json);
         const record = { id: row.id, project_id: row.project_id, project_title: row.project_title, title: row.title,
             due_at: row.due_at, state: row.state, version: row.version, prerequisites: blockers,
-            href: `/holdings/${encodeURIComponent(actor.holdingSlug)}/projects/${encodeURIComponent(row.project_id)}` };
+            href: canonicalUiHref(`/holdings/${encodeURIComponent(actor.holdingSlug)}/projects/${encodeURIComponent(row.project_id)}`) };
         const queryHash = await ports.digest(JSON.stringify({ providerId: projectDependencyProviderId, metric: projectDependencyMetric,
             filters, scope: [actor.companyId, actor.assignmentId, actor.branchId, actor.departmentId, actor.userId],
             record: { id: row.id, version: row.version, blockers } }));
@@ -2907,7 +2912,7 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
                 id: row.id, label: String(row.journal_number), amount: row.amount_minor, currency: row.currency,
                 summary: `${row.project_title} · ${row.entry_date} · ${row.account_code} ${row.account_name}`,
                 status: row.state, version: row.version,
-                href: `/holdings/${encodeURIComponent(actor.holdingSlug)}/finance/journals/${encodeURIComponent(row.journal_id!)}`,
+                href: canonicalUiHref(`/holdings/${encodeURIComponent(actor.holdingSlug)}/finance/journals/${encodeURIComponent(row.journal_id!)}`),
             }),
             hasMore,
             nextCursor: hasMore && items.length ? Buffer.from(JSON.stringify({ date: items.at(-1)!.sort_date, id: items.at(-1)!.id })).toString("base64url") : null,
@@ -2930,7 +2935,7 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
             journal_number: row.journal_number, entry_date: row.entry_date, currency: row.currency,
             account_code: row.account_code, account_name: row.account_name, amount_minor: row.amount_minor,
             state: row.state, version: row.version,
-            href: `/holdings/${encodeURIComponent(actor.holdingSlug)}/finance/journals/${encodeURIComponent(row.journal_id!)}`,
+            href: canonicalUiHref(`/holdings/${encodeURIComponent(actor.holdingSlug)}/finance/journals/${encodeURIComponent(row.journal_id!)}`),
         };
         const queryHash = await ports.digest(JSON.stringify({ providerId: projectActualProviderId, metric, filters,
             scope: [actor.companyId, actor.assignmentId, actor.branchId, actor.departmentId, actor.userId], recordId: id }));
@@ -3001,7 +3006,7 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
         return { provider: operationsProviderId, metric, fields, record, queryHash };
     }
     async function searchExecutiveEvidence(actor: WorkContext, raw: unknown) {
-        const common = z.object({ metric: z.enum([...financeMetrics, payrollSummaryMetric, approvedLeaveMetric, authorizedOvertimeMetric, hotelOccupancyMetric, ...hotelRoomRevenueMetrics, hotelGuestAccountBalanceMetric, hotelNightAuditBlockersMetric, "invoice-match-exceptions", ...salesMetrics, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, ...qualityMetrics, ...legalMetrics, closeBlockersMetric, identityChangeMetric, organizationNodeMetric, pendingStructureMetric, activeAssignmentsMetric, pendingAccessReviewsMetric, activeSubscriptionsMetric, overdueInvoicesMetric, maintenanceDowntimeMetric, duplicateReviewMetric, supportTicketMetrics[0], supportTicketMetrics[1], supportIncidentMetric, stockedLocationsMetric, availableStockMetric, inventoryShortagesMetric, inventoryMovementsMetric, projectMilestoneMetric, projectDependencyMetric, ...projectActualMetrics, ...operationsMetrics, ...agentEvidenceMetrics, ...crmEvidenceMetrics, ...brandEvidenceMetrics, ...learningEvidenceMetrics, ...talentEvidenceMetrics, ...posEvidenceMetrics, ...marketingEvidenceMetrics, ...planningEvidenceMetrics]), ...commonFilters }).strict().parse(raw);
+        const common = z.object({ metric: z.enum([...financeMetrics, payrollSummaryMetric, approvedLeaveMetric, authorizedOvertimeMetric, hotelOccupancyMetric, ...hotelRoomRevenueMetrics, hotelGuestAccountBalanceMetric, hotelNightAuditBlockersMetric, "invoice-match-exceptions", ...salesMetrics, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, ...qualityMetrics, ...legalMetrics, closeBlockersMetric, identityChangeMetric, organizationNodeMetric, pendingStructureMetric, activeAssignmentsMetric, pendingAccessReviewsMetric, activeSubscriptionsMetric, overdueInvoicesMetric, maintenanceDowntimeMetric, duplicateReviewMetric, supportTicketMetrics[0], supportTicketMetrics[1], supportIncidentMetric, stockedLocationsMetric, availableStockMetric, inventoryShortagesMetric, inventoryMovementsMetric, projectMilestoneMetric, projectDependencyMetric, ...projectActualMetrics, ...operationsMetrics, ...agentEvidenceMetrics, ...crmEvidenceMetrics, ...brandEvidenceMetrics, ...learningEvidenceMetrics, ...talentEvidenceMetrics, ...posEvidenceMetrics, ...marketingEvidenceMetrics, ...planningEvidenceMetrics, ...benefitEvidenceMetrics]), ...commonFilters }).strict().parse(raw);
         if (crmEvidenceMetrics.includes(common.metric as typeof crmEvidenceMetrics[number]))
             return ports.searchCrmEvidence(actor, common);
         if (agentEvidenceMetrics.includes(common.metric as typeof agentEvidenceMetrics[number]))
@@ -3016,6 +3021,8 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
             return ports.searchPosEvidence(actor, common);
         if (marketingEvidenceMetrics.includes(common.metric as typeof marketingEvidenceMetrics[number]))
             return ports.searchMarketingEvidence(actor, common);
+        if (benefitEvidenceMetrics.includes(common.metric as typeof benefitEvidenceMetrics[number]))
+            return ports.searchBenefitEvidence(actor, common);
         if (planningEvidenceMetrics.includes(common.metric as typeof planningEvidenceMetrics[number]))
             return ports.searchPlanningEvidence(actor, common);
         if (common.metric === projectMilestoneMetric)
@@ -3103,6 +3110,8 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
             return ports.readPosEvidence(actor, metric, recordId, filters);
         if (marketingEvidenceMetrics.includes(metric as typeof marketingEvidenceMetrics[number]))
             return ports.readMarketingEvidence(actor, metric, recordId, filters);
+        if (benefitEvidenceMetrics.includes(metric as typeof benefitEvidenceMetrics[number]))
+            return ports.readBenefitEvidence(actor, metric, recordId, filters);
         if (planningEvidenceMetrics.includes(metric as typeof planningEvidenceMetrics[number]))
             return ports.readPlanningEvidence(actor, metric, recordId, filters);
         if (metric === projectMilestoneMetric)

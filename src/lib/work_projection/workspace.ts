@@ -1,3 +1,4 @@
+import { canonicalUiHref } from './destination-registry';
 export type WorkspaceScope =
   | { kind: "platform" }
   | { kind: "holding"; holdingSlug: string }
@@ -16,7 +17,7 @@ export type HoldingWorkspaceScope = Exclude<
 
 export function workspaceBase(scope: WorkspaceScope) {
   if (scope.kind === "platform") return "/platform";
-  const holding = `/holdings/${encodeURIComponent(scope.holdingSlug)}`;
+  const holding = canonicalUiHref(`/holdings/${encodeURIComponent(scope.holdingSlug)}`);
   if (scope.kind === "holding") return holding;
   if (scope.kind === "branch")
     return `${holding}/branches/${encodeURIComponent(scope.branchSlug)}`;
@@ -27,7 +28,7 @@ export function workspaceBase(scope: WorkspaceScope) {
 }
 
 export function workspaceHref(scope: WorkspaceScope, destination = "home") {
-  return `${workspaceBase(scope)}/${destination.replace(/^\/+/, "")}`;
+  return canonicalUiHref(`${workspaceBase(scope)}/${destination.replace(/^\/+/, "")}`);
 }
 
 export function workspaceApiHref(

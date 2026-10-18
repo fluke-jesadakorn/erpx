@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { approveLeave, leaveDecisionSchema } from "@/server/modules/people_payroll/public/leave";
@@ -12,7 +13,7 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/hold
     const parsed = leaveDecisionSchema.safeParse(await request.json());
     if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid request.");
     const workContext = await requireWorkContext(holdingSlug);
-    return Response.json({ data: await approveLeave(workContext.holdingId, id, parsed.data, commandId, workContext) });
+    return Response.json(canonicalDestinationLinks({ data: await approveLeave(workContext.holdingId, id, parsed.data, commandId, workContext) }));
   } catch (error) {
     return errorResponse(error);
   }

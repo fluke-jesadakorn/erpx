@@ -16,6 +16,10 @@ import { cancelPayrollRun } from "../../../src/server/modules/people_payroll/pub
 import { payrollReadiness,submitPayrollReview } from "../../../src/server/modules/people_payroll/public/payroll-readiness";
 import {importBankStatement} from "../../../src/server/modules/finance/public/finance";
 import {calendarCommand} from "../../../src/server/modules/work_projection/public/calendar/commands";
+import { packageGrantStore, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
+import {journalDetail,ledgerWorkspace} from "../../../src/server/modules/finance/public/ledger";
+import {financeProductDocumentEntry} from "../../../src/server/modules/finance/public/document-purchases";
+import {financeDocumentPresentationAccess} from "../../../src/server/modules/finance/public/record-presentation";
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,packId:string;
@@ -32,7 +36,7 @@ beforeEach(async()=>{
   vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(new Date("2026-10-03T00:00:00Z"));
   f=await expenseFixture();f.owner.role="payroll_preparer";f.owner.assignmentId=await f.grant(f.owner,"payroll_preparer");f.manager.role="payroll_approver";f.manager.assignmentId=await f.grant(f.manager,"payroll_approver");f.reviewer.role="finance_approver";f.reviewer.assignmentId=await f.grant(f.reviewer,"finance_approver");
 });
-afterEach(()=>vi.useRealTimers());
+afterEach(()=>{vi.useRealTimers();vi.unstubAllEnvs();});
 
 async function payrollEngineeringReceipt(name:string,title:string,evidence:Record<string,unknown>){
  const directory=process.env.ERPX_ENGINEERING_EVIDENCE_DIR;if(!directory)return;
@@ -360,4 +364,31 @@ describe("source-dated Thai payroll owner workflow",()=>{
     await expect(submitPayrollReview(f.owner,e.runId,{expectedVersion:Number(calculated.version),inputDigest:readiness.inputDigest!},key())).rejects.toMatchObject({code:"PAYROLL_NOT_READY"});
     await expect(db.prepare("UPDATE hr_thai_payroll_profiles SET annual_deductions_minor=0 WHERE id=?").bind(e.profileId).run()).rejects.toThrow("THAI_PAYROLL_PROFILE_REVISION_IMMUTABLE");
   });
+});
+
+it("Payroll purchase settles an actual paid overpayment through own consent and independent Finance recognition while draining",async()=>{
+  const store=packageGrantStore(db,{authorize:async()=>({userId:"isolated-recovery-purchase-review"}),obligations:async()=>{throw Error("People withdrawal requires real obligation readers");}});
+  const purchase=async(state:"active"|"draining")=>{for(const packageId of ["people","people-payroll"]){const current=(await readCompanyPackageGrants(db,f.company)).find(grant=>grant.packageId===packageId);await store.apply({expectedVersion:current?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(current?.version??0)+1,reason:"Reviewed Payroll recovery settlement",evidence:"test:payroll-recovery-purchase"}});}};
+  await purchase("active");vi.stubEnv("ERPX_PEOPLE_PACKAGE_ENFORCEMENT","enforced");
+  const e=await employee(),calculated=await calculatePayrollRun(f.owner,e.runId,key()),original=await completeStatutoryRun(e,e.runId,Number(calculated.version));
+  const receivable=`purchased-recovery-${key()}`;await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,'Reviewed employee recovery','asset','THB',1,1)").bind(receivable,f.chart,f.company,key()).run();
+  const accounts={...original.accounts,advanceReceivableAccountId:receivable};await db.prepare("UPDATE hr_payroll_account_mappings SET status='superseded',version=version+1 WHERE company_id=? AND pay_group_id=? AND status='approved'").bind(f.company,e.group).run();
+  await db.prepare("INSERT INTO hr_payroll_account_mappings(id,company_id,pay_group_id,chart_id,accounts_json,status,version,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,?,?,'approved',2,?,?,1,1)").bind(key(),f.company,e.group,f.chart,JSON.stringify(accounts),f.owner.userId,f.reviewer.userId).run();
+  await purchase("draining");
+  const input=payrollRecoveryRequestSchema.parse({expectedVersion:original.posted.version,originalItemId:original.item.id,sourceRef:`purchased-recovery-${key()}`,amountMinor:60_000,installmentCount:2,firstDeductionPeriod:"2026-10-01",reason:"Actual paid source reviewed for two agreed recovery installments",evidenceRef:"Fictional separately reviewed original payroll overpayment"}),command=key(),requested=await requestPayrollRecovery(f.owner,e.runId,input,command),id=String(requested.id);
+  expect(await requestPayrollRecovery(f.owner,e.runId,input,command)).toEqual(requested);
+  const signedName=String(await db.prepare("SELECT legal_name FROM hr_people WHERE user_id=? AND company_id=?").bind(f.claimant.userId,f.company).first("legal_name"));
+  await consentPayrollRecovery(f.claimant,id,{expectedVersion:1,action:"consent",signedName,agreementAcknowledged:true,reason:"I agree to this exact source amount and two bounded installments"},key());
+  await reviewPayrollRecovery(f.manager,id,{expectedVersion:2,action:"approve",reason:"Independent source and permissibility review",legalBasisRef:"Fictional specific wage recovery evidence",reviewedPermissibility:true},key());
+  const recognize={expectedVersion:3,entryDate:"2026-10-03",periodId:f.period,reason:"Finance independently recognizes the retained agreed receivable"},recognizeKey=key(),recognized=await recognizePayrollRecovery(f.reviewer,id,recognize,recognizeKey);
+  expect(recognized).toMatchObject({status:"recognized",version:4});expect(await recognizePayrollRecovery(f.reviewer,id,recognize,recognizeKey)).toEqual(recognized);
+  expect(await db.prepare("SELECT SUM(debit_minor) debit,SUM(credit_minor) credit FROM finance_journal_lines WHERE journal_id=?").bind(recognized.journalId).first()).toEqual({debit:60_000,credit:60_000});
+  vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+  const journalId=String(recognized.journalId),assignmentVersion=Number(await db.prepare("SELECT version FROM assignments WHERE id=?").bind(f.reviewer.assignmentId).first("version"));
+  expect((await journalDetail(f.reviewer,journalId,db)).journal.id).toBe(journalId);
+  expect(await financeProductDocumentEntry(db,{companyId:f.company,branchId:null,departmentId:null,userId:f.reviewer.userId,assignmentId:f.reviewer.assignmentId,assignmentVersion,role:f.reviewer.role},{kind:"journal",id:journalId})).toEqual({capability:"people.payroll",purchasePurpose:"history"});
+  expect(await financeDocumentPresentationAccess(f.reviewer,"journal",journalId)).toEqual({sourceOnly:true,historyOnly:true});await expect(ledgerWorkspace(f.reviewer,f.chart)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(journalDetail(f.owner,journalId,db)).rejects.toMatchObject({status:403});
+  expect((await payrollRecoveryPage(f.claimant)).items.map(row=>row.id)).toEqual([id]);const agreement=await payrollRecoveryAgreement(f.claimant,id);expect(createHash("sha256").update(agreement.html).digest("hex")).toBe(agreement.checksum);
+  expect(await getPayslipExport(f.claimant,original.posted.payslipIds[0])).toEqual(original.slip);
+  await expect(createPayrollRun(f.owner,payrollRunSchema.parse({payGroupId:e.group,countryPackId:packId,periodStart:"2026-10-01",periodEnd:"2026-10-31",payDate:"2026-11-01",currency:"THB",mode:"production"}),key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});
 });

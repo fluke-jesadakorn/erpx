@@ -1,8 +1,9 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Button } from "@/components/ui/foundation";
 
 import { useHydrated } from "@/components/ui/use-hydrated";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { DraftFormDrawer } from "@/components/ui/draft-form-drawer";
 import dynamic from "next/dynamic";
@@ -10,7 +11,7 @@ const ExpenseEditor = dynamic(() => import("@/components/people_payroll/expense-
 const LeaveEditor = dynamic(() => import("@/components/people_payroll/self-service/leave-editor").then(module => module.LeaveEditor), { ssr: false });
 const RequestEditor = dynamic(() => import("./request-controls").then(module => module.RequestEditor), { ssr: false });
 import { workFetch } from "@/lib/work_projection/work-fetch";
-type Intake = {kind:"expense";options:ComponentProps<typeof ExpenseEditor>["options"]}|{kind:"leave";summary:{balances:ComponentProps<typeof LeaveEditor>["types"];setupMessage:string|null};companyId:string;userId:string;assignmentId:string}|{kind:"purchase_request"|"service_request";options:ComponentProps<typeof RequestEditor>["options"]};
+type Intake = {kind:"expense";options:ComponentProps<typeof ExpenseEditor>["options"]}|{kind:"leave";summary:{balances:ComponentProps<typeof LeaveEditor>["types"];setupMessage:string|null;purchase:ComponentProps<typeof LeaveEditor>["purchase"]};workContext:string;companyId:string;userId:string;assignmentId:string}|{kind:"purchase_request"|"service_request";options:ComponentProps<typeof RequestEditor>["options"]};
 import { Dialog } from "@/components/ui/dialog";
 import { newWorkHref, type WorkCreation } from "@/lib/work_projection/work-cards";
 import { requestActions } from "@/lib/work_projection/request-actions";
@@ -58,7 +59,7 @@ export function NewWork({
       if(event.defaultPrevented||event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
       const link=(event.target as Element)?.closest?.("a");if(!link||link.target==="_blank"||link.hasAttribute("download"))return;
       const url=new URL(link.href,location.origin);if(url.origin!==location.origin)return;
-      const kind=url.pathname===`${base}/expenses/new`?"expense":url.pathname===`${base}/leave/new`?"leave":url.pathname===`${base}/requests/new`&&!url.searchParams.has("from")?(url.searchParams.get("kind")==="service"?"service_request":url.searchParams.get("kind")==="purchase"?"purchase_request":null):null;
+      const kind=url.pathname===canonicalUiHref(`${base}/expenses/new`)?"expense":url.pathname===canonicalUiHref(`${base}/leave/new`)?"leave":url.pathname===canonicalUiHref(`${base}/requests/new`)&&!url.searchParams.has("from")?(url.searchParams.get("kind")==="service"?"service_request":url.searchParams.get("kind")==="purchase"?"purchase_request":null):null;
       if(!kind)return;
       event.preventDefault();void launch({kind,label:descriptions[kind][0],href:link.href});
     };
@@ -106,7 +107,7 @@ export function NewWork({
           {error&&<p role="alert">{error}</p>}
           {!intake&&!error&&<p role="status">Loading your request…</p>}
           {intake?.kind==="expense"&&<ExpenseEditor base={base} options={intake.options} initialOpen returnTo={current}/>}
-          {intake?.kind==="leave"&&<>{intake.summary.setupMessage&&<p role="status">{intake.summary.setupMessage} Contact HR to link your engagement and policy.</p>}<LeaveEditor base={base} companyId={intake.companyId} userId={intake.userId} assignmentId={intake.assignmentId} types={intake.summary.balances} returnTo={current}/></>}
+          {intake?.kind==="leave"&&<>{intake.summary.setupMessage&&<p role="status">{intake.summary.setupMessage} Contact HR to link your engagement and policy.</p>}<LeaveEditor key={intake.workContext} base={base} workContext={intake.workContext} purchase={intake.summary.purchase} companyId={intake.companyId} userId={intake.userId} assignmentId={intake.assignmentId} types={intake.summary.balances} returnTo={current}/></>}
           {(intake?.kind==="purchase_request"||intake?.kind==="service_request")&&<RequestEditor base={base} kind={intake.kind==="purchase_request"?"purchase":"service"} options={intake.options} returnTo={current}/>}
         </div>
       </DraftFormDrawer>

@@ -16,6 +16,7 @@ import { socialPostScope } from '../public/social-source';
 import type { WorkContext } from '../../identity_access/public/authorization';
 import type { FeedFilter } from '../domain/social';
 import { createSocialApplication, type SocialRepository } from '../application/social';
+import {workSocialReadScope,withWorkSocialCommand} from './work-social-purchases';
 async function inward<T>(action: () => Promise<T>) { try {
     return await action();
 }
@@ -48,7 +49,7 @@ function filterSql(filter: FeedFilter) {
       WHERE pt.post_id=p.id AND f.principal_id=?))`;
     return "";
 }
-function application(db: SqlDatabase) {
+function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSocialReadScope>>={prefix:'',where:'TRUE',args:[]}) {
     const repository: SocialRepository<SqlStatement> = { prepareMention(ownerType: "post" | "comment", ownerId: string, kind: "person" | "record", targetId: string, label: string, userId: string, now: number) { return db.prepare(`INSERT INTO social_mentions(owner_type,owner_id,target_kind,target_id,target_label,created_by,created_at) VALUES(?,?,?,?,?,?,?)`).bind(ownerType, ownerId, kind, targetId, label, userId, now); }, preparePost(id: string, value: "record" | "team", userId: string, name: string, companyId: string, branchId: string | null, value2: null, body: string, value3: "people_payroll" | null, value4: string | null, linkedLabel: string | null, value5: "published", value6: 1, commandId: string, now: number, now2: number, value7: "branch" | "company") {
             return db.prepare(`INSERT INTO social_posts(id,kind,author_id,author_name,company_id,branch_id,department_id,body,linked_module,
       linked_record_id,linked_record_label,state,version,last_command_id,created_at,updated_at,audience_kind)
@@ -82,15 +83,15 @@ function application(db: SqlDatabase) {
     return createSocialApplication({ repository, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, sha256, commit: effects => db.batch(effects), async feed(context, filter) {
             const scope = scopeSql(context);
             const followingBindings = filter === "following" ? [context.userId, context.userId, context.userId] : [];
-            const response = await db.prepare(`SELECT p.*,
+            const response = await db.prepare(`${purchase.prefix}SELECT p.*,
       (SELECT count(*) FROM social_reactions r WHERE r.post_id=p.id AND r.kind='appreciate') AS appreciation_count,
       (SELECT count(*) FROM social_comments c WHERE c.post_id=p.id AND c.state='published') AS comment_count,
       EXISTS(SELECT 1 FROM social_reactions r WHERE r.post_id=p.id AND r.principal_id=? AND r.kind='appreciate') AS appreciated,
       EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type='post' AND f.target_id=p.id) AS followed,
-      COALESCE((SELECT group_concat(pt.tag, ',') FROM social_post_topics pt WHERE pt.post_id=p.id),'') AS topic_list
-    FROM social_posts p WHERE ${scope.sql}${filterSql(filter)}
+      COALESCE((SELECT string_agg(pt.tag, ',' ORDER BY pt.tag) FROM social_post_topics pt WHERE pt.post_id=p.id),'') AS topic_list
+    FROM social_posts p WHERE ${scope.sql}${filterSql(filter)} AND ${purchase.where}
     ORDER BY p.created_at DESC LIMIT 30`)
-                .bind(context.userId, context.userId, ...scope.bindings, ...followingBindings)
+                .bind(...purchase.args,context.userId, context.userId, ...scope.bindings, ...followingBindings)
                 .all<Record<string, unknown>>();
             const rows = response.results;
             const commentStatements = rows.map((row) => db.prepare(`SELECT id,post_id,author_id,author_name,body,created_at
@@ -99,27 +100,27 @@ function application(db: SqlDatabase) {
             return { rows, comments };
         }, async stories(context) {
             const scope = scopeSql(context, "social_stories");
-            const result = await db.prepare(`SELECT id,author_id,author_name,title,body,theme,branch_id,version,created_at
-    FROM social_stories WHERE ${scope.sql} ORDER BY created_at DESC LIMIT 20`)
-                .bind(...scope.bindings).all<Record<string, unknown>>();
+            const result = await db.prepare(`${purchase.prefix}SELECT id,author_id,author_name,title,body,theme,branch_id,version,created_at
+    FROM social_stories WHERE ${scope.sql} AND ${purchase.where} ORDER BY created_at DESC LIMIT 20`)
+                .bind(...purchase.args,...scope.bindings).all<Record<string, unknown>>();
             return result;
         }, async visiblePost(context, id) {
             const scope = scopeSql(context);
-            const post = await db.prepare(`SELECT id,version FROM social_posts p WHERE p.id=? AND ${scope.sql}`)
-                .bind(id, ...scope.bindings).first<{
+            const post = await db.prepare(`${purchase.prefix}SELECT id,version FROM social_posts p WHERE p.id=? AND ${scope.sql} AND ${purchase.where}`)
+                .bind(...purchase.args,id, ...scope.bindings).first<{
                 id: string;
                 version: number;
             }>();
             return post;
         }, mentionPrincipal: async (id) => (await collaborationMentionPrincipals((await runtimeEnv()).CONTROL_DB, [id]))[0] ?? null, linkedLeave: (...args) => inward(() => getLeave(...args)), getRecord: (...args) => inward(() => getRecord(...args)), flagGuard(key, type, post, user, active) { const table = type === 'reaction' ? 'social_reactions' : 'social_follows', predicate = type === 'reaction' ? "post_id=? AND principal_id=? AND kind='appreciate'" : "target_id=? AND principal_id=? AND target_type='post'"; return assertion(db, key, type, `${active ? 'EXISTS' : 'NOT EXISTS'}(SELECT 1 FROM ${table} WHERE ${predicate})`, [post, user]); } });
 }
-export function listFeed(holdingId: string, context: WorkContext, filter: FeedFilter = "all") { return holdingResources(holdingId).then(({ write: db }) => exposed(() => application(db).listFeed(holdingId, context, filter))); }
-export function listStories(holdingId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => exposed(() => application(db).listStories(holdingId, context))); }
-export function createPost(holdingId: string, input: z.infer<typeof createPostSchema>, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => exposed(() => application(db).createPost(holdingId, input, commandId, context))); }
-export function createComment(holdingId: string, postId: string, input: z.infer<typeof createCommentSchema>, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => exposed(() => application(db).createComment(holdingId, postId, input, commandId, context))); }
-export function setAppreciation(holdingId: string, postId: string, active: boolean, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => exposed(() => application(db).setAppreciation(holdingId, postId, active, commandId, context))); }
-export function setFollow(holdingId: string, postId: string, active: boolean, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => exposed(() => application(db).setFollow(holdingId, postId, active, commandId, context))); }
-export function createStory(holdingId: string, input: z.infer<typeof createStorySchema>, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => exposed(() => application(db).createStory(holdingId, input, commandId, context))); }
-export function archiveStory(holdingId: string, storyId: string, expectedVersion: number, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => exposed(() => application(db).archiveStory(holdingId, storyId, expectedVersion, commandId, context))); }
+export function listFeed(holdingId: string, context: WorkContext, filter: FeedFilter = "all") { return holdingResources(holdingId).then(async({ write: db }) => exposed(() => workSocialReadScope(db,context).then(scope=>application(db,scope).listFeed(holdingId, context, filter)))); }
+export function listStories(holdingId: string, context: WorkContext) { return holdingResources(holdingId).then(async({ write: db }) => exposed(() => workSocialReadScope(db,context,true).then(scope=>application(db,scope).listStories(holdingId, context)))); }
+export function createPost(holdingId: string, input: z.infer<typeof createPostSchema>, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => withWorkSocialCommand(db,context,{key:commandId,operation:'social.post.publish',type:'post',purpose:'new-work'},tx=>exposed(() => application(tx).createPost(holdingId, input, commandId, context)))); }
+export function createComment(holdingId: string, postId: string, input: z.infer<typeof createCommentSchema>, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => withWorkSocialCommand(db,context,{key:commandId,operation:'social.comment.publish',type:'post',id:postId,purpose:'settle-existing'},async tx=>exposed(() => workSocialReadScope(tx,context).then(scope=>application(tx,scope).createComment(holdingId, postId, input, commandId, context))))); }
+export function setAppreciation(holdingId: string, postId: string, active: boolean, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => withWorkSocialCommand(db,context,{key:commandId,operation:'social.post.appreciate',type:'post',id:postId,purpose:active?'new-work':'settle-existing'},async tx=>exposed(() => workSocialReadScope(tx,context).then(scope=>application(tx,scope).setAppreciation(holdingId, postId, active, commandId, context))))); }
+export function setFollow(holdingId: string, postId: string, active: boolean, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => withWorkSocialCommand(db,context,{key:commandId,operation:'social.post.follow',type:'post',id:postId,purpose:active?'new-work':'settle-existing'},async tx=>exposed(() => workSocialReadScope(tx,context).then(scope=>application(tx,scope).setFollow(holdingId, postId, active, commandId, context))))); }
+export function createStory(holdingId: string, input: z.infer<typeof createStorySchema>, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => withWorkSocialCommand(db,context,{key:commandId,operation:'social.story.publish',type:'story',purpose:'new-work'},tx=>exposed(() => application(tx).createStory(holdingId, input, commandId, context)))); }
+export function archiveStory(holdingId: string, storyId: string, expectedVersion: number, commandId: string, context: WorkContext) { return holdingResources(holdingId).then(({ write: db }) => withWorkSocialCommand(db,context,{key:commandId,operation:'social.story.archive',type:'story',id:storyId,purpose:'settle-existing'},tx=>exposed(() => application(tx).archiveStory(holdingId, storyId, expectedVersion, commandId, context)))); }
 export { feedFilterSchema, createPostSchema, createCommentSchema, setActiveSchema, createStorySchema } from '../domain/social';
 export type { FeedFilter, SocialComment, SocialPost } from '../domain/social';

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { billingMonth } from "@/lib/billing/billing";
 import { requestedHoldingScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { readTargetBillingPeriod } from "@/server/modules/billing/public/billing-target";
@@ -21,7 +22,7 @@ export async function GET(request: Request, context: { params: Promise<{ holding
       throw new ApiError(422, "INVALID_MONTH", "Use a month in YYYY-MM format.");
     const db = (await runtimeEnv()).CONTROL_DB as PostgresDatabase;
     const view = await readTargetBillingPeriod(db, actor.holdingId, month);
-    return Response.json({ data: {
+    return Response.json(canonicalDestinationLinks({ data: {
       holdingId: view.holdingId,
       month: view.month,
       assignment: view.assignment,
@@ -62,6 +63,6 @@ export async function GET(request: Request, context: { params: Promise<{ holding
       totalSatang: view.totalSatang,
       invoice: view.invoice,
       state: view.state,
-    } }, { headers: { "Cache-Control": "private, no-store" } });
+    } }), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

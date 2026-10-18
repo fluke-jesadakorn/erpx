@@ -17,6 +17,7 @@ import {migrateDatabase} from "../../src/server/modules/runtime/adapters/runtime
 import {generalCompanyDemoGuide} from "../../fixtures/shared/builders/general-company-demo";
 import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders/scoped-browser-staff";
 import {runtimeSourceFingerprint} from './source-fingerprint';
+import {copyReleaseArtifact} from './copy-release-artifact';
 import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence} from '../testing/browser-fixture-metadata';
 import {browserChildEnvironment} from '../testing/runner-environment';
 const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=Number(process.env.ERPX_BROWSER_SIMULATION_PORT??'3102');
@@ -36,7 +37,9 @@ const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holdi
 const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?(process.env.ERPX_BROWSER_SIMULATION_RUN_ID??randomBytes(6).toString('hex')):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
+type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
+const productHosts=process.env.ERPX_BROWSER_SIMULATION_PRODUCT_HOSTS==='1';
+if(productHosts&&(port!==3104||!process.env.ERPX_PRODUCT_HOST_PLAN||!process.env.ERPX_PRODUCT_HOST_PLAN_SHA256))throw Error('EXPLICIT_PRODUCT_HOST_ARM_REQUIRED');
 const localAttachmentMode=process.env.ERPX_BROWSER_SIMULATION_ATTACHMENTS==='local';
 const localJobsEnabled=process.env.ERPX_BROWSER_SIMULATION_JOBS==='1';
 const legalDemoEnabled=process.env.ERPX_BROWSER_SIMULATION_LEGAL==='1';
@@ -110,12 +113,12 @@ if(mode==='prepare'||diagnostic){
  const sourceFingerprint=await runtimeSourceFingerprint(root);
  if(process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT&&process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT!==sourceFingerprint)
   throw new Error('BROWSER_FIXTURE_COMPILED_SOURCE_MISMATCH');
- await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint};await writePrivate(statePath,state);
+ await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint,...(productHosts?{productHosts:true}:{})};await writePrivate(statePath,state);
  const templateRun=process.env.ERPX_BROWSER_SIMULATION_TEMPLATE_RUN;
  if(templateRun){
   if(!/^[a-f0-9]{12}$/.test(templateRun)||templateRun===run)throw new Error('EXACT_BROWSER_TEMPLATE_RUN_REQUIRED');
   const templateDirectory=join(parent,templateRun),template=JSON.parse(await readFile(join(templateDirectory,'state.json'),'utf8')) as State;
-  if(template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
+  if(template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||Boolean(template.productHosts)!==productHosts||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
   if(Boolean(template.providerFixture)!==pmsProviderFixtureEnabled)throw new Error('FROZEN_PROVIDER_TEMPLATE_SETTING_REQUIRED');
   const templateManifest=JSON.parse(await readFile(join(templateDirectory,'databases.json'),'utf8')) as {version:number;databases:Record<string,string>;slots:Array<{id:string;write:string;read:string;files:string;internal?:boolean}>};
   for(const [binding,value] of Object.entries(templateManifest.databases)){
@@ -173,6 +176,9 @@ if(mode==='prepare'||diagnostic){
  // leaves omitted deployment credentials behind; native seed commands must
  // use this cohort's private local files and explicitly declared adapters.
  const nativeEnvironment=browserChildEnvironment(process.env,safeEnv(secret));
+ // Reuse the unchanged native compatibility fixture constructor, without inherited installed modes.
+ // This seed is not purchased-product proof; the new compiled runtime below is enforced.
+ if(productHosts)for(const name of Object.keys(nativeEnvironment))if(/^ERPX_(?:PRODUCT_(?:ROUTING|SSO|ENVIRONMENT)|CONSOLE_RETIRED|[A-Z_]+_PACKAGE_ENFORCEMENT)$/.test(name))delete nativeEnvironment[name];
  for(const name of Object.keys(process.env))if(!(name in nativeEnvironment))delete process.env[name];
  Object.assign(process.env,nativeEnvironment);
  const {getRuntime,closeRuntime}=await import("../../src/server/modules/runtime/adapters/runtime/env"),env=getRuntime();
@@ -437,6 +443,13 @@ if(mode==='prepare'||diagnostic){
  console.log(JSON.stringify({run,origin,statePath,credentialsPath:join(directory,'credentials.json'),guidePath:join(directory,'demo-guide.json'),hospitalityGuidePath:join(directory,'hospitality-guide.json'),ready:true}));
 }else if(mode==='start'){
  const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(state.diagnostic||!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const environment=safeEnv(secret);
+ if(Boolean(state.productHosts)!==productHosts)throw Error('PRODUCT_HOST_MODE_CHANGED');
+ if(productHosts){
+  const armPath=resolve(process.env.ERPX_PRODUCT_HOST_PLAN!),raw=await readFile(armPath),arm=JSON.parse(raw.toString());
+  if(!armPath.startsWith(join(root,'.scratch/dev/'))||await realpath(armPath)!==armPath||createHash('sha256').update(raw).digest('hex')!==process.env.ERPX_PRODUCT_HOST_PLAN_SHA256||arm.enabled!==true||arm.expiresAt<=Date.now()||arm.runtimeFingerprint!==state.sourceFingerprint||!process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR||arm.allowIsolatedNormalMfa!==true||arm.allowIsolatedNormalCommercial!==true)throw Error('CURRENT_PRODUCT_HOST_ARM_REQUIRED');
+  Object.assign(environment,{ERPX_PRODUCT_ROUTING:'enabled',ERPX_PRODUCT_SSO:'enabled',ERPX_PRODUCT_ENVIRONMENT:'development',ERPX_CONSOLE_RETIRED:'enabled'});
+  for(const owner of ['WORK','SUPPORT','SERVICE','POS','PMS','FINANCE','PEOPLE','COMMERCE','PROJECTS','ASSETS','LEARNING','MANUFACTURING','TALENT','LEGAL'])Object.assign(environment,{[`ERPX_${owner}_PACKAGE_ENFORCEMENT`]:'enforced'});
+ }
  assertCohortManifest(JSON.parse(await readFile(manifestPath,'utf8')));
  if(localAttachmentMode){
   const required=[environment.ERPX_CLAMD_SOCKET,environment.ERPX_CLAMAV_DATABASE_DIR,environment.ERPX_HEIF_CONVERT,environment.ERPX_PDFTOPPM_BIN];
@@ -462,7 +475,7 @@ if(mode==='prepare'||diagnostic){
    const path=resolve(releaseRoot,name);if(!path.startsWith(releaseRoot+'/')||createHash('sha256').update(await readFile(path)).digest('hex')!==digest)
     throw new Error('RELEASE_FILE_CHECKSUM_MISMATCH');
   }
-  workingDirectory=join(directory,'release');await cp(releaseRoot,workingDirectory,{recursive:true,mode:constants.COPYFILE_FICLONE});
+  workingDirectory=join(directory,'release');await copyReleaseArtifact(releaseRoot,workingDirectory);
   webEntrypoint=join(workingDirectory,'server.js');jobsBundle=join(workingDirectory,'tools/jobs.mjs');webArgs=[webEntrypoint];
   Object.assign(environment,{NODE_ENV:'production',PORT:String(port),HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId});
   Object.assign(environment,{ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint});

@@ -1,0 +1,47 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment."
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it."
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Read-only per-Company comparison, signed five-minute review, expected Company/member versions, fresh MFA, same normal Commercial transaction and immutable per-grant/batch/review audit; stale policy and replay guards implemented."
+    }
+  ],
+  "checkpoint": "docs/testing/evidence/2026-10-14-commercial-compatibility-dfaba.json",
+  "checkpointSha256": "8e69426cef5ceb76ca50611721e249c0c56055b1836756b8d3a7e19cbe0d0e1f",
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "limits": [
+    "No live Company grants applied or enforcement activated",
+    "Browser Apply/MFA completion and dirty-draft cancellation still need acceptance",
+    "Whole current regression and all owner/public workflows remain required"
+  ]
+}

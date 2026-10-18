@@ -1,10 +1,11 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/components/workplace/workspace-link";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import type { leaveAdministration } from "@/server/modules/people_payroll/public/leave-self-service";
@@ -182,7 +183,7 @@ export function LeavePolicyWizard({ appearance = "legacy",
       attempt.current = null;
       if (onSaved) await onSaved();
       else {
-        router.push(`${base}/people/settings?section=leave`);
+        router.push(canonicalUiHref(`${base}/people/settings?section=leave`));
         router.refresh();
       }
     } catch (cause) {
@@ -282,7 +283,7 @@ export function LeavePolicyWizard({ appearance = "legacy",
                   Cancel
                 </Button>
               ) : (
-                <UiActionLink appearance={appearance} variant="secondary" href={`${base}/people/settings?section=leave`}>
+                <UiActionLink appearance={appearance} variant="secondary" href={canonicalUiHref(`${base}/people/settings?section=leave`)}>
                   Cancel
                 </UiActionLink>
               )}
@@ -339,7 +340,7 @@ export function LeavePolicyWizard({ appearance = "legacy",
             {types.length === 0 && (
               <p data-ui-appearance={appearance}>
                 No leave types exist yet.{" "}
-                <Link href={`${base}/people/settings?section=leave`}>
+                <Link href={canonicalUiHref(`${base}/people/settings?section=leave`)}>
                   Create a leave type first.
                 </Link>
               </p>

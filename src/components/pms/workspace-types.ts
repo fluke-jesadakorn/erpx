@@ -15,6 +15,8 @@ export type Send = (
   input: unknown,
   version?: number,
   attachmentSetIds?: string[],
+  onAcknowledged?: () => void,
+  onEditableRejected?: () => void,
 ) => Promise<boolean>;
 export type ActionAttachment = {
   base: string;

@@ -1,3 +1,4 @@
+import {withFinancePurchasedCommand} from "./purchase-boundary";
 import { financeOwnerDecisionEffects } from "../../workflow/public/finance-owner-decision-effects";
 import { createBillingCorrections } from '../application/billing-corrections';
 import { billingCorrectionSchema, billingCorrectionDecisionSchema, type Row } from '../domain/billing-corrections';
@@ -20,17 +21,17 @@ import { prepareOwnedJournalReversal } from "@/server/modules/finance/public/fin
 import { snapshotMoneyReversal } from "@/server/modules/finance/public/company-money";
 import { refundNotifications } from "@/server/modules/finance/public/refund-notifications";
 export { billingCorrectionSchema, billingCorrectionDecisionSchema } from '../domain/billing-corrections';
-export async function prepareBillingCorrection(actor: WorkContext, billId: string, raw: z.input<typeof billingCorrectionSchema>, key: string) { return correctionService().prepareBillingCorrection(actor, billId, raw, key); }
+export async function prepareBillingCorrection(actor: WorkContext, billId: string, raw: z.input<typeof billingCorrectionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.billing-correction.prepare",purpose:"settle-existing"},tx=>correctionService(tx,Boolean(tx)).prepareBillingCorrection(actor,billId,raw,key)); }
 export function decideBillingCorrection(actor:WorkContext,id:string,raw:z.input<typeof billingCorrectionDecisionSchema>,action:'post',key:string):Promise<import('../application/billing-corrections').PostedBillingCorrectionResult>;
 export function decideBillingCorrection(actor:WorkContext,id:string,raw:z.input<typeof billingCorrectionDecisionSchema>,action:'reject',key:string):Promise<import('../application/billing-corrections').CommitRejectResult>;
 export function decideBillingCorrection(actor:WorkContext,id:string,raw:z.input<typeof billingCorrectionDecisionSchema>,action:'post'|'reject',key:string):Promise<import('../application/billing-corrections').PostedBillingCorrectionResult|import('../application/billing-corrections').CommitRejectResult>;
-export async function decideBillingCorrection(actor: WorkContext, id: string, raw: z.input<typeof billingCorrectionDecisionSchema>, action: 'post' | 'reject', key: string) { return correctionService().decideBillingCorrection(actor, id, raw, action, key); }
-function correctionService() {
+export async function decideBillingCorrection(actor: WorkContext, id: string, raw: z.input<typeof billingCorrectionDecisionSchema>, action: 'post' | 'reject', key: string) { return withFinancePurchasedCommand(actor,{key,operation:`finance.billing-correction.${action}`,purpose:"settle-existing"},tx=>correctionService(tx,Boolean(tx)).decideBillingCorrection(actor,id,raw,action,key)); }
+function correctionService(provided?:SqlDatabase,providedOwned=false) {
     let pending: Promise<SqlDatabase> | undefined, owned: SqlDatabase | undefined;
-    const database = (actor: WorkContext) => owned ? Promise.resolve(owned) : pending ??= holdingResources(actor.holdingId).then(r => r.write);
+    const database = (actor: WorkContext) => owned ? Promise.resolve(owned) : provided?Promise.resolve(provided):pending ??= holdingResources(actor.holdingId).then(r => r.write);
     let steps: SqlStatement[] = [];
     const credits = new Map<string, Awaited<ReturnType<typeof prepareJournal>>>();
-    return createBillingCorrections({ error: (...args) => new ApiError(...args), permission: requirePermission, ready: async (actor) => { await database(actor); }, transaction: async <Result>(actor: WorkContext, work: () => Promise<Result>) => financeTransaction(await database(actor), async (tx) => { owned = tx; try {
+    return createBillingCorrections({ error: (...args) => new ApiError(...args), permission: requirePermission, ready: async (actor) => { await database(actor); }, transaction: async <Result>(actor: WorkContext, work: () => Promise<Result>) => providedOwned?work():financeTransaction(await database(actor), async (tx) => { owned = tx; try {
             return await work();
         }
         finally {

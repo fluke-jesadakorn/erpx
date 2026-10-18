@@ -1,3 +1,5 @@
+import {qualitySourceAccess,requireQualityPurchasedRead,withQualityPurchasedCommand,withQualityPurchasedSweep} from "./purchases";
+import {acknowledgeSchema} from "../domain/alerts";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "../../commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as identity_accessProjectionSources } from "../../identity_access/public/commercial-owner-projection-sources";
 import {routeQualityAlertNotifications} from '../../collaboration/public/quality-notifications';
@@ -36,7 +38,7 @@ const scopeArgs = (actor: WorkContext) => [
 ];
 
 
-function application(actor:WorkContext){let resource:Promise<SqlDatabase>|null=null;return createQualityAlertApplication({departmentScope:Boolean(actor.departmentId),userId:actor.userId,authorizeRead:()=>requirePermission(actor,'quality.read'),can:permission=>hasPermission(actor,permission),clock:{now:()=>Date.now()},repository:async()=>repository(await (resource??=holdingResources(actor.holdingId).then(r=>r.write)),actor)});}
+function application(actor:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;return createQualityAlertApplication({departmentScope:Boolean(actor.departmentId),userId:actor.userId,authorizeRead:()=>requirePermission(actor,'quality.read'),can:permission=>hasPermission(actor,permission),clock:{now:()=>Date.now()},repository:async()=>repository(await (resource??=holdingResources(actor.holdingId).then(r=>r.write)),actor)});}
 function repository(write:SqlDatabase,actor:WorkContext):QualityAlertRepository{return {async alerts(){return (
     await write
       .prepare(
@@ -87,16 +89,16 @@ function repository(write:SqlDatabase,actor:WorkContext):QualityAlertRepository{
     { companyId: alert.company_id, branchId: alert.branch_id, departmentId: null },
   );
 }};}
-function sweepRepository(db:SqlDatabase):QualityAlertSweepRepository{return {async dueSoon(now,today,horizon){const result = await db
+function sweepRepository(db:SqlDatabase,selected?:{companyId:string;holdIds:string[]}):QualityAlertSweepRepository{const filter=selected?" AND h.company_id=? AND h.id IN (SELECT jsonb_array_elements_text(?::jsonb))":"",args=selected?[selected.companyId,JSON.stringify(selected.holdIds)]:[];return {async dueSoon(now,today,horizon){const result = await db
     .prepare(
       `INSERT INTO inventory_quality_alerts(id,hold_id,phase,source_version,due_date,detected_at)
        SELECT 'quality-alert-due-soon-'||h.id,h.id,'due_soon',h.version,h.due_date::date,?
        FROM inventory_quality_holds h
        WHERE h.status NOT IN ${terminal} AND h.due_date>=? AND h.due_date<=?
-         AND ${scheduledFeaturePredicate("h.company_id", "quality")}
+         AND ${scheduledFeaturePredicate("h.company_id", "quality")}${filter}
        ON CONFLICT DO NOTHING`,
     )
-    .bind(now, today, horizon)
+    .bind(now, today, horizon,...args)
     .run();
   return Number(result.meta.changes??0);},async overdue(now,today){const result = await db
     .prepare(
@@ -104,17 +106,15 @@ function sweepRepository(db:SqlDatabase):QualityAlertSweepRepository{return {asy
        SELECT 'quality-alert-overdue-'||h.id,h.id,'overdue',h.version,h.due_date::date,?
        FROM inventory_quality_holds h
        WHERE h.status NOT IN ${terminal} AND h.due_date<?
-         AND ${scheduledFeaturePredicate("h.company_id", "quality")}
+         AND ${scheduledFeaturePredicate("h.company_id", "quality")}${filter}
        ON CONFLICT DO NOTHING`,
     )
-    .bind(now, today)
+    .bind(now, today,...args)
     .run();
-return Number(result.meta.changes??0);},async notify(now){await routeQualityAlertNotifications(db,now);}};}
+return Number(result.meta.changes??0);},async notify(now){await routeQualityAlertNotifications(db,now,selected);}};}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
-export function drainQualityAlerts(db:SqlDatabase,now=Date.now(),warningWindowMs=86_400_000){return sweepQualityAlerts(sweepRepository(db),now,warningWindowMs);}
-export function qualityAlerts(actor:WorkContext){return translated(()=>application(actor).qualityAlerts());}
-export function getQualityAlert(actor:WorkContext,id:string){return translated(()=>application(actor).getQualityAlert(id));}
-export function acknowledgeQualityAlert(actor:WorkContext,id:string,raw:unknown,key:string){return translated(()=>application(actor).acknowledgeQualityAlert(id,raw,key));}
-export function qualityAlertWork(actor:WorkContext){return translated(()=>application(actor).qualityAlertWork());}
-
-
+export function drainQualityAlerts(db:SqlDatabase,now=Date.now(),warningWindowMs=86_400_000){return withQualityPurchasedSweep(db,(database,scope)=>sweepQualityAlerts(sweepRepository(database,scope),now,warningWindowMs),results=>results.reduce((sum,result)=>({dueSoon:sum.dueSoon+result.dueSoon,overdue:sum.overdue+result.overdue}),{dueSoon:0,overdue:0}));}
+export async function qualityAlerts(actor:WorkContext){const {write}=await holdingResources(actor.holdingId),rows=await translated(()=>application(actor,write).qualityAlerts()),visible:Alert[]=[];for(const row of rows){const access=await qualitySourceAccess(write,actor,row.hold_id);if(!access||access.history)visible.push(row);}return visible;}
+export async function getQualityAlert(actor:WorkContext,id:string){const {write}=await holdingResources(actor.holdingId),row=await translated(()=>application(actor,write).getQualityAlert(id));await requireQualityPurchasedRead(write,actor,row.hold_id);return row;}
+export async function acknowledgeQualityAlert(actor:WorkContext,id:string,raw:unknown,key:string){const {write}=await holdingResources(actor.holdingId),input=acknowledgeSchema.parse(raw);return withQualityPurchasedCommand(write,actor,{key,operation:"quality.alert.acknowledge",target:{kind:"alert",id},purpose:"settle-existing",permissions:[hasPermission(actor,"quality.release")?"quality.release":"quality.inspect"],existing:true},database=>translated(()=>application(actor,database).acknowledgeQualityAlert(id,input,key)));}
+export async function qualityAlertWork(actor:WorkContext){if(!hasPermission(actor,"quality.read")||actor.departmentId)return [];const {write}=await holdingResources(actor.holdingId),items=await translated(()=>application(actor,write).qualityAlertWork()),visible:typeof items=[];for(const item of items){const source=item.source?.id;if(!source)continue;const access=await qualitySourceAccess(write,actor,source);if(access&&!access.history)continue;visible.push(!access||access.settleExisting?item:{...item,canAct:false,queue:item.queue==="completed"?"completed":"waiting",relationships:(item.relationships??[]).filter(value=>!["assigned","approval"].includes(value))});}return visible;}

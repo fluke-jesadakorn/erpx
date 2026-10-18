@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { readDailyPlan, saveDailyPlan } from "@/server/modules/work_projection/public/daily-plan";
@@ -16,7 +17,7 @@ export async function GET(request: Request, context: Context) {
     const [{ write }, snapshot] = await Promise.all([
       holdingResources(actor.holdingId), workSnapshot(actor),
     ]);
-    return Response.json({ data: await readDailyPlan(write, actor, date, snapshot) }, { headers });
+    return Response.json(canonicalDestinationLinks({ data: await readDailyPlan(write, actor, date, snapshot) }), { headers });
   } catch (error) {
     return errorResponse(error);
   }
@@ -34,7 +35,7 @@ export async function POST(request: Request, context: Context) {
     const [{ write }, snapshot] = await Promise.all([
       holdingResources(actor.holdingId), workSnapshot(actor),
     ]);
-    return Response.json({ data: await saveDailyPlan(write, actor, input, commandKey, snapshot) }, { headers });
+    return Response.json(canonicalDestinationLinks({ data: await saveDailyPlan(write, actor, input, commandKey, snapshot) }), { headers });
   } catch (error) {
     return errorResponse(error);
   }

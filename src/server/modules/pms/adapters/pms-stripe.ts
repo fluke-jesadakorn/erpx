@@ -14,6 +14,8 @@ import type { Effects } from "@/lib/pms/pms-engine";
 import { createPmsCounterPayment, type PmsCounterPaymentUnit, type PmsCounterPaymentRepository, type Payment } from "../application/pms-stripe";
 import { holdingResources as resolveResources } from "../../runtime/public/runtime";
 import { requirePermission } from "../../identity_access/public/iam-permissions";
+import { requirePmsCounterPurchase, withPmsCounterPurchasedTransaction } from "./counter-purchase-boundary";
+import { requirePmsFinancialRead } from "./property-purchase-boundary";
 function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsCounterPaymentUnit {
     void _whole;
     return {
@@ -258,8 +260,9 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase): PmsCounterPay
         persist: (arg0: Snapshot, arg1: Map<string, string>) => persist(db, arg0, arg1)
     };
 }
-function repository(db: TransactionalSqlDatabase): PmsCounterPaymentRepository { return { ...unit(db, db), transaction: work => db.transaction(tx => work(unit(tx, db))) }; }
-const application = createPmsCounterPayment({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await resolveResources(actor.holdingId)).write), stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args) });
+function repository(db: TransactionalSqlDatabase): PmsCounterPaymentRepository { return { ...unit(db, db), requirePurchase: input => requirePmsCounterPurchase(db, input),
+    transaction: (work, purchase) => purchase ? withPmsCounterPurchasedTransaction(db, purchase, tx => work(unit(tx, db))) : db.transaction(tx => work(unit(tx, db))) }; }
+const application = createPmsCounterPayment({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => { const database=(await resolveResources(actor.holdingId)).write; await requirePmsFinancialRead(database,actor); return unit(database); }, stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args) });
 export function createPmsStripePayment(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string, now = Date.now()) { return application.createPmsStripePayment(repository(db), actor, raw, key, now); }
 export function pmsStripePaymentStatus(db: TransactionalSqlDatabase, actor: WorkContext, id: string, now = Date.now()) { return application.pmsStripePaymentStatus(repository(db), actor, id, now); }
 export function reconcilePmsStripePayment(db: TransactionalSqlDatabase, id: string, now = Date.now()) { return application.reconcilePmsStripePayment(repository(db), id, now); }

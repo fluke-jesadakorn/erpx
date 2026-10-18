@@ -10,12 +10,16 @@ import {requirePermission} from "@/server/modules/identity_access/public/iam-per
 import {ApiError} from "@/server/modules/runtime/public/http";
 import {assertion,executeCommand,replayCommand} from "@/server/modules/workflow/public/commands";
 import {assertProductionModuleEnabled,productionFeatureGuard,scheduledFeaturePredicate} from "@/server/modules/pms/public/hospitality-rollout";
+import {commercePackageEnforcementMode} from '../../commercial/public/purchase-command-boundary';
+import {withSalesNotificationPurchase,requireSalesNotificationRead} from './notification-purchases';
+import {deliverPurchasedCustomerNotification,drainPurchasedCustomerNotifications} from './notification-execution';
 
 
 import {BusinessRuleError} from '../../shared';
 import {createCustomerNotificationApplication,type CustomerNotificationRepository,type CustomerNotificationMutation} from '../application/notifications';
 import {createCustomerDeliveryApplication,type CustomerDeliveryRepository} from '../application/notification-delivery';
 import type {CustomerNotification,CustomerNotificationRetry,CustomerNotificationSettings,CustomerMail} from '../domain/notifications';
+import {customerNotificationSchema,customerNotificationRetrySchema,customerNotificationSettingsSchema} from '../domain/notifications';
 export {customerNotificationSchema,customerNotificationRetrySchema,customerNotificationSettingsSchema} from '../domain/notifications';
 type Row=Record<string,string|number|null>;
 function scoped(actor:WorkContext){return {sql:"o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)",args:[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId]};}
@@ -28,7 +32,7 @@ function notificationSourcePredicate(alias:string) {
       AND p.status='active' AND p.notification_consent='granted' AND lower(p.notification_email)=${alias}.recipient_email
       AND ns.adapter=${alias}.adapter AND ns.adapter IN ('sandbox','resend'))`;
 }
-function application(actor:WorkContext){let resource:Promise<SqlDatabase>|null=null;const database=()=>resource??=holdingResources(actor.holdingId).then(x=>x.write);return createCustomerNotificationApplication({companyId:actor.companyId,authorize:permission=>{requirePermission(actor,permission);},clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},repository:async()=>repository(await database(),actor)});}
+function application(actor:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(actor.holdingId).then(x=>x.write);return createCustomerNotificationApplication({companyId:actor.companyId,authorize:permission=>{requirePermission(actor,permission);},clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},repository:async()=>repository(await database(),actor)});}
 function repository(write:SqlDatabase,actor:WorkContext):CustomerNotificationRepository{const s=scoped(actor);return {
  productionEnabled:()=>assertProductionModuleEnabled(write,actor.companyId,'sales'),settings:async()=> write.prepare("SELECT * FROM commerce_customer_notification_settings WHERE company_id=?").bind(actor.companyId).first<Row>(),delivery:async fulfillmentId=>salesDeliveryNotificationFacts(write,actor,fulfillmentId),existing:async fulfillmentId=>await write.prepare('SELECT id,status FROM commerce_customer_notifications WHERE fulfillment_id=?').bind(fulfillmentId).first<Row>(),lines:async fulfillmentId=>salesDeliveryNotificationLines(write,actor,fulfillmentId),notification:async id=>await write.prepare(`SELECT n.* FROM commerce_customer_notifications n JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=n.order_id WHERE n.id=? AND ${s.sql}`).bind(id,...s.args).first<Row>(),replay:(key,operation,id,input)=>replayCommand(write,actor,key,operation,id,input),commit:m=>commit(write,actor,m),
 };}
@@ -45,10 +49,10 @@ async function commit(write:SqlDatabase,actor:WorkContext,m:CustomerNotification
 }
 }}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
-export function customerNotificationSettings(actor:WorkContext){return translated(()=>application(actor).settings());}
-export function updateCustomerNotificationSettings(actor:WorkContext,input:CustomerNotificationSettings,key:string){return translated(()=>application(actor).updateSettings(input,key));}
-export function queueDeliveryNotification(actor:WorkContext,id:string,input:CustomerNotification,key:string){return translated(()=>application(actor).queue(id,input,key));}
-export function retryCustomerNotification(actor:WorkContext,id:string,input:CustomerNotificationRetry,key:string){return translated(()=>application(actor).retry(id,input,key));}
+export function customerNotificationSettings(actor:WorkContext){return translated(async()=>{const database=(await holdingResources(actor.holdingId)).write;await requireSalesNotificationRead(database,actor);return application(actor,database).settings();});}
+export function updateCustomerNotificationSettings(actor:WorkContext,raw:CustomerNotificationSettings,key:string){return translated(()=>{const input=customerNotificationSettingsSchema.parse(raw);return withSalesNotificationPurchase(actor,{kind:'settings',input,key},database=>application(actor,database).updateSettings(input,key));});}
+export function queueDeliveryNotification(actor:WorkContext,id:string,raw:CustomerNotification,key:string){return translated(()=>{const input=customerNotificationSchema.parse(raw);return withSalesNotificationPurchase(actor,{kind:'queue',id,input,key},database=>application(actor,database).queue(id,input,key));});}
+export function retryCustomerNotification(actor:WorkContext,id:string,raw:CustomerNotificationRetry,key:string){return translated(()=>{const input=customerNotificationRetrySchema.parse(raw);return withSalesNotificationPurchase(actor,{kind:'retry',id,input,key},database=>application(actor,database).retry(id,input,key));});}
 
 function deliveryRepository(db:SqlDatabase):CustomerDeliveryRepository{return {
  lease:async(id,now,leaseUntil)=>await db.prepare(`UPDATE commerce_customer_notifications n SET status='sending',attempts=attempts+1,lease_until=?,updated_at=?
@@ -80,6 +84,6 @@ const response=await send('https://api.resend.com/emails',{method:'POST',headers
 if(!response.ok)throw new Error('CUSTOMER_EMAIL_DELIVERY_FAILED');
 const data=await response.json().catch(()=>({})) as {id?:string};
 return data.id??`resend-${mail.id}`;}});}
-export function deliverCustomerNotification(db:SqlDatabase,env:Pick<JobEnv,'RESEND_API_KEY'|'RESEND_FROM'>,id:string,send:(input:RequestInfo | URL, init?:RequestInit)=>Promise<Response>=fetch,now=Date.now()){return deliveryApplication(db,env,send).deliver(id,now);}
-export function drainCustomerNotifications(db:SqlDatabase,env:Pick<JobEnv,'RESEND_API_KEY'|'RESEND_FROM'>,now=Date.now()){return deliveryApplication(db,env,fetch).drain(now);}
+export async function deliverCustomerNotification(db:SqlDatabase,env:Pick<JobEnv,'RESEND_API_KEY'|'RESEND_FROM'>,id:string,send:(input:RequestInfo | URL, init?:RequestInit)=>Promise<Response>=fetch,now=Date.now()){return await commercePackageEnforcementMode()==='disabled'?deliveryApplication(db,env,send).deliver(id,now):deliverPurchasedCustomerNotification(db,env,id,send,now);}
+export async function drainCustomerNotifications(db:SqlDatabase,env:Pick<JobEnv,'RESEND_API_KEY'|'RESEND_FROM'>,now=Date.now()){return await commercePackageEnforcementMode()==='disabled'?deliveryApplication(db,env,fetch).drain(now):drainPurchasedCustomerNotifications(db,env,now);}
 

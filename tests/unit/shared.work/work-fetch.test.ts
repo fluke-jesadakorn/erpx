@@ -1,3 +1,4 @@
+import { createFinanceCommandFetch } from "../../../src/lib/finance/finance-command-fetch";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { workFetch } from "../../../src/lib/work_projection/work-fetch";
 import {
@@ -5,6 +6,7 @@ import {
   confirmContextSwitch,
   contextGeneration,
   contextIsSwitching,
+  hasUnsavedWork,
   registerUnsavedWork,
   setContextSwitching,
 } from "../../../src/lib/work_projection/context-switch";
@@ -169,6 +171,16 @@ it("asks before discarding registered unsaved work and stops asking once it is u
   expect(confirmContextSwitch()).toBe(true);
   expect(view.confirm).toHaveBeenCalledTimes(1);
 });
+it("reads registered and DOM-marked drafts for an app-owned confirmation without opening a native prompt", () => {
+  expect(hasUnsavedWork()).toBe(false);
+  const stop = registerUnsavedWork(() => true); subscriptions.push(stop);
+  expect(hasUnsavedWork()).toBe(true);
+  stop(); dirtyMarker = true;
+  expect(hasUnsavedWork()).toBe(true);
+  dirtyMarker = false;
+  expect(hasUnsavedWork()).toBe(false);
+  expect(view.confirm).not.toHaveBeenCalled();
+});
 it('identifies the form that actually saved without marking another draft or a failed command saved',async()=>{
  const editor={id:'editor'},attachment={id:'attachment'};let active=editor;
  Object.defineProperty(document,'activeElement',{configurable:true,value:{closest:()=>active}});
@@ -238,4 +250,17 @@ it("also confirms a dirty rendered form and exposes pending state until switchin
   setContextSwitching(false);
   expect(contextIsSwitching()).toBe(false);
   expect(documentElement.dataset.workSwitching).toBe("false");
+});
+
+it("retains a Finance draft through a truncated success and acknowledges only the original version after parsed retry",async()=>{
+ let fields="submitted-finance-fields",finish!:(response:Response)=>void;
+ const form={getAttribute:()=>fields} as unknown as HTMLFormElement;
+ Object.defineProperty(document,"activeElement",{configurable:true,value:{closest:()=>form}});
+ const saved:unknown[]=[],changed=vi.fn();view.addEventListener("erpx:record-command-saved",event=>saved.push((event as CustomEvent).detail));view.addEventListener("erpx:work-changed",changed);
+ const fetcher=vi.fn<(input:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>().mockResolvedValueOnce(new Response("truncated",{status:200})).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));vi.stubGlobal("fetch",fetcher);
+ const request=createFinanceCommandFetch(),url="/api/v1/holdings/acme/finance/calculation-runs",input={method:"POST",body:'{"kind":"cash_flow","input":{"profit":"10"}}'};
+ expect((await request(url,input)).status).toBe(200);expect(saved).toEqual([]);expect(changed).not.toHaveBeenCalled();expect(request.hasAttempt(url,input.body)).toBe(true);
+ const pending=request(url,input);fields="later-finance-edits";finish(Response.json({data:{id:"retained-calculation"}}));await pending;
+ expect(saved).toEqual([{form,formEditVersion:"submitted-finance-fields",financeAcknowledged:true}]);expect(changed).toHaveBeenCalledTimes(1);expect(request.hasAttempt(url,input.body)).toBe(false);
+ const keys=fetcher.mock.calls.map(call=>new Headers(call[1]?.headers).get("Idempotency-Key"));expect(keys[0]).toBe(keys[1]);
 });

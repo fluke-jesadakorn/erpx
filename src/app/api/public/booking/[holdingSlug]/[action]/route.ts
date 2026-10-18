@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import {
   bookingCatalog,
@@ -24,11 +25,11 @@ export async function GET(request: Request, { params }: Context) {
     if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false')
       throw new ApiError(404, "BOOKING_COMING_SOON", "Online booking is not available in the pilot");
     const { holdingSlug, action } = await params;
-    if(action==='reservations')return Response.json({data:await bookingPaymentStatus(await bookingDatabase(holdingSlug),new URL(request.url).searchParams.get('attempt')??'',await bookingEnv())},{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
+    if(action==='reservations')return Response.json(canonicalDestinationLinks({data:await bookingPaymentStatus(await bookingDatabase(holdingSlug),new URL(request.url).searchParams.get('attempt')??'',await bookingEnv())}),{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
     if (action !== "catalog")
       throw new ApiError(404, "NOT_FOUND", "Page not found");
     return Response.json(
-      { data: await bookingCatalog(await bookingDatabase(holdingSlug)) },
+      canonicalDestinationLinks({ data: await bookingCatalog(await bookingDatabase(holdingSlug)) }),
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (e) {
@@ -114,7 +115,7 @@ export async function POST(request: Request, { params }: Context) {
       data = await cancelPublicReservation(db, holdingSlug, token, env);
     else data = await recoverBooking(db, holdingSlug, body, env);
     return Response.json(
-      { data },
+      canonicalDestinationLinks({ data }),
       {
         headers: {
           "Cache-Control": "private, no-store",

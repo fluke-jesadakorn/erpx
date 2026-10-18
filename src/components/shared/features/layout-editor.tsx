@@ -16,7 +16,7 @@ import {
   type HTMLAttributes,
   type ReactNode,
 } from "react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { registerUnsavedWork } from "@/lib/work_projection/context-switch";
 import { resizeGrid } from "@/lib/shared/widget-geometry";
 

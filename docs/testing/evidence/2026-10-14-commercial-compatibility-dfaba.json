@@ -1,0 +1,899 @@
+{
+  "schema": "erpx-commercial-provider-compatibility-checkpoint/v1",
+  "createdAt": "2026-10-14T15:49:59.524857+00:00",
+  "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+  "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68",
+  "release": {
+    "id": "2026-10-14T15-41-41-311Z",
+    "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff"
+  },
+  "scope": "development provider legacy preview and permission compatibility only; full migration remains open",
+  "checks": [
+    {
+      "name": "typecheck",
+      "startedAt": "2026-10-14T15:38:13.866046+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:38:54.125165+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-current-typecheck.log",
+      "logSha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    },
+    {
+      "name": "lint",
+      "startedAt": "2026-10-14T15:38:54.633119+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:39:55.028559+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-current-lint.log",
+      "logSha256": "8f938808979917b124714c53a0d74197d7b7ae453014297508abd1bdbc814c65",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    },
+    {
+      "name": "architecture",
+      "startedAt": "2026-10-14T15:39:55.523567+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:40:05.456361+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-current-architecture.log",
+      "logSha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    },
+    {
+      "name": "catalogue",
+      "startedAt": "2026-10-14T15:40:05.835888+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:40:06.446338+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-current-catalogue.log",
+      "logSha256": "91932b663f37d13d4f7587ef70a123364c3cb7df8daee5d8b0cc6cb67427c23a",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    },
+    {
+      "name": "documentation",
+      "startedAt": "2026-10-14T15:40:06.861919+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:40:07.166009+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-current-documentation.log",
+      "logSha256": "06b9cd7a3c108ff095055c06af97e8aeb44063ea0369c0fc8972660fac625d96",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    },
+    {
+      "name": "products",
+      "startedAt": "2026-10-14T15:40:33.330079+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:40:33.728449+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-resumed-products.log",
+      "logSha256": "dccdd861f3d91d35282eb0a5b965e04d97d1023ebaed3dad13d83455ab5df5fa",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    },
+    {
+      "name": "unit",
+      "startedAt": "2026-10-14T15:40:34.145362+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:41:14.196109+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-resumed-unit.log",
+      "logSha256": "ea4d8dbd2f22d5341971c56cc3c1e33dbea4143b92a1fe3986cfbe63e55da85f",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    },
+    {
+      "name": "focused-postgres",
+      "startedAt": "2026-10-14T15:41:14.702792+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:41:40.741663+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-resumed-focused-postgres.log",
+      "logSha256": "2ca5e256771476e333f7c68b32520a0539e7b2a2059ca87f01e1b94a62390785",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    },
+    {
+      "name": "build",
+      "startedAt": "2026-10-14T15:41:41.237501+00:00",
+      "status": "passed",
+      "exitCode": 0,
+      "endedAt": "2026-10-14T15:45:26.696519+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-resumed-build.log",
+      "logSha256": "aaa550593a4dccd330dfd0f2764a46c7546f269e8e89b376ec9d629f8ad6aac3",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    }
+  ],
+  "failedAttempts": [
+    {
+      "name": "products",
+      "startedAt": "2026-10-14T15:40:07.543582+00:00",
+      "status": "failed",
+      "exitCode": 1,
+      "endedAt": "2026-10-14T15:40:07.960272+00:00",
+      "log": ".scratch/dev/commercial-compatibility-current/compatibility-current-products.log",
+      "logSha256": "02791aee96b3c07251d09a77faf6f6de4d9ae853cac4e8939d01059ea92e7910",
+      "sourceAfter": {
+        "sourceFingerprint": "dfaba27a7bb5b449859abffa358fb3d97b2d2a4a94a7265ec7b0d8bf57aad7ff",
+        "verificationFingerprint": "ee390ad7fd971f1f4465a8d4a1b90cf99e596ad67b0a4bf401072bdbc37abe68"
+      }
+    }
+  ],
+  "failureResolution": "Derived product acceptance register regenerated for the new source, then products check passed; failed first attempt retained.",
+  "unit": {
+    "files": 212,
+    "cases": 2842
+  },
+  "focusedPostgres": {
+    "files": 5,
+    "cases": 41
+  },
+  "fullCurrentCandidateRegressionAccepted": false,
+  "browser": {
+    "companyPreviews": [
+      {
+        "label": "Acme Group · Acme Corporation",
+        "value": "h001:acme-co",
+        "status": 200,
+        "summary": "0 → 38 packages · 252 existing assignments"
+      },
+      {
+        "label": "Acme Group · Acme ร้านตัวอย่าง THB",
+        "value": "h001:acme-pos-thb",
+        "status": 200,
+        "summary": "0 → 38 packages · 10 existing assignments"
+      },
+      {
+        "label": "Acme Group · Beacon Labs",
+        "value": "h001:beacon-co",
+        "status": 200,
+        "summary": "0 → 38 packages · 38 existing assignments"
+      },
+      {
+        "label": "Acme Group · ERPX Engineering Demo · Fictional Company",
+        "value": "h001:expense-9142f115-14c4-45aa-b941-1e0110343a27",
+        "status": 200,
+        "summary": "0 → 38 packages · 20 existing assignments"
+      },
+      {
+        "label": "Acme Group · Expense test",
+        "value": "h001:expense-4bfac74c-28ec-48b2-9095-6a931aecd221",
+        "status": 200,
+        "summary": "0 → 6 packages · 14 existing assignments"
+      },
+      {
+        "label": "Acme Group · Expense test",
+        "value": "h001:expense-76b05650-5c6b-4fce-8fb8-256c4709ae77",
+        "status": 200,
+        "summary": "0 → 6 packages · 14 existing assignments"
+      },
+      {
+        "label": "Acme Group · Expense test",
+        "value": "h001:expense-a67543f2-67e9-4520-9a13-9d916461097a",
+        "status": 200,
+        "summary": "0 → 6 packages · 14 existing assignments"
+      },
+      {
+        "label": "Acme Group · Finance engineering rehearsal · Companion Company",
+        "value": "h001:expense-809aac55-96c0-4f63-ad8c-fa09b7c1b722",
+        "status": 200,
+        "summary": "0 → 6 packages · 13 existing assignments"
+      },
+      {
+        "label": "Acme Group · Finance engineering rehearsal · Operating Company",
+        "value": "h001:expense-1d1369fb-4ec9-4f7b-9f28-63b05e548059",
+        "status": 200,
+        "summary": "0 → 6 packages · 14 existing assignments"
+      },
+      {
+        "label": "Acme Group · Hospitality Setup Practice Demo · custom practice note",
+        "value": "h001:hospitality-setup-practice-demo",
+        "status": 200,
+        "summary": "0 → 16 packages · 12 existing assignments"
+      },
+      {
+        "label": "Acme Group · Messaging acceptance tests",
+        "value": "h001:expense-7327f271-4d89-48dd-a4a7-e8f193998b64",
+        "status": 200,
+        "summary": "0 → 5 packages · 12 existing assignments"
+      },
+      {
+        "label": "Acme Group · Riverside Lantern Hotel & Kitchen Demo",
+        "value": "h001:riverside-lantern-hotel-kitchen-demo",
+        "status": 200,
+        "summary": "0 → 16 packages · 12 existing assignments"
+      },
+      {
+        "label": "Acme Group · ซ้อม VAT Correction · ไม่มีการยื่นจริง",
+        "value": "h001:expense-3c95885d-d9da-48de-94cc-a10c1741efc5",
+        "status": 200,
+        "summary": "0 → 6 packages · 13 existing assignments"
+      },
+      {
+        "label": "Northstar Supply · Northstar Supply",
+        "value": "h002:northstar-co",
+        "status": 200,
+        "summary": "0 → 38 packages · 52 existing assignments"
+      },
+      {
+        "label": "ERPX · ERPX",
+        "value": "h003:erpx-co",
+        "status": 200,
+        "summary": "0 → 38 packages · 1 existing assignments"
+      }
+    ],
+    "successfulCompanies": 15,
+    "responsive": [
+      {
+        "width": 320,
+        "mode": "light",
+        "clientWidth": 305,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(255, 255, 255)",
+        "scrollWidth": 305,
+        "summaryColor": "rgb(62, 74, 89)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-320-light.jpg"
+      },
+      {
+        "width": 390,
+        "mode": "light",
+        "clientWidth": 375,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(255, 255, 255)",
+        "scrollWidth": 375,
+        "summaryColor": "rgb(62, 74, 89)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-390-light.jpg"
+      },
+      {
+        "width": 768,
+        "mode": "light",
+        "clientWidth": 753,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(255, 255, 255)",
+        "scrollWidth": 753,
+        "summaryColor": "rgb(62, 74, 89)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-768-light.jpg"
+      },
+      {
+        "width": 1024,
+        "mode": "light",
+        "clientWidth": 1009,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(255, 255, 255)",
+        "scrollWidth": 1009,
+        "summaryColor": "rgb(62, 74, 89)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-1024-light.jpg"
+      },
+      {
+        "width": 1440,
+        "mode": "light",
+        "clientWidth": 1425,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(255, 255, 255)",
+        "scrollWidth": 1425,
+        "summaryColor": "rgb(62, 74, 89)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-1440-light.jpg"
+      },
+      {
+        "width": 320,
+        "mode": "dark",
+        "clientWidth": 305,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 305,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-320-dark.jpg"
+      },
+      {
+        "width": 390,
+        "mode": "dark",
+        "clientWidth": 375,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 375,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-390-dark.jpg"
+      },
+      {
+        "width": 768,
+        "mode": "dark",
+        "clientWidth": 753,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 753,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-768-dark.jpg"
+      },
+      {
+        "width": 1024,
+        "mode": "dark",
+        "clientWidth": 1009,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 1009,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-1024-dark.jpg"
+      },
+      {
+        "width": 1440,
+        "mode": "dark",
+        "clientWidth": 1425,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 1425,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-1440-dark.jpg"
+      },
+      {
+        "width": 320,
+        "mode": "system",
+        "clientWidth": 305,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 305,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-320-system.jpg"
+      },
+      {
+        "width": 390,
+        "mode": "system",
+        "clientWidth": 375,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 375,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-390-system.jpg"
+      },
+      {
+        "width": 768,
+        "mode": "system",
+        "clientWidth": 753,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 753,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-768-system.jpg"
+      },
+      {
+        "width": 1024,
+        "mode": "system",
+        "clientWidth": 1009,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 1009,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-1024-system.jpg"
+      },
+      {
+        "width": 1440,
+        "mode": "system",
+        "clientWidth": 1425,
+        "expandedRoles": 1,
+        "inputBackground": "rgb(37, 45, 55)",
+        "scrollWidth": 1425,
+        "summaryColor": "rgb(213, 222, 233)",
+        "overflow": false,
+        "screenshot": "/Users/fluke/Desktop/Work/erpx/.scratch/dev/commercial-compatibility-current/browser/compatibility-1440-system.jpg"
+      }
+    ],
+    "keyboardRoleExpansion": true,
+    "normalCentralSso": true,
+    "limits": [
+      "Native dirty confirmation was observed, but browser control could not dismiss it because focus emulation timed out; draft retention after Cancel remains unverified.",
+      "Saved theme/language preferences, other surfaces, specialized widgets and full UI acceptance remain open."
+    ],
+    "colorTransitionFrames": "Initial transition-frame diagnostics retained privately; final screenshots capture settled color modes and were visually inspected.",
+    "temporaryOverridesRestored": true
+  },
+  "liveGrantApply": false,
+  "grantsAfter": {
+    "observedAt": "2026-10-14T15:44:46.472Z",
+    "reports": [
+      {
+        "binding": "H001_DB",
+        "grants": 0,
+        "events": 0,
+        "changes": 0,
+        "revisions": 0,
+        "reviews": 0
+      },
+      {
+        "binding": "H002_DB",
+        "grants": 0,
+        "events": 0,
+        "changes": 0,
+        "revisions": 0,
+        "reviews": 0
+      },
+      {
+        "binding": "H003_DB",
+        "grants": 0,
+        "events": 0,
+        "changes": 0,
+        "revisions": 0,
+        "reviews": 0
+      }
+    ]
+  },
+  "transport": {
+    "observedAt": "2026-10-14T15:48:25.419641+00:00",
+    "results": [
+      {
+        "url": "https://work-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 2.164026
+      },
+      {
+        "url": "https://work-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.312959
+      },
+      {
+        "url": "https://pos-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.424112
+      },
+      {
+        "url": "https://pos-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.226168
+      },
+      {
+        "url": "https://pms-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 2.661759
+      },
+      {
+        "url": "https://pms-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.174307
+      },
+      {
+        "url": "https://finance-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.332684
+      },
+      {
+        "url": "https://finance-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 1.90629
+      },
+      {
+        "url": "https://people-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.347316
+      },
+      {
+        "url": "https://people-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.148919
+      },
+      {
+        "url": "https://sales-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.254444
+      },
+      {
+        "url": "https://sales-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.159379
+      },
+      {
+        "url": "https://supply-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.18269
+      },
+      {
+        "url": "https://supply-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.156682
+      },
+      {
+        "url": "https://assets-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.234359
+      },
+      {
+        "url": "https://assets-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.157153
+      },
+      {
+        "url": "https://projects-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.172463
+      },
+      {
+        "url": "https://projects-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.151434
+      },
+      {
+        "url": "https://recruit-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.210893
+      },
+      {
+        "url": "https://recruit-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.156986
+      },
+      {
+        "url": "https://learn-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.200968
+      },
+      {
+        "url": "https://learn-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.162345
+      },
+      {
+        "url": "https://support-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.235765
+      },
+      {
+        "url": "https://support-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.152581
+      },
+      {
+        "url": "https://service-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.177948
+      },
+      {
+        "url": "https://service-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.150685
+      },
+      {
+        "url": "https://legal-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.236921
+      },
+      {
+        "url": "https://legal-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.151479
+      },
+      {
+        "url": "https://manufacturing-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.273183
+      },
+      {
+        "url": "https://manufacturing-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.158908
+      },
+      {
+        "url": "https://apps-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.150519
+      },
+      {
+        "url": "https://apps-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.15341
+      },
+      {
+        "url": "https://account-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.216145
+      },
+      {
+        "url": "https://account-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.160794
+      },
+      {
+        "url": "https://admin-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.156306
+      },
+      {
+        "url": "https://admin-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.151188
+      },
+      {
+        "url": "https://booking-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.168193
+      },
+      {
+        "url": "https://booking-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.158276
+      },
+      {
+        "url": "https://portal-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.194815
+      },
+      {
+        "url": "https://portal-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.156709
+      },
+      {
+        "url": "https://legal-portal-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.176671
+      },
+      {
+        "url": "https://legal-portal-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.159421
+      },
+      {
+        "url": "https://forms-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.17735
+      },
+      {
+        "url": "https://forms-dev-erpx.jesadakorn.com/icon.svg",
+        "exitCode": 0,
+        "status": 200,
+        "tlsVerify": 0,
+        "seconds": 0.16972
+      }
+    ],
+    "complete": true,
+    "scope": "public dev health/icon/TLS only; no workflow, private isolation, compatibility or performance acceptance"
+  },
+  "availability": {
+    "observedAt": "2026-10-14T15:49:08.170655+00:00",
+    "results": [
+      {
+        "url": "http://127.0.0.1:3100/api/health",
+        "exitCode": 0,
+        "status": 200
+      },
+      {
+        "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+        "exitCode": 0,
+        "status": 200
+      },
+      {
+        "url": "http://127.0.0.1:3101/api/health",
+        "exitCode": 0,
+        "status": 200
+      }
+    ]
+  },
+  "uiGuard": {
+    "result": "failed",
+    "changedFrozenBoundaries": 36,
+    "legacyAdapterMentions": 467,
+    "newProviderMentions": [],
+    "fingerprintsRefreshed": false
+  },
+  "artifacts": [
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/provider-verification.json",
+      "sha256": "7c5f9abd476941db1e01db4e85a90c16da810c171a0d72465cafa55202b07053"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/verification-first-attempt.json",
+      "sha256": "600a51979be3cf0bcaeecba6c4fe2cf2648135e9d40ae91956f786d1c758be20"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/company-browser-previews.json",
+      "sha256": "ada98fcf6e321b358349327a7f8ca9eabec3afbfd3b3176639d143c6192b50c8"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/observations.json",
+      "sha256": "3260834a782ad6515cdafab0f28b4c1d8902bf8dc5dc518443512ffc7a36b927"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/grant-counts.json",
+      "sha256": "28b4a9db04bbda83907dca7dfcd1b61e51323bb7cd4d30133097b896f9132ee4"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/transport/receipt.json",
+      "sha256": "6e31454f4abb7e6bd3acd3295cbe4d5e4e328566f7213412d831d21850e40f0c"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/availability.json",
+      "sha256": "f6808c922246d46d166e184ad88752d073900354093d3004bb3715ab35da63de"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/ui-guard.log",
+      "sha256": "0e2a394e92476c4c793c2527b757d13d06311a0339d9f2a92a526e30c89516aa"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/hospitality-preview.jpg",
+      "sha256": "117023263977d5535f2a29a7f88d7cd9d41ac6aeb760233f2ad6525bc80f5307"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/riverside-preview.jpg",
+      "sha256": "10a7ff76c82f3d967fd9d01483cfc3750e8815b1c4358ba4a98caaedb2aca95f"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-320-light.jpg",
+      "sha256": "5faa9a299301b389a2602dce7a1308d5c9e42ac52214f0a55eaafb8d406cd656"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-390-light.jpg",
+      "sha256": "4d14f51bc944c5be1b560274e00b8a50b2645a92873da22887fce2532c7427ac"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-768-light.jpg",
+      "sha256": "22f95b65331dc52a2a78b2dda357eb8dee447f9cf67fc6c68656f1769886d78f"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-1024-light.jpg",
+      "sha256": "a90056c84c4e0eed7d4d1d835c517134812bc9d3a712050ab93d15c7d4c65afc"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-1440-light.jpg",
+      "sha256": "23708726b7084376e4dff9848b2ce5cbf14e0c2dd9726099db6993ba62b738c0"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-320-dark.jpg",
+      "sha256": "f6432c9a04a5c75384aa8e01b47d9544721e553da68a4aa83341df4ce7dd8df0"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-390-dark.jpg",
+      "sha256": "2a03992ac3f3e9c3a6f4d60c79c54f4ce17e88025c4f26385afd7341eba165dc"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-768-dark.jpg",
+      "sha256": "86b67a0cac69bc64059dea593e07e3c995ae6998c4a3122de1c867163c4cec36"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-1024-dark.jpg",
+      "sha256": "ba03ba78cbacac615204202d63dbf9c7d1c50c11db3b49348a227c755311c29b"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-1440-dark.jpg",
+      "sha256": "70f3ab7cc8c57aa94124311361d25f61d71986ccf47e97e269c5a760444be891"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-320-system.jpg",
+      "sha256": "c988fb9ae4e269325824e36794b4f33b5daf6c0c9d3dbc91a68747e61b6cb9d9"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-390-system.jpg",
+      "sha256": "a1459b2dc9399edb69b09450802a0ef4284f8149e933b635fd3584e2e8dbcf24"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-768-system.jpg",
+      "sha256": "aee220cebbefbba15678cfe0f74627de6db406d27696cb4eb76d4771fd284c22"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-1024-system.jpg",
+      "sha256": "1899fd80a147bb2ae9450f7fe2b9a207632441975c15c8429e0b837c7e156ef5"
+    },
+    {
+      "path": ".scratch/dev/commercial-compatibility-current/browser/compatibility-1440-system.jpg",
+      "sha256": "24d4944e77c8fe97c6baf51c928833b6806fe4e7144986397a0418dac84d03a7"
+    }
+  ]
+}

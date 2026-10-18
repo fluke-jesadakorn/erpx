@@ -1,6 +1,7 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { previewDepartmentFlow } from "@/server/modules/organization/public/department-authority";
 import { ApiError,errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
-export async function POST(request:Request,context:{params:Promise<{holdingSlug:string}>}){try{const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");const actor=await requireWorkContext((await context.params).holdingSlug),{write}=await holdingResources(actor.holdingId);return Response.json({data:await previewDepartmentFlow(write,actor,await request.json())},{headers:{"Cache-Control":"private, no-store"}});}catch(error){return errorResponse(error);}}
+export async function POST(request:Request,context:{params:Promise<{holdingSlug:string}>}){try{const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");const actor=await requireWorkContext((await context.params).holdingSlug),{write}=await holdingResources(actor.holdingId);return Response.json(canonicalDestinationLinks({data:await previewDepartmentFlow(write,actor,await request.json())}),{headers:{"Cache-Control":"private, no-store"}});}catch(error){return errorResponse(error);}}

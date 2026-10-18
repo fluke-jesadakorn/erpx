@@ -1,5 +1,7 @@
+import {createHash} from 'node:crypto';
 import { customerPortalPresentationQueries } from "@/server/modules/customer_360/public/presentation-context-queries";
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
+import {PortalSupportAcknowledgement} from "@/components/customer_authority/portal-support-acknowledgement";
 import { CustomerPortalActions } from "@/components/customer_authority/customer-portal-actions";
 import { EmptyState, StatusBadge } from "@/components/ui/primitives";
 import { QuickAccessShelf } from "@/components/work_projection/quick-access/shelf";
@@ -10,18 +12,25 @@ import { readQuickAccessPreferences } from "@/server/modules/work_projection/pub
 import { holdingBindingBySlug } from "@/server/modules/runtime/public/runtime";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { PageContent, Card } from "@/components/ui/foundation";
+import {redirect} from 'next/navigation';
+import {ApiError} from '@/server/modules/runtime/public/http';
+import {portalActionsDisplay,portalPreferenceDisplay,portalPurchaseDisplay,portalSharedFilesDisplay,portalSupportThreadDisplay} from '@/lib/customer_authority/portal-display';
 
 export const dynamic = "force-dynamic";
 
 export default async function Page({ params }: { params: Promise<{ holdingSlug: string }> }) {
   const { holdingSlug } = await params;
-  const { data, items, preferences } = await (async () => {
+  const { data, items, preferences, accountKey } = await (async () => {
     const binding = await holdingBindingBySlug(holdingSlug);
-    const { queries, actor } = await customerPortalPresentationQueries(holdingSlug);
+    const { queries, actor } = await customerPortalPresentationQueries(holdingSlug).catch(error=>{
+      if(error instanceof Error&&error.message==='UNAUTHENTICATED'||error instanceof ApiError&&error.status===401)redirect('/login?'+new URLSearchParams({next:`/customer-portal/${encodeURIComponent(holdingSlug)}`}));
+      throw error;
+    });
     const data = await queries.customerPortalProjection(actor);
     const items = customerPortalQuickAccess(holdingSlug, data.items);
     const preferences = await readQuickAccessPreferences(actor.userId, "customer_portal", binding.id);
-    return { data, items, preferences };
+    const accountKey = createHash('sha256').update(JSON.stringify(['customer-portal',binding.id,actor.userId,actor.email.toLowerCase()])).digest('hex');
+    return { data, items, preferences: portalPreferenceDisplay(preferences), accountKey };
   })().catch((error) => pageError(error));
 
   return (
@@ -30,11 +39,12 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
       <PageContent as="main" className="ui-page-content">
         <header>
           <h1>Customer documents</h1>
+          <a href={`/customer-portal/${encodeURIComponent(holdingSlug)}/tickets`}>Support tickets</a>
           <p>Only documents explicitly approved for your verified account are shown. Each view is recorded in the access audit.</p>
         </header>
         <div className={rail.layout}>
         <aside className={rail.rail} aria-label="Quick access">
-          <QuickAccessShelf appearance="standard"
+          <QuickAccessShelf key={accountKey} appearance="standard"
             title="Quick access"
             items={items}
             initialPreferences={preferences}
@@ -48,19 +58,22 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
         </aside>
         <div id="customer-portal-content" tabIndex={-1} className={rail.content}>
           {data.items.map((record) => (
-            <Card as="section" appearance="standard" className="ui-panel" id={`customer-order-${encodeURIComponent(String(record.binding_id))}`} key={String(record.binding_id)}>
+            <Card as="section" appearance="standard" className="ui-panel" id={`customer-order-${encodeURIComponent(String(record.binding_id))}`} key={`${accountKey}:${record.binding_id}`}>
               <h2>{String(record.number)}</h2>
               <p className="customer-record-meta"><StatusBadge appearance="standard" status={String(record.state)} /><span>{String(record.kind)} · Due {String(record.due_date)} · {String(record.currency)}</span></p>
               <h3>Deliveries</h3>
               {(Array.isArray(record.fulfillments) ? record.fulfillments : []).map((fulfillment: Record<string, unknown>) => (
                 <p key={String(fulfillment.number)}>{String(fulfillment.number)} · recorded {<TimeText appearance="standard" value={Number(fulfillment.createdAt)} />}</p>
               ))}
+              {record.supportThreads?.map(thread=><PortalSupportAcknowledgement key={`${accountKey}:${record.binding_id}:${thread.requestId}`} holdingSlug={holdingSlug} bindingId={String(record.binding_id)} bindingVersion={Number(record.binding_version)} thread={portalSupportThreadDisplay(thread)} purchase={portalPurchaseDisplay(record.purchase)}/>)}
               <CustomerPortalActions
+                key={`${accountKey}:${record.binding_id}`}
                 holdingSlug={holdingSlug}
                 bindingId={String(record.binding_id)}
                 bindingVersion={Number(record.binding_version)}
-                actions={Array.isArray(record.actions) ? record.actions as Record<string, unknown>[] : []}
-                sharedFiles={Array.isArray(record.sharedFiles) ? record.sharedFiles as Array<{linkId:string;label:string;previewAvailable:true}> : []}
+                purchase={portalPurchaseDisplay(record.purchase)}
+                actions={portalActionsDisplay(record.actions)}
+                sharedFiles={portalSharedFilesDisplay(record.sharedFiles)}
               />
             </Card>
           ))}

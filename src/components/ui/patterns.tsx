@@ -1,3 +1,4 @@
+import {DestinationFilterForm} from "./destination-filter-form";
 import type { ComponentPropsWithRef, ElementType, HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/shared/ui";
 import type { UiAppearance } from "./appearance";
@@ -19,7 +20,7 @@ export function FormLayout({ className, layout = "grid", ...props }: ComponentPr
   return <form {...props} data-slot="form-layout" data-layout={layout} className={cn(layout === "grid" ? "ui-form-grid" : "ui-stack", className)} />;
 }
 export function FilterBar({ className, ...props }: ComponentPropsWithRef<"form">) {
-  return <form {...props} role={props.role ?? "search"} data-slot="filter-bar" className={cn("ui-filter-bar", className)} />;
+  return <DestinationFilterForm {...props} role={props.role ?? "search"} data-slot="filter-bar" className={cn("ui-filter-bar", className)} />;
 }
 export function FormActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div {...props} data-slot="form-actions" className={cn("ui-form-actions", className)} />;

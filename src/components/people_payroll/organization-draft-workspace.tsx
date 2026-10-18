@@ -1,8 +1,10 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import { useRouter } from "@/lib/shared/destination-router";
 import dynamic from "next/dynamic";
 import { ArrowLeft, ArrowRight, Redo2, Undo2 } from "lucide-react";
 import { workFetch } from "@/lib/work_projection/work-fetch";
@@ -638,7 +640,7 @@ export function OrganizationDraftWorkspace({
     return (
       <section className={styles.workspace}>
         <h2>This draft was discarded</h2>
-        <Button variant="plain" type="button" onClick={() => router.push(`${base}/people`)}>
+        <Button variant="plain" type="button" onClick={() => router.push(canonicalUiHref(`${base}/people`))}>
           Back to People
         </Button>
       </section>
@@ -679,7 +681,7 @@ export function OrganizationDraftWorkspace({
           <Button
             variant="plain"
             type="button"
-            onClick={() => void navigate(`${base}/people`)}
+            onClick={() => void navigate(canonicalUiHref(`${base}/people`))}
             disabled={busy}
           >
             <ArrowLeft size={16} />
@@ -704,7 +706,7 @@ export function OrganizationDraftWorkspace({
                 disabled={
                   busy || !definition.items.length || definition.items.some((i) => i.parked)
                 }
-                onClick={() => void navigate(`${base}/people/organization/drafts/{id}/review`)}
+                onClick={() => void navigate(canonicalUiHref(`${base}/people/organization/drafts/{id}/review`))}
               >
                 Review changes · {definition.items.length}
                 <ArrowRight size={16} />
@@ -723,7 +725,7 @@ export function OrganizationDraftWorkspace({
           variant="plain"
           key={item.id}
           type="button"
-          onClick={() => void navigate(`${base}/people/organization/drafts/${item.id}/review`)}
+          onClick={() => void navigate(canonicalUiHref(`${base}/people/organization/drafts/${item.id}/review`))}
         >
           {new Date(item.updated_at).toLocaleDateString()} · {item.count} changes
         </Button>
@@ -780,7 +782,7 @@ export function OrganizationDraftWorkspace({
             onClick={async () => {
               try {
                 const result = await api<{ draft: OrganizationDraft }>(`/${draft.id}/continue`, {});
-                router.push(`${base}/people?draft=${result.draft.id}`);
+                router.push(canonicalUiHref(`${base}/people?draft=${result.draft.id}`));
               } catch (e) {
                 setError((e as Error).message);
               }

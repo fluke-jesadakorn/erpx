@@ -1,0 +1,45 @@
+import {PayrollEnvironment} from "@/components/people_payroll/payroll-environment";
+import {payrollPurchaseControls} from "@/server/modules/people_payroll/public/payroll-purchases";
+import { PayrollAdvanceConsole } from "@/components/people_payroll/payroll-controls";
+import { PayrollPageIntro } from "@/components/people_payroll/payroll-workspace";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { payrollAdvancePage } from "@/server/modules/people_payroll/public/people-payroll";
+import { PageContent } from "@/components/ui/foundation";
+
+export const dynamic = "force-dynamic";
+
+export default async function PayrollAdvances({
+  params,
+}: {
+  params: Promise<{ holdingSlug: string }>;
+}) {
+  const { holdingSlug } = await params;
+  const actor = await requireWorkContext(holdingSlug);
+  let data;
+  try {
+    data = await payrollAdvancePage(actor);
+  } catch (error) {
+    return pageError(error, actor.holdingSlug);
+  }
+  const purchase = await payrollPurchaseControls(actor);
+  const base = workspaceBase(publicScope(actor));
+  return (
+    <PayrollEnvironment purchase={purchase}><PageContent as="div" className="ui-page-content" data-source="live">
+      <PayrollPageIntro
+        base={base}
+        title="Advances"
+        description="Requests, approvals, and repayment schedules in one place."
+      />
+      <PayrollAdvanceConsole appearance="standard"
+        base={base}
+        data={data}
+        userId={actor.userId}
+        canPrepare={hasPermission(actor, "payroll.prepare")}
+        canApprove={hasPermission(actor, "payroll.approve")}
+      />
+    </PageContent></PayrollEnvironment>
+  );
+}

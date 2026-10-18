@@ -63,3 +63,6 @@ function application(){const databases=new Map<string,Promise<SqlDatabase>>(),da
 },brands:async(holdingId,companyIds)=>workspaceChoiceBrands(await database(holdingId),companyIds)});}
 export const workspaceChoices=cache(()=>measureReadPhase('workspace_choices',()=>application().all()));
 export const workspaceChoicesForAssignment=(holdingId:string,assignmentId:string)=>application().forAssignment(holdingId,assignmentId);
+
+/** Product selection lists each accessible Company, Branch and Department explicitly. */
+export const productWorkspaceChoices=cache(()=>measureReadPhase('product_workspace_choices',()=>application().all(true)));

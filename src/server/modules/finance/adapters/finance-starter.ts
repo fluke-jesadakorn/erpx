@@ -1,3 +1,4 @@
+import { withFinanceConfigurationCommand } from "./purchase-boundary";
 import 'server-only';
 import { z } from 'zod';
 import type { WorkContext } from '@/server/modules/identity_access/public/authorization';
@@ -14,9 +15,9 @@ import { createFinanceStarterService } from '../application/starter';
 import { financeStarterSchema } from '../domain/starter';
 export { financeStarterSchema } from '../domain/starter';
 export async function financeSetupAuthority(db: SqlDatabase, companyId: string) { return nativeStarter(db).financeSetupAuthority(companyId); }
-export async function createFinanceStarter(actor: WorkContext, raw: z.input<typeof financeStarterSchema>, key: string) { return nativeStarter().createFinanceStarter(actor, raw, key); }
+export async function createFinanceStarter(actor: WorkContext, raw: z.input<typeof financeStarterSchema>, key: string) { return withFinanceConfigurationCommand(actor,{key,operation:"finance.starter.create",purpose:"new-work"},tx=>nativeStarter(tx).createFinanceStarter(actor,raw,key)); }
 function nativeStarter(provided?: SqlDatabase) { let pending: Promise<SqlDatabase> | undefined, owned: SqlDatabase | undefined; const database = () => owned ? Promise.resolve(owned) : provided ? Promise.resolve(provided) : pending!; return createFinanceStarterService({ error: (...args) => new ApiError(...args), permission: requirePermission, ready: async (actor) => { if (!provided)
-        await (pending ??= holdingResources(actor.holdingId).then(r => r.write)); }, now: Date.now, transaction: async <Result>(work: () => Promise<Result>) => financeTransaction(await database(), async (tx) => { owned = tx; try {
+        await (pending ??= holdingResources(actor.holdingId).then(r => r.write)); }, now: Date.now, transaction: async <Result>(work: () => Promise<Result>) => provided ? work() : financeTransaction(await database(), async (tx) => { owned = tx; try {
         return await work();
     }
     finally {

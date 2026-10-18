@@ -1,3 +1,4 @@
+import { withFinancePurchasedCommand, withFinancePurchasedRead } from "./purchase-boundary";
 import "server-only";
 import type { z } from "zod";
 import { samePerson } from "@/lib/identity_access/iam";
@@ -295,7 +296,7 @@ reverseRunCommit:async(facts)=>{const {actor,id,input,key,op,row,run,reversalId,
           .bind(now, row.id),
       ],
     );}}}
-function nativeInstruments(ownedTransaction?:SqlDatabase){return createFinanceInstruments({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,hash:sha256,transaction:async(actor,run)=>financeTransaction((await holdingResources(actor.holdingId)).write,db=>run(nativeInstrumentRepository(db))),ownedTransaction:async(actor,run)=>financeOwnedTransaction((await holdingResources(actor.holdingId)).write,ownedTransaction,db=>run(nativeInstrumentRepository(db))),workspace:async actor=>{const {write}=await holdingResources(actor.holdingId);  const [editions, runs, accounts, periods, bank] = await Promise.all([
+function nativeInstruments(ownedTransaction?:SqlDatabase,readDatabase?:SqlDatabase){return createFinanceInstruments({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,now:Date.now,hash:sha256,transaction:async(actor,run)=>ownedTransaction?run(nativeInstrumentRepository(ownedTransaction)):financeTransaction((await holdingResources(actor.holdingId)).write,db=>run(nativeInstrumentRepository(db))),ownedTransaction:async(actor,run)=>financeOwnedTransaction((await holdingResources(actor.holdingId)).write,ownedTransaction,db=>run(nativeInstrumentRepository(db))),workspace:async actor=>{const write=readDatabase??(await holdingResources(actor.holdingId)).write;  const [editions, runs, accounts, periods, bank] = await Promise.all([
     write
       .prepare(
         "SELECT * FROM finance_instrument_editions WHERE company_id=? ORDER BY created_at DESC,id LIMIT 500",
@@ -334,9 +335,9 @@ function nativeInstruments(ownedTransaction?:SqlDatabase){return createFinanceIn
     periods: periods.results,
     bank: bank.results,
   };}})}
-export const prepareInstrument=(actor: WorkContext,raw: z.input<typeof instrumentEditionSchema>,key: string)=>nativeInstruments().prepareInstrument(actor,raw,key);
-export const decideInstrument=(actor: WorkContext,id: string,raw: z.input<typeof instrumentDecisionSchema>,action: "approve" | "reject",key: string)=>nativeInstruments().decideInstrument(actor,id,raw,action,key);
-export const prepareInstrumentRun=(actor: WorkContext,id: string,raw: z.input<typeof instrumentRunSchema>,key: string,ownedTransaction?:SqlDatabase)=>nativeInstruments(ownedTransaction).prepareInstrumentRun(actor,id,raw,key);
-export const decideInstrumentRun=(actor: WorkContext,id: string,raw: z.input<typeof instrumentDecisionSchema>,action: "post" | "reject",key: string)=>nativeInstruments().decideInstrumentRun(actor,id,raw,action,key);
-export const reverseInstrumentRun=(actor: WorkContext,id: string,raw: z.input<typeof instrumentReversalSchema>,key: string)=>nativeInstruments().reverseInstrumentRun(actor,id,raw,key);
-export const instrumentWorkspace=(actor: WorkContext)=>nativeInstruments().instrumentWorkspace(actor);
+export const prepareInstrument=(actor: WorkContext,raw: z.input<typeof instrumentEditionSchema>,key: string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.instrument.prepare",purpose:"new-work",capability:"finance.advanced"},tx=>nativeInstruments(tx).prepareInstrument(actor,raw,key));
+export const decideInstrument=(actor: WorkContext,id: string,raw: z.input<typeof instrumentDecisionSchema>,action: "approve" | "reject",key: string)=>withFinancePurchasedCommand(actor,{key,operation:`finance.instrument.${action}`,purpose:"settle-existing",capability:"finance.advanced"},tx=>nativeInstruments(tx).decideInstrument(actor,id,raw,action,key));
+export const prepareInstrumentRun=(actor: WorkContext,id: string,raw: z.input<typeof instrumentRunSchema>,key: string,ownedTransaction?:SqlDatabase)=>withFinancePurchasedCommand(actor,{key,operation:"finance.instrument-run.prepare",purpose:"settle-existing",capability:"finance.advanced"},tx=>nativeInstruments(tx).prepareInstrumentRun(actor,id,raw,key),ownedTransaction);
+export const decideInstrumentRun=(actor: WorkContext,id: string,raw: z.input<typeof instrumentDecisionSchema>,action: "post" | "reject",key: string)=>withFinancePurchasedCommand(actor,{key,operation:`finance.instrument-run.${action}`,purpose:"settle-existing",capability:"finance.advanced"},tx=>nativeInstruments(tx).decideInstrumentRun(actor,id,raw,action,key));
+export const reverseInstrumentRun=(actor: WorkContext,id: string,raw: z.input<typeof instrumentReversalSchema>,key: string)=>withFinancePurchasedCommand(actor,{key,operation:"finance.instrument-run.reverse",purpose:"settle-existing",capability:"finance.advanced"},tx=>nativeInstruments(tx).reverseInstrumentRun(actor,id,raw,key));
+export const instrumentWorkspace=(actor: WorkContext)=>withFinancePurchasedRead(actor,db=>nativeInstruments(undefined,db).instrumentWorkspace(actor),"finance.advanced");

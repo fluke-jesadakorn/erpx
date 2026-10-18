@@ -1,3 +1,6 @@
+import {financeExtraRecord} from "../../../src/server/modules/finance/public/finance-record-details";
+import {afterEach} from "vitest";
+import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
 import { applyMigrations, env } from "../../support/runtime-env";
@@ -875,4 +878,29 @@ it('retains unsent collection editions and delivery proof after final outbox fai
  const delivered=await decideCollectionCase(f.owner,String(revised.id),review,'test-deliver',delivery);expect(await decideCollectionCase(f.owner,String(revised.id),review,'test-deliver',delivery)).toEqual(delivered);
  expect(Number(await db.prepare('SELECT count(*) n FROM finance_collection_deliveries WHERE case_id=?').bind(revised.id).first('n'))).toBe(1);
  for(const ownerCommand of [command,delivery])for(const table of ['command_receipts','audit_events','outbox_events'])expect(Number(await db.prepare(`SELECT count(*) n FROM ${table} WHERE command_id=?`).bind(ownerCommand).first('n'))).toBe(1);
+});
+
+afterEach(()=>vi.unstubAllEnvs());
+
+it("purchased bank automation denies unpurchased reads and commands, while shadow retains original independent matching",async()=>{
+ const a=await receipt("100.00"),s=await statement();vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ for(const read of [()=>bankAutomationWorkspace(f.owner),()=>financeExtraRecord(f.owner,"bank_profile",s.input.mappingId,{},1)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ const request={bankTransactionIds:[s.bank],journalLineIds:[a],reason:"Original amount and bank-date evidence"};await expect(proposeBankMatchGroup(f.owner,request,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ expect(await db.prepare("SELECT count(*) n FROM finance_bank_match_groups WHERE company_id=?").bind(f.company).first("n")).toBe(0);
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","shadow");const telemetry=vi.spyOn(console,"info").mockImplementation(()=>{});try{expect(await proposeBankMatchGroup(f.owner,request,key())).toMatchObject({status:"proposed"});expect(telemetry.mock.calls.some(args=>String(args[0]).includes("PACKAGE_REQUIRED"))).toBe(true);}finally{telemetry.mockRestore();}
+});
+it("Finance-only draining imports an existing CSV mapping and independently matches and reverses actual bank movement",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const a=await receipt("60.01"),b=await receipt("39.99"),mapping=await createBankCsvMapping(f.owner,{name:"Retained bank layout",columns:{externalId:"Reference",transactionDate:"Date",amount:"Amount"},dateFormat:"YYYY-MM-DD"},key());
+ await reviewedFinanceGrant(db,f.company,"finance","draining");await expect(createBankCsvMapping(f.owner,{name:"New layout",columns:{externalId:"Ref",transactionDate:"Date",amount:"Amount"},dateFormat:"YYYY-MM-DD"},key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});
+ const input={mappingId:String(mapping.id),bankAccountId:f.accounts.cash,statementNumber:key(),statementDate:"2026-09-30",opening:"0",closing:"100.00",csv:"Reference,Date,Amount\nNative-bank,2026-09-04,100.00\n"},importKey=key(),imported=await importMappedBankCsv(f.owner,input,importKey);expect(await importMappedBankCsv(f.owner,input,importKey)).toEqual(imported);
+ const bank=String(await db.prepare("SELECT id FROM finance_bank_transactions WHERE statement_id=?").bind(imported.id).first("id")),group=await proposeBankMatchGroup(f.owner,{bankTransactionIds:[bank],journalLineIds:[a,b],reason:"Existing cash lines and exact retained movement"},key()),decision={expectedVersion:1,reason:"Independent exact cash and bank allocation review"},command=key();
+ const matched=await decideBankMatchGroup(f.manager,String(group.id),decision,"confirm",command);expect(await decideBankMatchGroup(f.manager,String(group.id),decision,"confirm",command)).toEqual(matched);expect(await db.prepare("SELECT match_status,matched_id FROM finance_bank_transactions WHERE id=?").bind(bank).first()).toEqual({match_status:"matched",matched_id:group.id});
+ await decideBankMatchGroup(f.manager,String(group.id),{expectedVersion:2,reason:"Retain evidence and reverse the reviewed matching only"},"reverse",key());expect(await db.prepare("SELECT match_status,matched_id FROM finance_bank_transactions WHERE id=?").bind(bank).first()).toEqual({match_status:"unmatched",matched_id:null});
+ expect(await db.prepare("SELECT count(*) n FROM finance_bank_match_targets WHERE group_id=?").bind(group.id).first("n")).toBe(0);
+});
+it("purchased bank review rolls back movement targets and audit after deferred reviewer revocation, then retries once",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const a=await receipt("100.00"),s=await statement(),group=await proposeBankMatchGroup(f.owner,{bankTransactionIds:[s.bank],journalLineIds:[a],reason:"Retained current bank and ledger evidence"},key()),command=key(),input={expectedVersion:1,reason:"Independent review before exact matching"},fault=`bank_purchase_${key().replaceAll("-","")}`;
+ await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.manager.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
+ try{await expect(decideBankMatchGroup(f.manager,String(group.id),input,"confirm",command)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(await db.prepare("SELECT match_status,version FROM finance_bank_transactions WHERE id=?").bind(s.bank).first()).toEqual({match_status:"unmatched",version:1});expect(await db.prepare("SELECT count(*) n FROM finance_bank_match_targets WHERE group_id=?").bind(group.id).first("n")).toBe(0);expect(await db.prepare("SELECT command_id FROM command_receipts WHERE command_id=?").bind(command).first()).toBeNull();}finally{await db.exec(`DROP TRIGGER ${fault} ON outbox_events;DROP FUNCTION ${fault}()`);}
+ const matched=await decideBankMatchGroup(f.manager,String(group.id),input,"confirm",command);expect(await decideBankMatchGroup(f.manager,String(group.id),input,"confirm",command)).toEqual(matched);expect(await db.prepare("SELECT count(*) n FROM command_assertions").first("n")).toBe(0);
 });

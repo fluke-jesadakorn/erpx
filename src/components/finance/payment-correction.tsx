@@ -3,10 +3,15 @@ import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import {createPaymentCorrectionCommands} from "@/lib/finance/sales-command";
+import { useLayoutEffect,useRef, useState } from "react";
+import { useRouter } from "@/lib/shared/destination-router";
 import { Card, FormLayout } from "@/components/ui/foundation";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
+import {useFinanceDraftScope,captureFinanceForm} from "./finance-draft-boundary";
+import {useFinanceActionAllowed} from "./purchase-context";
+import {controlledPaymentAllowed,type ServicePaymentPurchase} from "@/lib/finance/service-payment-controls";
+
 
 type Row = Record<string, string | number | null>;
 
@@ -14,58 +19,44 @@ export function PaymentCorrection({
   base,
   payment,
   periods,
+  sourcePurchase,
 }: {
   base: string;
   payment: Row;
   periods: Row[];
+  sourcePurchase?:ServicePaymentPurchase;
 }) {
-  const router = useRouter(),
-    attempt = useRef<{ body: string; key: string } | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function submit(form: HTMLFormElement) {
-    const values = new FormData(form),
-      body = JSON.stringify({
-        expectedVersion: Number(payment.version),
-        periodId: values.get("periodId"),
-        entryDate: values.get("entryDate"),
-        reason: values.get("reason"),
-      });
-    if (attempt.current?.body !== body) attempt.current = { body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(
-          `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/payments/${payment.id}/reverse`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-            body,
-          },
-        ),
-        result = (await response.json()) as { error?: { message: string } };
-      if (!response.ok) throw new Error(result.error?.message ?? "Unable to reverse the payment.");
-      attempt.current = null;
-      router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to reverse the payment.");
-    } finally {
-      setBusy(false);
-    }
+  const scope=useFinanceDraftScope(),banking=useFinanceActionAllowed("settle-existing","finance.banking"),allowed=controlledPaymentAllowed(banking,sourcePurchase);
+  const router=useRouter(),source=useRef<{base:string;paymentId:string}|null>({base,paymentId:String(payment.id)}),commands=useRef<ReturnType<typeof createPaymentCorrectionCommands>|null>(null),busyRef=useRef(false),formRef=useRef<HTMLFormElement>(null);
+  useLayoutEffect(()=>{source.current={base,paymentId:String(payment.id)};return()=>{source.current=null;};},[base,payment.id]);commands.current??=createPaymentCorrectionCommands(()=>source.current);
+  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[hasAttempt,setHasAttempt]=useState(false),[generation,setGeneration]=useState(0),[saved,setSaved]=useState(false);
+  async function submit(form:HTMLFormElement,retryOriginal=false){
+    if(busyRef.current)return;busyRef.current=true;setBusy(true);setError("");
+    try{
+      if(!allowed&&!commands.current!.pending())throw Error("This Finance correction is unavailable. Your draft is retained.");
+      const values=new FormData(form),input={expectedVersion:Number(payment.version),periodId:values.get("periodId"),entryDate:values.get("entryDate"),reason:values.get("reason")};
+      const outcome=await(retryOriginal?commands.current!.retry():commands.current!.submit(input,captureFinanceForm())),unchanged=outcome.unchanged();
+      if(!outcome.acknowledge())throw Error("Confirm the original correction again.");setHasAttempt(false);
+      if(unchanged)router.refresh();else setSaved(true);
+    }catch(cause){setHasAttempt(commands.current!.pending());setError(cause instanceof Error?cause.message:"Unable to confirm the payment correction.");}
+    finally{busyRef.current=false;setBusy(false);}
   }
   return (
-    <Card as="section" appearance="standard" className="ui-panel">
+    <FormDisclosure appearance="standard" drawerTitle="Correct posted payment" error={error} dismissDisabled={busy||hasAttempt} onDiscard={()=>{if(commands.current!.pending()){setError("The original correction is unresolved. Retry its confirmation before discarding.");return;}setGeneration(value=>value+1);setHasAttempt(false);setError("");if(saved)router.refresh();}}><summary>Review a payment correction</summary><Card as="section" appearance="standard" className="ui-panel">
       <h2>Correct posted payment</h2>
       <p className="muted">
         Creates a posted reversing journal, restores every invoice allocation, and preserves the
         original payment as voided evidence. Reconciled bank items must be unmatched first.
       </p>
+      {saved&&<InlineNotice tone="info">The original payment was reversed. Your later edits remain unsaved.</InlineNotice>}
       {error && (
         <InlineNotice tone="danger" className="error" role="alert">
           {error}
         </InlineNotice>
       )}
-      <FormLayout
+      {hasAttempt&&<Button appearance="standard" type="button" disabled={busy} onClick={()=>{if(formRef.current)void submit(formRef.current,true);}}>Retry original confirmation</Button>}
+      <FormLayout ref={formRef}
+        key={generation} data-finance-draft={scope}
         className="ui-form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -96,10 +87,10 @@ export function PaymentCorrection({
           Correction evidence
           <TextInput appearance="standard" name="reason" required minLength={3} maxLength={500} />
         </Field>
-        <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy}>
+        <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={busy||(!allowed&&!hasAttempt)}>
           {busy ? "Reversing…" : "Reverse payment and allocations"}
         </Button>
       </FormLayout>
-    </Card>
+    </Card></FormDisclosure>
   );
 }

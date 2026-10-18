@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const marker = "/* ERPX: cyclic React development debug metadata */";
+const legacyMarker = "/* ERPX: cyclic React development debug metadata */";
+const marker = "/* ERPX: bounded cyclic React development debug metadata */";
 const typeWriteMarker = "/* ERPX: atomic development route type writes */";
 
 /** The dev watcher can overlap generations of routes.d.ts and validator.ts. */
@@ -42,14 +43,11 @@ async function erpxWriteGeneratedType(filePath, writer) {
     .replace(validatorWrite, "await erpxWriteGeneratedType(validatorFilePath, temporary => (0, _routetypesutils.writeValidatorFile)(routeTypesManifest, temporary, Boolean(nextConfig.experimental.strictRouteTypes)));");
 }
 
-/** Next 16.4.0's bundled React can link a debug chunk back to itself. */
+/** Keep optional React development ancestry from exhausting request memory.
+ * Ordinary traces retain their original index; page/model chunks are untouched. */
 export function guardDebugChunkCycles(source: string): string {
   if (source.includes(marker)) return source;
-  const loop = /for\s*\(\s*var idx\s*=\s*debugInfo\.length,\s*c\s*=\s*debugChunk\._debugChunk;\s*null\s*!==\s*c;\s*\)\s*"fulfilled"\s*!==\s*c.status\s*&&\s*idx\+\+,\s*\(?c\s*=\s*c\._debugChunk\)?;/g;
-  let matches = 0;
-  const patched = source.replace(loop, () => {
-    matches++;
-    return `${marker}
+  const previousGuard = `${legacyMarker}
       for (var idx = debugInfo.length, c = debugChunk._debugChunk,
         erpxSeenDebugChunks = new Set([debugChunk]); null !== c;) {
         if (erpxSeenDebugChunks.has(c)) {
@@ -60,7 +58,25 @@ export function guardDebugChunkCycles(source: string): string {
         erpxSeenDebugChunks.add(c);
         "fulfilled" !== c.status && idx++, (c = c._debugChunk);
       }`;
-  });
+  const boundedGuard = `${marker}
+      for (var idx = debugInfo.length, c = debugChunk._debugChunk,
+        erpxSeenDebugChunks = new Set([debugChunk]); null !== c;) {
+        if (erpxSeenDebugChunks.size >= 4096 || erpxSeenDebugChunks.has(c)) {
+          // Bound optional ancestry as well as cycles; keep the page model intact.
+          chunk._debugChunk = null;
+          return;
+        }
+        erpxSeenDebugChunks.add(c);
+        "fulfilled" !== c.status && idx++, (c = c._debugChunk);
+      }`;
+  if (source.includes(legacyMarker)) {
+    if (source.split(previousGuard).length !== 2)
+      throw new Error("Next development debug-cycle guard no longer matches; review the pinned runtime.");
+    return source.replace(previousGuard, boundedGuard);
+  }
+  const loop = /for\s*\(\s*var idx\s*=\s*debugInfo\.length,\s*c\s*=\s*debugChunk\._debugChunk;\s*null\s*!==\s*c;\s*\)\s*"fulfilled"\s*!==\s*c.status\s*&&\s*idx\+\+,\s*\(?c\s*=\s*c\._debugChunk\)?;/g;
+  let matches = 0;
+  const patched = source.replace(loop, () => { matches++; return boundedGuard; });
   if (matches !== 1) throw new Error("Next development debug-cycle guard no longer matches; review the pinned runtime.");
   return patched;
 }

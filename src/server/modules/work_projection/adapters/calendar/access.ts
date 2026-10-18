@@ -26,15 +26,16 @@ export type { CalendarAccess } from "../../domain/calendar/access";
 import { calendarAccessOrganizationFacts } from "../../../organization/public/calendar-access-facts";
 import { calendarAccessIdentityAccessFacts } from "../../../identity_access/public/calendar-access-facts";
 import { calendarAccessPeoplePayrollFacts } from "../../../people_payroll/public/calendar-access-facts";
+import {calendarPurchaseControls,requireCalendarCurrentActor} from './purchases';
 export const idList = (ids: string[]) => JSON.stringify(ids);
 export const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
 export function calendarAccessUnit(db: SqlDatabase): CalendarAccessUnit { return { activeStaff: actor => activeStaff(db, actor.companyId, actor.userId), organizationNodes: companyId => calendarAccessOrganizationFacts(db).organizationNodes(companyId), permission: (actor, permission) => calendarAccessIdentityAccessFacts(db).permission(actor, permission), people: input => calendarAccessPeoplePayrollFacts(db).people(input) }; }
 const service = createCalendarAccess({ errorCode: error => error instanceof ApiError ? error.code : undefined, fail });
-export function calendarAccess(db: SqlDatabase, actor: WorkContext) { return service.calendarAccess(calendarAccessUnit(db), actor); }
+export async function calendarAccess(db: SqlDatabase, actor: WorkContext) { await requireCalendarCurrentActor(db,actor);const access=await service.calendarAccess(calendarAccessUnit(db), actor),manualPurchase=await calendarPurchaseControls(db,actor);return {...access,...(manualPurchase?{manualPurchase}:{})}; }
 export function requirePlacement(access: CalendarAccess, branch: string | null, department: string | null) { return service.requirePlacement(access, branch, department); }
 export function needPermission(db: SqlDatabase, actor: WorkContext, permission: string) { return service.needPermission(calendarAccessUnit(db), actor, permission); }
-export function calendarHierarchy(db: SqlDatabase, actor: WorkContext, query: {
+export async function calendarHierarchy(db: SqlDatabase, actor: WorkContext, query: {
     cursor?: number;
     search?: string;
     limit?: number;
-} = {}) { return service.calendarHierarchy(calendarAccessUnit(db), actor, query); }
+} = {}) { await requireCalendarCurrentActor(db,actor);return service.calendarHierarchy(calendarAccessUnit(db), actor, query); }

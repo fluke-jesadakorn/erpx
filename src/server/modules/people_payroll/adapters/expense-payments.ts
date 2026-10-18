@@ -1,3 +1,4 @@
+import {withExpensePurchasedCommand, withExpensePurchasedRead} from "./expense-purchases";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "../../files/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "../../finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "../../identity_access/public/hospitality-owner-projection-sources";
@@ -92,11 +93,11 @@ export function nativeExpensePaymentReader(write: SqlDatabase) {
   });
 }
 export async function paymentFromDatabase(write: SqlDatabase, actor: WorkContext, id: string, editable = false) {
-  return nativeExpensePaymentReader(write)(actor, id, editable);
+  return withExpensePurchasedRead(write, actor, tx => nativeExpensePaymentReader(tx)(actor, id, editable));
 }
 export async function createExpensePayment(actor: WorkContext, id: string, expectedVersion: number, key: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpensePayments(write).createExpensePayment(actor, id, expectedVersion, key);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:"settle-existing"}, tx => nativeExpensePayments(tx).createExpensePayment(actor, id, expectedVersion, key));
 }
 export function paymentGuards(
   db: SqlDatabase,
@@ -149,9 +150,9 @@ export function paymentGuards(
 }
 export async function confirmExpensePayment(actor: WorkContext, id: string, input: z.infer<typeof expensePaymentSchema>, key: string, expenseId?: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpensePayments(write).confirmExpensePayment(actor, id, input, key, expenseId);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:"settle-existing"}, tx => nativeExpensePayments(tx).confirmExpensePayment(actor, id, input, key, expenseId));
 }
-export function nativeExpensePaymentPreparation(write: SqlDatabase) {
+function originalNativeExpensePaymentPreparation(write: SqlDatabase) {
   return createSaveExpensePayment({
     ...expenseCommandPort(write),
     payment: (actor, id) => paymentFromDatabase(write, actor, id, true),
@@ -181,9 +182,9 @@ export function nativeExpensePaymentPreparation(write: SqlDatabase) {
 }
 export async function saveExpensePayment(actor: WorkContext, id: string, input: z.infer<typeof expensePaymentSchema>, key: string, expenseId: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpensePaymentPreparation(write)(actor, id, input, key, expenseId);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:"settle-existing"}, tx => nativeExpensePaymentPreparation(tx)(actor, id, input, key, expenseId));
 }
-export function nativeExpensePaymentSlipRemoval(write: SqlDatabase) {
+function originalNativeExpensePaymentSlipRemoval(write: SqlDatabase) {
   return createRevokePaymentSlip({
     ...expenseCommandPort(write),
     readOnly: attachmentsV2ReadOnly,
@@ -236,11 +237,11 @@ export function nativeExpensePaymentSlipRemoval(write: SqlDatabase) {
 }
 export async function revokePaymentSlip(actor: WorkContext, expenseId: string, id: string, attachmentId: string, expectedVersion: number, key: string) {
   const { write } = await holdingResources(actor.holdingId);
-  return nativeExpensePaymentSlipRemoval(write)(actor, expenseId, id, attachmentId, expectedVersion, key);
+  return withExpensePurchasedCommand(write, actor, {key,purpose:"settle-existing"}, tx => nativeExpensePaymentSlipRemoval(tx)(actor, expenseId, id, attachmentId, expectedVersion, key));
 }
 
 /** Binding accepts a native transaction as well as the holding write database. */
-export function nativeExpensePayments(write: SqlDatabase) {
+function originalNativeExpensePayments(write: SqlDatabase) {
   return createExpensePaymentCommands({
     ...expenseCommandPort(write),
     expense: (actor, id) => expenseFromDatabase(write, actor, id),
@@ -337,3 +338,12 @@ export function nativeExpensePayments(write: SqlDatabase) {
     },
   });
 }
+
+export function nativeExpensePaymentPreparation(database: SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpensePaymentPreparation>>)=>withExpensePurchasedCommand(database,args[0],{key:args[3],purpose:"settle-existing"},transaction=>originalNativeExpensePaymentPreparation(transaction)(...args));}
+
+export function nativeExpensePaymentSlipRemoval(database: SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpensePaymentSlipRemoval>>)=>withExpensePurchasedCommand(database,args[0],{key:args[5],purpose:"settle-existing"},transaction=>originalNativeExpensePaymentSlipRemoval(transaction)(...args));}
+
+export function nativeExpensePayments(database:SqlDatabase){return {
+ createExpensePayment:(...args:Parameters<ReturnType<typeof originalNativeExpensePayments>["createExpensePayment"]>)=>withExpensePurchasedCommand(database,args[0],{key:args[3],purpose:"settle-existing"},transaction=>originalNativeExpensePayments(transaction).createExpensePayment(...args)),
+ confirmExpensePayment:(...args:Parameters<ReturnType<typeof originalNativeExpensePayments>["confirmExpensePayment"]>)=>withExpensePurchasedCommand(database,args[0],{key:args[3],purpose:"settle-existing"},transaction=>originalNativeExpensePayments(transaction).confirmExpensePayment(...args))
+};}

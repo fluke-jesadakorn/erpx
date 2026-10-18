@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
@@ -36,7 +37,7 @@ export async function POST(
     const bytes = await request.arrayBuffer();
     if (bytes.byteLength !== length)
       throw new ApiError(422, "PAGE_SIZE", "The uploaded page size changed.");
-    return Response.json({
+    return Response.json(canonicalDestinationLinks({
       data: await saveDocumentPage(
         write,
         files,
@@ -50,7 +51,7 @@ export async function POST(
         },
         key,
       ),
-    });
+    }));
   } catch (error) {
     return errorResponse(error);
   }

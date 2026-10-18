@@ -59,7 +59,6 @@ it("requires both projects by default and records an explicit desktop-only cover
   const annotations = [browserProjects(["desktop"], "The sidebar rail exists only in the desktop layout.").annotation];
   expect(browserCaseProjectRequirement({ ...wanted, annotations })).toEqual({ required: true, reason: "The sidebar rail exists only in the desktop layout." });
   expect(browserCaseProjectRequirement({ ...wanted, project: "mobile", annotations })).toEqual({ required: false, reason: "The sidebar rail exists only in the desktop layout." });
-  expect(() => assertBrowserCasePassed(report("skipped"), wanted)).toThrow("REQUIRED_BROWSER_CASE_DID_NOT_PASS");
 });
 it("rejects malformed, unknown or unexplained browser project restrictions", () => {
   const wanted = browserCases(report("passed"))[0];

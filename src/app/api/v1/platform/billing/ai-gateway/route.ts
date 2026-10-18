@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { readAiGatewayPolicy, setAiPlatformKeyEnabled } from "@/server/modules/agent/public/ai-gateway";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
       throw new ApiError(403, "FORBIDDEN", "Platform billing permission required.");
     const holdingId = new URL(request.url).searchParams.get("holdingId");
     if (!holdingId) throw new ApiError(422, "HOLDING_REQUIRED", "Select a Customer Holding.");
-    return Response.json({ data: await readAiGatewayPolicy(await holdingDatabase(holdingId)) },
+    return Response.json(canonicalDestinationLinks({ data: await readAiGatewayPolicy(await holdingDatabase(holdingId)) }),
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
     await setAiPlatformKeyEnabled(db, {
       enabled: parsed.data.enabled, actorId: platform.userId, reason: parsed.data.reason,
     });
-    return Response.json({ data: await readAiGatewayPolicy(db) },
+    return Response.json(canonicalDestinationLinks({ data: await readAiGatewayPolicy(db) }),
       { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error); }
 }

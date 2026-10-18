@@ -32,7 +32,7 @@ it("prepares a purchase draft with permitted canonical actions, without creating
   expect(result.intent).toBe("purchase");
   expect(result.draft).toEqual({title:"Two monitors",description:"For the design team",itemName:"monitors",quantity:"2"});
   expect(result.missing).toEqual([]);
-  expect(result.actions.find(action=>action.suggested)?.href).toContain("/requests/new?kind=purchase");
+  expect(result.actions.find(action=>action.suggested)?.href).toBe("/holdings/test/services/desk/new?kind=purchase");
   expect(result.actions.find(action=>action.id==="leave")?.href).toContain("/leave/new");
   expect((await db.prepare("SELECT count(*)::int AS n FROM employee_requests WHERE company_id=?").bind(f.company).first<{n:number}>())?.n).toBe(0);
   expect(await prepareGuidedIntake(db,f.claimant,aiEnv,input,id,generate)).toMatchObject({intent:"purchase"});

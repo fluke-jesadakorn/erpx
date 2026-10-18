@@ -62,6 +62,14 @@ async function ensureFrontRole(holdingSlug: string, companyId: string, app: Fron
   if (!state.selected) throw ports.error(409, "WORK_CONTEXT_CHANGED", "Your work access changed. Reload this page.");
   return state;
 }
+/** Read-time freshness belongs to the authority read, not to React rendering.
+ * The timestamp precedes every native role read/selection this invocation makes.
+ */
+async function ensureFrontRoleSnapshot(...args: Parameters<typeof ensureFrontRole>) {
+  const checkedAt = ports.now();
+  const result = await ensureFrontRole(...args);
+  return {...result, checkedAt};
+}
 async function frontCompanyBrand(holdingSlug: string, companySlug: string): Promise<FrontCompanyBrand | null> {
   const binding = await ports.prepareSlug(holdingSlug);
   await ports.prepareHolding(binding.id);
@@ -172,5 +180,5 @@ async function frontWorkspaceHref(actor: WorkContext, app: FrontAppKind) {
     location,
   );
 }
-return {frontRoleState,ensureFrontRole,frontCompanyBrand,frontCompanyApp,frontScopeFromLocation,storefrontLogo,frontWorkspaceHref};
+return {frontRoleState,ensureFrontRole,ensureFrontRoleSnapshot,frontCompanyBrand,frontCompanyApp,frontScopeFromLocation,storefrontLogo,frontWorkspaceHref};
 }

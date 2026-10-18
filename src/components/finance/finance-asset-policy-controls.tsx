@@ -1,9 +1,10 @@
 "use client";
+import {useFinanceCommand} from "./use-finance-command";
+import {useFinanceDraftScope} from "./finance-draft-boundary";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { EmbeddedRecord } from "@/components/records/record-context";
 import { recordCanonicalHref } from "@/lib/records/record-drawer";
 import { useContext, useState } from "react";
-import { useRouter } from "next/navigation";
-import { financeCommandFetch as workFetch } from "@/lib/finance/finance-command-fetch";
 import {
   Button,
   Card,
@@ -114,6 +115,7 @@ function PolicyEditor({
   busy: boolean;
   onSave: (input: unknown) => Promise<void>;
 }) {
+  const draftScope=useFinanceDraftScope();
   const old = initial
       ? (JSON.parse(String(initial.content_json)) as Policy)
       : null,
@@ -123,7 +125,7 @@ function PolicyEditor({
       (b) => b.id === asset?.chart_id || b.primary_chart_id === asset?.chart_id,
     );
   return (
-    <FormLayout
+    <FormLayout data-finance-draft={draftScope}
       className="ui-form-grid"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -244,6 +246,10 @@ function PolicyEditor({
     </FormLayout>
   );
 }
+function PolicyDisclosure({data,initial,busy,onSave,error}:{data:Data;initial?:Row;busy:boolean;onSave:(input:unknown)=>Promise<void>;error:string}){
+ const [revision,setRevision]=useState(0);
+ return <FormDisclosure appearance="standard" error={error} drawerTitle={initial?"Prepare revised asset policies":"Prepare asset book policies"} onDiscard={()=>setRevision(value=>value+1)}><summary>{initial?"Revise policy":"Prepare depreciation policies"}</summary><PolicyEditor key={revision} data={data} initial={initial} busy={busy} onSave={onSave}/></FormDisclosure>;
+}
 export function FinanceAssetPolicyControls({
   base,
   data,
@@ -260,34 +266,8 @@ export function FinanceAssetPolicyControls({
   userId: string;
 }) {
   const recordOnly = useContext(EmbeddedRecord);
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function run(path: string, input: unknown) {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await workFetch(
-          `${base.replace("/holdings/", "/api/v1/holdings/")}/finance/${path}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Idempotency-Key": crypto.randomUUID(),
-            },
-            body: JSON.stringify(input),
-          },
-        ),
-        body = await r.json();
-      if (!r.ok)
-        throw new Error(body.error?.message ?? "Asset policy command failed");
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Asset policy command failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const {send,busy,error,draftScope,canPrepare,canSettle}=useFinanceCommand(base);
+  async function run(path:string,input:unknown){await send(path,input,path==="asset-policies"?"new-work":"settle-existing");}
   return (
     <>
       <Card appearance="standard" as="section" className="ui-panel">
@@ -303,18 +283,8 @@ export function FinanceAssetPolicyControls({
           </p>
         )}
         {error && <InlineNotice tone="danger">{error}</InlineNotice>}
-        {!recordOnly && enabled && canWrite && (
-          <FormDisclosure error={error}
-            appearance="standard"
-            drawerTitle="Prepare asset book policies"
-          >
-            <summary>Prepare depreciation policies</summary>
-            <PolicyEditor
-              data={data}
-              busy={busy}
-              onSave={(i) => run("asset-policies", i)}
-            />
-          </FormDisclosure>
+        {!recordOnly && enabled && canWrite && canPrepare && (
+          <PolicyDisclosure data={data} busy={busy} error={error} onSave={i=>run("asset-policies",i)}/>
         )}
       </Card>
       {data.policies.map((p) => {
@@ -378,7 +348,7 @@ export function FinanceAssetPolicyControls({
                         </p>
                       ))}
                       {a && (
-                        <RecordLink href={`${base}/finance/assets/${a.id}`}>
+                        <RecordLink href={canonicalUiHref(`${base}/finance/assets/${a.id}`)}>
                           Original acquisition and depreciation history
                         </RecordLink>
                       )}
@@ -389,23 +359,23 @@ export function FinanceAssetPolicyControls({
             )}
             <FinanceExpansionDecision
               base={base}
-              canWrite={canWrite}
+              canWrite={canWrite&&canSettle}
               row={p}
               root="asset-policies"
               approveAction="approve"
-              canApprove={canApprove}
+              canApprove={canApprove&&canSettle}
               userId={userId}
               busy={busy}
               run={run}
             />
-            {enabled && canWrite && p.status === "active" && (
+            {enabled && canWrite && canSettle && p.status === "active" && (
               <>
                 <FormDisclosure error={error}
                   appearance="standard"
                   drawerTitle="Prepare monthly depreciation"
                 >
                   <summary>Prepare monthly depreciation</summary>
-                  <FormLayout
+                  <FormLayout data-finance-draft={draftScope}
                     className="ui-form-grid"
                     onSubmit={async (e) => {
                       e.preventDefault();
@@ -508,18 +478,7 @@ export function FinanceAssetPolicyControls({
                     </Button>
                   </FormLayout>
                 </FormDisclosure>
-                <FormDisclosure error={error}
-                  appearance="standard"
-                  drawerTitle="Prepare revised asset policies"
-                >
-                  <summary>Revise policy</summary>
-                  <PolicyEditor
-                    initial={p}
-                    data={data}
-                    busy={busy}
-                    onSave={(i) => run("asset-policies", i)}
-                  />
-                </FormDisclosure>
+                {canPrepare&&<PolicyDisclosure initial={p} data={data} busy={busy} error={error} onSave={i=>run("asset-policies",i)}/>}
               </>
             )}
           </Card>
@@ -565,22 +524,22 @@ export function FinanceAssetPolicyControls({
               </p>
             ))}
             {journals.map((j) => (
-              <RecordLink key={j.id} href={`${base}/finance/journals/${j.id}`}>
+              <RecordLink key={j.id} href={canonicalUiHref(`${base}/finance/journals/${j.id}`)}>
                 Posting journal
               </RecordLink>
             ))}
             {reversals.map((id) => (
-              <RecordLink key={id} href={`${base}/finance/journals/${id}`}>
+              <RecordLink key={id} href={canonicalUiHref(`${base}/finance/journals/${id}`)}>
                 Retained reversal
               </RecordLink>
             ))}
             <FinanceExpansionDecision
               base={base}
-              canWrite={canWrite}
+              canWrite={canWrite&&canSettle}
               row={r}
               root="asset-policy-runs"
               approveAction="post"
-              canApprove={canApprove}
+              canApprove={canApprove&&canSettle}
               userId={userId}
               busy={busy}
               run={run}

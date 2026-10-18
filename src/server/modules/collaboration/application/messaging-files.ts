@@ -8,6 +8,7 @@ export interface MessageFileCommands<Effect> {
 }
 export interface MessagingFilePorts<Effect> {
     clock: Clock;
+    owned?<Result>(key:string,run:(unit:MessagingFilePorts<Effect>)=>Promise<Result>):Promise<Result>;
     commands: MessageFileCommands<Effect>;
     repository: {
         bindFile(id: string, room: string, user: string, name: string, type: string, bytes: number, object: string, checksum: string, now: number, set: string, link: string, source: string): Effect;
@@ -59,7 +60,7 @@ export interface MessagingFilePorts<Effect> {
 export function createMessagingFileApplication<Effect>(ports: MessagingFilePorts<Effect>) {
     async function uploadMessagingFile(actor: WorkContext, roomId: string, input: z.infer<typeof metadata>) {
         input = metadata.parse(input);
-        const room = await ports.room(actor, roomId);
+        const originalRoom = await ports.room(actor, roomId);
         if (ports.readOnly())
             throw new BusinessRuleError(503, "ATTACHMENTS_READ_ONLY", "Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.");
         // Read with a hard bound, including chunked requests without Content-Length.
@@ -95,7 +96,9 @@ export function createMessagingFileApplication<Effect>(ports: MessagingFilePorts
         if (!length || !ports.validSignature(input.type, bytes))
             throw new BusinessRuleError(422, "FILE_TYPE", "The file contents do not match its type.");
         const checksum = await ports.sha256(bytes.buffer), key = `chat-upload-${input.id}`, fingerprint = { ...input, checksum, roomId };
-        const prior = await ports.commands.replay<{
+        const submit=async(unit:MessagingFilePorts<Effect>)=>{
+        const room=unit===ports?originalRoom:await unit.room(actor,roomId);
+        const prior = await unit.commands.replay<{
             id: string;
             attachmentSetId: string;
             attachmentLinkId: string;
@@ -104,7 +107,7 @@ export function createMessagingFileApplication<Effect>(ports: MessagingFilePorts
         }>(actor, key, "messaging.upload", roomId, fingerprint);
         if (prior)
             return prior;
-        const set = await ports.files.createSet(actor, {
+        const set = await unit.files.createSet(actor, {
             targetType: "messaging_room",
             targetId: roomId,
             componentKind: "message",
@@ -112,20 +115,20 @@ export function createMessagingFileApplication<Effect>(ports: MessagingFilePorts
             purposeKey: "message_attachment",
             expectedTargetVersion: Number(room.version),
         }, `${key}:set`, { compatibilityAdapter: true });
-        const reserved = await ports.files.reserveFile(actor, set.id, {
+        const reserved = await unit.files.reserveFile(actor, set.id, {
             filename: input.name,
             mediaType: input.type,
             bytes: length,
         }, `${key}:file`, { compatibilityAdapter: true });
-        const completed = await ports.files.completeUpload(actor, reserved.uploadIntentId, bytes.buffer, { compatibilityAdapter: true });
-        const sourceState = await ports.files.scan(completed.sourceId);
+        const completed = await unit.files.completeUpload(actor, reserved.uploadIntentId, bytes.buffer, { compatibilityAdapter: true });
+        const sourceState = await unit.files.scan(completed.sourceId);
         if (sourceState !== "available")
             throw new BusinessRuleError(sourceState === "malware_rejected" ? 422 : 503, sourceState === "malware_rejected"
                 ? "MESSAGE_FILE_REJECTED"
                 : "MESSAGE_FILE_SCAN_UNAVAILABLE", sourceState === "malware_rejected"
                 ? "The message file was rejected by malware scanning."
                 : "The message file could not pass malware scanning.");
-        const source = await ports.files.source(completed.sourceId, actor.companyId);
+        const source = await unit.files.source(completed.sourceId, actor.companyId);
         if (!source)
             throw new BusinessRuleError(503, "ATTACHMENT_SOURCE_UNAVAILABLE", "The quarantined message file could not be recorded.");
         const result = {
@@ -135,10 +138,12 @@ export function createMessagingFileApplication<Effect>(ports: MessagingFilePorts
             sourceId: completed.sourceId,
             state: sourceState,
         };
-        return ports.commands.commit(actor, key, "messaging.upload", fingerprint, roomId, Number(room.version), result, [
-            ports.roomGuard(actor, key, roomId),
-            ports.repository.bindFile(input.id, roomId, actor.userId, input.name, input.type, length, source.object_key, source.checksum_sha256, ports.clock.now(), set.id, completed.attachmentLinkId, completed.sourceId),
+        return unit.commands.commit(actor, key, "messaging.upload", fingerprint, roomId, Number(room.version), result, [
+            unit.roomGuard(actor, key, roomId),
+            unit.repository.bindFile(input.id, roomId, actor.userId, input.name, input.type, length, source.object_key, source.checksum_sha256, unit.clock.now(), set.id, completed.attachmentLinkId, completed.sourceId),
         ]);
+        };
+        return ports.owned?ports.owned(key,submit):submit(ports);
     }
     return { uploadMessagingFile };
 }

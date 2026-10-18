@@ -1,3 +1,4 @@
+import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "./payroll-purchases";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -80,13 +81,13 @@ async function invoke<Result>(run: () => Promise<Result>) {
     }
 }
 export async function originalSource(db: SqlDatabase, companyId: string, runId: string, itemId: string) { return invoke(() => application(db).originalSource(companyId, runId, itemId)); }
-export async function createPayrollAdjustment(actor: WorkContext, originalRunId: string, input: z.infer<typeof payrollAdjustmentCreateSchema>, key: string) { return invoke(() => application().createPayrollAdjustment(actor, originalRunId, input, key)); }
-export async function editPayrollAdjustment(actor: WorkContext, runId: string, input: z.infer<typeof payrollAdjustmentEditSchema>, key: string) { return invoke(() => application().editPayrollAdjustment(actor, runId, input, key)); }
+export async function createPayrollAdjustment(actor: WorkContext, originalRunId: string, input: z.infer<typeof payrollAdjustmentCreateSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.adjustment.create", purpose: "settle-existing" }, tx => invoke(() => application(tx).createPayrollAdjustment(actor, originalRunId, input, key))); }
+export async function editPayrollAdjustment(actor: WorkContext, runId: string, input: z.infer<typeof payrollAdjustmentEditSchema>, key: string) { return withPayrollPurchasedCommand(actor, { key: key, operation: "people.payroll.adjustment.edit", purpose: "settle-existing" }, tx => invoke(() => application(tx).editPayrollAdjustment(actor, runId, input, key))); }
 export async function payrollAdjustmentInputs(db: SqlDatabase, run: PayrollStatutoryRun) { return invoke(() => application(db).payrollAdjustmentInputs(run)); }
 export async function calculatePayrollAdjustmentItem(db: SqlDatabase, run: PayrollStatutoryRun) { return invoke(() => application(db).calculatePayrollAdjustmentItem(run)); }
 export async function calculatePayrollAdjustmentRun(db: SqlDatabase, actor: WorkContext, run: PayrollStatutoryRun & {
     version: number;
 }, key: string) { return invoke(() => application(db).calculatePayrollAdjustmentRun(actor, run, key)); }
 export async function payrollAdjustmentSourceFresh(db: SqlDatabase, run: PayrollStatutoryRun) { return invoke(() => application(db).payrollAdjustmentSourceFresh(run)); }
-export async function payrollAdjustmentPanel(actor: WorkContext, runId: string) { return invoke(() => application().payrollAdjustmentPanel(actor, runId)); }
+export async function payrollAdjustmentPanel(actor: WorkContext, runId: string) { return withPayrollPurchasedRead(actor, tx => invoke(() => application(tx).payrollAdjustmentPanel(actor, runId))); }
 export async function payrollAdjustmentGuards(db: SqlDatabase, key: string, run: PayrollStatutoryRun, input: Awaited<ReturnType<typeof payrollAdjustmentInputs>>) { return invoke(() => application(db).payrollAdjustmentGuards(key, run, input)); }

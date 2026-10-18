@@ -6,6 +6,9 @@ import type { SqlStatement } from "../../../runtime/public/runtime/types";
 import { fail } from "./access";
 import { calendarRemindersWorkProjectionFacts } from "../../../work_projection/public/calendar-reminders-facts";
 import { createCalendarReminders, type CalendarRemindersUnit } from "../../application/calendar/reminders";
+import {withCalendarReminderDelivery} from './reminder-purchases';
+import {isTransactionalSqlDatabase} from '../../../runtime/public/runtime/types';
+import {ApiError} from '../../../runtime/public/http';
 const service = createCalendarReminders<SqlStatement>({ clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, fail });
 export function calendarRemindersUnit(db: SqlDatabase): CalendarRemindersUnit<SqlStatement> {
     return { read1: facts => calendarRemindersWorkProjectionFacts(db).read1(facts),
@@ -15,7 +18,8 @@ export function calendarRemindersUnit(db: SqlDatabase): CalendarRemindersUnit<Sq
         write5: facts => calendarRemindersWorkProjectionFacts(db).write5(facts),
         read6: facts => calendarRemindersWorkProjectionFacts(db).read6(facts),
         publish: input => publishInboxEvent(db, input),
-        transaction: callback => (db as PostgresDatabase).transaction(tx => callback(calendarRemindersUnit(tx))) };
+        transaction: callback => (db as PostgresDatabase).transaction(tx => callback(calendarRemindersUnit(tx))),
+        deliver:(row,occurrence,callback)=>withCalendarReminderDelivery(db,row,occurrence,tx=>tx===db?(db as PostgresDatabase).transaction(owned=>callback(calendarRemindersUnit(owned))):callback(calendarRemindersUnit(tx))) };
 }
-export function drainCalendarReminders(db: PostgresDatabase, now = Date.now()) { return service.drainCalendarReminders(calendarRemindersUnit(db), now); }
+export async function drainCalendarReminders(db: SqlDatabase, now = Date.now()) { if(!isTransactionalSqlDatabase(db))throw new ApiError(503,'CALENDAR_REMINDER_UNIT_REQUIRED','Calendar reminders require their complete owned Holding transaction.');return service.drainCalendarReminders(calendarRemindersUnit(db), now); }
 export type { Row } from "../../domain/calendar/reminders";

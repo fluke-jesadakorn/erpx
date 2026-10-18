@@ -1,4 +1,7 @@
+import {hydratePmsReceiptAllocationCredits} from "./pms";
+import {bookingEmailDeliveryPayload} from "./booking-email-delivery";
 import "server-only";
+import {publicSurfaceOrigin} from '../../identity_access/public/public-surface-entry';
 import { createHash, createHmac, randomUUID, randomBytes, createCipheriv, createDecipheriv, timingSafeEqual } from "node:crypto";
 import { type BookingSearch } from "@/lib/pms/pms-booking";
 import { type Kind, type Property, type Snapshot } from "@/server/modules/pms/public/rules/pms";
@@ -19,11 +22,14 @@ import { processBookingRefund } from "../public/pms-booking-refunds";
 import { settleBookingChange, publicChangeQuote, confirmBookingChange } from "../public/pms-booking-changes";
 import { pmsBookingPublications } from "../../files/public/pms-booking-publications";
 import { pmsBookingPosFacts } from "../../pos/public/pms-booking-facts";
+import { pmsPropertyPurchaseAllowed, pmsPropertyPurchaseFlags, requirePmsPropertyPurchase, withPmsPropertyPurchasedTransaction } from "./property-purchase-boundary";
+import { pmsPackageEnforcementMode } from "../../commercial/public/purchase-command-boundary";
+import { purchasedCapabilityPredicate, packageClockSql } from "../../commercial/public/purchased-capability-sql";
 export async function bookingEnv(): Promise<BookingEnv> {
     const env = await runtimeEnv();
     return {
         secret: env.BETTER_AUTH_SECRET,
-        origin: env.ERPX_PUBLIC_ORIGIN,
+        origin: publicSurfaceOrigin('booking',env.ERPX_PUBLIC_ORIGIN),
         apiKey: env.RESEND_API_KEY,
         from: env.RESEND_FROM,
     };
@@ -50,10 +56,10 @@ function unprotectMail(value: string, env: BookingEnv, id: string) {
     const v = JSON.parse(value), decipher = createDecipheriv("aes-256-gcm", createHash("sha256").update(`pms-mail:${env.secret}`).digest(), Buffer.from(v.iv, "base64"));
     decipher.setAAD(Buffer.from(id));
     decipher.setAuthTag(Buffer.from(v.tag, "base64"));
-    return Buffer.concat([
+    return bookingEmailDeliveryPayload(Buffer.concat([
         decipher.update(Buffer.from(v.body, "base64")),
         decipher.final(),
-    ]).toString("utf8");
+    ]).toString("utf8"),env);
 }
 const same = (a: string, b: string) => {
     const x = Buffer.from(a), y = Buffer.from(b);
@@ -65,6 +71,10 @@ const rows = async <T>(db: SqlDatabase, sql: string, ...v: unknown[]) => (await 
     .all<T>()).results;
 function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit<SqlStatement> {
     return {
+        hydrateReceiptAllocationCredits: snapshot => hydratePmsReceiptAllocationCredits(db,snapshot),
+        purchaseAllowed: (propertyId, purpose) => pmsPropertyPurchaseAllowed(db, propertyId, purpose),
+        purchaseFlags: propertyId => pmsPropertyPurchaseFlags(db, propertyId),
+        requirePurchase: input => requirePmsPropertyPurchase(db, input),
         readPmsProperties1: (facts: {
             propertyId: string;
             lock: boolean;
@@ -309,6 +319,8 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             fact0: number;
             token_id: string;
         }) => db.prepare("UPDATE pms_booking_tokens SET expires_at=? WHERE id=?").bind(facts.fact0, facts.token_id).run(),
+        writePmsBookingEmailsBlocked: facts => db.prepare("UPDATE pms_booking_emails SET state='pending',attempts=GREATEST(0,attempts-1),lease_until=NULL,next_attempt_at=?,last_error=? WHERE id=?")
+          .bind(facts.nextAt, facts.code, facts.id).run(),
         writePmsBookingEmails2: (facts: {
             now: number;
             id: string;
@@ -329,11 +341,16 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
             version: number;
             updated_at: number;
         }>(db, `SELECT * FROM pms_records WHERE property_id=?${facts.search ? " AND (kind IN ('room_type','room','rate') OR (kind='block' AND data_json::jsonb->>'state'='active') OR (kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house') AND data_json::jsonb->>'arrival' < ? AND data_json::jsonb->>'departure' > ?))" : ""} ORDER BY id`, facts.propertyId, ...facts.fact1),
-        readPmsProperties3: () => rows<{
-            id: string;
-            name: string;
-            config_json: string;
-        }>(db, "SELECT id,name,config_json FROM pms_properties WHERE state IN ('open','closing') AND config_json::jsonb->'booking'->>'published'='true' ORDER BY name LIMIT 200"),
+        readPmsProperties3: async () => {
+            const mode = await pmsPackageEnforcementMode(), enforced = mode === "enforced";
+            const clock = enforced ? `WITH purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} observed_at) ` : "";
+            const join = enforced ? " CROSS JOIN purchase_clock" : "";
+            const purchase = enforced ? purchasedCapabilityPredicate("p.company_id", "pms.reservations", "new-work", "purchase_clock.observed_at") : "TRUE";
+            const hotels = await rows<{ id: string; name: string; config_json: string }>(db, `${clock}SELECT p.id,p.name,p.config_json FROM pms_properties p${join}
+              WHERE p.state IN ('open','closing') AND p.config_json::jsonb->'booking'->>'published'='true' AND ${purchase} ORDER BY p.name LIMIT 200`);
+            if (mode === "shadow") for (const hotel of hotels) await pmsPropertyPurchaseAllowed(db, hotel.id, "new-work");
+            return hotels;
+        },
         readAttachmentPublications1: () => pmsBookingPublications(db, "SELECT jsonb_array_elements(config_json::jsonb->'booking'->'images')->>'publicationId' FROM pms_properties WHERE config_json::jsonb->'booking'->>'published'='true' UNION SELECT image->>'publicationId' FROM pms_properties CROSS JOIN LATERAL jsonb_array_elements(config_json::jsonb->'booking'->'roomContent') room CROSS JOIN LATERAL jsonb_array_elements(room->'images') image WHERE config_json::jsonb->'booking'->>'published'='true'").approved(),
         readPmsBookingPayments6: (facts: {
             fact0: number;
@@ -369,7 +386,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase): PmsBookingUnit
         confirmBookingChange: (...args) => confirmBookingChange(requireWhole(whole), ...args)
     };
 }
-function repository(db: TransactionalSqlDatabase): PmsBookingRepository<SqlStatement> { return { ...unit(db, db), transaction: work => db.transaction(tx => work(unit(tx, db))) }; }
+function repository(db: TransactionalSqlDatabase): PmsBookingRepository<SqlStatement> { return { ...unit(db, db), transaction: (work, purchase) => withPmsPropertyPurchasedTransaction(db, tx => work(unit(tx, db)), purchase) }; }
 function requireWhole(db: TransactionalSqlDatabase | undefined): TransactionalSqlDatabase { if (!db)
     throw new Error("A booking command requires the original transaction-capable connection"); return db; }
 const application = createPmsBooking<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash, sign, same, protectMail, unprotectMail, encode: value => Buffer.from(value).toString("base64url"), decode: value => Buffer.from(value, "base64url").toString(), bookingEnv: (...args) => bookingEnv(...args), liveEnabled: () => process.env.PMS_STRIPE_LIVE_ENABLED, require: requirePermission, forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write), error: (status, code, message) => new ApiError(status, code, message), isBusinessError: (error): error is ApiError => error instanceof ApiError, stripeCall: (...args) => stripeCall(...args), verifiedStripePaymentTime: (...args) => verifiedStripePaymentTime(...args), sendMail: fetch, timeout: () => AbortSignal.timeout(10000) });

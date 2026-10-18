@@ -1,21 +1,26 @@
 "use client";
+import {RoutineSchedules} from "@/components/operations/routine-schedule-controls";
+import {useProjectEditorCommand} from "@/components/projects/use-project-editor-command";
+import {useProjectPurchases} from "@/components/projects/purchase-context";
+import type {ProjectMemberPickerOptions} from "@/lib/projects/worker-display";
+import {projectPurchased} from "@/lib/projects/purchase-controls";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/shared/ai/guided-intake";
 import { preparedTaskFields } from "@/lib/shared/ai/prepared-work";
-import { formatUiDateTime } from "@/lib/shared/ui-format";
 import { localMinuteAt } from "@/lib/work_projection/calendar-timeline";
 import { PreferredDateTimeField } from "@/components/people_payroll/time/preferred-date-time-field";
 import { TimeText, useDisplayTimeZone } from "@/components/people_payroll/time/time-preference-context";
-import { useRouter } from "next/navigation";
+import { useStaffCommand } from "./use-staff-command";
+export { useStaffCommand } from "./use-staff-command";
 import type { StaffPerson } from "@/server/modules/operations/public/staff-policy";
 import type { TaskDetail, TaskRow, ProjectRow } from "@/server/modules/operations/public/staff-tasks";
-import type { ScheduleRow, TemplateRow } from "@/server/modules/operations/public/routines";
+import type { TemplateRow } from "@/server/modules/operations/public/routines";
 import type { ApprovalView } from "@/server/modules/workflow/public/approvals";
 import {
   AttachmentPanel,
@@ -42,51 +47,11 @@ export type StaffOptions = {
     head_name: string;
   }[];
 };
-export function useStaffCommand(base: string) {
-  const router = useRouter(),
-    [refreshing, startRefresh] = useTransition(),
-    attempt = useRef<{ signature: string; key: string } | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function send(path: string, input: unknown, destination?: string) {
-    const body = JSON.stringify(input),
-      signature = path + body;
-    if (attempt.current?.signature !== signature)
-      attempt.current = { signature, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/${path}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": attempt.current.key,
-        },
-        body,
-      });
-      const data = (await response.json()) as {
-        data: { id: string };
-        error?: { message: string };
-      };
-      if (!response.ok)
-        throw new Error(data.error?.message ?? "Unable to save. Your details are still here.");
-      attempt.current = null;
-      startRefresh(() => {
-        if (destination) router.push(`${base}/${destination}/${data.data.id}`);
-        else router.refresh();
-      });
-      return data.data;
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Connection interrupted. Retry to finish the same action.",
-      );
-      return null;
-    } finally {
-      setBusy(false);
-    }
-  }
-  return { send, busy: busy || refreshing, error };
-}
+type StaffPickerOptions={
+ people:readonly Pick<StaffPerson,'user_id'|'legal_name'|'department_id'|'level_id'|'level_name'>[];
+ levels:readonly Pick<StaffOptions['levels'][number],'id'|'name'|'rank'>[];
+ departments:readonly Pick<StaffOptions['departments'][number],'id'|'display_name'>[];
+};
 export function StaffPicker({ appearance = "legacy",
   label,
   value,
@@ -98,7 +63,7 @@ export function StaffPicker({ appearance = "legacy",
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: StaffOptions;
+  options: StaffPickerOptions;
   exclude?: string[];
   required?: boolean;
 }) & { appearance?: UiAppearance }) {
@@ -162,7 +127,7 @@ export function StaffPicker({ appearance = "legacy",
     </fieldset>
   );
 }
-function Approvers({ appearance = "legacy",
+export function Approvers({ appearance = "legacy",
   label,
   values,
   onChange,
@@ -172,7 +137,7 @@ function Approvers({ appearance = "legacy",
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
-  options: StaffOptions;
+  options: StaffPickerOptions;
   exclude: string[];
 }) & { appearance?: UiAppearance }) {
   return (
@@ -224,6 +189,10 @@ function Approvers({ appearance = "legacy",
     </fieldset>
   );
 }
+function ProjectEditorRecovery({appearance,pending,busy,retry}:{appearance:UiAppearance;pending:boolean;busy:boolean;retry:()=>Promise<unknown>}){
+ if(!pending)return null;
+ return <div data-ui-appearance={appearance} className={appearance==='standard'?'ui-stack':'notice'} role="status"><p data-ui-appearance={appearance}>The original Project request is not confirmed. Retain your newer draft and recover it before submitting another record.</p><Button appearance={appearance} type="button" variant="secondary" disabled={busy} onClick={()=>void retry()}>Recover original Project request</Button></div>;
+}
 export function TaskEditor({ appearance = "legacy",
   base,
   options,
@@ -238,10 +207,12 @@ export function TaskEditor({ appearance = "legacy",
   createAs = "task",
   initialDueDate,
   initialProjectId,
+  fixedProjectId,
+  projectEditable=true,
 }: ({
   base: string;
-  options: StaffOptions;
-  projects: ProjectRow[];
+  options: StaffPickerOptions;
+  projects: Pick<ProjectRow,"id"|"title">[];
   userId: string;
   companyId?: string;
   assignmentId?: string;
@@ -252,6 +223,8 @@ export function TaskEditor({ appearance = "legacy",
   createAs?: "task" | "routine";
   initialDueDate?: string;
   initialProjectId?: string;
+  fixedProjectId?: string;
+  projectEditable?:boolean;
 }) & { appearance?: UiAppearance }) {
   const { timeZone, ready: timeReady } = useDisplayTimeZone();
   const [defaultDue] = useState(() =>
@@ -259,8 +232,9 @@ export function TaskEditor({ appearance = "legacy",
   );
   const creationForm = useRef<HTMLFormElement>(null);
   const adoptedCreationDraft = useRef(false);
+  const [savedProjectTask,setSavedProjectTask]=useState<{id:string;version:number;state:string;projectId:string|null;kind:"task"|"routine"}|null>(null);
+  const ordinaryCommand=useStaffCommand(base),purchases=useProjectPurchases(),[selectedProjectId,setSelectedProjectId]=useState(fixedProjectId??task?.project_id??initialProjectId??"");
   const source = task ?? template,
-    { send, busy, error } = useStaffCommand(base),
     [title, setTitle] = useState(`${clone ? "Copy of " : ""}${source?.title ?? ""}`),
     [description, setDescription] = useState(source?.description ?? ""),
     [guided, setGuided] = useState<Record<string, string> | null>(null),
@@ -283,6 +257,11 @@ export function TaskEditor({ appearance = "legacy",
           : "none",
     ),
     [dueOverride, setDue] = useState<string | null>(null);
+  const [draftVersion,setDraftVersion]=useState(0),[dirty,setDirty]=useState(false),[editorOpen,setEditorOpen]=useState(false),[visited,setVisited]=useState(false);
+  const nativeRecord=task?{kind:'task' as const,id:task.id,version:task.version,projectId:task.project_id,state:task.state}:template?{kind:'routine' as const,id:template.id,version:template.version,projectId:template.project_id}:null;
+  const projectCommand=useProjectEditorCommand({kind:'task',base,scope:companyId?{companyId,actorId:userId,available:projectEditable,record:nativeRecord}:null,record:nativeRecord,projects,options,purchases,draftVersion,dirty:Boolean(selectedProjectId||task?.project_id||template?.project_id||savedProjectTask)&&dirty});
+  const affiliated=Boolean(selectedProjectId||task?.project_id||template?.project_id||savedProjectTask||projectCommand.pending),{busy,error}=affiliated?projectCommand:ordinaryCommand;
+  const available=projectCommand.scope?.available??projectEditable;
   // Adopt text entered into this server-rendered creation form before any
   // controlled rerender can replace it with the initial empty draft.
   useLayoutEffect(() => {
@@ -311,7 +290,7 @@ export function TaskEditor({ appearance = "legacy",
         : userId
       : userId;
   const [createKind, setCreateKind] = useState(createAs);
-  const templateMode = !!template || createKind === "routine";
+  const templateMode = savedProjectTask?savedProjectTask.kind==="routine":!!template || createKind === "routine";
   const maySkipReview =
     !templateMode &&
     (!task || (task.start_approvers_json === "[]" && task.completion_approvers_json === "[]"));
@@ -331,6 +310,7 @@ export function TaskEditor({ appearance = "legacy",
   }
   function usePrepared() {
     if (!guided || createKind !== "task") return;
+    setDraftVersion(value=>value+1);setDirty(true);
     const prepared = preparedTaskFields(guided, options.people);
     if (prepared.title) setTitle(prepared.title);
     if (prepared.description) setDescription(prepared.description);
@@ -338,8 +318,14 @@ export function TaskEditor({ appearance = "legacy",
     if (prepared.assigneeId) setAssignee(prepared.assigneeId);
     clearPrepared();
   }
-  return (
-    <FormDisclosure appearance={appearance} inline={Boolean(!source || clone)} className={appearance === "standard" ? "ui-panel" : "card"} open={!source || clone}>
+  if(!available&&!dirty&&!projectCommand.pending&&!visited)return null;
+  return (<>
+    <ProjectEditorRecovery appearance={appearance} pending={projectCommand.pending} busy={projectCommand.busy} retry={projectCommand.retry}/>
+    {projectCommand.notice&&<p data-ui-appearance={appearance} role="status">{projectCommand.notice}</p>}
+    {!!source&&!editorOpen&&(projectCommand.pending||dirty)&&<Button appearance={appearance} variant="secondary" disabled={busy} onClick={()=>setEditorOpen(true)}>Reopen retained task form</Button>}
+    <FormDisclosure appearance={appearance} inline={Boolean(!source || clone)} retainFormContents={visited||dirty||projectCommand.pending} dismissDisabled={busy||projectCommand.pending} open={!source||clone||editorOpen} onToggle={event=>{setVisited(true);setEditorOpen(event.currentTarget.open);}} className={appearance === "standard" ? "ui-panel" : "card"}>
+      <ProjectEditorRecovery appearance={appearance} pending={projectCommand.pending} busy={projectCommand.busy} retry={projectCommand.retry}/>
+      {!!source&&<Button appearance={appearance} variant="secondary" disabled={busy} onClick={()=>setEditorOpen(false)}>Close and retain task form</Button>}
       <summary data-ui-appearance={appearance}>
         {templateMode
           ? clone
@@ -375,20 +361,22 @@ export function TaskEditor({ appearance = "legacy",
           </Button>
         </div>
       )}
-      <form data-ui-appearance={appearance}
+      <form data-ui-appearance={appearance} data-work-dirty={dirty?"true":undefined}
+        onChangeCapture={()=>{setDraftVersion(value=>value+1);setDirty(true);}}
         ref={creationForm}
         onSubmit={(e) => {
           e.preventDefault();
+          if(!available||busy||projectCommand.pending)return;
           const f = new FormData(e.currentTarget),
-            routine = f.get("recordKind") === "routine" || templateMode;
+            routine = savedProjectTask?savedProjectTask.kind==="routine":!fixedProjectId&&(f.get("recordKind") === "routine" || templateMode);
           const payload = {
             title: f.get("title"),
             description: f.get("description"),
             assigneeUserId: assignee,
-            projectId: f.get("projectId") || null,
+            projectId: fixedProjectId??(f.get("projectId") || null),
             startApprovers: phase === "start" || phase === "both" ? before : [],
             completionApprovers: phase === "completion" || phase === "both" ? after : [],
-            expectedVersion: source?.version ?? 1,
+            expectedVersion: Math.max(!savedProjectTask||source?.id===savedProjectTask.id?source?.version??1:1,savedProjectTask?.version??1,!savedProjectTask||projectCommand.scope?.record?.id===savedProjectTask.id?projectCommand.scope?.record?.version??1:1),
             ...(routine
               ? { published: f.get("published") === "on" }
               : {
@@ -397,19 +385,22 @@ export function TaskEditor({ appearance = "legacy",
                 }),
           };
           const path = routine
-            ? `routine-templates${template ? `/${template.id}${clone ? "/clone" : ""}` : ""}`
-            : `staff-tasks${task ? `/${task.id}${canRevise ? "/revise" : ""}` : ""}`;
-          void send(path, payload, routine ? "routine-templates" : "staff-tasks");
+            ? `routine-templates${savedProjectTask?.kind==="routine"?`/${encodeURIComponent(savedProjectTask.id)}`:template ? `/${encodeURIComponent(template.id)}${clone ? "/clone" : ""}` : ""}`
+            : `staff-tasks${task||savedProjectTask ? `/${encodeURIComponent(task?.id??savedProjectTask!.id)}${canRevise||savedProjectTask&&savedProjectTask.state!=="draft" ? "/revise" : ""}` : ""}`;
+          if(affiliated&&!projectPurchased(purchases,"projects.tasks","newWork"))return;
+          if(affiliated)void projectCommand.send(path,payload,e.currentTarget,{destination:routine?"routine-templates":"staff-tasks",identity:result=>setSavedProjectTask({id:result.id,version:result.version,state:result.state??"draft",projectId:typeof payload.projectId==="string"?payload.projectId:null,kind:routine?"routine":"task"}),saved:()=>setDirty(false)});else void ordinaryCommand.send(path,payload,routine?"routine-templates":"staff-tasks");
         }}
       >
         <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-grid" : "business-form"}>
-          {!source && (
+          {!source && !fixedProjectId && (
             <Field appearance={appearance}>
               Create as
               <Select appearance={appearance}
                 name="recordKind"
+                disabled={busy||projectCommand.pending||!!savedProjectTask}
                 value={createKind}
                 onChange={(e) => {
+                  if(busy||projectCommand.pending||savedProjectTask)return;
                   const kind = e.target.value as "task" | "routine";
                   setCreateKind(kind);
                   if (kind === "routine" && phase === "none") {
@@ -436,14 +427,14 @@ export function TaskEditor({ appearance = "legacy",
           </Field>
           <Field appearance={appearance}>
             Project
-            <Select appearance={appearance} name="projectId" defaultValue={source?.project_id ?? initialProjectId ?? ""}>
+            {fixedProjectId?<><input type="hidden" name="projectId" value={fixedProjectId}/><span>{projects.find(project=>project.id===fixedProjectId)?.title}</span></>:<Select appearance={appearance} name="projectId" value={selectedProjectId} disabled={busy||projectCommand.pending} onChange={event=>{if(!busy&&!projectCommand.pending)setSelectedProjectId(event.target.value);}}>
               <option data-ui-appearance={appearance} value="">Standalone work</option>
               {projects.map((p) => (
                 <option data-ui-appearance={appearance} key={p.id} value={p.id}>
                   {p.title}
                 </option>
               ))}
-            </Select>
+            </Select>}
           </Field>
           {!templateMode && (
             <PreferredDateTimeField appearance={appearance}
@@ -519,7 +510,7 @@ export function TaskEditor({ appearance = "legacy",
             Publish for company staff
           </Field>
         )}
-        {canRevise && (
+        {(canRevise||!!savedProjectTask) && (
           <Field appearance={appearance}>
             Revision reason
             <TextArea appearance={appearance}
@@ -541,7 +532,7 @@ export function TaskEditor({ appearance = "legacy",
           </p>
         )}
         <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"}>
-          <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy || projectCommand.pending || !available || (affiliated&&!projectPurchased(purchases,"projects.tasks","newWork"))}>
             {busy
               ? "Saving…"
               : canRevise
@@ -556,7 +547,7 @@ export function TaskEditor({ appearance = "legacy",
           </Button>
         </div>
       </form>
-    </FormDisclosure>
+    </FormDisclosure></>
   );
 }
 export function TaskActions({ appearance = "legacy", base, detail }: ({ base: string; detail: TaskDetail }) & { appearance?: UiAppearance }) {
@@ -708,7 +699,7 @@ export function TaskDelegationControls({ appearance = "legacy",
 }: ({
   base: string;
   detail: TaskDetail;
-  options: StaffOptions;
+  options: StaffPickerOptions;
 }) & { appearance?: UiAppearance }) {
   const { send, busy, error } = useStaffCommand(base),
     canDelegate = detail.permittedActions.includes("delegate"),
@@ -861,31 +852,44 @@ export function ProjectEditor({ appearance = "legacy",
   options,
   project,
   members = [],
+  commandOwner,
+  available=true,
 }: ({
   base: string;
-  options: StaffOptions;
+  options: ProjectMemberPickerOptions;
   project?: ProjectRow;
   members?: string[];
+  commandOwner?:{companyId:string;actorId:string};
+  available?:boolean;
 }) & { appearance?: UiAppearance }) {
-  const { send, busy, error } = useStaffCommand(base),
-    [selected, setSelected] = useState(members),
+  const [selected, setSelected] = useState(members),
     [person, setPerson] = useState("");
-  return (
-    <FormDisclosure appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
-      <summary data-ui-appearance={appearance}>{project ? "Manage project and members" : "New project"}</summary>
-      <form data-ui-appearance={appearance}
+  const purchases=useProjectPurchases(),[formGeneration,setFormGeneration]=useState(0),[savedProject,setSavedProject]=useState<{id:string;version:number;title:string;description:string;memberUserIds:string[]}|null>(null);
+  const projectId=project?.id??savedProject?.id;
+  const [draftVersion,setDraftVersion]=useState(0),[dirty,setDirty]=useState(false),[editorOpen,setEditorOpen]=useState(false),[visited,setVisited]=useState(false);
+  const nativeRecord=project?{kind:'project' as const,id:project.id,version:project.version,lifecycleStatus:project.lifecycle_status}:null;
+  const command=useProjectEditorCommand({kind:'project',base,scope:commandOwner?{...commandOwner,available,record:nativeRecord}:null,record:nativeRecord,projects:[],options,members,purchases,draftVersion,dirty}),{busy,error,pending}=command;
+  const newWork=projectPurchased(purchases,"projects.wbs","newWork")&&(command.scope?.available??available);
+  if(!newWork&&!dirty&&!pending&&!visited)return null;
+  return (<>
+    <ProjectEditorRecovery appearance={appearance} pending={pending} busy={busy} retry={command.retry}/>
+    {command.notice&&<p data-ui-appearance={appearance} role="status">{command.notice}</p>}
+    {!editorOpen&&(pending||dirty)&&<Button appearance={appearance} variant="secondary" disabled={busy} onClick={()=>setEditorOpen(true)}>Reopen retained Project form</Button>}
+    <FormDisclosure appearance={appearance} retainFormContents={visited||dirty||pending} open={editorOpen} onToggle={event=>{setVisited(true);setEditorOpen(event.currentTarget.open);}} dismissDisabled={busy||pending} onDiscard={()=>{if(busy||pending)return;setDirty(false);setSelected(savedProject?.memberUserIds??members);setPerson("");setFormGeneration(value=>value+1);}} className={appearance === "standard" ? "ui-panel" : "card"}>
+      <ProjectEditorRecovery appearance={appearance} pending={pending} busy={busy} retry={command.retry}/>
+      {error&&<p data-ui-appearance={appearance} className="error" role="alert">{error}</p>}
+      <Button appearance={appearance} variant="secondary" disabled={busy} onClick={()=>setEditorOpen(false)}>Close and retain Project form</Button>
+      <summary data-ui-appearance={appearance}>{projectId ? "Manage project and members" : "New project"}</summary>
+      <form key={formGeneration} data-ui-appearance={appearance} data-work-dirty={dirty?"true":undefined} onChangeCapture={()=>{setDraftVersion(value=>value+1);setDirty(true);}}
         onSubmit={(e) => {
           e.preventDefault();
+          if(!newWork||pending||busy)return;
           const f = new FormData(e.currentTarget);
-          void send(
-            `projects${project ? `/${project.id}` : ""}`,
-            {
-              title: f.get("title"),
-              description: f.get("description"),
-              memberUserIds: selected,
-              expectedVersion: project?.version ?? 1,
-            },
-            "projects",
+          const input={title:String(f.get("title")??""),description:String(f.get("description")??""),memberUserIds:[...selected],expectedVersion:Math.max(project?.version??1,savedProject?.version??1,command.scope?.record?.version??1)};
+          void command.send(
+            `projects${projectId ? `/${encodeURIComponent(projectId)}` : ""}`,
+            input,
+            e.currentTarget,{destination:"projects",identity:result=>setSavedProject({...input,id:result.id,version:result.version}),saved:()=>setDirty(false)},
           );
         }}
       >
@@ -896,7 +900,7 @@ export function ProjectEditor({ appearance = "legacy",
             required
             minLength={2}
             maxLength={200}
-            defaultValue={project?.title ?? ""}
+            defaultValue={savedProject?.title??project?.title ?? ""}
           />
         </Field>
         <Field appearance={appearance}>
@@ -904,7 +908,7 @@ export function ProjectEditor({ appearance = "legacy",
           <TextArea appearance={appearance}
             name="description"
             maxLength={10000}
-            defaultValue={project?.description ?? ""}
+            defaultValue={savedProject?.description??project?.description ?? ""}
           />
         </Field>
         <StaffPicker appearance={appearance}
@@ -919,8 +923,9 @@ export function ProjectEditor({ appearance = "legacy",
           variant="secondary"
 
           type="button"
-          disabled={!person}
+          disabled={!person||busy||pending||!newWork}
           onClick={() => {
+            if(busy||pending||!newWork)return;setDraftVersion(value=>value+1);setDirty(true);
             setSelected([...new Set([...selected, person])]);
             setPerson("");
           }}
@@ -936,7 +941,8 @@ export function ProjectEditor({ appearance = "legacy",
               variant="ghost"
 
               type="button"
-              onClick={() => setSelected(selected.filter((v) => v !== user))}
+              disabled={busy||pending||!newWork}
+              onClick={() => {if(busy||pending||!newWork)return;setDraftVersion(value=>value+1);setDirty(true);setSelected(selected.filter((v) => v !== user));}}
             >
               Remove member
             </Button>
@@ -947,221 +953,14 @@ export function ProjectEditor({ appearance = "legacy",
             {error}
           </p>
         )}
-        <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
+        <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy||pending||!newWork}>
           Save project
         </Button>
       </form>
-    </FormDisclosure>
+    </FormDisclosure></>
   );
 }
-export function RoutineScheduleControls({ appearance = "legacy",
-  base,
-  template,
-  schedules,
-  canEdit,
-}: ({
-  base: string;
-  template: TemplateRow;
-  schedules: ScheduleRow[];
-  canEdit: boolean;
-}) & { appearance?: UiAppearance }) {
-  const { send, busy, error } = useStaffCommand(base),
-    [frequency, setFrequency] = useState("daily"),
-    [defaultDueInstant] = useState(() => Date.now() + 86400000);
-  function scheduleForm(schedule?: ScheduleRow) {
-    return (
-      <form data-ui-appearance={appearance}
-        key={schedule?.id ?? "new"}
-        className={appearance === "standard" ? "ui-form-grid" : "business-form"}
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          void send(
-            `routine-templates/${template.id}/schedules${schedule ? `/${schedule.id}` : ""}`,
-            {
-              frequency: f.get("frequency"),
-              timezone: f.get("timezone"),
-              occurrenceTime: f.get("occurrenceTime"),
-              startDate: f.get("startDate"),
-              endDate: f.get("endDate") || null,
-              weekday: f.get("weekday") === "" ? null : Number(f.get("weekday")),
-              monthDay: f.get("monthDay") === "" ? null : Number(f.get("monthDay")),
-              dueOffsetHours: Number(f.get("dueOffsetHours")),
-              expectedVersion: schedule?.version ?? 1,
-            },
-          );
-        }}
-      >
-        <Field appearance={appearance}>
-          Frequency
-          <Select appearance={appearance}
-            name="frequency"
-            defaultValue={schedule?.frequency ?? frequency}
-            onChange={(e) => setFrequency(e.target.value)}
-          >
-            <option data-ui-appearance={appearance} value="daily">Daily</option>
-            <option data-ui-appearance={appearance} value="weekly">Weekly</option>
-            <option data-ui-appearance={appearance} value="monthly">Monthly</option>
-          </Select>
-        </Field>
-        <Field appearance={appearance}>
-          Timezone
-          <TextInput appearance={appearance} name="timezone" defaultValue={schedule?.timezone ?? "Asia/Bangkok"} required />
-        </Field>
-        <Field appearance={appearance}>
-          Occurrence time
-          <TextInput appearance={appearance}
-            name="occurrenceTime"
-            type="time"
-            defaultValue={schedule?.occurrence_time ?? "09:00"}
-            required
-          />
-        </Field>
-        <Field appearance={appearance}>
-          Start date
-          <TextInput appearance={appearance}
-            name="startDate"
-            type="date"
-            required
-            defaultValue={schedule?.start_date ?? new Date().toISOString().slice(0, 10)}
-          />
-        </Field>
-        <Field appearance={appearance}>
-          End date
-          <TextInput appearance={appearance} name="endDate" type="date" defaultValue={schedule?.end_date ?? ""} />
-        </Field>
-        <Field appearance={appearance}>
-          Weekly weekday
-          <Select appearance={appearance} name="weekday" defaultValue={schedule?.weekday ?? ""}>
-            <option data-ui-appearance={appearance} value="">Use start weekday</option>
-            {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(
-              (day, i) => (
-                <option data-ui-appearance={appearance} key={day} value={i}>
-                  {day}
-                </option>
-              ),
-            )}
-          </Select>
-        </Field>
-        <Field appearance={appearance}>
-          Monthly day
-          <TextInput appearance={appearance}
-            name="monthDay"
-            type="number"
-            min={1}
-            max={31}
-            defaultValue={schedule?.month_day ?? ""}
-            placeholder="Use start day"
-          />
-        </Field>
-        <Field appearance={appearance}>
-          Due offset in hours
-          <TextInput appearance={appearance}
-            name="dueOffsetHours"
-            type="number"
-            required
-            min={0}
-            max={8760}
-            defaultValue={schedule?.due_offset_hours ?? 24}
-          />
-        </Field>
-        <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
-          Save paused schedule
-        </Button>
-      </form>
-    );
-  }
-  return (
-    <>
-      <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
-        <h2 data-ui-appearance={appearance}>Run routine now</h2>
-        <form data-ui-appearance={appearance}
-          className={appearance === "standard" ? "ui-form-grid" : "business-form"}
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send(
-              `routine-templates/${template.id}/run`,
-              {
-                dueAt: String(new FormData(e.currentTarget).get("dueAt")),
-              },
-              "staff-tasks",
-            );
-          }}
-        >
-          <PreferredDateTimeField appearance={appearance}
-            name="dueAt"
-            label="Task due date and time"
-            required
-            initialInstant={defaultDueInstant}
-          />
-          <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy || !template.published}>
-            Create occurrence
-          </Button>
-        </form>
-      </section>
-      <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
-        <h2 data-ui-appearance={appearance}>Schedules</h2>
-        <p data-ui-appearance={appearance} className="muted">
-          Each occurrence creates independent work. Monthly days beyond month-end use the last day.
-        </p>
-        {schedules.map((s) => (
-          <article data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"} key={s.id}>
-            <p data-ui-appearance={appearance}>
-              <strong data-ui-appearance={appearance}>
-                {s.frequency} at {s.occurrence_time} · {s.timezone}
-              </strong>{" "}
-              · {s.state}
-            </p>
-            <p data-ui-appearance={appearance}>
-              Next occurrence:{" "}
-              {s.next_occurrence_at ? formatUiDateTime(s.next_occurrence_at, s.timezone) : "None"}
-            </p>
-            {s.last_error && <p data-ui-appearance={appearance} role="alert">Generation failed: {s.last_error}</p>}
-            {canEdit && s.state !== "ended" && (
-              <>
-                <Button appearance={appearance}
-                  clientManaged type="submit"
-                  variant="secondary"
-
-                  disabled={busy}
-                  onClick={() =>
-                    void send(
-                      `routine-schedules/${s.id}/${s.state === "active" ? "pause" : "resume"}`,
-                      { expectedVersion: s.version },
-                    )
-                  }
-                >
-                  {s.state === "active" ? "Pause schedule" : "Resume schedule"}
-                </Button>
-                {s.state === "paused" && (
-                  <details data-ui-appearance={appearance}>
-                    <summary data-ui-appearance={appearance}>Edit paused schedule</summary>
-                    {scheduleForm(s)}
-                  </details>
-                )}
-              </>
-            )}
-          </article>
-        ))}
-        {canEdit && (
-          <details data-ui-appearance={appearance}>
-            <summary data-ui-appearance={appearance}>Add schedule</summary>
-            <p data-ui-appearance={appearance}>
-              Schedules are saved paused. Resume after reviewing assignment and approval
-              configuration.
-            </p>
-            {scheduleForm()}
-          </details>
-        )}
-        {error && (
-          <p data-ui-appearance={appearance} className="error" role="alert">
-            {error}
-          </p>
-        )}
-      </section>
-    </>
-  );
-}
+export function RoutineScheduleControls(props:ComponentProps<typeof RoutineSchedules>){return <RoutineSchedules {...props}/>;}
 export function RerouteControl({ appearance = "legacy",
   base,
   approval,
@@ -1215,10 +1014,10 @@ export function RerouteControl({ appearance = "legacy",
 export function StaffTaskLinks({ appearance = "legacy", base }: ({ base: string }) & { appearance?: UiAppearance }) {
   return (
     <nav data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"} aria-label="Staff work">
-      <UiActionLink appearance={appearance} variant="secondary" href={`${base}/work?type=staff_task`}>
+      <UiActionLink appearance={appearance} variant="secondary" href={canonicalUiHref(`${base}/work?type=staff_task`)}>
         Tasks
       </UiActionLink>
-      <UiActionLink appearance={appearance} variant="secondary" href={`${base}/projects`}>
+      <UiActionLink appearance={appearance} variant="secondary" href={canonicalUiHref(`${base}/projects`)}>
         Projects
       </UiActionLink>
     </nav>

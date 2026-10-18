@@ -14,6 +14,8 @@ import { PosStripeApiError, type StripeOptions } from "../domain/stripe";
 import { ApiError } from "../../runtime/public/http";
 import { reconcilePmsStripePayment, processPmsStripeRefund } from "../../pms/public/pms-stripe";
 import { reconcileBookingPayment, processBookingRefund, bookingEnv } from "../../pms/public/pms-booking";
+import { requirePosProviderPurchase, withPosProviderPurchasedTransaction } from "./purchase-boundary";
+import { adminCompanyHandoff, applicationOrigin } from "@/lib/runtime/application-origins";
 export { PosStripeApiError };
 function secret(live: boolean) {
     const key = process.env[live ? 'POS_STRIPE_LIVE_SECRET_KEY' : 'POS_STRIPE_TEST_SECRET_KEY'];
@@ -22,7 +24,7 @@ function secret(live: boolean) {
     return key;
 }
 function origin() {
-    const value = process.env.ERPX_PUBLIC_ORIGIN;
+    const value = applicationOrigin("pos", process.env.ERPX_PUBLIC_ORIGIN);
     if (!value)
         fail('POS_ORIGIN_REQUIRED', 'Configure the public origin before connecting Stripe');
     const u = new URL(value);
@@ -394,8 +396,10 @@ function unit(db: SqlDatabase): PosStripeUnit {
         readPmsProperties2: facts => posStripePmsFacts(db).readPmsProperties2(facts)
     };
 }
-function repository(db: PostgresDatabase): PosStripeRepository { return { ...unit(db), transaction: work => db.transaction(tx => work(repository(tx as PostgresDatabase))) }; }
-const application = createPosStripe({ clock: { now: () => Date.now() }, uuid: id, environment: key => process.env[key], error: (status, code, message) => new ApiError(status, code, message), resources: async () => { const env = await runtimeEnv(); return { control: repository(env.CONTROL_DB as PostgresDatabase), holdings: resourceSlots(env) }; }, forHolding: async (holdingId) => repository((await holdingResources(holdingId)).write as PostgresDatabase), provider: { request: stripeRequest, secret, origin, fetch: (url, { timeoutMs, ...init }) => fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }) }, signing: { equal: (secret, payload, signature) => timingSafeEqual(createHmac("sha256", secret).update(payload).digest(), Buffer.from(signature, "hex")) }, leases: { repeat: setInterval, cancel: token => clearInterval(token as ReturnType<typeof setInterval>) }, report: value => console.error(value) });
+function repository(db: PostgresDatabase): PosStripeRepository { return { ...unit(db), requirePurchase: input => requirePosProviderPurchase(db, input),
+    transaction: (work, purchase) => purchase ? withPosProviderPurchasedTransaction(db, purchase, tx => work(repository(tx as PostgresDatabase)))
+        : db.transaction(tx => work(repository(tx as PostgresDatabase))) }; }
+const application = createPosStripe({ clock: { now: () => Date.now() }, uuid: id, environment: key => process.env[key], error: (status, code, message) => new ApiError(status, code, message), resources: async () => { const env = await runtimeEnv(); return { control: repository(env.CONTROL_DB as PostgresDatabase), holdings: resourceSlots(env) }; }, forHolding: async (holdingId) => repository((await holdingResources(holdingId)).write as PostgresDatabase), provider: { request: stripeRequest, secret, origin, settingsReturn: (slug, companyId) => adminCompanyHandoff(companyId, `/holdings/${encodeURIComponent(slug)}/settings/stripe`, process.env.ERPX_PUBLIC_ORIGIN), fetch: (url, { timeoutMs, ...init }) => fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }) }, signing: { equal: (secret, payload, signature) => timingSafeEqual(createHmac("sha256", secret).update(payload).digest(), Buffer.from(signature, "hex")) }, leases: { repeat: setInterval, cancel: token => clearInterval(token as ReturnType<typeof setInterval>) }, report: value => console.error(value) });
 export function stripeCall(live: boolean, path: string, options: StripeOptions = {}) { return application.stripeCall(live, path, options); }
 export function stripeListCall(live: boolean, path: string, options: StripeOptions = {}) { return application.stripeListCall(live, path, options); }
 export function posStripeWebhook(raw: string, signature: string) { return application.posStripeWebhook(raw, signature); }

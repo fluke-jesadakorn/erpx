@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { holdingResources } from "@/server/modules/runtime/public/runtime";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
@@ -10,7 +11,7 @@ export const dynamic="force-dynamic";
 export async function GET(_request:Request,context:Context){
   try{
     const {holdingSlug}=await context.params,actor=await requireWorkContext(holdingSlug),{write}=await holdingResources(actor.holdingId);
-    return Response.json({data:await appointmentOverview(write,actor)},{headers:{"Cache-Control":"private, no-store"}});
+    return Response.json(canonicalDestinationLinks({data:await appointmentOverview(write,actor)}),{headers:{"Cache-Control":"private, no-store"}});
   }catch(error){return errorResponse(error);}
 }
 export async function POST(request:Request,context:Context){
@@ -25,6 +26,6 @@ export async function POST(request:Request,context:Context){
       :path[0]==="decisions" && path.length===1?await decideDepartmentOverride(actor,input,key)
       :null;
     if(!data)throw new ApiError(404,"NOT_FOUND","Authority operation not found.");
-    return Response.json({data});
+    return Response.json(canonicalDestinationLinks({data}));
   }catch(error){return errorResponse(error);}
 }

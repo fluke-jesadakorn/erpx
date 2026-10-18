@@ -2,6 +2,7 @@ import type { WorkContext } from '@/server/modules/identity_access/public/author
 import { createFinancePolicy } from '../domain/finance-policy';
 import type { FinanceError } from '../domain/invoice-line-revision';
 export type BankImportInput = {
+    settlementPaymentId?: string;
     bankAccount: string;
     statementNumber: string;
     statementDate: string;
@@ -62,6 +63,7 @@ export interface FinanceBankPorts {
 export function createFinanceBank(ports: FinanceBankPorts) {
     const { decimalToMinor, fxMicros, convertAtFx, requireFinanceRole } = createFinancePolicy(ports.error);
     async function importBankStatement(actor: WorkContext, input: {
+        settlementPaymentId?: string;
         bankAccount: string;
         statementNumber: string;
         statementDate: string;

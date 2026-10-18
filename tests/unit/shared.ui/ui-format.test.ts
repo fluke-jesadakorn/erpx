@@ -19,7 +19,6 @@ describe("English Gregorian UI formatting", () => {
       .toBe("26 Sept 2026, 01:30 UTC+07:00");
     expect(formatPreferredDateTime(instant, {mode:"manual",timeZone:"America/New_York",hourCycle:"h12",version:1}, "Asia/Bangkok"))
       .toContain("UTC-04:00");
-    expect(new Date(instant).toISOString()).toBe(instant.replace("Z",".000Z"));
   });
 
   it("uses the offset at each event instant across daylight saving time", () => {

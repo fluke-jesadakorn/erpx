@@ -1,0 +1,16 @@
+/* Owner settings use standard controls; guest-facing gallery geometry stays native. */
+.wrap { display: grid; gap: 20px; min-width: 0; color: var(--ui-ink); }
+.wrap > * { min-width: 0; }
+.surface { margin-block: 0; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-lg); background: var(--ui-card); }
+.surface > summary { padding: 16px; min-height: var(--ui-control-height); font-weight: 600; cursor: pointer; }
+.surface form { display: grid; gap: 18px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,190px),1fr)); gap: 16px; align-items: end; }
+.field,.grid > * { min-width: 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.small { margin: 0; color: var(--ui-muted); font-size: var(--ui-type-meta); line-height: 1.6; }
+.check { align-items: center; }
+.primary,.secondary { flex-shrink: 0; }
+.wrap section[aria-label="Guest website preview"] { display: grid; gap: 16px; padding: 20px; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-lg); background: var(--ui-card-2); }
+.wrap section[aria-label="Guest website preview"] h2,.wrap section[aria-label="Guest website preview"] h3 { margin: 0; }
+.wrap section[aria-label="Guest website preview"] article { display: grid; gap: 12px; border-top: 1px solid var(--ui-line); padding-block-start: 16px; }
+@media (max-width:720px) { .grid { grid-template-columns: minmax(0,1fr); } }

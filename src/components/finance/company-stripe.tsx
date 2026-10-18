@@ -8,7 +8,7 @@ import { ActionAnchor as UiActionAnchor } from "@/components/ui/foundation";
 import { Button } from "@/components/ui/foundation";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { currentStripeOnboardingUrl } from "@/lib/billing/company-stripe";
 import styles from "./company-stripe.module.css";

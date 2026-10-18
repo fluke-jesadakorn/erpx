@@ -14,9 +14,11 @@ import { authorizePosProductImageTarget } from "@/server/modules/files/public/at
 import type { SqlDatabase, FileStore } from "../../runtime/public/runtime/types";
 import { createPosImages, type PosImagesUnit } from "../application/pos-images";
 import { ApiError } from "../../runtime/public/http";
+import { requirePosPurchased } from "./purchase-boundary";
 import { randomUUID } from "node:crypto";
 import { posImagesCommerceFacts } from "../../commerce/public/pos-images-facts";
 import { posImagesFilesFacts } from "../../files/public/pos-images-facts";
+import {withPosProductImageRead} from './product-image-read';
 function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
     return {
         readPosCatalog1: (facts: {
@@ -82,7 +84,8 @@ function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
         posCommand: (actor, command, payload, key) => posCommand(db as PostgresDatabase, actor, command, payload, key), file: key => files.get(key)
     };
 }
-const application = createPosImages({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => { const { write, files } = await holdingResources(actor.holdingId); return unit(write, files); }, imageMetadata: bytes => sharp(bytes, { limitInputPixels: 25000000, animated: false }).metadata(), matchesSignature:matchesUploadSignature,readBody: readBoundedUploadBody });
-export function savePosProductImage(actor: WorkContext, productId: string, bytes: Uint8Array, mime: string, source: 'generated' | 'upload', key: string, expectedVersion: number, metadata: Record<string, unknown> = {}) { return application.savePosProductImage(actor, productId, bytes, mime, source, key, expectedVersion, metadata); }
-export function uploadPosProductImage(request: Request, actor: WorkContext) { return application.uploadPosProductImage(request, actor); }
-export async function posProductImage(actor: WorkContext, imageId: string, original = false) { const view = await application.posProductImage(actor, imageId, original); return new Response(view.buffer, { headers: { "Content-Type": view.mediaType, "Content-Length": String(view.size), "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'" } }); }
+function imageApplication(forActor:(actor:WorkContext)=>Promise<PosImagesUnit>){return createPosImages({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor, imageMetadata: bytes => sharp(bytes, { limitInputPixels: 25000000, animated: false }).metadata(), matchesSignature:matchesUploadSignature,readBody: readBoundedUploadBody });}
+const application = imageApplication(async actor=>{const {write,files}=await holdingResources(actor.holdingId);return unit(write,files);});
+export async function savePosProductImage(actor: WorkContext, productId: string, bytes: Uint8Array, mime: string, source: 'generated' | 'upload', key: string, expectedVersion: number, metadata: Record<string, unknown> = {}) { requirePermission(actor, "pos.configure"); await requirePosPurchased((await holdingResources(actor.holdingId)).write, actor, "pos.sales", "new-work"); return application.savePosProductImage(actor, productId, bytes, mime, source, key, expectedVersion, metadata); }
+export async function uploadPosProductImage(request: Request, actor: WorkContext) { requirePermission(actor, "pos.configure"); await requirePosPurchased((await holdingResources(actor.holdingId)).write, actor, "pos.sales", "new-work"); return application.uploadPosProductImage(request, actor); }
+export async function posProductImage(actor: WorkContext, imageId: string, original = false) { requirePermission(actor, "pos.read"); const {write,files}=await holdingResources(actor.holdingId);await requirePosPurchased(write, actor); const view = await withPosProductImageRead(write,actor,imageId,async database=>imageApplication(async()=>unit(database,files)).posProductImage(actor,imageId,original)); return new Response(view.buffer, { headers: { "Content-Type": view.mediaType, "Content-Length": String(view.size), "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'" } }); }

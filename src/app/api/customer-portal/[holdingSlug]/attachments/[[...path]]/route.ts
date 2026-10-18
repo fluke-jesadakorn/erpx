@@ -1,22 +1,18 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
 import { z } from "zod";
 import { attachmentComponentKinds } from "@/server/modules/files/public/attachments/types";
-import {
-  attachmentContent,
-  attachmentLinkStatus,
-  completeAttachmentUpload,
-  createAttachmentSet,
-  listAttachmentSets,
-  reserveAttachmentFile,
-  withdrawAttachmentLink,
-} from "@/server/modules/files/public/attachments/service";
 import { readBoundedUploadBody } from "@/server/modules/files/public/attachments/upload";
 import { boundedBody } from "@/server/modules/legal/public/legal/body";
 import {
   customerPortalAttachmentContext,
   customerPortalAttachmentSession,
   customerPortalAttachmentTarget,
-  customerPortalSharedPreview,
+  customerPortalSharedPreviewRequest,
+  customerPortalUploadRequest,
+  customerPortalEvidenceRequest,
+  customerPortalAttachmentCommandRequest,
+  customerPortalAttachmentMetadataRequest,
 } from "@/server/modules/customer_360/public/customer-portal-attachments";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
@@ -81,8 +77,7 @@ export async function GET(request: Request, context: Context) {
   try {
     const { holdingSlug, path = [] } = await context.params;
     if (path[0] === "shared" && path[1] && path[2] === "content") {
-      const session = await customerPortalAttachmentSession(holdingSlug);
-      return previewResponse(await customerPortalSharedPreview(session.write, session.files, session.actor, path[1]));
+      return previewResponse(await customerPortalSharedPreviewRequest(holdingSlug,path[1]));
     }
     if (path[0] === "attachment-sets" && path.length === 1) {
       const query = new URL(request.url).searchParams;
@@ -92,27 +87,19 @@ export async function GET(request: Request, context: Context) {
       const componentKind = query.get("componentKind");
       if (targetType !== "customer_access_binding" || purposeKey !== "customer_support_evidence" || componentKind !== "action")
         throw new ApiError(422, "CUSTOMER_PORTAL_ATTACHMENT_PURPOSE", "Choose the customer support evidence area.");
-      const portal = await customerPortalAttachmentContext(holdingSlug, targetId);
       const version = query.get("expectedTargetVersion");
-      return Response.json({ data: await listAttachmentSets(portal.write, portal.attachmentActor, {
-        targetType, targetId, purposeKey, componentKind: "action",
-        expectedTargetVersion: version ? Number(version) : undefined,
-      }) }, { headers: noStore });
+      return Response.json(canonicalDestinationLinks({ data: await customerPortalAttachmentMetadataRequest(request,holdingSlug,{kind:'sets',input:{
+        targetType,targetId,purposeKey,componentKind:'action',expectedTargetVersion:version?Number(version):undefined,
+      }}) }), { headers: noStore });
     }
     if (path[0] === "attachment-links" && path[1] && path[2] === "status") {
-      const session = await customerPortalAttachmentSession(holdingSlug);
-      const bindingId = await customerPortalAttachmentTarget(session.write, "link", path[1]);
-      const portal = await customerPortalAttachmentContext(holdingSlug, bindingId);
-      return Response.json({ data: await attachmentLinkStatus(portal.write, portal.attachmentActor, path[1]) }, { headers: noStore });
+      return Response.json(canonicalDestinationLinks({ data: await customerPortalAttachmentMetadataRequest(request,holdingSlug,{kind:'status',linkId:path[1]}) }), { headers: noStore });
     }
     if (path[0] === "attachment-links" && path[1] && path[2] === "content") {
       const variant = new URL(request.url).searchParams.get("variant") ?? "preview";
       if (variant !== "preview")
         throw new ApiError(403, "CUSTOMER_PORTAL_PREVIEW_ONLY", "Customer access is limited to sanitized previews.");
-      const session = await customerPortalAttachmentSession(holdingSlug);
-      const bindingId = await customerPortalAttachmentTarget(session.write, "link", path[1]);
-      const portal = await customerPortalAttachmentContext(holdingSlug, bindingId);
-      return previewResponse(await attachmentContent(portal.write, portal.files, portal.attachmentActor, path[1], "preview"));
+      return previewResponse(await customerPortalEvidenceRequest(request,holdingSlug,path[1]));
     }
     throw new ApiError(404, "NOT_FOUND", "Customer attachment route not found.");
   } catch (error) {
@@ -129,31 +116,24 @@ export async function POST(request: Request, context: Context) {
       const parsed = createSchema.safeParse(await json(request));
       if (!parsed.success)
         throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid customer file set.");
-      const portal = await customerPortalAttachmentContext(holdingSlug, parsed.data.targetId);
-      return Response.json({ data: await createAttachmentSet(portal.write, portal.attachmentActor, parsed.data, key) }, { status: 201, headers: noStore });
+      return Response.json(canonicalDestinationLinks({ data: await customerPortalAttachmentCommandRequest(request,holdingSlug,{kind:'create',input:{...parsed.data,componentKind:'action'},key}) }), { status: 201, headers: noStore });
     }
     if (path[0] === "attachment-sets" && path[1] && path[2] === "files") {
       const parsed = reserveSchema.safeParse(await json(request));
       if (!parsed.success)
         throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid customer file reservation.");
-      const session = await customerPortalAttachmentSession(holdingSlug);
-      const bindingId = await customerPortalAttachmentTarget(session.write, "set", path[1]);
-      const portal = await customerPortalAttachmentContext(holdingSlug, bindingId);
-      const result = await reserveAttachmentFile(portal.write, portal.attachmentActor, path[1], parsed.data, key);
-      return Response.json({ data: {
+      const result = await customerPortalAttachmentCommandRequest(request,holdingSlug,{kind:'reserve',setId:path[1],input:parsed.data,key});
+      if (!('uploadIntentId' in result)) throw new Error('PORTAL_RESERVATION_RESULT_REQUIRED');
+      return Response.json(canonicalDestinationLinks({ data: {
         ...result,
         uploadUrl: `/api/customer-portal/${encodeURIComponent(holdingSlug)}/attachments/uploads/${encodeURIComponent(result.uploadIntentId)}/content`,
-      } }, { status: 201, headers: noStore });
+      } }), { status: 201, headers: noStore });
     }
     if (path[0] === "attachment-links" && path[1] && path[2] === "withdraw") {
       const parsed = z.object({ reason: z.string().trim().min(3).max(1000) }).strict().safeParse(await json(request));
       if (!parsed.success)
         throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "A withdrawal reason is required.");
-      const session = await customerPortalAttachmentSession(holdingSlug);
-      const bindingId = await customerPortalAttachmentTarget(session.write, "link", path[1]);
-      const portal = await customerPortalAttachmentContext(holdingSlug, bindingId);
-      await withdrawAttachmentLink(portal.write, portal.attachmentActor, path[1], parsed.data.reason, key);
-      return Response.json({ data: await attachmentLinkStatus(portal.write, portal.attachmentActor, path[1]) }, { headers: noStore });
+      return Response.json(canonicalDestinationLinks({ data: await customerPortalAttachmentCommandRequest(request,holdingSlug,{kind:'withdraw',linkId:path[1],reason:parsed.data.reason,key}) }), { headers: noStore });
     }
     throw new ApiError(404, "NOT_FOUND", "Customer attachment route not found.");
   } catch (error) {
@@ -176,9 +156,7 @@ export async function PUT(request: Request, context: Context) {
     if (contentType !== intent.media_type)
       throw new ApiError(422, "UPLOAD_TYPE", "Content-Type must match the reserved file type.");
     const buffer = await readBoundedUploadBody(request, Number(intent.declared_bytes));
-    return Response.json({ data: await completeAttachmentUpload(
-      portal.write, portal.files, portal.attachmentActor, path[1], buffer,
-    ) }, { status: 202, headers: noStore });
+    return Response.json(canonicalDestinationLinks({ data: await customerPortalUploadRequest(request,holdingSlug,path[1],buffer) }), { status: 202, headers: noStore });
   } catch (error) {
     return errorResponse(error);
   }

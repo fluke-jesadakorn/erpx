@@ -1,3 +1,5 @@
+import {peoplePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess} from "../../commercial/public/purchase-command-boundary";
+import type {CapabilityPurpose} from "../../commercial/public/rules/packages";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "../../files/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "../../identity_access/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as workflowProjectionSources } from "../../workflow/public/hospitality-owner-projection-sources";
@@ -22,6 +24,7 @@ export function nativeExpenseAiClaim(db: SqlDatabase) {
   });
 }
 export async function aiClaim(db: SqlDatabase, companyId: string, id: string) {
+  await checkPurchasedCapability(db,await peoplePackageEnforcementMode(),{companyId,capability:"people.expenses",purpose:"history"});
   return nativeExpenseAiClaim(db)(companyId, id);
 }
 export function nativeExpenseAiAllowed(db: SqlDatabase) {
@@ -39,7 +42,8 @@ export function nativeExpenseAiAllowed(db: SqlDatabase) {
     treasury: claim => expenseRoleUsers(db, claim, "treasury"),
   });
 }
-export async function expenseAiAllowed(db: SqlDatabase, actor: ExpenseAiActor, claim: AiClaim, paymentId: string | null) {
+export async function expenseAiAllowed(db: SqlDatabase, actor: ExpenseAiActor, claim: AiClaim, paymentId: string | null,purpose:CapabilityPurpose="new-work") {
+  const mode=await peoplePackageEnforcementMode();if(mode!=="disabled"){const access=await readPurchasedAccess(db,mode,{companyId:actor.companyId,capability:"people.expenses"});if(!(purpose==="new-work"?access.newWork:purpose==="settle-existing"?access.settleExisting:access.history))return false;}
   return nativeExpenseAiAllowed(db)(actor, claim, paymentId);
 }
 function expenseEvidenceSql() {

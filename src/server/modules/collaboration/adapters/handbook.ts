@@ -14,14 +14,15 @@ import { authorityGuard } from "@/server/modules/operations/public/staff-policy"
 import type {SqlStatement} from "../../runtime/public/runtime/types";
 import {createHandbookService} from "../application/handbook";
 import type {Article,HandbookRevision} from "../domain/handbook";
+import {handbookPurchaseAccess,handbookReadScope,withHandbookPurchasedCommand} from './handbook-purchases';
 export {handbookSchema,handbookActionSchema,handbookEditorSchema} from "../domain/handbook";
-function bind(db:SqlDatabase){return createHandbookService<SqlStatement>({error:(status,code,message)=>new ApiError(status,code,message),now:Date.now,companyMember:(company,user)=>companyMember(db,company,user),requireServiceOwner:actor=>requireServiceOwner(db,actor),serviceOwner:actor=>serviceOwner(db,actor),serviceAuthoritySnapshot:company=>serviceAuthoritySnapshot(db,company),authorityGuard:(key,actor,roles)=>authorityGuard(db,key,actor,roles),page:(actor,q,editing,cursor)=>readListPage<{id:string;page_key:string;version:number;archived:number;revision:number;title:string;category:string;excerpt:string;published_at:number|null}>(db,{
+function bind(db:SqlDatabase){return createHandbookService<SqlStatement>({purchaseAccess:actor=>handbookPurchaseAccess(db,actor),error:(status,code,message)=>new ApiError(status,code,message),now:Date.now,companyMember:(company,user)=>companyMember(db,company,user),requireServiceOwner:actor=>requireServiceOwner(db,actor),serviceOwner:actor=>serviceOwner(db,actor),serviceAuthoritySnapshot:company=>serviceAuthoritySnapshot(db,company),authorityGuard:(key,actor,roles)=>authorityGuard(db,key,actor,roles),page:async(actor,q,editing,cursor)=>{const purchased=await handbookReadScope(actor);return readListPage<{id:string;page_key:string;version:number;archived:number;revision:number;title:string;category:string;excerpt:string;published_at:number|null}>(db,{
     sql:`SELECT a.id,a.version,a.archived,r.revision,r.title,r.title AS page_key,r.category,left(r.body,220) AS excerpt,r.published_at
       FROM handbook_articles a JOIN handbook_revisions r ON r.article_id=a.id AND r.company_id=a.company_id
         AND r.revision=CASE WHEN ?=1 THEN a.draft_revision ELSE a.published_revision END
-      WHERE a.company_id=? AND (?=1 OR a.archived=0) AND strpos(lower(r.title||' '||r.body||' '||r.category),lower(?))>0`,
-    args:[editing?1:0,actor.companyId,editing?1:0,q],cursor,scope:[actor.companyId,actor.userId,'handbook',editing,q],
-  }),commands:{replay:(actor,key,operation,id,input)=>replayCommand(db,actor,key,operation,id,input),commit:(actor,key,operation,input,id,version,result,effects,scope)=>executeCommand(db,actor,key,operation,input,id,version,result,effects,scope)},repository:{async editor(companyId:string,userId:string){return db
+      WHERE a.company_id=? AND (?=1 OR a.archived=0) AND strpos(lower(r.title||' '||r.body||' '||r.category),lower(?))>0 AND ${purchased.where}`,
+    args:[editing?1:0,actor.companyId,editing?1:0,q,...purchased.args],cursor,scope:[actor.companyId,actor.userId,'handbook',editing,q],
+  });},commands:{replay:(actor,key,operation,id,input)=>replayCommand(db,actor,key,operation,id,input),commit:(actor,key,operation,input,id,version,result,effects,scope)=>executeCommand(db,actor,key,operation,input,id,version,result,effects,scope)},repository:{async editor(companyId:string,userId:string){return db
         .prepare(
           "SELECT 1 FROM handbook_editors WHERE company_id=? AND user_id=?",
         )
@@ -163,8 +164,9 @@ archiveArticle(value:0 | 1,version:number,now:number,id:string,companyId:string)
         );}}});}
 export function handbookAccess(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["handbookAccess"]>){return bind(db).handbookAccess(...args);}
 export function handbookEditorOptions(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["handbookEditorOptions"]>){return bind(db).handbookEditorOptions(...args);}
-export function setHandbookEditor(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["setHandbookEditor"]>){return bind(db).setHandbookEditor(...args);}
+export function setHandbookEditor(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["setHandbookEditor"]>){const [actor,input,key]=args;return withHandbookPurchasedCommand(db,actor,{key,operation:'handbook.editor.update',purpose:input.active?'new-work':'settle-existing'},tx=>bind(tx).setHandbookEditor(...args),tx=>requireServiceOwner(tx,actor));}
 export function handbookList(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["handbookList"]>){return bind(db).handbookList(...args);}
 export function handbookArticle(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["handbookArticle"]>){return bind(db).handbookArticle(...args);}
-export function saveHandbookArticle(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["saveHandbookArticle"]>){return bind(db).saveHandbookArticle(...args);}
-export function actOnHandbook(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["actOnHandbook"]>){return bind(db).actOnHandbook(...args);}
+async function currentEditor(db:SqlDatabase,actor:Parameters<ReturnType<typeof bind>['handbookAccess']>[0]){if(!(await bind(db).handbookAccess(actor)).editor)throw new ApiError(403,'HANDBOOK_EDITOR_REQUIRED','An owner-appointed handbook editor is required.');}
+export function saveHandbookArticle(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["saveHandbookArticle"]>){const [actor,id,,key]=args;return withHandbookPurchasedCommand(db,actor,{key,id:id??`article-${key}`,operation:id?'handbook.article.update':'handbook.article.create',purpose:'new-work'},tx=>bind(tx).saveHandbookArticle(...args),tx=>currentEditor(tx,actor));}
+export function actOnHandbook(db:SqlDatabase,...args:Parameters<ReturnType<typeof bind>["actOnHandbook"]>){const [actor,id,input,key]=args;return withHandbookPurchasedCommand(db,actor,{key,id,operation:`handbook.article.${input.action}`,purpose:input.action==='archive'?'settle-existing':'new-work'},tx=>bind(tx).actOnHandbook(...args),tx=>currentEditor(tx,actor));}

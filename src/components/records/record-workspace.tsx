@@ -1,6 +1,7 @@
 "use client";
 import {createContext,useCallback,useContext,useEffect,useRef,useMemo,useState,type ReactNode} from "react";
-import {usePathname,useSearchParams} from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
 import {WorkspaceOverlayProvider} from "@/components/ui/workspace-overlay";
 import styles from "./record-workspace.module.css";
 type Host={node:HTMLDivElement;path:string};

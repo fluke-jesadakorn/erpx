@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import {appAttachmentSources} from "@/server/modules/files/public/app-attachment-sources";
 import { z } from "zod";
 import { documentBrandModes, listBrandProfiles, updateBrandProfile, updateStorefrontAppBrand } from "@/server/modules/brand/public/branding";
@@ -21,7 +22,7 @@ export async function GET(
     const { holdingSlug } = await context.params;
     const actor = await requireWorkContext(holdingSlug);
     const { write } = await holdingResources(actor.holdingId);
-    return Response.json({ data: await listBrandProfiles(write, actor) });
+    return Response.json(canonicalDestinationLinks({ data: await listBrandProfiles(write, actor) }));
   } catch (error) {
     return errorResponse(error);
   }
@@ -49,7 +50,7 @@ export async function PATCH(
         const old = await appAttachmentSources(write).previousObject(changed.previousId);
         if (old?.object_key) await files.delete(old.object_key).catch(() => undefined);
       }
-      return Response.json({ data: changed.result });
+      return Response.json(canonicalDestinationLinks({ data: changed.result }));
     }
     const target = path[0] === "holding" && path.length === 1
       ? { scopeKind: "holding" as const, scopeId: actor.holdingId }
@@ -62,7 +63,7 @@ export async function PATCH(
       const old = await appAttachmentSources(write).previousObject(changed.previousId);
       if (old?.object_key) await files.delete(old.object_key).catch(() => undefined);
     }
-    return Response.json({ data: changed.result });
+    return Response.json(canonicalDestinationLinks({ data: changed.result }));
   } catch (error) {
     return errorResponse(error);
   }

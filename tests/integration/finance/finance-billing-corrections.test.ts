@@ -1,3 +1,6 @@
+import {calendarData} from "../../../src/server/modules/work_projection/public/calendar/index";
+import { afterEach } from "vitest";
+import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
@@ -647,6 +650,10 @@ it("credits a partly paid bill, reverses its recognition, posts the replacement 
       key(),
     ),
   ).rejects.toMatchObject({ code: "PAYMENT_CREDITED_SOURCE_REVIEW" });
+  const calendarInstruction=await db.prepare("SELECT id,planned_date FROM finance_refund_instructions WHERE obligation_id=? ORDER BY id LIMIT 1").bind(result.refundId).first<{id:string;planned_date:string}>();
+  expect(calendarInstruction).not.toBeNull();
+  const calendar=await calendarData(db,f.payer,{date:calendarInstruction!.planned_date,view:"day",layers:"refunds",mode:"team"});
+  expect(calendar.sources).toContainEqual({source:"refunds",status:"ready"});expect(calendar.items.some(item=>item.sourceId===calendarInstruction!.id)).toBe(true);
 });
 it("blocks self review, cross-Company access and stale evidence while retaining a rejected correction without GL", async () => {
   const bill = await billed(),
@@ -1051,4 +1058,19 @@ it("rolls back every book, credit and replacement on failure and allows only one
       .bind(bill.id)
       .first("n"),
   ).toBe(1);
+});
+
+afterEach(()=>vi.unstubAllEnvs());
+
+it("purchased draining billing correction keeps the replacement and two books atomic through late reviewer revocation",async()=>{
+ const second=await secondary();await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const bill=await billed();
+ await reviewedFinanceGrant(db,f.company,"finance","draining");const draft=await prepareBillingCorrection(f.owner,String(bill.id),correction(),key());
+ const command=key(),decision={expectedVersion:1,reason:"Independent retained full credit and replacement review"},trigger=`correction_purchase_${key().replaceAll("-","")}`;
+ const snapshots=async()=>Promise.all(["finance_journals","finance_journal_lines","finance_invoices","finance_business_billing_runs","finance_billing_corrections","money_transaction_snapshots","command_receipts","audit_events","outbox_events"].map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results)),before=await snapshots();
+ await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.manager.assignmentId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.command_id='${command}') EXECUTE FUNCTION ${trigger}()`);
+ try{await expect(decideBillingCorrection(f.manager,String(draft.id),decision,"post",command)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(await snapshots()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${trigger} ON outbox_events;DROP FUNCTION ${trigger}()`);}
+ const result=await decideBillingCorrection(f.manager,String(draft.id),decision,"post",command);expect(await decideBillingCorrection(f.manager,String(draft.id),decision,"post",command)).toEqual(result);
+ expect(await db.prepare("SELECT i.total_minor,i.status FROM finance_business_billing_runs b JOIN finance_invoices i ON i.id=b.invoice_id WHERE b.id=?").bind(result.replacementBillId).first()).toEqual({total_minor:8561,status:"posted"});
+ expect(await db.prepare("SELECT count(*) n FROM finance_journals WHERE chart_id=? AND source_type='book_projection' AND source_id=? AND status='posted'").bind(second.chart,result.creditJournalId).first("n")).toBe(1);
+ expect(await db.prepare("SELECT count(*) n FROM command_assertions").first("n")).toBe(0);
 });

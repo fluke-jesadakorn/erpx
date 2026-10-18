@@ -11,6 +11,7 @@ export type PmsHomeApiRepository = {
     publishPost: DropDatabase<typeof import("../../collaboration/public/social-home").publishPost>;
     publishHandover: DropDatabase<typeof import("../../operations/public/handover").publishHandover>;
     acknowledgeHandover: DropDatabase<typeof import("../../operations/public/handover").acknowledgeHandover>;
+    acknowledgeHandoverVersion: DropDatabase<typeof import("../../operations/public/handover").acknowledgeHandoverVersion>;
     postAction: DropDatabase<typeof import("../../collaboration/public/social-home").postAction>;
 };
 export function createPmsHomeApi(ports: {
@@ -65,7 +66,7 @@ export function createPmsHomeApi(ports: {
             return write.textSuggestions(actor, z.enum(["@", "#"]).parse(search.get("trigger")), z.string().max(160).parse(search.get("q") ?? ""));
         throw ports.error(404, "NOT_FOUND", "Not found.");
     }
-    async function pmsHomeWrite(actor: WorkContext, path: string[], input: unknown, key: string) {
+    async function pmsHomeWrite(actor: WorkContext, path: string[], input: unknown, key: string, expectedHandoverVersion?:number) {
         ports.require(actor, "pms.read");
         const write = await ports.repository(actor);
         if (path.length === 1 && path[0] === "publish") {
@@ -79,7 +80,8 @@ export function createPmsHomeApi(ports: {
             return write.publishHandover(actor, { items: [], unavailableSources: [] }, input, key);
         if (path.length === 3 && path[0] === "handover" && path[2] === "acknowledgement") {
             await assertPostScope(actor, path[1]);
-            return write.acknowledgeHandover(actor, path[1], key);
+            const version=z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional().parse(expectedHandoverVersion);
+            return version===undefined?write.acknowledgeHandover(actor,path[1],key):write.acknowledgeHandoverVersion(actor,path[1],key,version);
         }
         if (path.length === 2 && path[0] === "posts") {
             await assertPostScope(actor, path[1]);

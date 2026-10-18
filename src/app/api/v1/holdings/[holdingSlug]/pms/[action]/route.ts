@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { staffBookingSearch, bookingError } from "@/server/modules/pms/public/pms-booking";
@@ -22,7 +23,7 @@ export async function POST(
         .object({ propertyId: z.string().min(1), input: z.unknown() })
         .parse(await request.json());
     return Response.json(
-      { data: await staffBookingSearch(actor, v.propertyId, action, v.input) },
+      canonicalDestinationLinks({ data: await staffBookingSearch(actor, v.propertyId, action, v.input) }),
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (e) {

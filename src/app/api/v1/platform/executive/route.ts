@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireManageErpxContext } from "@/server/modules/identity_access/public/authorization";
 import { runtimeEnv } from "@/server/modules/runtime/public/runtime";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
       || before.iam?.roleRevision !== after.iam?.roleRevision
       || before.iam?.identityVersion !== after.iam?.identityVersion)
       throw new ApiError(403, "PLATFORM_AUTHORITY_CHANGED", "Your Platform access changed during this read. Refresh and try again.");
-    return Response.json({ data }, { headers });
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (error) {
     return errorResponse(error);
   }

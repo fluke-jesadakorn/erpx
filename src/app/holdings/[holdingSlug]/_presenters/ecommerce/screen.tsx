@@ -1,0 +1,106 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
+import { RecordCatalog } from "@/components/records/record-catalog";
+import { RecordLink as Link } from "@/components/records/record-link";
+import { requireWorkContext, publicScope } from "@/server/modules/identity_access/public/authorization";
+import { workspaceBase } from "@/lib/work_projection/workspace";
+import { pageError } from "@/server/modules/work_projection/public/page-error";
+import { ecommerceWorkspace } from "@/server/modules/ecommerce/public/ecommerce";
+import { EcommerceConsole } from "@/components/ecommerce/ecommerce-console";
+import { RecordDocumentDrawer } from "@/components/files/record-document-drawer";
+import { MediaPublicationPanel } from "@/components/files/media-publication-panel";
+import { AttachmentFeatureSurface } from "@/components/files/attachment-feature-context";
+import { hasPermission } from "@/lib/identity_access/permissions";
+import { PageContent, Card } from "@/components/ui/foundation";
+export const dynamic = "force-dynamic";
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ holdingSlug: string }>;
+}) {
+  const { holdingSlug } = await params,
+    actor = await requireWorkContext(holdingSlug),
+    base = workspaceBase(publicScope(actor));
+  const data = await ecommerceWorkspace(actor).catch((error) =>
+    pageError(error, holdingSlug),
+  );
+  return (
+    <PageContent as="div" className="ui-page-content">
+      <Link href={canonicalUiHref(`${base}/commerce`)}>Sales and stock</Link>
+      <h1>E-commerce</h1>
+      <p>
+        Approve sellable channels and listings, lock the customer cart into a
+        Sales order, reserve stock, and trace fulfillment and returns to their
+        owner records.
+      </p>
+      <EcommerceConsole base={base} data={data} />
+      {data.listings.map((listing) => (
+        <AttachmentFeatureSurface key={`files-${String(listing.id)}`}>
+          <Card as="section" appearance="standard" className="ui-panel">
+            <div className="ui-section-header">
+              <div>
+                <h2><Link href={canonicalUiHref(`${base}/record-details/ecommerce_listing/${listing.id}`)} record={{kind:"ecommerce_listing",id:String(listing.id)}}>{String(listing.title)}</Link></h2>
+                <p className="muted">
+                  Listing files · version {String(listing.version)}
+                </p>
+              </div>
+              <RecordDocumentDrawer
+                base={base}
+                targetType="ecommerce_listing"
+                targetId={String(listing.id)}
+                expectedTargetVersion={Number(listing.version)}
+                editable={hasPermission(actor, "commerce.sales")&&data.purchase?.settleExisting!==false}
+                title="Listing media and channel documents"
+                triggerLabel="Private files"
+                purposes={[
+                  {
+                    key: "listing_media",
+                    label: "Listing media",
+                    description:
+                      "Attach private product or storefront source images. Public use requires a separately approved sanitized publication.",
+                  },
+                  {
+                    key: "channel_document",
+                    label: "Channel document",
+                    description:
+                      "Attach channel terms, listing instructions, or marketplace correspondence.",
+                  },
+                  {
+                    key: "compliance_document",
+                    label: "Compliance document",
+                    description:
+                      "Attach the reviewed channel or product compliance document for this listing.",
+                  },
+                ]}
+              />
+            </div>
+            <details>
+              <summary>Approved public listing media</summary>
+              <MediaPublicationPanel appearance="standard"
+                base={base}
+                targetType="ecommerce_listing"
+                targetId={String(listing.id)}
+                purposeKey="listing_media"
+                title="Approved public listing media"
+                canCreate={hasPermission(actor, "commerce.sales")&&data.purchase?.newWork!==false}
+                canReview={hasPermission(actor, "commerce.approve")&&data.purchase?.newWork!==false}
+              />
+            </details>
+          </Card>
+        </AttachmentFeatureSurface>
+      ))}
+      <Card as="section" appearance="standard" className="ui-panel">
+        <h2>Checkout handoffs</h2>
+        {data.checkouts.map((x) => (
+          <Link
+            className="ui-record-item"
+            key={String(x.id)}
+            href={canonicalUiHref(`${base}/ecommerce/${x.id}`)}
+          >
+            {String(x.number)} · {String(x.status)} · Sales{" "}
+            {String(x.order_state)}
+          </Link>
+        ))}
+      </Card>
+    <RecordCatalog base={base} kind="ecommerce_channel" title="Channels" rows={data.channels} label="name"/><RecordCatalog base={base} kind="ecommerce_cart" title="Carts" rows={data.carts} label="id"/></PageContent>
+  );
+}

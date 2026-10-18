@@ -1,3 +1,4 @@
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 
 import betaStyles from "@/components/collaboration/beta.module.css";
 import { headers } from "next/headers";
@@ -14,7 +15,7 @@ export default async function Onboarding() {
   if (!session) redirect("/login");
   const presentation = await onboardingPresentationQueries();
   const slot = await presentation.slot(session.user.id);
-  if (slot?.state === "active") redirect(`/holdings/${slot.slug}/home`);
+  if (slot?.state === "active") redirect(canonicalUiHref(`/holdings/${slot.slug}/home`));
   return (
     <main className={`beta-entry ${betaStyles.surface}`}>
       <p className="eyebrow">Welcome to ERPX</p>

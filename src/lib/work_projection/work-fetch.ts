@@ -2,7 +2,7 @@ import { announceWorkChange } from "@/lib/work_projection/work-refresh";
 import { contextGeneration, contextIsSwitching } from "@/lib/work_projection/context-switch";
 export type WorkCommandCompletion = { form: HTMLFormElement; formEditVersion: string | null };
 /** Sends the context rendered with this page, never a freshly fetched role. */
-export function workFetch(input:RequestInfo|URL,init?:RequestInit,completion?:WorkCommandCompletion):Promise<Response>{
+export function workFetch(input:RequestInfo|URL,init?:RequestInit,completion?:WorkCommandCompletion,acknowledgement:"automatic"|"caller"="automatic"):Promise<Response>{
  const url=new URL(input instanceof Request?input.url:String(input),typeof window==='undefined'?'https://erpx.invalid':window.location.origin);
  if(typeof document==='undefined'||url.origin!==window.location.origin||(!url.pathname.startsWith('/api/v1/holdings/')&&!url.pathname.startsWith('/api/v1/platform/')&&!url.pathname.startsWith('/api/v1/front/')))return fetch(input,init);
  if(url.pathname.startsWith('/api/v1/holdings/')&&(url.pathname.endsWith('/assignments/active')||url.pathname.endsWith('/companies/active')))return fetch(input,init);
@@ -28,7 +28,7 @@ export function workFetch(input:RequestInfo|URL,init?:RequestInit,completion?:Wo
  return fetch(input,{...init,headers}).then(async response=>{
  if(response.status===409){const body=await response.clone().json().catch(()=>null);if(["WORK_CONTEXT_CHANGED","WORK_ROLE_REQUIRED","WORK_ROLE_UNAVAILABLE"].includes(body?.error?.code))window.dispatchEvent(new Event('erpx:work-context-changed'));}
  if(generation!==contextGeneration() || url.pathname.startsWith('/api/v1/platform/') && platformNode && (!platformNode.isConnected || headers.get('x-erpx-platform-assignment')!==platformNode.dataset.platformAssignment) || node && (!node.isConnected || node.dataset.workStale==='true' || stamp !== [node.dataset.workUser,node.dataset.workRevision,node.dataset.workCompany,node.dataset.workAssignment].join(':')))return Response.json({error:{code:'WORK_CONTEXT_CHANGED',message:'Your work role changed. Reload and review.'}},{status:409});
- if(response.ok && !["GET","HEAD","OPTIONS"].includes(method) && !url.pathname.endsWith("/navigation")) {
+ if(acknowledgement==="automatic" && response.ok && !["GET","HEAD","OPTIONS"].includes(method) && !url.pathname.endsWith("/navigation")) {
   window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form:recordForm,formEditVersion}}));
   announceWorkChange();
  }

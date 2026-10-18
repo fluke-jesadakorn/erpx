@@ -1,4 +1,7 @@
 "use client";
+import {useExpensePurchase} from "./expense-purchase-context";
+import {expenseActionAllowed} from "@/lib/people_payroll/expense-purchases";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import { Button } from "@/components/ui/foundation";
@@ -8,7 +11,7 @@ import { RecordLink as Link } from "@/components/records/record-link";
 import { LoaderCircle, Sparkles } from "lucide-react";
 import styles from "@/components/people_payroll/expense.module.css";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import {
   expenseAiFieldLabels,
   type ExpenseAiResult,
@@ -48,6 +51,8 @@ export function ExpenseAiPanel({
   canManageAi?: boolean;
   compact?: boolean;
 }) {
+  const purchase=useExpensePurchase();
+
   const router = useRouter(),
     [status, setStatus] = useState<Status | null>(null),
     [error, setError] = useState(""),
@@ -201,7 +206,7 @@ export function ExpenseAiPanel({
   const result = status?.proposal?.result;
   const running = pending || ["queued", "running"].includes(status?.proposal?.state ?? "");
   async function extract() {
-    if (running) return;
+    if (running || !expenseActionAllowed(purchase,"new-work")) return;
     setError("");
     try {
       const current = await refresh();
@@ -235,7 +240,7 @@ export function ExpenseAiPanel({
           variant="primary"
           type="button"
           disabled={
-            running ||
+            !expenseActionAllowed(purchase,"new-work") || running ||
             (!!status && (!status.allowed || !status.hasEvidence || !!status.unavailable))
           }
           onClick={() => void extract()}
@@ -262,7 +267,7 @@ export function ExpenseAiPanel({
       {status?.unavailable && (
         <p>
           {canManageAi ? (
-            <Link href={`${base}/settings?section=ai`}>Set up receipt reading in AI providers</Link>
+            <Link href={canonicalUiHref(`${base}/settings?section=ai`)}>Set up receipt reading in AI providers</Link>
           ) : (
             "Ask your company owner or IT administrator to enable receipt reading."
           )}

@@ -1,5 +1,8 @@
 import {decodePmsRecord,type PmsStoredRecord} from "../domain/stored-record";
 import { roomChargeReversalWork } from "../../pos/public/room-charge-reversal-queue";
+import { withPmsPurchasedCommand } from "./purchase-boundary";
+import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "../../commercial/public/purchase-command-boundary";
+import { hasPermission } from "@/lib/identity_access/permissions";
 import { lastAuditOwnerProjectionSources as financeLastAuditProjectionSources } from "../../finance/public/last-audit-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as inventoryProjectionSources } from "../../inventory/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as marketingProjectionSources } from "../../marketing/public/hospitality-owner-projection-sources";
@@ -84,6 +87,16 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             created_at: number;
         }>(db, "SELECT id,guest_account_id,kind,created_at FROM pms_documents WHERE property_id=? AND (?::jsonb IS NULL OR guest_account_id IN (SELECT jsonb_array_elements_text(?::jsonb))) ORDER BY created_at DESC,id LIMIT 200", facts.id, facts.fact1, facts.fact2),
         readFinanceJournalLines: facts => finance.readFinanceJournalLines(facts),
+        readReceiptAllocationCredits: async facts => {
+            const postings=await query<{entryId:string;date:string;journalId:string}>(db,`
+              WITH entries AS MATERIALIZED (SELECT * FROM jsonb_to_recordset(?::jsonb) AS x(id text,date text))
+              SELECT e.id "entryId",e.date,p.journal_id "journalId" FROM entries e
+              JOIN pms_postings p ON p.property_id=? AND p.source_key=e.id||':credit-balance'
+                AND p.record_id=e.id AND p.business_date=e.date`,JSON.stringify(facts.entries),facts.propertyId);
+            if(!postings.length)return [];
+            return (await finance.readReceiptAllocationCredits({...facts,postings}))
+                .map(row=>({entryId:row.entryId,amount:Number(row.amount)}));
+        },
         readPmsRecords: (facts: {
             id: string;
         }) => db.prepare(`SELECT COALESCE(SUM((data_json::jsonb->>'due')::bigint),0)::double precision due,
@@ -782,18 +795,37 @@ function unit(db: SqlDatabase): PmsUnit<SqlStatement> {
             sourceType: string;
             sourceId: string;
             transactionDate: string;
-        }) => snapshotMoneyCarry(db, arg0, arg1), transactional: isTransactionalSqlDatabase(db), transaction: (work,propertyLockId) => { if (!isTransactionalSqlDatabase(db))
-            throw new Error("POSTGRES_REQUIRED"); return db.transaction(tx => work(unit(tx)),propertyLockId?{sessionLock:{namespace:'erpx:pms:property',key:propertyLockId},preferIndexedReads:true,pipelineBatches:true}:undefined); }, batch: steps => db.batch(steps), replay: (...args) => replayCommand(db, ...args), execute: (...args) => executeCommand(db, ...args)
+        }) => snapshotMoneyCarry(db, arg0, arg1), transactional: isTransactionalSqlDatabase(db), transaction: (work,propertyLockId,command) => { if (!isTransactionalSqlDatabase(db))
+            throw new Error("POSTGRES_REQUIRED"); const options=propertyLockId?{sessionLock:{namespace:'erpx:pms:property',key:propertyLockId},preferIndexedReads:true,pipelineBatches:true}:undefined;
+            return command ? withPmsPurchasedCommand(db,command,tx=>work(unit(tx)),options) : db.transaction(tx => work(unit(tx)),options); }, batch: steps => db.batch(steps), replay: (...args) => replayCommand(db, ...args), execute: (...args) => executeCommand(db, ...args)
     };
 }
 const application = createPmsApplication<SqlStatement>({ forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write), clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), require: requirePermission, error: (status, code, message,details) => new ApiError(status, code, message,details), isBusinessError: (error): error is ApiError => error instanceof ApiError, environment: key => process.env[key] });
 export const pmsPermissions = application.pmsPermissions;
+/** Private owner bridge for other locked PMS command snapshots. */
+export function hydratePmsReceiptAllocationCredits(db:SqlDatabase,s:Snapshot){return application.hydrateReceiptAllocationCredits(unit(db),s);}
 export function loadPms(db: SqlDatabase, actor: WorkContext, id: string, lock = false, selection?: PmsReadSelection) { return application.loadPms(unit(db), actor, id, lock, selection); }
-export function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls = false, frontMode = false, selection?: PmsReadSelection) { return application.pmsWorkspace(actor, propertyId, includeDayControls, frontMode, selection); }
+export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls = false, frontMode = false, selection?: PmsReadSelection) {
+    requirePermission(actor, "pms.read");
+    const mode = await pmsPackageEnforcementMode(), purchases = mode === "disabled" ? undefined
+      : await readPurchasedAccesses(async () => (await holdingResources(actor.holdingId)).write, mode, actor.companyId,
+        ["pms.reservations", "pms.front-desk", "pms.rooms", "pms.housekeeping", "pms.guest-accounts", "pms.night-audit", "pms.minibar", "pms.linen", "inventory.stock-core", "finance.hotel-posting"]);
+    if (purchases && !purchases["pms.front-desk"].history) throw new ApiError(403, "PACKAGE_REQUIRED", "This package does not permit the requested Hotel workspace.");
+    const data: Awaited<ReturnType<typeof application.pmsWorkspace>> & { purchases?: Record<string, PurchasedAccess> } = await application.pmsWorkspace(actor, propertyId, includeDayControls, frontMode, selection);
+    if (purchases) data.purchases = purchases;
+    return data;
+}
 export function effects(db: SqlDatabase, actor: WorkContext, s: Snapshot, e: Effects) { return application.effects(unit(db), actor, s, e); }
 export function pmsCommand(db: TransactionalSqlDatabase, actor: WorkContext, raw: unknown, key: string, worker = false) { return application.pmsCommand(unit(db), actor, raw, key, worker); }
 export function drainPms(db: TransactionalSqlDatabase, propertyId?: string, jobId?: string) { return application.drainPms(unit(db), propertyId, jobId); }
-export async function pmsWork(actor: WorkContext) { return [...await application.pmsWork(actor),...await roomChargeReversalWork(actor,"pms")]; }
+export async function pmsWork(actor: WorkContext): Promise<import("@/lib/work_projection/work-item").WorkItem[]> {
+    if (!(hasPermission(actor, "pms.read") || hasPermission(actor, "finance.read") && hasPermission(actor, "pms.reports")) || actor.departmentId || actor.beta) return [];
+    const mode = await pmsPackageEnforcementMode(), access = mode === "disabled" ? undefined
+      : (await readPurchasedAccesses(async () => (await holdingResources(actor.holdingId)).write, mode, actor.companyId, ["pms.front-desk"]))["pms.front-desk"];
+    if (access && !access.history) return [];
+    const rows = [...await application.pmsWork(actor), ...await roomChargeReversalWork(actor, "pms")];
+    return access && !access.settleExisting ? rows.map(row => ({ ...row, canAct: false, queue: "waiting" })) : rows;
+}
 export function applyPosRoomCharge(tx: SqlDatabase, actor: WorkContext, raw: z.infer<typeof roomChargeSchema>, expectedPropertyVersion: number) { return application.applyPosRoomCharge(unit(tx), actor, raw, expectedPropertyVersion); }
 export function reversePosRoomCharge(tx: SqlDatabase, actor: WorkContext, input: {
     propertyId: string;

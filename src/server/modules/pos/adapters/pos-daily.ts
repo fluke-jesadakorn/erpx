@@ -13,6 +13,7 @@ import { ApiError } from "../../runtime/public/http";
 import { holdingResources } from "../../runtime/public/runtime";
 import { PosDayFinanceFacts } from "../../finance/public/pos-daily-facts";
 import { PosDayOrganizationFacts } from "../../organization/public/pos-daily-facts";
+import { requirePosPurchased, requirePosReportingPurchase } from "./purchase-boundary";
 function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
     return {
         readPosSales1: (facts: {
@@ -121,9 +122,9 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
 }
 const application = createPosDay<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), environment: key => process.env[key], require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write) });
 export function capturePosReceipt(db: SqlDatabase, saleId: string) { return application.capturePosReceipt(unit(db), saleId); }
-export function posCustomers(db: SqlDatabase, actor: WorkContext, query = '') { return application.posCustomers(unit(db), actor, query); }
+export async function posCustomers(db: SqlDatabase, actor: WorkContext, query = '') { requirePermission(actor, "pos.read"); await requirePosPurchased(db, actor); return application.posCustomers(unit(db), actor, query); }
 export function createPosCustomer(db: SqlDatabase, actor: WorkContext, input: unknown) { return application.createPosCustomer(unit(db), actor, input); }
 export function assertPosDayWritable(db: SqlDatabase, company: string, branch: string, date: string) { return application.assertPosDayWritable(unit(db), company, branch, date); }
-export function posDayReport(db: SqlDatabase, actor: WorkContext, branch: string, date: string) { return application.posDayReport(unit(db), actor, branch, date); }
+export async function posDayReport(db: SqlDatabase, actor: WorkContext, branch: string, date: string) { requirePermission(actor, "pos.reports"); await requirePosReportingPurchase(db, actor); return application.posDayReport(unit(db), actor, branch, date); }
 export function posDayCommand(db: SqlDatabase, actor: WorkContext, op: string, input: unknown) { return application.posDayCommand(unit(db), actor, op, input); }
 export type { PosReceiptSnapshot };

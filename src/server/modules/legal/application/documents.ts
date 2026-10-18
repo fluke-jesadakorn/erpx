@@ -48,7 +48,6 @@ async function uploadDocument(
 ): Promise<{id:string;version:number;documentId?:string;executedCopyId?:string;state?:string}> {
   const r = await ports.access(id,"legal.edit");
   if(executed)executed=executedCopySchema.parse(executed);
-  if (executed ? r.kind!=="contract"||!["approved","executed","active"].includes(r.state) : r.state !== "draft") fail(executed?"Import a signed copy against an approved contract.":"Return to draft before adding a version.");
   z.string().min(1).max(200).parse(name);
   if (!bytes.length || bytes.length > 10 * 1024 * 1024)
     fail("Upload between 1 byte and 10 MB.");
@@ -73,6 +72,7 @@ async function uploadDocument(
     operation=executed?"legal.executed.import":"legal.document.upload",
     prior = await ports.repository.replay<{ id: string; version: number; documentId?: string; executedCopyId?: string; state?: string }>(key,operation,id,input);
   if (prior) return prior;
+  if (executed ? r.kind!=="contract"||!["approved","executed","active"].includes(r.state) : r.state !== "draft") fail(executed?"Import a signed copy against an approved contract.":"Return to draft before adding a version.");
   if (r.version !== version)
     fail("The record changed. Refresh first.", "LEGAL_VERSION_CONFLICT", 409);
   const approved=executed?await ports.repository.approvedVersion({id:id}):null;

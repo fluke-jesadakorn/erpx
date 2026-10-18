@@ -1,3 +1,5 @@
+import {peoplePackageEnforcementMode} from "../../commercial/public/purchase-command-boundary";
+import {workforcePurchaseControls,withWorkforcePurchasedRead,withWorkforcePurchasedCommand,withWorkforceAccrualTransaction} from "./workforce-purchases";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
@@ -20,7 +22,7 @@ export { leaveAdminSchema, leaveEditSchema, leaveListFilterSchema, type LeaveCal
 async function rows<T>(db: SqlDatabase, sql: string, ...args: unknown[]) {
     return (await db.prepare(sql).bind(...args).all<T>()).results;
 }
-function serviceContext(provided?: SqlDatabase): LeaveSelfServicePorts<SqlStatement> {
+function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfServicePorts<SqlStatement> {
     let database = provided!;
     const r: LeaveSelfServiceRepository<SqlStatement> = { readPolicyForMatches(companyId: string, engagement_id: string, date: string, date2: string, date3: string, date4: string) {
             return rows<Policy>(database, `SELECT a.id assignment_id,p.id policy_version_id,p.name policy_name,p.version policy_version,p.timezone,p.workweek_json,p.allow_negative,a.holiday_calendar_id
@@ -300,6 +302,7 @@ function serviceContext(provided?: SqlDatabase): LeaveSelfServicePorts<SqlStatem
       WHERE ${clauses.join(" AND ")} ORDER BY r.created_at DESC,r.id DESC LIMIT ?`, ...args, input.limit + 1);
             return page;
         }, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), requireCompanyAuthority: (...args) => fromNative(() => requireCompanyAuthority(database, ...args)), openApproval: (...args) => fromNative(() => openApproval(database, ...args)), peopleRequestRoute: (...args) => fromNative(() => peopleRequestRoute(database, ...args)), availableLeaveEvidence: (...args) => fromNative(() => availableLeaveEvidence(database, ...args)), transaction: run => {
+            if(providedOwned)return run(serviceContext(database,true));
             if (!isTransactionalSqlDatabase(database))
                 throw new Error('LEAVE_TRANSACTION_REQUIRED');
             return database.transaction(tx => run(serviceContext(tx)));
@@ -325,22 +328,22 @@ async function invoke<Result>(run: () => Promise<Result>) {
         throw error;
     }
 }
-export async function previewLeave(context: WorkContext, raw: z.infer<typeof leavePreviewSchema>, excludeId: string | null = null, database?: SqlDatabase) { return invoke(() => createLeaveSelfServiceApplication(serviceContext(database)).previewLeave(context, raw, excludeId)); }
-export async function leaveSummary(context: WorkContext) { return invoke(() => createLeaveSelfServiceApplication(serviceContext()).leaveSummary(context)); }
+export async function previewLeave(context: WorkContext, raw: z.infer<typeof leavePreviewSchema>, excludeId: string | null = null, database?: SqlDatabase) { return withWorkforcePurchasedRead(context,tx=>invoke(() => createLeaveSelfServiceApplication(serviceContext(tx)).previewLeave(context,raw,excludeId)),database); }
+export async function leaveSummary(context: WorkContext) { return withWorkforcePurchasedRead(context,async tx=>{const data=await invoke(() => createLeaveSelfServiceApplication(serviceContext(tx)).leaveSummary(context)),purchase=await workforcePurchaseControls(context,tx);return {...data,...(purchase?{purchase}:{})};}); }
 export async function listOwnLeavePage(context: WorkContext, raw: {
     filter?: string;
     limit?: number | string;
     cursor?: string;
-}) { return invoke(() => createLeaveSelfServiceApplication(serviceContext()).listOwnLeavePage(context, raw)); }
-export async function leaveCalendarMonth(context: WorkContext, rawMonth: string) { return invoke(() => createLeaveSelfServiceApplication(serviceContext()).leaveCalendarMonth(context, rawMonth)); }
-export async function createSelfServiceLeave(context: WorkContext, raw: z.infer<typeof leaveCreateSchema>, key: string) { return invoke(() => createLeaveSelfServiceApplication(serviceContext()).createSelfServiceLeave(context, raw, key)); }
-export async function editSelfServiceLeave(context: WorkContext, id: string, raw: z.infer<typeof leaveEditSchema>, key: string) { return invoke(() => createLeaveSelfServiceApplication(serviceContext()).editSelfServiceLeave(context, id, raw, key)); }
+}) { return withWorkforcePurchasedRead(context,tx=>invoke(() => createLeaveSelfServiceApplication(serviceContext(tx)).listOwnLeavePage(context, raw))); }
+export async function leaveCalendarMonth(context: WorkContext, rawMonth: string) { return withWorkforcePurchasedRead(context,tx=>invoke(() => createLeaveSelfServiceApplication(serviceContext(tx)).leaveCalendarMonth(context, rawMonth))); }
+export async function createSelfServiceLeave(context: WorkContext, raw: z.infer<typeof leaveCreateSchema>, key: string) { return withWorkforcePurchasedCommand(context,{key,operation:"leave.self.create",purpose:"new-work",resultKind:"leave"},tx=>invoke(() => createLeaveSelfServiceApplication(serviceContext(tx,Boolean(tx))).createSelfServiceLeave(context,raw,key))); }
+export async function editSelfServiceLeave(context: WorkContext, id: string, raw: z.infer<typeof leaveEditSchema>, key: string) { return withWorkforcePurchasedCommand(context,{key,operation:raw.saveOnly?"leave.self.save":"leave.self.submit",purpose:"new-work",target:{kind:"leave",id}},tx=>invoke(() => createLeaveSelfServiceApplication(serviceContext(tx,Boolean(tx))).editSelfServiceLeave(context,id,raw,key))); }
 export async function normalizeLegacyLeave(context: WorkContext, input: {
     startDate: string;
     days: number;
     handoverNote: string;
-}, recordId?: string) { return invoke(() => createLeaveSelfServiceApplication(serviceContext()).normalizeLegacyLeave(context, input, recordId)); }
-export async function listOwnLeave(context: WorkContext, state?: string) { return invoke(() => createLeaveSelfServiceApplication(serviceContext()).listOwnLeave(context, state)); }
-export async function administerLeave(context: WorkContext, raw: z.infer<typeof leaveAdminSchema>, key: string) { return invoke(() => createLeaveSelfServiceApplication(serviceContext()).administerLeave(context, raw, key)); }
-export async function runLeaveAccruals(db: SqlDatabase, effectiveDate: string, companyId?: string) { return invoke(() => createLeaveSelfServiceApplication(serviceContext(db)).runLeaveAccruals(effectiveDate, companyId)); }
-export async function leaveAdministration(context: WorkContext) { return invoke(() => createLeaveSelfServiceApplication(serviceContext()).leaveAdministration(context)); }
+}, recordId?: string) { return withWorkforcePurchasedRead(context,tx=>invoke(() => createLeaveSelfServiceApplication(serviceContext(tx)).normalizeLegacyLeave(context, input, recordId))); }
+export async function listOwnLeave(context: WorkContext, state?: string) { return withWorkforcePurchasedRead(context,tx=>invoke(() => createLeaveSelfServiceApplication(serviceContext(tx)).listOwnLeave(context, state))); }
+export async function administerLeave(context: WorkContext, raw: z.infer<typeof leaveAdminSchema>, key: string) { return withWorkforcePurchasedCommand(context,{key,operation:"leave.policy.manage",purpose:raw.resource==="assignment_end"?"settle-existing":"new-work",permission:"leave.policy.manage",target:{kind:"configuration",id:context.companyId}},tx=>invoke(() => createLeaveSelfServiceApplication(serviceContext(tx,Boolean(tx))).administerLeave(context,raw,key))); }
+export async function runLeaveAccruals(db: SqlDatabase, effectiveDate: string, companyId?: string) { if(await peoplePackageEnforcementMode()==="disabled")return invoke(()=>createLeaveSelfServiceApplication(serviceContext(db)).runLeaveAccruals(effectiveDate,companyId));return withWorkforceAccrualTransaction(db,async(tx,permits)=>{const companies=companyId?[{company_id:companyId}]:(await tx.prepare("SELECT DISTINCT company_id FROM leave_policy_assignments ORDER BY company_id").all<{company_id:string}>()).results;let inserted=0;for(const company of companies)if(await permits(company.company_id))inserted+=await invoke(()=>createLeaveSelfServiceApplication(serviceContext(tx,true)).runLeaveAccruals(effectiveDate,company.company_id));return inserted;}); }
+export async function leaveAdministration(context: WorkContext) { return withWorkforcePurchasedRead(context,tx=>invoke(() => createLeaveSelfServiceApplication(serviceContext(tx)).leaveAdministration(context))); }

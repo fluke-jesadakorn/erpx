@@ -11,6 +11,7 @@ import { activeStaff, staffGuard, type StaffActor } from '../../operations/publi
 import { getProject } from '../public/staff-projects';
 import { BusinessRuleError } from '../../shared';
 import { projectWorkLogSchema, projectWorkLogDecisionSchema, projectCostAllocationSchema, projectCostAllocationDecisionSchema, type ProjectWorkLogRow } from '../domain/actuals';
+import {requireProjectPurchasedRead,withProjectPurchasedCommand} from './purchases';
 import { createProjectActualsApplication, type ProjectActualsRepository } from '../application/actuals';
 import { projectactualsSources as owner0 } from '../../workflow/public/project-actuals-sources';
 import { projectactualsSources as owner1 } from '../../finance/public/project-actuals-sources';
@@ -142,10 +143,18 @@ function application(db: SqlDatabase) {
         }, ...owner0(db), ...owner1(db) };
     return createProjectActualsApplication({ repository, clock: { now: () => Date.now() }, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, getProject: (...args) => inward(() => getProject(db, ...args)), activeStaff: (...args) => inward(() => activeStaff(db, ...args)), staffGuard: (...args) => staffGuard(db, ...args), requirePermission: (...args) => requirePermission(...args) });
 }
-export async function listProjectWorkLogs(db: SqlDatabase, actor: StaffActor, projectId: string) { return exposed(() => application(db).listProjectWorkLogs(actor, projectId)); }
-export async function saveProjectWorkLog(db: SqlDatabase, actor: StaffActor, projectId: string, input: z.infer<typeof projectWorkLogSchema>, key: string) { return exposed(() => application(db).saveProjectWorkLog(actor, projectId, input, key)); }
-export async function decideProjectWorkLog(db: SqlDatabase, actor: StaffActor, projectId: string, logId: string, input: z.infer<typeof projectWorkLogDecisionSchema>, key: string) { return exposed(() => application(db).decideProjectWorkLog(actor, projectId, logId, input, key)); }
-export async function listProjectCostAllocations(actor: WorkContext, projectId: string) { const { write: db } = await holdingResources(actor.holdingId); return exposed(() => application(db).listProjectCostAllocations(actor, projectId)); }
-export async function listProjectCostSources(actor: WorkContext, projectId: string) { const { write: db } = await holdingResources(actor.holdingId); return exposed(() => application(db).listProjectCostSources(actor, projectId)); }
-export async function createProjectCostAllocation(actor: WorkContext, input: z.infer<typeof projectCostAllocationSchema>, key: string) { const { write: db } = await holdingResources(actor.holdingId); return exposed(() => application(db).createProjectCostAllocation(actor, input, key)); }
-export async function decideProjectCostAllocation(actor: WorkContext, allocationId: string, input: z.infer<typeof projectCostAllocationDecisionSchema>, key: string) { const { write: db } = await holdingResources(actor.holdingId); return exposed(() => application(db).decideProjectCostAllocation(actor, allocationId, input, key)); }
+export async function listProjectWorkLogs(db: SqlDatabase, actor: StaffActor, projectId: string) {await requireProjectPurchasedRead(db,actor,projectId,'projects.time');return exposed(() => application(db).listProjectWorkLogs(actor, projectId)); }
+export async function saveProjectWorkLog(db: SqlDatabase, actor: StaffActor, projectId: string, input: z.infer<typeof projectWorkLogSchema>, key: string) {return withProjectPurchasedCommand(db,actor,{key,operations:['project.actual-time.submit','project.actual-time.revise'],projectId,capability:'projects.time',purpose:'new-work',existing:true,target:{kind:'work_date',date:input.workDate}},tx=>exposed(() => application(tx).saveProjectWorkLog(actor, projectId, input, key))); }
+export async function decideProjectWorkLog(db: SqlDatabase, actor: StaffActor, projectId: string, logId: string, input: z.infer<typeof projectWorkLogDecisionSchema>, key: string) {return withProjectPurchasedCommand(db,actor,{key,operations:[`project.actual-time.${input.action}`],projectId,capability:'projects.time',purpose:'settle-existing',existing:true,target:{kind:'work_log',id:logId}},tx=>exposed(() => application(tx).decideProjectWorkLog(actor, projectId, logId, input, key))); }
+export async function listProjectCostAllocations(actor: WorkContext, projectId: string) { const { write: db } = await holdingResources(actor.holdingId);await requireProjectPurchasedRead(db,actor,projectId,'projects.costs');return exposed(() => application(db).listProjectCostAllocations(actor, projectId)); }
+export async function listProjectCostSources(actor: WorkContext, projectId: string) { const { write: db } = await holdingResources(actor.holdingId);await requireProjectPurchasedRead(db,actor,projectId,'projects.costs');return exposed(() => application(db).listProjectCostSources(actor, projectId)); }
+export async function createProjectCostAllocation(actor: WorkContext, input: z.infer<typeof projectCostAllocationSchema>, key: string) { const { write: db } = await holdingResources(actor.holdingId);return withProjectPurchasedCommand(db,actor,{key,operations:['project.cost-allocation.create','project.cost-allocation.revise'],projectId:input.projectId,capability:'projects.costs',purpose:'new-work',permission:'finance.write',existing:true,target:{kind:'cost_line',id:input.sourceLineId}},tx=>exposed(() => application(tx).createProjectCostAllocation(actor, input, key))); }
+export async function decideProjectCostAllocation(actor: WorkContext, allocationId: string, input: z.infer<typeof projectCostAllocationDecisionSchema>, key: string) {
+ const {write:db}=await holdingResources(actor.holdingId),row=await db.prepare('SELECT project_id FROM staff_project_cost_allocations WHERE id=? AND company_id=?').bind(allocationId,actor.companyId).first<{project_id:string}>();
+ if(!row)throw new ApiError(404,'PROJECT_COST_NOT_FOUND','Project cost allocation not found.');
+ return withProjectPurchasedCommand(db,actor,{key,operations:[`project.cost-allocation.${input.action}`],projectId:row.project_id,capability:'projects.costs',purpose:'settle-existing',permission:'finance.approve',existing:true,member:false,target:{kind:'allocation',id:allocationId}},async tx=>{
+  const actual=await tx.prepare('SELECT project_id FROM staff_project_cost_allocations WHERE id=? AND company_id=?').bind(allocationId,actor.companyId).first<{project_id:string}>();
+  if(actual?.project_id!==row.project_id)throw new ApiError(409,'PROJECT_SOURCE_CHANGED','The Project cost source changed.');
+  return exposed(()=>application(tx).decideProjectCostAllocation(actor,allocationId,input,key));
+ });
+}

@@ -1,60 +1,24 @@
 "use client";
-import { Dialog } from "@/components/ui/dialog";
+import {PayrollCommandRecovery} from "./payroll-command-recovery";
+import { PayrollFormDrawer as Dialog } from "./payroll-form-drawer";
+import { PayrollForm } from "./payroll-form";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
 import { ActionLink as UiActionLink } from "@/components/ui/foundation";
 
 import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foundation";
 
-import { workFetch } from "@/lib/work_projection/work-fetch";
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { MoneyAmount } from "@/components/finance/money/currency-provider";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@/components/files/attachment-panel";
 import { RecordDocumentPanel } from "@/components/files/record-document-panel";
-import { payrollErrorMessage, type PayrollApiError } from "@/lib/people_payroll/payroll-errors";
+import { usePayrollCommand } from "./use-payroll-command";
 import { type UiAppearance } from "@/components/ui/foundation";
 type Row = Record<string, unknown>;
-export function usePeopleCommand(base: string) {
-  const router = useRouter(),
-    attempt = useRef<{
-      body: string;
-      key: string;
-    } | null>(null);
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  async function send(path: string, input: unknown, redirect = false) {
-    const body = JSON.stringify(input);
-    if (attempt.current?.body !== path + body)
-      attempt.current = { body: path + body, key: crypto.randomUUID() };
-    setBusy(true);
-    setError("");
-    try {
-      const response = await workFetch(`/api/v1${base}/people/${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-        body,
-      });
-      const result = (await response.json()) as {
-        data?: {
-          id: string;
-        };
-        error?: PayrollApiError;
-      };
-      if (!response.ok) throw result.error ?? { message: "Could not save." };
-      attempt.current = null;
-      if (redirect && result.data?.id) router.push(`${base}/people/payroll/runs/${result.data.id}`);
-      router.refresh();
-      return true;
-    } catch (cause) {
-      setError(payrollErrorMessage(cause, "Could not save Payroll changes."));
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
-  return { send, busy, error };
+export function usePeopleCommand(base: string, ownerKey = "", source = "") {
+  return usePayrollCommand(base, ownerKey, source);
 }
 export function PayrollRunEditor({ appearance = "legacy",
   base,
@@ -70,14 +34,15 @@ export function PayrollRunEditor({ appearance = "legacy",
 }) & { appearance?: UiAppearance }) {
   const [open, setOpen] = useState(false);
   const [mode,setMode]=useState("preview");
-  const { send, busy, error } = usePeopleCommand(base);
+  const { send, busy, error, notice, canPrepare, recovery} = usePeopleCommand(base, "runs", JSON.stringify([groups, packs, simulationMode]));
+  if (!canPrepare) return null;
   return (
     <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
       <Button appearance={appearance} type="submit" variant="primary" onClick={() => setOpen(!open)}>
         {simulationMode ? "Create payroll simulation (mock)" : "Create payroll run"}
       </Button>
       {open && (
-        <Dialog appearance={appearance} open={open} onClose={() => setOpen(false)} title="Create payroll run" presentation="form-drawer" dismissDisabled={busy}><div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-stack" : "content-stack"}>{error && <p data-ui-appearance={appearance} role="alert" className="error">{error}</p>}<form data-ui-appearance={appearance}
+        <Dialog appearance={appearance} open={open} onClose={() => setOpen(false)} title="Create payroll run" onDiscard={() => {setMode("preview"); setOpen(false);}} dismissDisabled={busy}><div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-stack" : "content-stack"}>{error && <p data-ui-appearance={appearance} role="alert" className="error">{error}</p>}<PayrollForm data-ui-appearance={appearance}
           className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={(e) => {
             e.preventDefault();
@@ -143,23 +108,24 @@ export function PayrollRunEditor({ appearance = "legacy",
               ? "Simulation only: fixed synthetic values; no Thai statutory calculation or real transfer."
               : mode==="production"?"Requires independently approved employee allowances, opening YTD and dated rules. Bank transfer is handled separately.":"Gross pay preview only. Choose Thai statutory rules after the source revision and employee evidence are approved."}
           </p>
-        </form></div></Dialog>
+        </PayrollForm></div></Dialog>
       )}
-      {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
+      <PayrollCommandRecovery {...recovery} appearance={appearance}/>{error && <p data-ui-appearance={appearance} role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     </section>
   );
 }
 export function PayGroupEditor({ appearance = "legacy", base }: ({ base: string; userId?: string }) & { appearance?: UiAppearance }) {
-  const { send, busy, error } = usePeopleCommand(base);
+  const { send, busy, error, notice, canPrepare, recovery} = usePeopleCommand(base, "pay-groups", JSON.stringify([]));
   const [open, setOpen] = useState(false);
+  if (!canPrepare) return null;
   return (
     <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
       <Button appearance={appearance} variant="secondary" type="button" onClick={() => setOpen(!open)}>
         {open ? "Close pay group form" : "Configure pay group"}
       </Button>
-      {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
+      <PayrollCommandRecovery {...recovery} appearance={appearance}/>{error && <p data-ui-appearance={appearance} role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
       {open && (
-        <Dialog appearance={appearance} open={open} onClose={() => setOpen(false)} title="Create pay group" presentation="form-drawer" dismissDisabled={busy}><div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-stack" : "content-stack"}>{error && <p data-ui-appearance={appearance} role="alert" className="error">{error}</p>}<form data-ui-appearance={appearance}
+        <Dialog appearance={appearance} open={open} onClose={() => setOpen(false)} title="Create pay group" dismissDisabled={busy}><div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-stack" : "content-stack"}>{error && <p data-ui-appearance={appearance} role="alert" className="error">{error}</p>}<PayrollForm data-ui-appearance={appearance}
           className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={async (event) => {
             event.preventDefault();
@@ -225,7 +191,7 @@ export function PayGroupEditor({ appearance = "legacy", base }: ({ base: string;
           <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
             {"Save pay group policy"}
           </Button>
-        </form></div></Dialog>
+        </PayrollForm></div></Dialog>
       )}
       <p data-ui-appearance={appearance} className="muted">
         {
@@ -270,7 +236,7 @@ export function PayrollActions({ appearance = "legacy",
   canExportPayment: boolean;
   canConfirmPayment: boolean;
 }) & { appearance?: UiAppearance }) {
-  const { send, busy, error } = usePeopleCommand(base),
+  const { send, busy, error, canSettle, canRead, recovery} = usePeopleCommand(base, `run:${run.id}`, JSON.stringify([run, postingOptions, paymentBatch, paymentItems, canCalculate, canApprove, canPost, canExport, canPreparePayment, canApprovePayment, canExportPayment, canConfirmPayment])),
     [chartId, setChartId] = useState(String(postingOptions?.charts[0]?.id ?? "")),
     totals = JSON.parse(String(run.totals_json ?? "{}")) as {
       deductions?: number;
@@ -282,6 +248,8 @@ export function PayrollActions({ appearance = "legacy",
     expenses = accounts.filter((account) => String(account.category) === "expense"),
     liabilities = accounts.filter((account) => String(account.category) === "liability"),
     batch = paymentBatch;
+  canCalculate &&= canSettle; canApprove &&= canSettle; canPost &&= canSettle; canExport &&= canRead;
+  canPreparePayment &&= canSettle; canApprovePayment &&= canSettle; canExportPayment &&= canSettle; canConfirmPayment &&= canSettle;
   return (
     <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
       <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-form-actions" : "form-actions"}>
@@ -320,9 +288,9 @@ export function PayrollActions({ appearance = "legacy",
           </Button>
         )}
       </div>
-      {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
+      <PayrollCommandRecovery {...recovery} appearance={appearance}/>{error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
       {canPost && run.status === "approved" && postingOptions && (
-        <form data-ui-appearance={appearance}
+        <PayrollForm data-ui-appearance={appearance}
           className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={(e) => {
             e.preventDefault();
@@ -435,7 +403,7 @@ export function PayrollActions({ appearance = "legacy",
           >
             Post GL and create payable obligation
           </Button>
-        </form>
+        </PayrollForm>
       )}
       {canPost && run.status === "approved" && !postingOptions && (
         <p data-ui-appearance={appearance} className="notice">
@@ -444,7 +412,7 @@ export function PayrollActions({ appearance = "legacy",
         </p>
       )}
       {canPreparePayment && run.status === "posted" && !batch && (
-        <form data-ui-appearance={appearance}
+        <PayrollForm data-ui-appearance={appearance}
           className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={(e) => {
             e.preventDefault();
@@ -471,7 +439,7 @@ export function PayrollActions({ appearance = "legacy",
           <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
             Create payment batch
           </Button>
-        </form>
+        </PayrollForm>
       )}
       {batch && (
         <section data-ui-appearance={appearance} className="stacked-list" aria-label="Payroll payment batch">
@@ -521,7 +489,7 @@ export function PayrollActions({ appearance = "legacy",
           </div>
           {canConfirmPayment &&
             ["exported", "partially_settled"].includes(String(batch.status)) && (
-              <form data-ui-appearance={appearance}
+              <PayrollForm data-ui-appearance={appearance}
                 className={appearance === "standard" ? "ui-form-grid" : "business-form"}
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -568,7 +536,7 @@ export function PayrollActions({ appearance = "legacy",
                 <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
                   Save payment results
                 </Button>
-              </form>
+              </PayrollForm>
             )}
         </section>
       )}
@@ -595,9 +563,11 @@ export function PayrollCorrectionControls({ appearance = "legacy",
   canRequest: boolean;
   canReview: boolean;
 }) & { appearance?: UiAppearance }) {
-  const { send, busy, error } = usePeopleCommand(base),
+  const { send, busy, error, canSettle, recovery} = usePeopleCommand(base, `run:${run.id}:corrections`, JSON.stringify([run, corrections, canRequest, canReview])),
     pending = corrections.find((c) => c.status === "pending"),
     [correctionFiles, setCorrectionFiles] = useState<AttachmentPanelChange | null>(null);
+  const [formRevision, setFormRevision] = useState(0);
+  canRequest &&= canSettle; canReview &&= canSettle;
   return (
     <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"} id="payroll-corrections">
       <h2 data-ui-appearance={appearance}>{"Reviewed corrections"}</h2>
@@ -606,9 +576,9 @@ export function PayrollCorrectionControls({ appearance = "legacy",
           "An approved preview remains locked until a different approver authorizes reopening it. Prior exports remain as revision evidence."
         }
       </p>
-      {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
+      <PayrollCommandRecovery {...recovery} appearance={appearance}/>{error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
       {canRequest && run.status === "approved" && !pending && (
-        <form data-ui-appearance={appearance}
+        <FormDisclosure appearance="standard" drawerTitle="Request controlled payroll correction" onDiscard={() => {setFormRevision(value => value + 1); setCorrectionFiles(null);}}><summary>Request controlled correction</summary><PayrollForm key={formRevision} data-ui-appearance={appearance}
           className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={(e) => {
             e.preventDefault();
@@ -645,7 +615,7 @@ export function PayrollCorrectionControls({ appearance = "legacy",
           <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
             {"Request controlled correction"}
           </Button>
-        </form>
+        </PayrollForm></FormDisclosure>
       )}
       {corrections.map((c) => (
         <article data-ui-appearance={appearance} id={`correction-${String(c.id)}`} className={appearance === "standard" ? "ui-record-item" : "row"} key={String(c.id)}>
@@ -660,7 +630,7 @@ export function PayrollCorrectionControls({ appearance = "legacy",
               </span>
             )}
           </div>
-          {c.status === "pending" && c.requested_by === userId && (
+          {canSettle && c.status === "pending" && c.requested_by === userId && (
             <Button appearance={appearance}
               type="submit"
               variant="secondary"
@@ -677,7 +647,7 @@ export function PayrollCorrectionControls({ appearance = "legacy",
             </Button>
           )}
           {c.status === "pending" && canReview && c.requested_by !== userId && (
-            <form data-ui-appearance={appearance}
+            <PayrollForm data-ui-appearance={appearance}
               className={appearance === "standard" ? "ui-form-grid" : "business-form"}
               onSubmit={(e) => {
                 e.preventDefault();
@@ -703,7 +673,7 @@ export function PayrollCorrectionControls({ appearance = "legacy",
               <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
                 {"Record correction decision"}
               </Button>
-            </form>
+            </PayrollForm>
           )}
         </article>
       ))}
@@ -727,9 +697,11 @@ export function PayrollAdvanceConsole({ appearance = "legacy",
   canPrepare: boolean;
   canApprove: boolean;
 }) & { appearance?: UiAppearance }) {
-  const { send, busy, error } = usePeopleCommand(base),
+  const { send, busy, error, canPrepare: packagePrepare, canSettle, recovery} = usePeopleCommand(base, "advances", JSON.stringify([data, canPrepare, canApprove])),
     items = data.items ?? [],
     options = data.options ?? [];
+  const [formRevision, setFormRevision] = useState(0);
+  canApprove &&= canSettle;
   return (
     <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"} id="payroll-advances">
       <h2 data-ui-appearance={appearance}>{"Payroll advances"}</h2>
@@ -738,9 +710,9 @@ export function PayrollAdvanceConsole({ appearance = "legacy",
           "Approved advances create scheduled deductions with their reason, reviewer, and evidence retained."
         }
       </p>
-      {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
-      {(canPrepare || options.length === 1) && options.length > 0 && (
-        <form data-ui-appearance={appearance}
+      <PayrollCommandRecovery {...recovery} appearance={appearance}/>{error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
+      {packagePrepare && (canPrepare || options.length === 1) && options.length > 0 && (
+        <FormDisclosure appearance="standard" drawerTitle="Request payroll advance" onDiscard={() => setFormRevision(value => value + 1)}><summary>Request payroll advance</summary><PayrollForm key={formRevision} data-ui-appearance={appearance}
           className={appearance === "standard" ? "ui-form-grid" : "business-form"}
           onSubmit={(e) => {
             e.preventDefault();
@@ -801,7 +773,7 @@ export function PayrollAdvanceConsole({ appearance = "legacy",
           <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
             {"Submit payroll advance"}
           </Button>
-        </form>
+        </PayrollForm></FormDisclosure>
       )}
       {!options.length && (
         <p data-ui-appearance={appearance} className="muted">{"No active pay-group engagement is available for an advance."}</p>
@@ -833,7 +805,7 @@ export function PayrollAdvanceConsole({ appearance = "legacy",
                 targetType="payroll_advance"
                 targetId={String(item.id)}
                 expectedTargetVersion={Number(item.version)}
-                editable={item.status === "pending" && (canPrepare || item.requested_by === userId)}
+                editable={canSettle && item.status === "pending" && (canPrepare || item.requested_by === userId)}
                 title={"Advance support"}
                 purposes={[
                   {
@@ -846,7 +818,7 @@ export function PayrollAdvanceConsole({ appearance = "legacy",
                 ]}
               />
             </div>
-            {item.status === "pending" && item.requested_by === userId && (
+            {canSettle && item.status === "pending" && item.requested_by === userId && (
               <Button appearance={appearance}
                 type="submit"
                 variant="secondary"
@@ -863,7 +835,7 @@ export function PayrollAdvanceConsole({ appearance = "legacy",
               </Button>
             )}
             {item.status === "pending" && canApprove && item.requested_by !== userId && (
-              <form data-ui-appearance={appearance}
+              <PayrollForm data-ui-appearance={appearance}
                 className={appearance === "standard" ? "ui-form-grid" : "business-form"}
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -889,7 +861,7 @@ export function PayrollAdvanceConsole({ appearance = "legacy",
                 <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
                   {"Record decision"}
                 </Button>
-              </form>
+              </PayrollForm>
             )}
           </article>
         ))}
@@ -915,15 +887,15 @@ export function CompensationEditor({ appearance = "legacy",
   canApprove: boolean;
   userId: string;
 }) & { appearance?: UiAppearance }) {
-  const { send, busy, error } = usePeopleCommand(base);
+  const { send, busy, error, recovery} = usePeopleCommand(base, `person:${person.id}`, JSON.stringify([person, groups, revisions, canEdit, canApprove]));
   const [open, setOpen] = useState(false);
   return (
     <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
       <h2 data-ui-appearance={appearance}>Compensation and pay group</h2>
-      {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
+      <PayrollCommandRecovery {...recovery} appearance={appearance}/>{error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
       {canEdit && (
         <>
-          <form data-ui-appearance={appearance}
+          <PayrollForm data-ui-appearance={appearance}
             className={appearance === "standard" ? "ui-form-grid" : "business-form"}
             onSubmit={(e) => {
               e.preventDefault();
@@ -949,12 +921,12 @@ export function CompensationEditor({ appearance = "legacy",
             <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
               Update pay group
             </Button>
-          </form>
+          </PayrollForm>
           <Button appearance={appearance} type="submit" variant="secondary" onClick={() => setOpen(!open)}>
             New compensation revision
           </Button>
           {open && (
-            <Dialog appearance={appearance} open={open} onClose={() => setOpen(false)} title="New compensation revision" presentation="form-drawer" dismissDisabled={busy}><div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-stack" : "content-stack"}>{error && <p data-ui-appearance={appearance} role="alert" className="error">{error}</p>}<form data-ui-appearance={appearance}
+            <Dialog appearance={appearance} open={open} onClose={() => setOpen(false)} title="New compensation revision" dismissDisabled={busy}><div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-stack" : "content-stack"}>{error && <p data-ui-appearance={appearance} role="alert" className="error">{error}</p>}<PayrollForm data-ui-appearance={appearance}
               className={appearance === "standard" ? "ui-form-grid" : "business-form"}
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -1087,7 +1059,7 @@ export function CompensationEditor({ appearance = "legacy",
               <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
                 Save compensation draft
               </Button>
-            </form></div></Dialog>
+            </PayrollForm></div></Dialog>
           )}
         </>
       )}
@@ -1127,208 +1099,6 @@ export function CompensationEditor({ appearance = "legacy",
             )}
         </div>
       ))}
-    </section>
-  );
-}
-export function TimeEntryEditor({ appearance = "legacy",
-  base,
-  person,
-  entries,
-  canEdit,
-  canApprove,
-  userId,
-}: ({
-  base: string;
-  person: Row;
-  entries: Row[];
-  canEdit: boolean;
-  canApprove: boolean;
-  userId: string;
-}) & { appearance?: UiAppearance }) {
-  const { send, busy, error } = usePeopleCommand(base);
-  const [editing, setEditing] = useState<Row | null>(null);
-  const [reviewing, setReviewing] = useState<string | null>(null);
-  const [correctionFiles, setCorrectionFiles] = useState<AttachmentPanelChange | null>(null);
-  return (
-    <section data-ui-appearance={appearance} className={appearance === "standard" ? "ui-panel" : "card"}>
-      <h2 data-ui-appearance={appearance}>Time entries</h2>
-      {error && <p data-ui-appearance={appearance} role="alert">{error}</p>}
-      {canEdit && (
-        <form data-ui-appearance={appearance}
-          key={String(editing?.id ?? "new")}
-          className={appearance === "standard" ? "ui-form-grid" : "business-form"}
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            if (
-              await send(editing ? `time-entries/${editing.id}` : "time-entries", {
-                ...(editing
-                  ? {
-                      expectedVersion: editing.version,
-                      attachmentSetIds:
-                        correctionFiles?.setId &&
-                        correctionFiles.readyCount > 0 &&
-                        correctionFiles.bindable
-                          ? [correctionFiles.setId]
-                          : [],
-                    }
-                  : { engagementId: person.engagement_id }),
-                workDate: f.get("date"),
-                regularHours: Number(f.get("regular")),
-                overtimeHours: Number(f.get("overtime")),
-                note: f.get("note"),
-              })
-            ) {
-              setEditing(null);
-              setCorrectionFiles(null);
-            }
-          }}
-        >
-          <Field appearance={appearance}>
-            Work date
-            <TextInput appearance={appearance}
-              name="date"
-              type="date"
-              required
-              defaultValue={String(editing?.work_date ?? "")}
-            />
-          </Field>
-          <Field appearance={appearance}>
-            Regular hours
-            <TextInput appearance={appearance}
-              name="regular"
-              type="number"
-              min="0"
-              max="24"
-              step="0.01"
-              required
-              defaultValue={String(editing?.regular_hours ?? 8)}
-            />
-          </Field>
-          <Field appearance={appearance}>
-            Overtime hours
-            <TextInput appearance={appearance}
-              name="overtime"
-              type="number"
-              min="0"
-              max="24"
-              step="0.01"
-              required
-              defaultValue={String(editing?.overtime_hours ?? 0)}
-            />
-          </Field>
-          <Field appearance={appearance}>
-            Work note
-            <TextInput appearance={appearance} name="note" maxLength={500} defaultValue={String(editing?.note ?? "")} />
-          </Field>
-          {editing?.status === "rejected" && (
-            <AttachmentPanel appearance={appearance}
-              base={base}
-              targetType="time_entry"
-              targetId={String(editing.id)}
-              expectedTargetVersion={Number(editing.version)}
-              componentKind="action"
-              componentRef="correction-resubmission"
-              purposeKey="corrected_entry_proof"
-              title="Correction proof"
-              description="Attach the source document or image supporting this corrected time entry."
-              visibility="Visible only to the employee and authorized time reviewers."
-              onChange={setCorrectionFiles}
-            />
-          )}
-          <Button appearance={appearance} clientManaged type="submit" variant="primary" disabled={busy}>
-            {editing ? "Save and resubmit time" : "Submit time for approval"}
-          </Button>
-          {editing && (
-            <Button appearance={appearance}
-              variant="secondary"
-              type="button"
-              onClick={() => {
-                setEditing(null);
-                setCorrectionFiles(null);
-              }}
-            >
-              Cancel edit
-            </Button>
-          )}
-        </form>
-      )}
-      {entries.map((t) => (
-        <article data-ui-appearance={appearance} key={String(t.id)}>
-          <div data-ui-appearance={appearance} className={appearance === "standard" ? "ui-record-item" : "row"}>
-            <strong data-ui-appearance={appearance}>{String(t.work_date)}</strong>
-            <span data-ui-appearance={appearance}>
-              {String(t.regular_hours)}h + {String(t.overtime_hours)}h overtime · {String(t.status)}
-            </span>
-            {canEdit &&
-              t.submitted_by === userId &&
-              ["draft", "submitted", "rejected"].includes(String(t.status)) && (
-                <Button appearance={appearance}
-                  type="submit"
-                  variant="secondary"
-                  onClick={() => {
-                    setEditing(t);
-                    setCorrectionFiles(null);
-                  }}
-                >
-                  Edit time
-                </Button>
-              )}
-            {canApprove &&
-              t.status === "submitted" &&
-              t.submitted_by !== userId &&
-              person.user_id !== userId && (
-                <>
-                  <Button appearance={appearance}
-                    type="submit"
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() =>
-                      send(`time-entries/${t.id}/approve`, { expectedVersion: t.version })
-                    }
-                  >
-                    Approve time
-                  </Button>
-                  <Button appearance={appearance}
-                    type="submit"
-                    variant="secondary"
-                    onClick={() => setReviewing(String(t.id))}
-                  >
-                    Return for correction
-                  </Button>
-                </>
-              )}
-          </div>
-          {Boolean(t.note) && <p data-ui-appearance={appearance} className="muted">{String(t.note)}</p>}
-          {Boolean(t.rejection_reason) && <p data-ui-appearance={appearance}>Correction requested: {String(t.rejection_reason)}</p>}
-          {reviewing === t.id && (
-            <form data-ui-appearance={appearance}
-              className={appearance === "standard" ? "ui-form-grid" : "business-form"}
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (
-                  await send(`time-entries/${t.id}/reject`, {
-                    expectedVersion: t.version,
-                    reason: new FormData(e.currentTarget).get("reason"),
-                  })
-                )
-                  setReviewing(null);
-              }}
-            >
-              <Field appearance={appearance}>
-                Correction reason
-                <TextInput appearance={appearance} name="reason" required minLength={3} maxLength={500} />
-              </Field>
-              <Button appearance={appearance} clientManaged type="submit" variant="secondary" disabled={busy}>
-                Return time entry
-              </Button>
-            </form>
-          )}
-        </article>
-      ))}
-      <p data-ui-appearance={appearance} className="muted">
-        Approved time is locked and feeds payroll calculations. Corrections require a new review.
-      </p>
     </section>
   );
 }

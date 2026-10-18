@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -11,12 +12,12 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/hold
     const input = leaveAdminSchema.safeParse(await request.json());
     if (!input.success) throw new ApiError(422, "VALIDATION_FAILED", input.error.issues[0]?.message ?? "Invalid leave administration request.");
     const actor = await requireWorkContext((await context.params).holdingSlug);
-    return Response.json({ data: await administerLeave(actor, input.data, key) }, { status: 201 });
+    return Response.json(canonicalDestinationLinks({ data: await administerLeave(actor, input.data, key) }), { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }
 }
 
 export async function GET(_request:Request,{params}:{params:Promise<{holdingSlug:string}>}) {
- try{return Response.json({data:await leaveAdministration(await requireWorkContext((await params).holdingSlug))},{headers:{'Cache-Control':'private, no-store'}});}catch(e){return errorResponse(e);}
+ try{return Response.json(canonicalDestinationLinks({data:await leaveAdministration(await requireWorkContext((await params).holdingSlug))}),{headers:{'Cache-Control':'private, no-store'}});}catch(e){return errorResponse(e);}
 }

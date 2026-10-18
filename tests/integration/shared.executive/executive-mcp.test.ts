@@ -10,6 +10,8 @@ import { defaultFilters, emptyDefinition, type Breakdown, type Filters, type Met
 import { loadIamAuthority } from "../../../src/server/modules/identity_access/public/iam-store";
 import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
+import { NextRequest } from "next/server";
+import { proxy } from "../../../src/proxy";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),holdingBindingBySlug:async()=>({id:"h001",slug:"test",displayName:"Test"})}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 const originalQuery=metrics.queryMetric;
@@ -46,6 +48,16 @@ async function report() {
   await saveReport(db,f.owner,r.id,saveSchema.parse({expectedVersion:1,filters:defaultFilters(),definition:{...emptyDefinition("MCP operating overview"),widgets:[{id:"people",title:"People",metric:"headcount",kind:"html",html:"<p>Private web markup</p>",css:"p{color:red}"}]}}),key());
   return r.id;
 }
+
+it("connects the official client through Work while denying its valid credential on Finance and retired Console before MCP dispatch",async()=>{
+ const work="https://work-dev-erpx.jesadakorn.com",credential=await token(),c=new Client({name:"original-work-migration-client",version:"1.0.0"});clients.push(c);
+ vi.stubEnv("ERPX_ENVIRONMENT","local");vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT","development");vi.stubEnv("ERPX_PRODUCT_ROUTING","enabled");vi.stubEnv("ERPX_PRODUCT_SSO","enabled");vi.stubEnv("ERPX_PUBLIC_ORIGIN","https://console-dev-erpx.jesadakorn.com");vi.stubEnv("ERPX_CONSOLE_RETIRED","enabled");
+ try{
+  await c.connect(new StreamableHTTPClientTransport(new URL("/api/mcp/executive",work),{authProvider:{token:async()=>credential.secret},fetch:async(input,init)=>{const incoming=new Request(input instanceof Request?input.url:String(input),init);incoming.headers.set("host",new URL(incoming.url).host);const boundary=proxy(new NextRequest(incoming.clone()));expect(boundary.headers.get("x-middleware-next")).toBe("1");return handleExecutiveMcp(incoming);}}));
+  expect((await c.listTools()).tools).toHaveLength(5);
+  for(const [origin,status] of [["https://finance-dev-erpx.jesadakorn.com",404],["https://console-dev-erpx.jesadakorn.com",410]] as const){const response=proxy(new NextRequest(origin+"/api/mcp/executive",{method:"POST",headers:{host:new URL(origin).host,Authorization:`Bearer ${credential.secret}`,"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/list"})}));expect(response.status).toBe(status);for(const header of ["location","x-middleware-next","x-middleware-rewrite","set-cookie"])expect(response.headers.get(header)).toBeNull();expect(await response.text()).not.toContain(credential.secret);}
+ }finally{await c.close();clients.splice(clients.indexOf(c),1);vi.unstubAllEnvs();}
+});
 async function recipient() {
   await db.prepare("UPDATE assignments SET role='executive_author' WHERE id=?").bind(f.reviewer.assignmentId).run();
   await db.prepare("UPDATE hr_engagements SET level_id=? WHERE person_id=?").bind(`org-level-${f.company}-2`,`person-${f.reviewer.userId}`).run();

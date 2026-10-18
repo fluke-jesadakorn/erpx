@@ -5,8 +5,13 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { useState, type FormEvent } from "react";
 import type { ProjectMilestoneRow } from "@/server/modules/projects/public/project-milestones";
-import type { StaffPerson } from "@/server/modules/operations/public/staff-policy";
-import { useStaffCommand } from "@/components/work_projection/staff-work-controls";
+import type {ProjectWorkerDisplay} from "@/lib/projects/worker-display";
+import {useProjectRecordCommand} from "./use-project-record-command";
+import {ProjectRecordRecovery} from "./project-record-recovery";
+import type {ProjectRecordOwner} from "@/lib/projects/project-record-command";
+import {useProjectPurchases} from "./purchase-context";
+import {projectPurchased} from "@/lib/projects/purchase-controls";
+import {FormDisclosure} from "@/components/ui/form-disclosure";
 import { localDateTimeCandidates, localMinuteAt } from "@/lib/work_projection/calendar-timeline";
 import { TimeText, useDisplayTimeZone } from "@/components/people_payroll/time/time-preference-context";
 import { utcOffset } from "@/lib/shared/ui-format";
@@ -20,17 +25,20 @@ export function ProjectMilestoneConsole({
   people,
   milestones,
   canManage,
+  ownerContext,
 }: {
   base: string;
   projectId: string;
   projectOwnerId: string;
   members: string[];
-  people: StaffPerson[];
+  people: readonly ProjectWorkerDisplay[];
   milestones: ProjectMilestoneRow[];
   canManage: boolean;
+  ownerContext?:ProjectRecordOwner;
 }) {
-  const { send, busy, error } = useStaffCommand(base);
+  const purchases=useProjectPurchases(),[editorOpen,setEditorOpen]=useState(false),newWork=projectPurchased(purchases,"projects.wbs","newWork"),settleExisting=projectPurchased(purchases,"projects.wbs","settleExisting");
   const { timeZone } = useDisplayTimeZone();
+  const [createdMilestone,setCreatedMilestone]=useState<{id:string;version:number}|null>(null);
   const [editing, setEditing] = useState<ProjectMilestoneRow | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -40,11 +48,14 @@ export function ProjectMilestoneConsole({
   const [ownerUserId, setOwnerUserId] = useState(projectOwnerId);
   const [dependsOnMilestoneIds, setDependsOnMilestoneIds] = useState<string[]>([]);
   const [parentId,setParentId]=useState(''),[position,setPosition]=useState('0');
+  const [revision,setRevision]=useState(0),[dirty,setDirty]=useState(false),[editorVisited,setEditorVisited]=useState(false);
+  const command=useProjectRecordCommand({kind:'milestones',base,projectId,owner:ownerContext,milestones,members,people,canManage,purchases,draftVersion:revision,dirty}),{send,busy,error,pending}=command;
   const memberIds = new Set([projectOwnerId, ...members]);
   const owners = people.filter((person) => memberIds.has(person.user_id));
 
   function edit(row: ProjectMilestoneRow) {
-    setEditing(row);
+    if(pending||busy||dirty&&!window.confirm("Discard this milestone draft before editing another milestone?"))return;
+    setRevision(value=>value+1);setDirty(false);setEditorVisited(true);setCreatedMilestone(null);setEditing(row);setEditorOpen(true);
     setTitle(row.title);
     setDescription(row.description);
     const local = localMinuteAt(row.due_at, timeZone);
@@ -56,7 +67,13 @@ export function ProjectMilestoneConsole({
   }
 
   function clear() {
-    setEditing(null);
+    if(pending||busy)return;
+    reset();
+  }
+
+  function reset() {
+    setDirty(false);
+    setCreatedMilestone(null);setEditing(null);setEditorOpen(false);
     setTitle("");
     setDescription("");
     setDueAt("");
@@ -69,6 +86,7 @@ export function ProjectMilestoneConsole({
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if(!newWork||!canManage||busy||pending)return;
     const candidates = localDateTimeCandidates(dueAt, timeZone);
     if (!candidates.length) {
       setTimeError(`This local time does not exist in ${timeZone}. Choose another time.`);
@@ -79,8 +97,9 @@ export function ProjectMilestoneConsole({
       return;
     }
     setTimeError("");
-    const milestonePath = `projects/${encodeURIComponent(projectId)}/milestones${editing ? `/${encodeURIComponent(editing.id)}` : ""}`;
-    const result = await send(milestonePath, {
+    const savedId=editing?.id??createdMilestone?.id;
+    const milestonePath = `projects/${encodeURIComponent(projectId)}/milestones${savedId ? `/${encodeURIComponent(savedId)}` : ""}`;
+    await send(milestonePath, {
       title,
       description,
       dueAt: new Date(candidates.length === 1 ? candidates[0] : dueChoice!).toISOString(),
@@ -88,12 +107,11 @@ export function ProjectMilestoneConsole({
       dependsOnMilestoneIds,
       parentMilestoneId:parentId||null,
       ordinalPosition:Number(position),
-      expectedVersion: editing?.version ?? 1,
+      expectedVersion: Math.max(editing?.version??1,createdMilestone&&createdMilestone.id===savedId?createdMilestone.version:1),
       reason: editing
         ? "Milestone details reviewed by the project owner."
         : "Milestone target approved by the project owner.",
-    });
-    if (result) clear();
+    },event.currentTarget,{identity:result=>setCreatedMilestone({id:result.id,version:result.version}),saved:reset});
   }
 
   async function transition(
@@ -142,51 +160,51 @@ export function ProjectMilestoneConsole({
                 </div>
                 {canManage && (
                   <div className="ui-form-actions">
-                    {(milestone.state === "planned" || milestone.state === "in_progress") && (
+                    {settleExisting&&(milestone.state === "planned" || milestone.state === "in_progress") && (
                       <Button appearance="standard"
                         variant="secondary"
                         type="button"
-                        disabled={busy || milestone.blocked_by_count > 0}
+                        disabled={busy || pending || milestone.blocked_by_count > 0}
                         onClick={() => void transition(milestone, "complete")}
                       >
                         Complete
                       </Button>
                     )}
-                    {milestone.state === "planned" && (
+                    {settleExisting&&milestone.state === "planned" && (
                       <Button appearance="standard"
                         variant="secondary"
                         type="button"
-                        disabled={busy || milestone.blocked_by_count > 0}
+                        disabled={busy || pending || milestone.blocked_by_count > 0}
                         onClick={() => void transition(milestone, "start")}
                       >
                         Start
                       </Button>
                     )}
-                    {milestone.state === "completed" && (
+                    {newWork&&milestone.state === "completed" && (
                       <Button appearance="standard"
                         variant="secondary"
                         type="button"
-                        disabled={busy}
+                        disabled={busy || pending}
                         onClick={() => void transition(milestone, "reopen")}
                       >
                         Reopen
                       </Button>
                     )}
-                    {(milestone.state === "planned" || milestone.state === "in_progress") && (
+                    {settleExisting&&(milestone.state === "planned" || milestone.state === "in_progress") && (
                       <Button appearance="standard"
                         variant="ghost"
                         type="button"
-                        disabled={busy}
+                        disabled={busy || pending}
                         onClick={() => void transition(milestone, "cancel")}
                       >
                         Cancel
                       </Button>
                     )}
-                    {(milestone.state === "planned" || milestone.state === "in_progress") && (
+                    {newWork&&(milestone.state === "planned" || milestone.state === "in_progress") && (
                       <Button appearance="standard"
                         variant="ghost"
                         type="button"
-                        disabled={busy}
+                        disabled={busy || pending}
                         onClick={() => edit(milestone)}
                       >
                         Edit
@@ -201,8 +219,15 @@ export function ProjectMilestoneConsole({
       ) : (
         <p>No milestones have been recorded for this project.</p>
       )}
-      {canManage && (
-        <form className="ui-stack" onSubmit={save}>
+      <ProjectRecordRecovery pending={pending} busy={busy} retry={command.retry}/>
+      {command.notice&&<InlineNotice role="status">{command.notice}</InlineNotice>}
+      {!editorOpen&&(pending||dirty)&&<Button appearance="standard" type="button" variant="secondary" disabled={busy} onClick={()=>setEditorOpen(true)}>Reopen retained milestone form</Button>}
+      {((canManage&&newWork)||editorOpen||dirty||pending||editorVisited) && (<FormDisclosure appearance="standard" retainFormContents={editorVisited||dirty||pending} open={editorOpen} onToggle={event=>{setEditorVisited(true);setEditorOpen(event.currentTarget.open);}} onDiscard={clear} dismissDisabled={busy||pending} drawerTitle={editing?"Edit milestone":"Add a milestone"}><summary>{editing?"Edit milestone":"Add a milestone"}</summary>
+        <form className="ui-stack" data-work-dirty={dirty?"true":undefined} onChangeCapture={()=>{setRevision(value=>value+1);setDirty(true);}} onSubmit={save}>
+          <ProjectRecordRecovery pending={pending} busy={busy} retry={command.retry}/>
+          {error&&<InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+          {command.notice&&<InlineNotice role="status">{command.notice}</InlineNotice>}
+          <Button appearance="standard" type="button" variant="secondary" disabled={busy} onClick={()=>setEditorOpen(false)}>Close and retain milestone form</Button>
           <h3>{editing ? "Edit milestone" : "Add a milestone"}</h3>
           <Field appearance="standard">
             Milestone title
@@ -265,7 +290,7 @@ export function ProjectMilestoneConsole({
             Parent work package
             <Select appearance="standard" value={parentId} onChange={e=>setParentId(e.target.value)}>
               <option value="">Top-level package</option>
-              {milestones.filter(m=>m.id!==editing?.id&&['planned','in_progress'].includes(m.state)).map(m=><option key={m.id} value={m.id}>{m.title}</option>)}
+              {milestones.filter(m=>m.id!==(editing?.id??createdMilestone?.id)&&['planned','in_progress'].includes(m.state)).map(m=><option key={m.id} value={m.id}>{m.title}</option>)}
             </Select>
           </Field>
           <Field appearance="standard">
@@ -281,7 +306,7 @@ export function ProjectMilestoneConsole({
                 Math.max(
                   2,
                   milestones.filter(
-                    (milestone) => milestone.id !== editing?.id && milestone.state !== "cancelled",
+                    (milestone) => milestone.id !== (editing?.id??createdMilestone?.id) && milestone.state !== "cancelled",
                   ).length,
                 ),
               )}
@@ -294,7 +319,7 @@ export function ProjectMilestoneConsole({
             >
               {milestones
                 .filter(
-                  (milestone) => milestone.id !== editing?.id && milestone.state !== "cancelled",
+                  (milestone) => milestone.id !== (editing?.id??createdMilestone?.id) && milestone.state !== "cancelled",
                 )
                 .map((milestone) => (
                   <option key={milestone.id} value={milestone.id}>
@@ -316,16 +341,16 @@ export function ProjectMilestoneConsole({
             />
           </Field>
           <div className="ui-form-actions">
-            <Button appearance="standard" variant="primary" clientManaged type="submit" disabled={busy || !dueAt}>
+            <Button appearance="standard" variant="primary" clientManaged type="submit" disabled={busy || pending || !dueAt || !newWork || !canManage}>
               {editing ? "Save milestone" : "Add milestone"}
             </Button>
             {editing && (
-              <Button appearance="standard" variant="ghost" type="button" disabled={busy} onClick={clear}>
+              <Button appearance="standard" variant="ghost" type="button" disabled={busy || pending} onClick={()=>{if(!pending&&!busy&&(!dirty||window.confirm("Discard this milestone draft?")))clear();}}>
                 Stop editing
               </Button>
             )}
           </div>
-        </form>
+        </form></FormDisclosure>
       )}
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
     </Card>

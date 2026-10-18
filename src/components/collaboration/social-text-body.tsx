@@ -1,13 +1,15 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Button } from "@/components/ui/foundation";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { hashtags, type Mention } from "@/server/modules/collaboration/public/rules/social-text";
 import { safeRichUrl, type RichNode } from "@/lib/shared/home-rich-content";
 import { createElement, type ReactNode } from "react";
 import styles from "@/components/collaboration/social-text.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";
+import { SocialRecordMention } from "./social-record-mention";
 export function SocialTextBody({ appearance = "legacy",
   body,
   mentions = [],
@@ -63,7 +65,7 @@ export function SocialTextBody({ appearance = "legacy",
             </mark>
           );
         else if (mark.type === "mention")
-          result = (
+          result = attrs.kind === "record" ? <SocialRecordMention key={`${base}:${String(attrs.targetId)}`} appearance={appearance} base={base} targetId={String(attrs.targetId)} label={String(attrs.label)} className={styles.token}>{result}</SocialRecordMention> : (
             <Button appearance={appearance}
               variant="plain"
               type="button"
@@ -143,21 +145,19 @@ export function SocialTextBody({ appearance = "legacy",
         <Link
           key={span.start}
           className={styles.token}
-          href={`${base}/home?tag=${encodeURIComponent(span.tag)}`}
+          href={canonicalUiHref(`${base}/home?tag=${encodeURIComponent(span.tag)}`)}
         >
           {text}
         </Link>,
       );
     else if (span.kind === "record") {
-      const [module, ...ids] = span.targetId.split("/");
       parts.push(
-        <Link
-          key={span.start}
+        <SocialRecordMention appearance={appearance} base={base} targetId={span.targetId} label={span.label}
+          key={`${base}:${span.targetId}:${span.start}`}
           className={styles.token}
-          href={`${base}/records/${encodeURIComponent(module)}/${encodeURIComponent(ids.join("/"))}`}
         >
           {text}
-        </Link>,
+        </SocialRecordMention>,
       );
     } else
       parts.push(

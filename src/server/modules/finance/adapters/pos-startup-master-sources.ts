@@ -1,0 +1,44 @@
+import 'server-only';
+import type {SqlDatabase} from '../../runtime/public/runtime/types';
+import {commerceFinanceJoinedFacts} from './commerce-joined-facts';
+/** Private original quote fields captured by the original Commerce application.
+ * This is not an input or a caller-selected source authority. */
+export type PosStartupProductMoney={
+ input:{sourceType:string;sourceId:string;amountKind:string;transactionDate:string;currency:string;currencyScale:number;amountUnits:string};
+ amountUnits:string;usdUnits:string;currencyScale:number;rateId:string|null;usedLatestFallback:boolean;
+};
+export function posStartupMasterFinanceLeases(database:SqlDatabase){return [
+ database.prepare('LOCK TABLE finance_charts,finance_accounts,finance_sales_defaults,company_money_settings,company_currency_scales,company_fx_rates IN SHARE MODE'),
+ database.prepare('LOCK TABLE money_transaction_snapshots IN SHARE ROW EXCLUSIVE MODE'),
+];}
+/** The existing Finance settings reader remains authoritative for the actual
+ * document currency, approved defaults and active chart. No collections escape. */
+export async function posStartupMasterFinanceSource(database:SqlDatabase,companyId:string,chartId:string,currency:string){
+ const [effective,reference]=await Promise.all([
+  commerceFinanceJoinedFacts(database).readCommerceSettings1({companyId}),
+  database.prepare(`SELECT jsonb_build_object('chart',(SELECT to_jsonb(c) FROM finance_charts c WHERE c.id=? AND c.company_id=?),'settings',(SELECT to_jsonb(s) FROM company_money_settings s WHERE s.company_id=?),'scale',(SELECT to_jsonb(s) FROM company_currency_scales s WHERE s.company_id=? AND s.currency=?),'rates',COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM company_fx_rates r WHERE r.company_id=? AND r.currency=?),'[]'::jsonb))::text image`).bind(chartId,companyId,companyId,companyId,currency,companyId,currency).first<string>('image'),
+ ]);return {effective,image:JSON.stringify([effective,reference])};
+}
+type MoneyRow={company_id:string;source_type:string;source_id:string;amount_kind:string;transaction_date:string;currency:string;currency_scale:number;amount_units:string;usd_units:string;fx_rate_id:string|null;used_latest_fallback:boolean;captured_at:number;source:string};
+export async function posStartupProductMoneySource(database:SqlDatabase,companyId:string,productId:string){
+ return (await database.prepare(`SELECT s.company_id,s.source_type,s.source_id,s.amount_kind,s.transaction_date::text,s.currency,s.currency_scale,s.amount_units::text,s.usd_units::text,s.fx_rate_id,s.used_latest_fallback,s.captured_at,to_jsonb(s)::text source FROM money_transaction_snapshots s WHERE s.company_id=? AND s.source_type='commerce_product_revision' AND s.source_id=? ORDER BY s.amount_kind`).bind(companyId,`${productId}:1`).all<MoneyRow>()).results;
+}
+export function posStartupProductMoneyMatches(rows:Awaited<ReturnType<typeof posStartupProductMoneySource>>,companyId:string,productId:string,expected:PosStartupProductMoney){
+ const row=rows[0],input=expected.input,source=row?JSON.parse(row.source) as Record<string,unknown>:null;
+ const nativeQuote=source&&['original_source_type','original_source_id','original_amount_kind','carried_source_type','carried_source_id','carried_amount_kind','carried_allocation_offset_units'].every(field=>source[field]===null);
+ return !!nativeQuote&&rows.length===1&&row.company_id===companyId&&row.source_type==='commerce_product_revision'&&input.sourceType===row.source_type&&row.source_id===`${productId}:1`&&input.sourceId===row.source_id&&row.amount_kind==='unit_price'&&input.amountKind===row.amount_kind&&row.transaction_date===input.transactionDate&&row.currency===input.currency&&Number(row.currency_scale)===expected.currencyScale&&Number(row.currency_scale)===input.currencyScale&&row.amount_units===expected.amountUnits&&row.amount_units===input.amountUnits&&row.usd_units===expected.usdUnits&&row.fx_rate_id===expected.rateId&&row.used_latest_fallback===expected.usedLatestFallback&&Number.isSafeInteger(Number(row.captured_at));
+}
+
+/** Same six account checks as the original POS bootstrap, with explicit real
+ * bank choices. These are references only; the original command remains the
+ * authority for generated POS accounts, settings and independent approval. */
+export async function posStartupBootstrapFinanceReferences(database:SqlDatabase,companyId:string,mapping:{chartId:string;currency:string;cashAccountId:string;receivableAccountId:string;revenueAccountId:string;outputTaxAccountId:string;inventoryAccountId:string;cogsAccountId:string}){
+ const [chart,accounts]=await Promise.all([
+  database.prepare('SELECT id,base_currency,status,to_jsonb(c)::text source FROM finance_charts c WHERE id=? AND company_id=?').bind(mapping.chartId,companyId).first<{id:string;base_currency:string;status:string;source:string}>(),
+  database.prepare('SELECT id,code,name,category,currency,control_kind,status,to_jsonb(a)::text source FROM finance_accounts a WHERE company_id=? AND chart_id=? ORDER BY id').bind(companyId,mapping.chartId).all<{id:string;code:string;name:string;category:string;currency:string|null;control_kind:string;status:string;source:string}>(),
+ ]);
+ const fields={cashAccountId:'asset',receivableAccountId:'asset',revenueAccountId:'revenue',outputTaxAccountId:'liability',inventoryAccountId:'asset',cogsAccountId:'expense'} as const;
+ const eligible=(row:typeof accounts.results[number])=>row.status==='active'&&(row.currency===null||row.currency===mapping.currency);
+ const ready=chart?.status==='active'&&chart.base_currency===mapping.currency&&(Object.keys(fields) as Array<keyof typeof fields>).every(field=>accounts.results.some(row=>row.id===mapping[field]&&row.category===fields[field]&&eligible(row)));
+ return {ready:!!ready,bankAccounts:accounts.results.filter(row=>eligible(row)&&row.category==='asset'&&row.control_kind==='bank').map(row=>({id:row.id,code:row.code,name:row.name})),image:JSON.stringify([chart?.source??null,accounts.results.map(row=>row.source)])};
+}

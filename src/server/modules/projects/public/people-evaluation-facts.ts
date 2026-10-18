@@ -1,1 +1,1 @@
-export { peopleEvaluationProjectsFacts } from '../adapters/people-evaluation-facts';
+export {peopleEvaluationProjectsFacts,peopleEvaluationProjectTaskReadScope,peopleEvaluationProjectSourceLocks,peopleEvaluationProjectSourceImage} from '../adapters/people-evaluation-facts';

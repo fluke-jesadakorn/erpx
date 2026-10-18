@@ -1,0 +1,1 @@
+export {hasWorkforceProductRecordHistory,workforceSourceReadScope,requireWorkforceWorkspaceRecordRead,filterWorkforceWork,requireWorkforceFlowHistory,workforceDocumentFlow,withWorkforceFlowAssignment} from '../adapters/workforce-record-purchases';

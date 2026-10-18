@@ -56,7 +56,7 @@
     "demo:prepare": "bun scripts/local/run-server-script.ts scripts/local/browser-simulation.ts prepare",
     "demo:start": "bun scripts/local/run-server-script.ts scripts/local/browser-simulation.ts start",
     "demo:destroy": "bun scripts/local/run-server-script.ts scripts/local/browser-simulation.ts destroy",
-    "demo:verify": "bun run test -- tests/unit/shared.evidence/general-company-demo.test.ts tests/integration/procurement/purchase-to-payment.test.ts",
+    "demo:verify": "bun run test:integration -- tests/integration/procurement/purchase-to-payment.test.ts",
     "demo:verify:browser": "playwright test --config tests/config/playwright.config.ts tests/e2e/finance/demo-finance-chart-setup.spec.ts tests/e2e/finance/demo-finance-reports.spec.ts tests/e2e/collaboration/demo-collaboration-action-card.spec.ts tests/e2e/collaboration/demo-collaboration-record-relations.spec.ts tests/e2e/collaboration/demo-collaboration-social.spec.ts tests/e2e/collaboration/demo-collaboration-attachments.spec.ts tests/journeys/people_payroll/demo-overtime-to-payroll.spec.ts tests/e2e/people_payroll/demo-payroll-runs.spec.ts tests/e2e/support/demo-support-lifecycle.spec.ts tests/e2e/operations/demo-task-delegation.spec.ts tests/e2e/organization/demo-organization-lifecycle.spec.ts tests/e2e/organization/demo-company-setup-acceptance.spec.ts tests/journeys/marketing/demo-marketing-to-crm-lead.spec.ts tests/e2e/shared.ui/demo-workspace-header.spec.ts tests/e2e/finance/demo-finance-close.spec.ts tests/e2e/finance/demo-controlled-payment.spec.ts tests/e2e/finance/demo-finance-opening-import.spec.ts tests/e2e/procurement/demo-purchase-rfq.spec.ts tests/e2e/procurement/demo-purchase-request-rfq.spec.ts tests/journeys/sales/demo-sales-to-collection.spec.ts tests/e2e/quality/demo-quality-alerts.spec.ts tests/e2e/quality/demo-quality-inspection-release.spec.ts tests/e2e/customer_360/demo-customer-timeline.spec.ts tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts tests/e2e/crm/demo-crm-activities.spec.ts tests/e2e/inventory/demo-inventory-lot-serial.spec.ts tests/e2e/identity_access/demo-identity-activation-revocation.spec.ts tests/e2e/pms/demo-hospitality-setup.spec.ts --project=desktop",
     "seed:pos:preview": "bun --conditions=react-server scripts/seed/seed-pos-local.ts --preview",
     "seed:pos:apply": "bun --conditions=react-server scripts/seed/seed-pos-local.ts --apply",
@@ -71,13 +71,18 @@
     "test:journeys": "bun scripts/testing/test.ts journeys",
     "test:uat": "bun scripts/testing/test.ts uat",
     "test:provider": "bun scripts/testing/test.ts provider",
+    "test:dev": "bun scripts/testing/test.ts dev",
     "test:impact": "bun scripts/testing/test.ts impact",
     "test:full": "bun scripts/testing/full.ts",
     "test:catalogue": "bun scripts/testing/test.ts --check",
     "architecture:check": "bun scripts/architecture/check.ts && bun scripts/architecture/check-guest-account-terminology.ts && bun run structure:check",
     "architecture:prune": "bun scripts/architecture/check.ts --prune",
     "terminology:check": "bun scripts/architecture/check-guest-account-terminology.ts",
-    "structure:check": "bun scripts/testing/layout.ts"
+    "structure:check": "bun scripts/testing/layout.ts",
+    "products:manifest": "bun scripts/docs/generate-product-manifest.ts && bun scripts/docs/generate-product-acceptance.ts",
+    "products:check": "bun scripts/docs/generate-product-manifest.ts --check && bun scripts/docs/generate-product-acceptance.ts --check",
+    "products:acceptance": "bun scripts/docs/generate-product-acceptance.ts --acceptance",
+    "console:retirement:check": "bun scripts/local/check-console-retirement.ts"
   },
   "packageManager": "bun@1.4.3",
   "dependencies": {

@@ -1,4 +1,5 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
 import {
@@ -11,10 +12,10 @@ import {
   TextInput,
 } from "@/components/ui/foundation";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import {useProcurementCommand} from "./use-procurement-command";
+import {ProcurementEditor} from "./procurement-editor";
 import { RecordLink as Link } from "@/components/records/record-link";
-import { workFetch } from "@/lib/work_projection/work-fetch";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import {
   AttachmentPanel,
@@ -40,40 +41,6 @@ type RequestSource = {
   }>;
 };
 type Detail = Awaited<ReturnType<typeof rfqDetail>>;
-function useCommand(base: string) {
-  const router = useRouter(),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    last = useRef<{ fingerprint: string; key: string } | null>(null);
-  async function send(path: string, input: unknown, order = false) {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const fingerprint = path + JSON.stringify(input);
-    if (last.current?.fingerprint !== fingerprint)
-      last.current = { fingerprint, key: crypto.randomUUID() };
-    try {
-      const response = await workFetch(`/api/v1${base}/${path}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": last.current.key },
-          body: JSON.stringify(input),
-        }),
-        body = await response.json();
-      if (!response.ok) {
-        if (response.status < 500) last.current = null;
-        throw new Error(body.error?.message ?? "Unable to save quotation request.");
-      }
-      last.current = null;
-      router.push(`${base}/${order ? "commerce/orders" : "procurement-rfqs"}/${body.data.id}`);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Retry the same command.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return { busy, error, send };
-}
 export function RfqCreate({
   base,
   data,
@@ -83,7 +50,9 @@ export function RfqCreate({
   data: Workspace;
   source?: RequestSource;
 }) {
-  const { busy, error, send } = useCommand(base),
+  const { busy, error, send, retry, uncertain, notice, savedHref } = useProcurementCommand(base,data.purchase),
+    [generation,setGeneration] = useState(0),
+    [requestVersion,setRequestVersion] = useState(source?.version),
     [lines, setLines] = useState<
       Array<{
         productId: string;
@@ -110,7 +79,6 @@ export function RfqCreate({
             : [],
         ) ?? [],
     );
-  if (!data.canPrepare) return null;
   return (
     <Card as="section" appearance="standard" className="ui-panel">
       <h2>Request supplier quotations</h2>
@@ -149,20 +117,25 @@ export function RfqCreate({
         </TableFrame>
       )}
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      <form
+      {notice && <InlineNotice>{notice} {savedHref && <Link href={savedHref}>Open saved record</Link>}</InlineNotice>}
+      {uncertain && <Button appearance="standard" type="button" disabled={busy} onClick={()=>void retry()}>Retry submitted purchasing change</Button>}
+      <ProcurementEditor title="Request supplier quotations" onBegin={()=>setRequestVersion(source?.version)} error={error} busy={busy} disabled={!data.canPrepare} onDiscard={()=>{setLines(source?.items.flatMap((item,i)=>item.remainingMilli>0?[{productId:"",quantity:String(item.remainingMilli/1000),requestQuantity:String(item.remainingMilli/1000),requestUnit:item.unit,requestUnitsPerProductUnit:"1",requestItemOrdinal:i}]:[])??[]);setGeneration(value=>value+1);}}>
+      <form key={generation} data-procurement-draft="create"
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
-          void send("procurement-rfqs", {
-            ...(source ? { requestId: source.id, requestVersion: source.version } : {}),
+          if(!data.canPrepare)return;void send("procurement-rfqs", {
+            ...(source ? { requestId: source.id, requestVersion: Number(f.get("requestVersion")) } : {}),
             title: f.get("title"),
             warehouseId: f.get("warehouse"),
             neededDate: f.get("needed"),
             demandEvidence: f.get("evidence"),
             lines,
-          });
+          },false,e.currentTarget);
         }}
       >
+        {source&&<input type="hidden" name="requestVersion" defaultValue={requestVersion}/>}
+        <fieldset disabled={!data.canPrepare || busy}>
         <FormGrid as="div" className="ui-form-grid">
           <Field appearance="standard">
             Demand title
@@ -302,7 +275,7 @@ export function RfqCreate({
               <Button appearance="standard"
                 variant="secondary"
                 type="button"
-                onClick={() => setLines((prev) => prev.filter((_, n) => n !== i))}
+                data-procurement-edit onClick={() => setLines((prev) => prev.filter((_, n) => n !== i))}
               >
                 Remove demand {i + 1}
               </Button>
@@ -315,7 +288,7 @@ export function RfqCreate({
               variant="secondary"
               type="button"
               disabled={lines.length >= 20 || lines.length >= data.products.length}
-              onClick={() => {
+              data-procurement-edit onClick={() => {
                 const p = data.products.find((p) => !lines.some((l) => l.productId === p.id));
                 if (p) setLines([...lines, { productId: String(p.id), quantity: "1" }]);
               }}
@@ -337,7 +310,9 @@ export function RfqCreate({
             unused RFQ to release its allocation.
           </p>
         )}
+        </fieldset>
       </form>
+      </ProcurementEditor>
     </Card>
   );
 }
@@ -350,7 +325,9 @@ export function RfqConsole({
   data: Detail;
   suppliers: Workspace["suppliers"];
 }) {
-  const { busy, error, send } = useCommand(base),
+  const { busy, error, send, retry, uncertain, notice, savedHref } = useProcurementCommand(base,data.purchase),
+    [generations,setGenerations] = useState<Record<string,number>>({}),
+    [draftVersions,setDraftVersions] = useState({offer:Number(data.rfq.version),review:Number(data.rfq.version),order:Number(data.rfq.version),request:data.currentRequestVersion}),
     [offerAttachmentSet, setOfferAttachmentSet] = useState<AttachmentPanelChange | null>(null),
     r = data.rfq,
     path = `procurement-rfqs/${r.id}`,
@@ -358,6 +335,8 @@ export function RfqConsole({
   return (
     <>
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
+      {notice && <InlineNotice>{notice} {savedHref && <Link href={savedHref}>Open saved record</Link>}</InlineNotice>}
+      {uncertain && <Button appearance="standard" type="button" disabled={busy} onClick={()=>void retry()}>Retry submitted purchasing change</Button>}
       {data.sourceBlocked && (
         <InlineNotice tone="danger" role="alert">
           The source requisition changed or is not ready. Resolve it with its assigned team or
@@ -431,20 +410,21 @@ export function RfqConsole({
         {!data.current.length && <p>No supplier offers recorded.</p>}
         {r.selection_reason && <p>Selection reason: {String(r.selection_reason)}</p>}
       </Card>
-      {data.canPrepare && r.status === "collecting" && (
+      {(
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Record supplier offer</h2>
           <p>
             Enter every demand line. A new offer replaces this supplier’s current offer in the
             comparison and retains the earlier evidence.
           </p>
-          <form
+          <ProcurementEditor title="Record supplier offer" onBegin={()=>setDraftVersions(value=>({...value,offer:Number(r.version),request:data.currentRequestVersion}))} error={error} busy={busy} disabled={!data.canPrepare || r.status!=="collecting"} onDiscard={()=>{setOfferAttachmentSet(null);setGenerations(value=>({...value,offer:(value.offer??0)+1}));}}>
+          <form key={generations.offer??0} data-procurement-draft="offer"
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
-              void send(path, {
+              if(!data.canPrepare || r.status!=="collecting")return;void send(path, {
                 action: "offer",
-                expectedVersion: Number(r.version),
+                expectedVersion: Number(f.get("expectedVersion")),
                 supplierId: f.get("supplier"),
                 reference: f.get("reference"),
                 evidence: f.get("evidence"),
@@ -461,9 +441,10 @@ export function RfqConsole({
                   price: String(f.get(`price-${l.id}`)),
                   taxBps: Math.round(Number(f.get(`tax-${l.id}`)) * 100),
                 })),
-              });
+              },false,e.currentTarget);
             }}
           >
+            <input type="hidden" name="expectedVersion" defaultValue={draftVersions.offer}/><fieldset disabled={!data.canPrepare || r.status!=="collecting" || busy}>
             <FormGrid as="div" className="ui-form-grid">
               <Field appearance="standard">
                 Supplier
@@ -534,24 +515,28 @@ export function RfqConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Record quotation
             </Button>
+            </fieldset>
           </form>
+          </ProcurementEditor>
         </Card>
       )}
-      {data.canPrepare && !["ordered", "cancelled"].includes(String(r.status)) && (
+      {(
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Award review</h2>
-          <form
+          <ProcurementEditor title="Award review" onBegin={()=>setDraftVersions(value=>({...value,review:Number(r.version),request:data.currentRequestVersion}))} error={error} busy={busy} disabled={!data.canPrepare && !data.canCancel || ["ordered","cancelled"].includes(String(r.status))} onDiscard={()=>setGenerations(value=>({...value,review:(value.review??0)+1}))}>
+          <form key={generations.review??0} data-procurement-draft="review"
             onSubmit={(e) => {
               e.preventDefault();
               const f = new FormData(e.currentTarget);
-              void send(path, {
-                action: f.get("action"),
-                expectedVersion: Number(r.version),
+              const action=f.get("action");if(action==="cancel"?!data.canCancel:!data.canPrepare)return;void send(path, {
+                action,
+                expectedVersion: Number(f.get("expectedVersion")),
                 ...(r.status === "collecting" ? { offerId: f.get("offer") } : {}),
                 reason: f.get("reason"),
-              });
+              },false,e.currentTarget);
             }}
           >
+            <input type="hidden" name="expectedVersion" defaultValue={draftVersions.review}/><fieldset disabled={busy || !data.canPrepare && !data.canCancel}>
             <FormGrid as="div" className="ui-form-grid">
               {r.status === "collecting" && (
                 <Field appearance="standard">
@@ -569,15 +554,15 @@ export function RfqConsole({
                 Action
                 <Select appearance="standard" name="action">
                   {r.status === "collecting" && data.current.length > 0 && (
-                    <option value="submit">Submit award for independent review</option>
+                    <option value="submit" disabled={!data.canPrepare}>Submit award for independent review</option>
                   )}
                   {r.status === "review" && data.canApprove && (
-                    <option value="approve">Approve supplier award</option>
+                    <option value="approve" disabled={!data.canPrepare}>Approve supplier award</option>
                   )}
                   {data.canApprove && ["review", "approved"].includes(String(r.status)) && (
-                    <option value="return">Return to collect revised offers</option>
+                    <option value="return" disabled={!data.canPrepare}>Return to collect revised offers</option>
                   )}
-                  <option value="cancel">Cancel quotation request</option>
+                  <option value="cancel" disabled={!data.canCancel}>Cancel quotation request</option>
                 </Select>
               </Field>
               <Field appearance="standard">
@@ -594,7 +579,9 @@ export function RfqConsole({
             <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
               Record decision
             </Button>
+            </fieldset>
           </form>
+          </ProcurementEditor>
         </Card>
       )}
       {data.canPrepare &&
@@ -606,29 +593,27 @@ export function RfqConsole({
             request is still approved and in progress.
           </p>
         )}
-      {data.canPrepare &&
-        r.status === "approved" &&
-        selected &&
-        (!r.request_id || data.currentRequestVersion) && (
+      {(
           <Card as="section" appearance="standard" className="ui-panel">
             <h2>Create purchase order</h2>
             <p>
               The draft uses the approved supplier, warehouse, required date, quantities, prices and
               taxes. The PO requires its own independent approval.
             </p>
-            <FormLayout
+            <ProcurementEditor title="Create awarded draft PO" onBegin={()=>setDraftVersions(value=>({...value,order:Number(r.version),request:data.currentRequestVersion}))} error={error} busy={busy} disabled={!data.canPrepare || r.status!=="approved" || !selected || !!r.request_id&&!data.currentRequestVersion} onDiscard={()=>setGenerations(value=>({...value,order:(value.order??0)+1}))}>
+            <FormLayout key={generations.order??0} data-procurement-draft="order"
               className="ui-form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
                 const f = new FormData(e.currentTarget);
-                void send(
+                if(!data.canPrepare || r.status!=="approved" || !selected)return;void send(
                   "commerce/orders",
                   {
                     kind: "purchase",
                     rfqId: r.id,
-                    rfqVersion: Number(r.version),
+                    rfqVersion: Number(f.get("expectedVersion")),
                     ...(r.request_id
-                      ? { requestId: r.request_id, requestVersion: data.currentRequestVersion }
+                      ? { requestId: r.request_id, requestVersion: Number(f.get("requestVersion")) }
                       : {}),
                     partyId: selected.supplier_id,
                     warehouseId: r.warehouse_id,
@@ -647,10 +632,11 @@ export function RfqConsole({
                       };
                     }),
                   },
-                  true,
+                  true,e.currentTarget,
                 );
               }}
             >
+              <input type="hidden" name="requestVersion" defaultValue={draftVersions.request??""}/><input type="hidden" name="expectedVersion" defaultValue={draftVersions.order}/><fieldset disabled={!data.canPrepare || r.status!=="approved" || !selected || busy}>
               <Field appearance="standard">
                 Purchase order date
                 <TextInput appearance="standard"
@@ -658,19 +644,21 @@ export function RfqConsole({
                   type="date"
                   required
                   defaultValue={new Date().toISOString().slice(0, 10)}
-                  max={String(selected.valid_until)}
+                  max={selected?String(selected.valid_until):undefined}
                 />
               </Field>
               <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
                 Create awarded draft PO
               </Button>
+              </fieldset>
             </FormLayout>
+            </ProcurementEditor>
           </Card>
         )}
       {r.order_id && (
         <Card as="section" appearance="standard" className="ui-panel">
           <h2>Purchase order handoff</h2>
-          <Link href={`${base}/commerce/orders/${r.order_id}`}>
+          <Link href={canonicalUiHref(`${base}/commerce/orders/${r.order_id}`)}>
             Open source-linked purchase order
           </Link>
           <p>

@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { z } from 'zod';
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -12,7 +13,7 @@ export async function GET(request:Request,context:{params:Promise<{holdingSlug:s
     const parsed=input.safeParse(Object.fromEntries(new URL(request.url).searchParams));
     if (!parsed.success) throw new ApiError(422,'INVALID_EXPLORER_SELECTION','Choose an organization item and section.');
     const {kind,id,tab,archived,...changeSearch}=parsed.data;
-    return Response.json({data:await peopleExplorerDetail(actor,{kind,id},tab,archived==='true',changeSearch)},{headers:{'Cache-Control':'private, no-store'}});
+    return Response.json(canonicalDestinationLinks({data:await peopleExplorerDetail(actor,{kind,id},tab,archived==='true',changeSearch)}),{headers:{'Cache-Control':'private, no-store'}});
   } catch (error) { return errorResponse(error); }
   });
 }

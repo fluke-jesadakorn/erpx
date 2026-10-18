@@ -1,3 +1,4 @@
+import type {LegalPurchaseControls} from './purchases';
 import { z } from "zod";
 export const kinds = [
   "request",
@@ -365,6 +366,7 @@ export type LegalEvent = {
   version: number;
 };
 export type LegalDetail = {
+  purchases?:LegalPurchaseControls;
   submissions: {
     id: string;
     name: string;
@@ -408,6 +410,7 @@ export type LegalDetail = {
   }[];
 };
 export type LegalData = {
+  purchases?:LegalPurchaseControls;
   workContext?: {companyId:string;branchId:string|null;departmentId:string|null;assignmentId:string;userId:string};
   enabled: boolean;
   items: LegalItem[];

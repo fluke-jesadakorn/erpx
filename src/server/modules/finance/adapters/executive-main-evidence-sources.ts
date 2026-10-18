@@ -1,3 +1,4 @@
+import {requireFinanceMetricPurchase} from "./source-purchases";
 import "server-only";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
 import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
@@ -32,6 +33,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         } | null): Promise<{
             rows: InvoiceEvidenceRow[];
         }> {
+            await requireFinanceMetricPurchase(db,actor,input.metric);
             const conditions = ["company_id=?", "kind=?", "currency=?", "invoice_date BETWEEN ? AND ?", `status IN (${type.statuses.map(() => "?").join(",")})`];
             const values: unknown[] = [actor.companyId, type.kind, input.filters.currency, input.filters.from, input.filters.to, ...type.statuses];
             if (input.query) {
@@ -62,6 +64,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 party_name: string;
             }) | null;
         }> {
+            await requireFinanceMetricPurchase(db,actor,type.kind==="payable"?"payables":"receivables");
             const row = await db.prepare(`SELECT i.id,i.invoice_number,i.kind,i.invoice_date,i.due_date,i.currency,i.subtotal_minor::text subtotal_minor,
       i.tax_minor::text tax_minor,i.total_minor::text total_minor,i.outstanding_minor::text outstanding_minor,i.status,i.version,i.posted_at,p.name party_name
     FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id AND p.company_id=i.company_id
@@ -91,6 +94,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }, actor: WorkContext): Promise<{
             rows: CloseBlockerEvidenceRow[];
         }> {
+            await requireFinanceMetricPurchase(db,actor,"close-blockers");
             const conditions = ["latest.status='block'", "latest.resolved_at IS NULL"];
             const values: unknown[] = [actor.companyId, actor.companyId, input.filters.from, input.filters.to];
             if (input.query) {
@@ -112,6 +116,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }, id: string): Promise<{
             row: CloseBlockerEvidenceRow | null;
         }> {
+            await requireFinanceMetricPurchase(db,actor,"close-blockers");
             const row = await db.prepare(`${closeBlockerSource()}
     WHERE latest.id=? AND latest.status='block' AND latest.resolved_at IS NULL LIMIT 1`)
                 .bind(actor.companyId, actor.companyId, filters.from, filters.to, id).first<CloseBlockerEvidenceRow>();

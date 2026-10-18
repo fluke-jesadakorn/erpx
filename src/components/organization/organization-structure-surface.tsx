@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type HTMLAttributes, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams } from "@/lib/shared/destination-search";
+import {useRouter} from '@/lib/shared/destination-router';
+import {workspacePathParts} from '@/lib/work_projection/destination-registry';
 import { BriefcaseBusiness, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/foundation";
 import { PersonAvatar } from "@/components/ui/person-avatar";
@@ -12,7 +14,7 @@ import type { OrganizationExplorerContext, OrganizationSelection } from "@/compo
 import type { HoldingPeopleDirectory } from "@/server/modules/organization/public/holding-people-directory";
 import styles from "./organization-structure.module.css";
 
-export function OrganizationStructureSurface({ data, initialCompanyId, initialSelection, headerActions, feedback, renderDetail, onSelect, renderActions, dropProps, positionStatus, detailSuppressed = false, testIdPrefix = "org" }: {
+export function OrganizationStructureSurface({ data, initialCompanyId, initialSelection, headerActions, feedback, renderDetail, onSelect, renderActions, dropProps, positionStatus, controlledTab,onTabChange,detailSuppressed = false, testIdPrefix = "org" }: {
   data: HoldingPeopleDirectory; initialCompanyId: string; initialSelection: OrganizationSelection;
   headerActions?: ReactNode;
   feedback?: ReactNode;
@@ -23,8 +25,11 @@ export function OrganizationStructureSurface({ data, initialCompanyId, initialSe
   positionStatus?: (id: string) => ReactNode;
   detailSuppressed?: boolean;
   testIdPrefix?: string;
+  controlledTab?:string;
+  onTabChange?:(tab:string)=>void;
 }) {
   const query = useSearchParams();
+  const router=useRouter();
   const overlay = useWorkspaceDetailOverlay();
   const selection = initialSelection;
   const path = organizationLocationPath(data, selection);
@@ -40,13 +45,14 @@ export function OrganizationStructureSurface({ data, initialCompanyId, initialSe
   const [expanded, setExpanded] = useState(() => new Set([initialCompanyId, ...path.map(item => item.id), ...data.nodes.filter(node => node.kind === "branch" || node.kind === "headquarters").map(node => node.id)]));
   const [collapsed, setCollapsed] = useState(new Set<string>());
   const tabs = ["Policies", "Directory", "Delivery"];
-  const tab = tabs.find(item => item.toLowerCase() === query.get("tab")?.toLowerCase()) ?? "Policies";
+  const tab = tabs.find(item => item.toLowerCase() === (controlledTab??query.get("tab"))?.toLowerCase()) ?? "Policies";
   function update(patch: Record<string, string | null>, replace = false) {
     const params = new URLSearchParams(query);
     for (const [key, value] of Object.entries(patch)) if (value === null) params.delete(key); else params.set(key, value);
-    window.history[replace ? "replaceState" : "pushState"](null, "", `${window.location.pathname}?${params}`);
+    const base=workspacePathParts(window.location.pathname)?.base;
+    router[replace?'replace':'push'](`${base?base+'/technology':window.location.pathname}?${params}`,{scroll:false});
   }
-  function close() { update(Object.fromEntries(["person", "employee", "position", "department", "branch", "team", "level", "detail", "tab"].map(key => [key, null]))); }
+  function close() { update(Object.fromEntries(["person", "employee", "position", "department", "branch", "team", "company", "level", "detail", "tab","section"].map(key => [key, null]))); }
   function view(next: OrganizationSelection) {
     const params = Object.fromEntries(["person", "employee", "position", "department", "branch", "team", "level", "detail", "tab"].map(key => [key, null])) as Record<string, string | null>;
     params.unit = `${next.kind}:${next.id}`;
@@ -85,7 +91,7 @@ export function OrganizationStructureSurface({ data, initialCompanyId, initialSe
       </WorkspaceContent>
       <WorkspaceDetail open={open} title={organizationLabel(data, selection)} onClose={close} data-testid={`${testIdPrefix}-detail`}>
         {overlay && <>{feedback}<WorkspaceToolbar actions={headerActions}/></>}
-        <nav className={styles.occupancy} aria-label="Technology detail sections">{tabs.map(item => <Button appearance="standard" key={item} type="button" variant="plain" aria-pressed={tab === item} onClick={() => update({tab:item.toLowerCase()})}>{item}</Button>)}</nav>
+        <nav className={styles.occupancy} aria-label="Technology detail sections">{tabs.map(item => <Button appearance="standard" key={item} type="button" variant="plain" aria-pressed={tab === item} onClick={() => onTabChange?onTabChange(item):update({tab:item.toLowerCase()})}>{item}</Button>)}</nav>
         {renderDetail(selection, tab, organizationContextFor(data, selection))}
       </WorkspaceDetail>
     </WorkspaceFrame>

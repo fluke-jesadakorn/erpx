@@ -1,9 +1,6 @@
-import { notFound } from "next/navigation";
-import { isRecordKind } from "@/lib/records/record-drawer";
-import { RecordSupplement } from "@/components/records/record-supplement";
-export const dynamic="force-dynamic";
-export default async function RecordDetailsPage({params,searchParams}:{params:Promise<{holdingSlug:string;kind:string;id:string}>;searchParams:Promise<Record<string,string>>}) {
- const {holdingSlug,kind,id}=await params;
- if(!isRecordKind(kind))notFound();
- return <RecordSupplement holdingSlug={holdingSlug} target={{kind,id}} args={await searchParams}/>;
+import Screen from "@/app/holdings/[holdingSlug]/_presenters/record-details/[kind]/[id]/screen";
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;kind:string;id:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
+ const query={...await searchParams,...{}};
+ const props={params:Promise.resolve({...await params,...{}}),searchParams:Promise.resolve(query)} as Parameters<typeof Screen>[0];
+ return (await Screen(props))??null;
 }

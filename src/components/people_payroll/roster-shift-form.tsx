@@ -3,7 +3,8 @@ import { Button, Field, Select, TextArea, TextInput } from "@/components/ui/foun
 
 import { useState, type FormEvent } from "react";
 import { addDays, rosterMonday, type RosterData, type RosterShift } from "@/lib/people_payroll/people-roster";
-import styles from "@/components/people_payroll/roster.module.css";
+import legacyStyles from "@/components/people_payroll/roster.module.css";
+import standardStyles from "./roster-owner-workspace.module.css";
 import { type UiAppearance } from "@/components/ui/foundation";
 function form(e: FormEvent<HTMLFormElement>) {
   e.preventDefault();
@@ -26,6 +27,7 @@ export function RosterShiftForm({ appearance = "legacy",
   submit: (input: unknown) => Promise<void>;
   cancelShift: (s: RosterShift) => void;
 }) & { appearance?: UiAppearance }) {
+  const styles = appearance === "standard" ? standardStyles : legacyStyles;
   const s = editor.shift,
     first = data.templates.find((t) => t.active),
     week = data.week!;

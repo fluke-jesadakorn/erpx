@@ -1,4 +1,5 @@
 import "server-only";
+import { posMetricHistoryAccess } from "./metric-purchases";
 import { z } from "zod";
 import { type Filters } from "@/lib/shared/executive/canvas";
 import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
@@ -56,6 +57,7 @@ function sourceQueryValues(metric: PosEvidenceMetric, actor: WorkContext, filter
 export function executiveEvidenceSources(database: SqlDatabase) {
     const db = database;
     return { async searchRows0(actor: WorkContext, input: z.infer<typeof inputSchema>, cursor: ReturnType<typeof parseCursor>): Promise<EvidenceRow[]> {
+            if (!(await posMetricHistoryAccess(db, actor))[input.metric]) return [];
             const values: unknown[] = sourceQueryValues(input.metric, actor, input.filters, input.query);
             const cursorSql = cursor ? "WHERE (event_date<? OR (event_date=? AND id<?))" : "";
             if (cursor)

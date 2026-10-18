@@ -1,13 +1,17 @@
+import { packageGrantStore, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
+import { confirmManualRate, configureCurrencyScale, moneyContext, saveCurrencyPreference } from "../../../src/server/modules/finance/public/company-money";
+import { createFinanceDimension, financeBookWorkspace } from "../../../src/server/modules/finance/public/finance-books";
 import type { FinanceRow } from "../../../src/server/modules/finance/public/finance";
-import { beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
+import { beforeAll,beforeEach,afterEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { accountingProfiles,decideAccountingProfile,prepareAccountingProfile } from "../../../src/server/modules/finance/public/accounting-profiles";
-import { aging,beginClose,calculateCloseReconciliations,createAccount,createChart,createInvoice,createJournal,createJournalSchema,createPeriod,importAccounts,importBankStatement,invoiceSchema,postInvoice,postJournalBatch,reversePayment,statements,trialBalance } from "../../../src/server/modules/finance/public/finance";
+import { accountingProfiles,financialEvents,decideAccountingProfile,prepareAccountingProfile } from "../../../src/server/modules/finance/public/accounting-profiles";
+import { aging,beginClose,calculateCloseReconciliations,createAccount,createChart,createInvoice,createJournal,createJournalSchema,createPeriod,createParty,createTaxCode,createLoan,importAccounts,importBankStatement,invoiceSchema,postInvoice,postJournalBatch,reversePayment,statements,trialBalance } from "../../../src/server/modules/finance/public/finance";
 import { settleInvoice } from "../../../src/server/modules/commerce/public/commerce";
 import { assignFlowPrimary,resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+afterEach(()=>vi.unstubAllEnvs());
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{
@@ -22,6 +26,40 @@ async function draft(lines=2){
   const journal=await createJournal(f.reviewer,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-02",currency:"THB",memo:"Accountant checked fixture",lines:Array.from({length:lines},(_,index)=>({accountId:index%2?f.accounts.revenue:f.accounts.cash,debit:index%2?"0":"1",credit:index%2?"1":"0"}))}),key());
   await assign("journal",journal.id,"draft");return {id:journal.id,expectedVersion:1};
 }
+
+async function configurationGrant(packageId:"finance"|"finance-advanced"|"pos"|"pms",state:"active"|"draining"="active",endsAt:number|null=null){
+ const prior=(await readCompanyPackageGrants(db,f.company)).find(grant=>grant.packageId===packageId);
+ return packageGrantStore(db,{authorize:async()=>({userId:"isolated-configuration-review"}),obligations:async()=>{throw Error("No configuration withdrawal witness");}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt,version:(prior?.version??0)+1,reason:"Native purchased Company configuration",evidence:"test:finance-shared-configuration"}});
+}
+const configurationRows=()=>Promise.all(["finance_charts","finance_accounts","finance_periods","finance_parties","finance_tax_codes","finance_accounting_profiles","finance_dimension_definitions","finance_dimension_values","finance_book_rules","company_fx_rates","company_currency_scales","finance_loans","command_receipts","command_assertions","audit_events","outbox_events"].map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results));
+const configurationProfile=(chartId=f.chart)=>({statutoryChartId:chartId,standard:"TFRS for NPAEs" as const,fiscalStartMonth:1,effectiveDate:"2026-01-01",eligibilityEvidence:"Independent Company review of current NPAEs eligibility",policyEvidence:"Current tax, moving average inventory and straight line depreciation reviewed",taxBasis:"current_tax" as const,inventoryPolicy:"moving_average" as const,depreciationPolicy:"straight_line" as const});
+it("package configuration rejects unpurchased owner setup without blocking shared money display preferences",async()=>{
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const before=await configurationRows();
+ const commands=[()=>createChart(f.reviewer,{name:"No purchase chart",baseCurrency:"THB",accountingBasis:"IFRS"},key()),()=>createAccount(f.reviewer,{chartId:f.chart,code:key(),name:"No purchase account",category:"asset",isControl:false,controlKind:"none"},key()),()=>createPeriod(f.reviewer,{name:"No purchase period",startDate:"2028-01-01",endDate:"2028-01-31"},key()),()=>createParty(f.reviewer,{kind:"supplier",code:key(),name:"No purchase supplier",currency:"THB",paymentTermsDays:30,creditLimit:"0"},key()),()=>createTaxCode(f.reviewer,{code:key(),name:"No purchase VAT",rate:"0.07",recoverable:"1",effectiveFrom:"2026-01-01"},key()),()=>importAccounts(f.reviewer,f.chart,[{code:key(),name:"No purchase import",category:"expense",currency:"THB",controlKind:"none"}],key()),()=>prepareAccountingProfile(f.reviewer,configurationProfile(),key()),()=>confirmManualRate(f.manager,{currency:"THB",effectiveDate:"2026-09-01",currencyPerUsd:"35",note:"No purchase manual quote"},key()),()=>configureCurrencyScale(f.manager,{currency:"XAU",scale:6},key()),()=>createFinanceDimension(f.reviewer,{code:"configuration_scope",name:"No purchase dimension",required:false,values:[{code:"default",name:"Default"}]},key())];
+ for(const command of commands)await expect(command()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});for(const read of [()=>accountingProfiles(f.owner),()=>financialEvents(f.owner,{chartId:f.chart}),()=>financeBookWorkspace(f.owner)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await configurationRows()).toEqual(before);
+ expect(await moneyContext(f.reviewer)).toBeTruthy();expect(await saveCurrencyPreference(f.reviewer,{currency:"USD"},key())).toEqual({currency:"USD"});expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);
+});
+it("package POS configures its included accounting foundation and independently reviews a draining policy without full Finance",async()=>{
+ await configurationGrant("pos");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ const chartKey=key(),input={name:"POS included Company ledger",baseCurrency:"THB",accountingBasis:"IFRS"},chart=await createChart(f.reviewer,input,chartKey),account=await createAccount(f.reviewer,{chartId:chart.id,code:key(),name:"Included bank",category:"asset",isControl:true,controlKind:"bank"},key());
+ await importAccounts(f.reviewer,chart.id,[{code:key(),name:"Included expense",category:"expense",currency:"THB",controlKind:"none"}],key());await createTaxCode(f.reviewer,{code:key(),name:"Included VAT",rate:"0.07",recoverable:"1",effectiveFrom:"2026-01-01"},key());await createPeriod(f.reviewer,{name:key(),startDate:"2028-01-01",endDate:"2028-01-31"},key());await confirmManualRate(f.manager,{currency:"THB",effectiveDate:"2026-09-01",currencyPerUsd:"35",note:"Current Company manual quote"},key());await configureCurrencyScale(f.manager,{currency:"XAU",scale:6},key());
+ await createFinanceDimension(f.reviewer,{code:"pos_reference",name:"Included reporting dimension",required:false,values:[{code:"shop",name:"Shop"}]},key());
+ const prepared=await prepareAccountingProfile(f.reviewer,configurationProfile(chart.id),key());await configurationGrant("pos","draining");expect(await createChart(f.reviewer,input,chartKey)).toEqual(chart);
+ await expect(createChart(f.reviewer,{...input,name:"New draining ledger"},key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});await decideAccountingProfile(f.manager,prepared.id,"approve",{expectedVersion:1,reason:"Independent eligibility and Company policy review"},key());expect(await accountingProfiles(f.manager)).toEqual(expect.arrayContaining([expect.objectContaining({id:prepared.id,status:"approved"})]));
+ for(const read of [()=>financialEvents(f.owner,{chartId:chart.id}),()=>financeBookWorkspace(f.owner)])await expect(read()).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(account.id).toBeTruthy();expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(["pos"]);
+ await configurationGrant("pms");expect(await createChart(f.reviewer,{...input,name:"Another active foundation"},key())).toHaveProperty("id");
+ await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.manager.assignmentId).run();await expect(accountingProfiles(f.manager)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});
+});
+it("package configuration shadow keeps normal writes but never bypasses current assignment, and Finance base cannot create advanced instruments",async()=>{
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","shadow");const log=vi.spyOn(console,"info").mockImplementation(()=>{});
+ try{expect(await createChart(f.reviewer,{name:key(),baseCurrency:"THB",accountingBasis:"IFRS"},key())).toHaveProperty("id");await expect(createChart({...f.reviewer,role:"finance_approver"},{name:key(),baseCurrency:"THB",accountingBasis:"IFRS"},key())).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});expect(log.mock.calls.some(args=>String(args[0]).includes("commercial.purchase.shadow"))).toBe(true);}finally{log.mockRestore();}
+ await configurationGrant("finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const loan={loanNumber:key(),lender:"Reviewed lender",currency:"THB",principal:"100",annualRate:"0",commencementDate:"2026-09-01",maturityDate:"2027-09-01"},before=await configurationRows();await expect(createLoan(f.reviewer,loan,key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});expect(await configurationRows()).toEqual(before);await configurationGrant("finance-advanced");const command=key(),result=await createLoan(f.reviewer,loan,command);expect(await createLoan(f.reviewer,loan,command)).toEqual(result);
+});
+it("package shared configuration expiry after deferred effects rolls back chart, audit and receipt",async()=>{
+ await configurationGrant("pos","active",Date.now()+1500);vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const before=await configurationRows(),trigger=`configuration_${key().replaceAll('-','')}`,command=key();
+ await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(1.6);RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON audit_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.action='finance.chart.create' AND NEW.authority_json::jsonb->>'companyId'='${f.company}') EXECUTE FUNCTION ${trigger}()`);
+ try{await expect(createChart(f.reviewer,{name:key(),baseCurrency:"THB",accountingBasis:"IFRS"},command)).rejects.toMatchObject({code:"PACKAGE_CAPABILITY_CHANGED"});expect(await configurationRows()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${trigger} ON audit_events;DROP FUNCTION ${trigger}()`);}
+});
 
 describe("Thai accounting foundation",()=>{
   it("imports and revises an unused chart account with replay and independent Company ledger history",async()=>{

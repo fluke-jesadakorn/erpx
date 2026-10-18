@@ -6,8 +6,9 @@ import type { WorkContext } from "../../../src/server/modules/identity_access/pu
 import { createAsset, createMaintenanceWork, changeMaintenanceWork, maintenanceDetail } from "../../../src/server/modules/assets/public/asset-maintenance";
 import { saveMaster } from "../../../src/server/modules/commerce/public/commerce";
 import { assignFlowPrimary, resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
-import JournalPage from "../../../src/app/holdings/[holdingSlug]/finance/journals/[id]/page";
+import JournalPage from "../../../src/app/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen";
 
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "console-dev-erpx.jesadakorn.com" }) }));
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
 vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
 vi.mock("../../../src/server/modules/work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));

@@ -1,3 +1,5 @@
+import { afterEach } from "vitest";
+import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
 import type { FinanceRow } from "../../../src/server/modules/finance/public/finance";
 import { beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
@@ -191,4 +193,22 @@ describe("Source-derived Thai VAT register and filing preparation",()=>{
     expect(await db.prepare("SELECT * FROM finance_tax_entries WHERE id=?").bind(entry).first()).toEqual(original);
     for(const table of ["command_receipts","decision_evidence","audit_events","outbox_events"])expect(Number(await db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`).bind(command).first("n"))).toBe(1);
   });
+});
+
+afterEach(()=>vi.unstubAllEnvs());
+
+it("purchased VAT rejects an unpurchased register and command while shadow retains source policy",async()=>{
+ const id=await invoice();vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+ await expect(vatWorkspace(f.reviewer,{})).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});await expect(prepareVatEntry(f.reviewer,facts(id),key())).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+ vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","shadow");const telemetry=vi.spyOn(console,"info").mockImplementation(()=>{});try{expect(await prepareVatEntry(f.reviewer,facts(id),key())).toMatchObject({status:"prepared",taxMinor:700});}finally{telemetry.mockRestore();}
+});
+it("Finance-only draining reviews existing tax, exports exact VAT bytes and records the retained filing with current authority",async()=>{
+ await reviewedFinanceGrant(db,f.company,"finance");vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");const id=await invoice();await reviewedFinanceGrant(db,f.company,"finance","draining");
+ const entry=await prepareVatEntry(f.reviewer,facts(id),key());await reviewVatEntry(f.manager,entry.id,"approve",{expectedVersion:1,reason:"Independent retained tax point review"},key());
+ const pack=await prepareVatPackage(f.reviewer,packageInput(),key());await approveVatPackage(f.manager,pack.id,{expectedVersion:1,reason:"Independent exact VAT and GL reconciliation"},key());
+ const request={expectedVersion:2,reason:"Export original reviewed workpaper"},command=key(),exported=await exportVatWorkpaper(f.reviewer,pack.id,request,command);expect(await exportVatWorkpaper(f.reviewer,pack.id,request,command)).toEqual(exported);
+ await recordVatFiling(f.reviewer,pack.id,{expectedVersion:3,reason:"Retain isolated filing proof without external submission",filingReference:"ISOLATED-NO-SUBMISSION",filedDate:"2026-10-15",receiptEvidence:"Synthetic retained receipt in a disposable database only"},key());
+ expect(await vatPackageExport(f.manager,pack.id)).toMatchObject({content:exported.content,exportHash:exported.exportHash});
+ await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.manager.assignmentId).run();await expect(vatPackageExport(f.manager,pack.id)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});
+ expect(await db.prepare("SELECT count(*) n FROM command_assertions").first("n")).toBe(0);
 });

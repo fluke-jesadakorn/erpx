@@ -1,6 +1,7 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { useEffect, useState, type ReactNode } from "react";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { Button, InlineNotice } from "@/components/ui/foundation";
 import { useNavigationCounts } from "@/components/workplace/navigation-counts";
 import { WorkAttention } from "@/components/workplace/work-attention";
@@ -45,6 +46,6 @@ export function MobileAttentionCount() {
 export function MobileAttentionNotice({ base }: { base: string }) {
   const { attention, error } = useNavigationCounts();
   return attention.incomplete || error ? <InlineNotice tone="info" className={styles.mobileNotice} role="status">
-    Some work is missing or out of date. <Link href={`${base}/work`}>Check My work</Link>
+    Some work is missing or out of date. <Link href={canonicalUiHref(`${base}/work`)}>Check My work</Link>
   </InlineNotice> : null;
 }

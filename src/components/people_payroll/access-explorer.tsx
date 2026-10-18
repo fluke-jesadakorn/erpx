@@ -1,10 +1,11 @@
 "use client";
+import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
 import { TimeText } from "@/components/people_payroll/time/time-preference-context";
-import Link from "next/link";
+import Link from "@/components/workplace/workspace-link";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { HierarchyTree } from "@/components/ui/hierarchy-tree";
 import { AccessEditor } from "@/components/identity_access/access-editor";
 import { workFetch } from "@/lib/work_projection/work-fetch";
@@ -235,7 +236,7 @@ export function PeopleAccessExplorer({ appearance = "legacy",
             ? "Organization and connected directories · external objects are read-only"
             : "Your ERPX subtree and linked directory identities"}
         </p>
-        <Link href={`${base}/iam/matrix`}>Advanced IAM console ↗</Link>
+        <Link href={canonicalUiHref(`${base}/iam/matrix`)}>Advanced IAM console ↗</Link>
       </div>
       <nav data-ui-appearance={appearance} className={`${styles.crumbs} ${styles.mobile}`} aria-label="Explorer steps">
         <Button appearance={appearance} type="submit" variant="plain" onClick={() => back("tree")}>

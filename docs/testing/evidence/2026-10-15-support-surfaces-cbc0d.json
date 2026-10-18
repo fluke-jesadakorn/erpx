@@ -1,0 +1,547 @@
+{
+  "schema": "erpx-product-migration-receipt/v1",
+  "sourceFingerprint": "cbc0d1562ef862a90eded8ace5d8bc2e0a8168b346bda9ac75f12b53f2952003",
+  "verificationFingerprint": "e7736387240f0eecd98e570972f82824c500b9fc312c2b77d2f746699258a565",
+  "createdAt": "2026-10-14T22:03:23.251540+00:00",
+  "phase": "implemented",
+  "result": "passed",
+  "workflowIds": [
+    "admin:platform-only-entry",
+    "admin:provider-authority-separation",
+    "admin:legacy-preview-apply-and-audit",
+    "apps:all-company-branch-department-product-selection"
+  ],
+  "observations": [
+    {
+      "workflow": "admin:platform-only-entry",
+      "implementation": [
+        "src/app/provider/commercial/page.tsx",
+        "src/server/modules/identity_access/adapters/platform-commercial-authority.ts"
+      ],
+      "behavior": "Admin provider entry accepts current Platform authority independently of Holding assignments; native fixture uses a real central/child SSO family without a Company assignment.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "cbc0d1562ef862a90eded8ace5d8bc2e0a8168b346bda9ac75f12b53f2952003",
+          "verificationFingerprint": "e7736387240f0eecd98e570972f82824c500b9fc312c2b77d2f746699258a565"
+        },
+        "files": [
+          "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "tests/integration/identity_access/product-sso.test.ts"
+        ],
+        "scope": "Current full native/unit invocation rechecks implementation; installed Apply and product browser acceptance remain open."
+      }
+    },
+    {
+      "workflow": "admin:provider-authority-separation",
+      "implementation": [
+        "src/server/modules/commercial/adapters/provider-commercial.ts",
+        "src/lib/runtime/product-route-policy.ts"
+      ],
+      "behavior": "Admin-only exact-host/origin provider API uses current published Platform read/manage authority; Company roles and purchases cannot supply it.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "cbc0d1562ef862a90eded8ace5d8bc2e0a8168b346bda9ac75f12b53f2952003",
+          "verificationFingerprint": "e7736387240f0eecd98e570972f82824c500b9fc312c2b77d2f746699258a565"
+        },
+        "files": [
+          "tests/integration/commercial/provider-legacy-grants.test.ts"
+        ],
+        "scope": "Current full native/unit invocation rechecks implementation; installed Apply and product browser acceptance remain open."
+      }
+    },
+    {
+      "workflow": "admin:legacy-preview-apply-and-audit",
+      "implementation": [
+        "src/server/modules/commercial/adapters/legacy-grant-migration.ts",
+        "src/server/modules/commercial/application/package-grant-batches.ts",
+        "src/components/commercial/legacy-grant-review.tsx"
+      ],
+      "behavior": "Signed read-only per-Company comparison; expected versions, fresh Platform MFA and normal Commercial applyIn grant/audit/review transaction. The source owns its first snapshot and complete IAM/Organization/People predicates, tracks future eligibility boundaries and verifies source/current Platform authority after the final batch receipt before COMMIT. The current full invocation verifies late-receipt rollback. Stale-directory review, future HR appointment, committed replay and transaction confinement are covered.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "cbc0d1562ef862a90eded8ace5d8bc2e0a8168b346bda9ac75f12b53f2952003",
+          "verificationFingerprint": "e7736387240f0eecd98e570972f82824c500b9fc312c2b77d2f746699258a565"
+        },
+        "files": [
+          "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "tests/integration/commercial/legacy-module-preview.test.ts"
+        ],
+        "scope": "Current full native/unit invocation rechecks implementation; installed Apply and product browser acceptance remain open."
+      }
+    },
+    {
+      "workflow": "apps:all-company-branch-department-product-selection",
+      "implementation": [
+        "src/server/modules/work_projection/application/product-launcher.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/app/choose-work-role/page.tsx"
+      ],
+      "behavior": "Enumerates all Company/Branch/Department choices, checks each applicable role independently using purchased entry capabilities/release/owner menu predicates, preserves the live selection and uses explicit versioned same-origin role selection. Assignment rows and original Module IDs remain unchanged. Positive installed-Company acceptance remains open.",
+      "freshVerification": {
+        "candidate": {
+          "sourceFingerprint": "cbc0d1562ef862a90eded8ace5d8bc2e0a8168b346bda9ac75f12b53f2952003",
+          "verificationFingerprint": "e7736387240f0eecd98e570972f82824c500b9fc312c2b77d2f746699258a565"
+        },
+        "files": [
+          "tests/unit/shared.ui/product-launcher.test.ts",
+          "tests/integration/identity_access/product-workspace.test.ts"
+        ],
+        "scope": "Current full native/unit invocation rechecks implementation; installed Apply and product browser acceptance remain open."
+      }
+    }
+  ],
+  "verificationPhaseAccepted": false,
+  "enabledPhaseAccepted": false,
+  "release": {
+    "id": "2026-10-14T21-58-23-279Z",
+    "sourceFingerprint": "cbc0d1562ef862a90eded8ace5d8bc2e0a8168b346bda9ac75f12b53f2952003"
+  },
+  "previousImplementation": "docs/testing/evidence/2026-10-15-support-commands-b8398.json",
+  "supportSurfaces": {
+    "candidate": {
+      "sourceFingerprint": "cbc0d1562ef862a90eded8ace5d8bc2e0a8168b346bda9ac75f12b53f2952003",
+      "verificationFingerprint": "e7736387240f0eecd98e570972f82824c500b9fc312c2b77d2f746699258a565"
+    },
+    "newNativeCases": 14,
+    "newUnitCases": 2,
+    "phase": "implementation only; not accepted/enabled",
+    "scope": [
+      "Support purchase history/settlement/new-work presentation flags and real Work collections",
+      "Generic Support file authorization and inherited Files-owned atomic purchase guards",
+      "Private-file HTTP no-purchase/draining/inactive history; retention/Legal hold preserved",
+      "SLA sweep and notification effects protected in their actual Holding batch; actual scoped shadow observation",
+      "Service-only minimal source-ticket handoff, Company/Branch/Department/current IAM scope",
+      "Customer Service navigation/counts/cases/create source, Calendar ticket/incident and Customer 360/Executive activity search/evidence",
+      "Pending session expiry; separate reject/revoke from approve/issue controls",
+      "Development same-surface old Support GET/HEAD alias with query preservation; no mutation/API redirects"
+    ],
+    "requiredOpen": [
+      "All-product and remaining Support CRM/aggregate/Portal/provider purchase enforcement and current release revision intersection",
+      "Service command licensing, Portal/Service owner obligation sources and other module owners",
+      "Installed Company legacy grants, role parity and package-only/shadow rollout acceptance",
+      "New file-set replay target-editability preflight; arbitrary future-period renewal/history semantics",
+      "Mixed older writers and full populated command/private-file rollback",
+      "All-product/product-host browser workflows and compiled performance",
+      "Global UI frozen differences, retired boundaries, pending source/route acceptance"
+    ],
+    "diagnosticsExcluded": {
+      "prior-attempt.json": "e5a975 full PostgreSQL invocation deliberately stopped at exit 130 after actual unguarded cross-surface readers were found; no full pass claimed",
+      "discovery-red.json": "Two actual old-source failures; explicitly filtered diagnostic with 11 unselected cases",
+      "discovery-complete.log": "Initial incident Calendar test omitted authorized branch/department nodes from declared scope; corrected fixture coverage, not owner filter/assertions",
+      "discovery-green.log": "Catalogue rejected internal work_projection as not one of the 33 registered Modules; register corrected"
+    }
+  },
+  "checks": {
+    "unit": {
+      "files": 215,
+      "cases": 2867,
+      "result": "passed"
+    },
+    "fullPostgres": {
+      "files": 236,
+      "cases": 2228,
+      "result": "passed"
+    },
+    "static": [
+      "typecheck",
+      "lint",
+      "architecture",
+      "catalogue",
+      "documentation",
+      "css-source"
+    ],
+    "build": "passed; isolated and undeployed",
+    "uiComplete": {
+      "result": "failed",
+      "frozenDifferences": 36,
+      "retirementsPending": 3,
+      "sourceStatesPending": 1736,
+      "routesPending": 954,
+      "protectedChecksChanged": false
+    }
+  },
+  "browser": {
+    "frames": 20,
+    "widths": [
+      320,
+      390,
+      768,
+      1024,
+      1440
+    ],
+    "appearances": [
+      "dark",
+      "light",
+      "system-light",
+      "system-dark"
+    ],
+    "actualCanonicalDocument": "https://console-dev-erpx.jesadakorn.com/holdings/acme/customers-sales/customers/service/cases?status=open&return=%2Fholdings%2Facme%2Fhome",
+    "status": 200,
+    "initialServerContent": true,
+    "mountSupportGets": 0,
+    "dirtyAndKeyboard": "passed",
+    "submitted": false,
+    "allProductAcceptance": false
+  },
+  "alias": {
+    "status": 307,
+    "sameSurface": true,
+    "queriesAndFragmentObserved": true,
+    "acceptedCutover": false
+  },
+  "transport": {
+    "developmentHosts": 22,
+    "healthIconTlsChecks": 44,
+    "passed": 44,
+    "allWorkflowAcceptance": false
+  },
+  "installedDevelopment": {
+    "grants": 0,
+    "grantEvents": 0,
+    "changeSets": 0,
+    "reviewEvidence": 0,
+    "enforcement": "disabled"
+  },
+  "scopeLimits": [
+    "All-product and remaining Support CRM/aggregate/Portal/provider purchase enforcement and current release revision intersection",
+    "Service command licensing, Portal/Service owner obligation sources and other module owners",
+    "Installed Company legacy grants, role parity and package-only/shadow rollout acceptance",
+    "New file-set replay target-editability preflight; arbitrary future-period renewal/history semantics",
+    "Mixed older writers and full populated command/private-file rollback",
+    "All-product/product-host browser workflows and compiled performance",
+    "Global UI frozen differences, retired boundaries, pending source/route acceptance"
+  ],
+  "artifacts": [
+    {
+      "path": ".scratch/dev/support-surfaces-current/alias-http.json",
+      "sha256": "2dc87a82af92e7cebd3c2756c5b92dbc1380a94d1e5027a690c2011689ba67f9",
+      "bytes": 707
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/assertion-preservation.json",
+      "sha256": "4d39e5204fdb9e92de487b0eee11eed6be879ce932658fe1351e871ae32d65b7",
+      "bytes": 1078
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/availability-final-runner.log",
+      "sha256": "f33490f12cfa71e1583053f63abd1b15bdf8a48b28410789b55b7b8f490f7947",
+      "bytes": 209
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/availability-final.json",
+      "sha256": "b87c8bcf76e8c219ada474a5cfc2524fa9b159f99bb88125e43b1358e0ae6a0b",
+      "bytes": 1330
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/availability-runner.log",
+      "sha256": "f33490f12cfa71e1583053f63abd1b15bdf8a48b28410789b55b7b8f490f7947",
+      "bytes": 209
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/baseline.json",
+      "sha256": "7d4fee7227b77f4c69aa11bc925fb30d199c9ca331f6d9e83871cb0976fc5053",
+      "bytes": 5626
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/document.json",
+      "sha256": "a31d193b6a779a05f9a6e765f08e17c3f9d725017c12d5ab2be6285fe662b667",
+      "bytes": 692
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/end-page.json",
+      "sha256": "c8b1c33e92886949e0f7495b7e963f31bdd552e19a8e9a3dc5bfb8988fcc3663",
+      "bytes": 741
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/observations.json",
+      "sha256": "4b776b0706080aafa7a4bc688bf541ea221c3a49a85c53d33ce2fc6fabb9918b",
+      "bytes": 11114
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-dark-1024.png",
+      "sha256": "8440b517e37cd498717aa9ea3379495b5aef08471cf864602f94cfbfd2521095",
+      "bytes": 60010
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-dark-1440.png",
+      "sha256": "22dd183fe3b3e3be25acf2e88d8b6d742fece8da05bf8500d64998f65d1e8af4",
+      "bytes": 92346
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-dark-320.png",
+      "sha256": "56a0fde19f103c458ed3cc2d1653e15a38fb2e15076f72006e37f222c7e734e1",
+      "bytes": 34638
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-dark-390.png",
+      "sha256": "0a7dffd13f3885f62fa5af1f5400b0e653c1c61cb6546c720d18c2936ee81d27",
+      "bytes": 35072
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-dark-768.png",
+      "sha256": "74da30aa6f07b2a21a775c520eaae0786a16653720236f156ac56ecf7ff30894",
+      "bytes": 39484
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-light-1024.png",
+      "sha256": "fe7c8b867f49457246b34fc0f550e382e273652ea8a3720621f7d2c3450273ff",
+      "bytes": 59177
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-light-1440.png",
+      "sha256": "7761b141ed601f4ff348e36949df39d7202aea078dcf53248bad49c51c02139a",
+      "bytes": 91492
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-light-320.png",
+      "sha256": "2a7c0eccecbc4e7f1dc92fe449d23ef68d5c12f177173394a5f01716721b9917",
+      "bytes": 33849
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-light-390.png",
+      "sha256": "78a9c65f8b3fbdee4aa16a5a730edd97dcbfa852cb9d91d7f16cfb4bb215368d",
+      "bytes": 34351
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-light-768.png",
+      "sha256": "41d8601a17a0724fc035ca1af1b05128ad5513f4dff26a44d5aa197b7bf31efe",
+      "bytes": 38659
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-dark-1024.png",
+      "sha256": "8440b517e37cd498717aa9ea3379495b5aef08471cf864602f94cfbfd2521095",
+      "bytes": 60010
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-dark-1440.png",
+      "sha256": "db45e9026cfd631ecdab5dc6ff588c7029f2bb1e6c51a4975eff3d9fd12316ea",
+      "bytes": 92344
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-dark-320.png",
+      "sha256": "56a0fde19f103c458ed3cc2d1653e15a38fb2e15076f72006e37f222c7e734e1",
+      "bytes": 34638
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-dark-390.png",
+      "sha256": "0a7dffd13f3885f62fa5af1f5400b0e653c1c61cb6546c720d18c2936ee81d27",
+      "bytes": 35072
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-dark-768.png",
+      "sha256": "74da30aa6f07b2a21a775c520eaae0786a16653720236f156ac56ecf7ff30894",
+      "bytes": 39484
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-light-1024.png",
+      "sha256": "fe7c8b867f49457246b34fc0f550e382e273652ea8a3720621f7d2c3450273ff",
+      "bytes": 59177
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-light-1440.png",
+      "sha256": "6013fa5a0063b3ab4b4e83a5ab8e6b133d49f65876b159fb26f9622cb93df8d1",
+      "bytes": 91489
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-light-320.png",
+      "sha256": "34b3575d2745b27b4fac5c33943137fa0cb3c3d99cb9ca8f7c0ddc4981977579",
+      "bytes": 33849
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-light-390.png",
+      "sha256": "6178e0ba11946bc0d3a674c3b94a8762ca23b2272df8cb452da91390503e3dc7",
+      "bytes": 34348
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/browser/support-drawer-system-light-768.png",
+      "sha256": "1a87cee3c0b70a8963ad8cd2f36569693f6a2a57a829808f9f4bae3ff01a7d6d",
+      "bytes": 38659
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/candidate-source-manifest.json",
+      "sha256": "71cdbb0726c5edde8096cead431f0a4571dd9be8c26b1c30ac5d31a46c0b11db",
+      "bytes": 11340
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/checkpoint-scope.json",
+      "sha256": "caf68a6b78ff513b93981089039e1cbb0cd5dea9d932f92d7085b886e7ee3517",
+      "bytes": 2498
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/discovery-complete.log",
+      "sha256": "98d19773e4ec4c753d4e4d79c2391a7b238c1095e07f1d89f4928ae294ec99ee",
+      "bytes": 4452
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/discovery-green-catalogue.log",
+      "sha256": "f5e4ab947a64ba4b8d550e519f7f1b57cceed4ebd5d09730c7a2046b1a38d1a4",
+      "bytes": 1718
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/discovery-green.log",
+      "sha256": "f3f7580561867e6effd85c419055f45b93b626816d7873ea7023e8d1a47a7a3a",
+      "bytes": 1265
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/discovery-red.json",
+      "sha256": "6347f7ffb15c9fd226ba5a31a3c7b9d29f057c5cda34d6cd3aeffd592efe2df3",
+      "bytes": 565
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/discovery-red.log",
+      "sha256": "cbbd9da9b483726750a7fcc1eed1c38281148a4feb606a403793718c29260929",
+      "bytes": 5477
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/end-checks.py",
+      "sha256": "8cbb9ee9196ad0328aaef1272067a4eee657a34aaef7ee06e87183cdd59b2974",
+      "bytes": 4681
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/final-architecture.log",
+      "sha256": "8a0e69029f4743a334adc7fbbffaf89b673126985dc32a6d6c43aa88a7de6846",
+      "bytes": 389
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/final-build.log",
+      "sha256": "7a686b2abe3c6bfbd9ed0bf029adc9c41ab1b69f3088252db6e9221df078defc",
+      "bytes": 111894
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/final-catalogue.log",
+      "sha256": "d84c9793ee54bd0ff3fa6749e9f360d073b4994c035b72b7d46a09114bbdbc91",
+      "bytes": 82
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/final-css-source.log",
+      "sha256": "c8198b953e35e3b3d7fb8f296f18ef6d7c68da1e1360902fb243325baa28f43c",
+      "bytes": 143
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/final-documentation.log",
+      "sha256": "d437b19b1baa6e693c843249adedbc90990270cc71ba1f07eca5171af91851a3",
+      "bytes": 192
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/final-full-postgres.log",
+      "sha256": "f2a8b4e338ab654ac3e7c3242770caf05c4fc0c6e8d91d13b030dffa1434b16d",
+      "bytes": 365962
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/final-lint.log",
+      "sha256": "531ee9130889645a9db0795dd4d8bb10f243ade5715e6f455c140da4f928e863",
+      "bytes": 167872
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/final-typecheck.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/final-unit.log",
+      "sha256": "d1fbc972c517da70edb56d1d489b7f4d845998f2186313aae5318541718dc35b",
+      "bytes": 58773
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/generate-products-manifest.log",
+      "sha256": "327927803966a0d76ba36e7c5997ffcecb751c9f3bf858ad45019002036d179d",
+      "bytes": 317
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/generate-status-capabilities.log",
+      "sha256": "35d0b9edadf4f388f9bc50190f737dc4b2479fa433761efc0e05bd6bb6a78d0d",
+      "bytes": 117
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/generate-uat-route-inventory.log",
+      "sha256": "a68955eba73339f514d937275cdcc31ea43682a3bdf36866c10946796e492245",
+      "bytes": 161
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/installed-commercial-final.json",
+      "sha256": "89557ecc9d3f1de45415a21b453e3c4b23213f17d8c6c0da310c286c96050c5d",
+      "bytes": 1505
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/prior-attempt-artifacts.json",
+      "sha256": "3b6fd63429bf6d70d6346ec1190ee509cf2397819d0645fe3766af643177a12b",
+      "bytes": 912
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/prior-attempt.json",
+      "sha256": "9e556ef0e5b77f95b5f8660a24d8d85c3c6f0a5f6772d9b62a29cc4734c11496",
+      "bytes": 598
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/protected-files.json",
+      "sha256": "b1a738dba26bdeb10d7015c988ec1ea9764be8191076f1b398bc69cb13fa22bd",
+      "bytes": 952
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/register.py",
+      "sha256": "187a267eb93a42a9056e3f87e274a74a7a0b36ad3567f4de11ee6bf40504ff34",
+      "bytes": 5591
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/remaining-owner-audit.json",
+      "sha256": "f22f2d18710eeee8000aa8e154ecea83f733b68c1aef4fb2bbd4ba5a3b381686",
+      "bytes": 2569
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/seal-result.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/seal.py",
+      "sha256": "573a2cc5088a5faba54ba685d06b8188a184aff7dd31a84a0359d329ccd3f49f",
+      "bytes": 15400
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/surfaces-final-focused.log",
+      "sha256": "45120fc92ac7c068d47ca1704afece011a06c1013d34fb22aea5b71fcfd75643",
+      "bytes": 1578
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/transport-final.json",
+      "sha256": "030d41a0159cee5515f4b0f67ed3c179de64af41c0fb56890cc0ceb04e8e8ae8",
+      "bytes": 7668
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/transport-urls.json",
+      "sha256": "1eec95b232ef52db5fd8b1d8a3e2dd1d85c870deb55a3238e3581d1a6078c8f6",
+      "bytes": 3422
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/types-discovery.log",
+      "sha256": "55eab89ce878029ce5c6162ddb19a6d18610b341ac77168b53dd8126a8219490",
+      "bytes": 68
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/ui-complete.json",
+      "sha256": "b8a470d60aa34563fffa13d53b2f25431c034e4fb0c7057c045c202020c42bc9",
+      "bytes": 219
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/ui-complete.log",
+      "sha256": "d39cf14598d917f34ac9512662671f638f1c62944b72a34b562b424e624fcb64",
+      "bytes": 3790
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/verification.json",
+      "sha256": "d8ec0b09fd38bb42eee8611e0e63701273692ef27c0c9fa5be7b038a05c266bc",
+      "bytes": 5865
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/verify-runner.log",
+      "sha256": "fb43e8e4087fe55f5a197ad148578dc7a2fe9706f99e62553aed739621836597",
+      "bytes": 409
+    },
+    {
+      "path": ".scratch/dev/support-surfaces-current/verify.py",
+      "sha256": "093bc11baf5c6121552dce2653dd664ee5fdacceb5275eb15cc34f73299fe3e6",
+      "bytes": 3062
+    }
+  ]
+}

@@ -19,17 +19,20 @@ const clientHydrated = () => true;
 const serverHydrated = () => false;
 
 /** Long forms launched from the current page use a drawer; route editors stay inline. */
-export function FormDisclosure({ children, open, onToggle, finalFocus, className, inline = false, drawerTitle, contentClassName, dismissDisabled, onDiscard, error, appearance = "legacy", ...props }: ComponentPropsWithRef<"details"> & {
+export function FormDisclosure({ children, open, onToggle, finalFocus, className, inline = false, drawerTitle, contentClassName, dismissDisabled, retainFormContents = false, onDiscard, error, confirmationTitle, confirmationDescription, discardLabel, keepEditingLabel, appearance = "legacy", ...props }: ComponentPropsWithRef<"details"> & {
   finalFocus?: () => HTMLElement | null;
   inline?: boolean;
   appearance?: UiAppearance;
   drawerTitle?: string;
   contentClassName?: string;
   dismissDisabled?: boolean;
+  /** Explicit owner recovery can retain a clean visited form while its native result is unknown. */
+  retainFormContents?: boolean;
   /** Controlled editors supply their own reset; closing alone must not claim to discard their values. */
   onDiscard?: () => void;
   /** Command failures stay visible inside the open editor. */
   error?: string;
+  confirmationTitle?: string; confirmationDescription?: string; discardLabel?: string; keepEditingLabel?: string;
 }) {
   const hydrated = useSyncExternalStore(subscribeHydration, clientHydrated, serverHydrated);
   const [dirty, setDirty] = useState(false);
@@ -39,8 +42,9 @@ export function FormDisclosure({ children, open, onToggle, finalFocus, className
   const nonFormEdits = useRef(false);
   useEffect(() => {
     function saved(event: Event) {
-      const detail = (event as CustomEvent<{form?:HTMLFormElement;formEditVersion?:string|null}>).detail;
+      const detail = (event as CustomEvent<{form?:HTMLFormElement;formEditVersion?:string|null;financeAcknowledged?:boolean}>).detail;
       const form = detail?.form;
+      if (form?.hasAttribute("data-finance-draft") && !detail.financeAcknowledged) return;
       if (!form || !bodyRef.current?.contains(form) || !detail.formEditVersion ||
         detail.formEditVersion !== form.getAttribute("data-erpx-edit-version")) return;
       editedForms.current.delete(form);
@@ -71,6 +75,6 @@ export function FormDisclosure({ children, open, onToggle, finalFocus, className
       setExpanded(event.currentTarget.open);
       onToggle?.(event);
     }}>{summary}</details>
-    {appearance === "standard" ? <DraftFormDrawer retainFormContents={dirty} finalFocus={finalFocus} appearance={appearance} open={expanded} dirty={dirty} onClose={() => setExpanded(false)} onDiscard={() => {if(onDiscard){onDiscard();editedForms.current.clear();nonFormEdits.current=false;setDirty(false);}setExpanded(false);}} confirmationTitle={onDiscard ? "Discard changes?" : "Unsaved changes"} confirmationDescription={onDiscard ? "Your draft has unsaved changes." : "Your changes have not been saved. Closing this editor does not submit them."} discardLabel={onDiscard ? "Discard draft" : "Close without saving"} title={title} dismissDisabled={dismissDisabled}>{body}</DraftFormDrawer> : <Dialog retainFormContents={dirty} finalFocus={finalFocus} appearance={appearance} open={expanded} onClose={() => setExpanded(false)} title={title} presentation="form-drawer" dismissDisabled={dismissDisabled}>{body}</Dialog>}
+    {appearance === "standard" ? <DraftFormDrawer retainFormContents={dirty || retainFormContents} finalFocus={finalFocus} appearance={appearance} open={expanded} dirty={dirty} onClose={() => setExpanded(false)} onDiscard={() => {if(dismissDisabled)return;if(onDiscard){onDiscard();editedForms.current.clear();nonFormEdits.current=false;setDirty(false);}setExpanded(false);}} confirmationTitle={confirmationTitle ?? (onDiscard ? "Discard changes?" : "Unsaved changes")} confirmationDescription={confirmationDescription ?? (onDiscard ? "Your draft has unsaved changes." : "Your changes have not been saved. Closing this editor does not submit them.")} discardLabel={discardLabel ?? (onDiscard ? "Discard draft" : "Close without saving")} keepEditingLabel={keepEditingLabel} title={title} dismissDisabled={dismissDisabled}>{body}</DraftFormDrawer> : <Dialog retainFormContents={dirty || retainFormContents} finalFocus={finalFocus} appearance={appearance} open={expanded} onClose={() => setExpanded(false)} title={title} presentation="form-drawer" dismissDisabled={dismissDisabled}>{body}</Dialog>}
   </>;
 }

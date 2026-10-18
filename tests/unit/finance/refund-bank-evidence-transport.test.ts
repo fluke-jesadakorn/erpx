@@ -1,0 +1,22 @@
+import {readFileSync} from 'node:fs';
+import ts from 'typescript';
+import {describe,it,expect,vi} from 'vitest';
+
+/** Execute the actual complete POST controller and its original request helpers.
+ * Owner/auth ports are isolated here; their policies require native evidence. */
+function controller(){
+ const text=readFileSync('src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts','utf8'),file=ts.createSourceFile('route.ts',text,ts.ScriptTarget.Latest,true),names=['POST','command','needCommand','body','segments'],nodes=file.statements.filter(node=>ts.isFunctionDeclaration(node)&&node.name&&names.includes(node.name.text));
+ expect(nodes).toHaveLength(names.length);
+ const code=ts.transpileModule(nodes.map(node=>node.getText(file)).join('\n').replace('export async function POST','async function POST'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
+ class ApiError extends Error{constructor(readonly status:number,readonly code:string,message:string){super(message);}}
+ const actor={companyId:'company',assignmentId:'native-assignment'},owner=vi.fn(async()=>({id:'statement-key',imported:1,status:'imported',refundInstructionId:'instruction',refundObligationId:'obligation',bankTransactionId:'bankrow-key-0'})),parse=vi.fn((value:unknown)=>value),auth=vi.fn(async()=>actor),permission=vi.fn((value:unknown)=>value),canonical=vi.fn((value:unknown)=>value);
+ const ports={ApiError,Response,decodeURIComponent,importRefundBankEvidence:owner,refundBankEvidenceSchema:{parse},canonicalDestinationLinks:canonical,requireWorkContext:auth,requirePermission:permission,requestPublicOrigin:(request:Request)=>new URL(request.url).origin,errorResponse:(error:{status?:number;code?:string;message?:string})=>Response.json({error:{code:error.code,message:error.message}},{status:error.status??500})};
+ const invoke=new Function(...Object.keys(ports),code+'\nreturn POST;')(...Object.values(ports)) as (request:Request,context:{params:Promise<{holdingSlug:string;path:string[]}>})=>Promise<Response>;
+ const send=(path:string[],options:{key?:string;raw?:string;origin?:string}={})=>invoke(new Request('https://finance-dev-erpx.jesadakorn.com/api/v1/holdings/acme/finance/'+path.join('/'),{method:'POST',headers:{'Content-Type':'application/json',...(options.key===undefined?{'Idempotency-Key':'key'}:options.key?{'Idempotency-Key':options.key}:{}),...(options.origin?{Origin:options.origin}:{})},body:options.raw??'{"expectedVersion":2,"rows":[]}'}),{params:Promise.resolve({holdingSlug:'acme',path})});
+ return {send,owner,parse,auth,permission,canonical,actor};
+}
+describe('exact Refund bank evidence HTTP transport',()=>{
+ it('delegates the original actor, actual path ID, parsed body and command key in the canonical201 envelope',async()=>{const c=controller(),response=await c.send(['refund-instructions','instruction','bank-evidence']);expect(response.status).toBe(201);expect(c.auth).toHaveBeenCalledWith('acme');expect(c.permission).toHaveBeenCalledWith(c.actor,'finance.read');expect(c.owner).toHaveBeenCalledWith(c.actor,'instruction',{expectedVersion:2,rows:[]},'key');expect(c.parse).toHaveBeenCalledOnce();expect(c.canonical).toHaveBeenCalledOnce();expect(await response.json()).toMatchObject({data:{refundInstructionId:'instruction',refundObligationId:'obligation',bankTransactionId:'bankrow-key-0'}});});
+ it('does not dispatch another namespace, a missing subject or suffix action',async()=>{for(const path of [['refund-instructions','bank-evidence'],['refund-instructions','instruction','bank-evidence','retry'],['refunds','instruction','bank-evidence']]){const c=controller();expect((await c.send(path)).status).toBe(404);expect(c.owner).not.toHaveBeenCalled();}});
+ it('retains original Origin, JSON, idempotency and owner-validation failures before any command',async()=>{for(const [options,status] of [[{origin:'https://unrelated.example'},403],[{raw:'truncated'},422],[{key:''},422]] as const){const c=controller();expect((await c.send(['refund-instructions','instruction','bank-evidence'],options)).status).toBe(status);expect(c.owner).not.toHaveBeenCalled();if(status===403)expect(c.auth).not.toHaveBeenCalled();}const c=controller();c.parse.mockImplementation(()=>{throw Object.assign(Error('Actual owner schema refused input'),{status:422,code:'VALIDATION_FAILED'});});expect((await c.send(['refund-instructions','instruction','bank-evidence'])).status).toBe(422);expect(c.owner).not.toHaveBeenCalled();});
+});

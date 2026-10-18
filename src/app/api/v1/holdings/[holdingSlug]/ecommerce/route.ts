@@ -1,3 +1,4 @@
+import {canonicalDestinationLinks} from "@/lib/work_projection/destination-links";
 import { requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
@@ -20,11 +21,11 @@ export async function GET(request: Request, context: Context) {
     const actor = await requireWorkContext((await context.params).holdingSlug);
     const id = new URL(request.url).searchParams.get("id");
     return Response.json(
-      {
+      canonicalDestinationLinks({
         data: id
           ? await ecommerceDetail(actor, id)
           : await ecommerceWorkspace(actor),
-      },
+      }),
       { headers },
     );
   } catch (error) {
@@ -72,7 +73,7 @@ export async function POST(request: Request, context: Context) {
                         "Choose an E-commerce command.",
                       );
                     })();
-    return Response.json({ data }, { headers });
+    return Response.json(canonicalDestinationLinks({ data }), { headers });
   } catch (error) {
     return errorResponse(error);
   }
