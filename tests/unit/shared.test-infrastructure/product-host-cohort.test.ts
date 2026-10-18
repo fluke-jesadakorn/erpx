@@ -1,12 +1,33 @@
-import {afterEach,describe,expect,it} from 'vitest';
+import {afterEach,describe,expect,it,vi} from 'vitest';
+import {EventEmitter} from 'node:events';
+import type {ChildProcess} from 'node:child_process';
 import {mkdtempSync,mkdirSync,writeFileSync,rmSync,realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {permitsProductHostBusinessWrite,permitsProductHostRequestPreview,permitsProductHostUiWrite,permitsProductHostRequestOrigin,productHostBusinessWorkflowForCase,productHostPlan,productHostProducts,productHostBrowserFile,productHostWorkflowIsArmed,workRequestDraftProductHostCase} from '../../../scripts/testing/product-host-cohort';
+import {permitsProductHostBusinessWrite,permitsProductHostRequestPreview,permitsProductHostUiWrite,permitsProductHostRequestOrigin,productHostBusinessWorkflowForCase,productHostPlan,productHostProducts,productHostBrowserFile,productHostWorkflowIsArmed,waitForProductHostEdgeMessage,workRequestDraftProductHostCase} from '../../../scripts/testing/product-host-cohort';
 import {productIds} from '../../../src/lib/commercial/product-registry';
 
 const roots:string[]=[];
 afterEach(()=>{for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true});});
+
+it('allows a delayed product-host ready handshake while keeping other IPC messages on the short timeout',async()=>{
+ vi.useFakeTimers();
+ try{
+  const readyChild=new EventEmitter() as unknown as ChildProcess;
+  const readyOutcome=waitForProductHostEdgeMessage(readyChild,'ready').then(message=>({message}),error=>({error:error instanceof Error?error.message:String(error)}));
+  await vi.advanceTimersByTimeAsync(15_000);
+  readyChild.emit('message',{kind:'ready'});
+  await expect(readyOutcome).resolves.toEqual({message:{kind:'ready'}});
+  expect(readyChild.listenerCount('message')).toBe(0);
+
+  const stableChild=new EventEmitter() as unknown as ChildProcess;
+  const stableOutcome=waitForProductHostEdgeMessage(stableChild,'stable',7).then(message=>({message}),error=>({error:error instanceof Error?error.message:String(error)}));
+  await vi.advanceTimersByTimeAsync(10_000);
+  await expect(stableOutcome).resolves.toEqual({error:'PRODUCT_HOST_EDGE_PROTOCOL_TIMEOUT'});
+  expect(stableChild.listenerCount('message')).toBe(0);
+ }finally{vi.useRealTimers();}
+});
+
 function refusedPlan(change:Record<string,unknown>={}){
  const root=realpathSync(mkdtempSync(join(tmpdir(),'erpx-product-host-contract-')));roots.push(root);const directory=join(root,'.scratch/dev'),release=join(root,'.runtime/releases/candidate');mkdirSync(directory,{recursive:true});mkdirSync(release,{recursive:true});
  const path=join(directory,'arm.json');writeFileSync(path,JSON.stringify({version:1,enabled:true,expiresAt:Date.now()+60_000,runtimeFingerprint:'1'.repeat(64),verificationFingerprint:'2'.repeat(64),allowIsolatedNormalMfa:true,allowIsolatedNormalCommercial:true,...change}),{mode:0o600});
