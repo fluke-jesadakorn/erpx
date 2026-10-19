@@ -3,7 +3,7 @@ import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { basename, join, relative } from "node:path";
 import { loadCatalogue, repositoryRoot, validateCatalogue } from "./catalogue";
 import { runBrowserIsolation } from "./browser-isolation";
-import { browserRunCaseIdentity } from "./browser-isolation-receipts";
+import { serializeFullRegressionBrowserCases } from "./browser-isolation-receipts";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../local/source-fingerprint";
 import { assertRequiredCaseResults, internalRequiredCases, loadRequiredCases, readNativeCaseReceipt } from "./required-case-inventory";
 import { loadProviderRehearsals, unselectedProviderRehearsals } from "./provider-rehearsals";
@@ -115,7 +115,7 @@ if (process.argv.slice(2).includes("--list")) {
       if (!suites.length) throw new Error(`FULL_REGRESSION_MISSING_LANE:${lane}`);
       const ids = new Set(suites.map(suite => suite.id));
       const browser = { receipts: isolation.forward.receipt.receipts.filter(test => ids.has(test.suite)) };
-      const observed = browser.receipts.map(test => ({ runner: "playwright" as const, ...browserRunCaseIdentity(test), status: test.passed ? "passed" : "skipped", required: test.required }));
+      const observed = serializeFullRegressionBrowserCases(browser.receipts, suites, lane);
       assertRequiredCaseResults(requiredCases, observed, { runner: "playwright", files: suites.flatMap(suite => suite.files), projects: ["desktop", "mobile"] });
       cases.push(...observed);
       await writeFile(join(directory, `${lane}.json`), JSON.stringify({ evidenceDirectory: isolation.forward.result.evidenceDirectory, cases: observed.filter(test => test.required !== false).length, runtimeFingerprint, verificationFingerprint, isolationEvidence: join(directory, "browser-isolation.json") }, null, 2) + "\n", { mode: 0o600 });

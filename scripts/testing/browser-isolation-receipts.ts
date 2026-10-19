@@ -1,11 +1,41 @@
 import type { BrowserRunCaseReceipt, BrowserRunReceipt } from "./browser-runner";
 import { assignedBrowserShard, browserCaseKey, type BrowserCaseIdentity, type BrowserShard } from "./browser-sharding";
+import { canonicalCaseFile } from "./required-case-inventory";
 
 export type BrowserIsolationProof = { forward: BrowserRunReceipt; reverse: BrowserRunReceipt; probe: BrowserRunReceipt };
+export type FullRegressionBrowserCase = {
+  runner: "playwright";
+  suite: string;
+  file: string;
+  title: string;
+  project: "desktop" | "mobile";
+  status: "passed" | "skipped";
+  required?: boolean;
+};
 
 export function browserRunCaseIdentity(test: BrowserRunCaseReceipt): BrowserCaseIdentity {
   if (!test.suite || !test.file || !test.title || !["desktop", "mobile"].includes(test.project)) throw new Error("ISOLATION_CASE_IDENTITY_REQUIRED");
   return { suite: test.suite, file: test.file, title: test.title, project: test.project };
+}
+
+export function serializeFullRegressionBrowserCases(
+  receipts: readonly BrowserRunCaseReceipt[],
+  suites: readonly { id: string; files: readonly string[] }[],
+  lane: string,
+): FullRegressionBrowserCase[] {
+  return receipts.map(test => {
+    const identity = browserRunCaseIdentity(test), owner = suites.find(suite => suite.id === identity.suite);
+    if (!owner) throw new Error(`FULL_REGRESSION_BROWSER_CASE_SUITE_BINDING_REQUIRED:${lane}:${identity.suite}`);
+    return {
+      runner: "playwright",
+      suite: identity.suite,
+      file: canonicalCaseFile(identity.file, owner.files),
+      title: identity.title,
+      project: identity.project,
+      status: test.passed ? "passed" : "skipped",
+      required: test.required,
+    };
+  });
 }
 
 /** Repetition is separate evidence; it must never inflate unique acceptance coverage. */

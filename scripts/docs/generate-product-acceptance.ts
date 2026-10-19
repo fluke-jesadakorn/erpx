@@ -1,6 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve, relative } from "node:path";
-import { execFileSync } from "node:child_process";
 import { moduleRegistry } from "../../src/data/module-registry";
 import { modulePlacement, products, productIds, sharedHostKeys, developmentProductOrigin } from "../../src/lib/commercial/product-registry";
 import { commercialPackages } from "../../src/server/modules/commercial/domain/packages";
@@ -154,7 +153,7 @@ for (const capability of capabilities) {
   }
 }
 const fingerprint = await runtimeSourceFingerprint(root), verificationFingerprint = await verificationSourceFingerprint(root, fingerprint);
-const current = { candidateSha: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(), runtimeFingerprint: fingerprint, verificationFingerprint };
+const current = { runtimeFingerprint: fingerprint, verificationFingerprint };
 const validReceipts: Receipt[] = [];
 for (const receipt of receipts.records) {
   const key = `${receipt.id}:${receipt.phase}:${receipt.candidateSha}`;
@@ -169,7 +168,8 @@ for (const receipt of receipts.records) {
     validReceipts.push(receipt);
   } catch (error) { errors.push(`Invalid receipt payload: ${key}:${error instanceof Error ? error.message : "INVALID"}`); }
   if (receipt.phase === "verified" && !receipts.records.some(row => row.id === receipt.id && row.phase === "implemented" &&
-    row.candidateSha === receipt.candidateSha && row.runtimeFingerprint === receipt.runtimeFingerprint && row.verificationFingerprint === receipt.verificationFingerprint))
+    row.candidateSha === receipt.candidateSha &&
+    row.runtimeFingerprint === receipt.runtimeFingerprint && row.verificationFingerprint === receipt.verificationFingerprint))
     errors.push(`Missing same-source implementation: ${key}`);
   if (receipt.phase === "enabled") errors.push(`Enabled phase lacks independent Company grant and MFA protocol: ${key}`);
 }
@@ -317,7 +317,7 @@ for (const workflow of productWorkflows) {
   for (const path of [...workflow.pages, ...workflow.apis, ...workflow.services, ...workflow.tests]) if (!existsSync(resolve(root, path))) errors.push(`Missing product workflow source: ${workflow.id}/${path}`);
 }
 if (modules.length !== 33 || new Set(modules.map(row => row.moduleId)).size !== 33 || surfaces.length !== sharedHostKeys.length) errors.push("INCOMPLETE_PRODUCT_COVERAGE");
-const register = { version: 2, environment: "development", deliveryPlan: "docs/production-plan.md", candidateSha: current.candidateSha,
+const register = { version: 3, environment: "development", deliveryPlan: "docs/production-plan.md",
   sourceFingerprint: fingerprint, verificationFingerprint,
   baseline: { source: ".scratch/dev/product-migration-baseline-2026-10-14/", privateAuthority: "read-only per-database snapshots; no secrets or personal authority rows in this register", performance: "compiled baseline retained; observations pending" },
   modules, productWorkflows: productWorkflows.map(workflow => ({ ...workflow, origin: developmentProductOrigin(workflow.product as typeof productIds[number]),
@@ -325,8 +325,8 @@ const register = { version: 2, environment: "development", deliveryPlan: "docs/p
   surfaces: surfaces.map(surface => ({ ...surface, origin: developmentProductOrigin(surface.id as typeof sharedHostKeys[number]),
     workflows: surface.workflows.map(id => ({ id: `${surface.id}:${id}`, acceptance: state(`${surface.id}:${id}`), receiptMapping: productWorkflowReceiptMapping(`${surface.id}:${id}`) })) })) };
 const target = await assertCanonicalRepositoryFilePath(root, "docs/status/product-migration-acceptance.json");
-// Runtime hash is intentionally separate from the generated artifact's stable
-// shape. A changed candidate invalidates receipts on every checker invocation.
+// Current-source status follows runtime and verification fingerprints. Candidate
+// SHAs remain receipt provenance and exact-import bindings, not register identity.
 const bytes = JSON.stringify(register, null, 2) + "\n";
 if (check || acceptance) {
   if (!existsSync(target) || readFileSync(target, "utf8") !== bytes) errors.push("PRODUCT_ACCEPTANCE_REGISTER_STALE");

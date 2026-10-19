@@ -7,7 +7,7 @@ import { requiredNativePhases, type NativeCiReceipt } from "../testing/browser-s
 import { loadCatalogue } from "../testing/catalogue";
 import { verifyEngineeringCandidateInventory } from "../testing/engineering/engineering-candidate-inventory";
 import { fullRegressionRunIdFromPath, validateFullRegressionCases, validateFullRegressionRollbackArtifacts } from "../testing/full-regression-receipt";
-import { internalRequiredCases, loadRequiredCases } from "../testing/required-case-inventory";
+import { canonicalCaseFile, internalRequiredCases, loadRequiredCases } from "../testing/required-case-inventory";
 import { verifyUiBrowserEvidence, type UiBrowserEvidenceWitness } from "../testing/ui-evidence-witness";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../local/source-fingerprint";
 import catalogue from "../../tests/catalogue/suite-manifest.json";
@@ -344,8 +344,8 @@ export async function readProductMigrationReceiptEvidence(root: string, path: st
   return bytes;
 }
 
-export function productMigrationReceiptMatchesCurrent(value: ProductMigrationReceiptReference, current: { candidateSha: string; runtimeFingerprint: string; verificationFingerprint: string }) {
-  return value.candidateSha === current.candidateSha && value.runtimeFingerprint === current.runtimeFingerprint && value.verificationFingerprint === current.verificationFingerprint;
+export function productMigrationReceiptMatchesCurrent(value: ProductMigrationReceiptReference, current: { runtimeFingerprint: string; verificationFingerprint: string }) {
+  return value.runtimeFingerprint === current.runtimeFingerprint && value.verificationFingerprint === current.verificationFingerprint;
 }
 
 function safeRepositoryPath(path: string): boolean {
@@ -426,8 +426,9 @@ export function validateProductMigrationImport(value: unknown): ProductMigration
   };
 }
 
-function sameCase(actual: unknown, expected: ProductMigrationCase) {
-  return record(actual) && actual.runner === expected.runner && actual.suite === expected.suite && actual.file === expected.file && actual.title === expected.title &&
+export function productMigrationBrowserCaseMatches(actual: unknown, expected: ProductMigrationCase, suiteFiles: readonly string[]) {
+  return record(actual) && actual.runner === expected.runner && actual.suite === expected.suite && typeof actual.file === "string" &&
+    canonicalCaseFile(actual.file, suiteFiles) === expected.file && actual.title === expected.title &&
     (actual.project ?? undefined) === (expected.project ?? undefined);
 }
 
@@ -527,7 +528,10 @@ function browserReceiptRecord(value: unknown) {
 
 async function browserWitness(root: string, value: Record<string, unknown> & { receipts: unknown[]; suites: unknown[] }, wanted: ProductMigrationCase, input: ProductMigrationImport, evidenceInputs: ProductMigrationEvidenceInput[]) {
   if (value.runtimeFingerprint !== input.runtimeFingerprint || value.verificationFingerprint !== input.verificationFingerprint) throw new Error("PRODUCT_MIGRATION_BROWSER_FINGERPRINT_MISMATCH");
-  const matching = value.receipts.filter(item => sameCase(item, wanted) && record(item) && item.passed === true);
+  const owners = catalogue.suites.filter(suite => suite.id === wanted.suite && suite.files.includes(wanted.file));
+  if (owners.length !== 1) throw new Error("PRODUCT_MIGRATION_BROWSER_SUITE_BINDING_REQUIRED");
+  const suiteFiles = owners[0].files;
+  const matching = value.receipts.filter(item => productMigrationBrowserCaseMatches(item, wanted, suiteFiles) && record(item) && item.passed === true);
   if (matching.length !== 1) throw new Error("PRODUCT_MIGRATION_EXACT_BROWSER_CASE_REQUIRED");
   const result = matching[0] as Record<string, unknown>;
   if (typeof result.run !== "string" || !/^[a-f0-9]{12}$/.test(result.run) || typeof result.report !== "string" ||
@@ -544,7 +548,9 @@ async function browserWitness(root: string, value: Record<string, unknown> & { r
     throw new Error("PRODUCT_MIGRATION_COMPILED_RELEASE_WITNESS_MISMATCH");
   const reportFile = await readBoundEvidence(root, witness.report, "browser"), report = json(reportFile.bytes) as { suites?: unknown[] };
   const actual = browserCases(report as Parameters<typeof browserCases>[0]);
-  if (actual.length !== 1 || actual[0].file !== wanted.file || actual[0].title !== wanted.title || actual[0].project !== wanted.project)
+  if (actual.length !== 1) throw new Error("PRODUCT_MIGRATION_PLAYWRIGHT_REPORT_IDENTITY_MISMATCH");
+  const reportCase = { runner: "playwright", suite: wanted.suite, ...actual[0] };
+  if (!productMigrationBrowserCaseMatches(reportCase, wanted, suiteFiles))
     throw new Error("PRODUCT_MIGRATION_PLAYWRIGHT_REPORT_IDENTITY_MISMATCH");
   assertBrowserCasePassed(report as Parameters<typeof assertBrowserCasePassed>[0], actual[0]);
   if (caseReportPath !== reportFile.absolute) throw new Error("PRODUCT_MIGRATION_PLAYWRIGHT_REPORT_BINDING_MISMATCH");
@@ -690,7 +696,7 @@ export async function importProductMigrationReceipt(rootInput: string, inputPath
     result: "passed",
     id: input.id,
     phase: input.phase,
-    candidateSha,
+    candidateSha: input.candidateSha,
     runtimeFingerprint: runtimeFingerprintNow,
     verificationFingerprint: verificationFingerprintNow,
     release: input.release,
@@ -707,7 +713,8 @@ export async function importProductMigrationReceipt(rootInput: string, inputPath
     const manifestPath = await assertCanonicalRepositoryFilePath(root, manifestRelative, { requireFile: true });
     const manifestBytes = await readFile(manifestPath), manifest = validateProductMigrationReceiptManifest(json(manifestBytes));
     if (summary.phase === "verified" && !manifest.records.some(item => item.id === summary.id && item.phase === "implemented" &&
-      item.candidateSha === summary.candidateSha && item.runtimeFingerprint === summary.runtimeFingerprint && item.verificationFingerprint === summary.verificationFingerprint))
+      item.candidateSha === summary.candidateSha &&
+      item.runtimeFingerprint === summary.runtimeFingerprint && item.verificationFingerprint === summary.verificationFingerprint))
       throw new Error("PRODUCT_MIGRATION_SAME_SOURCE_IMPLEMENTATION_REQUIRED");
     const evidenceRelative = productMigrationReceiptEvidencePath(summary.candidateSha, summary.id, summary.phase);
     const evidencePath = await assertCanonicalRepositoryFilePath(root, evidenceRelative, { createParents: true });

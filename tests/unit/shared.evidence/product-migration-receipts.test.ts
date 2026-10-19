@@ -10,6 +10,8 @@ import {
   assertCanonicalRepositoryFilePath,
   importProductMigrationReceipt,
   productMigrationReceiptManifestSchema,
+  productMigrationBrowserCaseMatches,
+  productMigrationReceiptMatchesCurrent,
   productMigrationReceiptSchema,
   requiredProductMigrationCases,
   productWorkflowReceiptCases,
@@ -21,7 +23,9 @@ import {
   validateProductMigrationReceiptManifest,
 } from "../../../scripts/docs/product-migration-receipts";
 import { requiredNativePhases } from "../../../scripts/testing/browser-sharding";
-import { internalRequiredCases, loadRequiredCases } from "../../../scripts/testing/required-case-inventory";
+import { internalRequiredCases, loadRequiredCases, canonicalCaseFile } from "../../../scripts/testing/required-case-inventory";
+import { serializeFullRegressionBrowserCases } from "../../../scripts/testing/browser-isolation-receipts";
+import { assertBrowserCasePassed, browserCases } from "../../../scripts/testing/browser-results";
 import { fullRegressionRunIdFromPath, requiredFullRegressionPhases, validateFullRegressionCases, validateFullRegressionReceipt, validateFullRegressionRollbackArtifacts } from "../../../scripts/testing/full-regression-receipt";
 import { loadCatalogue } from "../../../scripts/testing/catalogue";
 import { syntheticRollbackEvidenceValid } from "../../../scripts/testing/engineering/engineering-test-results";
@@ -249,6 +253,78 @@ function receipt(phase: "implemented" | "verified" = "implemented") {
 }
 
 describe("current-source product migration receipt v2", () => {
+  it("keeps current-source receipt status on runtime and verification fingerprints", () => {
+    const reference = {
+      id: "apps:dirty-product-switch",
+      phase: "implemented" as const,
+      candidateSha: "1".repeat(40),
+      runtimeFingerprint: digest("2"),
+      verificationFingerprint: digest("3"),
+      release: { id: "release-1", fileManifestSha256: digest("4") },
+      path: "docs/testing/evidence/product-migration-v2/current-implemented.json",
+      sha256: digest("5"),
+    };
+
+    expect(productMigrationReceiptMatchesCurrent(reference, {
+      runtimeFingerprint: digest("2"),
+      verificationFingerprint: digest("3"),
+    })).toBe(true);
+    expect(productMigrationReceiptMatchesCurrent(reference, {
+      runtimeFingerprint: digest("f"),
+      verificationFingerprint: digest("3"),
+    })).toBe(false);
+    expect(productMigrationReceiptMatchesCurrent(reference, {
+      runtimeFingerprint: digest("2"),
+      verificationFingerprint: digest("f"),
+    })).toBe(false);
+  });
+
+  it("canonicalizes raw browser receipt and report paths only through the registered suite", () => {
+    const expected = requiredProductMigrationCases("apps:dirty-product-switch", "verified")
+      .find(test => test.runner === "playwright" && test.project === "desktop")!;
+    const suite = loadCatalogue().suites.find(test => test.id === expected.suite)!;
+    const rawFile = "e2e/identity_access/product-hosts.spec.ts";
+    const report = { suites: [{ specs: [{ file: rawFile, title: expected.title, tests: [{
+      projectName: expected.project!, expectedStatus: "passed", status: "expected", results: [{ status: "passed" }],
+    }] }] }] };
+    const actual = browserCases(report)[0]!;
+    const rawReceiptCase = { ...expected, file: rawFile, passed: true };
+    const reportCase = { runner: "playwright", suite: expected.suite, ...actual };
+
+    expect(suite.files).toContain(expected.file);
+    expect(productMigrationBrowserCaseMatches(rawReceiptCase, expected, suite.files)).toBe(true);
+    expect(productMigrationBrowserCaseMatches(reportCase, expected, suite.files)).toBe(true);
+    expect(productMigrationBrowserCaseMatches({ ...rawReceiptCase, file: "e2e/identity_access/missing.spec.ts" }, expected, suite.files)).toBe(false);
+    expect(productMigrationBrowserCaseMatches({ ...rawReceiptCase, title: `${expected.title} extra` }, expected, suite.files)).toBe(false);
+    expect(productMigrationBrowserCaseMatches({ ...rawReceiptCase, project: "mobile" }, expected, suite.files)).toBe(false);
+    expect(actual.title).toBe(expected.title);
+    expect(actual.project).toBe(expected.project);
+    expect(() => assertBrowserCasePassed(report, actual)).not.toThrow();
+  });
+
+  it("serializes full browser receipts with the registered suite file identity", () => {
+    const suite = loadCatalogue().suites.find(test => test.id === "identity_access.product-hosts.e2e")!;
+    const title = "isolated product-host switch preserves its exact browser identity";
+    const [observed] = serializeFullRegressionBrowserCases([{
+      suite: suite.id,
+      file: "e2e/identity_access/product-hosts.spec.ts",
+      title,
+      project: "desktop",
+      passed: true,
+      required: false,
+    }], [suite], "e2e");
+
+    expect(observed).toEqual({
+      runner: "playwright",
+      suite: suite.id,
+      file: "tests/e2e/identity_access/product-hosts.spec.ts",
+      title,
+      project: "desktop",
+      status: "passed",
+      required: false,
+    });
+  });
+
   it("binds exactly one native CI or run-specific full regression input", () => {
     const runId = "2026-10-19T12-00-00-000Z";
     const envelope = {
@@ -342,6 +418,44 @@ describe("current-source product migration receipt v2", () => {
 
     expect(() => validateFullRegressionReceipt(receipt, { ...binding, runId: "2026-10-19T12-01-00-000Z" }, implementationCase))
       .toThrow("PRODUCT_MIGRATION_FULL_RUN_CANDIDATE_MISMATCH");
+  });
+
+  it("accepts a full browser case only after canonicalizing its registered report path", () => {
+    const runId = "2026-10-19T12-00-00-000Z";
+    const binding = {
+      runId,
+      candidate: "1".repeat(40),
+      runtimeFingerprint: digest("2"),
+      verificationFingerprint: digest("3"),
+      release: { id: runId, fileManifestSha256: digest("4") },
+    };
+    const base = {
+      version: 1,
+      kind: "full-regression",
+      scope: "internal-regression",
+      runId,
+      commit: binding.candidate,
+      candidate: binding.candidate,
+      runtimeFingerprint: binding.runtimeFingerprint,
+      verificationFingerprint: binding.verificationFingerprint,
+      release: binding.release,
+      rollback: rollbackReceipt(runId, binding.release.id, binding.release.fileManifestSha256),
+      passed: true,
+      phases: requiredFullRegressionPhases.map(phase => ({ phase, passed: true })),
+      cases: [{ ...implementationCase, status: "passed" }],
+      providerRehearsals: [],
+      providerSuites: [],
+    };
+    const expected = requiredProductMigrationCases("apps:dirty-product-switch", "verified")
+      .find(test => test.runner === "playwright" && test.project === "desktop")!;
+    const suite = loadCatalogue().suites.find(test => test.id === expected.suite)!;
+    const raw = { ...expected, file: "e2e/identity_access/product-hosts.spec.ts", status: "passed" };
+    const canonical = { ...raw, file: canonicalCaseFile(raw.file, suite.files) };
+
+    expect(() => validateFullRegressionReceipt({ ...base, cases: [...base.cases, raw] }, binding, expected))
+      .toThrow("PRODUCT_MIGRATION_EXACT_FULL_RUN_CASE_REQUIRED");
+    expect(validateFullRegressionReceipt({ ...base, cases: [...base.cases, canonical] }, binding, expected))
+      .toMatchObject({ ...expected, status: "passed" });
   });
 
   it("requires every registered internal case exactly once with its owning suite in full-run imports", () => {
@@ -542,6 +656,8 @@ describe("current-source product migration receipt v2", () => {
       const second = await importProductMigrationReceipt(fixture.root, inputPaths[1]);
       expect(first.status).toBe("imported");
       expect(second.status).toBe("imported");
+      expect(first.reference.candidateSha).toBe(fixture.candidateSha);
+      expect(JSON.parse(readFileSync(join(fixture.root, first.reference.path), "utf8")).candidateSha).toBe(fixture.candidateSha);
 
       const manifestPath = join(fixture.root, "docs/status/product-migration-receipts-v2.json");
       const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { records: { id: string; path: string }[] };
@@ -608,7 +724,7 @@ describe("current-source product migration receipt v2", () => {
     }
   });
 
-  it("rejects a migration import whose source fingerprints no longer match the frozen candidate", async () => {
+  it("requires the exact checkout candidate and matching source fingerprints for import", async () => {
     const fixture = await migrationImportFixture();
     try {
       const importPath = `.scratch/dev/test-suites/product-migration/${fixture.ids[0].replaceAll("/", "-")}-stale.json`;
@@ -625,6 +741,20 @@ describe("current-source product migration receipt v2", () => {
       }) + "\n");
 
       await expect(importProductMigrationReceipt(fixture.root, importPath)).rejects.toThrow("PRODUCT_MIGRATION_CURRENT_SOURCE_MISMATCH");
+
+      const wrongCandidatePath = `.scratch/dev/test-suites/product-migration/${fixture.ids[0].replaceAll("/", "-")}-wrong-candidate.json`;
+      await writeFixtureFile(fixture.root, wrongCandidatePath, JSON.stringify({
+        schema: "erpx-product-migration-import/v2",
+        id: fixture.ids[0],
+        phase: "implemented",
+        candidateSha: "f".repeat(40),
+        runtimeFingerprint: fixture.runtimeFingerprint,
+        verificationFingerprint: fixture.verificationFingerprint,
+        release: fixture.release,
+        nativeReceipt: fixture.nativeBinding,
+        browserReceipts: [],
+      }) + "\n");
+      await expect(importProductMigrationReceipt(fixture.root, wrongCandidatePath)).rejects.toThrow("PRODUCT_MIGRATION_CURRENT_SOURCE_MISMATCH");
     } finally {
       await rm(fixture.root, { recursive: true, force: true });
     }
