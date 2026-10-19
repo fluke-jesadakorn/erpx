@@ -9,9 +9,11 @@ import { createEngineeringBrowserContext } from "../../support/browser/engineeri
 import { selectFixtureAssignment } from "../../support/browser/select-fixture-assignment";
 
 test.use({ actionTimeout: 20_000 });
+// Interrupted POS jobs keep a 120-second durable lease before another worker may reclaim them.
+const interruptedWorkerLeaseRecoveryTimeout = 150_000;
 
 test('paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money', async ({ browser }, info) => {
-  test.setTimeout(240_000);
+  test.setTimeout(480_000);
   const run = process.env.ERPX_DEMO_RUN;
   expect(run).toMatch(/^[a-f0-9]{12}$/);
   const directory = resolve('.runtime/browser', run!), origin = 'http://127.0.0.1:3104';
@@ -92,7 +94,7 @@ test('paid guest booking recovers interrupted receipt and independently approved
       expect((await db.query('SELECT count(*)::int n FROM pms_booking_allocations WHERE payment_id=$1', [paymentId])).rows[0].n).toBe(0);
       expect((await db.query("SELECT count(*)::int n FROM pms_records WHERE property_id=$1 AND kind='entry' AND data_json::jsonb->>'sourceKey'=$2", [fixture.propertyId, `online-payment:${paymentId}`])).rows[0].n).toBe(0);
     });
-    await expect.poll(async () => (await db.query('SELECT status FROM pms_booking_payments WHERE id=$1', [paymentId])).rows[0].status, { timeout: 30_000 }).toBe('confirmed');
+    await expect.poll(async () => (await db.query('SELECT status FROM pms_booking_payments WHERE id=$1', [paymentId])).rows[0].status, { timeout: interruptedWorkerLeaseRecoveryTimeout }).toBe('confirmed');
     await page.goto(`/book/booking-test?attempt=${encodeURIComponent(booking.attemptToken)}`);
     await expect(page.getByRole('heading', { name: /Booking confirmed/ })).toBeVisible(); await expect(page.getByText('Payment confirmed. A confirmation email and private management link are on the way.', { exact: true })).toBeVisible();
     await page.locator('a[href*="/manage#token="]').click(); await expect(page.getByText('Fictional paid recovery guest', { exact: true })).toBeVisible(); expect(new URL(page.url()).hash).toBe('');
@@ -117,7 +119,7 @@ test('paid guest booking recovers interrupted receipt and independently approved
       const current = (await db.query('SELECT state,provider_id,generation FROM pms_booking_refund_requests WHERE id=$1', [refund.id])).rows[0]; expect(current).toMatchObject({ state: 'approved', provider_id: null, generation: 0 });
       const accepted = await providerState(); expect(accepted.keys[`pms-refund-${refund.id}-0`]).toBeTruthy();
     });
-    await expect.poll(async () => (await db.query('SELECT state FROM pms_booking_refund_requests WHERE id=$1', [refund.id])).rows[0].state, { timeout: 30_000 }).toBe('succeeded');
+    await expect.poll(async () => (await db.query('SELECT state FROM pms_booking_refund_requests WHERE id=$1', [refund.id])).rows[0].state, { timeout: interruptedWorkerLeaseRecoveryTimeout }).toBe('succeeded');
     await page.getByRole('button', { name: 'Refresh booking', exact: true }).click(); await expect(page.getByText(/Refund completed/)).toBeVisible(); await page.reload(); await expect(page.getByText(/Refund completed/)).toBeVisible();
     expect((await db.query('SELECT count(*)::int n FROM pms_booking_refund_attempts WHERE request_id=$1', [refund.id])).rows[0].n).toBe(1);
     const allocations = (await db.query('SELECT count(*)::int n,sum(amount_minor)::text amount FROM pms_booking_allocations WHERE payment_id=$1', [paymentId])).rows[0]; expect(allocations).toEqual({ n: 2, amount: '1412400' });
