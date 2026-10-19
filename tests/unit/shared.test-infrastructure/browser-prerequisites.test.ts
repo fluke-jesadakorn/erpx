@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { browserCasePrerequisites, browserPrerequisites, assertCompiledLegalCase, assertRecoveryEvidence, withPausedBrowserJobs } from "../../../scripts/testing/browser-prerequisites";
-import { clonedFixtureMetadata, isCaseExecutionEvidence, isClonedFixtureDocument, isolatedAiCredentialEnvironment, localBrowserActorEnvironment, browserFrontOrigin, moduleBrowserHoldingDisplayName } from "../../../scripts/testing/browser-fixture-metadata";
+import { clonedFixtureMetadata, isCaseExecutionEvidence, isClonedFixtureDocument, isolatedAiCredentialEnvironment, localBrowserActorEnvironment, browserFrontOrigin, moduleBrowserHoldingDisplayName, moduleBrowserReleaseVerificationCompanyIds } from "../../../scripts/testing/browser-fixture-metadata";
 import { attachmentToolEnvironment } from "../../../scripts/testing/runtime-tooling";
 import { browserChildEnvironment } from "../../../scripts/testing/runner-environment";
 import type { BrowserCase } from "../../../scripts/testing/browser-results";
@@ -173,6 +173,17 @@ describe("normal local browser actors and Front targets", () => {
   it("retains the normal Acme holding label only for declared staffing profiles", () => {
     for (const profile of ["local-seed", "staff-work"]) expect(moduleBrowserHoldingDisplayName(profile)).toBe("Acme Group");
     for (const profile of ["expense", "work-cards", "messaging", "services", "booking"]) expect(moduleBrowserHoldingDisplayName(profile)).toBe("Isolated Acme fixture");
+  });
+  it("enrolls only exact Companies created by compiled module fixtures", () => {
+    for (const profile of ["local-seed", "staff-work", "expense", "messaging", "services"]) {
+      expect(moduleBrowserReleaseVerificationCompanyIds(profile, { profile, releaseVerificationCompanyIds: ["company-a"] })).toEqual(["company-a"]);
+      expect(() => moduleBrowserReleaseVerificationCompanyIds(profile, { profile })).toThrow("MODULE_RELEASE_COMPANY_COHORT_REQUIRED");
+    }
+    expect(moduleBrowserReleaseVerificationCompanyIds("work-cards", { profile: "work-cards", releaseVerificationCompanyIds: ["company-a", "company-b"] })).toEqual(["company-a", "company-b"]);
+    expect(() => moduleBrowserReleaseVerificationCompanyIds("work-cards", { profile: "work-cards", releaseVerificationCompanyIds: ["company-a"] })).toThrow("MODULE_RELEASE_COMPANY_COHORT_REQUIRED");
+    expect(() => moduleBrowserReleaseVerificationCompanyIds("expense", { profile: "expense", releaseVerificationCompanyIds: ["company-a", "company-a"] })).toThrow("MODULE_RELEASE_COMPANY_COHORT_REQUIRED");
+    expect(moduleBrowserReleaseVerificationCompanyIds("booking", { releaseVerificationCompanyIds: ["company-a"] })).toBeNull();
+    expect(moduleBrowserReleaseVerificationCompanyIds("general-company", { profile: "general-company", releaseVerificationCompanyIds: ["company-a"] })).toBeNull();
   });
   it("uses declared normal credentials only for the staffing profiles and rejects incomplete personas", () => {
     for (const profile of ["local-seed", "staff-work"]) expect(localBrowserActorEnvironment(profile, { actors })).toEqual({ ERPX_E2E_HR_EMAIL: actors.hr.email, ERPX_E2E_HR_PASSWORD: actors.hr.password, ERPX_E2E_READER_EMAIL: actors.reader.email, ERPX_E2E_READER_PASSWORD: actors.reader.password });

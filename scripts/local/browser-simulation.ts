@@ -18,7 +18,7 @@ import {generalCompanyDemoGuide} from "../../fixtures/shared/builders/general-co
 import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders/scoped-browser-staff";
 import {runtimeSourceFingerprint} from './source-fingerprint';
 import {copyReleaseArtifact} from './copy-release-artifact';
-import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence} from '../testing/browser-fixture-metadata';
+import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence,moduleBrowserReleaseVerificationCompanyIds} from '../testing/browser-fixture-metadata';
 import {browserChildEnvironment} from '../testing/runner-environment';
 const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=Number(process.env.ERPX_BROWSER_SIMULATION_PORT??'3102');
 if(![3102,3104].includes(port))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_PORT');
@@ -489,7 +489,9 @@ if(mode==='prepare'||diagnostic){
   const financeClose=state.fixture?.engineeringFinanceClose as {companyIds:string[]}|undefined;
   const workplace=state.fixture?.engineeringWorkplacePlatform as {companyId:string;realmCompanyId:string}|undefined;
   const bookingFixture=profile==='booking'&&state.profile==='booking'&&state.fixture?.profile==='booking'&&state.fixture?.holdingSlug==='booking-test';
-  if(!bookingFixture&&(!moneyPeople?.companyIds.length||thaiPayroll?.companyIds.length!==2||financeClose?.companyIds.length!==2||!workplace?.companyId||!workplace.realmCompanyId))throw new Error('COMPLETE_NORMAL_ACCOUNT_COHORT_REQUIRED');
+  const moduleCompanyIds=moduleBrowserReleaseVerificationCompanyIds(state.profile??'',state.fixture);
+  const completeNormalAccountCohort=typeof company==='string'&&typeof hospitality?.companyId==='string'&&Boolean(moneyPeople?.companyIds.length)&&thaiPayroll?.companyIds.length===2&&financeClose?.companyIds.length===2&&Boolean(workplace?.companyId)&&Boolean(workplace?.realmCompanyId);
+  if(!bookingFixture&&!completeNormalAccountCohort&&(!moduleCompanyIds||productHosts))throw new Error('COMPLETE_NORMAL_ACCOUNT_COHORT_REQUIRED');
   const enrollment={run,sourceFingerprint:release.sourceFingerprint,softwareVersion:release.softwareVersion,fileManifestSha256:release.fileManifestSha256};
   const first=new PostgresDatabase({connectionString:urls.H001_DB,max:1}),second=new PostgresDatabase({connectionString:urls.H002_DB,max:1}),third=new PostgresDatabase({connectionString:urls.H003_DB,max:1});
   try{
@@ -500,6 +502,11 @@ if(mode==='prepare'||diagnostic){
     const hotel=await first.prepare('SELECT id FROM pms_properties WHERE id=? AND company_id=?').bind(state.fixture!.propertyId,company).first();
     if(!hotel)throw new Error('EXACT_BOOKING_PROPERTY_REQUIRED');
     attestation=await enrollEngineeringVerification(first,{...enrollment,companyIds:[company]});
+   }else if(moduleCompanyIds&&!completeNormalAccountCohort){
+    // General module suites exercise their exact native Company fixture. They
+    // need the isolated compiled-runtime attestation, but must not inherit the
+    // unrelated all-product engineering cohort or its Company grants.
+    attestation=await enrollEngineeringVerification(first,{...enrollment,companyIds:moduleCompanyIds});
    }else{
     attestation=await enrollEngineeringVerification(first,{...enrollment,companyIds:[company,...moneyPeople!.companyIds,...thaiPayroll!.companyIds,...financeClose!.companyIds,workplace!.companyId,...(legal?.companies?.A?[legal.companies.A.id]:[])],disabledCompanyIds:legal?.companies?.B?[legal.companies.B.id]:[]});
     await enrollEngineeringVerification(second,{...enrollment,companyIds:[hospitality.companyId,...(legal?.companies?.C?[legal.companies.C.id]:[])]});

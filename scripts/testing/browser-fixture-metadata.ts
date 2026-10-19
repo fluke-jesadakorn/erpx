@@ -36,6 +36,19 @@ export function moduleBrowserHoldingDisplayName(profile: string): string {
   return ["local-seed", "staff-work"].includes(profile) ? "Acme Group" : "Isolated Acme fixture";
 }
 
+const moduleReleaseProfiles = new Set(["local-seed", "staff-work", "expense", "work-cards", "messaging", "services"]);
+
+/** Compiled module cohorts may enroll only the Companies created by their own fixture. */
+export function moduleBrowserReleaseVerificationCompanyIds(profile: string, fixture: unknown): string[] | null {
+  if (!moduleReleaseProfiles.has(profile)) return null;
+  const metadata = fixture as { profile?: unknown; releaseVerificationCompanyIds?: unknown } | null;
+  const ids = metadata?.releaseVerificationCompanyIds;
+  const expected = profile === "work-cards" ? 2 : 1;
+  if (metadata?.profile !== profile || !Array.isArray(ids) || ids.length !== expected || ids.some(id => typeof id !== "string" || !/^[A-Za-z0-9_-]{1,180}$/.test(id)) || new Set(ids).size !== ids.length)
+    throw new Error("MODULE_RELEASE_COMPANY_COHORT_REQUIRED");
+  return ids;
+}
+
 /** Only the declared normal staffing profiles replace legacy local login defaults. */
 export function localBrowserActorEnvironment(profile: string, fixture: { actors?: { hr?: { email: string; password: string }; reader?: { email: string; password: string } } }): Record<string, string> {
   if (!["local-seed", "staff-work"].includes(profile)) return {};

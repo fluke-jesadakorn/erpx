@@ -183,7 +183,7 @@ export async function seedAcmeOrganizationForBrowser(directory: string) {
   } catch (error) { await platform.dispose(); throw error; }
   const actors = await seedAcmeOrganizationWorkflow(platform, true, false, join(directory, "acme-organization"));
   if (!actors) throw new Error("LOCAL_BROWSER_ACME_ACTORS_REQUIRED");
-  return actors;
+  return { companyId: demoCompany, actors };
 }
 
 // Deliberately separate from seed:local: expanding a development team is explicit.

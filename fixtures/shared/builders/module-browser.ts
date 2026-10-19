@@ -25,7 +25,7 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
     await import("../../../scripts/seed/seed-staff-work");
     // Tests use the normal explicitly declared Acme staffing personas; the
     // workflow's separate development CLI retains its existing dev-only guard.
-    const actors = await (await import("../../../scripts/seed/seed-acme-organization")).seedAcmeOrganizationForBrowser(directory);
+    const { companyId, actors } = await (await import("../../../scripts/seed/seed-acme-organization")).seedAcmeOrganizationForBrowser(directory);
     const current = (await import("../../../src/server/modules/runtime/adapters/runtime/env")).getRuntime();
     if (profile === "local-seed") await (await import("./local-browser-erpx-realm")).seedLocalBrowserRealm(current, directory);
     await (await import("../../people_payroll/builders/local-browser-roster-directory")).seedLocalBrowserRosterDirectory(current, directory);
@@ -37,7 +37,7 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
       current.CONTROL_DB.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,'credential','local:credential',?,?,?,?)").bind(`account-${id}`, id, id, hash, now, now),
       current.CONTROL_DB.prepare("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES(?,?,?,'active',?)").bind(`principal-${id}`, id, "Fictional account without assignments", now),
     ]);
-    return { profile, holdingSlug: "acme", nativeSeed: true, noRole, actors };
+    return { profile, holdingSlug: "acme", nativeSeed: true, noRole, actors, releaseVerificationCompanyIds: [companyId] };
   }
   if (profile === "booking") return process.env.ERPX_BROWSER_SIMULATION_PMS_SCALE === "1"
     ? (await import("../../pms/builders/pms-scale-browser")).seedPmsScaleBrowser(env,directory)
@@ -100,7 +100,10 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
       fixture = { company: f.company, branch: f.branch, department: f.department, accounts: f.accounts, period: f.period, password, actors, ...supplies };
     }
   }
+  const releaseVerificationCompanyIds = profile === "work-cards"
+    ? [...new Set(Object.values((fixture as { accounts: Record<string, { company: string }> }).accounts).map(account => account.company))]
+    : [(fixture as { company: string }).company];
   const path = join(directory, "fixture.json");
   await writeFile(path, JSON.stringify(fixture, null, 2) + "\n", { mode: 0o600 }); await chmod(path, 0o600);
-  return { profile, holdingSlug: "acme", fixturePath: path };
+  return { profile, holdingSlug: "acme", fixturePath: path, releaseVerificationCompanyIds };
 }
