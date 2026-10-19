@@ -6,6 +6,7 @@ import { loadCatalogue, repositoryRoot, validateCatalogue } from "./catalogue";
 import { runBrowserIsolation } from "./browser-isolation";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../local/source-fingerprint";
 import { internalRequiredCases, loadRequiredCases, readNativeCaseReceipt } from "./required-case-inventory";
+import { preparePdfAssets } from "../assets/prepare-pdf-assets";
 
 const root = repositoryRoot, catalogue = loadCatalogue();
 validateCatalogue(catalogue);
@@ -38,6 +39,7 @@ if (mode === "aggregate") {
   await writeFile(join(directory, "aggregate.json"), JSON.stringify(receipt, null, 2) + "\n", { mode: 0o600 });
   console.log(JSON.stringify(receipt));
 } else {
+  await preparePdfAssets();
   const runtimeFingerprint = await runtimeSourceFingerprint(root), verificationFingerprint = await verificationSourceFingerprint(root, runtimeFingerprint);
   async function stable() {
     if (await runtimeSourceFingerprint(root) !== runtimeFingerprint || await verificationSourceFingerprint(root, runtimeFingerprint) !== verificationFingerprint) throw new Error("CI_REGRESSION_SOURCE_CHANGED");

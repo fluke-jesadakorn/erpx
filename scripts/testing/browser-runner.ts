@@ -19,6 +19,7 @@ import { writeJsonOutput } from "./json-output";
 import {productIds} from "../../src/lib/commercial/product-registry";
 import { productHostBrowserFile, productHostProducts, productHostPlan, productHostBusinessWorkflowForCase, startProductHostEdge } from "./product-host-cohort";
 import {captureUiBrowserEvidence,verifyUiBrowserEvidence,type UiBrowserEvidenceWitness} from "./ui-evidence-witness";
+import { preparePdfAssets } from "../assets/prepare-pdf-assets";
 
 const root = repositoryRoot;
 const node = resolve(process.env.ERPX_NODE_BIN ?? join(root, ".runtime/node/node-v26.11.1-darwin-arm64/bin/node"));
@@ -64,6 +65,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
   const groups = orderedBrowserExecutionGroups(suites, options.projects ?? ["desktop", "mobile"], caseOrder).filter(group => !selection || selection.some(item => item.suite === group.suite.id && item.project === group.project));
   assertBrowserFaultProbeSelection(options.faultProbe, groups);
   if (options.faultProbe && (options.shard || options.grep)) throw new Error("EXACT_BROWSER_FAULT_PROBE_SELECTION_REQUIRED");
+  await preparePdfAssets();
   const execution: BrowserRunReceipt["execution"] = { caseOrder, mode: options.faultProbe ? "fault-probe" : "acceptance", ...(options.faultProbe ? { faultProbe: options.faultProbe } : {}) };
   if (Bun.version !== "1.4.3" || Bun.spawnSync([node, "--version"]).stdout.toString().trim() !== "v26.11.1") throw new Error("PINNED_TOOLCHAIN_REQUIRED");
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");

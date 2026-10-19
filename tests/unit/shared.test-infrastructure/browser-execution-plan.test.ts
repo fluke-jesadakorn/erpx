@@ -97,6 +97,7 @@ it("rejects late fingerprint interruption while retaining completed cleanup and 
       vi.stubGlobal("fetch", vi.fn(async () => ({ status: 200 })));
       vi.doMock("../../../scripts/testing/catalogue", () => ({ repositoryRoot: root }));
       vi.doMock("../../../scripts/local/source-fingerprint", () => ({ runtimeSourceFingerprint: () => source("runtime"), verificationSourceFingerprint: () => source("verification") }));
+      vi.doMock("../../../scripts/assets/prepare-pdf-assets", () => ({ preparePdfAssets: async () => {} }));
       vi.doMock("../../../scripts/testing/required-case-inventory", async () => ({ ...await vi.importActual<typeof import("../../../scripts/testing/required-case-inventory")>("../../../scripts/testing/required-case-inventory"), loadRequiredCases: () => [{ runner: "playwright", file: identity.file, title: identity.title, project: identity.project }] }));
       vi.doMock("../../../scripts/testing/browser-prerequisites", () => ({ prepareBrowserCasePrerequisites: async () => ({}) }));
       vi.doMock("../../../scripts/testing/browser-evidence", () => ({ retainBrowserFixtureEvidence: async (_root: string, run: string) => { retained.push(run); } }));

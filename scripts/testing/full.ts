@@ -10,6 +10,7 @@ import { loadProviderRehearsals, unselectedProviderRehearsals } from "./provider
 import { type FullRegressionReceipt } from "./full-regression-receipt";
 import { vitestObservations, syntheticRollbackEvidenceValid } from "./engineering/engineering-test-results";
 import { writeJsonOutput } from "./json-output";
+import { preparePdfAssets } from "../assets/prepare-pdf-assets";
 
 const root = repositoryRoot, catalogue = loadCatalogue();
 validateCatalogue(catalogue);
@@ -18,6 +19,7 @@ for (const argument of process.argv.slice(2)) if (!["--list", "--json", "--"].in
 if (process.argv.slice(2).includes("--list")) {
   writeJsonOutput({ scope: "internal-regression", suites: catalogue.suites.filter(suite => suite.lane !== "provider"), requiredCases: internalRequiredCases(loadRequiredCases(root), catalogue.suites), browserIsolation: { caseOrders: ["forward", "reverse"], declaredFailureRestart: true, zeroRetries: true }, excludedProviderSuites: catalogue.suites.filter(suite => suite.lane === "provider").map(suite => suite.id), providerRehearsals });
 } else {
+  await preparePdfAssets();
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
   const fullRoot = join(root, ".scratch/dev/test-suites/full"), directory = join(fullRoot, runId);
   await mkdir(fullRoot, { recursive: true, mode: 0o700 });
