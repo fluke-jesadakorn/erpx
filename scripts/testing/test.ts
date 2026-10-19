@@ -4,6 +4,7 @@ import { assertExplicitSelectionIncluded, loadCatalogue, listSelection, reachesD
 import { parseTestArguments } from "./arguments";
 import { impactFromGit } from "./impact";
 import { vitestChildEnvironment } from "./runner-environment";
+import { attachmentToolEnvironment } from "./runtime-tooling";
 import { writeJsonOutput } from "./json-output";
 import { assertTestPlacement } from "./layout";
 import { runDevelopmentTests } from "./development";
@@ -97,7 +98,8 @@ for (const kind of ["unit", "integration", "provider"] as const) {
     const patternIndex = options.forwarded.findIndex(arg => ["-t", "--testNamePattern"].includes(arg) || arg.startsWith("--testNamePattern="));
     const namePattern = patternIndex < 0 ? undefined : options.forwarded[patternIndex].split("=").slice(1).join("=") || options.forwarded[patternIndex + 1];
     const defaultReporter = options.forwarded.some(arg => arg === "--reporter" || arg.startsWith("--reporter=")) ? [] : ["--reporter", "default"];
-    const childEnv = vitestChildEnvironment({ ...env, ERPX_SELECTED_TEST_FILES: JSON.stringify(selectedFiles), ERPX_SELECTED_PROVIDER: kind === "provider" ? "1" : "0", ERPX_TEST_NAME_PATTERN: namePattern }, postgres);
+    const integrationEnvironment = kind === "integration" ? { ...env, ...attachmentToolEnvironment(root) } : env;
+    const childEnv = vitestChildEnvironment({ ...integrationEnvironment, ERPX_SELECTED_TEST_FILES: JSON.stringify(selectedFiles), ERPX_SELECTED_PROVIDER: kind === "provider" ? "1" : "0", ERPX_TEST_NAME_PATTERN: namePattern }, postgres);
     const exit = await execute([node, resolve(root, "node_modules/vitest/vitest.mjs"), "run", "--config", postgres ? "tests/config/vitest.integration.config.mts" : "tests/config/vitest.unit.config.mts", ...options.forwarded, ...defaultReporter, "--reporter", resolve(root, "scripts/testing/required-cases-reporter.ts")], childEnv);
     if (exit !== 0) process.exit(exit);
   }
