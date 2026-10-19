@@ -137,6 +137,8 @@ async function migrationImportFixture() {
     const content = path.startsWith("tests/catalogue/") ? readFileSync(resolve(process.cwd(), path), "utf8") : "fixture\n";
     await writeFixtureFile(root, path, content);
   }
+  await writeFixtureFile(root, ".gitignore", "/public/vendor/pdfjs-*/\n");
+  await writeFixtureFile(root, "public/vendor/pdfjs-fixture/pdf.worker.min.mjs", "fingerprinted ignored runtime asset\n");
   await writeFixtureFile(root, "docs/status/product-migration-receipts-v2.json", JSON.stringify({ schema: productMigrationReceiptManifestSchema, records: [] }, null, 2) + "\n");
   execFileSync("git", ["init", "-q"], { cwd: root });
   execFileSync("git", ["config", "user.name", "Receipt Fixture"], { cwd: root });
@@ -518,6 +520,8 @@ describe("current-source product migration receipt v2", () => {
   it("imports separate workflows to distinct durable paths and keeps exact re-import idempotent", async () => {
     const fixture = await migrationImportFixture();
     try {
+      expect(execFileSync("git", ["status", "--porcelain", "--ignored=matching", "--", "public"], { cwd: fixture.root, encoding: "utf8" }))
+        .toContain("public/vendor/pdfjs-fixture/");
       const inputPaths = fixture.ids.map(id => `.scratch/dev/test-suites/product-migration/${id.replaceAll("/", "-")}.json`);
       for (let index = 0; index < fixture.ids.length; index += 1) {
         const input = {

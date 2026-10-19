@@ -635,7 +635,10 @@ export async function importProductMigrationReceipt(rootInput: string, inputPath
   if (candidateSha !== input.candidateSha || runtimeFingerprintNow !== input.runtimeFingerprint || verificationFingerprintNow !== input.verificationFingerprint)
     throw new Error("PRODUCT_MIGRATION_CURRENT_SOURCE_MISMATCH");
   const candidatePaths = ["src", "public", "scripts", "fixtures", "tests", "migrations/postgres", "ops/macos", "bun.lock", "package.json", "next.config.ts", "tsconfig.json", "postcss.config.mjs", ".github", "eslint.config.mjs"];
-  if (execFileSync("git", ["status", "--porcelain", "--untracked-files=all", "--ignored=matching", "--", ...candidatePaths], { cwd: root, encoding: "utf8" }).trim())
+  // Ignore Git-ignored generated assets here: the source fingerprints above bind all
+  // runtime and verification files, including ignored assets such as the local PDF.js
+  // runtime. Tracked edits and non-ignored untracked source still require a clean commit.
+  if (execFileSync("git", ["status", "--porcelain", "--untracked-files=all", "--", ...candidatePaths], { cwd: root, encoding: "utf8" }).trim())
     throw new Error("PRODUCT_MIGRATION_CLEAN_CANDIDATE_REQUIRED");
   const releaseDirectory = resolve(root, ".runtime/releases", input.release.id);
   if (!releaseDirectory.startsWith(resolve(root, ".runtime/releases") + sep)) throw new Error("PRODUCT_MIGRATION_RELEASE_PATH_INVALID");
