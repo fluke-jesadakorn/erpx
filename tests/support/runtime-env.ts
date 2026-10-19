@@ -42,7 +42,7 @@ export async function setupDatabases(){
   await writeFile(manifestPath,JSON.stringify({version:1,databases:manifestDatabases,slots},null,2)+'\n',{mode:0o600});
   for(const name of runtimeEnvironmentNames)originalRuntimeEnvironment.set(name,process.env[name]);
   for(const name of ['ERPX_MARKETING_ORIGIN','ERPX_FRONT_PMS_ORIGIN','ERPX_FRONT_POS_ORIGIN','ERPX_MINIO_ENDPOINT','ERPX_MINIO_BUCKET','ERPX_MINIO_ACCESS_KEY','ERPX_MINIO_SECRET_KEY'])delete process.env[name];
-  Object.assign(process.env,{ERPX_DATABASE_MANIFEST:manifestPath,ERPX_MIGRATION_DATABASE_MANIFEST:join(directory,'databases-migrations.json'),ERPX_ENVIRONMENT:'local',ERPX_PUBLIC_ORIGIN:'http://localhost:3100',ERPX_DATA_DIR:directory,ERPX_PROCESS_ROLE:'app',ERPX_PUBLIC_BETA:'false',BETTER_AUTH_URL:'http://localhost:3100',BETTER_AUTH_SECRET:'test-runtime-secret-never-used-outside-integration'});
+  Object.assign(process.env,{ERPX_DATABASE_MANIFEST:manifestPath,ERPX_MIGRATION_DATABASE_MANIFEST:join(directory,'databases-migrations.json'),ERPX_ENVIRONMENT:'local',ERPX_PUBLIC_ORIGIN:'https://console-dev-erpx.jesadakorn.com',ERPX_DATA_DIR:directory,ERPX_PROCESS_ROLE:'app',ERPX_PUBLIC_BETA:'false',BETTER_AUTH_URL:'http://localhost:3100',BETTER_AUTH_SECRET:'test-runtime-secret-never-used-outside-integration'});
 }
 export async function cleanupDatabases(){
   try{
