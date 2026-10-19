@@ -255,25 +255,29 @@ it.each(['attempt','propertyId'] as const)('actual Booking return rejects anothe
 import {pmsPackageCommandAllowed} from '../../../src/lib/pms/package-access';
 import {capturePmsWorkspaceCommandContext,sendPmsWorkspaceCommand,pendingPmsWorkspaceCommand,type PmsWorkspaceCommandAttempt,type PmsWorkspaceCommandSource} from '../../../src/lib/pms/workspace-command';
 import {canonicalUiHref} from '../../../src/lib/work_projection/destination-registry';
+import {TaskCompletionDrafts} from '../../../src/components/pms/task-completion-drafts';
+import {changedPmsTaskCompletionAttachments} from '../../../src/components/pms/workspace-types';
+import {attachmentContentUrl} from '../../../src/lib/files/attachment-client';
 
 type PmsSendOwner='front'|'backoffice';
 /** Execute the real send and its Form onSubmit closure with explicit state,
  * form and request ports. No React hook is called or replaced by this seam. */
-async function actualPmsWorkspaceSend(owner:PmsSendOwner,options:{holdRefresh?:boolean;failRefresh?:boolean;operation?:string;failFirstBody?:boolean;reflectCreatedSource?:boolean}={}){
+async function actualPmsWorkspaceSend(owner:PmsSendOwner,options:{holdRefresh?:boolean;failRefresh?:boolean;operation?:string;failFirstBody?:boolean;reflectCreatedSource?:boolean;completionChecklist?:string[];taskCompletesOnRefresh?:boolean}={}){
  const ts=await import('typescript');
  const path=owner==='front'?actualPmsFrontSource:actualPmsBackofficeSource;
  const text=await readPmsOwnerSource(path),file=ts.createSourceFile('actual-pms-send.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
- let runCommand:import('typescript').ArrowFunction|undefined,retryOriginal:import('typescript').ArrowFunction|undefined,send:import('typescript').ArrowFunction|undefined,submit:import('typescript').ArrowFunction|undefined,change:import('typescript').ArrowFunction|undefined;
+ let runCommand:import('typescript').ArrowFunction|undefined,retryOriginal:import('typescript').ArrowFunction|undefined,send:import('typescript').ArrowFunction|undefined,submit:import('typescript').ArrowFunction|undefined,change:import('typescript').ArrowFunction|undefined,activityChange:import('typescript').Expression|undefined,ownerAttachmentActivity:import('typescript').ArrowFunction|undefined;
  function visit(node:import('typescript').Node){
   if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='send'&&node.initializer&&ts.isArrowFunction(node.initializer))send=node.initializer;
   if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='runCommand'&&node.initializer&&ts.isArrowFunction(node.initializer))runCommand=node.initializer;
   if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='retryOriginal'&&node.initializer&&ts.isArrowFunction(node.initializer))retryOriginal=node.initializer;
+  if(ts.isJsxAttribute(node)&&node.name.getText(file)==='onCompletionAttachmentActivity'&&node.initializer&&ts.isJsxExpression(node.initializer)&&node.initializer.expression){const find=(child:import('typescript').Node)=>{if(ts.isArrowFunction(child)&&child.parameters.length===2&&child.parameters[0]?.name.getText(file)==='purposeKey'&&child.parameters[1]?.name.getText(file)==='active')ownerAttachmentActivity=child;ts.forEachChild(child,find);};find(node.initializer.expression);}
   if(ts.isFunctionDeclaration(node)&&node.name?.text==='Form'){
-   const form=(child:import('typescript').Node)=>{if(ts.isJsxAttribute(child)&&child.name.getText(file)==='onSubmit'&&child.initializer&&ts.isJsxExpression(child.initializer)&&child.initializer.expression&&ts.isArrowFunction(child.initializer.expression))submit=child.initializer.expression;if(ts.isJsxAttribute(child)&&child.name.getText(file)==='onChange'&&child.initializer&&ts.isJsxExpression(child.initializer)&&child.initializer.expression&&ts.isArrowFunction(child.initializer.expression))change=child.initializer.expression;ts.forEachChild(child,form);};form(node);
+   const form=(child:import('typescript').Node)=>{if(ts.isJsxAttribute(child)&&child.name.getText(file)==='onSubmit'&&child.initializer&&ts.isJsxExpression(child.initializer)&&child.initializer.expression&&ts.isArrowFunction(child.initializer.expression))submit=child.initializer.expression;if(ts.isJsxAttribute(child)&&child.name.getText(file)==='onChange'&&child.initializer&&ts.isJsxExpression(child.initializer)&&child.initializer.expression&&ts.isArrowFunction(child.initializer.expression))change=child.initializer.expression;if(ts.isJsxAttribute(child)&&child.name.getText(file)==='onActivityChange'&&child.initializer&&ts.isJsxExpression(child.initializer)&&child.initializer.expression)activityChange=child.initializer.expression;ts.forEachChild(child,form);};form(node);
   }
   ts.forEachChild(node,visit);
  }
- visit(file);if(!send||!runCommand||!retryOriginal||!submit||!change)throw Error('Expected actual PMS send/retry/Form callbacks.');
+ visit(file);if(!send||!runCommand||!retryOriginal||!submit||!change||!activityChange||!ownerAttachmentActivity)throw Error('Expected actual PMS send/retry/Form/owner attachment callbacks.');
  const browser=pmsReadBrowser(),base=owner==='front'?'/front/acme/acme-co':'/holdings/acme';
  const attempts={current:new Map<string,PmsWorkspaceCommandAttempt>()},readEpoch={current:0},pendingWrites={current:0};
  const commandSource:{current:PmsWorkspaceCommandSource|null}={current:null},formSource:{current:PmsWorkspaceCommandSource|null}={current:null},formEdits={current:0};
@@ -281,9 +285,10 @@ async function actualPmsWorkspaceSend(owner:PmsSendOwner,options:{holdRefresh?:b
  const collectLayouts=(node:import('typescript').Node)=>{if(ts.isCallExpression(node)&&ts.isIdentifier(node.expression)&&node.expression.text==='useLayoutEffect'&&node.arguments[0]&&ts.isArrowFunction(node.arguments[0]))layouts.push(node.arguments[0]);ts.forEachChild(node,collectLayouts);};collectLayouts(file);
  const setup=(name:'commandSource'|'formSource')=>{const effect=layouts.find(node=>node.getText(file).includes(name+'.current'));if(!effect)throw Error('Expected the actual PMS mounted source effect.');const ports={commandSource,formSource,base,propertyId:'original-hotel',section:'housekeeping',frontMode:owner==='front',choiceApi:`/api/v1${base}/pms`};const body=ts.transpileModule(`return (${effect.getText(file)})();`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;return new Function(...Object.keys(ports),body)(...Object.values(ports)) as ()=>void;};
  const disposeCommand=setup('commandSource'),disposeForm=setup('formSource');
- const setData=vi.fn((updated:{snapshot?:{property:{id:string}}})=>{if(options.reflectCreatedSource&&updated.snapshot&&commandSource.current){commandSource.current={...commandSource.current,propertyId:updated.snapshot.property.id};formSource.current={...formSource.current!,propertyId:updated.snapshot.property.id};}}),setCommandState=vi.fn(),setError=vi.fn(),setNotice=vi.fn(),router={push:vi.fn(),refresh:vi.fn()},events:string[]=[],completions:unknown[]=[];
+ const taskForm={isConnected:true};
+ const setData=vi.fn((updated:{snapshot?:{property:{id:string};records?:unknown[]}})=>{if(options.reflectCreatedSource&&updated.snapshot&&commandSource.current){commandSource.current={...commandSource.current,propertyId:updated.snapshot.property.id};formSource.current={...formSource.current!,propertyId:updated.snapshot.property.id};}if(options.taskCompletesOnRefresh&&taskForm)taskForm.isConnected=false;}),setCommandState=vi.fn(),setError=vi.fn(),setNotice=vi.fn(),router={push:vi.fn(),refresh:vi.fn()},events:string[]=[],completions:unknown[]=[];
  for(const name of ['erpx:record-command-saved','erpx:work-changed'])window.addEventListener(name,event=>{events.push(name);if(event instanceof CustomEvent)completions.push(event.detail);});
- const data={snapshot:{property:{id:'original-hotel',version:3}},permissions:['pms.housekeeping']};
+ const data={snapshot:{property:{id:'original-hotel',version:3},records:[]},permissions:['pms.housekeeping']};
  let entered!:()=>void,release!:()=>void;
  const started=new Promise<void>(resolve=>{entered=resolve;}),resumed=new Promise<void>(resolve=>{release=resolve;});
  class OriginalPmsCommandBody extends Response{override async json(){entered();await resumed;if(options.failFirstBody)throw Error("Original committed acknowledgement was lost.");return super.json();}}
@@ -303,24 +308,27 @@ async function actualPmsWorkspaceSend(owner:PmsSendOwner,options:{holdRefresh?:b
    return posts++===0?new OriginalPmsCommandBody(JSON.stringify(responseBody),{status:replyStatus,headers:{'content-type':'application/json'}}):Response.json(responseBody,{status:replyStatus});
   }
   if(options.failRefresh)throw Error('Connection lost during optional PMS refresh.');
-  const body={data:options.operation==='property.create'?{...data,snapshot:{property:{id:nativeCreateId,version:1}}}:data};
+  const body={data:options.operation==='property.create'?{...data,snapshot:{property:{id:nativeCreateId,version:1}}}:options.taskCompletesOnRefresh?{...data,snapshot:{...data.snapshot,records:[{kind:'task',id:'original-task',version:5,data:{state:'clean'}}]}}:data};
   return options.holdRefresh&&gets++===0?new OriginalPmsRefreshBody(JSON.stringify(body),{headers:{'content-type':'application/json'}}):Response.json(body);
  });vi.stubGlobal('fetch',fetcher);
  const reads=createLatestRead<unknown>();
  const bindings={workFetch,captureWorkCommandContext,capturePmsWorkspaceCommandContext,sendPmsWorkspaceCommand,pendingPmsWorkspaceCommand,setCommandState,commandSource,pmsPackageCommandAllowed,canonicalUiHref,displayCurrency:'THB',frontMode:owner==='front',base,erpBase:'/holdings/acme',propertyId:'original-hotel',data,attempts,readEpoch,pendingWrites,reads,language:'en',tr:(value:string)=>value,setError,setNotice,setData,router,nativeRouter:router,section:'housekeeping',listReadKey:JSON.stringify({view:'list',section:'housekeeping',page:'1'})};
  const emitted=ts.transpileModule(`const runCommand=(${runCommand.getText(file)});const send=(${send.getText(file)});const retryOriginal=(${retryOriginal.getText(file)});return {send,retryOriginal};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
- const callbacks=new Function(...Object.keys(bindings),emitted)(...Object.values(bindings)) as {send:(op:string,input:unknown,version?:number,attachmentSetIds?:string[],onAcknowledged?:()=>void,onEditableRejected?:()=>void)=>Promise<boolean>;retryOriginal:()=>Promise<boolean>},execute=callbacks.send;
- let draft='Original housekeeping note',editVersion='original-edit';
- const reset=vi.fn(()=>{draft='';}),form={isConnected:true,reset,getAttribute:(name:string)=>name==='data-erpx-edit-version'?editVersion:null},editingVersion={current:3 as number|undefined},setSuccess=vi.fn(),setBusy=vi.fn(),setRoomSets=vi.fn(),formError=vi.fn();
- class OwnerFormData extends FormData{constructor(){super();this.set('notes',draft);}}
+ const callbacks=new Function(...Object.keys(bindings),emitted)(...Object.values(bindings)) as {send:(op:string,input:unknown,version?:number,attachmentSetIds?:string[],onAcknowledged?:(refreshed:boolean)=>void,onEditableRejected?:()=>void)=>Promise<boolean>;retryOriginal:()=>Promise<boolean>},execute=callbacks.send;
+ let draft='Original housekeeping note',editVersion='original-edit',checkboxValues=(options.completionChecklist??[]).map(()=>false);
+ const reset=vi.fn(()=>{draft='';checkboxValues=checkboxValues.map(()=>false);}),form=Object.assign(taskForm,{reset,getAttribute:(name:string)=>name==='data-erpx-edit-version'?editVersion:null}),formElement=form,editingVersion={current:3 as number|undefined},completionAttachmentActivities={current:new Set<string>()},completionAttachments={current:new Map()},setCompletionAttachmentPending=vi.fn(),setSuccess=vi.fn(),setBusy=vi.fn(),setRoomSets=vi.fn(),formError=vi.fn(),captureCompletionDraft=vi.fn(),completionAcknowledged=vi.fn();
+ class OwnerFormData extends FormData{constructor(){super();this.set('notes',draft);checkboxValues.forEach((checked,index)=>{if(checked)this.set(`check_${index}`,'on');});}}
  Object.defineProperty(browser.doc,'activeElement',{value:{closest:()=>form}});
- const formBindings={capturePmsWorkspaceCommandContext,formSource,formEdits,FormData:OwnerFormData,setError:formError,setBusy,setSuccess,setRoomSets,hidden:{id:'original-task'},displayFields:[{name:'notes',type:'textarea'}],transform:undefined,op:options.operation??'task.complete',send:execute,editingVersion,version:3,roomSets:1,roomKeys:[],decimalToMinor:(value:string)=>Number(value)};
+ const taskCompletionAttachmentActivities={current:new Set<string>()},ownerActivityJs=ts.transpileModule(`return (${ownerAttachmentActivity.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,updateOwnerAttachmentActivity=new Function('base','propertyId','hidden','taskCompletionAttachmentActivities',ownerActivityJs)(base,'original-hotel',{id:'original-task'},taskCompletionAttachmentActivities) as (purposeKey:string,active:boolean)=>void;
+ const formBindings={capturePmsWorkspaceCommandContext,changedPmsTaskCompletionAttachments,formSource,formEdits,FormData:OwnerFormData,setError:formError,setBusy,setSuccess,setRoomSets,completionAttachmentActivities,completionAttachments,setCompletionAttachmentPending,attachment:{purposeKey:'room_photo'},onCompletionAttachmentActivity:updateOwnerAttachmentActivity,pending:false,hidden:{id:'original-task'},displayFields:[...(options.completionChecklist??[]).map((label,index)=>({name:`check_${index}`,label,type:'checkbox'})),{name:'notes',type:'textarea'}],transform:undefined,op:options.operation??'task.complete',send:execute,editingVersion,version:3,roomSets:1,roomKeys:[],decimalToMinor:(value:string)=>Number(value),onCompletionDraft:captureCompletionDraft,onCompletionAcknowledged:completionAcknowledged};
  const formJs=ts.transpileModule(`return (${submit.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const changeJs=ts.transpileModule(`return (${change.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const activityChangeJs=ts.transpileModule(`return (${activityChange.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  let onChange=new Function(...Object.keys(formBindings),changeJs)(...Object.values(formBindings)) as ()=>void;
  let onSubmit=new Function(...Object.keys(formBindings),formJs)(...Object.values(formBindings)) as (event:{preventDefault:()=>void;currentTarget:typeof form})=>Promise<void>;
  return {browser,attempts,readEpoch,pendingWrites,setCommandState,retry:callbacks.retryOriginal,execute,dispose:()=>{disposeCommand();disposeForm();readEpoch.current++;form.isConnected=false;},reads,setData,setError,setNotice,router,events,completions,fetcher,started,release,readStarted,readRelease,reset,form,editingVersion,setSuccess,formError,
-  ownerVersion:(version:number)=>{data.snapshot.property.version=version;formBindings.version=version;onChange=new Function(...Object.keys(formBindings),changeJs)(...Object.values(formBindings));onSubmit=new Function(...Object.keys(formBindings),formJs)(...Object.values(formBindings));},submit:()=>onSubmit({preventDefault:vi.fn(),currentTarget:form}),draft:()=>draft,edit:(value:string)=>{if(value===draft)return;draft=value;editVersion='later-edit';onChange();},nativeCreateId:()=>nativeCreateId,nativeCreateReceipt:()=>{useNativeCreateReceipt=true;},body:(value:unknown)=>{useNativeCreateReceipt=false;nextBody=value;},response:(status:number,value:unknown)=>{replyStatus=status;nextBody=value;},
+  ownerAttachmentActivities:taskCompletionAttachmentActivities,ownerAttachmentActivity:updateOwnerAttachmentActivity,
+  ownerVersion:(version:number)=>{data.snapshot.property.version=version;formBindings.version=version;onChange=new Function(...Object.keys(formBindings),changeJs)(...Object.values(formBindings));onSubmit=new Function(...Object.keys(formBindings),formJs)(...Object.values(formBindings));},submit:()=>onSubmit({preventDefault:vi.fn(),currentTarget:formElement}),setAttachmentActivity:(active:boolean,purposeKey='room_photo')=>{const bindings={...formBindings,attachment:{purposeKey}},callback=new Function(...Object.keys(bindings),activityChangeJs)(...Object.values(bindings)) as ((active:boolean)=>void)|undefined;callback?.(active);},attachmentPending:()=>completionAttachmentActivities.current.size>0,setPending:(value:boolean)=>{formBindings.pending=value;onSubmit=new Function(...Object.keys(formBindings),formJs)(...Object.values(formBindings));},draft:()=>draft,edit:(value:string)=>{if(value===draft)return;draft=value;editVersion='later-edit';onChange();},editCompletion:(values:{checklist:boolean[];notes:string})=>{draft=values.notes;checkboxValues=values.checklist;editVersion='later-edit';onChange();},nativeCreateId:()=>nativeCreateId,nativeCreateReceipt:()=>{useNativeCreateReceipt=true;},body:(value:unknown)=>{useNativeCreateReceipt=false;nextBody=value;},response:(status:number,value:unknown)=>{replyStatus=status;nextBody=value;},captureCompletionDraft,completionAcknowledged,
  };
 }
 it.each((['front','backoffice'] as const).flatMap(owner=>(['revision','stale','Front location','disposed'] as const).map(kind=>[owner,kind] as const)))('actual %s PMS send preserves its form and pending key after a late %s during the original command body',async(owner,kind)=>{
@@ -343,6 +351,97 @@ it.each(['front','backoffice'] as const)('actual %s PMS exact retry reuses the c
 it.each(['front','backoffice'] as const)('actual %s PMS Form preserves notes edited while the submitted body is decoding',async owner=>{
  const f=await actualPmsWorkspaceSend(owner),pending=f.submit();
  try{await f.started;f.edit('Later housekeeping note');f.release();await pending;expect(f.draft()).toBe('Later housekeeping note');expect(f.reset).not.toHaveBeenCalled();expect(f.events).toEqual(['erpx:record-command-saved','erpx:work-changed']);expect(f.attempts.current.size).toBe(0);}finally{f.release();f.reads.cancel();}
+});
+it.each(['front','backoffice'] as const)('actual %s PMS task completion retains newer checklist and notes through a successful clean refresh as a local draft',async owner=>{
+ const checklist=['Wiped surfaces','Restocked towels'],latest={checklist:[true,false],notes:'Found a loose hinge'};
+ const f=await actualPmsWorkspaceSend(owner,{holdRefresh:true,completionChecklist:checklist,taskCompletesOnRefresh:true}),pending=f.submit();
+ try{
+  await f.started;const originalAttempt=f.attempts.current.values().next().value;if(!originalAttempt)throw Error('Expected the original task completion attempt.');f.release();await f.readStarted;f.editCompletion(latest);f.readRelease();await pending;
+  expect(f.captureCompletionDraft).toHaveBeenCalledTimes(1);expect(f.captureCompletionDraft).toHaveBeenCalledWith({checklist:[{label:checklist[0],checked:true},{label:checklist[1],checked:false}],notes:latest.notes,attachments:[]});
+  expect(f.completionAcknowledged).toHaveBeenCalledOnce();
+  expect(f.captureCompletionDraft.mock.invocationCallOrder[0]).toBeLessThan(f.setData.mock.invocationCallOrder[0]);
+  expect(f.setData).toHaveBeenCalledOnce();expect(f.setData.mock.calls[0][0].snapshot?.records).toEqual([{kind:'task',id:'original-task',version:5,data:{state:'clean'}}]);
+  expect(f.form.isConnected).toBe(false);expect(f.reset).not.toHaveBeenCalled();expect(f.attempts.current.size).toBe(0);
+  const posts=f.fetcher.mock.calls.filter(([,init])=>init?.method==='POST');expect(posts).toHaveLength(1);expect(posts[0][1]?.body).toBe(originalAttempt.body);expect(new Headers(posts[0][1]?.headers).get('Idempotency-Key')).toBe(originalAttempt.key);
+ }finally{f.release();f.readRelease();f.reads.cancel();}
+});
+it.each(['front','backoffice'] as const)('actual %s PMS task completion blocks while an attachment set is being created or uploaded',async owner=>{
+ const f=await actualPmsWorkspaceSend(owner);f.setAttachmentActivity(true,'room_photo');f.setAttachmentActivity(true,'damage_photo');f.setAttachmentActivity(false,'room_photo');
+ try{
+  expect(f.attachmentPending()).toBe(true);await f.submit();expect(f.fetcher).not.toHaveBeenCalled();expect(f.formError).toHaveBeenCalledWith('Wait for attachment setup or upload to finish before completing this task.');expect(f.attempts.current.size).toBe(0);
+  f.setAttachmentActivity(false,'damage_photo');expect(f.attachmentPending()).toBe(false);const pending=f.submit();await f.started;f.release();await pending;expect(f.fetcher).toHaveBeenCalledTimes(2);expect(f.reset).toHaveBeenCalledOnce();
+ }finally{f.release();f.reads.cancel();}
+});
+it.each(['front','backoffice'] as const)('actual %s PMS task form blocks a second submission while any original command is unresolved',async owner=>{
+ const f=await actualPmsWorkspaceSend(owner);f.setPending(true);
+ try{
+  await f.submit();expect(f.fetcher).not.toHaveBeenCalled();expect(f.attempts.current.size).toBe(0);expect(f.formError).toHaveBeenCalledWith('Resolve the pending command before completing another task.');
+  f.setPending(false);const pending=f.submit();await f.started;f.release();await pending;expect(f.fetcher).toHaveBeenCalledTimes(2);
+ }finally{f.release();f.reads.cancel();}
+});
+it.each(['front','backoffice'] as const)('actual %s PMS task completion reuses its exact request and preserves later edits after retry acknowledgement',async owner=>{
+ const latest={checklist:[true,false],notes:'Retained while the result was unknown'},f=await actualPmsWorkspaceSend(owner,{failFirstBody:true,completionChecklist:['Wiped surfaces','Restocked towels']}),first=f.submit();
+ try{
+  await f.started;f.setPending(true);f.editCompletion(latest);f.release();await first;expect(f.attempts.current.size).toBe(1);const original=f.fetcher.mock.calls.find(([,init])=>init?.method==='POST')?.[1];
+  await f.submit();expect(f.fetcher.mock.calls.filter(([,init])=>init?.method==='POST')).toHaveLength(1);expect(await f.retry()).toBe(true);
+  const posts=f.fetcher.mock.calls.filter(([,init])=>init?.method==='POST');expect(posts).toHaveLength(2);expect(posts[1][1]?.body).toBe(original?.body);expect(new Headers(posts[1][1]?.headers).get('Idempotency-Key')).toBe(new Headers(original?.headers).get('Idempotency-Key'));expect(f.completionAcknowledged).toHaveBeenCalledOnce();expect(f.captureCompletionDraft).toHaveBeenCalledTimes(1);expect(f.captureCompletionDraft).toHaveBeenCalledWith({checklist:[{label:'Wiped surfaces',checked:true},{label:'Restocked towels',checked:false}],notes:latest.notes,attachments:[]});expect(f.attempts.current.size).toBe(0);
+ }finally{f.release();f.reads.cancel();}
+});
+it('renders completion drafts with the captured values and explicit keep-editing/discard controls, without a submit form',()=>{
+ const html=renderToStaticMarkup(React.createElement(TaskCompletionDrafts,{drafts:[{key:'draft',base:'/front/acme/acme-co',attachmentBase:'/front/acme/acme-co/pms',propertyId:'original-hotel',taskId:'original-task',taskLabel:'Mark task complete',checklist:[{label:'Wiped surfaces',checked:true},{label:'Restocked towels',checked:false}],notes:'Found a loose hinge',attachments:[{purposeKey:'room_photo',setId:'attachment-set',readyCount:1,requiredCount:0,bindable:true,links:[{id:'attachment-link',filename:'room-after.jpg',mediaType:'image/jpeg',bytes:1024,sourceState:'available',linkState:'draft',caption:null,previewAvailable:true}]}],editing:false}],onUpdate:vi.fn(),onDiscard:vi.fn()}));
+ expect(html).toContain('Local reference · Later changes were not submitted');expect(html).toContain('data-work-dirty="false"');expect(html).toContain('Wiped surfaces');expect(html).toContain('Restocked towels');expect(html).toContain('Found a loose hinge');expect(html).toContain('room-after.jpg');expect(html).toContain('attachment-set');expect(html).toContain('attachment-link');expect(html).toContain('/api/v1/front/acme/acme-co/pms/attachment-links/attachment-link/content');expect(html).toContain('Open sanitized preview');expect(html).toContain('Download private original');expect(html).toContain('Copy local reference');
+ expect(html).toContain('checked=""');expect(html).toContain('disabled=""');expect(html).toContain('Keep editing');expect(html).toContain('Discard draft');expect(html).not.toContain('<form');expect(html.match(/type="button"/g)).toHaveLength(3);
+});
+it.each(['front','backoffice'] as const)('actual %s housekeeping owner exposes retained completion drafts through its rendered screen',async owner=>{
+ const ts=await import('typescript'),{readFile}=await import('node:fs/promises');
+ const ownerSource=await readPmsOwnerSource(owner==='front'?actualPmsFrontSource:actualPmsBackofficeSource);
+ const screenPath=owner==='front'?'../../../src/components/pms/pms-front-housekeeping-screen.tsx':'../../../src/components/pms/pms-backoffice-rooms-housekeeping-screen.tsx';
+ const screenSource=await readFile(new URL(screenPath,import.meta.url),'utf8'),screen=ts.createSourceFile('actual-pms-housekeeping-screen.tsx',screenSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ const rendered:import('typescript').JsxSelfClosingElement[]=[];
+ const visit=(node:import('typescript').Node)=>{if(ts.isJsxSelfClosingElement(node)&&node.tagName.getText(screen)==='TaskCompletionDrafts')rendered.push(node);ts.forEachChild(node,visit);};visit(screen);
+ expect(rendered).toHaveLength(1);
+ const props=Object.fromEntries(rendered[0].attributes.properties.filter(ts.isJsxAttribute).map(attribute=>[
+  attribute.name.getText(screen),attribute.initializer&&ts.isJsxExpression(attribute.initializer)?attribute.initializer.expression?.getText(screen):undefined,
+ ]));
+ expect(props).toMatchObject({drafts:'taskCompletionDrafts'});
+ expect(props.onUpdate).toBe(owner==='front'?'onUpdateTaskCompletionDraft':'updateTaskCompletionDraft');
+ expect(props.onDiscard).toBe(owner==='front'?'onDiscardTaskCompletionDraft':'discardTaskCompletionDraft');
+ if(owner==='front'){
+  expect(ownerSource).toContain('taskCompletionDrafts={visibleTaskCompletionDrafts}');
+  expect(ownerSource).toContain('onUpdateTaskCompletionDraft={updateTaskCompletionDraft}');
+  expect(ownerSource).toContain('onDiscardTaskCompletionDraft={discardTaskCompletionDraft}');
+  expect(ownerSource).toContain('section === "housekeeping" && <FrontPmsDailyHousekeepingScreen context={context}/>');
+ }else{
+  expect(ownerSource).toContain('taskCompletionDrafts:visibleTaskCompletionDrafts');
+  expect(ownerSource).toContain('updateTaskCompletionDraft, discardTaskCompletionDraft');
+  expect(ownerSource).toContain('<BackofficePmsWorkspaceRoomsHousekeepingScreen context={context}/>');
+ }
+});
+it.each(['front','backoffice'] as const)('actual %s PMS retains the mapped attachment API base in a completion draft',async owner=>{
+ const ts=await import('typescript'),source=await readPmsOwnerSource(owner==='front'?actualPmsFrontSource:actualPmsBackofficeSource),file=ts.createSourceFile('actual-pms-completion-base.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let mapBase:import('typescript').ArrowFunction|undefined,capture:import('typescript').ArrowFunction|undefined;
+ const visit=(node:import('typescript').Node)=>{if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='pmsFileBase'&&node.initializer&&ts.isArrowFunction(node.initializer))mapBase=node.initializer;if(ts.isJsxAttribute(node)&&node.name.getText(file)==='onCompletionDraft'&&node.initializer&&ts.isJsxExpression(node.initializer)&&node.initializer.expression){const find=(child:import('typescript').Node)=>{if(ts.isArrowFunction(child)&&child.parameters[0]?.name.getText(file)==='values'&&child.getText(file).includes('attachmentBase:'))capture=child;ts.forEachChild(child,find);};find(node.initializer.expression);}ts.forEachChild(node,visit);};visit(file);
+ if(!mapBase||!capture)throw Error('The actual PMS completion-draft mapper and capture callback are required.');
+ const mapBaseJs=ts.transpileModule(`return (${mapBase.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,mapBasePort=new Function(mapBaseJs)() as (base:string)=>string,base=owner==='front'?'/front/acme/acme-co':'/holdings/acme',attachments=[{base}],choiceApi=`/api/v1${base}/pms`,hidden={id:'original-task'};let drafts:Record<string,Record<string,unknown>>={};
+ const setTaskCompletionDrafts=(update:(current:Record<string,Record<string,unknown>>)=>Record<string,Record<string,unknown>>)=>{drafts=update(drafts);};
+ const captureDraftJs=ts.transpileModule(`return (${capture!.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,captureDraft=new Function('hidden','propertyId','base','attachments','choiceApi','setTaskCompletionDrafts','title','pmsFileBase',captureDraftJs)(hidden,'original-hotel',base,attachments,choiceApi,setTaskCompletionDrafts,'Mark task complete',mapBasePort) as (values:unknown)=>void;
+ captureDraft({checklist:[],notes:'Later note',attachments:[]});const saved=drafts[JSON.stringify([base,'original-hotel','original-task'])];
+ expect(saved?.attachmentBase).toBe(owner==='front'?'/front/acme/acme-co/pms':'/holdings/acme');
+ expect(attachmentContentUrl(String(saved?.attachmentBase),'attachment-link','preview')).toContain(owner==='front'?'/api/v1/front/acme/acme-co/pms/attachment-links/attachment-link/content':'/api/v1/holdings/acme/attachment-links/attachment-link/content');
+});
+it('retains only attachment states changed after the original completion request by purpose',()=>{
+ const submitted=new Map([['room_photo',{purposeKey:'room_photo',setId:'original-set',readyCount:1,requiredCount:0,bindable:true,links:[{id:'old-link',filename:'before.jpg',mediaType:'image/jpeg',bytes:10,sourceState:'available',linkState:'draft',caption:null,previewAvailable:true}]}]]);
+ const current=new Map([['room_photo',{purposeKey:'room_photo',setId:'original-set',readyCount:2,requiredCount:0,bindable:true,links:[{id:'old-link',filename:'before.jpg',mediaType:'image/jpeg',bytes:10,sourceState:'available',linkState:'draft',caption:null,previewAvailable:true},{id:'new-link',filename:'after.jpg',mediaType:'image/jpeg',bytes:20,sourceState:'available',linkState:'draft',caption:null,previewAvailable:true}]}],['damage_photo',{purposeKey:'damage_photo',setId:'damage-set',readyCount:0,requiredCount:0,bindable:true,links:[]}]]);
+ expect(changedPmsTaskCompletionAttachments(submitted,current)).toEqual([current.get('room_photo'),current.get('damage_photo')]);
+});
+it.each(['front','backoffice'] as const)('actual %s PMS task completion keeps later edits after the acknowledged command when its optional refresh fails',async owner=>{
+ const checklist=['Wiped surfaces','Restocked towels'],latest={checklist:[true,false],notes:'Found a loose hinge'},f=await actualPmsWorkspaceSend(owner,{failRefresh:true,completionChecklist:checklist}),pending=f.submit();
+ try{
+  await f.started;const originalAttempt=f.attempts.current.values().next().value;if(!originalAttempt)throw Error('Expected the original task completion attempt.');f.editCompletion(latest);f.release();await pending;
+  expect(f.completionAcknowledged).toHaveBeenCalledOnce();
+  expect(f.captureCompletionDraft).toHaveBeenCalledTimes(1);expect(f.captureCompletionDraft).toHaveBeenCalledWith({checklist:[{label:checklist[0],checked:true},{label:checklist[1],checked:false}],notes:latest.notes,attachments:[]});
+  expect(f.setData).not.toHaveBeenCalled();expect(f.form.isConnected).toBe(true);expect(f.draft()).toBe(latest.notes);expect(f.reset).not.toHaveBeenCalled();expect(f.attempts.current.size).toBe(0);
+  const post=f.fetcher.mock.calls.find(([,init])=>init?.method==='POST');expect(post?.[1]?.body).toBe(originalAttempt.body);expect(new Headers(post?.[1]?.headers).get('Idempotency-Key')).toBe(originalAttempt.key);
+ }finally{f.release();f.reads.cancel();}
 });
 it.each(['front','backoffice'] as const)('actual %s PMS send refuses a successful malformed receipt without acknowledging the submitted form',async owner=>{
  const f=await actualPmsWorkspaceSend(owner);f.body({data:{}});const pending=f.submit();
@@ -488,7 +587,7 @@ it('actual Backoffice creation retains a wrong Property acknowledgement and reco
 });
 
 import {installPmsPendingNavigation,pmsPendingDepartureAllowed,samePmsCommandView} from '../../../src/lib/pms/pending-navigation';
-import {hasUnsavedWork,confirmContextSwitch} from '../../../src/lib/work_projection/context-switch';
+import {hasUnsavedWork,confirmContextSwitch,contextSwitchBlockReason} from '../../../src/lib/work_projection/context-switch';
 import {destinationHref} from '../../../src/lib/shared/destination-router';
 import {isProductHandoffHref} from '../../../src/lib/work_projection/product-navigation';
 
@@ -497,17 +596,27 @@ import {isProductHandoffHref} from '../../../src/lib/work_projection/product-nav
 async function actualPmsLifetimeMount(owner:PmsSendOwner,f:Awaited<ReturnType<typeof actualPmsWorkspaceSend>>){
  const {readFile}=await import('node:fs/promises'),ts=await import('typescript');
  const source=await readPmsOwnerSource(owner==='front'?actualPmsFrontSource:actualPmsBackofficeSource),file=ts.createSourceFile('actual-owner-lifetime.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
- let pending:import('typescript').ArrowFunction|undefined;
- const visit=(node:import('typescript').Node)=>{if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='hasPendingCommand'&&node.initializer&&ts.isCallExpression(node.initializer)&&node.initializer.arguments[0]&&ts.isArrowFunction(node.initializer.arguments[0]))pending=node.initializer.arguments[0];ts.forEachChild(node,visit);};visit(file);
- if(!pending)throw Error('The actual owner pending lifetime callback is required.');
+ let pending:import('typescript').ArrowFunction|undefined,localDraftPending:import('typescript').ArrowFunction|undefined;
+ const visit=(node:import('typescript').Node)=>{if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.initializer&&ts.isCallExpression(node.initializer)&&node.initializer.arguments[0]&&ts.isArrowFunction(node.initializer.arguments[0])){if(node.name.text==='hasPendingCommand')pending=node.initializer.arguments[0];if(node.name.text==='hasLocalTaskCompletionDraft')localDraftPending=node.initializer.arguments[0];}ts.forEachChild(node,visit);};visit(file);
+ if(!pending||!localDraftPending)throw Error('The actual owner pending and local-draft lifetime callbacks are required.');
  const pendingJs=ts.transpileModule(`return (${pending.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const isPending=new Function('attempts','pendingWrites',pendingJs)(f.attempts,f.pendingWrites) as ()=>boolean;
+ const draftCount={current:0},localDraftPendingJs=ts.transpileModule(`return (${localDraftPending.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const isLocalDraftPending=new Function('taskCompletionDraftCount','taskCompletionAttachmentActivities',localDraftPendingJs)(draftCount,f.ownerAttachmentActivities) as ()=>boolean;
  const text=await readFile(new URL('../../../src/components/pms/pending-command-navigation.tsx',import.meta.url),'utf8'),hookFile=ts.createSourceFile('actual-lifetime-hook.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),hook=hookFile.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='usePmsPendingNavigation');
  if(!hook)throw Error('The actual owner navigation hook is required.');
  const cleanups:(()=>void)[]=[],router={...f.router,replace:vi.fn()},ports={useCallback:(callback:unknown)=>callback,useMemo:(create:()=>unknown)=>create(),useLayoutEffect:(commit:()=>()=>void)=>{cleanups.push(commit());},useProductNavigationScope:()=>({audience:null}),destinationHref,isProductHandoffHref,installPmsPendingNavigation,pmsPendingDepartureAllowed};
  const js=ts.transpileModule(hook.getText(hookFile),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
- const guarded=new Function('exports',...Object.keys(ports),js+';return usePmsPendingNavigation;')({},...Object.values(ports))(router,isPending,'en') as {push:(href:string)=>void;replace:(href:string)=>void};
- return {guarded,router,isPending,cleanup:()=>{cleanups.splice(0).forEach(cleanup=>cleanup());}};
+ const guarded=new Function('exports',...Object.keys(ports),js+';return usePmsPendingNavigation;')({},...Object.values(ports))(router,isPending,'en',isLocalDraftPending) as {push:(href:string)=>void;replace:(href:string)=>void};
+ return {guarded,router,isPending,isLocalDraftPending,draftCount,discardDraft:()=>{draftCount.current=0;},cleanup:()=>{cleanups.splice(0).forEach(cleanup=>cleanup());}};
+}
+async function actualAttachmentPanelSetActivity(retryUploads:{current:Map<string,unknown>},onActivityChange:(active:boolean)=>void){
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../src/components/files/attachment-panel.tsx',import.meta.url),'utf8'),file=ts.createSourceFile('actual-attachment-panel.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ let callback:import('typescript').ArrowFunction|undefined;
+ const visit=(node:import('typescript').Node)=>{if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='setActivity'&&node.initializer&&ts.isCallExpression(node.initializer)&&node.initializer.arguments[0]&&ts.isArrowFunction(node.initializer.arguments[0]))callback=node.initializer.arguments[0];ts.forEachChild(node,visit);};visit(file);
+ if(!callback)throw Error('The actual AttachmentPanel activity callback is required.');
+ const emitted=ts.transpileModule(`return (${callback.getText(file)});`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,busyRef={current:false},mounted={current:true},setBusy=vi.fn();
+ return new Function('busyRef','mounted','setBusy','onActivityChange','retryUploads',emitted)(busyRef,mounted,setBusy,onActivityChange,retryUploads) as (active:boolean)=>void;
 }
 function pmsLifetimeBrowser(f:Awaited<ReturnType<typeof actualPmsWorkspaceSend>>,withNavigation=true){
  const url=new URL('https://pms-dev-erpx.jesadakorn.com/acme/acme-co/holding/housekeeping?property=original-hotel&page=1');
@@ -534,6 +643,8 @@ it.each(['front','backoffice'] as const)('actual %s zero-field PMS task retains 
  const first=f.execute('task.start',{id:'original-task'},3);
  try{
   await f.started;expect(f.pendingWrites.current).toBe(1);expect(hasUnsavedWork()).toBe(true);expect(confirmContextSwitch()).toBe(false);
+  expect(contextSwitchBlockReason()).toBe('Resolve the original hotel command before changing company, account, or role.');
+  browser.confirm.mockReturnValue(true);expect(confirmContextSwitch()).toBe(false);expect(browser.confirm).not.toHaveBeenCalled();browser.confirm.mockReturnValue(false);
   expect(f.reset).not.toHaveBeenCalled();expect(f.draft()).toBe('Original housekeeping note');
   const unload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(unload);expect(unload.defaultPrevented).toBe(true);
   mounted.guarded.push('?property=another-hotel');mounted.guarded.replace('?property=original-hotel&page=2');expect(mounted.router.push).not.toHaveBeenCalled();expect(mounted.router.replace).not.toHaveBeenCalled();
@@ -542,7 +653,7 @@ it.each(['front','backoffice'] as const)('actual %s zero-field PMS task retains 
   // Work source changes; no editable field/onChange was involved.
   f.browser.work.dataset.workRevision='8';const original=f.fetcher.mock.calls[0][1];f.release();await first;
   expect(f.pendingWrites.current).toBe(0);expect(f.attempts.current.size).toBe(1);expect(hasUnsavedWork()).toBe(true);expect(f.events).toEqual([]);
-  f.browser.work.dataset.workRevision='7';expect(await f.retry()).toBe(true);expect(hasUnsavedWork()).toBe(false);
+  f.browser.work.dataset.workRevision='7';expect(await f.retry()).toBe(true);expect(hasUnsavedWork()).toBe(false);expect(contextSwitchBlockReason()).toBeNull();
   const posts=f.fetcher.mock.calls.filter(([,init])=>init?.method==='POST');expect(posts).toHaveLength(2);expect(posts[1][1]?.body).toBe(original?.body);expect(new Headers(posts[1][1]?.headers).get('Idempotency-Key')).toBe(new Headers(original?.headers).get('Idempotency-Key'));
   mounted.guarded.push('?property=another-hotel');expect(mounted.router.push).toHaveBeenCalledExactlyOnceWith('?property=another-hotel',undefined);expect(browser.history.pushState).not.toHaveBeenCalled();expect(browser.history.replaceState).not.toHaveBeenCalled();expect(browser.history.go).not.toHaveBeenCalled();
  }finally{mounted.cleanup();f.release();f.reads.cancel();}
@@ -558,8 +669,35 @@ it.each(['front','backoffice'] as const)('actual %s pending PMS navigation keeps
   expect(browser.click('/acme/acme-co/holding/housekeeping/records/pms_record/original-task/overview?property=original-hotel&page=1').defaultPrevented).toBe(false);
   expect(browser.click('?page=1&property=original-hotel#original-task').defaultPrevented).toBe(false);expect(browser.confirm).not.toHaveBeenCalled();
   expect(browser.click('?property=another-hotel&page=1&detailKind=pms_entry&detailId=original-entry').defaultPrevented).toBe(true);
-  browser.confirm.mockReturnValue(true);expect(browser.click('/acme/acme-co/holding/cashier?property=original-hotel').defaultPrevented).toBe(false);expect(f.attempts.current.size).toBe(1);expect(f.events).toEqual([]);
+  browser.confirm.mockReturnValue(true);browser.confirm.mockClear();expect(browser.click('/acme/acme-co/holding/cashier?property=original-hotel').defaultPrevented).toBe(true);expect(browser.confirm).not.toHaveBeenCalled();expect(f.attempts.current.size).toBe(1);expect(f.events).toEqual([]);
  }finally{mounted.cleanup();f.release();await first;f.reads.cancel();}
+});
+it.each(['front','backoffice'] as const)('actual %s visible task-completion draft blocks same-view departure until explicitly discarded',async owner=>{
+ const f=await actualPmsWorkspaceSend(owner),browser=pmsLifetimeBrowser(f),mounted=await actualPmsLifetimeMount(owner,f),sameView='?property=original-hotel&page=2';
+ try{
+  mounted.draftCount.current=1;
+  expect(mounted.isPending()).toBe(false);expect(mounted.isLocalDraftPending()).toBe(true);expect(hasUnsavedWork()).toBe(true);expect(confirmContextSwitch()).toBe(false);browser.confirm.mockClear();
+  const activeDraftUnload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(activeDraftUnload);expect(activeDraftUnload.defaultPrevented).toBe(true);
+  mounted.guarded.push(sameView);expect(mounted.router.push).not.toHaveBeenCalled();expect(browser.confirm).toHaveBeenCalledExactlyOnceWith('The task-completion draft or attachment retry file may be lost if you leave this view. Leave this view?');
+  expect(browser.click(sameView).defaultPrevented).toBe(true);expect(mounted.router.push).not.toHaveBeenCalled();expect(browser.confirm).toHaveBeenCalledTimes(2);
+  mounted.discardDraft();expect(mounted.isLocalDraftPending()).toBe(false);expect(hasUnsavedWork()).toBe(false);
+  const discardedDraftUnload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(discardedDraftUnload);expect(discardedDraftUnload.defaultPrevented).toBe(false);
+  mounted.guarded.push(sameView);expect(mounted.router.push).toHaveBeenCalledExactlyOnceWith(sameView,undefined);expect(browser.confirm).toHaveBeenCalledTimes(2);
+ }finally{mounted.cleanup();}
+});
+it.each(['front','backoffice'] as const)('actual %s PMS blocks navigation while an attachment upload or retained retry File is active',async owner=>{
+ const f=await actualPmsWorkspaceSend(owner),browser=pmsLifetimeBrowser(f),mounted=await actualPmsLifetimeMount(owner,f),retryFiles={current:new Map<string,unknown>()},setActivity=await actualAttachmentPanelSetActivity(retryFiles,active=>f.setAttachmentActivity(active,'room_photo')),sameView='?property=original-hotel&page=2';
+ try{
+  setActivity(true);expect(f.attachmentPending()).toBe(true);expect(f.ownerAttachmentActivities.current.size).toBe(1);expect(mounted.isLocalDraftPending()).toBe(true);expect(hasUnsavedWork()).toBe(true);
+  const uploadingUnload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(uploadingUnload);expect(uploadingUnload.defaultPrevented).toBe(true);
+  mounted.guarded.push(sameView);expect(mounted.router.push).not.toHaveBeenCalled();expect(browser.confirm).toHaveBeenCalledExactlyOnceWith('The task-completion draft or attachment retry file may be lost if you leave this view. Leave this view?');
+  expect(browser.click(sameView).defaultPrevented).toBe(true);expect(mounted.router.push).not.toHaveBeenCalled();
+  // AttachmentPanel's finally reports active=false after an upload error, but
+  // its retry map still owns the File; that local work must continue to guard.
+  retryFiles.current.set('failed-link',{file:'in-memory-file'});setActivity(false);expect(f.attachmentPending()).toBe(true);expect(mounted.isLocalDraftPending()).toBe(true);
+  retryFiles.current.clear();setActivity(false);expect(f.attachmentPending()).toBe(false);expect(mounted.isLocalDraftPending()).toBe(false);expect(hasUnsavedWork()).toBe(false);
+  const resolvedUnload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(resolvedUnload);expect(resolvedUnload.defaultPrevented).toBe(false);browser.confirm.mockClear();mounted.guarded.push(sameView);expect(mounted.router.push).toHaveBeenCalledExactlyOnceWith(sameView,undefined);expect(browser.confirm).not.toHaveBeenCalled();
+ }finally{mounted.cleanup();f.reads.cancel();}
 });
 it('PMS traversal cancellation uses only native cancelable same-document events and leaves unsupported fallback history untouched',async()=>{
  const f=await actualPmsWorkspaceSend('front'),browser=pmsLifetimeBrowser(f),mounted=await actualPmsLifetimeMount('front',f),first=f.execute('task.start',{id:'original-task'},3);
@@ -569,9 +707,9 @@ it('PMS traversal cancellation uses only native cancelable same-document events 
   expect(browser.traverse('?property=another-hotel',{cancelable:false}).defaultPrevented).toBe(false);
   expect(browser.traverse('?property=another-hotel',{sameDocument:false}).defaultPrevented).toBe(false);
   expect(browser.traverse('?property=another-hotel',{navigationType:'push'}).defaultPrevented).toBe(false);
-  expect(browser.confirm).toHaveBeenCalledTimes(1);
+  expect(browser.confirm).not.toHaveBeenCalled();
   const state={nativeNextState:'untouched'};Object.assign(window.history,{state});window.dispatchEvent(new Event('popstate'));expect(window.history.state).toBe(state);expect(browser.history.pushState).not.toHaveBeenCalled();expect(browser.history.replaceState).not.toHaveBeenCalled();expect(browser.history.go).not.toHaveBeenCalled();
-  mounted.cleanup();expect(hasUnsavedWork()).toBe(false);expect(browser.traverse('?property=another-hotel').defaultPrevented).toBe(false);const unloaded=new Event('beforeunload',{cancelable:true});window.dispatchEvent(unloaded);expect(unloaded.defaultPrevented).toBe(false);
+  mounted.cleanup();expect(hasUnsavedWork()).toBe(false);expect(contextSwitchBlockReason()).toBeNull();expect(browser.traverse('?property=another-hotel').defaultPrevented).toBe(false);const unloaded=new Event('beforeunload',{cancelable:true});window.dispatchEvent(unloaded);expect(unloaded.defaultPrevented).toBe(false);
  }finally{mounted.cleanup();f.release();await first;f.reads.cancel();}
 });
 it('PMS without Navigation API retains native full-document departure protection but does not pretend popstate can be cancelled',async()=>{
@@ -589,7 +727,7 @@ it('PMS record view identity keeps business filters, query multiplicity and prop
 });
 it.each(['front','backoffice'] as const)('actual %s first proven PMS validation rejection ends the pending lifetime without changing unsent fields',async owner=>{
  const f=await actualPmsWorkspaceSend(owner);f.response(422,{error:{code:'VALIDATION_FAILED',message:'Review the original task source.'}});const browser=pmsLifetimeBrowser(f),mounted=await actualPmsLifetimeMount(owner,f),first=f.execute('task.start',{id:'original-task'},3);
- try{await f.started;expect(hasUnsavedWork()).toBe(true);f.release();await first;expect(f.attempts.current.size).toBe(0);expect(hasUnsavedWork()).toBe(false);expect(f.reset).not.toHaveBeenCalled();expect(f.draft()).toBe('Original housekeeping note');expect(f.events).toEqual([]);expect(browser.click('?property=another-hotel').defaultPrevented).toBe(false);expect(browser.confirm).not.toHaveBeenCalled();}finally{mounted.cleanup();f.release();f.reads.cancel();}
+ try{await f.started;expect(hasUnsavedWork()).toBe(true);expect(contextSwitchBlockReason()).toContain('Resolve the original hotel command');f.release();await first;expect(f.attempts.current.size).toBe(0);expect(hasUnsavedWork()).toBe(false);expect(contextSwitchBlockReason()).toBeNull();expect(f.reset).not.toHaveBeenCalled();expect(f.draft()).toBe('Original housekeeping note');expect(f.events).toEqual([]);expect(browser.click('?property=another-hotel').defaultPrevented).toBe(false);expect(browser.confirm).not.toHaveBeenCalled();}finally{mounted.cleanup();f.release();f.reads.cancel();}
 });
 
 // Closed setup queue ports exercise the real queue and original PMS engine.

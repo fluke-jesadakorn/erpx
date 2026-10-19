@@ -14,6 +14,114 @@
       "project": "mobile"
     },
     {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
+      "title": "isolated demo independently reviews and merges duplicate customers",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
+      "title": "isolated demo independently reviews and merges duplicate customers",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-chart-setup.spec.ts",
+      "title": "isolated demo renders real chart and account setup controls",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-chart-setup.spec.ts",
+      "title": "isolated demo renders real chart and account setup controls",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-aging.spec.ts",
+      "title": "isolated demo renders receivables and payables aging from live finance data",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-aging.spec.ts",
+      "title": "isolated demo renders receivables and payables aging from live finance data",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-opening-import.spec.ts",
+      "title": "isolated demo imports and independently posts opening balances",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-finance-opening-import.spec.ts",
+      "title": "isolated demo imports and independently posts opening balances",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/inventory/demo-stock-transit.spec.ts",
+      "title": "isolated demo carries an approved warehouse transfer through dispatch and partial receiving",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/inventory/demo-stock-transit.spec.ts",
+      "title": "isolated demo carries an approved warehouse transfer through dispatch and partial receiving",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/demo-organization-lifecycle.spec.ts",
+      "title": "isolated organization setup supports reviewed correction, safe suspension and retained history",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/organization/demo-organization-lifecycle.spec.ts",
+      "title": "isolated organization setup supports reviewed correction, safe suspension and retained history",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "expense goes through four independent people and two slip-backed payments",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+      "title": "expense goes through four independent people and two slip-backed payments",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/messaging.spec.ts",
+      "title": "real accounts chat, reconnect, attach files, use teams and enforce private membership",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/collaboration/messaging.spec.ts",
+      "title": "real accounts chat, reconnect, attach files, use teams and enforce private membership",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+      "title": "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+      "project": "mobile"
+    },
+    {
       "runner": "vitest",
       "file": "tests/unit/agent/agent-services.test.ts",
       "title": "Workspace assistant authorization and evidence /crm guide preserves Commerce authority and rejects unauthorized or revoked contexts before evidence and provider reads"
@@ -811,6 +919,54 @@
     },
     {
       "runner": "playwright",
+      "file": "tests/e2e/pms/pms-owner-read-workflows.spec.ts",
+      "title": "pms/dashboard renders the selected hotel's live room status through its owner-scoped read",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-owner-read-workflows.spec.ts",
+      "title": "pms/dashboard renders the selected hotel's live room status through its owner-scoped read",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-owner-read-workflows.spec.ts",
+      "title": "pms/inventory opens the mounted minibar route with inventory section identity and scoped records",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-owner-read-workflows.spec.ts",
+      "title": "pms/inventory opens the mounted minibar route with inventory section identity and scoped records",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-owner-read-workflows.spec.ts",
+      "title": "pms/reports runs a date-range report for the selected hotel using read-only owner data",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-owner-read-workflows.spec.ts",
+      "title": "pms/reports runs a date-range report for the selected hotel using read-only owner data",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-owner-read-workflows.spec.ts",
+      "title": "pms/settings shows configured rooms and rates from the selected hotel's scoped setup read",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-owner-read-workflows.spec.ts",
+      "title": "pms/settings shows configured rooms and rates from the selected hotel's scoped setup read",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
       "file": "tests/e2e/identity_access/product-hosts.spec.ts",
       "title": "isolated work Account Apps SSO reaches its actual owner landing and API",
       "project": "desktop"
@@ -831,6 +987,54 @@
       "runner": "playwright",
       "file": "tests/e2e/identity_access/product-hosts.spec.ts",
       "title": "isolated Work host creates, recovers and cancels a service request draft through Account and Apps",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "Branch user cannot open another Company through an Apps product context",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "Branch user cannot open another Company through an Apps product context",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "Account profile language and theme preferences persist after navigation and reload",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "Account profile language and theme preferences persist after navigation and reload",
       "project": "mobile"
     },
     {
@@ -1084,6 +1288,26 @@
       "file": "tests/e2e/identity_access/product-hosts.spec.ts",
       "title": "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
       "project": "mobile"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.evidence/product-migration-receipts.test.ts",
+      "title": "current-source product migration receipt v2 accepts only the exact Assets owner lifecycle case for implementation"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.evidence/product-migration-receipts.test.ts",
+      "title": "current-source product migration receipt v2 requires both UAT and product-host projects with clean browser teardown"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.evidence/product-migration-receipts.test.ts",
+      "title": "current-source product migration receipt v2 fails closed for enabled receipts until real Company grant and MFA evidence is supported"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.evidence/product-acceptance-generation.test.ts",
+      "title": "product acceptance generation does not replace generated artifacts when validation fails"
     }
   ]
 }

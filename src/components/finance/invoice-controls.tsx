@@ -1,5 +1,5 @@
 "use client";
-import { useFinanceDraftScope, useFinanceDraftClose, captureFinanceForm, acknowledgeFinanceForm } from "./finance-draft-boundary";
+import { useFinanceDraftScope, useFinanceDraftClose, useFinanceDraftCommandPending, captureFinanceForm, acknowledgeFinanceForm, markFinanceFormEdited } from "./finance-draft-boundary";
 import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { InlineNotice } from "@/components/ui/foundation";
 
@@ -22,50 +22,70 @@ import {financeDocumentCommandAllowed, financeDocumentCommandContext, financeDoc
 import {announceWorkChange} from "@/lib/work_projection/work-refresh";
 type Row = Record<string, string | number | null>;
 type Options = { charts: Row[]; accounts: Row[]; parties: Row[]; periods: Row[] };
+type InvoiceCommandAttempt = { value: string; base: string; path: string; body: string; key: string; context: string; completion: ReturnType<typeof captureFinanceForm>; uncertain: boolean };
 function useInvoiceCommand(base: string, purpose: "new-work" | "settle-existing", post?: FinanceDocumentPostControl) {
   const allowed = useFinanceActionAllowed(purpose);
-  const router = useRouter(),
-    attempt = useRef<{ value: string; key: string } | null>(null);
-  const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  const [hasAttempt, setHasAttempt] = useState(false);
-  const [notice,setNotice] = useState("");
+  const trackCommandPending=useFinanceDraftCommandPending();
+  const router = useRouter(), attempt = useRef<InvoiceCommandAttempt | null>(null);
+  const [error, setError] = useState(""), [busy, setBusy] = useState(false), [hasAttempt, setHasAttempt] = useState(false);
+  const [unresolved, setUnresolved] = useState(false), [notice, setNotice] = useState("");
   const pendingRef = useRef(false);
-  async function send(path: string, input: unknown) {
+  const pendingIdentity=useRef({});
+  async function run(captured: InvoiceCommandAttempt) {
     if (pendingRef.current) return false;
-    const body = JSON.stringify(input), identity = JSON.stringify([financeDocumentCommandContext(),path,body]);
-    if (!financeDocumentCommandAllowed(allowed,path,post) && attempt.current?.value !== identity) {
-      setError("This Finance action is unavailable. Your draft is retained.");
+    if (financeDocumentCommandContext() !== captured.context) {
+      setError("Return to the original Finance context to confirm this request.");
+      setUnresolved(true);
       return false;
     }
-    if (attempt.current?.value !== identity)
-      { attempt.current = { value: identity, key: crypto.randomUUID() }; setHasAttempt(true); }
-    pendingRef.current = true; setNotice(""); setError("");
-    const completion = captureFinanceForm();
-    setBusy(true);
+    pendingRef.current = true; setNotice(""); setError(""); setBusy(true);
     try {
-      const r = await workFetch(`/api/v1${base}/finance/invoices${path}`, {
+      const r = await workFetch(`/api/v1${captured.base}/finance/invoices${captured.path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key },
-        body,
-      }, completion, "caller");
-      const v = (await r.json()) as { data: { id: string }; error?: { message: string } };
-      if (!r.ok || !v.data || typeof v.data.id !== "string" || !v.data.id) throw new Error(v.error?.message ?? "Could not save.");
-      acknowledgeFinanceForm(completion); announceWorkChange();
-      attempt.current = null;
-      setHasAttempt(false);
-      if (!financeDocumentFormUnchanged(completion)) {setNotice("Submitted change saved. Your newer draft is retained."); return false;}
-      router.push(canonicalUiHref(`${base}/finance/invoices/${v.data.id}`));
-      router.refresh();
+        headers: { "Content-Type": "application/json", "Idempotency-Key": captured.key },
+        body: captured.body,
+      }, captured.completion, "caller");
+      const v = (await r.json()) as { data?: { id?: unknown }; error?: { code?: string; message?: string } };
+      if (!r.ok) {
+        if (r.status < 500 && v.error?.code !== "WORK_CONTEXT_CHANGED" && !captured.uncertain && attempt.current === captured) {
+          attempt.current = null; trackCommandPending(pendingIdentity.current,captured.completion,false);setHasAttempt(false); setUnresolved(false);
+        }
+        throw new Error(v.error?.message ?? "Could not save.");
+      }
+      if (!v.data || typeof v.data.id !== "string" || !v.data.id) throw new Error("Finance acknowledgement is missing. Retry the original request.");
+      if (financeDocumentCommandContext() !== captured.context) throw new Error("Your Finance context changed. Retry the original request from its original context.");
+      if (attempt.current !== captured) throw new Error("The original Finance request is no longer current.");
+      acknowledgeFinanceForm(captured.completion); announceWorkChange();
+      attempt.current = null;trackCommandPending(pendingIdentity.current,captured.completion,false);setHasAttempt(false); setUnresolved(false);
+      if (!financeDocumentFormUnchanged(captured.completion)) { setNotice("Submitted change saved. Your newer draft is retained."); return false; }
+      router.push(canonicalUiHref(`${captured.base}/finance/invoices/${v.data.id}`)); router.refresh();
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Connection interrupted. Retry.");
+      if (attempt.current === captured) captured.uncertain = true;
+      setUnresolved(attempt.current === captured);
+      setError(e instanceof Error ? e.message : "Connection interrupted. Retry the original request.");
       return false;
-    } finally {
-      pendingRef.current = false; setBusy(false);
-    }
+    } finally { pendingRef.current = false; setBusy(false); }
   }
-  return { send, error, busy, notice, canSend: allowed || hasAttempt, canPostSend: (post ? financeDocumentCommandAllowed(allowed,post.path,post) : allowed) || hasAttempt };
+  async function send(path: string, input: unknown) {
+    if (pendingRef.current) return false;
+    const body = JSON.stringify(input), context = financeDocumentCommandContext(), identity = JSON.stringify([base, context, path, body]);
+    if (attempt.current) {
+      if (attempt.current.value !== identity) { setError("Confirm the original Finance request first. Your newer draft is retained."); return false; }
+      return run(attempt.current);
+    }
+    if (!financeDocumentCommandAllowed(allowed, path, post)) { setError("This Finance action is unavailable. Your draft is retained."); return false; }
+    const captured: InvoiceCommandAttempt = { value: identity, base, path, body, key: crypto.randomUUID(), context, completion: captureFinanceForm(), uncertain: false };
+    attempt.current = captured;trackCommandPending(pendingIdentity.current,captured.completion,true);setHasAttempt(true); setUnresolved(true);
+    return run(captured);
+  }
+  return {
+    send,
+    retryOriginal: () => attempt.current ? run(attempt.current) : false,
+    error, busy, unresolved, notice,
+    canSend: (allowed || hasAttempt) && !unresolved,
+    canPostSend: (post ? financeDocumentCommandAllowed(allowed, post.path, post) : allowed) && !unresolved,
+  };
 }
 export function InvoiceEditor({
   base,
@@ -86,7 +106,7 @@ export function InvoiceEditor({
 }) {
   const draftScope = useFinanceDraftScope();
   const selected = useCurrency(),
-    { send, error, busy, canSend } = useInvoiceCommand(base, "new-work");
+    { send, retryOriginal, error, busy, unresolved, notice, canSend } = useInvoiceCommand(base, "new-work");
   const [open, setOpen] = useState(initialOpen),
     [kind, setKind] = useState(String(invoice?.kind ?? initialKind)),
     [chartId, setChartId] = useState(
@@ -102,7 +122,8 @@ export function InvoiceEditor({
     [invoiceDate, setInvoiceDate] = useState(
       String(invoice?.invoice_date ?? new Date().toISOString().slice(0, 10)),
     );
-  const closeEditor = useFinanceDraftClose(() => setOpen(false));
+  const form = useRef<HTMLFormElement>(null);
+  const closeEditor = useFinanceDraftClose(() => setOpen(false), { root: () => form.current });
   const currency = currencyOverride ?? String(invoice?.currency ?? selected.displayCurrency);
   const [multiLine,setMultiLine]=useState(invoice?.line_mode==="native_lines"),
     [lines,setLines]=useState<InvoiceLineInput[]>(invoiceLines.filter(line=>line.origin_kind==="native_line").map(line=>({description:line.description,quantity:String(Number(line.quantity_millis)/1000),unitPrice:minorToDecimal(Number(line.unit_price_minor)),taxBps:Number(line.tax_bps),accountId:line.account_id,taxAccountId:line.tax_account_id??undefined})));
@@ -136,7 +157,7 @@ export function InvoiceEditor({
       )}
       {error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
       {open && (
-        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={closeEditor} title="Invoice details" dismissDisabled={busy}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}<FormLayout data-finance-draft={draftScope}
+        <FormDrawer appearance="standard" inline={initialOpen} open={open} onClose={closeEditor} title="Invoice details" dismissDisabled={busy || unresolved}><Stack as="div" className="ui-stack">{error && <InlineNotice tone="danger" role="alert" className="error">{error}</InlineNotice>}{unresolved && <Button appearance="standard" type="button" disabled={busy} onClick={() => void retryOriginal()}>Retry original confirmation</Button>}{notice && <InlineNotice role="status">{notice}</InlineNotice>}<FormLayout ref={form} data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={async (e) => {
             e.preventDefault();
@@ -291,9 +312,9 @@ export function InvoiceEditor({
               <Field appearance="standard">Line account<Select appearance="standard" required value={line.accountId} onChange={e=>updateLine(index,"accountId",e.target.value)}><option value="">Select account</option>{accounts.map(account=><option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</Select></Field>
               <Field appearance="standard">Line VAT account<Select appearance="standard" value={line.taxAccountId??""} onChange={e=>updateLine(index,"taxAccountId",e.target.value)}><option value="">Use document tax account</option>{accounts.map(account=><option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</Select></Field>
               {calculated?.lines[index]&&<p>Net {minorToDecimal(calculated.lines[index].subtotalMinor)} · VAT {minorToDecimal(calculated.lines[index].taxMinor)}</p>}
-              <Button appearance="standard" type="button" disabled={lines.length===1} onClick={()=>setLines(current=>current.filter((_line,position)=>position!==index))}>Remove line {index+1}</Button>
+              <Button appearance="standard" type="button" disabled={lines.length===1} onClick={event=>{markFinanceFormEdited(event.currentTarget.closest<HTMLFormElement>("form[data-finance-draft]"));setLines(current=>current.filter((_line,position)=>position!==index));}}>Remove line {index+1}</Button>
             </fieldset>)}
-            <Button appearance="standard" type="button" disabled={lines.length>=100} onClick={()=>setLines(current=>[...current,{description:"",quantity:"1",unitPrice:"0.01",taxBps:0,accountId:""}])}>Add invoice line</Button>
+            <Button appearance="standard" type="button" disabled={lines.length>=100} onClick={event=>{markFinanceFormEdited(event.currentTarget.closest<HTMLFormElement>("form[data-finance-draft]"));setLines(current=>[...current,{description:"",quantity:"1",unitPrice:"0.01",taxBps:0,accountId:""}]);}}>Add invoice line</Button>
             {lineError&&<InlineNotice tone="danger" role="alert">{lineError}</InlineNotice>}
           </Stack>}
           {!scaleReady && (
@@ -318,7 +339,7 @@ export function InvoiceEditor({
               Configure a {currency} {kind === "payable" ? "supplier" : "customer"} first.
             </InlineNotice>
           )}
-          <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy || !canSave || !canSend}>
+          <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy || unresolved || !canSave || !canSend}>
             Save invoice draft
           </Button>
         </FormLayout></Stack></FormDrawer>
@@ -344,14 +365,14 @@ export function InvoiceActions({
   fxAccounts?: Row[];
 }) {
   const draftScope = useFinanceDraftScope();
-  const { send, error, busy, notice, canSend, canPostSend } = useInvoiceCommand(base, "settle-existing", {path:`/${invoice.id}/post`,canPost:sourceCanPost});
+  const { send, retryOriginal, error, busy, unresolved, notice, canSend, canPostSend } = useInvoiceCommand(base, "settle-existing", {path:`/${invoice.id}/post`,canPost:sourceCanPost});
   const [reviewEvidence,setReviewEvidence]=useState<AttachmentPanelChange|null>(null);
   const [generation,setGeneration]=useState(0);
   return (
     <Card as="section" appearance="standard" className="ui-panel">
-      {notice && <p role="status">{notice}</p>}{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}
-      {canPost && canPostSend && (
-        <FormDisclosure appearance="standard" drawerTitle="Review invoice posting" error={error || undefined} dismissDisabled={busy} onDiscard={()=>{setReviewEvidence(null);setGeneration(value=>value+1);}}><summary>Review invoice posting</summary><FormLayout key={generation} data-finance-draft={draftScope}
+      {notice && <p role="status">{notice}</p>}{error && <InlineNotice tone="danger" role="alert">{error}</InlineNotice>}{unresolved && <Button appearance="standard" type="button" disabled={busy} onClick={() => void retryOriginal()}>Retry original confirmation</Button>}
+      {(canPost && canPostSend) || unresolved || Boolean(notice) ? (
+        <FormDisclosure appearance="standard" drawerTitle="Review invoice posting" error={error || undefined} dismissDisabled={busy || unresolved} onDiscard={()=>{if(unresolved)return;setReviewEvidence(null);setGeneration(value=>value+1);}}><summary>Review invoice posting</summary><FormLayout key={generation} data-finance-draft={draftScope}
           className="ui-form-grid"
           onSubmit={(e) => {
             e.preventDefault();
@@ -396,17 +417,17 @@ export function InvoiceActions({
             <Field appearance="standard">Goods FX loss account<Select appearance="standard" name="fxLossAccountId" required defaultValue=""><option value="">Choose reviewed loss account</option>{fxAccounts.filter(account=>account.category==='other_expense').map(account=><option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</Select></Field>
           </>}
           {invoice.kind==="payable"&&<AttachmentPanel appearance="standard" base={base} targetType="supplier_bill" targetId={String(invoice.id)} expectedTargetVersion={Number(invoice.version)} componentKind="action" componentRef="invoice-review" purposeKey="bill_match_support" title="Supplier bill review evidence" description="Attach the matching or correction evidence reviewed for this posting." visibility="Visible only to authorized Finance colleagues in this Company." onChange={setReviewEvidence}/>}
-          <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy||!canPostSend||Boolean(reviewEvidence?.links.length&&!reviewEvidence.bindable)}>
+          <Button appearance="standard" type="submit" clientManaged variant="primary" disabled={busy||unresolved||!canPostSend||Boolean(reviewEvidence?.links.length&&!reviewEvidence.bindable)}>
             Approve and post invoice
           </Button>
         </FormLayout></FormDisclosure>
-      )}
+      ) : null}
       {canVoid && invoice.source_type === "standalone" && (
         <>
           <Button appearance="standard"
             type="button"
             variant="secondary"
-            disabled={busy || !canSend}
+            disabled={busy || unresolved || !canSend}
             onClick={() => send(`/${invoice.id}/void`, { expectedVersion: invoice.version })}
           >
             Void draft

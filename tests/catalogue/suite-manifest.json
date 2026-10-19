@@ -163,7 +163,8 @@
         "talent"
       ],
       "files": [
-        "tests/unit/shared.evidence/acceptance-evidence.test.ts"
+        "tests/unit/shared.evidence/acceptance-evidence.test.ts",
+        "tests/unit/shared.evidence/product-acceptance-generation.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -1551,6 +1552,22 @@
       ],
       "files": [
         "tests/unit/shared.evidence/capability-delivery.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.evidence.product-migration-receipts.unit",
+      "lane": "unit",
+      "owner": "shared.evidence",
+      "modules": [
+        "assets"
+      ],
+      "files": [
+        "tests/unit/shared.evidence/product-migration-receipts.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -3496,6 +3513,22 @@
         "tests/e2e/pms/pms.spec.ts"
       ],
       "fixture": "local-seed",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "pms.owner-read-workflows.e2e",
+      "lane": "e2e",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "files": [
+        "tests/e2e/pms/pms-owner-read-workflows.spec.ts"
+      ],
+      "fixture": "hospitality",
       "requires": {
         "jobs": false,
         "scanner": false

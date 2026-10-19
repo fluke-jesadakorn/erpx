@@ -11,6 +11,7 @@ import { usePathname } from "next/navigation";
 import { Building2, ChevronDown, Network, ShieldCheck } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { workFetch } from "@/lib/work_projection/work-fetch";
+import { confirmContextSwitch, contextSwitchBlockReason } from "@/lib/work_projection/context-switch";
 import { waitForWorkspaceMemory } from "@/lib/work_projection/workspace-memory-client";
 import { leavePushForWorkspaceChange } from "@/lib/shared/push-client";
 import type {
@@ -91,7 +92,13 @@ export function WorkspaceMenu({ appearance = "legacy",
       setOpen(false);
       return;
     }
+    const blockedReason = contextSwitchBlockReason();
+    if (blockedReason) {
+      setError(blockedReason);
+      return;
+    }
     if (switching.current) return;
+    if (!confirmContextSwitch()) return;
     switching.current = true;
     setPendingCompany(`${holdingSlug}:${company.id}`);
     setError("");
@@ -126,17 +133,23 @@ export function WorkspaceMenu({ appearance = "legacy",
     holdingSlug: string | null,
     companyId: string | null,
     destination: string,
+    changesContext: boolean,
   ) {
-    if (
-      event.defaultPrevented ||
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.altKey ||
-      event.shiftKey
-    )
-      return;
+    if (event.defaultPrevented) return;
+    if (changesContext) {
+      const blockedReason = contextSwitchBlockReason();
+      if (blockedReason) {
+        event.preventDefault();
+        setError(blockedReason);
+        return;
+      }
+    }
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     if (switching.current) {
+      event.preventDefault();
+      return;
+    }
+    if (changesContext && !confirmContextSwitch()) {
       event.preventDefault();
       return;
     }
@@ -178,7 +191,7 @@ export function WorkspaceMenu({ appearance = "legacy",
         href={department.destination}
         aria-current={isCurrent ? "location" : undefined}
         onClick={(event) =>
-          void navigateWorkspaceLink(event, holdingSlug, companyId, department.destination)
+          void navigateWorkspaceLink(event, holdingSlug, companyId, department.destination, !isCurrent)
         }
       >
         <Network size={16} aria-hidden="true" />
@@ -225,7 +238,13 @@ export function WorkspaceMenu({ appearance = "legacy",
                 href={canonicalUiHref("/holdings/erpx/manage-erpx")}
                 aria-current={erpxManagementCurrent ? "location" : undefined}
                 onClick={(event) =>
-                  void navigateWorkspaceLink(event, "erpx", null, canonicalUiHref("/holdings/erpx/manage-erpx"))
+                  void navigateWorkspaceLink(
+                    event,
+                    "erpx",
+                    null,
+                    canonicalUiHref("/holdings/erpx/manage-erpx"),
+                    !erpxManagementCurrent,
+                  )
                 }
               >
                 <ShieldCheck size={17} aria-hidden="true" />
@@ -293,6 +312,7 @@ export function WorkspaceMenu({ appearance = "legacy",
                                         holding.holdingSlug,
                                         company.id,
                                         branch.destination!,
+                                        !branchCurrent,
                                       )
                                     }
                                   >
@@ -344,7 +364,7 @@ export function WorkspaceMenu({ appearance = "legacy",
                 href={platform.destination}
                 aria-current={current.kind === "platform" ? "location" : undefined}
                 onClick={(event) =>
-                  void navigateWorkspaceLink(event, null, null, platform.destination)
+                  void navigateWorkspaceLink(event, null, null, platform.destination, current.kind !== "platform")
                 }
               >
                 <ShieldCheck size={17} aria-hidden="true" />

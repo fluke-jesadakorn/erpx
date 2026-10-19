@@ -9,6 +9,7 @@ import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
 import type {BackofficePmsWorkspaceRoomsHousekeepingScreenContext as BackofficePmsWorkspaceContext} from "./backoffice-screen-context";
+import { TaskCompletionDrafts } from "./task-completion-drafts";
 
 
 const field = (
@@ -110,7 +111,7 @@ const labelState: Record<string, string> = {
   disposed: "Disposed",
 };
 export function BackofficePmsWorkspaceRoomsHousekeepingScreen({context}: {context: BackofficePmsWorkspaceContext}) {
-  const {section, rows, stays, form, today, selectedRecord, roomName, data, base} = context;
+  const {section, rows, stays, form, today, selectedRecord, roomName, data, base,taskCompletionDrafts,updateTaskCompletionDraft,discardTaskCompletionDraft} = context;
   return <FrontLocalizedTree>{(
                 <>
                   <Panel title={section === "rooms" ? "Rooms & readiness" : "Housekeeping"}>
@@ -180,6 +181,7 @@ export function BackofficePmsWorkspaceRoomsHousekeepingScreen({context}: {contex
                     </div>
                   </Panel>
                   <Panel title="Tasks">
+                    {taskCompletionDrafts && updateTaskCompletionDraft && discardTaskCompletionDraft && <TaskCompletionDrafts drafts={taskCompletionDrafts} onUpdate={updateTaskCompletionDraft} onDiscard={discardTaskCompletionDraft}/>}
                     {rows("task")
                       .filter(
                         (r) =>

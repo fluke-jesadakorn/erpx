@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
@@ -28,6 +28,11 @@ vi.mock("../../../src/server/modules/files/public/attachments/preview",()=>({att
 const execute = promisify(execFile);
 const hash = (bytes:string|Buffer) => createHash("sha256").update(bytes).digest("hex");
 const tracks = { CONTROL_DB:"control",CONTROL_READ_DB:"control-read",H001_DB:"holding-write",H001_READ_DB:"holding-read",H002_DB:"holding-write",H002_READ_DB:"holding-read",H003_DB:"holding-write",H003_READ_DB:"holding-read" } as const;
+async function rollbackArtifact(directory:string, kind:string) {
+  const releaseBytes=await readFile(join(directory,"release.json")),serverBytes=await readFile(join(directory,"server.js"));
+  const releaseJsonSha256=hash(releaseBytes),serverSha256=hash(serverBytes);
+  return {sha256:hash(JSON.stringify({kind,releaseJsonSha256,serverSha256})),releaseJsonSha256,serverSha256};
+}
 
 async function tableDigests() {
   const digests: Record<string,{count:number;sha256:string}> = {};
@@ -183,8 +188,11 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
       await writeFile(join(release,"server.js"),"// Isolated controller fixture; release verification supplies the compiled candidate.\n");
     }
     await writeFile(join(release,"release.json"),JSON.stringify({...build,id:releaseId}));
-    await cp(release,join(home,"releases",previousId),{recursive:true,mode:constants.COPYFILE_FICLONE});
-    await writeFile(join(home,"releases",previousId,"release.json"),JSON.stringify({...build,id:previousId}));
+    const previousRelease=join(home,"releases",previousId);
+    await mkdir(previousRelease,{recursive:true});
+    await writeFile(join(previousRelease,"server.js"),"process.stdout.write('synthetic compatible prior release fixture\\n');\n");
+    await writeFile(join(previousRelease,"release.json"),JSON.stringify({artifactKind:"synthetic-compatible-prior-fixture",id:previousId,
+      schemaSha256:build.schemaSha256??"isolated-controller-fixture",softwareVersion:"synthetic-prior-release-fixture"}));
     await cp(release,join(home,"releases",incompatibleId),{recursive:true,mode:constants.COPYFILE_FICLONE});
     await writeFile(join(home,"releases",incompatibleId,"release.json"),JSON.stringify({...build,id:incompatibleId,schemaSha256:"incompatible-schema-fixture"}));
     await symlink(release,join(home,"current"));
@@ -251,19 +259,37 @@ it("encrypts a complete isolated snapshot, restores immutable money and files, a
       expect(await db.prepare("SELECT amount_units::text amount,currency FROM money_transaction_snapshots WHERE company_id=? AND source_id=?").bind(receipt.companyId,receipt.sourceId).first()).toEqual({amount:"67890",currency:"THB"});
       expect(await db.prepare("SELECT count(*) n FROM command_receipts WHERE record_id=?").bind(receipt.sourceId).first("n")).toBe(1);
     }
+    const candidateArtifact=await rollbackArtifact(release,"compiled-candidate-fixture"),previousArtifact=await rollbackArtifact(previousRelease,"synthetic-compatible-prior-fixture");
+    expect(previousArtifact.serverSha256).not.toBe(candidateArtifact.serverSha256);
+    expect(previousArtifact.sha256).not.toBe(candidateArtifact.sha256);
+    const databaseStateBeforeSha256=hash(JSON.stringify(beforeRollback)),privateFilesStateBeforeSha256=hash(JSON.stringify(beforeFiles));
     await execute("python3",[...args,"rollback",previousId]);
+    const selectedRelease=await realpath(join(home,"current")),expectedPreviousRelease=await realpath(previousRelease);
+    expect(selectedRelease).toBe(expectedPreviousRelease);
     expect((JSON.parse(await readFile(join(home,"current/release.json"),"utf8")) as {id:string}).id).toBe(previousId);
-    expect(await tableDigests()).toEqual(beforeRollback);
-    expect(await fileDigests(join(home,"data/files"))).toEqual(beforeFiles);
+    expect(hash(await readFile(join(home,"current/server.js")))).toBe(previousArtifact.serverSha256);
+    const databaseStateAfter=await tableDigests(),privateFilesStateAfter=await fileDigests(join(home,"data/files"));
+    expect(databaseStateAfter).toEqual(beforeRollback);
+    expect(privateFilesStateAfter).toEqual(beforeFiles);
+    const databaseStateAfterSha256=hash(JSON.stringify(databaseStateAfter)),privateFilesStateAfterSha256=hash(JSON.stringify(privateFilesStateAfter));
+    expect(databaseStateAfterSha256).toBe(databaseStateBeforeSha256);
+    expect(privateFilesStateAfterSha256).toBe(privateFilesStateBeforeSha256);
     await expect(execute("python3",[...args,"rollback",incompatibleId])).rejects.toThrow("Schema differs");
     expect((JSON.parse(await readFile(join(home,"current/release.json"),"utf8")) as {id:string}).id).toBe(previousId);
+    expect(await realpath(join(home,"current"))).toBe(expectedPreviousRelease);
+    const rollbackEvidence={scope:"isolated-synthetic-prior-release",candidateReleaseId:releaseId,previousReleaseId:previousId,
+      candidateArtifactSha256:candidateArtifact.sha256,previousArtifactSha256:previousArtifact.sha256,
+      candidateServerSha256:candidateArtifact.serverSha256,previousServerSha256:previousArtifact.serverSha256,
+      switchedToPrevious:true,databaseAndFilesUnchanged:true,databaseStateBeforeSha256,databaseStateAfterSha256,
+      privateFilesStateBeforeSha256,privateFilesStateAfterSha256};
     await writeFile(archive,Buffer.concat([ciphertext,Buffer.from("tampered")]));
     await expect(execute("python3",[...args,"--identity",identity,"import",archive])).rejects.toThrow("OFFSITE_CIPHERTEXT_MISMATCH");
     const output=process.env.ERPX_ENGINEERING_EVIDENCE_DIR;
     if (output) await writeFile(join(output,"encrypted-recovery.json"),JSON.stringify({sourceFingerprint:build.sourceFingerprint??null,
-      softwareVersion:build.softwareVersion,compiledCandidate:Boolean(supplied),fileManifestSha256:build.fileManifestSha256??null,
+      softwareVersion:build.softwareVersion,compiledCandidate:Boolean(supplied),candidateReleaseId:releaseId,fileManifestSha256:build.fileManifestSha256??null,
       databaseCount:Object.keys(databases).length,tracks:Object.keys(tracks),holdingFileStores:3,allHoldingFilesSha256:hash(JSON.stringify(beforeFiles)),tableCount:Object.keys(before).length,tableDigestSha256:hash(JSON.stringify(before)),
       ciphertextSha256:hash(ciphertext),sourceBytesSha256:stored.etag,restored:true,compatibleRollback:true,incompatibleRollbackRejected:true,
+      rollback:rollbackEvidence,
       pms:{propertyId:hotelPropertyId,reservationId:hotelReservationId,stayId:hotelStay.id,guestAccountId:hotelStay.data.guestAccountId,roomId:hotelRoomId,taskId:hotelTaskId,issuedDocuments:hotelDocumentsBefore.length,documentsSHA256:hash(JSON.stringify(hotelDocumentsBefore)),ledger:hotelLedgerBefore,privateFileSHA256:hash(hotelFileBytes),mutatedGuestAndHotelRestored:true,identicalPaymentReplay:true,originalPmsSnapshotRetained:true},
       ciphertextTamperingRejected:true,legal:legalRecovery,scope:"Isolated PostgreSQL18.6 and local FileStore; age encryption; no installed environment or external device"},null,2)+"\n",{mode:0o600});
   } finally { await rm(home,{recursive:true,force:true}); }

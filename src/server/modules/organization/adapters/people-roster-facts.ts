@@ -16,8 +16,8 @@ export function rosterOrganizationFacts(database: SqlDatabase) {
     AND (?::text IS NULL OR d.branch_id=?) AND (?::text IS NULL OR d.id IN (SELECT id FROM subtree))
     AND (? OR d.id=?) ORDER BY b.display_name,d.display_name`).bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7, fact8).all<RosterDepartment>()).results;
         },
-        async readRosterGaps(fact0: string, fact1: string, fact2: string, fact3: string, fact4: string, fact5: string, fact6: string, fact7: string, fact8: string, fact9: string) {
-            return (await database.prepare(rosterCoverageGapSql('parameters')).bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7, fact8, fact9).all<RosterGap>()).results;
+        async readRosterGaps(fact0: string, fact1: string, fact2: string, fact3: string, fact4: string, fact5: string, fact6: string, fact7: string) {
+            return (await database.prepare(rosterCoverageGapSql('parameters')).bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7).all<RosterGap>()).results;
         },
         async readEscalateRosterCoverage() {
             return (await database.prepare(`

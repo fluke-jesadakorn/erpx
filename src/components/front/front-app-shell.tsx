@@ -27,6 +27,11 @@ import { ModuleTiles } from "@/components/shared/hospitality/module-tiles";
 import { pmsMenu } from "@/components/shared/hospitality/module-menu";
 import { useContextSwitch } from "@/components/workplace/context-switch-provider";
 import { useHydrated } from "@/components/ui/use-hydrated";
+import {
+  confirmContextSwitch,
+  contextSwitchBlockReason,
+  setContextSwitching,
+} from "@/lib/work_projection/context-switch";
 
 type AppKind = "pos" | "pms";
 type FrontWorkRole = {
@@ -203,6 +208,7 @@ export function FrontAppShell({
     getServerConnectivitySnapshot,
   );
   const [language, setLanguage] = useState(initialLanguage);
+  const [signOutError, setSignOutError] = useState("");
   const languageReady = useHydrated();
   const theme = useSyncExternalStore(
     subscribeAppearance,
@@ -247,9 +253,25 @@ export function FrontAppShell({
   }
 
   async function signOut() {
-    const { authClient } = await import("@/lib/identity_access/auth-client");
-    await authClient.signOut();
-    window.location.replace("/login");
+    const blockedReason = contextSwitchBlockReason();
+    if (blockedReason) {
+      setSignOutError(blockedReason);
+      return;
+    }
+    const prompt = language === "th"
+      ? "ออกจากระบบและทิ้งข้อมูลที่ยังไม่บันทึกหรือไม่?"
+      : "Sign out and discard unsaved changes?";
+    if (!confirmContextSwitch(prompt)) return;
+    setSignOutError("");
+    setContextSwitching(true);
+    try {
+      const { authClient } = await import("@/lib/identity_access/auth-client");
+      await authClient.signOut();
+      window.location.replace("/login");
+    } catch (cause) {
+      setContextSwitching(false);
+      setSignOutError(cause instanceof Error ? cause.message : "Could not sign out. Try again.");
+    }
   }
 
   const page = (
@@ -355,6 +377,7 @@ export function FrontAppShell({
                     {language === "th" ? "เปลี่ยนบริษัท" : "Change company"}
                   </Link>
                 )}
+                {signOutError && <p role="alert">{signOutError}</p>}
                 <Button
                   variant="plain"
                   type="button"

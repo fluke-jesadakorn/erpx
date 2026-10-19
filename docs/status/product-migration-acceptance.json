@@ -1,8 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "11a632fdfe2f5c076b56c9779567db1bc728d162ec226c3d2879cf9533c4af9e",
+  "candidateSha": "cee773abc2341c19bf85d67da73d82df98ddef61",
+  "sourceFingerprint": "e8edc58d172fab721615e1006a71ef139cd444882c16f770705a02c0c273b7e1",
+  "verificationFingerprint": "6775909f5ac29b45e3dfa9e0028ea8dfb4efd57a4ce7461db545d56035104f24",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -4690,6 +4692,7 @@
         "shared.calendar.calendar-timeline.unit",
         "shared.calendar.calendar.integration",
         "shared.evidence.capability-delivery.unit",
+        "shared.evidence.product-migration-receipts.unit",
         "shared.evidence.capability-gate-reviews.unit",
         "shared.runtime.cloudflare-bindings.integration",
         "shared.commands.command-composition.integration",
@@ -12484,6 +12487,7 @@
         "shared.ui.page-layouts.e2e",
         "pms.booking.e2e",
         "pms.pms.e2e",
+        "pms.owner-read-workflows.e2e",
         "shared.ui.shared-workspace.e2e",
         "pms.thai-hotel-v1-ai.journeys",
         "pms.thai-hotel-v1-hotel.journeys",
@@ -12973,6 +12977,15 @@
           "state": "pending",
           "evidence": null
         }
+      },
+      "receiptMapping": {
+        "native": {
+          "state": "mapped"
+        },
+        "browser": {
+          "state": "pending",
+          "blocker": "The exact executive/MCP native cases have no isolated Work browser workflow traversing the Company Executive UI and scoped MCP client with UI observation evidence."
+        }
       }
     }
   ],
@@ -12984,14 +12997,8 @@
           "id": "apps:all-company-branch-department-product-selection",
           "acceptance": {
             "implemented": {
-              "state": "source-changed",
-              "evidence": {
-                "id": "apps:all-company-branch-department-product-selection",
-                "phase": "implemented",
-                "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
-                "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
-                "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
-              }
+              "state": "pending",
+              "evidence": null
             },
             "verified": {
               "state": "pending",
@@ -13000,6 +13007,14 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
             }
           }
         },
@@ -13018,6 +13033,14 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
+            }
           }
         },
         {
@@ -13034,6 +13057,14 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
             }
           }
         }
@@ -13065,6 +13096,16 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "unmapped",
+              "blocker": "No exact case currently proves the complete Account credential or directory-linked login workflow through its resulting identity binding; standalone auth and SSO smoke cases cover separate boundaries."
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "No isolated browser workflow traverses Account login or directory-linked login into the expected product session and confirms its linked identity."
+            }
           }
         },
         {
@@ -13081,6 +13122,14 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
             }
           }
         },
@@ -13099,6 +13148,16 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "unmapped",
+              "blocker": "No single reviewed native workflow currently covers role, Company, and account switching together with retained current-authority checks."
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "No single isolated browser workflow currently covers role, Company, and account switching together on the Account/Apps product path."
+            }
           }
         },
         {
@@ -13116,6 +13175,15 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The focused MFA replay and Account family-revocation cases have no matching isolated browser workflow with UI observation evidence."
+            }
           }
         },
         {
@@ -13132,6 +13200,16 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "unmapped",
+              "blocker": "No exact native case currently exercises the Account package area as a user-facing flow while distinguishing authorized products from unavailable packages."
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "No isolated browser case currently exercises the Account package area and its authorized-product result."
             }
           }
         }
@@ -13166,20 +13244,24 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "unmapped",
+              "blocker": "Existing Brand, Organization, and IAM cases prove separate owner behaviors; no exact native workflow covers those capabilities through the Company Admin product entry as one workflow."
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "No isolated browser workflow traverses Company Admin into Brand, Organization, and IAM using existing Company authority."
+            }
           }
         },
         {
           "id": "admin:platform-only-entry",
           "acceptance": {
             "implemented": {
-              "state": "source-changed",
-              "evidence": {
-                "id": "admin:platform-only-entry",
-                "phase": "implemented",
-                "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
-                "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
-                "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
-              }
+              "state": "pending",
+              "evidence": null
             },
             "verified": {
               "state": "pending",
@@ -13188,6 +13270,15 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The native Platform authority check has no matching isolated browser entry workflow and UI observation evidence."
             }
           }
         },
@@ -13195,14 +13286,8 @@
           "id": "admin:provider-authority-separation",
           "acceptance": {
             "implemented": {
-              "state": "source-changed",
-              "evidence": {
-                "id": "admin:provider-authority-separation",
-                "phase": "implemented",
-                "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
-                "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
-                "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
-              }
+              "state": "pending",
+              "evidence": null
             },
             "verified": {
               "state": "pending",
@@ -13212,20 +13297,23 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The isolated provider-authority integration cases have no matching browser workflow through the Admin product with UI observation evidence."
+            }
           }
         },
         {
           "id": "admin:legacy-preview-apply-and-audit",
           "acceptance": {
             "implemented": {
-              "state": "source-changed",
-              "evidence": {
-                "id": "admin:legacy-preview-apply-and-audit",
-                "phase": "implemented",
-                "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
-                "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
-                "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
-              }
+              "state": "pending",
+              "evidence": null
             },
             "verified": {
               "state": "pending",
@@ -13234,6 +13322,15 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The isolated legacy preview/apply/audit integrations have no matching browser workflow through the Admin product with UI observation evidence."
             }
           }
         }
@@ -13266,6 +13363,14 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
+            }
           }
         }
       ],
@@ -13294,6 +13399,16 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "unmapped",
+              "blocker": "The current Portal cases cover approved customer bindings and shared files but do not prove a tenant-token invitation workflow; no native case matches the complete declared flow."
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The existing customer Portal browser journey does not use a tenant-token invitation, so no exact browser witness exists for the declared workflow."
             }
           }
         }
@@ -13333,6 +13448,16 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "unmapped",
+              "blocker": "Legal Portal signing is currently disabled, and no native test proves the declared invitation, MFA, document-version consent, successful signing, and private-file workflow end to end."
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "No isolated Legal Portal browser workflow covers the declared invitation/MFA/versioned-consent/signing/private-file sequence; the current Portal signing route remains disabled."
+            }
           }
         }
       ],
@@ -13366,6 +13491,15 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The available Marketing browser journey does not use the Forms product host; an exact isolated Forms-host browser case with UI observation evidence is required."
+            }
           }
         }
       ],
@@ -13374,6 +13508,26 @@
       ],
       "apis": [
         "src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts"
+      ],
+      "browserCases": [
+        {
+          "workflow": "tenant-published-version-consent-submit-and-replay",
+          "runner": "playwright",
+          "suite": "shared.workplace-journeys.demo-workplace-platform-lifecycle.journeys",
+          "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+          "title": "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+          "project": "desktop",
+          "executionOrigin": "local-simulation-only"
+        },
+        {
+          "workflow": "tenant-published-version-consent-submit-and-replay",
+          "runner": "playwright",
+          "suite": "shared.workplace-journeys.demo-workplace-platform-lifecycle.journeys",
+          "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+          "title": "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+          "project": "mobile",
+          "executionOrigin": "local-simulation-only"
+        }
       ],
       "origin": "https://forms-dev-erpx.jesadakorn.com"
     }

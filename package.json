@@ -82,6 +82,7 @@
     "products:manifest": "bun scripts/docs/generate-product-manifest.ts && bun scripts/docs/generate-product-acceptance.ts",
     "products:check": "bun scripts/docs/generate-product-manifest.ts --check && bun scripts/docs/generate-product-acceptance.ts --check",
     "products:acceptance": "bun scripts/docs/generate-product-acceptance.ts --acceptance",
+    "products:receipts:import": "bun scripts/docs/import-product-migration-receipt.ts",
     "console:retirement:check": "bun scripts/local/check-console-retirement.ts"
   },
   "packageManager": "bun@1.4.3",

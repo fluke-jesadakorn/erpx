@@ -19,7 +19,7 @@ function assertCohortsDestroyed(receipt: BrowserRunReceipt) {
 }
 
 /** Prove every selected case twice and restart after a real, declared harness failure. */
-export async function runBrowserIsolation(suites: Suite[], options: { releaseDirectory?: string; shard?: BrowserShard; onEvidence?: (stage: "forward" | "probe" | "reverse", directory: string) => Promise<void> } = {}) {
+export async function runBrowserIsolation(suites: Suite[], options: { releaseDirectory?: string; port?: 3102 | 3104; shard?: BrowserShard; onEvidence?: (stage: "forward" | "probe" | "reverse", directory: string) => Promise<void> } = {}) {
   console.log("Browser isolation: forward acceptance");
   const forwardResult = await runBrowserSuites(suites, { ...options, caseOrder: "forward" });
   const forward = { result: forwardResult, receipt: await retainedReceipt(forwardResult.evidenceDirectory) };
@@ -33,7 +33,7 @@ export async function runBrowserIsolation(suites: Suite[], options: { releaseDir
   let probeDirectory: string;
   console.log("Browser isolation: declared failure and cleanup");
   try {
-    await runBrowserSuites([suite], { releaseDirectory: options.releaseDirectory, projects: [wanted.project], faultProbe: identity });
+    await runBrowserSuites([suite], { releaseDirectory: options.releaseDirectory, port: options.port, projects: [wanted.project], faultProbe: identity });
     throw new Error("ISOLATION_EXPECTED_FAILURE_DID_NOT_OCCUR");
   } catch (error) {
     if (!(error instanceof BrowserFaultProbeError)) throw error;

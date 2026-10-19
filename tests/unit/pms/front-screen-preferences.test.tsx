@@ -336,6 +336,10 @@ it('standard PMS navigation preserves native permission destinations, selected P
  const stream=await renderToReadableStream(createElement(StandardPmsNavigation,{href:'/fictional-holding/original-company/branches/original-branch/',section:'housekeeping',permissions:['pms.read','pms.inspect'],propertyId:'original hotel / ก'}));await stream.allReady;const html=await new Response(stream).text();
  expect(html).toContain('aria-label="Hotel tasks"');expect(html).toContain('/fictional-holding/original-company/branches/original-branch/today?property=original%20hotel%20%2F%20%E0%B8%81');expect(html).toContain('/fictional-holding/original-company/branches/original-branch/housekeeping?property=original%20hotel%20%2F%20%E0%B8%81');expect(html).toContain('aria-current="page"');expect(html).not.toContain('/cashier?');expect(html).not.toContain('/reservations?');expect(html).not.toContain('/settings?');expect(html).not.toContain('/inventory?');expect(fetcher).not.toHaveBeenCalled();
 });
+it('maps the native PMS inventory identity to its mounted minibar route',async()=>{
+ const {pmsSectionPath}=await import('../../../src/lib/pms/section-route');
+ expect(pmsSectionPath('inventory')).toBe('minibar');expect(pmsSectionPath('settings')).toBe('settings');
+});
 it('actual standard PMS parent renders original empty-owner readiness with standard controls and no mount-time HTTP duplication',async()=>{
  const {StandardPmsFrontWorkspace}=await import('../../../src/components/pms/standard-pms-front-workspace'),{CurrencyProvider}=await import('../../../src/components/finance/money/currency-provider');
  owner.path='/fictional-holding/original-company/holding/rooms';owner.query='';

@@ -7,6 +7,7 @@ import { Button, Field as UiField, Select, TextArea, TextInput } from "@/compone
 import { FeatureWidget, WidgetGrid } from "@/components/shared/features/feature-page";
 import { SetupChecklist } from "@/components/ui/setup-checklist";
 import { decimalToMinor } from "@/lib/finance/finance-money";
+import { pmsSectionPath } from "@/lib/pms/section-route";
 import { visiblePmsSections, operationPermission, plusDays, records, type DataMap, type Kind, type PmsRecord } from "@/server/modules/pms/public/rules/pms-model";
 import { useCurrency, useMoneyFormatter } from "@/components/finance/money/currency-provider";
 import { workFetch } from "@/lib/work_projection/work-fetch";
@@ -716,7 +717,7 @@ export function BackofficePmsWorkspace(props: {
             )
             .map((item) => ({
               ...item,
-              href: `${base}/pms/${item.id}${propertyId ? `?property=${encodeURIComponent(propertyId)}` : ""}`,
+              href: `${base}/pms/${pmsSectionPath(item.id)}${propertyId ? `?property=${encodeURIComponent(propertyId)}` : ""}`,
             }))}
         />
         {s?.listMeta&&<PmsListPagination key={JSON.stringify(s.listMeta)} meta={s.listMeta} roomTypes={rows("room_type").map(row=>({id:row.id,name:row.data.name}))}/>}

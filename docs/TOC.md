@@ -17,7 +17,7 @@ Reviewed 2026-10-15. This is the single entry point. [Production plan](productio
 - [Development Helpdesk surface purchase checkpoint](testing/support-surfaces-corrected-2026-10-15.md): owner controls/Work/files/jobs, Calendar/customer evidence, repaired GET alias and current native/build/browser limits
 - [Development Helpdesk command purchase checkpoint](testing/support-commands-2026-10-15.md): transaction purchase guards, shadow/expiry/replay/lock order and current full-native/build limits
 - [Development navigation boundary checkpoint](testing/ui-boundaries-2026-10-15.md): explicit caller appearance, preserved legacy scope, exact native viewport/theme/SSR proof and remaining frozen acceptance
-- [Product migration acceptance register: 33 modules, owner workflows and seven shared/public surfaces](status/product-migration-acceptance.json), [candidate receipts](status/product-migration-receipts.json)
+- [Product migration acceptance register: 33 modules, owner workflows and seven shared/public surfaces](status/product-migration-acceptance.json), [active v2 current-source receipts](status/product-migration-receipts-v2.json), [dated v1 receipt history](status/product-migration-receipts.json)
 - [Development Company package Preview/Apply and rollback](../ops/macos/commercial-development-migration.md)
 
 - [Start and verify](../README.md), [developer instructions](../AGENTS.md), [local development seed](local-seed.md)

@@ -74,9 +74,9 @@ if (mode === "check") {
   const persistEvidence=serializeEngineeringEvidenceWrites();
   const phases: Array<{ id: EngineeringGateId; args: string[] }> = mode === "verify" ? [
     { id: "typecheck", args: ["run", "typecheck"] }, { id: "lint", args: ["run", "lint"] },
-    { id: "integration", args: ["scripts/testing/test.ts", "--reporter=json", `--outputFile=${join(directory, "vitest.json")}`] },
+    { id: "integration", args: ["scripts/testing/test.ts", "integration", "--reporter=json", `--outputFile=${join(directory, "vitest.json")}`] },
     { id: "release-build", args: ["run", "deploy:build"] },
-  ] : [{ id: "integration", args: ["scripts/testing/test.ts", "--reporter=json", `--outputFile=${join(directory, "vitest.json")}`] }];
+  ] : [{ id: "integration", args: ["scripts/testing/test.ts", "integration", "--reporter=json", `--outputFile=${join(directory, "vitest.json")}`] }];
   const executePhase = async (phase: typeof phases[number]) => {
     console.log(`${phase.id}: running; evidence ${relative(root, directory)}`);
     const before = await fingerprints(), startedAt = new Date().toISOString();

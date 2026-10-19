@@ -10,7 +10,7 @@ import { useRouter } from "@/lib/shared/destination-router";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { createFinanceBankCommands, type FinanceBankRequest, type FinanceBankScope } from "@/lib/finance/bank-command";
 import { useFinanceActionAllowed } from "./purchase-context";
-import { acknowledgeFinanceForm, useFinanceDraftClose, useFinanceDraftScope } from "./finance-draft-boundary";
+import { acknowledgeFinanceForm, captureFinanceForm, useFinanceDraftClose, useFinanceDraftCommandPending, useFinanceDraftScope } from "./finance-draft-boundary";
 import { announceWorkChange } from "@/lib/work_projection/work-refresh";
 import {
   AttachmentPanel,
@@ -20,6 +20,7 @@ import { Card, Stack, FormGrid, FormLayout } from "@/components/ui/foundation";
 type Row = Record<string, string | number | null>;
 type BankCommandOutcome = { unchanged: boolean; completion: HTMLFormElement | null };
 function useBankCommand(scope: FinanceBankScope) {
+  const trackCommandPending = useFinanceDraftCommandPending(), pendingTracker = useRef(trackCommandPending), pendingIdentity = useRef({});
   const [manager] = useState(() => {
     let current: FinanceBankScope | null = scope;
     return { commands: createFinanceBankCommands(() => current), update(value: FinanceBankScope) { current = value; } };
@@ -27,16 +28,24 @@ function useBankCommand(scope: FinanceBankScope) {
   const commands = manager.commands;
   useLayoutEffect(() => { manager.update(scope); }, [manager, scope]);
   const [error, setError] = useState(""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [pendingRequest, setPendingRequest] = useState<FinanceBankRequest | null>(null);
-  const refreshPending = useCallback(() => {
-    try { setPendingRequest(commands.pending()?.request ?? null); }
-    catch (cause) { setPendingRequest(null); setError(cause instanceof Error ? cause.message : "Return to the original Bank owner to recover this request."); }
+  const refreshPending = useCallback((completion?: ReturnType<typeof captureFinanceForm>) => {
+    try {
+      const request = commands.pending()?.request ?? null;
+      setPendingRequest(request);
+      pendingTracker.current(pendingIdentity.current, request ? completion ?? captureFinanceForm() : undefined, request !== null);
+    }
+    catch (cause) {
+      pendingTracker.current(pendingIdentity.current, completion ?? captureFinanceForm(), true);
+      setError(cause instanceof Error ? cause.message : "Return to the original Bank owner to recover this request.");
+    }
   }, [commands]);
   useEffect(() => {
     let active = true;
     queueMicrotask(() => { if (active) refreshPending(); });
     return () => { active = false; };
   }, [refreshPending, scope.base, scope.ownerKey, scope.source, scope.canRecover]);
-  async function complete(operation: Promise<Awaited<ReturnType<ReturnType<typeof createFinanceBankCommands>["submit"]>>>) {
+  async function complete(operation: Promise<Awaited<ReturnType<ReturnType<typeof createFinanceBankCommands>["submit"]>>>, completion?: ReturnType<typeof captureFinanceForm>) {
+    pendingTracker.current(pendingIdentity.current, completion ?? captureFinanceForm(), true);
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await operation, acknowledgement = result.acknowledge();
@@ -48,15 +57,15 @@ function useBankCommand(scope: FinanceBankScope) {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The original Bank request is not confirmed. Retry it safely.");
       return null;
-    } finally { setBusy(false); refreshPending(); }
+    } finally { setBusy(false); refreshPending(completion); }
   }
   function send(request: FinanceBankRequest, form: HTMLFormElement) {
     setError("");
-    return complete(commands.submit(request, form));
+    return complete(commands.submit(request, form), { form, formEditVersion: form.getAttribute("data-erpx-edit-version") });
   }
   function retry(form?: HTMLFormElement) {
     setError("");
-    return complete(commands.retry(form));
+    return complete(commands.retry(form), form ? { form, formEditVersion: form.getAttribute("data-erpx-edit-version") } : captureFinanceForm());
   }
   return { send, retry, error, notice, busy, pendingRequest, pending: pendingRequest !== null, refreshPending };
 }
@@ -277,18 +286,12 @@ export function BankMatch({
     else setConfirmedWithNewerDraft(true);
   }
   const matched = transaction.match_status === "matched";
-  if (matched && !pendingForTransaction) return <div>{command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}<span className="muted">This bank movement is already matched.</span></div>;
-  if (matched && pendingForTransaction) return <div>
-    {command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}
-    {command.notice && <InlineNotice tone="info" role="status">{command.notice}</InlineNotice>}
-    <InlineNotice tone="info" role="status">The original match request is still awaiting its native receipt. Recovery resends its exact body and key.</InlineNotice>
-    <Button appearance="standard" type="button" variant="secondary" disabled={command.busy || !canBank} onClick={() => void retryOriginal()}>Retry original bank match</Button>
-  </div>;
+  if (matched && !pendingForTransaction && !confirmedWithNewerDraft) return <div>{command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}<span className="muted">This bank movement is already matched.</span></div>;
   return (
     <div>
       {command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}
       {command.notice && <InlineNotice tone="info" role="status">{command.notice}</InlineNotice>}
-      {pendingForTransaction && <InlineNotice tone="info" role="status">The original match request is not confirmed yet. Retry resends the exact body and key; edits below remain separate.</InlineNotice>}
+      {pendingForTransaction && <InlineNotice tone="info" role="status">{matched ? "This bank movement is already marked matched. The original request is not confirmed yet; retry resends its exact body and key, while edits below remain separate." : "The original match request is not confirmed yet. Retry resends the exact body and key; edits below remain separate."}</InlineNotice>}
       {pendingForTransaction && <Button appearance="standard" type="button" variant="secondary" disabled={command.busy || !canBank} onClick={() => void retryOriginal()}>Retry original bank match</Button>}
       {confirmedWithNewerDraft && <InlineNotice tone="info" role="status">The earlier match was saved. Your newer evidence remains here for review; close this review to load the current Bank movement.</InlineNotice>}
       {!matches.length ? (
@@ -351,7 +354,7 @@ export function BankMatch({
               onChange={setFiles}
             />
           </div>
-          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={command.busy || command.pending || confirmedWithNewerDraft || !canBank}>
+          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={matched || command.busy || command.pending || confirmedWithNewerDraft || !canBank}>
             Confirm match
           </Button>
         </FormLayout>

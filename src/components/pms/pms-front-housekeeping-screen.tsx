@@ -9,6 +9,7 @@ import styles from "./workspace.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/shared/front-language";
 import type {FrontPmsDailyContext} from "./standard-pms-front-workspace";
+import { TaskCompletionDrafts } from "./task-completion-drafts";
 
 
 const field = (
@@ -110,9 +111,10 @@ const labelState: Record<string, string> = {
   disposed: "Disposed",
 };
 export function FrontPmsDailyHousekeepingScreen({context}: {context: FrontPmsDailyContext}) {
-  const {floor, setFloor, roomRows, assignee, setAssignee, data, taskState, setTaskState, showHousekeepingForms, selectedRecord, tr, form, today, taskRows, roomName, showInspectionForms, base, language, rows, showMaintenanceForms} = context;
+  const {floor, setFloor, roomRows, assignee, setAssignee, data, taskState, setTaskState, showHousekeepingForms, selectedRecord, tr, form, today, taskRows, roomName, showInspectionForms, base, language, rows, showMaintenanceForms,taskCompletionDrafts,onUpdateTaskCompletionDraft,onDiscardTaskCompletionDraft} = context;
   return <FrontLocalizedTree>{(
               <>
+                {taskCompletionDrafts && onUpdateTaskCompletionDraft && onDiscardTaskCompletionDraft && <TaskCompletionDrafts drafts={taskCompletionDrafts} onUpdate={onUpdateTaskCompletionDraft} onDiscard={onDiscardTaskCompletionDraft}/>}
                 <Panel title="Housekeeping tasks"><div className={styles.filters}><UiField>Floor<Select value={floor} onChange={e=>setFloor(e.target.value)}><option value="">All floors</option>{[...new Set(roomRows.map(r=>r.data.floor))].filter(Boolean).map(f=><option key={f} value={f}>{f}</option>)}</Select></UiField><UiField>Assigned to<Select value={assignee} onChange={e=>setAssignee(e.target.value)}><option value="">All staff</option>{data.staff.map(st=><option key={st.id} value={st.id}>{st.name}</option>)}</Select></UiField><UiField>Status<Select value={taskState} onChange={e=>setTaskState(e.target.value)}><option value="">Active tasks</option>{["pending","working","clean","done"].map(v=><option key={v} value={v}>{v}</option>)}</Select></UiField></div>
                   {showHousekeepingForms && (
                     <details

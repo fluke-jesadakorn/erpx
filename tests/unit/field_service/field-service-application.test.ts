@@ -400,14 +400,14 @@ async function mountedCustomerSource(path:string,exportName:string,initial:Recor
  const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),{createRequire}=await import('node:module'),require=createRequire(import.meta.url),text=await readFile(new URL(`../../../${path}`,import.meta.url),'utf8'),code=ts.transpileModule(text,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,values:unknown[]=[],effects=new Map<number,{dependencies?:unknown[];cleanup?:()=>void}>(),layouts:(()=>void)[]=[],passives:(()=>void)[]=[];let cursor=0,props=initial;
  const useState=(initial:unknown)=>{const at=cursor++;if(!(at in values))values[at]=typeof initial==='function'?initial():initial;return[values[at],(next:unknown)=>{values[at]=typeof next==='function'?next(values[at]):next;}];},useRef=(initial:unknown)=>{const[ref]=useState(()=>({current:initial}));return ref;},memo=(fn:()=>unknown,dependencies?:unknown[])=>{const at=cursor++,previous=values[at] as {dependencies?:unknown[];value:unknown}|undefined;if(!previous||!dependencies||dependencies.some((value,index)=>value!==previous.dependencies?.[index]))values[at]={dependencies,value:fn()};return(values[at] as {value:unknown}).value;},effect=(queue:(()=>void)[])=>(run:()=>void|(()=>void),dependencies?:unknown[])=>{const at=cursor++,previous=effects.get(at);if(!previous||!dependencies||dependencies.some((value,index)=>value!==previous.dependencies?.[index]))queue.push(()=>{previous?.cleanup?.();effects.set(at,{dependencies,cleanup:run()||undefined});});};
  let edit='initial';const form={isConnected:true,getAttribute:()=>edit,setAttribute:(_name:string,value:string)=>{edit=value;},reset:vi.fn()} as unknown as HTMLFormElement;
- const primitive=(tag:string)=>function CustomerPrimitive(props:Record<string,unknown>){return createElement(tag,props,props.children as React.ReactNode);},controls={Button:primitive('button'),Card:primitive('section'),Field:primitive('label'),InlineNotice:primitive('p'),TextInput:primitive('input'),Select:primitive('select')},drawer=(props:Record<string,unknown>)=>props.open||props.retainFormContents?createElement('aside',props,props.children as React.ReactNode):null,loaded={exports:{} as Record<string,unknown>};
+ const primitive=(tag:string)=>function CustomerPrimitive(props:Record<string,unknown>){return createElement(tag,props,props.children as React.ReactNode);},controls={Button:primitive('button'),Card:primitive('section'),Field:primitive('label'),InlineNotice:primitive('p'),TextInput:primitive('input'),Select:primitive('select')},drawer=(props:Record<string,unknown>)=>props.open||props.retainFormContents?createElement('aside',props,props.children as React.ReactNode):null,dialog=(props:Record<string,unknown>)=>createElement('aside',props,props.children as React.ReactNode),loaded={exports:{} as Record<string,unknown>};
  const localRequire=(name:string):unknown=>{
   if(name==='react')return{...React,useState,useRef,useEffect:effect(passives),useLayoutEffect:effect(layouts),useCallback:(fn:unknown,deps?:unknown[])=>memo(()=>fn,deps),useMemo:memo};
   if(name==='react/jsx-runtime')return require(name);
   if(name.endsWith('/foundation'))return controls;
   if(name.endsWith('/ui/button'))return{Button:controls.Button};
   if(name.endsWith('/draft-form-drawer'))return{DraftFormDrawer:drawer};
-  if(name.endsWith('/ui/dialog'))return{Dialog:drawer};
+  if(name.endsWith('/ui/dialog'))return{Dialog:dialog};
   if(name.endsWith('/account-preferences-context'))return{useAccountPreferences:()=>null};
   if(name.endsWith('/destination-router')||name==='next/navigation')return{useRouter:()=>router};
   if(name.endsWith('/command-context'))return{captureWorkCommandContext};
@@ -422,6 +422,21 @@ async function mountedCustomerSource(path:string,exportName:string,initial:Recor
  return{form,props:(next:Record<string,unknown>)=>{props=next;},render:()=>{cursor=0;const nodes=collect(Component(props));for(const run of layouts.splice(0))run();for(const run of passives.splice(0))run();return nodes;},close:()=>{for(const value of effects.values())value.cleanup?.();Object.assign(form,{isConnected:false});}};
 }
 const customerText=(node:React.ReactNode):string=>React.Children.toArray(node).map(value=>typeof value==='string'||typeof value==='number'?String(value):React.isValidElement<Record<string,unknown>>(value)?customerText(value.props.children as React.ReactNode):'').join('');
+it('Product Navigation blocks direct and imperative product handoffs while an original command is unresolved',async()=>{
+ customerBrowser();const documentEvents=new EventTarget(),assign=vi.fn(),reason='Return to Finance and retry the original request before switching account, Company, or role.';
+ Object.assign(window.location,{href:'https://service.example.test/field-service',assign});
+ vi.stubGlobal('HTMLAnchorElement',class {});
+ Object.assign(document,{visibilityState:'visible',addEventListener:documentEvents.addEventListener.bind(documentEvents),removeEventListener:documentEvents.removeEventListener.bind(documentEvents)});
+ const unregister=customerContext.registerContextSwitchBlocker(()=>reason),navigation=await mountedCustomerSource('src/components/workplace/product-navigation-boundary.tsx','ProductNavigationBoundary',{children:null},vi.fn<typeof workFetch>(),{refresh:vi.fn()}),destination='https://finance-dev-erpx.jesadakorn.com/sso/start';
+ try{
+  let nodes=navigation.render();const boundary=nodes.find(node=>node.type==='div'&&typeof node.props.onClickCapture==='function')!;
+  const anchor={href:destination,target:''},event={button:0,metaKey:false,ctrlKey:false,shiftKey:false,altKey:false,target:{closest:vi.fn(()=>anchor)},preventDefault:vi.fn(),stopPropagation:vi.fn()};
+  (boundary.props.onClickCapture as (value:unknown)=>void)(event);expect(event.preventDefault).toHaveBeenCalledOnce();expect(event.stopPropagation).toHaveBeenCalledOnce();
+  nodes=navigation.render();let dialog=nodes.find(node=>node.type==='aside')!;expect(dialog.props.open).toBe(true);expect(customerText(dialog.props.children as React.ReactNode)).toContain(reason);expect(assign).not.toHaveBeenCalled();
+  const returnToWork=nodes.find(node=>node.type==='button'&&customerText(node.props.children as React.ReactNode)==='Return to the original request')!;(returnToWork.props.onClick as ()=>void)();nodes=navigation.render();dialog=nodes.find(node=>node.type==='aside')!;expect(dialog.props.open).toBe(false);
+  window.dispatchEvent(new CustomEvent('erpx:product-navigate',{detail:{href:destination}}));nodes=navigation.render();dialog=nodes.find(node=>node.type==='aside')!;expect(dialog.props.open).toBe(true);expect(customerText(dialog.props.children as React.ReactNode)).toContain(reason);expect(assign).not.toHaveBeenCalled();
+ }finally{unregister();navigation.close();}
+});
 it('Service mounted customer drawer exposes exact retry after actual focus-triggered SSR snapshot replacement during POST without a second focus',async()=>{
  const browser=customerBrowser(),documentEvents=new EventTarget();Object.assign(document,{visibilityState:'visible',addEventListener:documentEvents.addEventListener.bind(documentEvents),removeEventListener:documentEvents.removeEventListener.bind(documentEvents)});
  let started!:()=>void,release!:(response:Response)=>void;const sending=new Promise<void>(resolve=>{started=resolve;}),held=new Promise<Response>(resolve=>{release=resolve;}),posts:{url:string;body:BodyInit|null|undefined;key:string}[]=[];

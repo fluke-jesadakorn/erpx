@@ -14,6 +14,7 @@ export { useContextSwitch } from "./context-switch-context";
 import { WorkspaceMenu } from "./workspace-menu";
 import {
   confirmContextSwitch,
+  contextSwitchBlockReason,
   setContextSwitching,
   announceContextSwitch,
 } from "@/lib/work_projection/context-switch";
@@ -96,7 +97,11 @@ export function ContextSwitchProvider({ appearance = "legacy", children }: ({ ch
     scroll,
     inspect = true,
   }: SwitchRequest) {
-    if (lock.current || !confirmContextSwitch()) return false;
+    if (lock.current) return false;
+    const blockedReason = contextSwitchBlockReason();
+    if (blockedReason) { setError(blockedReason); return false; }
+    setError("");
+    if (!confirmContextSwitch()) return false;
     lock.current = true;
     setWorking(true);
     setError("");

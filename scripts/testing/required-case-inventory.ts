@@ -77,9 +77,11 @@ export function loadRequiredCases(root = rootDirectory): RequiredCaseIdentity[] 
   const legal = read("legal-uat-engineering-cases.json") as { file: string; title: string; projects: unknown[] }[];
   const matrix = read("uat-route-inventory.json") as { entries: Parameters<typeof requiredUatMatrixCases>[0] };
   const current = currentRequiredCases(JSON.parse(readFileSync(resolve(root, "tests/catalogue/required-cases.json"), "utf8")));
+  const productWorkflows = read("product-workflow-receipts.json") as { workflows: { cases: unknown[] }[] };
   const baseline = loadBrowserCaseBaseline(root);
   const values = [...manifest.capabilities.flatMap(capability => capability.cases), ...Object.values(gates).flat(), ...attachments.flatMap(owner => owner.cases),
-    ...legal.flatMap(test => test.projects.map(project => ({ runner: "playwright", file: test.file, title: test.title, project }))), ...requiredUatMatrixCases(matrix.entries), ...current, ...baseline.cases];
+    ...legal.flatMap(test => test.projects.map(project => ({ runner: "playwright", file: test.file, title: test.title, project }))),
+    ...productWorkflows.workflows.flatMap(workflow => workflow.cases), ...requiredUatMatrixCases(matrix.entries), ...current, ...baseline.cases];
   const cases = new Map<string, RequiredCaseIdentity>();
   for (const value of values) {
     const identity = requiredCaseIdentity(value);

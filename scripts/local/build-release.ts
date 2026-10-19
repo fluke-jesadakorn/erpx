@@ -1,4 +1,4 @@
-import { cp,mkdir,readFile,writeFile,symlink,rm,readdir } from 'node:fs/promises';
+import { cp,mkdir,readFile,writeFile,symlink,rm,readdir,realpath } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join,resolve,relative } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -22,7 +22,7 @@ await cp(join(root,'ops/macos/clamav'),join(work,'ops/macos/clamav'),{recursive:
 await cp(join(root,'ops/macos/install-attachment-runtime.py'),join(work,'ops/macos/install-attachment-runtime.py'),{mode:constants.COPYFILE_FICLONE});
 await cp(join(root,'ops/macos/attachment-rollout.md'),join(work,'ops/macos/attachment-rollout.md'),{mode:constants.COPYFILE_FICLONE});
 for(const name of ['erpxctl.py','offsite.py','recovery_status.py'])await cp(join(root,'ops/macos',name),join(work,'ops/macos',name),{mode:constants.COPYFILE_FICLONE});
-await cp(join(root,'node_modules'),join(work,'node_modules'),{recursive:true,mode:constants.COPYFILE_FICLONE});
+await cp(await realpath(join(root,'node_modules')),join(work,'node_modules'),{recursive:true,mode:constants.COPYFILE_FICLONE});
 // Identify the actual compiled source, including uncommitted changes. Never use
 // a branch label or package version as evidence that two releases are identical.
 if(await runtimeSourceFingerprint(work)!==sourceFingerprint||await runtimeSourceFingerprint(root)!==sourceFingerprint)

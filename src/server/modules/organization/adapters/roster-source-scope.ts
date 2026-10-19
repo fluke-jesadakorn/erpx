@@ -10,22 +10,24 @@ export function rosterCoverageGapSql(mode:'parameters'|'notification'='parameter
     JOIN organization_positions pos ON pos.id=e.position_id AND pos.company_id=e.company_id AND pos.active=1 AND pos.roster_required=1
     WHERE p.company_id=? AND e.department_id=? AND p.status='active' AND p.merged_into_id IS NULL
       AND e.status='active' AND e.start_date::date<=(?::date+6) AND (e.end_date IS NULL OR e.end_date::date>=?::date)
-      AND EXISTS (SELECT 1 FROM generate_series(?::date,?::date+6,interval '1 day') day WHERE
-        (extract(isodow FROM day)<=5 OR NOT EXISTS (
-          SELECT 1 FROM generate_series(?::date,?::date+6,interval '1 day') weekday
-          WHERE extract(isodow FROM weekday)<=5 AND weekday::date>=e.start_date::date
-            AND (e.end_date IS NULL OR weekday::date<=e.end_date::date)))
-        AND day::date>=e.start_date::date AND (e.end_date IS NULL OR day::date<=e.end_date::date)
+      AND EXISTS (SELECT 1 FROM generate_series(0,6) AS day_offset(offset_days)
+        CROSS JOIN LATERAL (SELECT ?::date + day_offset.offset_days AS calendar_day) day
+        WHERE (extract(isodow FROM day.calendar_day)<=5 OR NOT EXISTS (
+          SELECT 1 FROM generate_series(0,6) AS weekday_offset(offset_days)
+          CROSS JOIN LATERAL (SELECT ?::date + weekday_offset.offset_days AS calendar_day) weekday
+          WHERE extract(isodow FROM weekday.calendar_day)<=5 AND weekday.calendar_day>=e.start_date::date
+            AND (e.end_date IS NULL OR weekday.calendar_day<=e.end_date::date)))
+        AND day.calendar_day>=e.start_date::date AND (e.end_date IS NULL OR day.calendar_day<=e.end_date::date)
         AND NOT EXISTS (SELECT 1 FROM (${people_payrollPlatformSources.leave_requests}) l LEFT JOIN (${people_payrollPlatformSources.employees}) emp ON emp.id=l.employee_id AND emp.company_id=l.company_id
           WHERE l.company_id=e.company_id AND l.state='approved' AND coalesce(l.person_id,emp.person_id)=p.id
-          AND (EXISTS (SELECT 1 FROM (${people_payrollPlatformSources.leave_day_segments}) ds WHERE ds.request_id=l.id AND ds.company_id=l.company_id AND ds.leave_date::date=day::date AND ds.segment='full')
-            OR NOT EXISTS (SELECT 1 FROM (${people_payrollPlatformSources.leave_day_segments}) ds WHERE ds.request_id=l.id) AND day::date BETWEEN l.start_date::date AND coalesce(l.end_date::date,l.start_date::date+l.days::int-1)
-              AND (day::date<>l.start_date::date OR l.start_segment='full') AND (l.end_date IS NULL OR day::date<>l.end_date::date OR l.end_segment='full'))))
+          AND (EXISTS (SELECT 1 FROM (${people_payrollPlatformSources.leave_day_segments}) ds WHERE ds.request_id=l.id AND ds.company_id=l.company_id AND ds.leave_date::date=day.calendar_day AND ds.segment='full')
+            OR NOT EXISTS (SELECT 1 FROM (${people_payrollPlatformSources.leave_day_segments}) ds WHERE ds.request_id=l.id) AND day.calendar_day BETWEEN l.start_date::date AND coalesce(l.end_date::date,l.start_date::date+l.days::int-1)
+              AND (day.calendar_day<>l.start_date::date OR l.start_segment='full') AND (l.end_date IS NULL OR day.calendar_day<>l.end_date::date OR l.end_segment='full'))))
       AND NOT EXISTS (SELECT 1 FROM (${people_payrollPlatformSources.people_roster_assignments}) a JOIN (${people_payrollPlatformSources.people_roster_shifts}) s ON s.id=a.shift_id AND s.state='active'
         JOIN (${people_payrollPlatformSources.people_roster_weeks}) w ON w.id=s.week_id WHERE w.company_id=e.company_id AND w.department_id=e.department_id AND w.week_start=?::date
         AND a.engagement_id=e.id AND a.state='assigned') ORDER BY p.legal_name,p.id`;
  if(mode==='parameters')return sql;
- const fields=['roster_source.week_start','roster_source.company_id','roster_source.department_id',...Array<string>(7).fill('roster_source.week_start')];let index=0;
+ const fields=['roster_source.week_start','roster_source.company_id','roster_source.department_id',...Array<string>(5).fill('roster_source.week_start')];let index=0;
  return sql.replace(/\?/g,()=>fields[index++]);
 }
 /** Original department/subtree selection, evaluated in the source statement. */

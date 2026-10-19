@@ -79,6 +79,17 @@ describe("test selection contracts", () => {
         title: "keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer",
         project,
       })),
+      ...([
+        ["tests/e2e/pms/pms-owner-read-workflows.spec.ts", "pms/dashboard renders the selected hotel's live room status through its owner-scoped read"],
+        ["tests/e2e/pms/pms-owner-read-workflows.spec.ts", "pms/inventory opens the mounted minibar route with inventory section identity and scoped records"],
+        ["tests/e2e/pms/pms-owner-read-workflows.spec.ts", "pms/reports runs a date-range report for the selected hotel using read-only owner data"],
+        ["tests/e2e/pms/pms-owner-read-workflows.spec.ts", "pms/settings shows configured rooms and rates from the selected hotel's scoped setup read"],
+      ] as const).flatMap(([file, title]) => (["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file,
+        title,
+        project,
+      }))),
       ...(["work", "pos", "pms", "finance", "people", "sales", "supply", "assets", "projects", "recruit", "learn", "support", "service", "legal", "manufacturing"] as const).flatMap(product => (["desktop", "mobile"] as const).map(project => ({
         runner: "playwright" as const,
         file: "tests/e2e/identity_access/product-hosts.spec.ts",
@@ -103,6 +114,17 @@ describe("test selection contracts", () => {
         title: "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
         project,
       })),
+      ...([
+        "Apps opens a pre-entitled Branch workspace for its scoped user",
+        "Apps opens a pre-entitled Department workspace for its scoped user",
+        "Branch user cannot open another Company through an Apps product context",
+        "Account profile language and theme preferences persist after navigation and reload",
+      ] as const).flatMap(title => (["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title,
+        project,
+      }))),
     ];
     for (const test of reviewedSupplemental) expect(registered.some(candidate => requiredCaseKey(candidate) === requiredCaseKey(test))).toBe(true);
     const reviewed = [...baseline.cases, ...reviewedSupplemental];

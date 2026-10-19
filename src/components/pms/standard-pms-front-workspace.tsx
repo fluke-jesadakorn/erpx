@@ -4,7 +4,8 @@ import { PmsPackageNotice } from "./package-notice";
 import { PmsCommandRecovery } from "./command-recovery";
 import { canonicalUiHref } from "@/lib/work_projection/destination-registry";
 import { PmsChoiceSelect } from "./choice-select";
-import type { Option, Field, Send, ActionAttachment } from "./workspace-types";
+import { changedPmsTaskCompletionAttachments, type Option, type Field, type Send, type ActionAttachment, type PmsTaskCompletionDraft, type PmsTaskCompletionDraftValues, type PmsTaskCompletionDraftAttachment } from "./workspace-types";
+import type { AttachmentPanelChange } from "@/components/files/attachment-panel";
 import { FormDisclosure } from "@/components/ui/form-disclosure";
 import { Button, Card, InlineNotice, Field as UiField, Select, TextArea, TextInput } from "@/components/ui/foundation";
 import { PageHeader } from "@/components/ui/primitives";
@@ -78,6 +79,9 @@ function Form({
   propertyId,
   pending = false,
   recovery,
+  onCompletionDraft,
+  onCompletionAcknowledged,
+  onCompletionAttachmentActivity,
 }: {
   title: string;
   choiceApi?:string;
@@ -92,6 +96,9 @@ function Form({
   version?: number;
   transform?: (v: Record<string, unknown>) => unknown;
   attachments?: ActionAttachment[];
+  onCompletionDraft?: (values: PmsTaskCompletionDraftValues) => void;
+  onCompletionAcknowledged?: () => void;
+  onCompletionAttachmentActivity?: (purposeKey: string, active: boolean) => void;
   open?: boolean;
 }) {
   const language = useFrontLanguage();
@@ -103,6 +110,9 @@ function Form({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [success, setSuccess] = useState(false);
+  const [completionAttachmentPending, setCompletionAttachmentPending] = useState(false);
+  const completionAttachmentActivities = useRef(new Set<string>());
+  const completionAttachments = useRef(new Map<string, PmsTaskCompletionDraftAttachment>());
   const [roomSets, setRoomSets] = useState(1);
   const roomKeys = ["typeId", "rateId", "arrival", "departure", "adults", "quantity"];
   const roomFields = localizedFields.filter((f) => roomKeys.includes(f.name));
@@ -142,8 +152,17 @@ function Form({
         }}
         onSubmit={async (event) => {
           event.preventDefault();
+          if (op === "task.complete" && pending) {
+            setError("Resolve the pending command before completing another task.");
+            return;
+          }
+          if (op === "task.complete" && completionAttachmentActivities.current.size > 0) {
+            setError("Wait for attachment setup or upload to finish before completing this task.");
+            return;
+          }
           const form = event.currentTarget;
           const values = new FormData(form),submittedEdit=formEdits.current;
+          const submittedAttachments = new Map(completionAttachments.current);
           setError("");
           setBusy(true);
           try {
@@ -175,11 +194,22 @@ function Form({
                 const submittedForm = originalForm.deref();
                 if (!submittedForm?.isConnected) return;
                 assertCurrent();
+                if (op === "task.complete") onCompletionAcknowledged?.();
                 // A valid original acknowledgement releases its request version;
                 // newer field values remain a separate, unsent draft.
                 editingVersion.current = undefined;
                 setError("");
-                if(formEdits.current!==submittedEdit)return;
+                if(formEdits.current!==submittedEdit){
+                  if(op==="task.complete"&&onCompletionDraft){
+                    const latest=new FormData(submittedForm);
+                    onCompletionDraft({
+                      checklist:displayFields.filter(f=>f.type==="checkbox").map(f=>({label:f.label,checked:latest.get(f.name)==="on"})),
+                      notes:String(latest.get("notes")??""),
+                      attachments:changedPmsTaskCompletionAttachments(submittedAttachments,completionAttachments.current),
+                    });
+                  }
+                  return;
+                }
                 setSuccess(true);
                 submittedForm.reset();
                 setRoomSets(1);
@@ -250,6 +280,21 @@ function Form({
               fieldName="attachmentSetId"
               bindMode="action"
               visibility="Visible only to hotel staff authorized for this property and action."
+              interactionDisabled={op === "task.complete" && (busy || pending)}
+              onActivityChange={op === "task.complete" ? (active: boolean) => {
+                if (active) completionAttachmentActivities.current.add(attachment.purposeKey);
+                else completionAttachmentActivities.current.delete(attachment.purposeKey);
+                setCompletionAttachmentPending(completionAttachmentActivities.current.size > 0);
+                onCompletionAttachmentActivity?.(attachment.purposeKey, active);
+              } : undefined}
+              onChange={op==="task.complete"?(change:AttachmentPanelChange)=>completionAttachments.current.set(attachment.purposeKey,{
+                purposeKey:attachment.purposeKey,
+                setId:change.setId,
+                readyCount:change.readyCount,
+                requiredCount:change.requiredCount,
+                bindable:change.bindable,
+                links:change.links.map(link=>({id:link.id,filename:link.filename,mediaType:link.mediaType,bytes:link.bytes,sourceState:link.sourceState,linkState:link.linkState,caption:link.caption??null,previewAvailable:link.previewAvailable})),
+              }):undefined}
             />
           </div>
         ))}
@@ -277,7 +322,7 @@ function Form({
           </div>
         )}
         <div className={styles.formFoot}>
-          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || completionAttachmentPending || (op === "task.complete" && pending)}>
             {frontText(busy ? "Saving…" : title, language)}
           </Button>
           {error && (
@@ -491,7 +536,13 @@ function useFrontPmsDailyState({
   const showMaintenanceForms = can("pms.maintenance");
   return {data, base, erpBase, frontHref, section, snapshot, property, propertyId, selectedRecord, today, from, setFrom, query, setQuery, setGuestAccountId, currentGuestAccount, rows, roomName, guestName, rooms, guests, rates, guestAccounts, stays, openShifts, payments, can, form, send, error, notice, onRefresh, onPropertyChange, listRouter, listParams, language, formatSelectedMoney, money, tr, staySearch, setStaySearch, floor, setFloor, assignee, setAssignee, taskState, setTaskState, roomRows, taskRows, visibleStays, reservationRows, operationalNightBlockers, canRecoverBlockedNight, canOperate, showReservationForms, showFrontDeskForms, showCashierForms, showHousekeepingForms, showInspectionForms, showMaintenanceForms};
 }
-export type FrontPmsDailyContext = ReturnType<typeof useFrontPmsDailyState>;
+export type FrontPmsDailyDraftProps = {
+  taskCompletionDrafts: PmsTaskCompletionDraft[];
+  onUpdateTaskCompletionDraft: (draft: PmsTaskCompletionDraft) => void;
+  onDiscardTaskCompletionDraft: (key: string) => void;
+};
+export type FrontPmsDailyContext = ReturnType<typeof useFrontPmsDailyState> & Partial<FrontPmsDailyDraftProps>;
+type FrontPmsDailyOwnerContext = ReturnType<typeof useFrontPmsDailyState> & FrontPmsDailyDraftProps;
 function FrontPmsDaily(props: {
   data: PmsWorkspace;
   base: string;
@@ -526,8 +577,8 @@ function FrontPmsDaily(props: {
   notice: string;
   onRefresh: () => void;
   onPropertyChange: (value: string) => void;
-}) {
-  const context = useFrontPmsDailyState(props);
+} & FrontPmsDailyDraftProps) {
+  const context: FrontPmsDailyOwnerContext = {...useFrontPmsDailyState(props),taskCompletionDrafts:props.taskCompletionDrafts,onUpdateTaskCompletionDraft:props.onUpdateTaskCompletionDraft,onDiscardTaskCompletionDraft:props.onDiscardTaskCompletionDraft};
   const {data, erpBase, section, snapshot, property, propertyId, selectedRecord, today, rows, can, error, notice, onRefresh, onPropertyChange, tr, canOperate, showCashierForms} = context;
 
   return (
@@ -671,9 +722,17 @@ function StandardPmsFrontOwner({
     ),
     [from, setFrom] = useState(initial.snapshot?.property.businessDate ?? initial.defaultDate);
   const [notice, setNotice] = useState("");
+  const [taskCompletionDrafts,setTaskCompletionDrafts]=useState<Record<string,PmsTaskCompletionDraft>>({});
+  const [acknowledgedTaskCompletions,setAcknowledgedTaskCompletions]=useState<Record<string,true>>({});
+  const taskCompletionAttachmentActivities=useRef(new Set<string>());
   const attempts = useRef(new Map<string, PmsWorkspaceCommandAttempt>());
   const [commandState,setCommandState]=useState({pending:false,busy:false});
   const propertyId = data.snapshot?.property.id;
+  const visibleTaskCompletionDrafts=Object.values(taskCompletionDrafts).filter(draft=>draft.base===base&&draft.propertyId===propertyId);
+  const taskCompletionDraftCount=useRef(0);
+  useLayoutEffect(()=>{taskCompletionDraftCount.current=visibleTaskCompletionDrafts.length;},[visibleTaskCompletionDrafts.length]);
+  const updateTaskCompletionDraft=(draft:PmsTaskCompletionDraft)=>setTaskCompletionDrafts(current=>current[draft.key]?{...current,[draft.key]:draft}:current);
+  const discardTaskCompletionDraft=(key:string)=>setTaskCompletionDrafts(current=>{if(!current[key])return current;const next={...current};delete next[key];return next;});
   const commandSource=useRef<PmsWorkspaceCommandSource|null>(null);
   useLayoutEffect(()=>{commandSource.current={base,propertyId,section,frontMode};return()=>{commandSource.current=null;};},[base,propertyId,section,frontMode]);
   const [previousInitial, setPreviousInitial] = useState(initial);
@@ -689,7 +748,8 @@ function StandardPmsFrontOwner({
   const [reads] = useState(()=>createLatestRead<PmsWorkspace>());
   const pendingWrites = useRef(0), readEpoch = useRef(0);
   const hasPendingCommand=useCallback(()=>attempts.current.size>0 || pendingWrites.current>0,[]);
-  const router=usePmsPendingNavigation(nativeRouter,hasPendingCommand,language);
+  const hasLocalTaskCompletionDraft=useCallback(()=>taskCompletionDraftCount.current>0||taskCompletionAttachmentActivities.current.size>0,[]);
+  const router=usePmsPendingNavigation(nativeRouter,hasPendingCommand,language,hasLocalTaskCompletionDraft);
   const invalidateReads=useCallback(()=>{readEpoch.current++;reads.cancel();},[reads]);
   useEffect(() => {
     let active = true;
@@ -735,7 +795,7 @@ function StandardPmsFrontOwner({
       document.removeEventListener("visibilitychange",refresh);
     };
   }, [base, language, propertyId, section, tr,listReadKey,reads,initial,invalidateReads]);
-  const runCommand = async (signature:string,body:string,onAcknowledged?:()=>void,onEditableRejected?:()=>void):Promise<boolean> => {
+  const runCommand = async (signature:string,body:string,onAcknowledged?:(refreshed:boolean)=>void,onEditableRejected?:()=>void):Promise<boolean> => {
     const op=(JSON.parse(body) as {operation:string}).operation;
     const epoch=readEpoch.current;
     let refreshedData:PmsWorkspace|undefined;
@@ -824,7 +884,11 @@ function StandardPmsFrontOwner({
     hidden: Record<string, unknown> = {},
     transform?: (v: Record<string, unknown>) => unknown,
     attachments?: ActionAttachment[],
-  ) => (
+  ) => {
+    const completionKey=typeof hidden.id==="string"?JSON.stringify([base,propertyId,hidden.id]):"";
+    const choiceApi=`/api/v1${base}/pms`;
+    if(op==="task.complete"&&completionKey&&acknowledgedTaskCompletions[completionKey])return null;
+    return (
     <Form
       key={`${op}:${JSON.stringify(hidden)}`}
       title={title}
@@ -832,7 +896,7 @@ function StandardPmsFrontOwner({
       recovery={recovery}
       op={op}
       fields={fields}
-      choiceApi={`/api/v1${base}/pms`}
+      choiceApi={choiceApi}
       propertyId={propertyId}
       hidden={hidden}
       send={send}
@@ -840,9 +904,21 @@ function StandardPmsFrontOwner({
       version={version}
       transform={transform}
       attachments={attachments?.map(item=>({...item,base:pmsFileBase(item.base)}))}
+      onCompletionAcknowledged={op==="task.complete"&&completionKey?()=>setAcknowledgedTaskCompletions(current=>({...current,[completionKey]:true})):undefined}
+      onCompletionDraft={op==="task.complete"&&typeof hidden.id==="string"?values=>{
+        if(!propertyId)return;
+        const key=JSON.stringify([base,propertyId,hidden.id]);
+        setTaskCompletionDrafts(current=>({...current,[key]:{key,base,attachmentBase:pmsFileBase(attachments?.[0]?.base??choiceApi),propertyId,taskId:hidden.id as string,taskLabel:title,...values,editing:false}}));
+      }:undefined}
+      onCompletionAttachmentActivity={op==="task.complete"&&typeof hidden.id==="string"?(purposeKey,active)=>{
+        const activityKey=JSON.stringify([base,propertyId,hidden.id,purposeKey]);
+        if(active)taskCompletionAttachmentActivities.current.add(activityKey);
+        else taskCompletionAttachmentActivities.current.delete(activityKey);
+      }:undefined}
       open={recordSelection.get("detailKind")!=="pms_record" && !!selectedRecord && (hidden.id === selectedRecord || hidden.roomId === selectedRecord)}
     />
-  );
+    );
+  };
   const rows = <K extends Kind>(kind: K): PmsRecord<K>[] => (s ? records(s, kind) : []);
   useEffect(() => {
     if (!selectedRecord) return;
@@ -930,6 +1006,9 @@ function StandardPmsFrontOwner({
         send={send}
         error={error}
         notice={notice}
+        taskCompletionDrafts={visibleTaskCompletionDrafts}
+        onUpdateTaskCompletionDraft={updateTaskCompletionDraft}
+        onDiscardTaskCompletionDraft={discardTaskCompletionDraft}
         onRefresh={() => {
           router.refresh();
           setNotice(tr("Loading the latest data"));

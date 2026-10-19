@@ -107,7 +107,7 @@ test('paid guest booking recovers interrupted receipt and independently approved
     const credentials = JSON.parse(await readFile(join(directory, 'credentials.json'), 'utf8')), user = credentials.users.find((item: { userId: string }) => item.userId === fixture.staff.reviewerId);
     expect(fixture.staff.reviewerId).not.toBe(fixture.staff.authorId);
     expect((await reviewer.request.post('/api/auth/sign-in/email', { headers: { Origin: origin }, data: { email: user.email, password: credentials.password } })).status()).toBe(200);
-    await selectFixtureAssignment(reviewer, fixture.companyId, user.assignmentId, 'booking-test'); await review.goto('/holdings/booking-test/finance/refunds');
+    await selectFixtureAssignment(reviewer, fixture.companyId, user.assignmentId, 'booking-test'); await review.goto('/holdings/booking-test/finance/cash/refunds');
     const refundSummary = review.locator('#workspace-content summary').filter({ hasText: /^Hotel booking & counter refunds$/, visible: true });
     await expect(refundSummary).toHaveCount(1);
     await refundSummary.click();

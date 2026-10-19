@@ -1,0 +1,376 @@
+{
+  "version": 1,
+  "workflows": [
+    {
+      "id": "apps:all-company-branch-department-product-selection",
+      "blockers": {
+        "verified": "The new Apps browser cases must pass on the isolated product-host lease and attach the required UI observation evidence before this workflow can be verified."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/shared.ui/product-launcher.test.ts",
+          "title": "enumerates every Company and inherited Branch/Department without promoting a direct Department to its parent",
+          "proof": "Enumerates Company, inherited Branch and Department product destinations while proving a direct Department grant does not promote authority to its parent."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/shared.ui/product-launcher.test.ts",
+          "title": "checks explicit Company authority for every scope and caches only the grant read per Company in one render",
+          "proof": "Requires current Company authority at every scope and confines cached grants to one Company during product discovery."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+          "project": "desktop",
+          "proof": "A pre-entitled Branch user selects a visible Apps product tile and lands on the matching Branch workspace under the same Company and account."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+          "project": "mobile",
+          "proof": "A pre-entitled Branch user selects a visible Apps product tile and lands on the matching Branch workspace under the same Company and account."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+          "project": "desktop",
+          "proof": "A pre-entitled Department user selects a visible Apps product tile and lands on the matching Department workspace without broadening its scope."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+          "project": "mobile",
+          "proof": "A pre-entitled Department user selects a visible Apps product tile and lands on the matching Department workspace without broadening its scope."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Branch user cannot open another Company through an Apps product context",
+          "project": "desktop",
+          "proof": "A Branch user's Apps session cannot discover or enter a different Company through the product launch route."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Branch user cannot open another Company through an Apps product context",
+          "project": "mobile",
+          "proof": "A Branch user's Apps session cannot discover or enter a different Company through the product launch route."
+        }
+      ]
+    },
+    {
+      "id": "apps:single-product-direct-entry",
+      "blockers": {
+        "verified": "The new Apps Branch and Department browser cases must pass on the isolated product-host lease and attach the required UI observation evidence before direct-entry verification."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/identity_access/product-workspace.test.ts",
+          "title": "checks explicit Company access before setting a host-only cookie and preserves the target query",
+          "proof": "The product launch handler checks explicit Company authority before issuing its host-only context cookie and retains the exact requested target query."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+          "project": "desktop",
+          "proof": "One already-entitled Branch product tile opens its actual product host and reaches the requested Company/Branch workspace."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+          "project": "mobile",
+          "proof": "One already-entitled Branch product tile opens its actual product host and reaches the requested Company/Branch workspace."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+          "project": "desktop",
+          "proof": "One already-entitled Department product tile opens its actual product host and reaches the requested Company/Department workspace."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+          "project": "mobile",
+          "proof": "One already-entitled Department product tile opens its actual product host and reaches the requested Company/Department workspace."
+        }
+      ]
+    },
+    {
+      "id": "apps:dirty-product-switch",
+      "blockers": {
+        "verified": "The existing dirty-switch browser case must pass on the isolated product-host lease and attach the required UI observation evidence before this workflow can be verified."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/shared.ui/workplace-navigation.test.ts",
+          "title": "Product owner link transport routes imperative handoffs through the existing dirty guard while keeping normal same-product navigation local",
+          "proof": "A dirty cross-product handoff is routed through the shared guard while same-product navigation remains local."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Assets native drawer and dirty product switch observations across the appearance matrix",
+          "project": "desktop",
+          "proof": "The leased Assets product-host workflow exercises a real dirty drawer across an attempted product switch and records its retained draft state."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Assets native drawer and dirty product switch observations across the appearance matrix",
+          "project": "mobile",
+          "proof": "The leased Assets product-host workflow exercises a real dirty drawer across an attempted product switch and records its retained draft state."
+        }
+      ]
+    },
+    {
+      "id": "account:central-login-and-directory-link",
+      "blockers": {
+        "implemented": "No exact case currently proves the complete Account credential or directory-linked login workflow through its resulting identity binding; standalone auth and SSO smoke cases cover separate boundaries.",
+        "verified": "No isolated browser workflow traverses Account login or directory-linked login into the expected product session and confirms its linked identity."
+      },
+      "cases": []
+    },
+    {
+      "id": "account:profile-language-theme",
+      "blockers": {
+        "verified": "The new Account profile browser case must pass on the isolated product-host lease and attach the required UI observation evidence before this workflow can be verified."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/product-sso-auth.test.ts",
+          "title": "reads and changes a central Account profile without Company or Platform authority",
+          "proof": "The actual Account profile endpoint persists Thai language and dark theme preferences for the signed-in account without requiring Company or Platform authority."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Account profile language and theme preferences persist after navigation and reload",
+          "project": "desktop",
+          "proof": "The Account profile UI changes language and theme, navigates away, reloads, and confirms both preferences remain selected and applied."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Account profile language and theme preferences persist after navigation and reload",
+          "project": "mobile",
+          "proof": "The Account profile UI changes language and theme, navigates away, reloads, and confirms both preferences remain selected and applied."
+        }
+      ]
+    },
+    {
+      "id": "account:role-company-account-switch",
+      "blockers": {
+        "implemented": "No single reviewed native workflow currently covers role, Company, and account switching together with retained current-authority checks.",
+        "verified": "No single isolated browser workflow currently covers role, Company, and account switching together on the Account/Apps product path."
+      },
+      "cases": []
+    },
+    {
+      "id": "account:mfa-expiry-replay-family-all-device-revocation",
+      "blockers": {
+        "verified": "The focused MFA replay and Account family-revocation cases have no matching isolated browser workflow with UI observation evidence."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/iam.test.ts",
+          "title": "prevents authenticator replay and rejects MFA proof after the five minute boundary",
+          "proof": "Authenticator replay is rejected and a proof outside the five-minute freshness boundary cannot authorize a mutation."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/product-sso-auth.test.ts",
+          "title": "revokes all actual own devices and product sessions without touching another account or issuing a replacement grant",
+          "proof": "Account-wide revocation removes the owner's device and child product sessions while preserving another account and creating no replacement grant."
+        }
+      ]
+    },
+    {
+      "id": "account:authorized-package-area",
+      "blockers": {
+        "implemented": "No exact native case currently exercises the Account package area as a user-facing flow while distinguishing authorized products from unavailable packages.",
+        "verified": "No isolated browser case currently exercises the Account package area and its authorized-product result."
+      },
+      "cases": []
+    },
+    {
+      "id": "admin:company-brand-organization-iam",
+      "blockers": {
+        "implemented": "Existing Brand, Organization, and IAM cases prove separate owner behaviors; no exact native workflow covers those capabilities through the Company Admin product entry as one workflow.",
+        "verified": "No isolated browser workflow traverses Company Admin into Brand, Organization, and IAM using existing Company authority."
+      },
+      "cases": []
+    },
+    {
+      "id": "admin:platform-only-entry",
+      "blockers": {
+        "verified": "The native Platform authority check has no matching isolated browser entry workflow and UI observation evidence."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/identity_access/admin-workspace.test.ts",
+          "title": "requires actual matching Platform plus ERPX Holding permission for management without selecting a role",
+          "proof": "Management is available only for the same account with matching Platform authority and ERPX Holding permission, without selecting or mutating a role."
+        }
+      ]
+    },
+    {
+      "id": "admin:provider-authority-separation",
+      "blockers": {
+        "verified": "The isolated provider-authority integration cases have no matching browser workflow through the Admin product with UI observation evidence."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "title": "provides a real Platform-only preview with no Company role or package mutation",
+          "proof": "Platform-only preview returns the reviewed legacy candidates while leaving Company roles and package grants unchanged."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "title": "requires fresh MFA before entering the Holding mutation, and read-only Platform authority cannot apply",
+          "proof": "A Platform session without current MFA and a read-only authority cannot enter a Company grant mutation."
+        }
+      ]
+    },
+    {
+      "id": "admin:legacy-preview-apply-and-audit",
+      "blockers": {
+        "verified": "The isolated legacy preview/apply/audit integrations have no matching browser workflow through the Admin product with UI observation evidence."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/legacy-module-preview.test.ts",
+          "title": "reads actual published module ceilings and HR restrictions without modifying Company grants or assignments",
+          "proof": "Legacy preview applies current published module ceilings and HR restrictions while asserting the Company grant and assignment rows remain unchanged."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "title": "atomically applies the reviewed batch through Commercial and preserves immutable review provenance on replay",
+          "proof": "The isolated reviewed legacy batch applies atomically and preserves immutable review provenance for an exact replay."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "title": "roundtrips actual ordinary and legacy Commercial receipts through the captured Provider UI acknowledgement without losing newer drafts",
+          "proof": "A captured Provider acknowledgement accepts the exact ordinary and legacy receipts while preserving a newer in-progress draft."
+        }
+      ]
+    },
+    {
+      "id": "booking:tenant-room-availability-reservation-consent-payment-callback",
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/pms/pms-booking.test.ts",
+          "title": "shares exact nightly prices, child occupancy and policy snapshots",
+          "proof": "The public availability result and accepted reservation use the exact nightly prices, child occupancy and frozen policy snapshot."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/pms/pms-booking.test.ts",
+          "title": "atomically confirms and queues email without creating money entries",
+          "proof": "Reservation confirmation commits once with its notification job and does not create money entries before a payment callback."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/pms/pms-booking.test.ts",
+          "title": "confirms a timely provider payment after local hold expiry only when capacity is still available",
+          "proof": "A timely verified provider callback confirms a booking after local hold expiry only when the room remains available."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/pms/pms-booking-payment-recovery.spec.ts",
+          "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+          "project": "desktop",
+          "proof": "The isolated browser journey searches rooms, records consent, starts checkout, processes the signed payment callback, recovers the interrupted receipt and retains one approved refund without duplicate money."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/pms/pms-booking-payment-recovery.spec.ts",
+          "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+          "project": "mobile",
+          "proof": "The isolated browser journey searches rooms, records consent, starts checkout, processes the signed payment callback, recovers the interrupted receipt and retains one approved refund without duplicate money."
+        }
+      ]
+    },
+    {
+      "id": "portal:tenant-token-invitation-document-and-private-files",
+      "blockers": {
+        "implemented": "The current Portal cases cover approved customer bindings and shared files but do not prove a tenant-token invitation workflow; no native case matches the complete declared flow.",
+        "verified": "The existing customer Portal browser journey does not use a tenant-token invitation, so no exact browser witness exists for the declared workflow."
+      },
+      "cases": []
+    },
+    {
+      "id": "legal-portal:invitation-mfa-document-version-consent-signing-and-private-files",
+      "blockers": {
+        "implemented": "Legal Portal signing is currently disabled, and no native test proves the declared invitation, MFA, document-version consent, successful signing, and private-file workflow end to end.",
+        "verified": "No isolated Legal Portal browser workflow covers the declared invitation/MFA/versioned-consent/signing/private-file sequence; the current Portal signing route remains disabled."
+      },
+      "cases": []
+    },
+    {
+      "id": "forms:tenant-published-version-consent-submit-and-replay",
+      "blockers": {
+        "verified": "The available Marketing browser journey does not use the Forms product host; an exact isolated Forms-host browser case with UI observation evidence is required."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/marketing/public-marketing-form.test.ts",
+          "title": "requires the rendered version for a new Forms-host submission while retaining exact legacy receipts and current publication authority",
+          "proof": "The Forms host requires the version displayed to the visitor, records consent under that version and replays only the exact original submission receipt."
+        }
+      ]
+    },
+    {
+      "id": "work:company-executive-and-scoped-mcp",
+      "blockers": {
+        "verified": "The exact executive/MCP native cases have no isolated Work browser workflow traversing the Company Executive UI and scoped MCP client with UI observation evidence."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/identity_access/product-workspace.test.ts",
+          "title": "launches Company Executive on Work with its current permission and independent release, without buying Finance or changing the role",
+          "proof": "Company Executive opens on Work only with current executive permission and its independent release, without requiring Finance purchase or changing the selected role."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/shared.executive/executive-canvas.test.ts",
+          "title": "requires executive eligibility and an explicit effective grant",
+          "proof": "The Company Executive canvas rejects users without executive eligibility or an explicit effective grant."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/shared.executive/executive-mcp.test.ts",
+          "title": "connects the official client through Work while denying its valid credential on Finance and retired Console before MCP dispatch",
+          "proof": "The official MCP client reaches the Company service through Work and the same credential is denied on Finance and retired Console before dispatch."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/shared.executive/executive-mcp.test.ts",
+          "title": "isolates company, branch and department scopes and denies unshared dashboards",
+          "proof": "The MCP service constrains Company, Branch and Department reads to the credential's assigned scope and refuses unshared reports."
+        }
+      ]
+    }
+  ]
+}

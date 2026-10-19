@@ -1,6 +1,7 @@
 import type { Page, TestInfo } from "@playwright/test";
 import { describe, expect, it, vi } from "vitest";
 import { captureCaseScreenshot } from "../../support/helpers/case-screenshot";
+import { serializeWorkflowUiObservation } from "../../support/browser/workflow-ui-observation";
 
 type ScreenshotOptions = NonNullable<Parameters<Page["screenshot"]>[0]>;
 type CaptureOptions = NonNullable<Parameters<typeof captureCaseScreenshot>[2]>;
@@ -121,5 +122,48 @@ describe("case screenshot evidence", () => {
     expect(options).toEqual({ clip: { x: 12, y: 18, width: 320, height: 240 }, animations: "disabled", timeout: 12_000 });
     expect(options).not.toHaveProperty("path");
     expect(screenshot.mock.calls[0][0]?.clip).toBe(clip);
+  });
+});
+
+describe("workflow UI observation serialization", () => {
+  const observation = () => serializeWorkflowUiObservation({
+    routeSource: "src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
+    targetSource: "src/components/finance/sales-controls.tsx",
+    checks: ["loaded", "surface:src/components/finance/sales-controls.tsx:abc"],
+    ownerContext: { companyId: "fictional-company", assignment: "owner" },
+    authorityBranch: "allowed:actual-native-Company-holding_owner",
+    authentication: "normal-native-owner",
+    run: "012345abcdef",
+    candidate: "a".repeat(40),
+    sourceFingerprint: "b".repeat(64),
+    verificationFingerprint: "c".repeat(64),
+    releaseId: "2026-10-19T00-00-00-000Z",
+    releaseManifestSha256: "d".repeat(64),
+    targetKind: "route",
+    targetFingerprint: "e".repeat(64),
+    url: "http://127.0.0.1:3104/holdings/simulation/finance/documents/sales/invoices",
+    viewport: { width: 390, height: 900 },
+    theme: "light",
+    resolvedTheme: "light",
+    screenshot: { path: ".scratch/dev/test-suites/browser/run/artifacts/screen.png", sha256: "f".repeat(64), bytes: 1024 },
+  });
+
+  it("serializes explicit route, owner, release and screenshot bindings", () => {
+    expect(observation()).toMatchObject({
+      schema: "erpx-ui-browser-observation/v1",
+      result: "passed",
+      targetKind: "route",
+      targetSource: "src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
+      routeSource: "src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
+      ownerContext: JSON.stringify({ companyId: "fictional-company", assignment: "owner" }),
+      authorityBranch: "allowed:actual-native-Company-holding_owner",
+      authentication: "normal-native-owner",
+      screenshot: { path: ".scratch/dev/test-suites/browser/run/artifacts/screen.png", bytes: 1024 },
+    });
+  });
+
+  it("rejects duplicate checks and evidence outside the compiled cohort", () => {
+    expect(() => serializeWorkflowUiObservation({ ...observation(), checks: ["loaded", "loaded"] })).toThrow("UI_WORKFLOW_CHECKS_REQUIRED");
+    expect(() => serializeWorkflowUiObservation({ ...observation(), url: "https://console-dev-erpx.jesadakorn.com/" })).toThrow("UI_WORKFLOW_COMPILED_ORIGIN_REQUIRED");
   });
 });

@@ -170,7 +170,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
     const origin = `http://127.0.0.1:${port}`, output = join(evidence, run);
     await freePort(port); await mkdir(output, { mode: 0o700 });
     if (suite.fictionalProvider && (port !== 3104 || !releaseDirectory)) throw new Error('FICTIONAL_PROVIDER_COMPILED_3104_REQUIRED');
-    const verifyRelease = (productMode || suite.lane === "uat" || Boolean(suite.fictionalProvider)) && Boolean(releaseDirectory);
+    const verifyRelease = (port === 3104 || productMode || suite.lane === "uat" || Boolean(suite.fictionalProvider)) && Boolean(releaseDirectory);
     // Global health requires the real worker, scanner and reconciled storage.
     // Capability-specific requirements remain explicit in the catalogue.
     const requirements = { jobs: true, scanner: true };

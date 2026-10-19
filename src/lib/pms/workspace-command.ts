@@ -5,7 +5,7 @@ import {announceWorkChange} from '@/lib/work_projection/work-refresh';
 import {isFirstPmsEditableRejection} from './workspace-command-rejections';
 
 export type PmsWorkspaceCommandSource={base:string;propertyId?:string;section?:string;frontMode?:boolean};
-export type PmsWorkspaceCommandAttempt={body:string;key:string;scope:string;sends:number;completion:ReturnType<typeof retainWorkCommandCompletion>;onAcknowledged?:()=>void;onEditableRejected?:()=>void};
+export type PmsWorkspaceCommandAttempt={body:string;key:string;scope:string;sends:number;completion:ReturnType<typeof retainWorkCommandCompletion>;onAcknowledged?:(refreshed:boolean)=>void;onEditableRejected?:()=>void};
 type Receipt={id:string;propertyId:string;version:number};
 const changed=()=>Object.assign(new Error('Your hotel or work context changed. Return to the original context before retrying.'),{code:'WORK_CONTEXT_CHANGED'});
 function scope(source:PmsWorkspaceCommandSource|null){
@@ -68,7 +68,7 @@ async function receipt(value:unknown,source:PmsWorkspaceCommandSource,body:strin
 /** Only this owner delays acknowledgement until its original body and optional
  * refresh have finished in the captured hotel and rendered work context. */
 export async function sendPmsWorkspaceCommand(attempts:Map<string,PmsWorkspaceCommandAttempt>,current:()=>PmsWorkspaceCommandSource|null,signature:string,body:string,
- refresh:(result:Receipt,assertCurrent:()=>void)=>Promise<boolean>,onAcknowledged?:()=>void,onEditableRejected?:()=>void){
+ refresh:(result:Receipt,assertCurrent:()=>void)=>Promise<boolean>,onAcknowledged?:(refreshed:boolean)=>void,onEditableRejected?:()=>void){
  const source=current();if(!source)throw changed();
  const assertCurrent=capturePmsWorkspaceCommandContext(current);assertCurrent();
  let attempt=attempts.get(signature);
@@ -99,10 +99,10 @@ export async function sendPmsWorkspaceCommand(attempts:Map<string,PmsWorkspaceCo
   assertCurrent();
  }
  assertCurrent();
- return {receipt:result,refreshed,acknowledge(){
+  return {receipt:result,refreshed,acknowledge(){
   assertCurrent();
   if(attempts.get(signature)!==submitted)return false;
-  submitted.onAcknowledged?.();
+  submitted.onAcknowledged?.(refreshed);
   assertCurrent();
   attempts.delete(signature);
   if(typeof window!=='undefined'){

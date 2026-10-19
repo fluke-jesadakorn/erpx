@@ -1,7 +1,7 @@
 {
   "version": 1,
   "scope": "catalogue-engineering-completion-v1",
-  "registrySha256": "c70bbc3fed09c5f959a570880783ab5e7830a82fa67a0ee2c157139e219e4831",
+  "registrySha256": "52a5bafca4de85e61a2fc16c8b832eda82e0b84a7448061aa120af8567ce4644",
   "modules": [
     "brand",
     "commercial",
@@ -467,6 +467,20 @@
           "file": "tests/integration/organization/organization-access.test.ts",
           "title": "keeps legacy HR list and private person APIs behind HR or self access",
           "proof": "Ordinary directory readers cannot use the private compensation/person endpoints; self and HR remain authorized."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/demo-identity-activation-revocation.spec.ts",
+          "title": "Demo invitation activates a separate account and revocation removes access immediately",
+          "project": "desktop",
+          "proof": "The owner creates a distinct People record for the invited employee; after independent review and activation, the employee reads that person record in the selected branch, and revocation immediately removes the read authority."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/demo-identity-activation-revocation.spec.ts",
+          "title": "Demo invitation activates a separate account and revocation removes access immediately",
+          "project": "mobile",
+          "proof": "The owner creates a distinct People record for the invited employee; after independent review and activation, the employee reads that person record in the selected branch, and revocation immediately removes the read authority."
         }
       ],
       "moduleId": "identity_access",
@@ -500,6 +514,20 @@
           "file": "tests/integration/identity_access/iam.test.ts",
           "title": "uses independently published custom-role scopes for Company choices without extending the existing assignment scope",
           "proof": "Real independent role and grant commands enable exactly one Company; the current published branch-only revision removes it; exact grant ID/scope_kind/scope_node are preserved, its native version increments by one, and iamRole reads the exact current branch scope."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/demo-identity-activation-revocation.spec.ts",
+          "title": "Demo invitation activates a separate account and revocation removes access immediately",
+          "project": "desktop",
+          "proof": "A holding owner creates an employee access grant, a different holding owner reviews it, and the invitee activates; after the owner revokes the grant, current self-read returns WORK_ROLE_UNAVAILABLE and protected home access is denied."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/demo-identity-activation-revocation.spec.ts",
+          "title": "Demo invitation activates a separate account and revocation removes access immediately",
+          "project": "mobile",
+          "proof": "A holding owner creates an employee access grant, a different holding owner reviews it, and the invitee activates; after the owner revokes the grant, current self-read returns WORK_ROLE_UNAVAILABLE and protected home access is denied."
         }
       ],
       "moduleId": "identity_access",
@@ -595,6 +623,20 @@
           "file": "tests/integration/organization/organization.test.ts",
           "title": "checks position scope and optimistic versions without allowing reporting cycles",
           "proof": "Position edits enforce company/placement/version and refuse cyclic reporting managers."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/organization/demo-organization-lifecycle.spec.ts",
+          "title": "isolated organization setup supports reviewed correction, safe suspension and retained history",
+          "project": "desktop",
+          "proof": "An organization owner submits a branch creation and a separate HR reviewer approves it; reload shows the active branch revision and retained review history. The case also exercises versioned hierarchy corrections, placement moves and safe suspension."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/organization/demo-organization-lifecycle.spec.ts",
+          "title": "isolated organization setup supports reviewed correction, safe suspension and retained history",
+          "project": "mobile",
+          "proof": "An organization owner submits a branch creation and a separate HR reviewer approves it; reload shows the active branch revision and retained review history. The case also exercises versioned hierarchy corrections, placement moves and safe suspension."
         }
       ],
       "moduleId": "organization",
@@ -690,6 +732,20 @@
           "file": "tests/integration/organization/organization-access.test.ts",
           "title": "does not leak another Company's records",
           "proof": "Foreign-company People/organization reads refuse scoped records."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/organization/demo-organization-lifecycle.spec.ts",
+          "title": "isolated organization setup supports reviewed correction, safe suspension and retained history",
+          "project": "desktop",
+          "proof": "An owner drafts and submits a branch change; an independent HR reviewer returns it for correction then approves it, and reload verifies active node state and revision."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/organization/demo-organization-lifecycle.spec.ts",
+          "title": "isolated organization setup supports reviewed correction, safe suspension and retained history",
+          "project": "mobile",
+          "proof": "An owner drafts and submits a branch change; an independent HR reviewer returns it for correction then approves it, and reload verifies active node state and revision."
         }
       ],
       "moduleId": "organization",
@@ -1070,6 +1126,20 @@
           "file": "tests/integration/sales/customer-notes.test.ts",
           "title": "protects standalone notes with customer version and workspace visibility checks",
           "proof": "await expect(createCustomerNote(f.owner,{customerId,expectedVersion:99,channel:'phone',occurredAt:Date.now()-1000,body:'Stale customer source'},key())).rejects.toMatchObject({code:'CUSTOMER_SOURCE_CHANGED'});\nawait expect(customerNotesForCustomer({...f.owner,branchId:'other'},customerId)).rejects.toMatchObject({status:404});\nawait expect(changeCustomerNote({...f.owner,branchId:f.branch,departmentId:null},String(n.id),{action:'archive',expectedVersion:1,reason:'Branch cannot change standalone note'},key())).rejects.toMatchObject({status:404});"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_360/demo-customer-timeline.spec.ts",
+          "title": "isolated demo exposes a scoped Customer 360 timeline to independent Sales roles",
+          "project": "desktop",
+          "proof": "A Sales operator records an internal contact note from the authorized Customer 360 profile; a separate Sales manager can read it, reload retains the note in customer history, and restricted fields remain hidden."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_360/demo-customer-timeline.spec.ts",
+          "title": "isolated demo exposes a scoped Customer 360 timeline to independent Sales roles",
+          "project": "mobile",
+          "proof": "A Sales operator records an internal contact note from the authorized Customer 360 profile; a separate Sales manager can read it, reload retains the note in customer history, and restricted fields remain hidden."
         }
       ],
       "moduleId": "customer_360",
@@ -1130,6 +1200,20 @@
           "file": "tests/integration/customer_authority/customer-duplicates.test.ts",
           "title": "transactionally repoints safe source records, snapshots paired balances and preserves merge lineage",
           "proof": "expect(merged).toMatchObject({status:'merged',canonicalCustomerId:left,mergedCustomerId:right,version:3});\nexpect(await changeCustomerDuplicate(reviewer,id,{action:'merge',expectedVersion:2,reason:'Repointed safe source records and retained the canonical customer'},mergeKey)).toEqual(merged);\nexpect(await db.prepare('SELECT party_id FROM commerce_orders WHERE id=?').bind(order).first('party_id')).toBe(left);\nexpect(await db.prepare('SELECT party_id FROM finance_invoices WHERE id IN (?,?)').bind(invoice,canonicalInvoice).all()).toMatchObject({results:[{party_id:left},{party_id:left}]});\nexpect(await db.prepare('SELECT party_id FROM finance_payments WHERE id IN (?,?)').bind(losingPayment,canonicalPayment).all()).toMatchObject({results:[{party_id:left},{party_id:left}]});\nexpect(await db.prepare('SELECT invoice_count,invoice_total_minor,invoice_outstanding_minor,payment_count,payment_total_minor,payment_outstanding_minor,refund_count,refund_total_minor,refund_outstanding_minor FROM customer_duplicate_merge_reconciliations WHERE review_id=?').bind(id).first()).toMatchObject({invoice_count:2,invoice_total_minor:300,invoice_outstanding_minor:250,payment_count:2,payment_total_minor:200,payment_outstanding_minor:50,refund_count:0,refund_total_minor:0,refund_outstanding_minor:0});\nexpect(await db.prepare('SELECT status,merged_into_id,version FROM finance_parties WHERE id=?').bind(right).first()).toMatchObject({status:'blocked',merged_into_id:left,version:2});\nexpect((await customerDuplicateDetail(f.owner,id)).row.status).toBe('merged');\nexpect((await customerDuplicateDetail(f.owner,id)).history.map(x=>x.action)).toEqual(['request','duplicate','merge']);"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
+          "title": "isolated demo independently reviews and merges duplicate customers",
+          "project": "desktop",
+          "proof": "A holding owner submits duplicate evidence; an independent manager records the canonical decision, and the UI/API retain status and version."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
+          "title": "isolated demo independently reviews and merges duplicate customers",
+          "project": "mobile",
+          "proof": "A holding owner submits duplicate evidence; an independent manager records the canonical decision, and the UI/API retain status and version."
         }
       ],
       "moduleId": "customer_authority",
@@ -1228,6 +1312,20 @@
           "file": "tests/integration/customer_authority/customer-identity-changes.test.ts",
           "title": "routes an independent review and atomically applies the snapshot to the unchanged customer version",
           "proof": "expect(await requestCustomerIdentityChange(f.owner,body,k)).toEqual(created);\nawait expect(changeCustomerIdentity(f.owner,id,{action:'apply',expectedVersion:1,reason:'Requester self approval attempt'},key())).rejects.toMatchObject({code:'INDEPENDENT_APPROVER_REQUIRED'});\nexpect((await customerIdentityWork(reviewer)).find(x=>x.id===id)).toMatchObject({queue:'todo',canAct:true,href:`/customer-identity/${id}`});\nexpect({...applied,address_json:JSON.parse(String(applied.address_json))}).toEqual({name:'Reviewed customer name',tax_registration:'SIM-NEW',phone:'+66 2 555 0101',address_json:{line1:'99 Demo Road',line2:null,city:'Bangkok',region:'Bangkok',postalCode:'10110',countryCode:'TH'},notification_email:'billing@example.test',notification_consent:'granted',version:2})\nexpect((await customerIdentityDetail(f.owner,id)).history).toHaveLength(2);"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
+          "title": "isolated demo independently reviews and merges duplicate customers",
+          "project": "desktop",
+          "proof": "A requester submits a duplicate-customer identity review, a different reviewer decides and merges it, and the customer detail retains canonical/duplicate state with ordered request, duplicate and merge history."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
+          "title": "isolated demo independently reviews and merges duplicate customers",
+          "project": "mobile",
+          "proof": "A requester submits a duplicate-customer identity review, a different reviewer decides and merges it, and the customer detail retains canonical/duplicate state with ordered request, duplicate and merge history."
         }
       ],
       "moduleId": "customer_authority",
@@ -1668,6 +1766,20 @@
           "file": "tests/integration/finance/finance-opening-balances.test.ts",
           "title": "opening trial balance changes an account status with version, reason, idempotency and audit evidence",
           "proof": "Checks inactive/active versioned state after SQL reload, retry equality, audit action and stale status rejection."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/demo-finance-chart-setup.spec.ts",
+          "title": "isolated demo renders real chart and account setup controls",
+          "project": "desktop",
+          "proof": "Finance roles read the actual chart and accounts, create an account, change its status inactive then active, and verify each resulting state in the UI."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/demo-finance-chart-setup.spec.ts",
+          "title": "isolated demo renders real chart and account setup controls",
+          "project": "mobile",
+          "proof": "Finance roles read the actual chart and accounts, create an account, change its status inactive then active, and verify each resulting state in the UI."
         }
       ],
       "moduleId": "finance",
@@ -1818,6 +1930,20 @@
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
           "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/demo-finance-aging.spec.ts",
+          "title": "isolated demo renders receivables and payables aging from live finance data",
+          "project": "desktop",
+          "proof": "The Finance UI and API show receivables and payables aging for the requested date, including the exact current outstanding bucket."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/demo-finance-aging.spec.ts",
+          "title": "isolated demo renders receivables and payables aging from live finance data",
+          "project": "mobile",
+          "proof": "The Finance UI and API show receivables and payables aging for the requested date, including the exact current outstanding bucket."
         }
       ],
       "moduleId": "finance",
@@ -1974,6 +2100,20 @@
           "file": "tests/integration/shared.money-people-journeys/engineering-finance-close-fixture.test.ts",
           "title": "isolated Finance close browser fixture still rejects an actual native bank difference inside the close Company without adjusting the retained statement",
           "proof": "A genuinely created and independently posted12.50 bank journal in the close Company yields GL101250 versus retained statement100000/difference1250. Native beginClose rejects CLOSE_RECONCILIATION_FAILED; period remains open with zero close receipts and all original opening/statement evidence unchanged."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/demo-finance-close.spec.ts",
+          "title": "isolated demo closes two reconciled periods with independent users",
+          "project": "desktop",
+          "proof": "In the isolated browser Company, the Finance preparer checks bank, AR and AP against the GL with zero differences and begins consecutive January and February closes; a separate Finance approver closes both, and API/UI reload confirms the retained closed states."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/demo-finance-close.spec.ts",
+          "title": "isolated demo closes two reconciled periods with independent users",
+          "project": "mobile",
+          "proof": "In the isolated browser Company, the Finance preparer checks bank, AR and AP against the GL with zero differences and begins consecutive January and February closes; a separate Finance approver closes both, and API/UI reload confirms the retained closed states."
         }
       ],
       "moduleId": "finance",
@@ -2000,6 +2140,20 @@
           "file": "tests/integration/shared.money-people-journeys/engineering-finance-close-fixture.test.ts",
           "title": "isolated Finance close browser fixture posts native opening schedules and closes two months independently without consuming the other browser Company's evidence",
           "proof": "Actual Finance opening preview/import plus independently routed batch posting produces retained bank100000/AR30000/AP20000 minor and two source invoices. Current DB Finance assignments and local IAM members are active. January and February begin with exact source=GL and three zero differences; independent close and lost-response replay preserve opening journal/lines/invoices/statements. Six reconciliation rows reload, another browser Company remains open, and cross-Company period access is denied."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/demo-finance-opening-import.spec.ts",
+          "title": "isolated demo imports and independently posts opening balances",
+          "project": "desktop",
+          "proof": "A finance preparer creates a reconciled opening journal and a different approver posts it; the API confirms the posted opening-import source."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/demo-finance-opening-import.spec.ts",
+          "title": "isolated demo imports and independently posts opening balances",
+          "project": "mobile",
+          "proof": "A finance preparer creates a reconciled opening journal and a different approver posts it; the API confirms the posted opening-import source."
         }
       ],
       "moduleId": "finance",
@@ -2226,6 +2380,20 @@
           "file": "tests/integration/sales/sales-pricing.test.ts",
           "title": "captures an independently activated price list and requires manager approval above the discount limit",
           "proof": "expect(await updatePriceList(f.owner,priceListId,edit,editKey)).toMatchObject({version:2});\nawait expect(updatePriceList(f.owner,priceListId,{...edit,name:'Stale overwrite'},key())).rejects.toMatchObject({status:409});\nawait expect(decidePriceList(f.owner,priceListId,{expectedVersion:2,action:'activate',reason:'Self approval must be rejected'},key())).rejects.toMatchObject({code:'INDEPENDENT_PRICING_APPROVER_REQUIRED'});\nawait expect(saveOrder(f.owner,null,orderSchema.parse(source),key())).rejects.toMatchObject({code:'DISCOUNT_REASON_REQUIRED'});\nexpect(detail.order).toMatchObject({price_list_id:priceListId,price_list_version:3,discount_approval_required:1,discount_approved_by:null});\nexpect(detail.lines[0]).toMatchObject({list_price_minor:10500,price_minor:8000,discount_bps:2380});\nawait expect(transitionOrder(f.manager,id,{action:'approve',expectedVersion:2},key())).rejects.toMatchObject({code:'DISCOUNT_APPROVAL_REASON_REQUIRED'});\nexpect(detail.order).toMatchObject({state:'confirmed',discount_approved_by:f.manager.userId});\nawait expect(db.prepare('UPDATE sales_price_list_items SET price_minor=1 WHERE price_list_id=?').bind(priceListId).run()).rejects.toThrow('SALES_PRICE_LIST_IMMUTABLE');\nawait expect(db.prepare('DELETE FROM sales_price_lists WHERE id=?').bind(priceListId).run()).rejects.toThrow('SALES_PRICE_LIST_IMMUTABLE');"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+          "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+          "project": "desktop",
+          "proof": "A Sales operator submits the prepared quotation for review and a separate Sales manager approves it; the approved quotation remains available for conversion to a Sales order."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+          "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+          "project": "mobile",
+          "proof": "A Sales operator submits the prepared quotation for review and a separate Sales manager approves it; the approved quotation remains available for conversion to a Sales order."
         }
       ],
       "moduleId": "sales",
@@ -2255,6 +2423,20 @@
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
           "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+          "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+          "project": "desktop",
+          "proof": "A separate Sales manager approves the converted Sales order, a warehouse user records delivery with scanned proof, Finance posts the invoice, and treasury collection leaves the invoice paid with zero outstanding."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+          "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+          "project": "mobile",
+          "proof": "A separate Sales manager approves the converted Sales order, a warehouse user records delivery with scanned proof, Finance posts the invoice, and treasury collection leaves the invoice paid with zero outstanding."
         }
       ],
       "moduleId": "sales",
@@ -2417,6 +2599,20 @@
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
           "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+          "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+          "project": "desktop",
+          "proof": "Normal Sales operator and manager approve the quoted order, Warehouse records delivery with retained proof, Finance independently posts the stock journal and invoice, and Treasury records collection; reload/API checks show the invoice paid with zero outstanding."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+          "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+          "project": "mobile",
+          "proof": "Normal Sales operator and manager approve the quoted order, Warehouse records delivery with retained proof, Finance independently posts the stock journal and invoice, and Treasury records collection; reload/API checks show the invoice paid with zero outstanding."
         }
       ],
       "moduleId": "sales",
@@ -2806,6 +3002,20 @@
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
           "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/inventory/demo-stock-transit.spec.ts",
+          "title": "isolated demo carries an approved warehouse transfer through dispatch and partial receiving",
+          "project": "desktop",
+          "proof": "Independent source and receiving warehouse managers approve, dispatch and partially receive a transfer, with in-transit and resulting quantities checked."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/inventory/demo-stock-transit.spec.ts",
+          "title": "isolated demo carries an approved warehouse transfer through dispatch and partial receiving",
+          "project": "mobile",
+          "proof": "Independent source and receiving warehouse managers approve, dispatch and partially receive a transfer, with in-transit and resulting quantities checked."
         }
       ],
       "moduleId": "inventory",
@@ -3471,6 +3681,20 @@
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying retains receipt-date functional stock through revalued partial supplier returns and dated refunds (matched=true)",
           "proof": "Same genuine native source path with actual supplier bill price60 vs PO50: independently reviewed price variance generates AP432000, original goods clearing360000 and original stock351235. Half payment60 and revaluation37 produce unpaid222000; native returned lot credits original216000/current222000 and the second creates original refund216000. Actual40.01+19.99 refund settlements total228000 bank-date cash; price variance/clearing/stock/AP all finish0 with exact immutable quote/source/history and no duplicated command outcomes."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/procurement/demo-purchase-rfq.spec.ts",
+          "title": "isolated demo creates, awards and hands off a supplier quotation to a draft PO",
+          "project": "desktop",
+          "proof": "A purchasing manager enters a supplier quotation reference, price and delivery/validity dates; the reference remains visible after reload. A reviewer account approves it, then PO handoff opens the created order route and the API retains the RFQ as ordered."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/procurement/demo-purchase-rfq.spec.ts",
+          "title": "isolated demo creates, awards and hands off a supplier quotation to a draft PO",
+          "project": "mobile",
+          "proof": "A purchasing manager enters a supplier quotation reference, price and delivery/validity dates; the reference remains visible after reload. A reviewer account approves it, then PO handoff opens the created order route and the API retains the RFQ as ordered."
         }
       ],
       "moduleId": "procurement",
@@ -3518,6 +3742,20 @@
           "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
           "title": "rechecks live Quality recipients and cached authority after revocation and recovers missing recipients without duplicating alerts",
           "proof": "await db.prepare('UPDATE assignments SET revoked_at=? WHERE id IN (?,?)').bind(Date.now(),enabled.reviewer.assignmentId,enabled.qualityReviewer.assignmentId).run();\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});\n expect((await counts(enabled)).notifications).toBe(0);\n const row=filterWork(mergeWorkItems([...(await qualityWork(enabled.f.owner)),...(await qualityAlertWork(enabled.f.owner))]),'all','quality_alert','').find(item=>item.id===enabled.holdIds[0]);\n expect(row?.blocker).toContain('No eligible independent recipient');\n const alertId=`quality-alert-due-soon-${enabled.holdIds[0]}`;\n await expect(acknowledgeQualityAlert(enabled.qualityReviewer,alertId,{expectedVersion:1,reason:'Cached reviewer grant was withdrawn before this command'},key())).rejects.toMatchObject({code:'CONFLICT'});\n const replacement={...enabled.qualityReviewer,assignmentId:await enabled.f.grant(enabled.qualityReviewer,'quality_manager')};\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});\n expect((await db.prepare(\"SELECT record_id,user_id FROM staff_notifications WHERE company_id=? AND record_type='quality_alert'\").bind(enabled.f.company).all()).results).toEqual(expect.arrayContaining([{record_id:alertId,user_id:replacement.userId}]));\n const before=await counts(enabled);expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await counts(enabled)).toEqual(before);"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/quality/demo-quality-inspection-release.spec.ts",
+          "title": "isolated demo records independent inspection and third-person quality release",
+          "project": "desktop",
+          "proof": "A quality inspector records a passing result on a held stock item; a separate quality manager releases it, and API reads retain awaiting_release/pass before release and released/pass afterward."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/quality/demo-quality-inspection-release.spec.ts",
+          "title": "isolated demo records independent inspection and third-person quality release",
+          "project": "mobile",
+          "proof": "A quality inspector records a passing result on a held stock item; a separate quality manager releases it, and API reads retain awaiting_release/pass before release and released/pass afterward."
         }
       ],
       "moduleId": "quality",
@@ -3584,6 +3822,20 @@
           "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
           "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
           "proof": "Genuine native USD purchase/controlled full supplier payment supplies the exact original lot for a fresh USD sale200 at invoice-date36 (AR720000). Outgoing goods journal remainsTHB/FX1 and inventory0. Controlled customer receipt150, Sept30 revaluation37, native first100 return consume unpaid50/current185000 plus original-base180000 refund and require reviewed realized loss; last100 return creates refund360000. Two real Quality holds retain original lot and independently inspect/pass/release (held2000→0); restored stock/lot/GL351235 agree. Independently settled refunds50+100 at bank-date38 produce cash190000+380000/carry180000+360000 and realized losses10000+20000; current AR and dated history0, two settled obligations, returned original quantity2000/value351235."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+          "project": "desktop",
+          "proof": "An online customer return creates a linked Quality hold; an inspector records a passing inspection and a different eligible actor releases it. The completed return retains original value and the stock query reflects the returned item."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+          "project": "mobile",
+          "proof": "An online customer return creates a linked Quality hold; an inspector records a passing inspection and a different eligible actor releases it. The completed return retains original value and the stock query reflects the returned item."
         }
       ],
       "moduleId": "quality",
@@ -4003,6 +4255,20 @@
           "file": "tests/integration/people_payroll/self-service-journeys.test.ts",
           "title": "Staff self-service transactional journeys keeps approved absence until both cancellation reviews, with exactly one reversal",
           "proof": "Keeps approved leave/balance usage until both independent cancellation reviews; final cancellation reverses once and retains history."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/people_payroll/leave-approval.spec.ts",
+          "title": "independent users see the persisted leave result",
+          "project": "desktop",
+          "proof": "An employee submits leave, a manager hands it to a separate HR approver, and after reload employee, manager and HR API reads retain the approved state with no current approver."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/people_payroll/leave-approval.spec.ts",
+          "title": "independent users see the persisted leave result",
+          "project": "mobile",
+          "proof": "An employee submits leave, a manager hands it to a separate HR approver, and after reload employee, manager and HR API reads retain the approved state with no current approver."
         }
       ],
       "moduleId": "people_payroll",
@@ -4029,6 +4295,20 @@
           "file": "tests/integration/people_payroll/expense-v2.test.ts",
           "title": "requires four different people and routes correction through department approval again",
           "proof": "Self-role combinations are blocked, correction retains original evidence and restarts department review under four independent people."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+          "title": "expense goes through four independent people and two slip-backed payments",
+          "project": "desktop",
+          "proof": "Distinct claim, department, review, manager and payer actors complete the four-person workflow and two slip-backed payments with resulting amounts and statuses asserted."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/people_payroll/expense-v2.spec.ts",
+          "title": "expense goes through four independent people and two slip-backed payments",
+          "project": "mobile",
+          "proof": "Distinct claim, department, review, manager and payer actors complete the four-person workflow and two slip-backed payments with resulting amounts and statuses asserted."
         }
       ],
       "moduleId": "people_payroll",
@@ -4267,6 +4547,20 @@
           "file": "tests/integration/crm/crm.test.ts",
           "title": "serializes qualification and preserves immutable evidence through loss and reopening",
           "proof": "expect(results.filter(x=>x.status==='fulfilled')).toHaveLength(1);\nexpect(await db.prepare('SELECT count(*) n FROM crm_opportunities WHERE lead_id=?').bind(id).first('n')).toBe(1);\nexpect(await getCRMLead(f.owner,id)).toMatchObject({stage:'discovery',version:4,opportunity_version:3});\nawait expect(db.prepare('DELETE FROM crm_case_events WHERE lead_id=?').bind(id).run()).rejects.toThrow('CRM_EVIDENCE_IMMUTABLE');"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/marketing/demo-marketing-to-crm-lead.spec.ts",
+          "title": "consented Marketing candidate hands its brief and attribution to an eligible CRM owner",
+          "project": "desktop",
+          "proof": "A marketer creates a consent-required campaign form and an independent owner activates it; a Sales manager captures a consented candidate and hands it to CRM. CRM reads retain the open lead, owner and source attribution, while Marketing reload shows one capture and one CRM handoff."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/marketing/demo-marketing-to-crm-lead.spec.ts",
+          "title": "consented Marketing candidate hands its brief and attribution to an eligible CRM owner",
+          "project": "mobile",
+          "proof": "A marketer creates a consent-required campaign form and an independent owner activates it; a Sales manager captures a consented candidate and hands it to CRM. CRM reads retain the open lead, owner and source attribution, while Marketing reload shows one capture and one CRM handoff."
         }
       ],
       "moduleId": "crm",
@@ -4543,6 +4837,20 @@
           "file": "tests/integration/crm/crm-marketing-analytics.test.ts",
           "title": "reports first and last touch separately and leaves ROI empty without linked cost",
           "proof": "expect(before.firstTouch.find(x=>x.campaignId===first.id)).toMatchObject({leads:1,costMinor:null,roi:null});\nexpect(before.lastTouch.find(x=>x.campaignId===last.id)).toMatchObject({leads:1,costMinor:null,roi:null});\nexpect(lastCampaign.metrics.find(x=>x.id==='handed_off')?.value).toBe(1);\nexpect(lastCampaign.lastTouch.find(x=>x.campaignId===last.id)?.leads).toBe(1);\nexpect((await marketingAnalytics(creator,range)).metrics.find(x=>x.id==='qualified')?.value).toBe(1);\nexpect(await marketingCostSources(creator)).toContainEqual(expect.objectContaining({source_line_id:line,debit_minor:'1000',currency:'THB'}));\nexpect((await marketingCostSources(creator)).some(source=>source.source_line_id===line)).toBe(false);\nexpect(after.firstTouch.find(x=>x.campaignId===first.id)).toMatchObject({costMinor:1000,recognizedMinor:0,roi:-1});\nexpect(after.lastTouch.find(x=>x.campaignId===last.id)).toMatchObject({costMinor:null,roi:null});\nexpect(withUnknown.unattributed).toBe(1);\nexpect(withUnknown.firstTouch.find(x=>x.campaignId===null)).toMatchObject({costMinor:null,roi:null});\nexpect((await marketingAnalytics({...creator,companyId:'other'},range)).metrics.find(x=>x.id==='received')?.value).toBe(0);"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/marketing/demo-marketing-to-crm-lead.spec.ts",
+          "title": "consented Marketing candidate hands its brief and attribution to an eligible CRM owner",
+          "project": "desktop",
+          "proof": "A marketer drafts a consent-required form and a separate holding owner activates it; the Sales manager captures a consented campaign lead, records engagement and hands it to CRM. API/UI retain the lead owner and source attribution, and reload shows one captured contact and one CRM handoff for the campaign."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/marketing/demo-marketing-to-crm-lead.spec.ts",
+          "title": "consented Marketing candidate hands its brief and attribution to an eligible CRM owner",
+          "project": "mobile",
+          "proof": "A marketer drafts a consent-required form and a separate holding owner activates it; the Sales manager captures a consented campaign lead, records engagement and hands it to CRM. API/UI retain the lead owner and source attribution, and reload shows one captured contact and one CRM handoff for the campaign."
         }
       ],
       "moduleId": "marketing",
@@ -4615,6 +4923,20 @@
           "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
           "title": "rechecks Company withdrawal and expiry before each worker write and resumes the preserved native sources without duplicates",
           "proof": "await db.prepare('UPDATE engineering_verification_contexts SET enabled=false WHERE company_id=? AND run_id=?').bind(enabled.f.company,run).run();\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});await drainCustomerNotifications(db,{},now+10000);\n expect(await counts(enabled)).toEqual({alerts:0,notifications:0,mail:{status:'pending',attempts:0,provider_message_id:null}});\n await db.prepare('UPDATE engineering_verification_contexts SET enabled=true WHERE company_id=? AND run_id=?').bind(enabled.f.company,run).run();\n expect(await drainQualityAlerts(db,now)).toEqual({dueSoon:1,overdue:1});expect(await escalateInventoryReservations(db,now)).toEqual({expiring:5,expired:0});await drainCustomerNotifications(db,{},now+10000);\n const before=await counts(enabled);await db.prepare('UPDATE engineering_verification_contexts SET expires_at=? WHERE company_id=? AND run_id=?').bind(Date.now()-1,enabled.f.company,run).run();\n expect(await drainQualityAlerts(db,now+2*86400000)).toEqual({dueSoon:0,overdue:0});expect(await escalateInventoryReservations(db,now+2*86400000)).toEqual({expiring:0,expired:0});expect(await counts(enabled)).toEqual(before);"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+          "project": "desktop",
+          "proof": "A plan based on actual Sales demand and incoming supply is independently released; the operator reserves and issues material, then completes production. The final stock query retains material and finished-output quantities and values."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+          "project": "mobile",
+          "proof": "A plan based on actual Sales demand and incoming supply is independently released; the operator reserves and issues material, then completes production. The final stock query retains material and finished-output quantities and values."
         }
       ],
       "moduleId": "manufacturing",
@@ -4638,6 +4960,20 @@
           "file": "tests/integration/manufacturing/production.test.ts",
           "title": "keeps a failed run in WIP through rework, accumulates actual labor and independently scraps unusable output",
           "proof": "await expect(changeManufacturingOrder(owner, id, { action: \"fail-qc\", expectedVersion: 4, reason: \"Reporter cannot fail own output\" }, key())).rejects.toMatchObject({ code: \"CONFLICT\" });\nexpect((await productionDetail(owner, id)).order).toMatchObject({ labor_cost_minor: 1500, overhead_cost_minor: 300, material_cost_minor: 2000 });\nawait expect(changeManufacturingOrder(owner, id, { action: \"scrap\", expectedVersion: 8, reason: \"Reporter cannot approve own loss\" }, key())).rejects.toMatchObject({ code: \"CONFLICT\" });\nexpect(detail.order.status).toBe(\"cancelled\");\nexpect(detail.postings.at(-1)).toMatchObject({ phase: \"scrap\", amount_minor: 3800, journal_status: \"posted\" });\nexpect(await db.prepare(\"SELECT 1 FROM commerce_stock WHERE warehouse_id=? AND product_id=?\").bind(warehouse, output).first()).toBeNull();\nexpect(await db.prepare(`SELECT sum(l.debit_minor-l.credit_minor)::text balance FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n    WHERE j.company_id=? AND j.status='posted' AND l.account_id=?`).bind(f.company, productionAccounts.wip).first(\"balance\")).toBe(\"0\");"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+          "project": "desktop",
+          "proof": "The operator reports measured output, scrap and conversion costs; self-approval of QC is rejected, and a separate reviewer passes QC. The retained order is completed with issue, report and output postings, cost and genealogy."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+          "project": "mobile",
+          "proof": "The operator reports measured output, scrap and conversion costs; self-approval of QC is rejected, and a separate reviewer passes QC. The retained order is completed with issue, report and output postings, cost and genealogy."
         }
       ],
       "moduleId": "manufacturing",
@@ -4804,6 +5140,20 @@
           "file": "tests/integration/manufacturing/production.test.ts",
           "title": "calculates shortages and a capacity-delayed feasible date without changing stock",
           "proof": "expect(plan.shortages).toEqual([\n    expect.objectContaining({\n      requiredMilli: 8000,\n      availableMilli: 10000,\n      shortageMilli: 0,\n    }),\n  ]);\nexpect(plan.feasibleDate).toBe(\"2026-10-02\");\nexpect(\n    await db\n      .prepare(\n        \"SELECT quantity_milli FROM commerce_stock WHERE warehouse_id=? AND product_id=?\",\n      )\n      .bind(warehouse, material)\n      .first(\"quantity_milli\"),\n  ).toBe(10000);"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+          "project": "desktop",
+          "proof": "The planner calculates from actual Sales demand, incoming supply, a selected specification and approved resource calendar; a second scenario compares the result, and the reloaded planning view retains zero units of shortage and a 15-minute reduction in required time."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+          "project": "mobile",
+          "proof": "The planner calculates from actual Sales demand, incoming supply, a selected specification and approved resource calendar; a second scenario compares the result, and the reloaded planning view retains zero units of shortage and a 15-minute reduction in required time."
         }
       ],
       "moduleId": "planning",
@@ -4828,6 +5178,20 @@
           "file": "tests/integration/manufacturing/production.test.ts",
           "title": "uses effective resource calendars, compares immutable plans and atomically rejects competing capacity releases",
           "proof": "expect(first).toMatchObject({ requiredMinutes: 35, capacityMinutes: 20, feasibleDate: \"2026-10-07\", context: { capacityBasis: \"approved_routing_resource_calendar\" } });\nexpect(first.context.allocations?.map(x => [x.workDate, x.minutes])).toEqual([[\"2026-10-06\", 20], [\"2026-10-07\", 15]]);\nexpect(alternative.context.comparison).toMatchObject({ scenarioId: first.id, shortageDeltaMilli: 0, requiredMinutesDelta: 0, currentFeasibleDate: \"2026-10-07\" });\nexpect(outcomes.filter(o => o.status === \"fulfilled\")).toHaveLength(1);\nexpect(outcomes.filter(o => o.status === \"rejected\")).toHaveLength(1);\nexpect(await db.prepare(\"SELECT sum(minutes)::text minutes FROM planning_resource_allocations WHERE resource_id=? AND released_at IS NULL\").bind(resourceId).first(\"minutes\")).toBe(\"35\");\nawait expect(saveProductionResourceCalendar(reviewer, resourceId, { expectedVersion: 0, resourceVersion: 1, workDate: \"2026-10-06\", availableMinutes: 0, reason: \"Cannot remove capacity from an approved run\" }, key())).rejects.toMatchObject({ code: \"CONFLICT\" });\nawait expect(changeManufacturingOrder(owner, orderId, { action: \"complete-operation\", expectedVersion: 3, operationId: secondOperation, laborMinutes: 5, machineMinutes: 10, reason: \"Do not skip the preceding assembly operation\" }, key())).rejects.toMatchObject({ code: \"CONFLICT\" });\nawait expect(changeManufacturingOrder(owner, orderId, { action: \"report\", expectedVersion: 3, outputQuantity: \"2\", scrapQuantity: \"0\", laborCost: \"2\", overheadCost: \"1\", reason: \"Routing must finish before output release\" }, key())).rejects.toMatchObject({ code: \"CONFLICT\" });\nexpect(await db.prepare(\"SELECT count(*)::text remaining FROM planning_resource_allocations WHERE resource_id=? AND released_at IS NULL\").bind(resourceId).first(\"remaining\")).toBe(\"0\");\nexpect(await cancelPlanningScenario(owner, String(unapproved.id), cancellation, cancelKey)).toEqual(cancelled);\nexpect(await db.prepare(\"SELECT action FROM planning_scenario_events WHERE scenario_id=? ORDER BY version\").bind(unapproved.id).all()).toMatchObject({ results: [{ action: \"calculate\" }, { action: \"cancel\" }] });"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+          "project": "desktop",
+          "proof": "A planner creates and compares scenarios, cannot approve their own recommendation, and a different planner reviews and releases the order. The test retains the compared plan result and completes the resulting Manufacturing order."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows plans actual Sales demand incoming supply and resource calendars then closes routed Manufacturing output with stock and WIP matching posted GL",
+          "project": "mobile",
+          "proof": "A planner creates and compares scenarios, cannot approve their own recommendation, and a different planner reviews and releases the order. The test retains the compared plan result and completes the resulting Manufacturing order."
         }
       ],
       "moduleId": "planning",
@@ -5170,6 +5534,20 @@
           "file": "tests/integration/ecommerce/ecommerce.test.ts",
           "title": "reviews channels and listings, locks checkout into Sales, and reserves shared stock",
           "proof": "expect(result).toMatchObject({ status: \"confirmed\", salesOrderVersion: 4 });\nexpect(\n    await db\n      .prepare(\n        \"SELECT r.quantity_milli FROM inventory_order_reservations r JOIN commerce_order_lines l ON l.id=r.order_line_id WHERE l.order_id=?\",\n      )\n      .bind(checkout.salesOrderId)\n      .first(\"quantity_milli\"),\n  ).toBe(2000);\nexpect(detail.order.order).toMatchObject({ state: \"confirmed\", version: 4 });"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+          "project": "desktop",
+          "proof": "An Ecommerce owner checks out a cart using its frozen online price; a separate reviewer approves the order and reserves stock. The confirmed checkout retains the exact line price, and the case later reloads the posted delivery and return results."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+          "project": "mobile",
+          "proof": "An Ecommerce owner checks out a cart using its frozen online price; a separate reviewer approves the order and reserves stock. The confirmed checkout retains the exact line price, and the case later reloads the posted delivery and return results."
         }
       ],
       "moduleId": "ecommerce",
@@ -5192,6 +5570,20 @@
           "file": "tests/integration/ecommerce/ecommerce.test.ts",
           "title": "reviews channels and listings, locks checkout into Sales, and reserves shared stock",
           "proof": "expect(result).toMatchObject({ status: \"confirmed\", salesOrderVersion: 4 });\nexpect(\n    await db\n      .prepare(\n        \"SELECT r.quantity_milli FROM inventory_order_reservations r JOIN commerce_order_lines l ON l.id=r.order_line_id WHERE l.order_id=?\",\n      )\n      .bind(checkout.salesOrderId)\n      .first(\"quantity_milli\"),\n  ).toBe(2000);\nexpect(detail.order.order).toMatchObject({ state: \"confirmed\", version: 4 });"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+          "project": "desktop",
+          "proof": "An Ecommerce owner checks out a cart using its frozen online price; a separate reviewer approves the order and reserves stock. The confirmed checkout retains the exact line price, and the case later reloads the posted delivery and return results."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows checks out immutable online prices delivers with scanned evidence and closes its native customer return Quality and original-value credit",
+          "project": "mobile",
+          "proof": "An Ecommerce owner checks out a cart using its frozen online price; a separate reviewer approves the order and reserves stock. The confirmed checkout retains the exact line price, and the case later reloads the posted delivery and return results."
         }
       ],
       "moduleId": "ecommerce",
@@ -5857,6 +6249,20 @@
           "file": "tests/integration/field_service/field-service.test.ts",
           "title": "runs agreement, dispatch, parts, exception, customer sign-off and independent billing release",
           "proof": "expect(\n    (await fieldServiceWork(f.claimant)).find((x) => x.id === id),\n  ).toMatchObject({ queue: \"todo\", canAct: true });\nexpect(\n    await db\n      .prepare(\n        \"SELECT quantity_milli FROM inventory_active_reservations WHERE source_kind='field_service'\",\n      )\n      .first(\"quantity_milli\"),\n  ).toBe(1000);\nexpect(\n    (await fieldServiceWork(f.claimant)).find((x) => x.id === id)?.blocker,\n  ).toContain(\"Power isolation\");\nexpect(\n    await db\n      .prepare(\n        \"SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?\",\n      )\n      .bind(warehouse, product)\n      .first(),\n  ).toEqual({ quantity_milli: 0, value_minor: 0 });\nexpect(cost).toMatchObject({ source_kind:'field_service',quantity_milli:1000,value_minor:8000,journal_status:'draft' });\nawait expect(act(f.claimant,id,{ action:'complete',expectedVersion:7,laborMinutes:90,evidence:'Startup checks passed.',customerConfirmation:'Customer confirmed operation.',reason:'Cost must be reviewed before closing the visit' })).rejects.toMatchObject({code:'CONFLICT'});\nexpect((await db.prepare('SELECT account_id,base_debit_minor,base_credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal').bind(costJournal).all()).results).toEqual([\n    {account_id:f.accounts.expense,base_debit_minor:8000,base_credit_minor:0},\n    {account_id:`${f.company}-parts-stock`,base_debit_minor:0,base_credit_minor:8000},\n  ]);\nexpect(await db.prepare(\"SELECT quantity_milli,value_minor FROM inventory_ledger WHERE source_type='field_service' AND source_id=?\").bind(id).first()).toEqual({quantity_milli:-1000,value_minor:-8000});\nawait expect(\n    act(f.claimant, id, {\n      action: \"release-billing\",\n      expectedVersion: 8,\n      reason: \"Technician cannot release own billing\",\n    }),\n  ).rejects.toMatchObject({ code: \"INDEPENDENT_BILLING_RELEASE_REQUIRED\" });\nexpect(d.order).toMatchObject({\n    status: \"billed\",\n    version: 9,\n    labor_minutes: 90,\n  });\nexpect(d.billing).toMatchObject({\n    currency: \"THB\",\n    amount_minor: 150000,\n    source_order_version: 9,\n    status: \"released\",\n  });\nexpect(invoice).toMatchObject({\n    kind: \"receivable\",\n    source_type: \"field_service\",\n    source_id: id,\n    status: \"draft\",\n    total_minor: 150000,\n    debit_account_id: `${f.company}-receivable`,\n    credit_account_id: f.accounts.revenue,\n  });\nexpect(d.history.map((x) => x.action)).toEqual([\n    \"create\",\n    \"reserve-part\",\n    \"dispatch\",\n    \"start\",\n    \"exception\",\n    \"resume\",\n    \"issue-part\",\n    \"complete\",\n    \"release-billing\",\n  ]);"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows dispatches a customer visit captures confirmation independently releases billing and collects its invoice through three-person bank evidence",
+          "project": "desktop",
+          "proof": "A technician dispatches and completes a visit under an active customer agreement, recording customer confirmation; a different reviewer releases billing. Finance and payment reads retain the invoice and settled collection with zero outstanding."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/shared.business-journeys/demo-engineering-business.spec.ts",
+          "title": "native business engineering workflows dispatches a customer visit captures confirmation independently releases billing and collects its invoice through three-person bank evidence",
+          "project": "mobile",
+          "proof": "A technician dispatches and completes a visit under an active customer agreement, recording customer confirmation; a different reviewer releases billing. Finance and payment reads retain the invoice and settled collection with zero outstanding."
         }
       ],
       "moduleId": "field_service",
@@ -6329,6 +6735,20 @@
           "file": "tests/integration/collaboration/social-beta.test.ts",
           "title": "social conversation replies keeps replies attached to the selected comment while rendering one reply depth",
           "proof": "Replies retain parent comment identity and ordered conversation tree; top-level list does not lose nested replies."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/messaging.spec.ts",
+          "title": "real accounts chat, reconnect, attach files, use teams and enforce private membership",
+          "project": "desktop",
+          "proof": "Two accounts exchange and retry messages, attach and retrieve private files, manage teams, and enforce membership access."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/messaging.spec.ts",
+          "title": "real accounts chat, reconnect, attach files, use teams and enforce private membership",
+          "project": "mobile",
+          "proof": "Two accounts exchange and retry messages, attach and retrieve private files, manage teams, and enforce membership access."
         }
       ],
       "moduleId": "collaboration",
@@ -6385,6 +6805,20 @@
           "file": "tests/integration/shared.workplace-journeys/engineering-workplace-workers.test.ts",
           "title": "keeps the ordinary compiled production boundary closed when the engineering attestation is absent",
           "proof": "Clearing engineering attestation under production leaves Support ticket without breach, Social request pending attempt zero, Executive request queued attempts zero and makes zero provider calls."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-social.spec.ts",
+          "title": "isolated demo publishes a mentioned update and keeps thread actions after reload",
+          "project": "desktop",
+          "proof": "A holding owner selects Support agent as a mention and publishes the update; a separate employee sees it, adds a comment, thanks and follows the thread, and reload retains those thread actions."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-social.spec.ts",
+          "title": "isolated demo publishes a mentioned update and keeps thread actions after reload",
+          "project": "mobile",
+          "proof": "A holding owner selects Support agent as a mention and publishes the update; a separate employee sees it, adds a comment, thanks and follows the thread, and reload retains those thread actions."
         }
       ],
       "moduleId": "collaboration",
@@ -6439,6 +6873,20 @@
           "file": "tests/integration/collaboration/social-beta.test.ts",
           "title": "governed Social engagement keeps appreciation and following as unique non-decision signals across races, retries and current-source withdrawal",
           "proof": "Concurrent appreciation and follow plus replay create exactly one signal per principal without changing the post revision or creating an approval; following feed and withdrawal persist; hidden source rejects old receipts."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-social.spec.ts",
+          "title": "isolated demo publishes a mentioned update and keeps thread actions after reload",
+          "project": "desktop",
+          "proof": "A holding owner publishes the update and an employee adds a comment, appreciation and follow action; after reload the employee still sees the comment and retained appreciation/follow states on the thread."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-social.spec.ts",
+          "title": "isolated demo publishes a mentioned update and keeps thread actions after reload",
+          "project": "mobile",
+          "proof": "A holding owner publishes the update and an employee adds a comment, appreciation and follow action; after reload the employee still sees the comment and retained appreciation/follow states on the thread."
         }
       ],
       "moduleId": "collaboration",
@@ -6486,6 +6934,20 @@
           "file": "tests/integration/collaboration/social-beta.test.ts",
           "title": "social post image content keeps image order across draft save and published post views",
           "proof": "Owned upload order persists from draft into exact published post; no unauthorized images are linked."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-attachments.spec.ts",
+          "title": "isolated demo exchanges a conversation attachment between members",
+          "project": "desktop",
+          "proof": "A holding owner sends a CSV in a member conversation; another employee account downloads content containing the expected attachment row, and after reload still sees the file link."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-attachments.spec.ts",
+          "title": "isolated demo exchanges a conversation attachment between members",
+          "project": "mobile",
+          "proof": "A holding owner sends a CSV in a member conversation; another employee account downloads content containing the expected attachment row, and after reload still sees the file link."
         }
       ],
       "moduleId": "collaboration",
@@ -6518,6 +6980,20 @@
           "file": "tests/integration/collaboration/collaboration-work.test.ts",
           "title": "hides unreadable source-backed content and links from lists, exports, Work and commands",
           "proof": "Actual role lacking Support source read sees zero cards/relations/export rows, no body/id leak, no Work and command denied; revoked source grant hides assignee data while authorized owner retains it."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-action-card.spec.ts",
+          "title": "isolated demo routes a record-linked action card to its owner",
+          "project": "desktop",
+          "proof": "A holding owner creates a Sales-order-linked card assigned to an employee; the assignee completes it with evidence, and reload/API checks retain version 2, completed state, source identity and owner."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-action-card.spec.ts",
+          "title": "isolated demo routes a record-linked action card to its owner",
+          "project": "mobile",
+          "proof": "A holding owner creates a Sales-order-linked card assigned to an employee; the assignee completes it with evidence, and reload/API checks retain version 2, completed state, source identity and owner."
         }
       ],
       "moduleId": "collaboration",
@@ -6544,6 +7020,20 @@
           "file": "tests/integration/collaboration/collaboration-work.test.ts",
           "title": "hides unreadable source-backed content and links from lists, exports, Work and commands",
           "proof": "Actual role lacking Support source read sees zero cards/relations/export rows, no body/id leak, no Work and command denied; revoked source grant hides assignee data while authorized owner retains it."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-record-relations.spec.ts",
+          "title": "isolated demo links a support case to its sales source and records removal",
+          "project": "desktop",
+          "proof": "A holding owner links a newly created Support case to its source Sales quote with a typed related relation; the UI shows the exact source/target, and after successful removal no relation card remains."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/collaboration/demo-collaboration-record-relations.spec.ts",
+          "title": "isolated demo links a support case to its sales source and records removal",
+          "project": "mobile",
+          "proof": "A holding owner links a newly created Support case to its source Sales quote with a typed related relation; the UI shows the exact source/target, and after successful removal no relation card remains."
         }
       ],
       "moduleId": "collaboration",
@@ -6596,6 +7086,20 @@
           "file": "tests/integration/pms/pms-booking.test.ts",
           "title": "serializes staff and guest bookings for the last room",
           "proof": "expect(results.filter((r) => r.status === \"fulfilled\")).toHaveLength(1);\nexpect(records(await snapshot(), \"stay\")).toHaveLength(1);"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/pms/pms-booking.spec.ts",
+          "title": "searches, quotes and confirms a family stay in an isolated hotel",
+          "project": "desktop",
+          "proof": "An unauthenticated guest reviews the isolated hotel's quoted dates, price and cancellation terms, confirms the stay, then uses its private manage token to change and cancel a room; reload retains the updated and cancelled booking state."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/pms/pms-booking.spec.ts",
+          "title": "searches, quotes and confirms a family stay in an isolated hotel",
+          "project": "mobile",
+          "proof": "An unauthenticated guest reviews the isolated hotel's quoted dates, price and cancellation terms, confirms the stay, then uses its private manage token to change and cancel a room; reload retains the updated and cancelled booking state."
         }
       ],
       "moduleId": "pms",
@@ -6619,6 +7123,20 @@
           "file": "tests/integration/pms/pms.test.ts",
           "title": "moves an in-house guest, extends safely and preserves room history",
           "proof": "expect(record(await snapshot(), \"room\", roomId).data.cleanliness).toBe(\n    \"dirty\",\n  );\nexpect(record(await snapshot(), \"stay\", b.stayId).data.prices).toHaveLength(\n    3,\n  );\nawait expect(\n    cmd(\"maintenance.open\", {\n      roomId: second,\n      from: \"2026-09-02\",\n      to: \"2026-09-03\",\n      reason: \"Repair\",\n    }),\n  ).rejects.toMatchObject({ code: \"PMS_ROOM_IN_USE\" });"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+          "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+          "project": "desktop",
+          "proof": "After housekeeping and supervisor inspection, the front-desk user assigns Room 103 and checks in the guest; UI reload and the PMS snapshot retain an in-house stay assigned to that inspected room."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+          "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+          "project": "mobile",
+          "proof": "After housekeeping and supervisor inspection, the front-desk user assigns Room 103 and checks in the guest; UI reload and the PMS snapshot retain an in-house stay assigned to that inspected room."
         }
       ],
       "moduleId": "pms",
@@ -6642,6 +7160,20 @@
           "file": "tests/integration/pms/pms.test.ts",
           "title": "requires inspected rooms and independent inspection; maintenance cannot displace guests",
           "proof": "await expect(cmd(\"stay.check_in\", { id: b.stayId })).rejects.toMatchObject({\n    code: \"PMS_ROOM_NOT_READY\",\n  });\nawait expect(cmd(\"task.inspect\", { id: t })).rejects.toMatchObject({\n    code: \"PMS_INDEPENDENT_INSPECTOR\",\n  });\nawait expect(\n    cmd(\"maintenance.open\", {\n      roomId,\n      from: \"2026-09-01\",\n      to: \"2026-09-02\",\n      reason: \"AC\",\n    }),\n  ).rejects.toMatchObject({ code: \"PMS_ROOM_IN_USE\" });"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+          "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+          "project": "desktop",
+          "proof": "Housekeeping prepares Room 103 and a supervisor independently marks it inspected before front desk assigns it; the later PMS snapshot retains inspected cleanliness and the guest stay in that room."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+          "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+          "project": "mobile",
+          "proof": "Housekeeping prepares Room 103 and a supervisor independently marks it inspected before front desk assigns it; the later PMS snapshot retains inspected cleanliness and the guest stay in that room."
         }
       ],
       "moduleId": "pms",
@@ -6671,6 +7203,20 @@
           "file": "tests/integration/pms/pms.test.ts",
           "title": "binds room-task photos in the PMS action transaction and leaves stale evidence draft",
           "proof": "expect(await attachmentBindingState(db, evidence.setId)).toMatchObject({\n    set_state: \"bound\",\n    link_state: \"bound\",\n    binding_type: \"pms_task_completion\",\n  });\nawait expect(\n    pmsCommand(\n      db,\n      owner,\n      {\n        propertyId,\n        expectedVersion: afterStart.property.version,\n        operation: \"task.complete\",\n        input: { id: staleTaskId, checked: staleTask.data.checklist },\n        attachmentSetIds: [stale.setId],\n      },\n      key(),\n    ),\n  ).rejects.toMatchObject({ status: 409, code: \"ATTACHMENT_SET_STALE\" });\nexpect(await attachmentBindingState(db, stale.setId)).toMatchObject({\n    set_state: \"draft\",\n    link_state: \"draft\",\n  });\nexpect(record(await snapshot(), \"task\", staleTaskId).data.state).toBe(\"working\");"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+          "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+          "project": "desktop",
+          "proof": "A supervisor assigns the before-arrival Room 103 task to housekeeping; the housekeeper completes all five checklist items, and the supervisor independently inspects. Reloaded PMS data retains the task as done and room cleanliness as inspected."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+          "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+          "project": "mobile",
+          "proof": "A supervisor assigns the before-arrival Room 103 task to housekeeping; the housekeeper completes all five checklist items, and the supervisor independently inspects. Reloaded PMS data retains the task as done and room cleanliness as inspected."
         }
       ],
       "moduleId": "pms",
@@ -6797,6 +7343,20 @@
           "file": "tests/integration/pms/pms-read-model.test.ts",
           "title": "retains fresh permission, company and branch privacy for every query model",
           "proof": "await expect(pmsWorkspace(cleaner, propertyId, false, false, { view: \"detail\", id: guestId })).rejects.toMatchObject({ status: 404 });\nawait expect(pmsWorkspace({ ...fixture.owner, companyId: \"foreign\" }, propertyId, false, false, { view: \"dashboard\" })).rejects.toMatchObject({ status: 404 });\nawait expect(pmsWorkspace({ ...fixture.owner, branchId: \"foreign\" }, propertyId, false, false, { view: \"dashboard\" })).rejects.toMatchObject({ status: 404 });\nawait expect(pmsWorkspace({ ...fixture.owner, role: \"employee\", modules: [] }, propertyId, false, false, { view: \"dashboard\" })).rejects.toMatchObject({ status: 403 });"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+          "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+          "project": "desktop",
+          "proof": "The guest booking flow creates a guest and confirmed reservation; front desk assigns inspected Room 103 and checks the guest in. Reload and the PMS snapshot retain the guest, reservation, in-house stay, room assignment and open guest account."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/pms/thai-hotel-v1-hotel.spec.ts",
+          "title": "H002 guest journey includes independent guest account correction, payment, checkout and Night Audit",
+          "project": "mobile",
+          "proof": "The guest booking flow creates a guest and confirmed reservation; front desk assigns inspected Room 103 and checks the guest in. Reload and the PMS snapshot retain the guest, reservation, in-house stay, room assignment and open guest account."
         }
       ],
       "moduleId": "pms",

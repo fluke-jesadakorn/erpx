@@ -1,18 +1,22 @@
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve, relative } from "node:path";
+import { execFileSync } from "node:child_process";
 import { moduleRegistry } from "../../src/data/module-registry";
 import { modulePlacement, products, productIds, sharedHostKeys, developmentProductOrigin } from "../../src/lib/commercial/product-registry";
 import { commercialPackages } from "../../src/server/modules/commercial/domain/packages";
-import { runtimeSourceFingerprint } from "../local/source-fingerprint";
+import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../local/source-fingerprint";
+import { assertCanonicalRepositoryFilePath, productMigrationReceiptMatchesCurrent, productWorkflowReceiptCases, productWorkflowReceiptIds, productWorkflowReceiptMapping, readProductMigrationReceiptEvidence, requiredProductMigrationCases, validateProductMigrationEvidence, validateProductMigrationReceiptManifest, type ProductMigrationReceiptReference } from "./product-migration-receipts";
+import { writeProductAcceptanceOutputs } from "./product-acceptance-output";
+import { loadRequiredCases } from "../testing/required-case-inventory";
 
 const root = resolve(import.meta.dirname, "../.."), check = process.argv.includes("--check"), acceptance = process.argv.includes("--acceptance");
-type Receipt = { id: string; phase: "implemented" | "verified" | "enabled"; sourceFingerprint: string; path: string; sha256: string };
-const receipts = JSON.parse(readFileSync(resolve(root, "docs/status/product-migration-receipts.json"), "utf8")) as { version: number; records: Receipt[] };
+type Receipt = ProductMigrationReceiptReference;
+const receiptsPath = await assertCanonicalRepositoryFilePath(root, "docs/status/product-migration-receipts-v2.json", { requireFile: true });
+const receipts = validateProductMigrationReceiptManifest(JSON.parse(readFileSync(receiptsPath, "utf8")));
 const capabilities = (JSON.parse(readFileSync(resolve(root, "src/data/business-readiness.generated.json"), "utf8")) as {
   capabilities: { id: string; label: string; implementation: { ui: string; api: string; service: string; schema: string; test: string } }[];
 }).capabilities;
-const suites = (JSON.parse(readFileSync(resolve(root, "tests/catalogue/suite-manifest.json"), "utf8")) as { suites: { id: string; modules: string[]; files: string[] }[] }).suites;
+const suites = (JSON.parse(readFileSync(resolve(root, "tests/catalogue/suite-manifest.json"), "utf8")) as { suites: { id: string; lane: string; modules: string[]; files: string[] }[] }).suites;
 const packages: Record<keyof typeof modulePlacement, string[]> = {
   brand: [...productIds], commercial: [], identity_access: [...productIds], organization: [...productIds],
   platform_administration: [], manage_erpx: [], customer_360: ["sales", "pos", "pms", "support", "service"], customer_authority: ["sales-portal", "support-portal"],
@@ -24,14 +28,43 @@ const packages: Record<keyof typeof modulePlacement, string[]> = {
   marketing: ["sales-marketing"], ecommerce: ["sales-ecommerce"], manufacturing: ["manufacturing"], planning: ["manufacturing", "manufacturing-mrp"],
   projects: ["projects", "projects-costs"], learning: ["learn"], talent: ["recruit"], field_service: ["service", "service-parts-assets"], agent: [],
 };
-const surfaces = [
+type SurfaceBrowserCase = {
+  workflow: string;
+  runner: "playwright";
+  suite: string;
+  file: string;
+  title: string;
+  project: "desktop" | "mobile";
+  executionOrigin: "local-simulation-only";
+};
+type Surface = {
+  id: string;
+  workflows: string[];
+  pages: string[];
+  apis: string[];
+  tests?: string[];
+  browserCases?: SurfaceBrowserCase[];
+};
+const formsWorkflow = "tenant-published-version-consent-submit-and-replay";
+// This local isolated Marketing journey is browser traceability only. It does
+// not exercise the Forms product host and cannot satisfy the Forms receipt map.
+const formsBrowserCases: SurfaceBrowserCase[] = (["desktop", "mobile"] as const).map(project => ({
+  workflow: formsWorkflow,
+  runner: "playwright",
+  suite: "shared.workplace-journeys.demo-workplace-platform-lifecycle.journeys",
+  file: "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
+  title: "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+  project,
+  executionOrigin: "local-simulation-only",
+}));
+const surfaces: Surface[] = [
   { id: "apps", workflows: ["all-company-branch-department-product-selection", "single-product-direct-entry", "dirty-product-switch"], pages: ["src/app/product-entry/page.tsx", "src/app/choose-work-role/page.tsx"], apis: ["src/app/launch/route.ts"] },
   { id: "account", workflows: ["central-login-and-directory-link", "profile-language-theme", "role-company-account-switch", "mfa-expiry-replay-family-all-device-revocation", "authorized-package-area"], pages: ["src/app/login/page.tsx", "src/app/product-entry/page.tsx"], apis: ["src/app/sso/[action]/route.ts", "src/app/api/auth/[...all]/route.ts", "src/app/api/v1/account/profile/route.ts", "src/app/api/v1/account/preferences/route.ts"] },
   { id: "admin", workflows: ["company-brand-organization-iam", "platform-only-entry", "provider-authority-separation", "legacy-preview-apply-and-audit"], pages: ["src/app/product-entry/page.tsx", "src/app/provider/commercial/page.tsx", "src/app/provider/commercial/packages/page.tsx"], apis: ["src/app/api/v1/platform/commercial/[[...path]]/route.ts"] },
   { id: "booking", workflows: ["tenant-room-availability-reservation-consent-payment-callback"], pages: ["src/app/book/[holdingSlug]/page.tsx"], apis: ["src/app/api/public/booking/[holdingSlug]/[action]/route.ts"] },
   { id: "portal", workflows: ["tenant-token-invitation-document-and-private-files"], pages: ["src/app/customer-portal/[holdingSlug]/page.tsx", "src/app/customer-portal/[holdingSlug]/tickets/page.tsx", "src/components/customer_authority/support-ticket-portal.tsx"], tests: ["tests/integration/customer_authority/customer-access.test.ts", "tests/unit/shared.business-contracts/customer-portal-application.test.ts"], apis: ["src/app/api/customer-portal/[holdingSlug]/route.ts", "src/app/api/customer-portal/[holdingSlug]/tickets/route.ts", "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts", "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts"] },
   { id: "legal-portal", workflows: ["invitation-mfa-document-version-consent-signing-and-private-files"], pages: ["src/app/legal-portal/[holdingSlug]/page.tsx", "src/components/legal/legal-portal.tsx"], tests: ["tests/unit/legal/legal-command-client.test.ts"], apis: ["src/app/api/legal-portal/[holdingSlug]/[[...path]]/route.ts"] },
-  { id: "forms", workflows: ["tenant-published-version-consent-submit-and-replay"], pages: ["src/app/forms/[holdingSlug]/[formId]/page.tsx"], apis: ["src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts"] },
+  { id: "forms", workflows: [formsWorkflow], pages: ["src/app/forms/[holdingSlug]/[formId]/page.tsx"], apis: ["src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts"], browserCases: formsBrowserCases },
 ];
 // Existing Company Executive is runtime-owned Company work, distinct from the
 // Module catalogue's Platform Executive. It still needs explicit cutover proof.
@@ -43,28 +76,107 @@ const productWorkflows = [{
   tests: ["tests/unit/identity_access/product-workspace.test.ts", "tests/unit/shared.ui/workplace-navigation.test.ts", "tests/integration/shared.executive/executive-canvas.test.ts", "tests/integration/shared.executive/executive-mcp.test.ts"],
 }];
 const workflowIds = new Set([...capabilities.map(capability => capability.id), ...surfaces.flatMap(surface => surface.workflows.map(workflow => `${surface.id}:${workflow}`)), ...productWorkflows.map(workflow => workflow.id)]);
-const errors: string[] = [], seen = new Set<string>();
-for (const receipt of receipts.records) {
-  const key = `${receipt.id}:${receipt.phase}`;
-  if (seen.has(key) || !workflowIds.has(receipt.id) || !["implemented", "verified", "enabled"].includes(receipt.phase)) errors.push(`Invalid/duplicate receipt: ${key}`);
-  seen.add(key);
-  if (!/^[a-f0-9]{64}$/.test(receipt.sourceFingerprint) || !receipt.path.startsWith("docs/testing/") || receipt.path.includes("..") || !existsSync(resolve(root, receipt.path))) errors.push(`Invalid receipt evidence: ${key}`);
-  else if (createHash("sha256").update(readFileSync(resolve(root, receipt.path))).digest("hex") !== receipt.sha256) errors.push(`Changed receipt evidence: ${key}`);
-  else {
-    try {
-      const evidence = JSON.parse(readFileSync(resolve(root, receipt.path), "utf8")) as { schema: string; sourceFingerprint: string; phase: string; result: string; workflowIds: string[]; observations: unknown[] };
-      if (evidence.schema !== "erpx-product-migration-receipt/v1" || evidence.sourceFingerprint !== receipt.sourceFingerprint ||
-        evidence.phase !== receipt.phase || evidence.result !== "passed" || !evidence.workflowIds.includes(receipt.id) || !evidence.observations.length)
-        errors.push(`Evidence does not certify receipt: ${key}`);
-    } catch { errors.push(`Invalid receipt payload: ${key}`); }
+const errors: string[] = [];
+const requiredCases = loadRequiredCases(root);
+const caseInInventory = (expected: { runner: string; file: string; title: string; project?: string }) =>
+  requiredCases.some(test => test.runner === expected.runner && test.file === expected.file && test.title === expected.title && test.project === expected.project);
+const nonOwnerWorkflowIds = [...surfaces.flatMap(surface => surface.workflows.map(workflow => `${surface.id}:${workflow}`)), ...productWorkflows.map(workflow => workflow.id)];
+const receiptWorkflowIds = productWorkflowReceiptIds();
+if (new Set(nonOwnerWorkflowIds).size !== nonOwnerWorkflowIds.length || new Set(receiptWorkflowIds).size !== receiptWorkflowIds.length ||
+  receiptWorkflowIds.length !== nonOwnerWorkflowIds.length || receiptWorkflowIds.some(id => !nonOwnerWorkflowIds.includes(id)) ||
+  nonOwnerWorkflowIds.some(id => !receiptWorkflowIds.includes(id)))
+  errors.push("Non-owner product workflows must have exactly one receipt mapping entry");
+for (const id of receiptWorkflowIds) {
+  try {
+    const mapping = productWorkflowReceiptMapping(id);
+    const cases = productWorkflowReceiptCases(id);
+    for (const expected of cases) {
+      if (!caseInInventory(expected)) errors.push(`Product workflow witness is absent from the required case inventory: ${id}/${expected.file}/${expected.title}/${expected.project ?? ""}`);
+      const owners = suites.filter(suite => suite.id === expected.suite && suite.files.includes(expected.file) &&
+        (expected.runner === "vitest" ? ["unit", "integration"].includes(suite.lane) : ["e2e", "journeys", "uat"].includes(suite.lane)));
+      if (owners.length !== 1) errors.push(`Product workflow witness suite binding is invalid: ${id}/${expected.suite}/${expected.file}`);
+    }
+    if (mapping.native.state === "mapped") {
+      const native = requiredProductMigrationCases(id, "implemented").filter(test => test.runner === "vitest");
+      if (JSON.stringify(native.map(test => [test.suite, test.file, test.title]).sort()) !==
+        JSON.stringify(cases.filter(test => test.runner === "vitest").map(test => [test.suite, test.file, test.title]).sort()))
+        errors.push(`Product workflow native map differs from the exact receipt register: ${id}`);
+    } else if (!mapping.native.blocker.trim()) errors.push(`Unmapped native workflow requires a concrete blocker: ${id}`);
+    if (mapping.browser.state === "mapped") {
+      const verified = requiredProductMigrationCases(id, "verified").filter(test => test.runner === "playwright");
+      if (JSON.stringify(verified.map(test => [test.suite, test.file, test.title, test.project]).sort()) !==
+        JSON.stringify(cases.filter(test => test.runner === "playwright").map(test => [test.suite, test.file, test.title, test.project]).sort()))
+        errors.push(`Product workflow browser map differs from the exact receipt register: ${id}`);
+    } else if (!mapping.browser.blocker.trim()) errors.push(`Pending browser workflow requires a concrete blocker: ${id}`);
+  } catch (error) {
+    errors.push(`Product workflow receipt mapping is invalid: ${id}:${error instanceof Error ? error.message : "INVALID"}`);
   }
-  if (receipt.phase !== "implemented" && !receipts.records.some(row => row.id === receipt.id && row.phase === "implemented" && row.sourceFingerprint === receipt.sourceFingerprint)) errors.push(`Missing same-source implementation: ${key}`);
-  if (receipt.phase === "enabled" && !receipts.records.some(row => row.id === receipt.id && row.phase === "verified" && row.sourceFingerprint === receipt.sourceFingerprint)) errors.push(`Missing same-source verification: ${key}`);
 }
-const fingerprint = await runtimeSourceFingerprint(root);
+for (const surface of surfaces) {
+  const seen = new Set<string>();
+  for (const expected of surface.browserCases ?? []) {
+    const key = JSON.stringify([expected.workflow, expected.runner, expected.suite, expected.file, expected.title, expected.project]);
+    if (!surface.workflows.includes(expected.workflow) || seen.has(key)) errors.push(`Invalid or duplicate surface browser mapping: ${surface.id}/${expected.workflow}/${expected.title}`);
+    seen.add(key);
+    if (!caseInInventory(expected)) errors.push(`Surface browser witness is absent from the required case inventory: ${surface.id}/${expected.workflow}/${expected.file}/${expected.title}/${expected.project}`);
+    const owners = suites.filter(suite => suite.id === expected.suite && ["e2e", "journeys", "uat"].includes(suite.lane) && suite.files.includes(expected.file));
+    if (owners.length !== 1) errors.push(`Surface browser witness suite binding is invalid: ${surface.id}/${expected.workflow}/${expected.suite}/${expected.file}`);
+  }
+  for (const workflow of surface.workflows) {
+    const projects = (surface.browserCases ?? []).filter(test => test.workflow === workflow).map(test => test.project).sort();
+    if (projects.length && JSON.stringify(projects) !== JSON.stringify(["desktop", "mobile"]))
+      errors.push(`Surface browser witness must cover desktop and mobile exactly once: ${surface.id}/${workflow}`);
+  }
+}
+const formsSurface = surfaces.find(surface => surface.id === "forms");
+const formsReceiptMapping = productWorkflowReceiptMapping(`forms:${formsWorkflow}`);
+const formsBrowserBlocker = formsReceiptMapping.browser.state === "pending"
+  ? formsReceiptMapping.browser.blocker.toLowerCase()
+  : "";
+if (formsSurface?.browserCases?.length !== 2 || formsSurface.browserCases.some(test => test.workflow !== formsWorkflow || test.executionOrigin !== "local-simulation-only") ||
+  formsReceiptMapping.native.state !== "mapped" || formsReceiptMapping.browser.state !== "pending" ||
+  !formsBrowserBlocker.includes("forms product host"))
+  errors.push("Forms traceability must remain distinct from its Forms-host browser receipt blocker");
+for (const capability of capabilities) {
+  try {
+    for (const expected of requiredProductMigrationCases(capability.id, "implemented")) {
+      if (!caseInInventory(expected)) errors.push("Workflow witness is absent from the required case inventory: " + capability.id + "/" + expected.file + "/" + expected.title);
+    }
+    try {
+      for (const expected of requiredProductMigrationCases(capability.id, "verified")) {
+        if (!caseInInventory(expected)) errors.push("Browser witness is absent from the required case inventory: " + capability.id + "/" + expected.file + "/" + expected.title);
+      }
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "PRODUCT_MIGRATION_BROWSER_WITNESS_REQUIRED") throw error;
+    }
+  } catch (error) {
+    errors.push("Workflow witness mapping is invalid: " + capability.id + ":" + (error instanceof Error ? error.message : "INVALID"));
+  }
+}
+const fingerprint = await runtimeSourceFingerprint(root), verificationFingerprint = await verificationSourceFingerprint(root, fingerprint);
+const current = { candidateSha: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(), runtimeFingerprint: fingerprint, verificationFingerprint };
+const validReceipts: Receipt[] = [];
+for (const receipt of receipts.records) {
+  const key = `${receipt.id}:${receipt.phase}:${receipt.candidateSha}`;
+  if (!workflowIds.has(receipt.id) || receipt.phase === "enabled") errors.push(`Unsupported product receipt phase: ${key}`);
+  try {
+    const evidenceBytes = await readProductMigrationReceiptEvidence(root, receipt.path, receipt.sha256);
+    const evidence = validateProductMigrationEvidence(JSON.parse(evidenceBytes.toString("utf8")));
+    if (evidence.id !== receipt.id || evidence.phase !== receipt.phase || evidence.candidateSha !== receipt.candidateSha ||
+      evidence.runtimeFingerprint !== receipt.runtimeFingerprint || evidence.verificationFingerprint !== receipt.verificationFingerprint ||
+      evidence.release.id !== receipt.release.id || evidence.release.fileManifestSha256 !== receipt.release.fileManifestSha256)
+      throw new Error("PRODUCT_MIGRATION_RECEIPT_REFERENCE_MISMATCH");
+    validReceipts.push(receipt);
+  } catch (error) { errors.push(`Invalid receipt payload: ${key}:${error instanceof Error ? error.message : "INVALID"}`); }
+  if (receipt.phase === "verified" && !receipts.records.some(row => row.id === receipt.id && row.phase === "implemented" &&
+    row.candidateSha === receipt.candidateSha && row.runtimeFingerprint === receipt.runtimeFingerprint && row.verificationFingerprint === receipt.verificationFingerprint))
+    errors.push(`Missing same-source implementation: ${key}`);
+  if (receipt.phase === "enabled") errors.push(`Enabled phase lacks independent Company grant and MFA protocol: ${key}`);
+}
+const currentReceipt = (id: string, phase: string) => validReceipts.find(row => row.id === id && row.phase === phase && productMigrationReceiptMatchesCurrent(row, current));
 const state = (id: string) => Object.fromEntries(["implemented", "verified", "enabled"].map(phase => {
-  const receipt = receipts.records.find(row => row.id === id && row.phase === phase);
-  return [phase, { state: !receipt ? "pending" : receipt.sourceFingerprint === fingerprint ? "recorded" : "source-changed", evidence: receipt ?? null }];
+  const receipt = currentReceipt(id, phase), previous = [...validReceipts].reverse().find(row => row.id === id && row.phase === phase);
+  return [phase, { state: receipt ? "recorded" : previous ? "source-changed" : "pending", evidence: receipt ?? previous ?? null }];
 }));
 const refs = (value: string) => [...new Set(value.split(/[;,]\s*/).map(path => path.trim()).filter(Boolean))];
 // Current product paths supplement the retained owner catalogue references.
@@ -205,21 +317,24 @@ for (const workflow of productWorkflows) {
   for (const path of [...workflow.pages, ...workflow.apis, ...workflow.services, ...workflow.tests]) if (!existsSync(resolve(root, path))) errors.push(`Missing product workflow source: ${workflow.id}/${path}`);
 }
 if (modules.length !== 33 || new Set(modules.map(row => row.moduleId)).size !== 33 || surfaces.length !== sharedHostKeys.length) errors.push("INCOMPLETE_PRODUCT_COVERAGE");
-const register = { version: 1, environment: "development", deliveryPlan: "docs/production-plan.md", sourceFingerprint: fingerprint,
+const register = { version: 2, environment: "development", deliveryPlan: "docs/production-plan.md", candidateSha: current.candidateSha,
+  sourceFingerprint: fingerprint, verificationFingerprint,
   baseline: { source: ".scratch/dev/product-migration-baseline-2026-10-14/", privateAuthority: "read-only per-database snapshots; no secrets or personal authority rows in this register", performance: "compiled baseline retained; observations pending" },
-  modules, productWorkflows: productWorkflows.map(workflow => ({ ...workflow, origin: developmentProductOrigin(workflow.product as typeof productIds[number]), acceptance: state(workflow.id) })),
-  surfaces: surfaces.map(surface => ({ ...surface, origin: developmentProductOrigin(surface.id as typeof sharedHostKeys[number]), workflows: surface.workflows.map(id => ({ id: `${surface.id}:${id}`, acceptance: state(`${surface.id}:${id}`) })) })) };
-const target = resolve(root, "docs/status/product-migration-acceptance.json");
+  modules, productWorkflows: productWorkflows.map(workflow => ({ ...workflow, origin: developmentProductOrigin(workflow.product as typeof productIds[number]),
+    acceptance: state(workflow.id), receiptMapping: productWorkflowReceiptMapping(workflow.id) })),
+  surfaces: surfaces.map(surface => ({ ...surface, origin: developmentProductOrigin(surface.id as typeof sharedHostKeys[number]),
+    workflows: surface.workflows.map(id => ({ id: `${surface.id}:${id}`, acceptance: state(`${surface.id}:${id}`), receiptMapping: productWorkflowReceiptMapping(`${surface.id}:${id}`) })) })) };
+const target = await assertCanonicalRepositoryFilePath(root, "docs/status/product-migration-acceptance.json");
 // Runtime hash is intentionally separate from the generated artifact's stable
 // shape. A changed candidate invalidates receipts on every checker invocation.
 const bytes = JSON.stringify(register, null, 2) + "\n";
 if (check || acceptance) {
   if (!existsSync(target) || readFileSync(target, "utf8") !== bytes) errors.push("PRODUCT_ACCEPTANCE_REGISTER_STALE");
-} else writeFileSync(target, bytes);
-const plan = resolve(root, "docs/production-plan.md"), planSource = readFileSync(plan, "utf8");
+}
+const plan = await assertCanonicalRepositoryFilePath(root, "docs/production-plan.md", { requireFile: true }), planSource = readFileSync(plan, "utf8");
 const begin = "<!-- product-migration-coverage:start -->", end = "<!-- product-migration-coverage:end -->";
 if (!planSource.includes(begin) || !planSource.includes(end)) errors.push("PRODUCT_COVERAGE_PLAN_MARKERS_REQUIRED");
-const progress = (ids: string[], phase: Receipt["phase"]) => `${ids.filter(id => receipts.records.some(receipt => receipt.id === id && receipt.phase === phase && receipt.sourceFingerprint === fingerprint)).length}/${ids.length}`;
+const progress = (ids: string[], phase: Receipt["phase"]) => `${ids.filter(id => Boolean(currentReceipt(id, phase))).length}/${ids.length}`;
 const table = [begin, "", "| Module | Product / shared area | Owner workflows | Implemented | Verified | Enabled |",
   "| --- | --- | ---: | ---: | ---: | ---: |",
   ...modules.map(module => { const ids = module.workflows.map(workflow => workflow.id); return `| ${module.moduleId} | ${module.placement} | ${ids.length} | ${progress(ids, "implemented")} | ${progress(ids, "verified")} | ${progress(ids, "enabled")} |`; }),
@@ -229,9 +344,15 @@ const table = [begin, "", "| Module | Product / shared area | Owner workflows | 
   "", end].join("\n");
 const nextPlan = planSource.replace(new RegExp(`${begin}[\\s\\S]*?${end}`), table);
 if (check || acceptance) { if (nextPlan !== planSource) errors.push("PRODUCT_COVERAGE_PLAN_STALE"); }
-else if (nextPlan !== planSource) writeFileSync(plan, nextPlan);
-if (acceptance) for (const id of workflowIds) for (const phase of ["implemented", "verified", "enabled"]) {
-  if (!receipts.records.some(row => row.id === id && row.phase === phase && row.sourceFingerprint === fingerprint)) errors.push(`Pending current-source ${phase}: ${id}`);
+if (acceptance) for (const id of workflowIds) for (const phase of ["implemented", "verified", "enabled"] as const) {
+  if (!currentReceipt(id, phase)) errors.push(`Pending current-source ${phase}: ${id}`);
 }
-if (errors.length) throw new Error(errors.join("\n"));
-console.log(`PRODUCT_ACCEPTANCE_REGISTER:${modules.length} modules/${capabilities.length} owner workflows/${productWorkflows.length} additional product workflows/${surfaces.length} shared-public surfaces; current-source receipts ${receipts.records.filter(row => row.sourceFingerprint === fingerprint).length}.`);
+if (check || acceptance) writeProductAcceptanceOutputs(errors, []);
+else writeProductAcceptanceOutputs(errors, [
+  { path: target, contents: bytes },
+  ...(nextPlan !== planSource ? [{ path: plan, contents: nextPlan }] : []),
+]);
+const receiptMappingCounts = receiptWorkflowIds.map(id => productWorkflowReceiptMapping(id));
+const nativeMapped = receiptMappingCounts.filter(mapping => mapping.native.state === "mapped").length;
+const browserMapped = receiptMappingCounts.filter(mapping => mapping.browser.state === "mapped").length;
+console.log(`PRODUCT_ACCEPTANCE_REGISTER:${modules.length} modules/${capabilities.length} owner workflows/${receiptWorkflowIds.length} non-owner workflow maps (${nativeMapped} native mapped/${receiptWorkflowIds.length - nativeMapped} blocked; ${browserMapped} browser mapped/${receiptWorkflowIds.length - browserMapped} pending)/${surfaces.length} shared-public surfaces; current-source receipts ${validReceipts.filter(row => productMigrationReceiptMatchesCurrent(row, current)).length}.`);
