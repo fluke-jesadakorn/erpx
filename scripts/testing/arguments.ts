@@ -2,7 +2,7 @@ import { relative, resolve } from "node:path";
 import { repositoryRoot, testLanes, type Selection } from "./catalogue";
 import { parseBrowserCaseOrder, type BrowserCaseOrder } from "./browser-execution-plan";
 
-export type TestArguments = Selection & { command: string; list: boolean; json: boolean; check: boolean; base?: string; head?: string; caseOrder?: BrowserCaseOrder; forwarded: string[] };
+export type TestArguments = Selection & { command: string; list: boolean; json: boolean; check: boolean; base?: string; head?: string; caseOrder?: BrowserCaseOrder; caseSelector?: string; forwarded: string[] };
 const commands = new Set(["tests", ...testLanes, "impact", "dev"]);
 export function parseTestArguments(args: string[], root = repositoryRoot): TestArguments {
   const input = [...args];
@@ -21,7 +21,7 @@ export function parseTestArguments(args: string[], root = repositoryRoot): TestA
     const arg = input[index];
     if (arg === "--") continue;
     if (["--list", "--json", "--check"].includes(arg)) { result[arg.slice(2) as "list" | "json" | "check"] = true; continue; }
-    const option = ["--module", "--suite", "--base", "--head", "--case-order"].find(flag => arg === flag || arg.startsWith(flag + "="));
+    const option = ["--module", "--suite", "--base", "--head", "--case-order", "--case"].find(flag => arg === flag || arg.startsWith(flag + "="));
     if (option) {
       const [selected, next] = value(index, option); index = next;
       if (option === "--module") result.modules!.push(...selected.split(","));
@@ -32,6 +32,10 @@ export function parseTestArguments(args: string[], root = repositoryRoot): TestA
         if (result.caseOrder) throw new Error("DUPLICATE_BROWSER_CASE_ORDER");
         result.caseOrder = parseBrowserCaseOrder(selected);
       }
+      if (option === "--case") {
+        if (result.caseSelector) throw new Error("DUPLICATE_EXACT_CASE_SELECTOR");
+        result.caseSelector = selected;
+      }
       continue;
     }
     if (/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(arg)) {
@@ -39,14 +43,16 @@ export function parseTestArguments(args: string[], root = repositoryRoot): TestA
       continue;
     }
     if (!arg.startsWith("-") && (arg.startsWith("tests/") || arg.includes(".test.") || arg.includes(".spec."))) throw new Error(`INVALID_TEST_FILE:${arg}`);
-    if (arg.startsWith("--module") || arg.startsWith("--suite") || arg.startsWith("--base") || arg.startsWith("--head") || arg.startsWith("--case-order")) throw new Error(`UNKNOWN_TEST_OPTION:${arg}`);
+    if (arg.startsWith("--module") || arg.startsWith("--suite") || arg.startsWith("--base") || arg.startsWith("--head") || arg.startsWith("--case-order") || arg.startsWith("--case")) throw new Error(`UNKNOWN_TEST_OPTION:${arg}`);
     result.forwarded.push(arg);
   }
   const computedImpact = command === "impact" || command === "dev";
   if (computedImpact && !result.base) throw new Error("IMPACT_BASE_REQUIRED:use --base=<commit>");
   if (!computedImpact && (result.base || result.head)) throw new Error("GIT_REFERENCE_ONLY_FOR_IMPACT");
   if (computedImpact && (result.modules!.length || result.suiteIds!.length || result.files!.length)) throw new Error("IMPACT_SELECTION_IS_COMPUTED_FROM_GIT");
-  if (command === "tests" && !result.files!.length && !result.suiteIds!.length) result.lane = "unit";
+  if (command === "tests" && !result.files!.length && !result.suiteIds!.length && !result.caseSelector) result.lane = "unit";
+  if (result.caseSelector && result.forwarded.some(arg => ["-t", "--testNamePattern", "--grep"].includes(arg) || arg.startsWith("-t=") || arg.startsWith("--testNamePattern=") || arg.startsWith("--grep="))) throw new Error("EXACT_CASE_PATTERN_CONFLICT");
+  if (result.caseSelector && result.check) throw new Error("EXACT_CASE_CATALOGUE_CHECK_CONFLICT");
   if (result.caseOrder && !["impact", "e2e", "journeys", "uat"].includes(command)) throw new Error("BROWSER_CASE_ORDER_ONLY_FOR_BROWSER_LANES");
   return result;
 }

@@ -628,6 +628,9 @@ export function OrganizationChangeQueue({ appearance = "legacy",
   const { send, busy, error } = useStaffCommand(base),
     [reason, setReason] = useState<Record<string, string>>({}),
     [proof, setProof] = useState<Record<string, AttachmentPanelChange>>({});
+  const currentSearch=useSearchParams(),filterSearch=new URLSearchParams(currentSearch);
+  for(const key of ["changeState","changeQuery","changePage"])filterSearch.delete(key);
+  const contextFields=[...filterSearch.entries()].filter(([key])=>["view","company","branch","department","person","position","team","level","unit","panel","section","tab","status","refresh","changeId"].includes(key));
   const queue = data.changeQueue;
   const pageLink = (page: number) =>
     canonicalUiHref(`${base}/people/organization?${new URLSearchParams({ changeState: queue.state, changeQuery: queue.query, changePage: String(page) })}#organization-change-queue`);
@@ -651,6 +654,7 @@ export function OrganizationChangeQueue({ appearance = "legacy",
         className={appearance === "standard" ? "ui-form-grid" : "business-form"}
         action={canonicalUiHref(`${base}/people/organization#organization-change-queue`)}
       >
+        {contextFields.map(([name,value],index)=><input key={`${name}:${index}`} type="hidden" name={name} value={value}/>)}
         <Field appearance={appearance}>
           Change status
           <Select appearance={appearance} name="changeState" defaultValue={queue.state} key={queue.state}>

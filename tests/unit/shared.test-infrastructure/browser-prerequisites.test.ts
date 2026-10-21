@@ -165,6 +165,14 @@ describe("browser child environment isolation", () => {
     expect(browserChildEnvironment({}, { ...fixture, ERPX_PUBLIC_ORIGIN: "http://127.0.0.1:3100" })).not.toHaveProperty("RESEND_API_KEY");
     expect(browserChildEnvironment({}, { ...fixture, RESEND_API_KEY: "live" })).not.toHaveProperty("RESEND_API_KEY");
   });
+  it("retains the Customer Portal invitation email sentinel only for its exact isolated sandbox", () => {
+    const fixture = { ERPX_BROWSER_SIMULATION_CUSTOMER_PORTAL_INVITATIONS: "1", ERPX_ENVIRONMENT: "local", ERPX_EMAIL_ADAPTER: "sandbox", ERPX_PUBLIC_ORIGIN: "http://127.0.0.1:3102", ERPX_DATA_DIR: `/repo/.runtime/browser/${run}`, RESEND_API_KEY: "isolated-sandbox-no-provider-key", RESEND_FROM: "Fictional <no-reply@example.test>" };
+    expect(browserChildEnvironment({}, fixture)).toMatchObject(fixture);
+    expect(browserChildEnvironment({}, { ...fixture, ERPX_PUBLIC_ORIGIN: "http://127.0.0.1:3104" })).toMatchObject({ ...fixture, ERPX_PUBLIC_ORIGIN: "http://127.0.0.1:3104" });
+    expect(browserChildEnvironment({}, { ...fixture, ERPX_PUBLIC_ORIGIN: "http://127.0.0.1:3100" })).not.toHaveProperty("RESEND_API_KEY");
+    expect(browserChildEnvironment({}, { ...fixture, RESEND_API_KEY: "live" })).not.toHaveProperty("RESEND_API_KEY");
+    expect(browserChildEnvironment({}, { ...fixture, ERPX_BROWSER_SIMULATION_CUSTOMER_PORTAL_INVITATIONS: undefined })).not.toHaveProperty("RESEND_API_KEY");
+  });
 });
 
 

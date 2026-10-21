@@ -912,20 +912,25 @@ import {recordDrawerHref as pmsAckRecordDrawerHref,withoutRecordDrawer as pmsAck
 // controller. Only DOM/router/primitives are ports; neither ACK nor dirty logic
 // is replaced. Existing owner callbacks and native command decoder remain live.
 async function mountPmsEditAckDrawer(f:Awaited<ReturnType<typeof actualPmsWorkspaceSend>>){
- const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_PMS_RECORD_ACK_SOURCE_ROOT??'.',source=setupRead(setupResolve(root,'src/components/records/record-drawer.tsx'),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,hooks=setupHooks(),loaded={exports:{} as Record<string,unknown>},router={push:vi.fn()},attributes=new Map<string,string>();
+ const require=setupRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_PMS_RECORD_ACK_SOURCE_ROOT??'.',source=setupRead(setupResolve(root,'src/components/records/record-drawer.tsx'),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,hooks=setupHooks(),loaded={exports:{} as Record<string,unknown>},router={push:vi.fn(),pushPreservingQuery:vi.fn()},attributes=new Map<string,string>();
  const href='https://pms-dev-erpx.jesadakorn.com/acme/acme-co/holding/housekeeping?property=original-hotel&floor=3&taskState=working&detailKind=pms_record&detailId=original-task';
  Object.assign(window.location,{href,origin:new URL(href).origin,pathname:new URL(href).pathname,search:new URL(href).search});
  Object.assign(window,{history:{state:{original:'native-history'},pushState:vi.fn()}});
+ const controls:DrawerElement[]=[],observerCallbacks:(()=>void)[]=[];
  class DrawerElement{
-  matches(selector:string){return selector==='form';}
-  closest(selector:string){return selector.includes('form')?this:null;}
+  tagName:string;name='';id='';type='';value='';checked=false;disabled=false;labels:{textContent:string|null}[]=[];
+  get attributes(){return Array.from(attributes,([name,value])=>({name,value}));}
+  constructor(tagName='FORM'){this.tagName=tagName;}
+  matches(selector:string){return this.tagName==='FORM'&&selector==='form';}
+  closest(selector:string){return selector.includes('form')?this.tagName==='FORM'?this:f.form:null;}
+  querySelectorAll(){return this.tagName==='FORM'?controls:[];}
   setAttribute(name:string,value:string){attributes.set(name,value);}
   getAttribute(name:string){return attributes.get(name)??null;}
  }
  Object.setPrototypeOf(f.form,DrawerElement.prototype);
- Object.assign(f.form,{getAttribute:(name:string)=>attributes.get(name)??null,setAttribute:(name:string,value:string)=>{attributes.set(name,value);}});
+ Object.assign(f.form,{tagName:'FORM',isConnected:true,querySelectorAll:()=>controls,getAttribute:(name:string)=>attributes.get(name)??null,setAttribute:(name:string,value:string)=>{attributes.set(name,value);}});
  vi.stubGlobal('Element',DrawerElement);
- vi.stubGlobal('MutationObserver',class{observe=vi.fn();disconnect=vi.fn();});
+ vi.stubGlobal('MutationObserver',class{constructor(callback:()=>void){observerCallbacks.push(callback);}observe=vi.fn();disconnect=vi.fn();});
  vi.stubGlobal('requestAnimationFrame',(callback:FrameRequestCallback)=>{callback(0);return 0;});
  const content=Object.assign(new EventTarget(),{contains:(node:unknown)=>node===f.form,querySelector:()=>null,querySelectorAll:()=>[]});
  const ports=(name:string):unknown=>{
@@ -940,8 +945,9 @@ async function mountPmsEditAckDrawer(f:Awaited<ReturnType<typeof actualPmsWorksp
  const Drawer=loaded.exports.RecordDrawer as (props:{title:string;fullHref:string;children:React.ReactNode})=>React.ReactNode;
  const render=()=>hooks.render(()=>setupNodes(Drawer({title:'Original housekeeping task',fullHref:href,children:null})));
  let nodes=render();const node=nodes.find(item=>item.props['data-record-drawer-content']!==undefined);if(!node||typeof node.props.ref!=='function')throw Error('Actual drawer content ref is required.');Reflect.apply(node.props.ref,undefined,[content]);nodes=render();
- const edited=(value:string)=>{f.edit(value);const event=new Event('input');Object.defineProperty(event,'target',{value:f.form});content.dispatchEvent(event);return render();};
- return {router,render,edited,stamp:()=>attributes.get('data-erpx-edit-version'),dirty:()=>render().find(item=>item.props['data-record-drawer-content']!==undefined)?.props['data-record-dirty'],close(){const drawer=render().find(item=>item.props['data-testid']==='record-detail-drawer');if(!drawer||typeof drawer.props.onClose!=='function')throw Error('Actual drawer close handler is required.');Reflect.apply(drawer.props.onClose,undefined,[]);return render();},confirmation:()=>render().find(item=>item.type==='Dialog'&&item.props.title==='Discard unsaved changes?'),dispose(){hooks.close();}};
+ const dispatchEdit=(value:string,financeBubble=false)=>{f.edit(value);const input=Object.assign(new DrawerElement('INPUT'),{name:'reason',type:'text',value,labels:[{textContent:'Reason'}]});controls.splice(0,controls.length,input);const event=new Event('input',{bubbles:true}),ownerStamp=()=>{(f.form as unknown as Element).setAttribute('data-erpx-edit-version',crypto.randomUUID());};Object.defineProperty(event,'target',{value:input});if(financeBubble)document.addEventListener('input',ownerStamp);try{content.dispatchEvent(event);if(financeBubble)document.dispatchEvent(event);window.dispatchEvent(event);}finally{if(financeBubble)document.removeEventListener('input',ownerStamp);}return render();};
+ const edited=(value:string)=>dispatchEdit(value),editedThroughFinanceBubble=(value:string)=>Promise.resolve(dispatchEdit(value,true));
+ return {router,render,edited,editedThroughFinanceBubble,stamp:()=>attributes.get('data-erpx-edit-version'),dirty:()=>render().find(item=>item.props['data-record-drawer-content']!==undefined)?.props['data-record-dirty'],retained:()=>render().find(item=>item.props['data-record-drawer-retained-draft']!==undefined),detachForm(){(f.form as unknown as {isConnected:boolean}).isConnected=false;observerCallbacks[0]?.();return render();},close(){const drawer=render().find(item=>item.props['data-testid']==='record-detail-drawer');if(!drawer||typeof drawer.props.onClose!=='function')throw Error('Actual drawer close handler is required.');Reflect.apply(drawer.props.onClose,undefined,[]);return render();},confirmation:()=>render().find(item=>item.type==='Dialog'&&item.props.title==='Discard unsaved changes?'),dispose(){hooks.close();}};
 }
 
 it.each((['front','backoffice'] as const).flatMap(owner=>([false,true] as const).map(newer=>[owner,newer] as const)))('actual %s PMS original ACK after optional read failure keeps RecordDrawer newer=%s notes dirty through close',async(owner,newer)=>{
@@ -949,22 +955,87 @@ it.each((['front','backoffice'] as const).flatMap(owner=>([false,true] as const)
  expect(mounted.stamp()).toBeUndefined();mounted.edited('Submitted housekeeping note');const submittedStamp=mounted.stamp();expect(submittedStamp).toMatch(/^[a-f0-9-]{36}$/);expect(mounted.dirty()).toBe(true);
  const running=f.submit();
  try{
-  await f.started;if(newer){mounted.edited('Newer unsent housekeeping note');expect(mounted.stamp()).not.toBe(submittedStamp);}f.release();await running;
+  await f.started;if(newer){mounted.edited('Newer unsent housekeeping note');const newerStamp=mounted.stamp();expect(newerStamp).not.toBe(submittedStamp);/* The drawer must compare against its retained edit version even if an owner-side update restores the DOM attribute to the submitted version before the old ACK arrives. */(f.form as unknown as Element).setAttribute('data-erpx-edit-version',submittedStamp!);expect(mounted.stamp()).toBe(submittedStamp);}f.release();await running;
   expect(f.setData).not.toHaveBeenCalled();expect(f.completions).toEqual([{form:f.form,formEditVersion:submittedStamp}]);expect(f.attempts.current.size).toBe(0);expect(f.reset).toHaveBeenCalledTimes(newer?0:1);expect(f.draft()).toBe(newer?'Newer unsent housekeeping note':'');expect(mounted.dirty()).toBe(newer);
   const unload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(unload);expect(unload.defaultPrevented).toBe(newer);
   mounted.close();expect(mounted.confirmation()?.props.open).toBe(newer);
-  if(newer){expect(mounted.router.push).not.toHaveBeenCalled();const keep=setupNodes(mounted.confirmation()?.props.children as React.ReactNode).find(item=>item.type==='Button'&&item.props.children==='Keep editing');expect(keep).toBeDefined();Reflect.apply(keep!.props.onClick as ()=>void,undefined,[]);expect(mounted.confirmation()?.props.open).toBe(false);expect(mounted.dirty()).toBe(true);expect(f.draft()).toBe('Newer unsent housekeeping note');}
-  else expect(mounted.router.push).toHaveBeenCalledExactlyOnceWith('/acme/acme-co/holding/housekeeping?property=original-hotel&floor=3&taskState=working',{scroll:false});
+  if(newer){expect(mounted.router.push).not.toHaveBeenCalled();expect(mounted.router.pushPreservingQuery).not.toHaveBeenCalled();const keep=setupNodes(mounted.confirmation()?.props.children as React.ReactNode).find(item=>item.type==='Button'&&item.props.children==='Keep editing');expect(keep).toBeDefined();Reflect.apply(keep!.props.onClick as ()=>void,undefined,[]);expect(mounted.confirmation()?.props.open).toBe(false);expect(mounted.dirty()).toBe(true);expect(f.draft()).toBe('Newer unsent housekeeping note');}
+  else expect(mounted.router.pushPreservingQuery).toHaveBeenCalledExactlyOnceWith('/acme/acme-co/holding/housekeeping?property=original-hotel&floor=3&taskState=working',{scroll:false});
   expect(f.fetcher.mock.calls.filter(([,init])=>init?.method==='POST')).toHaveLength(1);
+ }finally{f.release();mounted.dispose();f.reads.cancel();}
+});
+
+it('actual PMS RecordDrawer retains a newer field when the acknowledged action unmounts and still guards discard',async()=>{
+ const f=await actualPmsWorkspaceSend('front'),mounted=await mountPmsEditAckDrawer(f);let pending:Promise<void>|undefined;
+ try{
+  mounted.edited('Submitted correction reason');
+  const submittedStamp=mounted.stamp();pending=f.submit();
+  await f.started;
+  mounted.edited('Newer correction reason entered while request was pending');
+  const newerStamp=mounted.stamp();
+  expect(newerStamp).not.toBe(submittedStamp);
+  f.release();await pending;
+  expect(f.completions).toEqual([{form:f.form,formEditVersion:submittedStamp}]);
+  expect(f.reset).not.toHaveBeenCalled();
+  expect(f.draft()).toBe('Newer correction reason entered while request was pending');
+  mounted.detachForm();
+  expect(mounted.dirty()).toBe(true);
+  expect(mounted.retained()).toBeDefined();
+  expect(setupNodes(mounted.retained()!.props.children as React.ReactNode).some(node=>node.type==='output'&&node.props.children==='Newer correction reason entered while request was pending')).toBe(true);
+  const unload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(unload);expect(unload.defaultPrevented).toBe(true);
+  mounted.close();expect(mounted.confirmation()?.props.open).toBe(true);expect(mounted.router.push).not.toHaveBeenCalled();expect(mounted.router.pushPreservingQuery).not.toHaveBeenCalled();
+  const keep=setupNodes(mounted.confirmation()?.props.children as React.ReactNode).find(node=>node.type==='Button'&&node.props.children==='Keep editing');
+  expect(keep).toBeDefined();Reflect.apply(keep!.props.onClick as ()=>void,undefined,[]);
+  expect(mounted.confirmation()?.props.open).toBe(false);expect(mounted.dirty()).toBe(true);expect(mounted.retained()).toBeDefined();
+  mounted.close();const discard=setupNodes(mounted.confirmation()?.props.children as React.ReactNode).find(node=>node.type==='Button'&&node.props.children==='Discard changes');
+  expect(discard).toBeDefined();Reflect.apply(discard!.props.onClick as ()=>void,undefined,[]);
+  expect(mounted.dirty()).toBe(false);expect(mounted.retained()).toBeUndefined();expect(mounted.router.pushPreservingQuery).toHaveBeenCalledOnce();
+ }finally{f.release();mounted.dispose();f.reads.cancel();}
+});
+
+it('actual PMS RecordDrawer keeps a reopened record draft when its pre-close command ACK arrives late',async()=>{
+ const f=await actualPmsWorkspaceSend('front',{failRefresh:true}),mounted=await mountPmsEditAckDrawer(f),originalHref=window.location.href;
+ const setLocation=(href:string)=>{const url=new URL(href);Object.assign(window.location,{href:url.href,origin:url.origin,pathname:url.pathname,search:url.search});},drawer=()=>setupNodes(mounted.render()).find(item=>item.props['data-testid']==='record-detail-drawer');
+ mounted.edited('Submitted before closing');const submittedStamp=mounted.stamp()!,running=f.submit();
+ try{
+  await f.started;mounted.close();expect(mounted.confirmation()?.props.open).toBe(true);
+  const discard=setupNodes(mounted.confirmation()?.props.children as React.ReactNode).find(item=>item.type==='Button'&&item.props.children==='Discard changes');expect(discard).toBeDefined();Reflect.apply(discard!.props.onClick as ()=>void,undefined,[]);
+  expect(mounted.router.pushPreservingQuery).toHaveBeenCalledOnce();const closedHref=new URL(String(mounted.router.pushPreservingQuery.mock.calls[0]?.[0]),originalHref).href;setLocation(closedHref);expect(drawer()?.props.open).toBe(false);expect(mounted.dirty()).toBe(false);
+  setLocation(originalHref);expect(drawer()?.props.open).toBe(true);mounted.edited('Newer draft after reopening');const newerStamp=mounted.stamp()!;expect(newerStamp).not.toBe(submittedStamp);
+  // Model an owner render restoring an old submitted stamp while the drawer retains the newer edit revision.
+  (f.form as unknown as Element).setAttribute('data-erpx-edit-version',submittedStamp!);f.release();await running;
+  expect(f.completions).toEqual([{form:f.form,formEditVersion:submittedStamp}]);expect(f.attempts.current.size).toBe(0);expect(f.reset).not.toHaveBeenCalled();expect(f.draft()).toBe('Newer draft after reopening');expect(mounted.dirty()).toBe(true);
+  const unload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(unload);expect(unload.defaultPrevented).toBe(true);mounted.close();expect(mounted.confirmation()?.props.open).toBe(true);expect(mounted.router.pushPreservingQuery).toHaveBeenCalledOnce();
  }finally{f.release();mounted.dispose();f.reads.cancel();}
 });
 
 it('actual PMS RecordDrawer distinguishes a missing or stale command stamp from an explicit scoped discard',async()=>{
  const f=await actualPmsWorkspaceSend('front'),mounted=await mountPmsEditAckDrawer(f);
  try{
-  mounted.edited('New unsent housekeeping note');const current=mounted.stamp();expect(mounted.dirty()).toBe(true);
-  for(const detail of [{form:f.form,formEditVersion:null},{form:f.form},{form:f.form,formEditVersion:'stale-original'},{root:{contains:(node:unknown)=>node===f.form}}]){window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail}));expect(mounted.dirty()).toBe(true);expect(mounted.stamp()).toBe(current);}
+  mounted.edited('New unsent housekeeping note');const current=mounted.stamp()!;expect(mounted.dirty()).toBe(true);
+  const staleFormDetails=[{form:f.form,formEditVersion:null},{form:f.form},{form:f.form,formEditVersion:'stale-original'}];
+  for(const detail of [...staleFormDetails,{root:{contains:(node:unknown)=>node===f.form}}]){window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail}));expect(mounted.dirty()).toBe(true);expect(mounted.stamp()).toBe(current);}
+  for(const detail of staleFormDetails){window.dispatchEvent(new CustomEvent('erpx:record-saved',{detail}));expect(mounted.dirty()).toBe(true);expect(mounted.stamp()).toBe(current);}
+  window.dispatchEvent(new CustomEvent('erpx:record-saved',{detail:{form:f.form,formEditVersion:'stale-original',root:{contains:(node:unknown)=>node===f.form}}}));expect(mounted.dirty()).toBe(true);expect(mounted.stamp()).toBe(current);
   window.dispatchEvent(new CustomEvent('erpx:record-saved',{detail:{root:{contains:()=>false}}}));expect(mounted.dirty()).toBe(true);
-  window.dispatchEvent(new CustomEvent('erpx:record-saved',{detail:{root:{contains:(node:unknown)=>node===f.form}}}));expect(mounted.dirty()).toBe(false);mounted.close();expect(mounted.router.push).toHaveBeenCalledOnce();expect(f.fetcher).not.toHaveBeenCalled();expect(f.draft()).toBe('New unsent housekeeping note');
+  window.dispatchEvent(new CustomEvent('erpx:record-saved',{detail:{form:f.form,formEditVersion:current}}));expect(mounted.dirty()).toBe(false);
+  mounted.edited('A newer unsent housekeeping note');const newer=mounted.stamp();expect(mounted.dirty()).toBe(true);expect(newer).not.toBe(current);
+  (f.form as unknown as Element).setAttribute('data-erpx-edit-version',current);
+  for(const type of ['erpx:record-command-saved','erpx:record-saved']){window.dispatchEvent(new CustomEvent(type,{detail:{form:f.form,formEditVersion:current}}));expect(mounted.dirty()).toBe(true);}
+  window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form:f.form,formEditVersion:newer}}));expect(mounted.dirty()).toBe(false);
+  mounted.edited('Latest unsent housekeeping note');expect(mounted.dirty()).toBe(true);expect(mounted.stamp()).not.toBe(newer);
+  window.dispatchEvent(new CustomEvent('erpx:record-saved',{detail:{root:{contains:(node:unknown)=>node===f.form}}}));expect(mounted.dirty()).toBe(false);mounted.close();expect(mounted.router.pushPreservingQuery).toHaveBeenCalledOnce();expect(f.fetcher).not.toHaveBeenCalled();expect(f.draft()).toBe('Latest unsent housekeeping note');
  }finally{f.release();mounted.dispose();f.reads.cancel();}
+});
+
+it('actual PMS RecordDrawer reconciles the final Finance bubble stamp and preserves newer edits against a stale ACK',async()=>{
+ const f=await actualPmsWorkspaceSend('front'),mounted=await mountPmsEditAckDrawer(f);
+ try{
+  await mounted.editedThroughFinanceBubble('Submitted housekeeping note');const submittedStamp=mounted.stamp()!;expect(submittedStamp).toMatch(/^[a-f0-9-]{36}$/);expect(mounted.dirty()).toBe(true);
+  const submitted={form:f.form,formEditVersion:submittedStamp};window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:submitted}));expect(mounted.dirty()).toBe(false);
+  await mounted.editedThroughFinanceBubble('Newer unsent housekeeping note');const newerStamp=mounted.stamp()!;expect(newerStamp).not.toBe(submittedStamp);expect(mounted.dirty()).toBe(true);
+  window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:submitted}));expect(mounted.dirty()).toBe(true);
+  window.dispatchEvent(new CustomEvent('erpx:record-saved',{detail:submitted}));expect(mounted.dirty()).toBe(true);
+  window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form:f.form,formEditVersion:newerStamp}}));expect(mounted.dirty()).toBe(false);
+ }finally{mounted.dispose();f.reads.cancel();}
 });

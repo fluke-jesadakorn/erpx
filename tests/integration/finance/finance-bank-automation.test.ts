@@ -97,6 +97,44 @@ async function receipt(amount: string) {
       .first("id"),
   );
 }
+
+it("plain BankImport replays an identical same-key import after the committed response is lost without duplicating persisted rows or receipt evidence", async () => {
+  const command = key(), input = {
+    bankAccount: f.accounts.cash,
+    statementNumber: `LOST-${key()}`,
+    statementDate: "2026-09-30",
+    opening: "1000.00",
+    closing: "1075.00",
+    sourceHash: key(),
+    rows: [
+      { externalId: `${command}-receipt`, transactionDate: "2026-09-12", description: "First original BankImport movement", amount: "100.00", currency: "THB" },
+      { externalId: `${command}-withdrawal`, transactionDate: "2026-09-13", description: "Second original BankImport movement", amount: "-25.00", currency: "THB" },
+    ],
+  }, expected = { id: `statement-${command}`, status: "imported", imported: input.rows.length };
+
+  // The first owner call commits to PostgreSQL; deliberately ignore its response as if it were lost.
+  await importBankStatement(f.owner, input, command);
+  const replay = await importBankStatement(f.owner, input, command);
+  expect(replay).toEqual(expected);
+
+  expect(await db.prepare("SELECT count(*)::int n FROM finance_bank_statements WHERE id=? AND company_id=?").bind(expected.id, f.company).first("n")).toBe(1);
+  expect((await db.prepare("SELECT id,external_id,amount_minor FROM finance_bank_transactions WHERE statement_id=? AND company_id=? ORDER BY id").bind(expected.id, f.company).all()).results).toEqual([
+    { id: `bankrow-${command}-0`, external_id: `${command}-receipt`, amount_minor: 10000 },
+    { id: `bankrow-${command}-1`, external_id: `${command}-withdrawal`, amount_minor: -2500 },
+  ]);
+
+  const receipt = await db.prepare("SELECT operation,record_id,actor_id,result_json FROM command_receipts WHERE command_id=? AND operation='finance.bank.import'").bind(command).first<{ operation: string; record_id: string; actor_id: string; result_json: string }>();
+  expect(receipt).toMatchObject({ operation: "finance.bank.import", record_id: expected.id, actor_id: f.owner.userId });
+  expect(receipt && JSON.parse(receipt.result_json)).toEqual(expected);
+  for (const [table, predicate] of [
+    ["command_receipts", "operation='finance.bank.import'"],
+    ["audit_events", "action='finance.bank.import'"],
+    ["outbox_events", "event_type='finance.bank.import'"],
+  ] as const) {
+    expect(Number(await db.prepare(`SELECT count(*)::int n FROM ${table} WHERE command_id=? AND ${predicate}`).bind(command).first("n"))).toBe(1);
+  }
+});
+
 async function statement() {
   const mapping = await createBankCsvMapping(
     f.owner,

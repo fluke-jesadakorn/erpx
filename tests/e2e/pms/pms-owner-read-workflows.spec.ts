@@ -9,7 +9,7 @@ import {
   signInFrontRole,
   type SimulatedFrontCredentials,
 } from "../../support/helpers/front-simulation-session";
-import { records, type Snapshot } from "../../../src/server/modules/pms/public/rules/pms-model";
+import { money, records, type Snapshot } from "../../../src/server/modules/pms/public/rules/pms-model";
 
 type HospitalityRunState = {
   run: string;
@@ -26,8 +26,9 @@ type OwnerWorkspace = {
   properties: Array<{ id: string; name: string }>;
   snapshot: (Snapshot & { listMeta?: { section: string; ids: string[] } }) | null;
   defaultDate: string;
-  ledger: unknown;
-  controlBalances: unknown;
+  ledger: { debit: number; credit: number; receivable: number; advance: number; deposit: number } | null;
+  controlBalances: { due: number; advance: number; deposit: number } | null;
+  bookingReadiness: { accounting: boolean };
 };
 
 type PreparedOwner = {
@@ -166,12 +167,28 @@ test("pms/dashboard renders the selected hotel's live room status through its ow
     );
     const assertNoWrites = watchForWrites(fixture.page);
     await fixture.page.goto(
-      `${fixture.origin}/holdings/riverside-lantern/pms/dashboard?property=${encodeURIComponent(fixture.propertyId)}`,
+      `${frontOrigin("pms")}${frontWorkspacePath(fixture.companyId)}?property=${encodeURIComponent(fixture.propertyId)}`,
     );
+    const workspace = fixture.page.locator('[data-source="live"][data-front-daily="pms"]');
+    await expect(workspace).toBeVisible();
     const dashboardUrl = new URL(fixture.page.url());
     expect(dashboardUrl.origin).toBe(frontOrigin("pms"));
-    expect(dashboardUrl.pathname).toBe(frontWorkspacePath(fixture.companyId));
+    expect([
+      frontWorkspacePath(fixture.companyId).replace(/\/$/, ""),
+      `${frontWorkspacePath(fixture.companyId).replace(/\/$/, "")}/today`,
+    ]).toContain(dashboardUrl.pathname.replace(/\/$/, ""));
     expect(dashboardUrl.searchParams.get("property")).toBe(fixture.propertyId);
+    const layoutMetrics = await fixture.page.evaluate(() => ({
+      viewportWidth: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }));
+    expect(layoutMetrics.documentWidth).toBeLessThanOrEqual(layoutMetrics.viewportWidth);
+    if (info.project.name === "mobile") {
+      const actionGridWidth = await workspace.locator("[class*='frontQueues']").evaluate((element) =>
+        element.getBoundingClientRect().width,
+      );
+      expect(actionGridWidth).toBeGreaterThanOrEqual(layoutMetrics.viewportWidth * 0.8);
+    }
 
     const ownerData = await readOwnerWorkspace(
       fixture.context,
@@ -183,11 +200,9 @@ test("pms/dashboard renders the selected hotel's live room status through its ow
     const snapshot = ownerData.snapshot!;
     const expectedRooms = records(snapshot, "room").map((room) => room.data.number).sort();
     expect(expectedRooms.length).toBeGreaterThan(0);
-    const workspace = fixture.page.locator('[data-source="live"][data-front-daily="pms"]');
-    await expect(workspace).toBeVisible();
     await expect(fixture.page.getByRole("heading", { name: "Room status", exact: true })).toBeVisible();
-    const visibleRooms = await fixture.page.locator("#pms-room-status a").evaluateAll((links) =>
-      links.map((link) => link.querySelector("strong")?.textContent?.trim() ?? "").filter(Boolean).sort(),
+    const visibleRooms = await fixture.page.locator("#pms-room-status article > strong").evaluateAll((labels) =>
+      labels.map((label) => label.textContent?.trim() ?? "").filter(Boolean).sort(),
     );
     expect(visibleRooms).toEqual(expectedRooms);
 
@@ -196,8 +211,14 @@ test("pms/dashboard renders the selected hotel's live room status through its ow
     const occupiedRoom = records(snapshot, "room").find((room) => room.id === occupiedStay!.data.roomId);
     expect(occupiedRoom).toBeTruthy();
     await expect(
-      fixture.page.locator("#pms-room-status a").filter({ hasText: occupiedRoom!.data.number }),
+      fixture.page.locator("#pms-room-status article").filter({ hasText: occupiedRoom!.data.number }),
     ).toContainText("Occupied");
+    if (info.project.name === "mobile") {
+      await info.attach("pms-dashboard-mobile-layout", {
+        body: await fixture.page.screenshot({ fullPage: true }),
+        contentType: "image/png",
+      });
+    }
     assertNoWrites();
   } finally {
     await fixture.context.close();
@@ -246,10 +267,36 @@ test("pms/inventory opens the mounted minibar route with inventory section ident
     for (const item of visibleItems) {
       await expect(fixture.page.getByRole("heading", { name: item.data.name, exact: true })).toBeVisible();
     }
+    const minibar = visibleItems.find((item) => item.data.kind === "minibar");
+    expect(minibar, "The fixture includes a minibar item backed by stocked shared inventory").toBeTruthy();
+    expect(minibar!.data.productId).toBeTruthy();
+    expect(minibar!.data.warehouseId).toBeTruthy();
+    const openGuestAccount = records(snapshot, "guest_account").find((account) => account.data.state !== "closed");
+    expect(openGuestAccount, "The scoped inventory read includes the in-house guest account").toBeTruthy();
+    const chargeCard = fixture.page.locator("article[data-pms-record]").filter({
+      has: fixture.page.getByRole("heading", { name: minibar!.data.name, exact: true }),
+    });
+    const chargeSummary = chargeCard.locator("summary").filter({ hasText: "Post minibar charge to guest account" });
+    await expect(chargeSummary).toBeVisible();
+    await chargeSummary.click();
+    const chargeDialog = fixture.page.getByRole("dialog").filter({ hasText: "Post minibar charge to guest account" });
+    await expect(chargeDialog.getByLabel("Quantity", { exact: true })).toHaveValue("1");
+    const roomIds = records(snapshot, "room").map((room) => room.id);
+    const guestAccountIds = records(snapshot, "guest_account")
+      .filter((account) => account.data.state !== "closed")
+      .map((account) => account.id);
+    expect(roomIds.length).toBeGreaterThan(0);
+    const availableRoomIds = await chargeDialog.getByLabel("Room", { exact: true }).locator("option").evaluateAll((options) =>
+      options.map((option) => (option as HTMLOptionElement).value).filter(Boolean),
+    );
+    expect(availableRoomIds).toEqual(expect.arrayContaining(roomIds));
+    const availableGuestAccountIds = await chargeDialog.getByLabel("Guest Account", { exact: true }).locator("option").evaluateAll((options) =>
+      options.map((option) => (option as HTMLOptionElement).value).filter(Boolean),
+    );
+    expect(availableGuestAccountIds).toEqual(expect.arrayContaining(guestAccountIds));
     for (const item of lostItems) {
       await expect(fixture.page.getByText(item.data.description, { exact: true })).toBeVisible();
     }
-    if (!visibleItems.length) await expect(fixture.page.getByText("No items available in this view.", { exact: true })).toBeVisible();
     if (!lostItems.length) await expect(fixture.page.getByText("No lost-property records available in this view.", { exact: true })).toBeVisible();
     assertNoWrites();
   } finally {
@@ -277,6 +324,7 @@ test("pms/reports runs a date-range report for the selected hotel using read-onl
       "view=report",
     );
     expect(ownerData.ledger).not.toBeNull();
+    expect(ownerData.controlBalances).not.toBeNull();
     const date = ownerData.snapshot!.property.businessDate;
     await fixture.page.getByLabel("From", { exact: true }).fill(date);
     await fixture.page.getByLabel("To", { exact: true }).fill(date);
@@ -292,10 +340,94 @@ test("pms/reports runs a date-range report for the selected hotel using read-onl
     expect(reportUrl.searchParams.get("from")).toBe(date);
     expect(reportUrl.searchParams.get("to")).toBe(date);
     const { data: report } = await response.json() as {
-      data: { from: string; to: string; days: Array<{ date: string }> };
+      data: {
+        from: string;
+        to: string;
+        days: Array<{
+          date: string;
+          capacity: number;
+          sold: number;
+          room_revenue: number;
+          net_revenue: number;
+          tax: number;
+          refunds: number;
+          cancellations: number;
+          no_shows: number;
+        }>;
+        totals: { capacity: number; sold: number; roomRevenue: number; netRevenue: number; tax: number; refunds: number; cancellations: number; noShows: number };
+        occupancy: number;
+        adr: number;
+        revpar: number;
+        balances: { receivable: number; advance: number; deposit: number; refundPayable: number; unallocated: number };
+      };
     };
     expect(report).toMatchObject({ from: date, to: date });
     expect(report.days.map((day) => day.date)).toEqual([date]);
+    expect(report.totals).toEqual({
+      capacity: report.days[0].capacity,
+      sold: report.days[0].sold,
+      roomRevenue: report.days[0].room_revenue,
+      netRevenue: report.days[0].net_revenue,
+      tax: report.days[0].tax,
+      refunds: report.days[0].refunds,
+      cancellations: report.days[0].cancellations,
+      noShows: report.days[0].no_shows,
+    });
+    const reportPanel = fixture.page.locator("section.card").filter({
+      has: fixture.page.getByRole("button", { name: "Run report", exact: true }),
+    });
+    await expect(reportPanel.locator("dl div")).toHaveCount(9);
+    const visibleTotals = await reportPanel.locator("dl div").evaluateAll((rows) =>
+      Object.fromEntries(rows.map((row) => [
+        row.querySelector("dt")?.textContent?.trim() ?? "",
+        row.querySelector("dd")?.textContent?.trim() ?? "",
+      ])),
+    );
+    expect(visibleTotals).toEqual({
+      Occupancy: `${(report.occupancy * 100).toFixed(1)}%`,
+      ADR: money(report.adr),
+      RevPAR: money(report.revpar),
+      "Net revenue": money(report.totals.netRevenue),
+      Receivable: money(report.balances.receivable),
+      "Room advance": money(report.balances.advance),
+      "Damage deposit": money(report.balances.deposit),
+      "Refunds payable": money(report.balances.refundPayable),
+      "Unallocated payments": money(report.balances.unallocated),
+    });
+    const dailyRow = fixture.page.getByRole("region", { name: "Daily report", exact: true })
+      .locator("tbody tr").filter({ hasText: date });
+    await expect(dailyRow).toHaveCount(1);
+    await expect(dailyRow.locator("td")).toHaveText([
+      date,
+      `${report.days[0].sold} / ${report.days[0].capacity}`,
+      money(report.days[0].room_revenue),
+      money(report.days[0].net_revenue),
+      money(report.days[0].tax),
+      money(report.days[0].refunds),
+      String(report.days[0].cancellations),
+      String(report.days[0].no_shows),
+    ]);
+    const pmsVsGl = fixture.page.getByRole("heading", { name: "PMS vs GL", exact: true })
+      .locator("xpath=ancestor::section[1]");
+    const ownerBalances = ownerData.controlBalances!;
+    const glBalances = ownerData.ledger!;
+    for (const [label, pmsValue, glValue] of [
+      ["Receivable", ownerBalances.due, glBalances.receivable],
+      ["Advance", ownerBalances.advance, glBalances.advance],
+      ["Deposit", ownerBalances.deposit, glBalances.deposit],
+    ] as const) {
+      const row = pmsVsGl.getByRole("row", { name: new RegExp(`^${label}\\b`) });
+      expect(await row.locator("th, td").evaluateAll((cells) =>
+        cells.slice(0, 4).map((cell) => cell.textContent?.trim() ?? ""),
+      )).toEqual([
+        label,
+        money(pmsValue),
+        money(glValue),
+        money(pmsValue - glValue),
+      ]);
+      expect(pmsValue).toBe(glValue);
+    }
+    expect(glBalances.debit).toBe(glBalances.credit);
     await expect(fixture.page.getByText(`${date} → ${date} · THB · Balances at range end`, { exact: true })).toBeVisible();
     assertNoWrites();
   } finally {
@@ -324,6 +456,15 @@ test("pms/settings shows configured rooms and rates from the selected hotel's sc
       "view=setup",
     );
     const snapshot = ownerData.snapshot!;
+    expect(snapshot.property.state).toBe("open");
+    expect(snapshot.property.config.preparedBy).toBeTruthy();
+    expect(snapshot.property.config.approvedBy).toBeTruthy();
+    expect(snapshot.property.config.approvedBy).not.toBe(snapshot.property.config.preparedBy);
+    expect(ownerData.bookingReadiness.accounting).toBe(true);
+    await expect(fixture.page.getByText(
+      `Approved · Revision ${snapshot.property.config.revision}`,
+      { exact: true },
+    )).toBeVisible();
     await expect(fixture.page.getByRole("heading", { name: snapshot.property.name, exact: true })).toBeVisible();
     const expectedRecords = [
       ...records(snapshot, "room_type"),
@@ -336,7 +477,7 @@ test("pms/settings shows configured rooms and rates from the selected hotel's sc
     const displayedIds = await fixture.page.locator("[data-pms-record]").evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute("data-pms-record") ?? "").filter(Boolean),
     );
-    expect(displayedIds).toEqual(expect.arrayContaining(expectedRecords.map((record) => record.id)));
+    expect(displayedIds.sort()).toEqual(expectedRecords.map((record) => record.id).sort());
     for (const roomType of records(snapshot, "room_type")) {
       await expect(fixture.page.getByText(roomType.data.name, { exact: true })).toBeVisible();
     }

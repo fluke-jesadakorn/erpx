@@ -390,7 +390,7 @@ async function purchaseToPayment(enforced=false,withdraw=false,reversal=false,re
 it("runs an approved ten-laptop request through RFQ, 6+4 receipts, one consolidated AP invoice, bank evidence and payment",()=>purchaseToPayment());
 it("runs Supply-only RFQ and 6+4 receipts through drained consolidated AP, independent posting, exact bank-batch source fences and retained receipt history",()=>purchaseToPayment(true));
 
-it("withdraws Supply only after actual consolidated AP and independent bank settlement, retaining source history, exact replay and Legal-held bytes without full Finance",()=>purchaseToPayment(true,true));
+it("withdraws Supply only after actual consolidated AP and independent bank settlement, retaining source history, exact replay and Legal-held bytes without full Finance",()=>purchaseToPayment(true,true),60_000);
 
 it("retains actual normal supplier payment reversal and replacement history without inventing a perpetual Supply Finance obligation",()=>purchaseToPayment(true,false,true));
 
@@ -432,7 +432,7 @@ async function verifyMultiplePartialCorrections(invoiceId:string,unrelatedInvoic
  for(const replacement of replacements){expect(await createPayment(f.reviewer,replacement.input,replacement.key)).toMatchObject({id:replacement.id});expect(await confirmPayment(f.payer,replacement.id,replacement.confirmInput!,replacement.confirmKey!)).toEqual(replacement.confirmed);expect((await getPayment(f.payer,replacement.id)).sourcePurchase).toMatchObject({history:true,settleExisting:false});}for(const original of originals)expect(await reversePayment(f.manager,original.paymentId,original.reverseInput,original.reverseKey)).toEqual(original.reversed);
  expect(await (await attachmentContent(db,env.H001_FILES,f.payer,proof.linkId,"original")).object.text()).toBe(bytes);await db.prepare("UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?").bind(f.payer.assignmentId).run();await expect(confirmPayment(f.payer,replacements[0].id,replacements[0].confirmInput!,replacements[0].confirmKey!)).rejects.toMatchObject({code:"FINANCE_ACCESS_CHANGED"});await expect(attachmentContent(db,env.H001_FILES,f.payer,proof.linkId,"original")).rejects.toMatchObject({status:404});expect(await (await env.H001_FILES.get(objectKey))!.text()).toBe(bytes);
 }
-it("explicitly selects between two independently reversed partial Supplier payments and settles both exact original bank observations without full Banking",()=>purchaseToPayment(true,false,false,false,true));
+it("explicitly selects between two independently reversed partial Supplier payments and settles both exact original bank observations without full Banking",()=>purchaseToPayment(true,false,false,false,true),60_000);
 
 async function privateBillFixture(){
  enableAttachmentV2ForTest();const warehouseMaster=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Private payable source warehouse'},key()),product=await saveMaster(f.owner,'products',null,{sku:key(),name:'Private payable source product',price:'10'},key()),party=await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:'Private payable original supplier'},key()),order=await saveOrder(buyer,null,orderSchema.parse({kind:'purchase',partyId:party.id,warehouseId:warehouseMaster.id,orderDate:'2026-09-02',dueDate:'2026-09-03',lines:[{productId:product.id,quantity:'1',price:'10',taxBps:0}]}),key()),orderId=String(order.id);

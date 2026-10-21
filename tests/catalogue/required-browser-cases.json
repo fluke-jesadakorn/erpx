@@ -71,6 +71,96 @@
             "project": "mobile"
           }
         ]
+      },
+      {
+        "reviewedAt": "2026-10-20",
+        "reason": "Add required desktop/mobile identities for the Customer Portal tenant-invitation enrollment page; page-level coverage does not substitute for the pending end-to-end invitation-to-private-file workflow receipt.",
+        "cases": [
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+            "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+            "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+            "project": "mobile"
+          }
+        ]
+      },
+      {
+        "reviewedAt": "2026-10-21",
+        "reason": "Require desktop/mobile verification-resend recovery when an invited Customer Portal signup is created but sandbox email delivery fails; the endpoint response is deterministic and this page-level proof does not substitute for the full invitation workflow.",
+        "cases": [
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+            "title": "offers verification resend when the invited account was created but email delivery failed",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+            "title": "offers verification resend when the invited account was created but email delivery failed",
+            "project": "mobile"
+          }
+        ]
+      },
+      {
+        "reviewedAt": "2026-10-21",
+        "reason": "Register the separate external Customer Portal invitation signup and email-verification journey; frozen-source browser receipts remain pending.",
+        "cases": [
+          {
+            "runner": "playwright",
+            "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+            "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+            "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+            "project": "mobile"
+          }
+        ]
+      },
+      {
+        "reviewedAt": "2026-10-21",
+        "reason": "Require desktop/mobile real-browser evidence for BankImport and BankMatch committed-but-lost response recovery, exact idempotent replay, and retention of newer drafts against isolated PostgreSQL state.",
+        "cases": [
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/finance/demo-controlled-payment.spec.ts",
+            "title": "isolated Finance BankImport and BankMatch replay committed commands after lost responses while retaining newer drafts",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/finance/demo-controlled-payment.spec.ts",
+            "title": "isolated Finance BankImport and BankMatch replay committed commands after lost responses while retaining newer drafts",
+            "project": "mobile"
+          }
+        ]
+      },
+      {
+        "reviewedAt": "2026-10-21",
+        "reason": "Require desktop/mobile isolated Product Host browser evidence for the in-scope Legal owner invitation, Account verification, explicit document acceptance, and revocation workflow; invited-signer MFA and signing remain a separate deferred feature.",
+        "cases": [
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+            "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
+            "project": "desktop"
+          },
+          {
+            "runner": "playwright",
+            "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+            "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
+            "project": "mobile"
+          }
+        ]
       }
     ]
   },
@@ -617,6 +707,18 @@
     },
     {
       "runner": "playwright",
+      "file": "tests/e2e/finance/demo-controlled-payment.spec.ts",
+      "title": "isolated Finance BankImport and BankMatch replay committed commands after lost responses while retaining newer drafts",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/demo-controlled-payment.spec.ts",
+      "title": "isolated Finance BankImport and BankMatch replay committed commands after lost responses while retaining newer drafts",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
       "file": "tests/e2e/crm/demo-crm-activities.spec.ts",
       "title": "isolated demo records CRM lead activities through Sales ownership and Work",
       "project": "desktop"
@@ -637,6 +739,30 @@
       "runner": "playwright",
       "file": "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts",
       "title": "isolated demo independently reviews and merges duplicate customers",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "offers verification resend when the invited account was created but email delivery failed",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "offers verification resend when the invited account was created but email delivery failed",
       "project": "mobile"
     },
     {
@@ -1062,13 +1188,25 @@
     {
       "runner": "playwright",
       "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
-      "title": "native retail and customer authority engineering workflows independently approves one customer portal binding scans scoped support evidence revokes cached access and retains immutable authority history",
+      "title": "native retail and customer authority engineering workflows customer portal invitation acceptance independently approves one binding invites the verified account scopes its document and support evidence revokes access and retains immutable authority history",
       "project": "desktop"
     },
     {
       "runner": "playwright",
       "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
-      "title": "native retail and customer authority engineering workflows independently approves one customer portal binding scans scoped support evidence revokes cached access and retains immutable authority history",
+      "title": "native retail and customer authority engineering workflows customer portal invitation acceptance independently approves one binding invites the verified account scopes its document and support evidence revokes access and retains immutable authority history",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
       "project": "mobile"
     },
     {
@@ -1093,6 +1231,18 @@
       "runner": "playwright",
       "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
       "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+      "title": "isolated Sales cancels before stock movement and requires a controlled return after delivery",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+      "title": "isolated Sales cancels before stock movement and requires a controlled return after delivery",
       "project": "mobile"
     },
     {

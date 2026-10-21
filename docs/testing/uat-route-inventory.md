@@ -1,8 +1,8 @@
 # ERPX UAT route inventory
 
-Generated from `src/app` page files on 2026-10-18. The route source fingerprint is `7a198337979a0b63cde7890337d023c5489a0075c3b1636debc034d104adcc0a`. This inventories implemented page files and is not a capability-catalog acceptance claim.
+Generated from `src/app` page files on 2026-10-21. The route source fingerprint is `4c4acee230ef4ed6f3bd24bbc30eac786c3deebfa5a54a1fb800f5aaf52e6205`. This inventories implemented page files and is not a capability-catalog acceptance claim.
 
-- 941 page routes in source (current source count)
+- 942 page routes in source (current source count)
 - Desktop Chrome and Pixel 7 emulation
 - Anonymous, intended-role and explicit-denial access checks are recorded separately in Playwright results.
 - Holding routes are exercised at holding, branch, department, and branch-plus-department scopes.
@@ -19,6 +19,7 @@ Generated from `src/app` page files on 2026-10-18. The route source fingerprint 
 | `/choose-work-role` | Public and account | login-or-explicit-denial | holding_owner | — | page route |
 | `/customer-portal/[holdingSlug]` | Customer portal | login-or-explicit-denial | holding_owner | — | page route |
 | `/customer-portal/[holdingSlug]/tickets` | Customer portal | login-or-explicit-denial | holding_owner | — | page route |
+| `/customer-portal/enroll` | Customer portal | login-or-explicit-denial | holding_owner | — | page route |
 | `/dev/ui` | Public and account | public | holding_owner | — | page route |
 | `/forgot-password` | Public and account | public | holding_owner | — | page route |
 | `/forms/[holdingSlug]/[formId]` | Public forms | public | public form visitor | — | sample record + invalid ID |

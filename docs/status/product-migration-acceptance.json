@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "9e74d1256f250c2f74709b1bfd0c41642abe905f1d9075b152831b75e52aae23",
-  "verificationFingerprint": "827785a715ddf0bb26758e787daee7eff7f1f0bf4ae69e69c7c535afa62ad021",
+  "sourceFingerprint": "3d2d624c47577f1bb7c8f95f5f2d28a12250d8ca4e930744d1d46d319156753f",
+  "verificationFingerprint": "676cc4496795b7ca4538e5d61049f97a374da138bbd8001479e2cf27ecfb17f0",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -664,7 +664,8 @@
         "shared.test-infrastructure.product-host-cohort.unit",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     },
     {
@@ -959,6 +960,7 @@
         "identity_access.context-switching.e2e",
         "shared.ui.demo-client-form-hydration.e2e",
         "organization.demo-company-setup-acceptance.e2e",
+        "customer_authority.portal-invitation.e2e",
         "identity_access.demo-identity-activation-revocation.e2e",
         "organization.demo-organization-lifecycle.e2e",
         "shared.workplace-journeys.demo-workplace-platform-lifecycle.journeys",
@@ -1152,7 +1154,8 @@
         "shared.test-infrastructure.product-host-cohort.unit",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     },
     {
@@ -2233,6 +2236,7 @@
         "shared.calendar.calendar-layout.e2e",
         "shared.ui.demo-client-form-hydration.e2e",
         "customer_authority.demo-customer-duplicate-review.e2e",
+        "customer_authority.portal-invitation.e2e",
         "customer_360.demo-customer-timeline.e2e",
         "customer_authority.demo-retail-customer-authority.journeys",
         "shared.ui.demo-workspace-header.e2e",
@@ -2544,6 +2548,7 @@
         "shared.calendar.calendar-layout.e2e",
         "shared.ui.demo-client-form-hydration.e2e",
         "customer_authority.demo-customer-duplicate-review.e2e",
+        "customer_authority.portal-invitation.e2e",
         "customer_authority.demo-retail-customer-authority.journeys",
         "shared.ui.demo-workspace-header.e2e",
         "shared.ui.enterprise-ui.e2e",
@@ -4487,7 +4492,8 @@
             "src/app/holdings/[holdingSlug]/services/assets/accounting/page.tsx",
             "src/app/holdings/[holdingSlug]/services/assets/accounting/[id]/page.tsx",
             "src/components/assets/asset-accounting.tsx",
-            "src/components/assets/asset-maintenance-console.tsx"
+            "src/components/assets/asset-maintenance-console.tsx",
+            "src/components/records/record-drawer.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/assets/route.ts",
@@ -4508,6 +4514,7 @@
           ],
           "tests": [
             "tests/integration/assets/asset-maintenance.test.ts",
+            "tests/integration/finance/finance-assets.test.ts",
             "tests/unit/finance/finance-asset-services.test.ts",
             "tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts"
           ],
@@ -5997,7 +6004,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     },
     {
@@ -7192,7 +7200,13 @@
           "id": "people_payroll/feature-expenses",
           "label": "Expenses",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/people/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/people/screen.tsx",
+            "src/app/holdings/[holdingSlug]/finance/documents/expenses/page.tsx",
+            "src/app/holdings/[holdingSlug]/finance/documents/expenses/[id]/page.tsx",
+            "src/app/holdings/[holdingSlug]/finance/documents/expenses/new/page.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/expenses/screen.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/expenses/[id]/screen.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/expenses/new/screen.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts"
@@ -7204,7 +7218,8 @@
             "migrations/postgres/holding-write/0026_people_lifecycle.sql"
           ],
           "tests": [
-            "tests/integration/people_payroll/expense-v2.test.ts"
+            "tests/integration/people_payroll/expense-v2.test.ts",
+            "tests/e2e/people_payroll/expense-v2.spec.ts"
           ],
           "acceptance": {
             "implemented": {
@@ -7477,7 +7492,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     },
     {
@@ -8124,6 +8140,7 @@
         "shared.attachments.local-file-streams.unit",
         "shared.ui.local-shortcuts.unit",
         "marketing.editor.unit",
+        "marketing.forms-host.e2e",
         "marketing.marketing.integration",
         "shared.runtime.native-proxy.unit",
         "shared.runtime.native-runtime.integration",
@@ -10432,7 +10449,11 @@
           "id": "talent/applications",
           "label": "Applications",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
+            "src/app/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/talent/[id]/screen.tsx",
+            "src/components/records/loaders/modules--talent-console.tsx",
+            "src/components/talent/talent-console.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts"
@@ -10465,7 +10486,11 @@
           "id": "talent/offers",
           "label": "Offers",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
+            "src/app/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/talent/[id]/screen.tsx",
+            "src/components/records/loaders/modules--talent-console.tsx",
+            "src/components/talent/talent-console.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts"
@@ -10498,19 +10523,31 @@
           "id": "talent/feature-candidates-privacy",
           "label": "Candidates & privacy",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
+            "src/app/holdings/[holdingSlug]/people-organization/talent/candidates/[id]/privacy/page.tsx",
+            "src/components/talent/candidate-privacy-page.tsx",
+            "src/components/talent/candidate-privacy-editor.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts"
           ],
           "services": [
-            "src/server/modules/talent/public/talent.ts"
+            "src/server/modules/talent/public/talent.ts",
+            "src/server/modules/talent/public/candidate-privacy-workspace.ts",
+            "src/server/modules/talent/adapters/candidate-privacy-workspace.ts",
+            "src/server/modules/talent/public/people-hire-handoff-facts.ts",
+            "src/server/modules/talent/adapters/people-hire-handoff-facts.ts",
+            "src/server/modules/people_payroll/public/people-handoffs.ts",
+            "src/server/modules/people_payroll/adapters/people-handoffs.ts",
+            "src/server/modules/people_payroll/application/people-handoffs.ts"
           ],
           "schema": [
-            "migrations/postgres/holding-write/0230_talent.sql"
+            "migrations/postgres/holding-write/0230_talent.sql",
+            "src/server/modules/people_payroll/domain/people-handoffs.ts"
           ],
           "tests": [
-            "tests/integration/talent/talent.test.ts"
+            "tests/integration/talent/talent.test.ts",
+            "tests/unit/learning/learning-talent-services.test.ts"
           ],
           "acceptance": {
             "implemented": {
@@ -10572,7 +10609,11 @@
           "id": "talent/feature-proposals",
           "label": "Proposals",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
+            "src/app/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/talent/[id]/screen.tsx",
+            "src/components/records/loaders/modules--talent-console.tsx",
+            "src/components/talent/talent-console.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts"
@@ -12934,7 +12975,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     }
   ],
@@ -12954,13 +12996,16 @@
       ],
       "services": [
         "src/server/modules/runtime/adapters/executive/reports.ts",
-        "src/server/modules/runtime/adapters/executive/mcp.ts"
+        "src/server/modules/runtime/adapters/executive/mcp.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts"
       ],
       "tests": [
         "tests/unit/identity_access/product-workspace.test.ts",
         "tests/unit/shared.ui/workplace-navigation.test.ts",
         "tests/integration/shared.executive/executive-canvas.test.ts",
-        "tests/integration/shared.executive/executive-mcp.test.ts"
+        "tests/integration/shared.executive/executive-mcp.test.ts",
+        "tests/e2e/shared.executive/executive-work-mcp.spec.ts"
       ],
       "origin": "https://work-dev-erpx.jesadakorn.com",
       "acceptance": {
@@ -12982,8 +13027,57 @@
           "state": "mapped"
         },
         "browser": {
+          "state": "mapped"
+        }
+      }
+    },
+    {
+      "id": "finance:sales-invoice-workspace",
+      "product": "finance",
+      "owner": "finance",
+      "pages": [
+        "src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
+        "src/app/holdings/[holdingSlug]/_presenters/finance/sales/screen.tsx",
+        "src/app/holdings/[holdingSlug]/finance/documents/sales/new/page.tsx",
+        "src/app/holdings/[holdingSlug]/_presenters/finance/sales/new/screen.tsx",
+        "src/components/finance/sales-controls.tsx"
+      ],
+      "apis": [
+        "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts"
+      ],
+      "services": [
+        "src/server/modules/finance/adapters/sales.ts",
+        "src/server/modules/finance/adapters/document-purchases.ts"
+      ],
+      "schema": [
+        "migrations/postgres/holding-write/1069_finance_sales_standalone_invoice_source.sql",
+        "migrations/postgres/holding-write/1070_finance_sales_standalone_evidence_indexes.sql"
+      ],
+      "tests": [
+        "tests/integration/finance/finance-sales-workspace.test.ts",
+        "tests/e2e/finance/finance-sales-workspace.spec.ts"
+      ],
+      "origin": "https://finance-dev-erpx.jesadakorn.com",
+      "acceptance": {
+        "implemented": {
           "state": "pending",
-          "blocker": "The exact executive/MCP native cases have no isolated Work browser workflow traversing the Company Executive UI and scoped MCP client with UI observation evidence."
+          "evidence": null
+        },
+        "verified": {
+          "state": "pending",
+          "evidence": null
+        },
+        "enabled": {
+          "state": "pending",
+          "evidence": null
+        }
+      },
+      "receiptMapping": {
+        "native": {
+          "state": "mapped"
+        },
+        "browser": {
+          "state": "mapped"
         }
       }
     }
@@ -13098,8 +13192,7 @@
           },
           "receiptMapping": {
             "native": {
-              "state": "unmapped",
-              "blocker": "No exact case currently proves the complete Account credential or directory-linked login workflow through its resulting identity binding; standalone auth and SSO smoke cases cover separate boundaries."
+              "state": "mapped"
             },
             "browser": {
               "state": "pending",
@@ -13150,8 +13243,7 @@
           },
           "receiptMapping": {
             "native": {
-              "state": "unmapped",
-              "blocker": "No single reviewed native workflow currently covers role, Company, and account switching together with retained current-authority checks."
+              "state": "mapped"
             },
             "browser": {
               "state": "pending",
@@ -13203,8 +13295,7 @@
           },
           "receiptMapping": {
             "native": {
-              "state": "unmapped",
-              "blocker": "No exact native case currently exercises the Account package area as a user-facing flow while distinguishing authorized products from unavailable packages."
+              "state": "mapped"
             },
             "browser": {
               "state": "pending",
@@ -13246,12 +13337,10 @@
           },
           "receiptMapping": {
             "native": {
-              "state": "unmapped",
-              "blocker": "Existing Brand, Organization, and IAM cases prove separate owner behaviors; no exact native workflow covers those capabilities through the Company Admin product entry as one workflow."
+              "state": "mapped"
             },
             "browser": {
-              "state": "pending",
-              "blocker": "No isolated browser workflow traverses Company Admin into Brand, Organization, and IAM using existing Company authority."
+              "state": "mapped"
             }
           }
         },
@@ -13379,6 +13468,9 @@
       "apis": [
         "src/app/api/public/booking/[holdingSlug]/[action]/route.ts"
       ],
+      "services": [
+        "src/server/modules/pms/public/public-booking-body.ts"
+      ],
       "origin": "https://booking-dev-erpx.jesadakorn.com"
     },
     {
@@ -13402,12 +13494,10 @@
           },
           "receiptMapping": {
             "native": {
-              "state": "unmapped",
-              "blocker": "The current Portal cases cover approved customer bindings and shared files but do not prove a tenant-token invitation workflow; no native case matches the complete declared flow."
+              "state": "mapped"
             },
             "browser": {
-              "state": "pending",
-              "blocker": "The existing customer Portal browser journey does not use a tenant-token invitation, so no exact browser witness exists for the declared workflow."
+              "state": "mapped"
             }
           }
         }
@@ -13415,17 +13505,55 @@
       "pages": [
         "src/app/customer-portal/[holdingSlug]/page.tsx",
         "src/app/customer-portal/[holdingSlug]/tickets/page.tsx",
-        "src/components/customer_authority/support-ticket-portal.tsx"
+        "src/app/customer-portal/enroll/page.tsx",
+        "src/components/customer_authority/support-ticket-portal.tsx",
+        "src/components/customer_authority/customer-portal-enrollment.tsx"
       ],
       "tests": [
         "tests/integration/customer_authority/customer-access.test.ts",
-        "tests/unit/shared.business-contracts/customer-portal-application.test.ts"
+        "tests/unit/customer_authority/portal-invitations.test.ts",
+        "tests/unit/shared.business-contracts/customer-portal-application.test.ts",
+        "tests/e2e/customer_authority/portal-invitation.spec.ts",
+        "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts"
       ],
       "apis": [
         "src/app/api/customer-portal/[holdingSlug]/route.ts",
+        "src/app/api/customer-portal/enroll/route.ts",
         "src/app/api/customer-portal/[holdingSlug]/tickets/route.ts",
         "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
         "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts"
+      ],
+      "services": [
+        "src/server/modules/customer_authority/application/portal-invitations.ts",
+        "src/server/modules/customer_authority/application/portal-invitation-delivery.ts",
+        "src/server/modules/customer_authority/domain/portal-invitation.ts",
+        "src/server/modules/customer_authority/adapters/portal-invitations.ts",
+        "src/server/modules/customer_authority/adapters/portal-invitation-delivery.ts",
+        "src/server/modules/customer_authority/adapters/portal-enrollment.ts",
+        "src/server/modules/customer_authority/adapters/portal-invitation-crypto.ts"
+      ],
+      "schema": [
+        "migrations/postgres/holding-write/1071_customer_portal_invitations.sql"
+      ],
+      "browserCases": [
+        {
+          "workflow": "tenant-token-invitation-document-and-private-files",
+          "runner": "playwright",
+          "suite": "customer_authority.demo-retail-customer-authority.journeys",
+          "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+          "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+          "project": "desktop",
+          "executionOrigin": "local-simulation-only"
+        },
+        {
+          "workflow": "tenant-token-invitation-document-and-private-files",
+          "runner": "playwright",
+          "suite": "customer_authority.demo-retail-customer-authority.journeys",
+          "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+          "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+          "project": "mobile",
+          "executionOrigin": "local-simulation-only"
+        }
       ],
       "origin": "https://portal-dev-erpx.jesadakorn.com"
     },
@@ -13433,7 +13561,7 @@
       "id": "legal-portal",
       "workflows": [
         {
-          "id": "legal-portal:invitation-mfa-document-version-consent-signing-and-private-files",
+          "id": "legal-portal:share-invitation-enrollment-and-revocation",
           "acceptance": {
             "implemented": {
               "state": "pending",
@@ -13450,21 +13578,73 @@
           },
           "receiptMapping": {
             "native": {
-              "state": "unmapped",
-              "blocker": "Legal Portal signing is currently disabled, and no native test proves the declared invitation, MFA, document-version consent, successful signing, and private-file workflow end to end."
+              "state": "mapped"
             },
             "browser": {
+              "state": "mapped"
+            }
+          }
+        },
+        {
+          "id": "legal-portal:scoped-shared-version-access-and-revocation",
+          "acceptance": {
+            "implemented": {
               "state": "pending",
-              "blocker": "No isolated Legal Portal browser workflow covers the declared invitation/MFA/versioned-consent/signing/private-file sequence; the current Portal signing route remains disabled."
+              "evidence": null
+            },
+            "verified": {
+              "state": "pending",
+              "evidence": null
+            },
+            "enabled": {
+              "state": "pending",
+              "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
+            }
+          }
+        },
+        {
+          "id": "legal-portal:private-document-download-and-access-history",
+          "acceptance": {
+            "implemented": {
+              "state": "pending",
+              "evidence": null
+            },
+            "verified": {
+              "state": "pending",
+              "evidence": null
+            },
+            "enabled": {
+              "state": "pending",
+              "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
             }
           }
         }
       ],
       "pages": [
         "src/app/legal-portal/[holdingSlug]/page.tsx",
+        "src/app/legal-portal/enroll/page.tsx",
         "src/components/legal/legal-portal.tsx"
       ],
       "tests": [
+        "tests/integration/legal/legal.test.ts",
+        "tests/integration/legal/legal-download-route.test.ts",
+        "tests/integration/legal/legal-portal-download-session.test.ts",
         "tests/unit/legal/legal-command-client.test.ts"
       ],
       "apis": [
@@ -13496,8 +13676,7 @@
               "state": "mapped"
             },
             "browser": {
-              "state": "pending",
-              "blocker": "The available Marketing browser journey does not use the Forms product host; an exact isolated Forms-host browser case with UI observation evidence is required."
+              "state": "mapped"
             }
           }
         }
@@ -13508,24 +13687,28 @@
       "apis": [
         "src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts"
       ],
+      "services": [
+        "src/server/modules/marketing/adapters/public-form-body.ts",
+        "src/server/modules/marketing/public/public-form-body.ts"
+      ],
       "browserCases": [
         {
           "workflow": "tenant-published-version-consent-submit-and-replay",
           "runner": "playwright",
-          "suite": "shared.workplace-journeys.demo-workplace-platform-lifecycle.journeys",
-          "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
-          "title": "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+          "suite": "marketing.forms-host.e2e",
+          "file": "tests/e2e/marketing/forms-host.spec.ts",
+          "title": "isolated anonymous Forms host submits the published version and replays exact consent once",
           "project": "desktop",
-          "executionOrigin": "local-simulation-only"
+          "executionOrigin": "isolated-forms-host"
         },
         {
           "workflow": "tenant-published-version-consent-submit-and-replay",
           "runner": "playwright",
-          "suite": "shared.workplace-journeys.demo-workplace-platform-lifecycle.journeys",
-          "file": "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
-          "title": "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+          "suite": "marketing.forms-host.e2e",
+          "file": "tests/e2e/marketing/forms-host.spec.ts",
+          "title": "isolated anonymous Forms host submits the published version and replays exact consent once",
           "project": "mobile",
-          "executionOrigin": "local-simulation-only"
+          "executionOrigin": "isolated-forms-host"
         }
       ],
       "origin": "https://forms-dev-erpx.jesadakorn.com"

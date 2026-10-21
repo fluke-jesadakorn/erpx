@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   appendProductMigrationReceipt,
@@ -22,12 +22,16 @@ import {
   validateProductMigrationImport,
   validateProductMigrationReceiptManifest,
 } from "../../../scripts/docs/product-migration-receipts";
-import { requiredNativePhases } from "../../../scripts/testing/browser-sharding";
-import { internalRequiredCases, loadRequiredCases, canonicalCaseFile } from "../../../scripts/testing/required-case-inventory";
+import { assignedBrowserShard, requiredNativePhases } from "../../../scripts/testing/browser-sharding";
+import { internalRequiredCases, loadRequiredCases, canonicalCaseFile, type RequiredCaseIdentity } from "../../../scripts/testing/required-case-inventory";
 import { serializeFullRegressionBrowserCases } from "../../../scripts/testing/browser-isolation-receipts";
 import { assertBrowserCasePassed, browserCases } from "../../../scripts/testing/browser-results";
-import { fullRegressionRunIdFromPath, requiredFullRegressionPhases, validateFullRegressionCases, validateFullRegressionReceipt, validateFullRegressionRollbackArtifacts } from "../../../scripts/testing/full-regression-receipt";
+import { fullRegressionRunIdFromPath, requiredFullRegressionPhases, validateFullRegressionBrowserIsolationArtifacts, validateFullRegressionCases, validateFullRegressionReceipt, validateFullRegressionRollbackArtifacts } from "../../../scripts/testing/full-regression-receipt";
 import { loadCatalogue } from "../../../scripts/testing/catalogue";
+import { partitionBrowserIsolationSuites } from "../../../scripts/testing/browser-isolation-groups";
+import { companyAdminOwnerReadsProductHostCase, productHostBusinessWorkflowForCase, productHostBrowserFile, productHostReadOnlyWorkflowForCase } from "../../../scripts/testing/product-host-cohort";
+import { productHostSuiteId, validateProductHostCommercialCohorts } from "../../../scripts/testing/product-host-commercial-evidence";
+import type { BrowserRunReceipt } from "../../../scripts/testing/browser-runner";
 import { syntheticRollbackEvidenceValid } from "../../../scripts/testing/engineering/engineering-test-results";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../../../scripts/local/source-fingerprint";
 import engineeringScenarios from "../../catalogue/engineering-scenarios.json";
@@ -61,9 +65,28 @@ const implementationCase = {
   file: "tests/integration/assets/asset-maintenance.test.ts",
   title: "tracks register, placement, condition and independently reviewed retirement",
 };
+const assetImplementationCases = [
+  implementationCase,
+  {
+    runner: "vitest" as const,
+    suite: "finance.assets.integration",
+    file: "tests/integration/finance/finance-assets.test.ts",
+    title: "atomic Finance fixed asset lifecycle recognizes cost then posts consecutive straight-line months to expense and accumulated depreciation with exact residual rounding",
+  },
+  {
+    runner: "vitest" as const,
+    suite: "finance.assets.integration",
+    file: "tests/integration/finance/finance-assets.test.ts",
+    title: "atomic Finance fixed asset lifecycle posts reviewed disposal gain or loss, reverses asset and accumulated balances, and retains the immutable receipt after reload",
+  },
+  {
+    runner: "vitest" as const,
+    suite: "finance.assets.integration",
+    file: "tests/integration/finance/finance-assets.test.ts",
+    title: "Assets-only recognition and disposal settle retained acquisitions while general Finance stays unavailable",
+  },
+];
 const rollbackTargetTitle = "encrypts a complete isolated snapshot, restores immutable money and files, and rolls back only compatible releases";
-const verifiedCases = requiredProductMigrationCases("assets/asset-register", "verified");
-
 function fullRequiredCases(root = process.cwd()) {
   const suites = loadCatalogue(root).suites;
   return internalRequiredCases(loadRequiredCases(root), suites).map(test => {
@@ -71,6 +94,280 @@ function fullRequiredCases(root = process.cwd()) {
     if (owners.length !== 1) throw new Error(`FULL_RECEIPT_TEST_SUITE_BINDING_REQUIRED:${test.file}`);
     return { ...test, suite: owners[0].id };
   });
+}
+
+function fullBrowserIsolationGroups(root = process.cwd()) {
+  return partitionBrowserIsolationSuites(loadCatalogue(root).suites.filter(suite => ["e2e", "journeys", "uat"].includes(suite.lane)));
+}
+
+function browserIsolationSummary(runId: string, evidenceSha256 = digest("d")) {
+  return {
+    passed: true,
+    completedGroups: fullBrowserIsolationGroups().map(group => group.id),
+    pendingGroups: [],
+    evidencePath: `.scratch/dev/test-suites/full/${runId}/browser-isolation.json`,
+    evidenceSha256,
+  };
+}
+
+type FixtureBrowserCase = {
+  suite: string;
+  file: string;
+  title: string;
+  project: "desktop" | "mobile";
+  run?: string;
+  report?: string;
+  reportSha256?: string;
+  productHostLease?: { path: string; sha256: string };
+  productHostCommercial?: { path: string; sha256: string; bytes: number };
+  productHostReadOnly?: { path: string; sha256: string; bytes: number };
+  productHostLegalInvitation?: { path: string; sha256: string; bytes: number };
+  passed?: boolean;
+  faultProbe?: true;
+  failure?: string;
+  cleanup?: { completed: boolean; ownedDirectoryAbsent: boolean };
+};
+type FixtureBrowserReceipt = {
+  version: 1;
+  passed: boolean;
+  runtimeFingerprint: string;
+  verificationFingerprint: string;
+  shard: null;
+  interrupted: null;
+  suites: string[];
+  cleanupFailures: string[];
+  inventory: (FixtureBrowserCase & { required: boolean })[];
+  receipts: FixtureBrowserCase[];
+  execution: { caseOrder: "forward" | "reverse"; mode: "acceptance" | "fault-probe"; faultProbe?: Omit<FixtureBrowserCase, "run" | "passed" | "faultProbe" | "failure" | "cleanup"> };
+  evidencePath?: string;
+};
+
+async function writeBrowserIsolationFixture(root: string, runId: string, binding: {
+  runtimeFingerprint: string;
+  verificationFingerprint: string;
+  release: { id: string; fileManifestSha256: string };
+}, cases: readonly (RequiredCaseIdentity & { suite: string })[]) {
+  const groups = fullBrowserIsolationGroups(root), browserCases = cases.filter(test => test.runner === "playwright");
+  let nextRun = 0;
+  let nextEvidenceStamp = 0;
+  const newRun = () => createHash("sha256").update(`${runId}:${nextRun++}`).digest("hex").slice(0, 12);
+  const retained = async (stage: "forward" | "reverse" | "probe", groupId: string, receipt: Record<string, unknown>) => {
+    const runParts = /^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/.exec(runId);
+    if (!runParts) throw new Error("TEST_FULL_RUN_TIMESTAMP_REQUIRED");
+    const evidenceTime = new Date(`${runParts[1]}T${runParts[2]}:${runParts[3]}:${runParts[4]}.${runParts[5]}Z`);
+    evidenceTime.setTime(evidenceTime.getTime() + ++nextEvidenceStamp);
+    const browserStamp = evidenceTime.toISOString().replace(/[:.]/g, "-");
+    const evidencePath = `.scratch/dev/test-suites/browser/${browserStamp}`;
+    receipt.evidencePath = evidencePath;
+    if (groupId === "product-host" && stage !== "probe") {
+      const browserReceipt = receipt as FixtureBrowserReceipt;
+      for (const test of browserReceipt.receipts) {
+        if (test.suite !== productHostSuiteId || test.passed !== true || !test.run || !test.file || !test.title) continue;
+        const casePath = join(evidencePath, test.run), caseDirectory = resolve(root, casePath), artifactDirectory = join(casePath, "artifacts");
+        const businessWorkflow = productHostBusinessWorkflowForCase(test.file, test.title);
+        const readOnlyWorkflow = productHostReadOnlyWorkflowForCase(test.file, test.title);
+        const lease = {
+          schema: "erpx-owned-product-host-browser/v1",
+          run: test.run,
+          sourceFingerprint: binding.runtimeFingerprint,
+          verificationFingerprint: binding.verificationFingerprint,
+          release: binding.release,
+          scopedBusinessWorkflow: businessWorkflow,
+          readOnlyBusiness: businessWorkflow === null,
+          readOnlyWorkflow,
+          isolatedNormalCommercial: businessWorkflow === "legal.invitation-enrollment" ? false : readOnlyWorkflow === null,
+          wholeProductAcceptance: false,
+        };
+        const leasePath = join(caseDirectory, "product-host-lease.json"), leaseBytes = Buffer.from(JSON.stringify(lease) + "\n");
+        await mkdir(dirname(leasePath), { recursive: true });
+        await writeFile(leasePath, leaseBytes, { mode: 0o600 });
+        const attachments: { name: string; contentType: string; path: string }[] = [];
+        if (readOnlyWorkflow === "admin.company-brand-organization-iam") {
+          const readOnlyPages = [
+            { owner: "brand", path: "/holdings/simulation/administration/brand/identity", observation: "Published Company identity", screenshot: "company-admin-brand-identity" },
+            { owner: "organization", path: "/holdings/simulation/administration/technology/organization", observation: "H001 Company organization node", screenshot: "company-admin-organization" },
+            { owner: "iam", path: "/holdings/simulation/administration/technology/settings/roles", observation: "Existing holding_owner assignment", screenshot: "company-admin-iam-roles" },
+          ] as const;
+          const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZ0AAAAASUVORK5CYII=", "base64");
+          for (const page of readOnlyPages) {
+            const screenshotPath = resolve(root, artifactDirectory, `${page.screenshot}.png`);
+            await writeFixtureFile(root, relative(root, screenshotPath), png);
+            attachments.push({ name: page.screenshot, contentType: "image/png", path: screenshotPath });
+          }
+          const proof = {
+            schema: "erpx-product-host-company-admin-owner-reads/v1",
+            result: "passed",
+            workflow: readOnlyWorkflow,
+            run: test.run,
+            sourceFingerprint: binding.runtimeFingerprint,
+            verificationFingerprint: binding.verificationFingerprint,
+            release: lease.release,
+            project: test.project,
+            authority: {
+              companyId: "h001-company",
+              userId: "h001-owner",
+              assignmentId: "h001-owner-assignment",
+              role: "holding_owner",
+              sameOwnerAssignmentAcrossPages: true,
+              ownerAssignmentUnchanged: true,
+            },
+            pages: readOnlyPages.map(({ owner, path, observation, screenshot }) => ({ owner, path, observation, screenshot })),
+            blockedWrites: [],
+          };
+          const attachmentPath = resolve(root, artifactDirectory, "company-admin-owner-reads.json");
+          const proofBytes = Buffer.from(JSON.stringify(proof, null, 2) + "\n");
+          await writeFixtureFile(root, relative(root, attachmentPath), proofBytes);
+          attachments.unshift({ name: "company-admin-owner-reads", contentType: "application/json", path: attachmentPath });
+          test.productHostReadOnly = {
+            path: relative(root, attachmentPath).replaceAll("\\", "/"),
+            sha256: createHash("sha256").update(proofBytes).digest("hex"),
+            bytes: proofBytes.length,
+          };
+        } else if (businessWorkflow === "legal.invitation-enrollment") {
+          const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZ0AAAAASUVORK5CYII=", "base64");
+          const screenshotPath = resolve(root, artifactDirectory, "legal-invitation-owner-access-screen.png");
+          await writeFixtureFile(root, relative(root, screenshotPath), png);
+          attachments.push({ name: "legal-invitation-owner-access-screen", contentType: "image/png", path: screenshotPath });
+
+          const observationPath = resolve(root, artifactDirectory, "legal-invitation-owner-access-observation.json");
+          await writeFixtureFile(root, relative(root, observationPath), JSON.stringify({
+            schema: "erpx-ui-browser-observation/v1",
+            result: "passed",
+            run: test.run,
+            sourceFingerprint: binding.runtimeFingerprint,
+            verificationFingerprint: binding.verificationFingerprint,
+            screenshot: {
+              path: relative(root, screenshotPath).replaceAll("\\", "/"),
+              sha256: createHash("sha256").update(png).digest("hex"),
+              bytes: png.length,
+            },
+          }) + "\n");
+          attachments.push({ name: "erpx-ui-observation", contentType: "application/json", path: observationPath });
+
+          const proof = {
+            schema: "erpx-product-host-legal-invitation-enrollment/v1",
+            result: "passed",
+            workflow: businessWorkflow,
+            run: test.run,
+            sourceFingerprint: binding.runtimeFingerprint,
+            verificationFingerprint: binding.verificationFingerprint,
+            release: lease.release,
+            project: test.project,
+            authority: {
+              companyId: "h001-company",
+              userId: "h001-owner",
+              assignmentId: "h001-owner-assignment",
+              role: "legal_manager",
+              normalAccountSignIn: true,
+              normalAppsSso: true,
+              distinctProductSession: true,
+            },
+            invitation: {
+              recordId: "legal-record-fixture",
+              documentId: "legal-document-fixture",
+              shareId: "legal-share-fixture",
+              email: `legal-invite-${test.run}@example.test`,
+              verifiedEmailBinding: true,
+              emailVerified: true,
+              accountUserId: "legal-invitee-fixture",
+              staffAssignments: 0,
+              continuationDidNotAccept: true,
+              explicitAcceptance: true,
+              acceptedUserId: "legal-invitee-fixture",
+              revoked: true,
+              revocationDeniedAccess: true,
+            },
+            unexpectedWrites: [],
+            wholeProductAcceptance: false,
+          };
+          const proofPath = resolve(root, artifactDirectory, "legal-product-host-invitation-enrollment.json");
+          const proofBytes = Buffer.from(JSON.stringify(proof, null, 2) + "\n");
+          await writeFixtureFile(root, relative(root, proofPath), proofBytes);
+          attachments.unshift({ name: "legal-product-host-invitation-enrollment", contentType: "application/json", path: proofPath });
+          test.productHostLegalInvitation = {
+            path: relative(root, proofPath).replaceAll("\\", "/"),
+            sha256: createHash("sha256").update(proofBytes).digest("hex"),
+            bytes: proofBytes.length,
+          };
+        } else {
+          const attachmentPath = resolve(root, artifactDirectory, "isolated-normal-commercial.json");
+          const commercial = {
+            run: test.run,
+            sourceFingerprint: binding.runtimeFingerprint,
+            release: lease.release,
+            changes: [],
+            noInstalledWrites: true,
+            noSqlGrants: true,
+            normalOwnerEndpoints: true,
+          };
+          await writeFixtureFile(root, join(artifactDirectory, "isolated-normal-commercial.json"), JSON.stringify(commercial) + "\n");
+          attachments.push({ name: "isolated-normal-commercial", contentType: "application/json", path: attachmentPath });
+        }
+        const report = {
+          suites: [{ title: productHostBrowserFile.split("/").at(-1), specs: [{ file: test.file, title: test.title, tests: [{
+            projectName: test.project, expectedStatus: "passed", status: "expected", results: [{ status: "passed", attachments }],
+          }] }] }],
+        };
+        const reportPath = resolve(root, casePath, "result.json"), reportBytes = Buffer.from(JSON.stringify(report) + "\n");
+        await writeFixtureFile(root, join(casePath, "result.json"), reportBytes.toString("utf8"));
+        test.report = reportPath;
+        test.reportSha256 = createHash("sha256").update(reportBytes).digest("hex");
+        test.productHostLease = { path: leasePath, sha256: createHash("sha256").update(leaseBytes).digest("hex") };
+        if (readOnlyWorkflow === null && businessWorkflow !== "legal.invitation-enrollment") {
+          const attachmentPath = resolve(root, artifactDirectory, "isolated-normal-commercial.json");
+          const commercialBytes = await readFile(attachmentPath);
+          test.productHostCommercial = {
+            path: relative(root, attachmentPath).replaceAll("\\", "/"),
+            sha256: createHash("sha256").update(commercialBytes).digest("hex"),
+            bytes: commercialBytes.length,
+          };
+        }
+      }
+    }
+    await writeFixtureFile(root, join(evidencePath, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n");
+    return resolve(root, evidencePath);
+  };
+  const groupsEvidence = [];
+  for (const group of groups) {
+    const suiteIds = group.suites.map(suite => suite.id), groupCases = browserCases.filter(test => suiteIds.includes(test.suite));
+    const identities = groupCases.map(test => ({ suite: test.suite, file: test.file, title: test.title, project: test.project! }));
+    if (!identities.length) throw new Error(`TEST_BROWSER_ISOLATION_GROUP_WITHOUT_CASES:${group.id}`);
+    const makeAcceptance = (caseOrder: "forward" | "reverse", mode: "acceptance" | "fault-probe", tests: typeof identities, suiteList = suiteIds, faultProbe?: typeof identities[number]): FixtureBrowserReceipt => ({
+      version: 1,
+      passed: true,
+      runtimeFingerprint: binding.runtimeFingerprint,
+      verificationFingerprint: binding.verificationFingerprint,
+      shard: null,
+      interrupted: null,
+      suites: suiteList,
+      cleanupFailures: [],
+      inventory: tests.map(test => ({ ...test, required: true })),
+      receipts: tests.map(test => ({ ...test, run: newRun(), passed: true, cleanup: { completed: true, ownedDirectoryAbsent: true } })),
+      execution: { caseOrder, mode, ...(faultProbe ? { faultProbe } : {}) },
+    });
+    const forward = makeAcceptance("forward", "acceptance", identities);
+    const reverse = makeAcceptance("reverse", "acceptance", [...identities].reverse());
+    const probeIdentity = identities[0];
+    const probe = makeAcceptance("forward", "fault-probe", [probeIdentity], [probeIdentity.suite], probeIdentity);
+    probe.passed = false;
+    probe.receipts[0] = { ...probe.receipts[0], passed: false, faultProbe: true, failure: "BROWSER_DECLARED_FAULT_PROBE" };
+    const forwardDirectory = await retained("forward", group.id, forward);
+    const reverseDirectory = await retained("reverse", group.id, reverse);
+    const probeDirectory = await retained("probe", group.id, probe);
+    for (const [stage, evidenceDirectory] of [["forward", forwardDirectory], ["probe", probeDirectory], ["reverse", reverseDirectory]] as const) {
+      await writeFixtureFile(root, `.scratch/dev/test-suites/full/${runId}/browser-${group.id}-${stage}.json`,
+        JSON.stringify({ evidenceDirectory }, null, 2) + "\n");
+    }
+    groupsEvidence.push({
+      group: group.id,
+      acceptance: { cases: identities.length, rerunCases: identities.length, faultProbe: true, caseOrders: ["forward", "reverse"] },
+      proof: { forward, reverse, probe },
+      evidenceDirectories: { forward: forwardDirectory, reverse: reverseDirectory, probe: probeDirectory },
+    });
+  }
+  const bytes = Buffer.from(JSON.stringify({ groups: groupsEvidence }, null, 2) + "\n");
+  await writeFixtureFile(root, `.scratch/dev/test-suites/full/${runId}/browser-isolation.json`, bytes.toString("utf8"));
+  return { bytes, summary: browserIsolationSummary(runId, createHash("sha256").update(bytes).digest("hex")) };
 }
 
 function rollbackArtifacts(runId: string, candidateReleaseId: string, fileManifestSha256: string, sourceFingerprint: string, root: string) {
@@ -116,7 +413,7 @@ function rollbackArtifacts(runId: string, candidateReleaseId: string, fileManife
   };
 }
 
-async function writeFixtureFile(root: string, path: string, contents: string) {
+async function writeFixtureFile(root: string, path: string, contents: string | Uint8Array) {
   const absolute = join(root, path);
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(absolute, contents);
@@ -195,6 +492,7 @@ async function writeFullRegressionFixture(root: string, runId: string, binding: 
   release: { id: string; fileManifestSha256: string };
 }, cases = fullRequiredCases(root)) {
   const rollback = rollbackArtifacts(runId, binding.release.id, binding.release.fileManifestSha256, binding.runtimeFingerprint, root);
+  const browserIsolation = await writeBrowserIsolationFixture(root, runId, binding, fullRequiredCases(root));
   const receipt = {
     version: 1,
     kind: "full-regression",
@@ -209,6 +507,7 @@ async function writeFullRegressionFixture(root: string, runId: string, binding: 
     passed: true,
     phases: requiredFullRegressionPhases.map(phase => ({ phase, passed: true })),
     cases: cases.map(test => ({ ...test, status: "passed" })),
+    browserIsolation: browserIsolation.summary,
     providerRehearsals: [],
     providerSuites: [],
   };
@@ -218,7 +517,7 @@ async function writeFullRegressionFixture(root: string, runId: string, binding: 
   await writeFixtureFile(root, `${runDirectory}/rollback-evidence/encrypted-recovery.json`, rollback.evidenceBytes.toString("utf8"));
   const bytes = Buffer.from(JSON.stringify(receipt) + "\n");
   await writeFixtureFile(root, path, bytes.toString("utf8"));
-  return { receipt, path, bytes };
+  return { receipt, path, bytes, browserIsolationBytes: browserIsolation.bytes };
 }
 
 function receipt(phase: "implemented" | "verified" = "implemented") {
@@ -375,6 +674,7 @@ describe("current-source product migration receipt v2", () => {
       passed: true,
       phases: requiredFullRegressionPhases.map(phase => ({ phase, passed: true })),
       cases: [{ ...implementationCase, status: "passed" }],
+      browserIsolation: browserIsolationSummary(runId),
       providerRehearsals: [],
       providerSuites: [],
     };
@@ -383,6 +683,10 @@ describe("current-source product migration receipt v2", () => {
     expect(fullRegressionRunIdFromPath(path)).toBe(runId);
     expect(fullRegressionRunIdFromPath(".scratch/dev/test-suites/full/other/receipt.json")).toBeUndefined();
     expect(validateFullRegressionReceipt(receipt, binding, { ...implementationCase, status: "passed" })).toMatchObject(implementationCase);
+    const missingIsolation = { ...receipt } as Record<string, unknown>;
+    delete missingIsolation.browserIsolation;
+    expect(() => validateFullRegressionReceipt(missingIsolation, binding, { ...implementationCase, status: "passed" }))
+      .toThrow("PRODUCT_MIGRATION_FULL_RUN_BROWSER_ISOLATION_REQUIRED");
     const journalCase = requiredProductMigrationCases("finance/journals", "implemented")[0];
     const twoWorkflowReceipt = { ...receipt, cases: [receipt.cases[0], { ...journalCase, status: "passed" }] };
     expect(validateFullRegressionCases(twoWorkflowReceipt, binding, [implementationCase, journalCase])).toHaveLength(2);
@@ -443,6 +747,7 @@ describe("current-source product migration receipt v2", () => {
       passed: true,
       phases: requiredFullRegressionPhases.map(phase => ({ phase, passed: true })),
       cases: [{ ...implementationCase, status: "passed" }],
+      browserIsolation: browserIsolationSummary(runId),
       providerRehearsals: [],
       providerSuites: [],
     };
@@ -482,6 +787,7 @@ describe("current-source product migration receipt v2", () => {
       passed: true,
       phases: requiredFullRegressionPhases.map(phase => ({ phase, passed: true })),
       cases: required.map(test => ({ ...test, status: "passed" })),
+      browserIsolation: browserIsolationSummary(runId),
       providerRehearsals: [],
       providerSuites: [],
     };
@@ -575,12 +881,12 @@ describe("current-source product migration receipt v2", () => {
   });
 
   it("accepts only the exact Assets owner lifecycle case for implementation", () => {
-    expect(requiredProductMigrationCases("assets/asset-register", "implemented")).toEqual([implementationCase]);
+    expect(requiredProductMigrationCases("assets/asset-register", "implemented")).toEqual(assetImplementationCases);
     expect(validateProductMigrationEvidence(receipt())).toMatchObject({
       schema: productMigrationReceiptSchema,
       id: "assets/asset-register",
       phase: "implemented",
-      observations: [{ ...implementationCase, status: "passed" }],
+      observations: assetImplementationCases.map(test => ({ ...test, status: "passed" })),
     });
     for (const mutation of [
       (value: ReturnType<typeof receipt>) => { value.observations[0].title += " (similar)"; },
@@ -594,24 +900,10 @@ describe("current-source product migration receipt v2", () => {
     }
   });
 
-  it("requires both UAT and product-host projects with clean browser teardown", () => {
-    const verified = receipt("verified");
-    expect(verifiedCases).toHaveLength(5);
-    expect(validateProductMigrationEvidence(verified).observations).toHaveLength(5);
-
-    const missingMobile = receipt("verified");
-    missingMobile.observations = missingMobile.observations.filter(test => !(test.runner === "playwright" && test.project === "mobile"));
-    expect(() => validateProductMigrationEvidence(missingMobile)).toThrow("PRODUCT_MIGRATION_EXACT_CASE_COVERAGE_REQUIRED");
-
-    const wrongHost = receipt("verified");
-    wrongHost.observations = wrongHost.observations.map(test => test.runner === "playwright" && test.suite === "identity_access.product-hosts.e2e"
-      ? { ...test, title: `${test.title} outside the exact product host case` }
-      : test);
-    expect(() => validateProductMigrationEvidence(wrongHost)).toThrow("PRODUCT_MIGRATION_EXACT_CASE_COVERAGE_REQUIRED");
-
-    const dirtyCleanup = receipt("verified");
-    (dirtyCleanup.cleanup.browserRuns[0].cleanupFailures as string[]).push("owned case was not removed");
-    expect(() => validateProductMigrationEvidence(dirtyCleanup)).toThrow("PRODUCT_MIGRATION_BROWSER_CLEANUP_REQUIRED");
+  it("does not promote partial Assets UI observations to verified workflow evidence", () => {
+    expect(() => requiredProductMigrationCases("assets/asset-register", "verified"))
+      .toThrow("PRODUCT_MIGRATION_BROWSER_WITNESS_REQUIRED");
+    expect(() => receipt("verified")).toThrow("PRODUCT_MIGRATION_BROWSER_WITNESS_REQUIRED");
   });
 
   it("treats an exact receipt re-import as idempotent and rejects a conflicting replacement", () => {
@@ -724,6 +1016,291 @@ describe("current-source product migration receipt v2", () => {
     }
   });
 
+  it("requires a present, byte-bound browser-isolation artifact and persisted exact cohort receipts", async () => {
+    const fixture = await migrationImportFixture();
+    try {
+      const runId = "2026-10-19T12-03-00-000Z";
+      const full = await writeFullRegressionFixture(fixture.root, runId, {
+        candidate: fixture.candidateSha,
+        runtimeFingerprint: fixture.runtimeFingerprint,
+        verificationFingerprint: fixture.verificationFingerprint,
+        release: fixture.release,
+      });
+      const importPath = `.scratch/dev/test-suites/product-migration/${fixture.ids[0].replaceAll("/", "-")}-missing-isolation.json`;
+      const writeImport = async (receipt: typeof full) => writeFixtureFile(fixture.root, importPath, JSON.stringify({
+        schema: "erpx-product-migration-import/v2",
+        id: fixture.ids[0],
+        phase: "implemented",
+        candidateSha: fixture.candidateSha,
+        runtimeFingerprint: fixture.runtimeFingerprint,
+        verificationFingerprint: fixture.verificationFingerprint,
+        release: fixture.release,
+        fullReceipt: { path: receipt.path, sha256: createHash("sha256").update(receipt.bytes).digest("hex") },
+        browserReceipts: [],
+      }) + "\n");
+      await writeImport(full);
+      await rm(join(fixture.root, full.receipt.browserIsolation!.evidencePath), { force: true });
+      await expect(importProductMigrationReceipt(fixture.root, importPath))
+        .rejects.toThrow("PRODUCT_MIGRATION_FULL_RUN_BROWSER_ISOLATION_ARTIFACT_REQUIRED");
+
+      const changedRunId = "2026-10-19T12-04-00-000Z";
+      const changed = await writeFullRegressionFixture(fixture.root, changedRunId, {
+        candidate: fixture.candidateSha,
+        runtimeFingerprint: fixture.runtimeFingerprint,
+        verificationFingerprint: fixture.verificationFingerprint,
+        release: fixture.release,
+      });
+      await writeImport(changed);
+      await writeFixtureFile(fixture.root, changed.receipt.browserIsolation!.evidencePath, "{\"groups\":[]}\n");
+      await expect(importProductMigrationReceipt(fixture.root, importPath))
+        .rejects.toThrow("PRODUCT_MIGRATION_FULL_RUN_BROWSER_ISOLATION_DIGEST_MISMATCH");
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("binds browser isolation receipts to the current full run and the probe's exact owner suite", async () => {
+    const fixture = await migrationImportFixture();
+    try {
+      const runId = "2026-10-19T12-05-00-000Z";
+      const binding = {
+        runId,
+        candidate: fixture.candidateSha,
+        runtimeFingerprint: fixture.runtimeFingerprint,
+        verificationFingerprint: fixture.verificationFingerprint,
+        release: fixture.release,
+      };
+      const full = await writeFullRegressionFixture(fixture.root, runId, binding);
+      const hashArtifact = (groups: unknown) => Buffer.from(JSON.stringify(groups, null, 2) + "\n");
+      const boundReceipt = (bytes: Uint8Array) => ({
+        ...full.receipt,
+        browserIsolation: { ...full.receipt.browserIsolation!, evidenceSha256: createHash("sha256").update(bytes).digest("hex") },
+      });
+
+      type GroupEvidence = {
+        proof: {
+          forward: { evidencePath: string; suites: string[] };
+          probe: { suites: string[]; execution: { faultProbe: { suite: string } } };
+        };
+        evidenceDirectories: { forward: string };
+      };
+      const staleArtifact = JSON.parse(full.browserIsolationBytes.toString("utf8")) as { groups: GroupEvidence[] };
+      const staleGroup = staleArtifact.groups[0];
+      const staleEvidencePath = staleGroup.proof.forward.evidencePath.replace(/-\d{3}Z$/, "-999Z");
+      staleGroup.proof.forward.evidencePath = staleEvidencePath;
+      staleGroup.evidenceDirectories.forward = resolve(fixture.root, staleEvidencePath);
+      const staleBytes = hashArtifact(staleArtifact);
+      await expect(validateFullRegressionBrowserIsolationArtifacts(boundReceipt(staleBytes), binding, staleBytes, fixture.root))
+        .rejects.toThrow("PRODUCT_MIGRATION_FULL_RUN_BROWSER_ISOLATION_EVIDENCE_REQUIRED");
+
+      const wrongProbeArtifact = JSON.parse(full.browserIsolationBytes.toString("utf8")) as { groups: GroupEvidence[] };
+      const probeGroup = wrongProbeArtifact.groups[0];
+      const wrongProbeSuite = probeGroup.proof.forward.suites.find(suite => suite !== probeGroup.proof.probe.execution.faultProbe.suite);
+      if (!wrongProbeSuite) throw new Error("PRODUCT_MIGRATION_TEST_SECOND_PROBE_SUITE_REQUIRED");
+      probeGroup.proof.probe.suites = [wrongProbeSuite];
+      const wrongProbeBytes = hashArtifact(wrongProbeArtifact);
+      await expect(validateFullRegressionBrowserIsolationArtifacts(boundReceipt(wrongProbeBytes), binding, wrongProbeBytes, fixture.root))
+        .rejects.toThrow("PRODUCT_MIGRATION_FULL_RUN_BROWSER_ISOLATION_SUITE_BINDING_REQUIRED");
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("requires bound Product Host leases and workflow-specific evidence in CI and full receipts", async () => {
+    const fixture = await migrationImportFixture();
+    try {
+      const runId = "2026-10-19T12-07-00-000Z";
+      const binding = {
+        runId,
+        candidate: fixture.candidateSha,
+        runtimeFingerprint: fixture.runtimeFingerprint,
+        verificationFingerprint: fixture.verificationFingerprint,
+        release: fixture.release,
+      };
+      const full = await writeFullRegressionFixture(fixture.root, runId, binding);
+      type ProductGroup = { group: string; proof: { forward: BrowserRunReceipt; reverse: BrowserRunReceipt } };
+      const artifact = JSON.parse(full.browserIsolationBytes.toString("utf8")) as { groups: ProductGroup[] };
+      const productGroup = artifact.groups.find(group => group.group === "product-host");
+      if (!productGroup) throw new Error("PRODUCT_HOST_TEST_GROUP_REQUIRED");
+      const expected = { runtimeFingerprint: fixture.runtimeFingerprint, verificationFingerprint: fixture.verificationFingerprint, release: fixture.release };
+      const ciGroup = (forward: BrowserRunReceipt, reverse: BrowserRunReceipt) => ({
+        group: "product-host" as const, suiteIds: forward.suites, passed: true, forward, reverse,
+      });
+      await expect(validateProductHostCommercialCohorts(fixture.root, [ciGroup(productGroup.proof.forward, productGroup.proof.reverse)], expected, true))
+        .resolves.toHaveLength(productGroup.proof.forward.receipts.length + productGroup.proof.reverse.receipts.length);
+
+      const invalidRun = structuredClone(productGroup.proof.forward);
+      const invalidRunCase = invalidRun.receipts.find(test => test.suite === productHostSuiteId);
+      if (!invalidRunCase) throw new Error("PRODUCT_HOST_TEST_CASE_REQUIRED");
+      invalidRunCase.run = "../outside";
+      await expect(validateProductHostCommercialCohorts(fixture.root, [ciGroup(invalidRun, productGroup.proof.reverse)], expected, true))
+        .rejects.toThrow("PRODUCT_HOST_CASE_RECEIPT_REQUIRED");
+
+      const missingLease = structuredClone(productGroup.proof.forward);
+      const missingLeaseCase = missingLease.receipts.find(test => test.suite === productHostSuiteId);
+      if (!missingLeaseCase) throw new Error("PRODUCT_HOST_TEST_CASE_REQUIRED");
+      delete missingLeaseCase.productHostLease;
+      await expect(validateProductHostCommercialCohorts(fixture.root, [ciGroup(missingLease, productGroup.proof.reverse)], expected, true))
+        .rejects.toThrow("PRODUCT_HOST_CASE_RECEIPT_REQUIRED");
+
+      const missingReadOnlyProof = structuredClone(productGroup.proof.forward);
+      const readOnlyCase = missingReadOnlyProof.receipts.find(test => test.suite === productHostSuiteId &&
+        test.title === companyAdminOwnerReadsProductHostCase);
+      if (!readOnlyCase) throw new Error("PRODUCT_HOST_READ_ONLY_TEST_CASE_REQUIRED");
+      delete readOnlyCase.productHostReadOnly;
+      await expect(validateProductHostCommercialCohorts(fixture.root, [ciGroup(missingReadOnlyProof, productGroup.proof.reverse)], expected, true))
+        .rejects.toThrow("PRODUCT_HOST_READ_ONLY_CASE_RECEIPT_REQUIRED");
+
+      const mixedWorkflowScope = structuredClone(productGroup.proof.forward);
+      const financeCase = mixedWorkflowScope.receipts.find(test => test.suite === productHostSuiteId &&
+        productHostBusinessWorkflowForCase(test.file ?? "", test.title ?? "") === "finance.sales-invoice");
+      if (!financeCase?.productHostLease) throw new Error("PRODUCT_HOST_FINANCE_CASE_LEASE_REQUIRED");
+      const originalLeaseBytes = await readFile(financeCase.productHostLease.path);
+      const mixedLease = JSON.parse(originalLeaseBytes.toString("utf8")) as Record<string, unknown>;
+      mixedLease.readOnlyWorkflow = "admin.company-brand-organization-iam";
+      const mixedLeaseBytes = Buffer.from(JSON.stringify(mixedLease) + "\n");
+      try {
+        await writeFile(financeCase.productHostLease.path, mixedLeaseBytes);
+        const mixedLeaseSha256 = createHash("sha256").update(mixedLeaseBytes).digest("hex");
+        financeCase.productHostLease.sha256 = mixedLeaseSha256;
+        if (financeCase.uiEvidence?.productHostLease) financeCase.uiEvidence.productHostLease.sha256 = mixedLeaseSha256;
+        await expect(validateProductHostCommercialCohorts(fixture.root, [ciGroup(mixedWorkflowScope, productGroup.proof.reverse)], expected, true))
+          .rejects.toThrow("PRODUCT_HOST_LEASE_SCOPE_OR_CANDIDATE_MISMATCH");
+      } finally {
+        await writeFile(financeCase.productHostLease.path, originalLeaseBytes);
+      }
+
+      const missingAttachment = structuredClone(productGroup.proof.forward);
+      const attachmentCase = missingAttachment.receipts.find(test => test.suite === productHostSuiteId &&
+        productHostReadOnlyWorkflowForCase(test.file ?? "", test.title ?? "") === null);
+      if (!attachmentCase?.report) throw new Error("PRODUCT_HOST_TEST_REPORT_REQUIRED");
+      const reportPath = attachmentCase.report;
+      const report = JSON.parse(await readFile(reportPath, "utf8")) as {
+        suites: { specs: { tests: { results: { attachments: { name: string }[] }[] }[] }[] }[];
+      };
+      const results = report.suites[0]?.specs[0]?.tests[0]?.results;
+      if (!results?.[0]) throw new Error("PRODUCT_HOST_TEST_RESULT_REQUIRED");
+      results[0].attachments = results[0].attachments.filter(item => item.name !== "isolated-normal-commercial");
+      const reportBytes = Buffer.from(JSON.stringify(report) + "\n");
+      await writeFile(reportPath, reportBytes);
+      attachmentCase.reportSha256 = createHash("sha256").update(reportBytes).digest("hex");
+      await expect(validateProductHostCommercialCohorts(fixture.root, [ciGroup(missingAttachment, productGroup.proof.reverse)], expected, true))
+        .rejects.toThrow("PRODUCT_HOST_COMMERCIAL_ATTACHMENT_REQUIRED");
+
+      const brokenArtifact = JSON.parse(full.browserIsolationBytes.toString("utf8")) as { groups: ProductGroup[] };
+      const brokenProductGroup = brokenArtifact.groups.find(group => group.group === "product-host");
+      if (!brokenProductGroup) throw new Error("PRODUCT_HOST_TEST_GROUP_REQUIRED");
+      const brokenForward = brokenProductGroup.proof.forward;
+      const brokenCase = brokenForward.receipts.find(test => test.suite === productHostSuiteId);
+      if (!brokenCase) throw new Error("PRODUCT_HOST_TEST_CASE_REQUIRED");
+      delete brokenCase.productHostLease;
+      await writeFixtureFile(fixture.root, join(brokenForward.evidencePath!, "receipt.json"), JSON.stringify(brokenForward, null, 2) + "\n");
+      const brokenBytes = Buffer.from(JSON.stringify(brokenArtifact, null, 2) + "\n");
+      await writeFixtureFile(fixture.root, full.receipt.browserIsolation!.evidencePath, brokenBytes.toString("utf8"));
+      const brokenSummary = {
+        ...full.receipt,
+        browserIsolation: { ...full.receipt.browserIsolation!, evidenceSha256: createHash("sha256").update(brokenBytes).digest("hex") },
+      };
+      await expect(validateFullRegressionBrowserIsolationArtifacts(brokenSummary, binding, brokenBytes, fixture.root))
+        .rejects.toThrow("PRODUCT_HOST_CASE_RECEIPT_REQUIRED");
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a 64-way Product Host shard only when both assigned inventories and receipts are empty", async () => {
+    const root = process.cwd(), shard = { index: 3, total: 64 };
+    const cases = fullRequiredCases(root).filter(test => test.runner === "playwright" && test.suite === productHostSuiteId);
+    const inventory = cases.map(test => ({
+      suite: test.suite,
+      file: test.file,
+      title: test.title,
+      project: test.project as "desktop" | "mobile",
+      required: true,
+    }));
+    expect(inventory.filter(test => assignedBrowserShard(test.suite, test, shard))).toHaveLength(0);
+    const makeReceipt = (caseOrder: "forward" | "reverse", receiptShard: BrowserRunReceipt["shard"] = shard, receipts: BrowserRunReceipt["receipts"] = []): BrowserRunReceipt => ({
+      version: 1,
+      passed: true,
+      runtimeFingerprint: digest("a"),
+      verificationFingerprint: digest("b"),
+      shard: receiptShard,
+      interrupted: null,
+      suites: [productHostSuiteId],
+      cleanupFailures: [],
+      inventory,
+      receipts,
+      execution: { caseOrder, mode: "acceptance" },
+      evidencePath: ".scratch/dev/test-suites/browser/2026-10-20T12-00-00-000Z",
+    });
+    const expected = { runtimeFingerprint: digest("a"), verificationFingerprint: digest("b"), release: { id: "release", fileManifestSha256: digest("c") } };
+    const group = (forward: BrowserRunReceipt, reverse: BrowserRunReceipt) => ({
+      group: "product-host" as const,
+      suiteIds: [productHostSuiteId],
+      passed: true,
+      forward,
+      reverse,
+    });
+
+    await expect(validateProductHostCommercialCohorts(root, [group(makeReceipt("forward"), makeReceipt("reverse"))], expected, true))
+      .resolves.toEqual([]);
+
+    const forgedReceipt: BrowserRunReceipt["receipts"][number] = {
+      suite: productHostSuiteId,
+      file: inventory[0].file,
+      title: inventory[0].title,
+      project: inventory[0].project,
+      run: "0123456789ab",
+      passed: true,
+    };
+    await expect(validateProductHostCommercialCohorts(root, [group(
+      makeReceipt("forward", shard, [forgedReceipt]),
+      makeReceipt("reverse"),
+    )], expected, true)).rejects.toThrow("PRODUCT_HOST_REQUIRED_CASE_COVERAGE_REQUIRED");
+
+    await expect(validateProductHostCommercialCohorts(root, [group(
+      makeReceipt("forward", null),
+      makeReceipt("reverse", null),
+    )], expected, true)).rejects.toThrow("PRODUCT_HOST_REQUIRED_CASE_COVERAGE_REQUIRED");
+  });
+
+  it("requires run-local browser stage markers to be present, exact and non-symlinked", async () => {
+    const fixture = await migrationImportFixture();
+    try {
+      const runId = "2026-10-19T12-06-00-000Z";
+      const binding = {
+        runId,
+        candidate: fixture.candidateSha,
+        runtimeFingerprint: fixture.runtimeFingerprint,
+        verificationFingerprint: fixture.verificationFingerprint,
+        release: fixture.release,
+      };
+      const full = await writeFullRegressionFixture(fixture.root, runId, binding);
+      const bytes = full.browserIsolationBytes;
+      const summary = {
+        ...full.receipt,
+        browserIsolation: { ...full.receipt.browserIsolation!, evidenceSha256: createHash("sha256").update(bytes).digest("hex") },
+      };
+      const browserArtifact = JSON.parse(bytes.toString("utf8")) as { groups: { group: string }[] };
+      const markerPath = `.scratch/dev/test-suites/full/${runId}/browser-${browserArtifact.groups[0].group}-forward.json`;
+      const validate = () => validateFullRegressionBrowserIsolationArtifacts(summary, binding, bytes, fixture.root);
+
+      await rm(join(fixture.root, markerPath), { force: true });
+      await expect(validate()).rejects.toThrow("PRODUCT_MIGRATION_FULL_RUN_BROWSER_ISOLATION_EVIDENCE_REQUIRED");
+
+      await writeFixtureFile(fixture.root, markerPath, JSON.stringify({ evidenceDirectory: join(fixture.root, ".scratch/dev/test-suites/browser/old-forward") }) + "\n");
+      await expect(validate()).rejects.toThrow("PRODUCT_MIGRATION_FULL_RUN_BROWSER_ISOLATION_EVIDENCE_REQUIRED");
+
+      const markerTarget = `.scratch/dev/test-suites/full/${runId}/marker-target.json`;
+      await writeFixtureFile(fixture.root, markerTarget, JSON.stringify({ evidenceDirectory: "unused" }) + "\n");
+      await rm(join(fixture.root, markerPath), { force: true });
+      await symlink(join(fixture.root, markerTarget), join(fixture.root, markerPath));
+      await expect(validate()).rejects.toThrow("PRODUCT_MIGRATION_FULL_RUN_BROWSER_ISOLATION_EVIDENCE_REQUIRED");
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+
   it("requires the exact checkout candidate and matching source fingerprints for import", async () => {
     const fixture = await migrationImportFixture();
     try {
@@ -793,9 +1370,15 @@ describe("current-source product migration receipt v2", () => {
     expect(() => requiredProductMigrationCases("unknown/workflow", "implemented")).toThrow("UNSUPPORTED_PRODUCT_MIGRATION_WORKFLOW");
   });
 
-  it("maps only required exact cases for the 17 non-owner workflows and preserves concrete blockers", () => {
+  it("maps only required exact cases for the 20 non-owner workflows and preserves concrete blockers", () => {
     const ids = productWorkflowReceiptIds();
-    expect(ids).toHaveLength(17);
+    expect(ids).toHaveLength(20);
+    expect(ids).toEqual(expect.arrayContaining([
+      "legal-portal:share-invitation-enrollment-and-revocation",
+      "legal-portal:scoped-shared-version-access-and-revocation",
+      "legal-portal:private-document-download-and-access-history",
+    ]));
+    expect(ids).not.toContain("legal-portal:signing-fresh-mfa-version-bound-consent-and-signature-evidence");
     expect(new Set(ids).size).toBe(ids.length);
 
     const required = loadRequiredCases();
@@ -837,10 +1420,124 @@ describe("current-source product migration receipt v2", () => {
       ["tests/e2e/identity_access/product-hosts.spec.ts", "desktop"],
       ["tests/e2e/identity_access/product-hosts.spec.ts", "mobile"],
     ]);
-    expect(productWorkflowReceiptMapping("forms:tenant-published-version-consent-submit-and-replay")).toMatchObject({
+    const formsId = "forms:tenant-published-version-consent-submit-and-replay";
+    expect(productWorkflowReceiptMapping(formsId)).toEqual({
       native: { state: "mapped" },
-      browser: { state: "pending", blocker: expect.stringContaining("Forms product host") },
+      browser: { state: "mapped" },
     });
+    expect(requiredProductMigrationCases(formsId, "verified").filter(test => test.runner === "playwright")).toEqual(
+      (["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright",
+        suite: "marketing.forms-host.e2e",
+        file: "tests/e2e/marketing/forms-host.spec.ts",
+        title: "isolated anonymous Forms host submits the published version and replays exact consent once",
+        project,
+      })),
+    );
+    expect(requiredProductMigrationCases(formsId, "implemented")).toEqual([
+      {
+        runner: "vitest",
+        suite: "marketing.public-marketing-form.integration",
+        file: "tests/integration/marketing/public-marketing-form.test.ts",
+        title: "requires the rendered version for a new Forms-host submission while retaining exact legacy receipts and current publication authority",
+      },
+    ]);
+    for (const test of requiredProductMigrationCases(formsId, "verified")) {
+      expect(required).toContainEqual({ runner: test.runner, file: test.file, title: test.title, ...(test.project ? { project: test.project } : {}) });
+      expect(test.suite).toBe(test.runner === "playwright" ? "marketing.forms-host.e2e" : "marketing.public-marketing-form.integration");
+    }
+    const executiveId = "work:company-executive-and-scoped-mcp";
+    expect(productWorkflowReceiptMapping(executiveId)).toEqual({
+      native: { state: "mapped" },
+      browser: { state: "mapped" },
+    });
+    expect(requiredProductMigrationCases(executiveId, "verified").filter(test => test.runner === "playwright")).toEqual([{
+      runner: "playwright",
+      suite: "shared.executive.executive-work-mcp.e2e",
+      file: "tests/e2e/shared.executive/executive-work-mcp.spec.ts",
+      title: "isolated Work Executive UI reads a seeded connection through scoped MCP",
+      project: "desktop",
+    }]);
+
+    const salesInvoiceId = "finance:sales-invoice-workspace";
+    expect(productWorkflowReceiptMapping(salesInvoiceId)).toEqual({
+      native: { state: "mapped" },
+      browser: { state: "mapped" },
+    });
+    const salesInvoiceCases = requiredProductMigrationCases(salesInvoiceId, "verified");
+    const salesInvoiceUnitCases = [
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "Finance draft boundary blocks same-view invoice query navigation while a marked draft is dirty"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "marks state-managed Finance form edits in the same dirty-navigation boundary"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "Finance draft boundary blocks navigation and explicit discard while a Finance acknowledgement is unresolved"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales command registers its original request with FinanceDraftBoundary through ambiguous retry and preserves newer edits"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales command releases the boundary lock after a definitive first response"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice Escape uses Finance confirmation and discards only its own form"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice Close uses Finance confirmation and discards only its own form"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice Add service is dirty and preserves the close confirmation"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice Remove service is dirty when it is the only edit after an acknowledged baseline"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice scoped discard refuses a replaced owner root and retains other Finance drafts"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice retains its native dismissal guard for pending commands"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice retains its native dismissal guard for unresolved commands"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice drawer preserves the submitted command and newer service edits while the command is unresolved"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice clean close removes only its open flag and retains current repeated filters, cursor and hash"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice discard close removes only its open flag and retains current repeated filters, cursor and hash"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice clean close keeps another dirty Sales owner mounted without URL replacement"],
+      ["finance.navigation.unit", "tests/unit/finance/finance-navigation.test.ts", "actual Sales invoice inline close and already-absent open flag do not navigate"],
+      ["finance.record-projection-services.unit", "tests/unit/finance/finance-product-presentation.test.ts", "routes direct Finance invoice setup failures through the access boundary before rendering the form"],
+    ] as const;
+    expect(salesInvoiceCases.filter(test => test.runner === "vitest")).toEqual([
+      {
+        runner: "vitest",
+        suite: "finance.sales-workspace.integration",
+        file: "tests/integration/finance/finance-sales-workspace.test.ts",
+        title: "Sales-only grants can create and replay standalone service invoices while draining blocks new invoices",
+      },
+      {
+        runner: "vitest",
+        suite: "finance.sales-workspace.integration",
+        file: "tests/integration/finance/finance-sales-workspace.test.ts",
+        title: "Sales-only standalone invoice posting fails closed when completion outbox evidence is missing",
+      },
+      ...salesInvoiceUnitCases.map(([suite, file, title]) => ({ runner: "vitest" as const, suite, file, title })),
+    ]);
+    expect(salesInvoiceCases.filter(test => test.runner === "playwright")).toEqual([
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        suite: "finance.sales-workspace.e2e",
+        file: "tests/e2e/finance/finance-sales-workspace.spec.ts",
+        title: "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+        project,
+      })),
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        suite: "shared.ui.uat-route-matrix.uat",
+        file: "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+        title: "Finance invoice drawer observations native prepared invoice drawers retain dirty work and keyboard focus across the appearance matrix",
+        project,
+      })),
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        suite: "identity_access.product-hosts.e2e",
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title: "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
+        project,
+      })),
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        suite: "identity_access.product-hosts.e2e",
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title: "isolated Finance host creates a completion-backed sales invoice through Account and Apps",
+        project,
+      })),
+    ]);
+    expect(requiredProductMigrationCases("finance:sales-invoice-workspace", "implemented")).toEqual(
+      salesInvoiceCases.filter(test => test.runner === "vitest"),
+    );
+    expect(requiredProductMigrationCases("finance/feature-payments", "verified").filter(test =>
+      test.runner === "playwright" && test.file === "tests/e2e/finance/finance-sales-workspace.spec.ts")).toEqual([]);
+    for (const test of salesInvoiceCases) {
+      expect(required).toContainEqual({ runner: test.runner, file: test.file, title: test.title, ...(test.project ? { project: test.project } : {}) });
+    }
     expect(() => productWorkflowReceiptCases("unregistered:workflow")).toThrow("UNSUPPORTED_PRODUCT_MIGRATION_WORKFLOW");
   });
 
@@ -859,37 +1556,127 @@ describe("current-source product migration receipt v2", () => {
       expect(implementation.every(test => test.runner === "vitest" && test.suite.length > 0)).toBe(true);
       const browser = scenario.cases.filter(test => test.runner === "playwright");
       if (!browser.length) nativeOnly += 1;
-      if (scenario.id === "assets/asset-register") {
-        expect(requiredProductMigrationCases(scenario.id, "verified").filter(test => test.runner === "playwright")).toHaveLength(4);
-      } else if (browser.length) {
+      if (browser.length) {
         const verified = requiredProductMigrationCases(scenario.id, "verified");
         expect(verified.filter(test => test.runner === "playwright")).toHaveLength(browser.length);
       } else {
         expect(() => requiredProductMigrationCases(scenario.id, "verified")).toThrow("PRODUCT_MIGRATION_BROWSER_WITNESS_REQUIRED");
       }
     }
-    expect(nativeOnly).toBe(55);
+    expect(nativeOnly).toBe(109);
     expect(ids.size).toBe(187);
+    const rejectedNearFitMappings = [
+      "assets/asset-register",
+      "commercial/entitlements",
+      "commercial/feature-catalog-plans",
+      "identity_access/assignments",
+      "identity_access/feature-people-principals",
+      "identity_access/feature-roles-permissions",
+      "identity_access/feature-directory-connectors",
+      "organization/organization-tree",
+      "organization/feature-business-units",
+      "platform_administration/feature-projections-events",
+      "platform_administration/feature-migration-runs",
+      "platform_administration/feature-platform-audit",
+      "assets/feature-placement",
+      "assets/feature-maintenance-lifecycle",
+      "maintenance/work-orders",
+      "maintenance/feature-completion",
+      "maintenance/feature-maintenance-history",
+      "inventory/feature-receipts",
+      "inventory/feature-issues-movements",
+      "operations/feature-exception-queue",
+      "operations/feature-operations-summary",
+      "quality/inspections",
+      "quality/results",
+      "quality/release-gates",
+      "manufacturing/orders",
+      "manufacturing/material-readiness",
+      "manufacturing/quality-disposition",
+      "manufacturing/feature-labor-output",
+      "manufacturing/feature-costs-genealogy",
+      "projects/dependencies",
+      "projects/feature-projects-wbs",
+      "projects/feature-handoffs",
+      "projects/feature-time-costs",
+      "projects/feature-project-graph",
+      "learning/feature-assignments",
+      "learning/feature-attendance-results",
+      "field_service/service-orders",
+      "field_service/feature-agreements",
+      "field_service/feature-dispatch",
+      "field_service/feature-visits",
+      "agent/agent-catalog",
+      "agent/versions",
+      "agent/assignments",
+      "agent/feature-field-suggestions",
+      "collaboration/mentions",
+      "collaboration/feature-comments-moderation",
+      "collaboration/feature-attachments",
+      "collaboration/feature-record-relations",
+      "pms/cashier",
+      "customer_360/service-timeline",
+      "customer_360/feature-customer-profile",
+      "customer_360/feature-customer-notes",
+      "customer_authority/access-history",
+      "customer_authority/feature-identity-changes",
+      "pos/feature-register-session",
+      "pos/feature-sales-baskets",
+      "pos/feature-payments-receipts",
+      "sales/quotes",
+      "sales/orders",
+      "sales/fulfillment",
+      "crm/activities",
+      "crm/feature-leads",
+      "marketing/feature-forms-profiles",
+      "marketing/feature-engagement",
+    ];
+    for (const id of rejectedNearFitMappings) {
+      expect(engineeringScenarios.capabilities.find(scenario => scenario.id === id)?.cases.some(test => test.runner === "playwright")).toBe(false);
+      expect(() => requiredProductMigrationCases(id, "verified")).toThrow("PRODUCT_MIGRATION_BROWSER_WITNESS_REQUIRED");
+    }
     const browserCandidates = [
-      { id: "customer_authority/duplicate-review", suite: "customer_authority.demo-customer-duplicate-review.e2e", file: "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts", title: "isolated demo independently reviews and merges duplicate customers" },
-      { id: "finance/feature-chart-of-accounts", suite: "finance.demo-finance-chart-setup.e2e", file: "tests/e2e/finance/demo-finance-chart-setup.spec.ts", title: "isolated demo renders real chart and account setup controls" },
-      { id: "finance/feature-receivables-aging", suite: "finance.demo-finance-aging.e2e", file: "tests/e2e/finance/demo-finance-aging.spec.ts", title: "isolated demo renders receivables and payables aging from live finance data" },
-      { id: "finance/feature-opening-balances", suite: "finance.demo-finance-opening-import.e2e", file: "tests/e2e/finance/demo-finance-opening-import.spec.ts", title: "isolated demo imports and independently posts opening balances" },
-      { id: "inventory/feature-issues-movements", suite: "inventory.demo-stock-transit.e2e", file: "tests/e2e/inventory/demo-stock-transit.spec.ts", title: "isolated demo carries an approved warehouse transfer through dispatch and partial receiving" },
-      { id: "organization/feature-business-units", suite: "organization.demo-organization-lifecycle.e2e", file: "tests/e2e/organization/demo-organization-lifecycle.spec.ts", title: "isolated organization setup supports reviewed correction, safe suspension and retained history" },
-      { id: "people_payroll/feature-expenses", suite: "people_payroll.expense.e2e", file: "tests/e2e/people_payroll/expense-v2.spec.ts", title: "expense goes through four independent people and two slip-backed payments" },
-      { id: "collaboration/threads", suite: "collaboration.messaging.e2e", file: "tests/e2e/collaboration/messaging.spec.ts", title: "real accounts chat, reconnect, attach files, use teams and enforce private membership" },
+      { id: "pms/dashboard", cases: [{ suite: "pms.owner-read-workflows.e2e", file: "tests/e2e/pms/pms-owner-read-workflows.spec.ts", title: "pms/dashboard renders the selected hotel's live room status through its owner-scoped read" }] },
+      { id: "customer_authority/duplicate-review", cases: [{ suite: "customer_authority.demo-customer-duplicate-review.e2e", file: "tests/e2e/customer_authority/demo-customer-duplicate-review.spec.ts", title: "isolated demo independently reviews and merges duplicate customers" }] },
+      { id: "finance/feature-chart-of-accounts", cases: [{ suite: "finance.demo-finance-chart-setup.e2e", file: "tests/e2e/finance/demo-finance-chart-setup.spec.ts", title: "isolated demo renders real chart and account setup controls" }] },
+      { id: "finance/feature-receivables-aging", cases: [{ suite: "finance.demo-finance-aging.e2e", file: "tests/e2e/finance/demo-finance-aging.spec.ts", title: "isolated demo renders receivables and payables aging from live finance data" }] },
+      { id: "finance/feature-opening-balances", cases: [{ suite: "finance.demo-finance-opening-import.e2e", file: "tests/e2e/finance/demo-finance-opening-import.spec.ts", title: "isolated demo imports and independently posts opening balances" }] },
+      { id: "finance/feature-payments", cases: [
+        { suite: "shared.money-people-journeys.demo-engineering-money-people.journeys", file: "tests/journeys/shared.money-people-journeys/demo-engineering-money-people.spec.ts", title: "isolated normal-login Finance and workforce owner journeys creates an itemized supplier bill and independently withholds pays issues amends and financially cancels retained 50 tawi copies" },
+        { suite: "finance.demo-controlled-payment.e2e", file: "tests/e2e/finance/demo-controlled-payment.spec.ts", title: "isolated demo completes a three-person generic payment through exact bank evidence" },
+      ] },
+      { id: "sales/feature-cancellations", cases: [{ suite: "sales.demo-sales-to-collection.journeys", file: "tests/journeys/sales/demo-sales-to-collection.spec.ts", title: "isolated Sales cancels before stock movement and requires a controlled return after delivery" }] },
+      { id: "people_payroll/feature-expenses", cases: [{ suite: "people_payroll.expense.e2e", file: "tests/e2e/people_payroll/expense-v2.spec.ts", title: "expense goes through four independent people and two slip-backed payments" }] },
+      { id: "collaboration/threads", cases: [{ suite: "collaboration.messaging.e2e", file: "tests/e2e/collaboration/messaging.spec.ts", title: "real accounts chat, reconnect, attach files, use teams and enforce private membership" }] },
     ];
     const requiredCases = loadRequiredCases();
     for (const candidate of browserCandidates) {
       const browser = requiredProductMigrationCases(candidate.id, "verified").filter(test => test.runner === "playwright");
-      expect(browser).toEqual((["desktop", "mobile"] as const).map(project => ({
-        runner: "playwright", suite: candidate.suite, file: candidate.file, title: candidate.title, project,
-      })));
-      for (const project of ["desktop", "mobile"] as const) expect(requiredCases).toContainEqual({
-        runner: "playwright", file: candidate.file, title: candidate.title, project,
+      expect(browser).toEqual(candidate.cases.flatMap(test => (["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright", ...test, project,
+      }))));
+      for (const test of candidate.cases) for (const project of ["desktop", "mobile"] as const) expect(requiredCases).toContainEqual({
+        runner: "playwright", file: test.file, title: test.title, project,
       });
     }
+    const salesWorkspace = requiredProductMigrationCases("finance:sales-invoice-workspace", "verified").filter(test =>
+      test.runner === "playwright" && test.file === "tests/e2e/finance/finance-sales-workspace.spec.ts");
+    expect(salesWorkspace).toEqual((["desktop", "mobile"] as const).map(project => ({
+      runner: "playwright", suite: "finance.sales-workspace.e2e", file: "tests/e2e/finance/finance-sales-workspace.spec.ts",
+      title: "English sales workspace opens drawers, calculates invoices and keeps direct forms available", project,
+    })));
+    for (const project of ["desktop", "mobile"] as const) expect(requiredCases).toContainEqual({
+      runner: "playwright", file: "tests/e2e/finance/finance-sales-workspace.spec.ts",
+      title: "English sales workspace opens drawers, calculates invoices and keeps direct forms available", project,
+    });
+    expect(requiredProductMigrationCases("finance:sales-invoice-workspace", "verified").filter(test =>
+      test.runner === "playwright" && test.file === productHostBrowserFile && test.title === "isolated Finance host creates a completion-backed sales invoice through Account and Apps"))
+      .toEqual((["desktop", "mobile"] as const).map(project => ({ runner: "playwright", suite: productHostSuiteId, file: productHostBrowserFile,
+        title: "isolated Finance host creates a completion-backed sales invoice through Account and Apps", project })));
+    for (const project of ["desktop", "mobile"] as const) expect(requiredCases).toContainEqual({
+      runner: "playwright", file: productHostBrowserFile,
+      title: "isolated Finance host creates a completion-backed sales invoice through Account and Apps", project,
+    });
     expect(requiredCases.filter(test => test.runner === "playwright" &&
       test.file === "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts" &&
       test.title === "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal"))

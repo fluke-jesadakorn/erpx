@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { evaluateEngineeringPerformance, type PerformanceSample } from "../../../src/lib/runtime/engineering-performance";
+import { evaluateEngineeringPerformance, engineeringPerformanceWorkspacePath, type PerformanceSample } from "../../../src/lib/runtime/engineering-performance";
 function input() {
   const accountIds=Array.from({length:10},(_,i)=>`account-${i}`),samples:PerformanceSample[]=[];
   for (const actor of accountIds) for(let tick=0;tick<=180;tick++) {
@@ -11,6 +11,11 @@ function input() {
   }
   return {accountIds,samples,durationMs:30*60_000,sameProcesses:true,runtimeErrors:[]};
 }
+it("uses current normal workspace routes for measured warm pages",()=>{
+  expect(engineeringPerformanceWorkspacePath("simulation","work")).toBe("/holdings/simulation/work");
+  expect(engineeringPerformanceWorkspacePath("simulation","people")).toBe("/holdings/simulation/people-organization/people");
+  expect(engineeringPerformanceWorkspacePath("riverside-lantern","pms")).toBe("/holdings/riverside-lantern/pms");
+});
 it("reports API latency without a fixed ceiling while enforcing page latency budgets",()=>{
   expect(evaluateEngineeringPerformance(input()).passed).toBe(true);
   const slow=input();slow.samples.forEach(sample=>{if(sample.kind==="pms")sample.elapsedMs=600;});

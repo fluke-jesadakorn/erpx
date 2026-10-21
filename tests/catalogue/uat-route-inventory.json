@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-10-17T22:37:10.848Z",
-  "generatedDate": "2026-10-18",
-  "sourceFingerprint": "7a198337979a0b63cde7890337d023c5489a0075c3b1636debc034d104adcc0a",
-  "pageRouteCount": 941,
+  "generatedAt": "2026-10-21T07:10:21.445Z",
+  "generatedDate": "2026-10-21",
+  "sourceFingerprint": "4c4acee230ef4ed6f3bd24bbc30eac786c3deebfa5a54a1fb800f5aaf52e6205",
+  "pageRouteCount": 942,
   "workspaceScopePatterns": [
     "holding",
     "branch",
@@ -143,6 +143,17 @@
       "sourceSignals": [
         "error"
       ]
+    },
+    {
+      "source": "src/app/customer-portal/enroll/page.tsx",
+      "template": "/customer-portal/enroll",
+      "area": "Customer portal",
+      "signedOut": "login-or-explicit-denial",
+      "primaryActor": "holding_owner",
+      "workspaceScopes": [],
+      "dynamicParameters": [],
+      "detailRoute": false,
+      "sourceSignals": []
     },
     {
       "source": "src/app/dev/ui/page.tsx",

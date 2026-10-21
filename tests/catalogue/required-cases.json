@@ -238,6 +238,21 @@
     },
     {
       "runner": "vitest",
+      "file": "tests/integration/identity_access/product-sso-auth.test.ts",
+      "title": "completes start/authorize/callback with host-bound cookies and a clean URL through real handlers"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/identity_access/account-work-context.test.ts",
+      "title": "re-resolves account, Company and role before allowing a command under current authority"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/identity_access/iam.test.ts",
+      "title": "preserves actual Company financial-role Apps/SSO entry and original redacted owner readers without People module or base Finance purchase"
+    },
+    {
+      "runner": "vitest",
       "file": "tests/integration/organization/member-directory.test.ts",
       "title": "reads only the authorized member's level history through the Organization panel owner and preserves newest-first ordering"
     },
@@ -706,6 +721,11 @@
     },
     {
       "runner": "vitest",
+      "file": "tests/unit/shared.test-infrastructure/browser-isolation-receipts.test.ts",
+      "title": "independent browser repetition and failure restart acceptance binds every browser cohort to its persisted receipt in the candidate artifact"
+    },
+    {
+      "runner": "vitest",
       "file": "tests/unit/shared.test-infrastructure/ci-regression.test.ts",
       "title": "full candidate acceptance aggregation requires same-candidate forward and reverse business coverage plus an independently cleaned declared failure on every CI shard"
     },
@@ -782,6 +802,21 @@
       "runner": "vitest",
       "file": "tests/integration/pms/pms-booking.test.ts",
       "title": "deduplicates signed booking payment callbacks through durable jobs and rejects tampered payloads"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/finance/finance-sales-workspace.test.ts",
+      "title": "Sales-only grants can create and replay standalone service invoices while draining blocks new invoices"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/finance/finance-sales-workspace.test.ts",
+      "title": "Sales-only standalone invoice posting fails closed when completion outbox evidence is missing"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/finance/finance-bank-automation.test.ts",
+      "title": "plain BankImport replays an identical same-key import after the committed response is lost without duplicating persisted rows or receipt evidence"
     },
     {
       "runner": "playwright",
@@ -1290,6 +1325,48 @@
       "project": "mobile"
     },
     {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Company Admin reads current Brand, Organization, and IAM projections without changing H001 authority",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+      "title": "isolated Company Admin reads current Brand, Organization, and IAM projections without changing H001 authority",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.executive/executive-work-mcp.spec.ts",
+      "title": "isolated Work Executive UI reads a seeded connection through scoped MCP",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/marketing/forms-host.spec.ts",
+      "title": "isolated anonymous Forms host submits the published version and replays exact consent once",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/marketing/forms-host.spec.ts",
+      "title": "isolated anonymous Forms host submits the published version and replays exact consent once",
+      "project": "mobile"
+    },
+    {
       "runner": "vitest",
       "file": "tests/unit/shared.evidence/product-migration-receipts.test.ts",
       "title": "current-source product migration receipt v2 accepts only the exact Assets owner lifecycle case for implementation"
@@ -1297,7 +1374,7 @@
     {
       "runner": "vitest",
       "file": "tests/unit/shared.evidence/product-migration-receipts.test.ts",
-      "title": "current-source product migration receipt v2 requires both UAT and product-host projects with clean browser teardown"
+      "title": "current-source product migration receipt v2 does not promote partial Assets UI observations to verified workflow evidence"
     },
     {
       "runner": "vitest",
@@ -1308,6 +1385,102 @@
       "runner": "vitest",
       "file": "tests/unit/shared.evidence/product-acceptance-generation.test.ts",
       "title": "product acceptance generation does not replace generated artifacts when validation fails"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/customer_authority/portal-invitations.test.ts",
+      "title": "issuing requires an approved binding that is still current"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/customer_authority/portal-invitations.test.ts",
+      "title": "resend advances the signed generation and persists only the token hash"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/customer_authority/portal-invitations.test.ts",
+      "title": "Customer Portal invitation verification rejects modified signatures, claims, and malformed tokens"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/customer_authority/customer-access.test.ts",
+      "title": "issues a tenant-token invitation and binds only the invited verified Portal identity"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/customer_authority/customer-access.test.ts",
+      "title": "resend supersedes the previous invitation and accepts only the replacement token"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/customer_authority/customer-access.test.ts",
+      "title": "revokes queued invitations after their source order is canceled"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/customer_authority/customer-access.test.ts",
+      "title": "revokes sent invitations after their source order is canceled"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/customer_authority/customer-access.test.ts",
+      "title": "revokes queued invitations when their customer binding is revoked"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/customer_authority/customer-access.test.ts",
+      "title": "revokes sent invitations when their customer binding is revoked"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/customer_authority/customer-access.test.ts",
+      "title": "releases signup reservations after mail infrastructure failures and caps failed enrollment attempts"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/customer_authority/customer-access.test.ts",
+      "title": "redacts legacy plaintext verification receipts during the sandbox email encryption upgrade"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "offers verification resend when the invited account was created but email delivery failed",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "offers verification resend when the invited account was created but email delivery failed",
+      "project": "mobile"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+      "project": "mobile"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/commercial/legacy-module-preview.test.ts",
+      "title": "projects the published commerce/iam/people legacy witness into current Sales workspace entry without writing grants"
     }
   ]
 }

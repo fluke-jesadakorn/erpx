@@ -34,25 +34,37 @@ type SurfaceBrowserCase = {
   file: string;
   title: string;
   project: "desktop" | "mobile";
-  executionOrigin: "local-simulation-only";
+  executionOrigin: "local-simulation-only" | "isolated-forms-host";
 };
 type Surface = {
   id: string;
   workflows: string[];
   pages: string[];
   apis: string[];
+  services?: string[];
+  schema?: string[];
   tests?: string[];
   browserCases?: SurfaceBrowserCase[];
 };
 const formsWorkflow = "tenant-published-version-consent-submit-and-replay";
-// This local isolated Marketing journey is browser traceability only. It does
-// not exercise the Forms product host and cannot satisfy the Forms receipt map.
+const formsBrowserTitle = "isolated anonymous Forms host submits the published version and replays exact consent once";
 const formsBrowserCases: SurfaceBrowserCase[] = (["desktop", "mobile"] as const).map(project => ({
   workflow: formsWorkflow,
   runner: "playwright",
-  suite: "shared.workplace-journeys.demo-workplace-platform-lifecycle.journeys",
-  file: "tests/journeys/shared.workplace-journeys/demo-workplace-platform-lifecycle.spec.ts",
-  title: "isolated Marketing serves reviewed content and scanned public creative, captures visitor consent once and hands the immutable request to CRM before withdrawal",
+  suite: "marketing.forms-host.e2e",
+  file: "tests/e2e/marketing/forms-host.spec.ts",
+  title: formsBrowserTitle,
+  project,
+  executionOrigin: "isolated-forms-host",
+}));
+const portalWorkflow = "tenant-token-invitation-document-and-private-files";
+const portalExternalSignupTitle = "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history";
+const portalExternalSignupBrowserCases: SurfaceBrowserCase[] = (["desktop", "mobile"] as const).map(project => ({
+  workflow: portalWorkflow,
+  runner: "playwright",
+  suite: "customer_authority.demo-retail-customer-authority.journeys",
+  file: "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+  title: portalExternalSignupTitle,
   project,
   executionOrigin: "local-simulation-only",
 }));
@@ -60,19 +72,36 @@ const surfaces: Surface[] = [
   { id: "apps", workflows: ["all-company-branch-department-product-selection", "single-product-direct-entry", "dirty-product-switch"], pages: ["src/app/product-entry/page.tsx", "src/app/choose-work-role/page.tsx"], apis: ["src/app/launch/route.ts"] },
   { id: "account", workflows: ["central-login-and-directory-link", "profile-language-theme", "role-company-account-switch", "mfa-expiry-replay-family-all-device-revocation", "authorized-package-area"], pages: ["src/app/login/page.tsx", "src/app/product-entry/page.tsx"], apis: ["src/app/sso/[action]/route.ts", "src/app/api/auth/[...all]/route.ts", "src/app/api/v1/account/profile/route.ts", "src/app/api/v1/account/preferences/route.ts"] },
   { id: "admin", workflows: ["company-brand-organization-iam", "platform-only-entry", "provider-authority-separation", "legacy-preview-apply-and-audit"], pages: ["src/app/product-entry/page.tsx", "src/app/provider/commercial/page.tsx", "src/app/provider/commercial/packages/page.tsx"], apis: ["src/app/api/v1/platform/commercial/[[...path]]/route.ts"] },
-  { id: "booking", workflows: ["tenant-room-availability-reservation-consent-payment-callback"], pages: ["src/app/book/[holdingSlug]/page.tsx"], apis: ["src/app/api/public/booking/[holdingSlug]/[action]/route.ts"] },
-  { id: "portal", workflows: ["tenant-token-invitation-document-and-private-files"], pages: ["src/app/customer-portal/[holdingSlug]/page.tsx", "src/app/customer-portal/[holdingSlug]/tickets/page.tsx", "src/components/customer_authority/support-ticket-portal.tsx"], tests: ["tests/integration/customer_authority/customer-access.test.ts", "tests/unit/shared.business-contracts/customer-portal-application.test.ts"], apis: ["src/app/api/customer-portal/[holdingSlug]/route.ts", "src/app/api/customer-portal/[holdingSlug]/tickets/route.ts", "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts", "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts"] },
-  { id: "legal-portal", workflows: ["invitation-mfa-document-version-consent-signing-and-private-files"], pages: ["src/app/legal-portal/[holdingSlug]/page.tsx", "src/components/legal/legal-portal.tsx"], tests: ["tests/unit/legal/legal-command-client.test.ts"], apis: ["src/app/api/legal-portal/[holdingSlug]/[[...path]]/route.ts"] },
-  { id: "forms", workflows: [formsWorkflow], pages: ["src/app/forms/[holdingSlug]/[formId]/page.tsx"], apis: ["src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts"], browserCases: formsBrowserCases },
+  { id: "booking", workflows: ["tenant-room-availability-reservation-consent-payment-callback"], pages: ["src/app/book/[holdingSlug]/page.tsx"], apis: ["src/app/api/public/booking/[holdingSlug]/[action]/route.ts"], services: ["src/server/modules/pms/public/public-booking-body.ts"] },
+  { id: "portal", workflows: [portalWorkflow], pages: ["src/app/customer-portal/[holdingSlug]/page.tsx", "src/app/customer-portal/[holdingSlug]/tickets/page.tsx", "src/app/customer-portal/enroll/page.tsx", "src/components/customer_authority/support-ticket-portal.tsx", "src/components/customer_authority/customer-portal-enrollment.tsx"], tests: ["tests/integration/customer_authority/customer-access.test.ts", "tests/unit/customer_authority/portal-invitations.test.ts", "tests/unit/shared.business-contracts/customer-portal-application.test.ts", "tests/e2e/customer_authority/portal-invitation.spec.ts", "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts"], apis: ["src/app/api/customer-portal/[holdingSlug]/route.ts", "src/app/api/customer-portal/enroll/route.ts", "src/app/api/customer-portal/[holdingSlug]/tickets/route.ts", "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts", "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts"], services: ["src/server/modules/customer_authority/application/portal-invitations.ts", "src/server/modules/customer_authority/application/portal-invitation-delivery.ts", "src/server/modules/customer_authority/domain/portal-invitation.ts", "src/server/modules/customer_authority/adapters/portal-invitations.ts", "src/server/modules/customer_authority/adapters/portal-invitation-delivery.ts", "src/server/modules/customer_authority/adapters/portal-enrollment.ts", "src/server/modules/customer_authority/adapters/portal-invitation-crypto.ts"], schema: ["migrations/postgres/holding-write/1071_customer_portal_invitations.sql"], browserCases: portalExternalSignupBrowserCases },
+  { id: "legal-portal", workflows: ["share-invitation-enrollment-and-revocation", "scoped-shared-version-access-and-revocation", "private-document-download-and-access-history"], pages: ["src/app/legal-portal/[holdingSlug]/page.tsx", "src/app/legal-portal/enroll/page.tsx", "src/components/legal/legal-portal.tsx"], tests: ["tests/integration/legal/legal.test.ts", "tests/integration/legal/legal-download-route.test.ts", "tests/integration/legal/legal-portal-download-session.test.ts", "tests/unit/legal/legal-command-client.test.ts"], apis: ["src/app/api/legal-portal/[holdingSlug]/[[...path]]/route.ts"] },
+  { id: "forms", workflows: [formsWorkflow], pages: ["src/app/forms/[holdingSlug]/[formId]/page.tsx"], apis: ["src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts"], services: ["src/server/modules/marketing/adapters/public-form-body.ts", "src/server/modules/marketing/public/public-form-body.ts"], browserCases: formsBrowserCases },
 ];
 // Existing Company Executive is runtime-owned Company work, distinct from the
 // Module catalogue's Platform Executive. It still needs explicit cutover proof.
-const productWorkflows = [{
+type ProductWorkflow = {
+  id: string;
+  product: typeof productIds[number];
+  owner: string;
+  pages: string[];
+  apis: string[];
+  services: string[];
+  schema?: string[];
+  tests: string[];
+};
+const productWorkflows: ProductWorkflow[] = [{
   id: "work:company-executive-and-scoped-mcp", product: "work", owner: "runtime",
   pages: ["src/app/holdings/[holdingSlug]/insights/executive/page.tsx", "src/app/holdings/[holdingSlug]/insights/executive/reports/[reportId]/page.tsx"],
   apis: ["src/app/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts", "src/app/api/v1/holdings/[holdingSlug]/executive/connections/route.ts", "src/app/api/mcp/executive/route.ts"],
-  services: ["src/server/modules/runtime/adapters/executive/reports.ts", "src/server/modules/runtime/adapters/executive/mcp.ts"],
-  tests: ["tests/unit/identity_access/product-workspace.test.ts", "tests/unit/shared.ui/workplace-navigation.test.ts", "tests/integration/shared.executive/executive-canvas.test.ts", "tests/integration/shared.executive/executive-mcp.test.ts"],
+  services: ["src/server/modules/runtime/adapters/executive/reports.ts", "src/server/modules/runtime/adapters/executive/mcp.ts", "src/server/modules/identity_access/application/product-workspace.ts", "src/server/modules/work_projection/domain/product-landings.ts"],
+  tests: ["tests/unit/identity_access/product-workspace.test.ts", "tests/unit/shared.ui/workplace-navigation.test.ts", "tests/integration/shared.executive/executive-canvas.test.ts", "tests/integration/shared.executive/executive-mcp.test.ts", "tests/e2e/shared.executive/executive-work-mcp.spec.ts"],
+}, {
+  id: "finance:sales-invoice-workspace", product: "finance", owner: "finance",
+  pages: ["src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx", "src/app/holdings/[holdingSlug]/_presenters/finance/sales/screen.tsx", "src/app/holdings/[holdingSlug]/finance/documents/sales/new/page.tsx", "src/app/holdings/[holdingSlug]/_presenters/finance/sales/new/screen.tsx", "src/components/finance/sales-controls.tsx"],
+  apis: ["src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts"],
+  services: ["src/server/modules/finance/adapters/sales.ts", "src/server/modules/finance/adapters/document-purchases.ts"],
+  schema: ["migrations/postgres/holding-write/1069_finance_sales_standalone_invoice_source.sql", "migrations/postgres/holding-write/1070_finance_sales_standalone_evidence_indexes.sql"],
+  tests: ["tests/integration/finance/finance-sales-workspace.test.ts", "tests/e2e/finance/finance-sales-workspace.spec.ts"],
 }];
 const workflowIds = new Set([...capabilities.map(capability => capability.id), ...surfaces.flatMap(surface => surface.workflows.map(workflow => `${surface.id}:${workflow}`)), ...productWorkflows.map(workflow => workflow.id)]);
 const errors: string[] = [];
@@ -129,13 +158,11 @@ for (const surface of surfaces) {
 }
 const formsSurface = surfaces.find(surface => surface.id === "forms");
 const formsReceiptMapping = productWorkflowReceiptMapping(`forms:${formsWorkflow}`);
-const formsBrowserBlocker = formsReceiptMapping.browser.state === "pending"
-  ? formsReceiptMapping.browser.blocker.toLowerCase()
-  : "";
-if (formsSurface?.browserCases?.length !== 2 || formsSurface.browserCases.some(test => test.workflow !== formsWorkflow || test.executionOrigin !== "local-simulation-only") ||
-  formsReceiptMapping.native.state !== "mapped" || formsReceiptMapping.browser.state !== "pending" ||
-  !formsBrowserBlocker.includes("forms product host"))
-  errors.push("Forms traceability must remain distinct from its Forms-host browser receipt blocker");
+if (formsSurface?.browserCases?.length !== 2 || formsSurface.browserCases.some(test => test.workflow !== formsWorkflow ||
+  test.executionOrigin !== "isolated-forms-host" || test.suite !== "marketing.forms-host.e2e" ||
+  test.file !== "tests/e2e/marketing/forms-host.spec.ts" || test.title !== formsBrowserTitle) ||
+  formsReceiptMapping.native.state !== "mapped" || formsReceiptMapping.browser.state !== "mapped")
+  errors.push("Forms traceability must map the exact isolated Forms-host browser receipt");
 for (const capability of capabilities) {
   try {
     for (const expected of requiredProductMigrationCases(capability.id, "implemented")) {
@@ -179,6 +206,12 @@ const state = (id: string) => Object.fromEntries(["implemented", "verified", "en
   return [phase, { state: receipt ? "recorded" : previous ? "source-changed" : "pending", evidence: receipt ?? previous ?? null }];
 }));
 const refs = (value: string) => [...new Set(value.split(/[;,]\s*/).map(path => path.trim()).filter(Boolean))];
+const talentDetailPages = [
+  "src/app/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
+  "src/app/holdings/[holdingSlug]/_presenters/talent/[id]/screen.tsx",
+  "src/components/records/loaders/modules--talent-console.tsx",
+  "src/components/talent/talent-console.tsx",
+];
 // Current product paths supplement the retained owner catalogue references.
 // They share the existing workflow identity and require fresh candidate receipts;
 // adding traceability never promotes a historical engineering observation.
@@ -221,11 +254,11 @@ const currentProductWorkflowSources: Record<string, Partial<Record<"pages"|"apis
     tests: ["tests/integration/pos/pos.test.ts", "tests/unit/inventory/initial-physical-stock-client.test.ts", "tests/integration/manufacturing/production.test.ts", "tests/integration/sales/commerce-returns.test.ts", "tests/integration/sales/refund-bank-evidence-migration.test.ts", "tests/unit/inventory/initial-physical-stock-transport.test.ts", "tests/unit/identity_access/product-workspace.test.ts", "tests/unit/collaboration/collaboration-services.test.ts", "tests/integration/field_service/field-service.test.ts", "tests/unit/field_service/field-service-application.test.ts"],
   },
   "assets/asset-register": {
-    pages: ["src/app/holdings/[holdingSlug]/services/assets/accounting/page.tsx", "src/app/holdings/[holdingSlug]/services/assets/accounting/[id]/page.tsx", "src/components/assets/asset-accounting.tsx", "src/components/assets/asset-maintenance-console.tsx"],
+    pages: ["src/app/holdings/[holdingSlug]/services/assets/accounting/page.tsx", "src/app/holdings/[holdingSlug]/services/assets/accounting/[id]/page.tsx", "src/components/assets/asset-accounting.tsx", "src/components/assets/asset-maintenance-console.tsx", "src/components/records/record-drawer.tsx"],
     apis: ["src/app/api/v1/holdings/[holdingSlug]/assets/financial-assets/route.ts", "src/app/api/v1/holdings/[holdingSlug]/assets/financial-assets/[...path]/route.ts"],
     services: ["src/server/modules/finance/adapters/assets-financial-workflow.ts", "src/server/modules/finance/adapters/assets-financial-unit.ts", "src/server/modules/finance/adapters/assets-posting-prerequisites.ts", "src/server/modules/finance/adapters/finance-assets.ts"],
     schema: ["src/server/modules/finance/domain/assets-financial-workflow.ts", "src/server/modules/finance/domain/assets-posting-prerequisites.ts"],
-    tests: ["tests/integration/assets/asset-maintenance.test.ts", "tests/unit/finance/finance-asset-services.test.ts", "tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts"],
+    tests: ["tests/integration/assets/asset-maintenance.test.ts", "tests/integration/finance/finance-assets.test.ts", "tests/unit/finance/finance-asset-services.test.ts", "tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts"],
   },
   "assets/feature-retirement": {
     pages: ["src/components/assets/asset-accounting.tsx", "src/components/assets/asset-maintenance-console.tsx", "src/components/assets/asset-editor.tsx"],
@@ -239,6 +272,25 @@ const currentProductWorkflowSources: Record<string, Partial<Record<"pages"|"apis
     services: ["src/server/modules/people_payroll/adapters/hire-handoff-pay-group.ts", "src/server/modules/people_payroll/adapters/hire-handoff-workspace.ts"],
     schema: ["src/server/modules/people_payroll/domain/hire-handoff-pay-group.ts"],
     tests: ["tests/integration/talent/talent.test.ts", "tests/unit/learning/learning-talent-services.test.ts"],
+  },
+  "talent/applications": {
+    pages: talentDetailPages,
+  },
+  "talent/offers": {
+    pages: talentDetailPages,
+  },
+  "talent/feature-proposals": {
+    pages: talentDetailPages,
+  },
+  "talent/feature-candidates-privacy": {
+    pages: ["src/app/holdings/[holdingSlug]/people-organization/talent/candidates/[id]/privacy/page.tsx", "src/components/talent/candidate-privacy-page.tsx", "src/components/talent/candidate-privacy-editor.tsx"],
+    services: ["src/server/modules/talent/public/candidate-privacy-workspace.ts", "src/server/modules/talent/adapters/candidate-privacy-workspace.ts", "src/server/modules/talent/public/people-hire-handoff-facts.ts", "src/server/modules/talent/adapters/people-hire-handoff-facts.ts", "src/server/modules/people_payroll/public/people-handoffs.ts", "src/server/modules/people_payroll/adapters/people-handoffs.ts", "src/server/modules/people_payroll/application/people-handoffs.ts"],
+    schema: ["src/server/modules/people_payroll/domain/people-handoffs.ts"],
+    tests: ["tests/unit/learning/learning-talent-services.test.ts"],
+  },
+  "people_payroll/feature-expenses": {
+    pages: ["src/app/holdings/[holdingSlug]/finance/documents/expenses/page.tsx", "src/app/holdings/[holdingSlug]/finance/documents/expenses/[id]/page.tsx", "src/app/holdings/[holdingSlug]/finance/documents/expenses/new/page.tsx", "src/app/holdings/[holdingSlug]/_presenters/expenses/screen.tsx", "src/app/holdings/[holdingSlug]/_presenters/expenses/[id]/screen.tsx", "src/app/holdings/[holdingSlug]/_presenters/expenses/new/screen.tsx"],
+    tests: ["tests/e2e/people_payroll/expense-v2.spec.ts"],
   },
   "support/tickets": {
     pages: ["src/app/holdings/[holdingSlug]/customers-sales/customers/service/portal/page.tsx", "src/app/holdings/[holdingSlug]/customers-sales/customers/service/portal/[bindingId]/page.tsx", "src/app/holdings/[holdingSlug]/_presenters/support/[id]/screen.tsx", "src/components/support/ticket-portal.tsx"],
@@ -311,10 +363,10 @@ for (const row of modules) {
     for (const path of workflow[category]) if (!existsSync(resolve(root, path))) errors.push(`Missing workflow source: ${workflow.id}/${path}`);
   }
 }
-for (const surface of surfaces) for (const path of [...surface.pages, ...surface.apis]) if (!existsSync(resolve(root, path))) errors.push(`Missing surface source: ${surface.id}/${path}`);
+for (const surface of surfaces) for (const path of [...surface.pages, ...surface.apis, ...(surface.services ?? []), ...(surface.schema ?? []), ...(surface.tests ?? [])]) if (!existsSync(resolve(root, path))) errors.push(`Missing surface source: ${surface.id}/${path}`);
 for (const workflow of productWorkflows) {
   if (!productIds.some(id => id === workflow.product)) errors.push(`Unknown product workflow: ${workflow.id}`);
-  for (const path of [...workflow.pages, ...workflow.apis, ...workflow.services, ...workflow.tests]) if (!existsSync(resolve(root, path))) errors.push(`Missing product workflow source: ${workflow.id}/${path}`);
+  for (const path of [...workflow.pages, ...workflow.apis, ...workflow.services, ...(workflow.schema ?? []), ...workflow.tests]) if (!existsSync(resolve(root, path))) errors.push(`Missing product workflow source: ${workflow.id}/${path}`);
 }
 if (modules.length !== 33 || new Set(modules.map(row => row.moduleId)).size !== 33 || surfaces.length !== sharedHostKeys.length) errors.push("INCOMPLETE_PRODUCT_COVERAGE");
 const register = { version: 3, environment: "development", deliveryPlan: "docs/production-plan.md",

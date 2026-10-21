@@ -35,6 +35,7 @@ export function createProductWorkspace(ports: {
   modules(access: AccountAccessContext): Promise<ProductModuleAccess>;
   purchaseFacts(access: AccountAccessContext): Promise<CompanyPurchaseFacts>;
   ready(access: AccountAccessContext, moduleId: string): Promise<boolean>;
+  executiveVisible?(access: AccountAccessContext, assignment: WorkAssignment): Promise<boolean>;
   expensePostingPrerequisitesEntry?(access:AccountAccessContext,assignment:WorkAssignment):Promise<{revision:string;purchasePurpose:"history"}|null>;
   payrollPostingPrerequisitesEntry?(access:AccountAccessContext,assignment:WorkAssignment):Promise<{revision:string;purchasePurpose:"history"}|null>;
   peopleFinancialEntry?(access:AccountAccessContext,assignment:WorkAssignment,target:PeopleFinancialEntry):Promise<{revision:string;purchasePurpose:"history"}|null>;
@@ -120,9 +121,12 @@ export function createProductWorkspace(ports: {
       const modules = authority.presentationModulesByAssignment.get(assignment.id) ?? [];
       const readyModules = (await Promise.all([...new Set([...modules, ...(definition.id === "work" ? ["operations",...(retainedPost?["collaboration"]:[]),...(destination === "insights/executive" || destination.startsWith("insights/executive/") ? ["executive"] : [])] : [])])]
         .map(async id => await ready(id) ? id : null))).filter((id): id is string => id !== null);
+      const executiveDestination = definition.id === "work" && (destination === "insights/executive" || destination.startsWith("insights/executive/"));
+      const canSeeExecutive = executiveDestination ? await ports.executiveVisible?.(access, assignment) ?? false : undefined;
       const context = { role: assignment.role, permissions: authority.permissionsByAssignment.get(assignment.id),
         modules, readyModules, beta: authority.beta, scopeKind: access.scope.kind,
-        capabilities: purchasedCapabilities(facts.grants, input.companyId, "history", ports.now(), facts.history) };
+        capabilities: purchasedCapabilities(facts.grants, input.companyId, "history", ports.now(), facts.history),
+        ...(executiveDestination ? { executiveVisible: canSeeExecutive } : {}) };
       if(retainedExpensePrerequisites){
         if(!['people.directory','people.expenses'].every(capability=>context.capabilities.includes(capability))||!expensePostingPrerequisitesPresentationAllowed({...context,modules:authority.modulesByAssignment.get(assignment.id)??[]})||!await ready("people_payroll")||!await ready("finance"))continue;
         const source=await ports.expensePostingPrerequisitesEntry?.(access,assignment);
@@ -135,7 +139,7 @@ export function createProductWorkspace(ports: {
         if(source)options.push({assignmentId:assignment.id,assignmentVersion:assignment.version!,role:assignment.role,label:assignment.label??assignment.role.replaceAll("_"," "),target:input.target,purchasePurpose:source.purchasePurpose,sourceRecord:true});
         continue;
       }
-      if(retainedFinancial&&!productDestinationAvailable(definition.id,destination,context)){
+      if(retainedFinancial&&(retainedFinancial.kind==="expense"||!productDestinationAvailable(definition.id,destination,context))){
         if(!context.capabilities.includes(retainedFinancial.kind==="expense"?"people.expenses":"people.payroll")||!peopleFinancialPresentationAllowed({...context,modules:authority.modulesByAssignment.get(assignment.id)??[]},retainedFinancial.kind)||!await ready("people_payroll")||!await ready("finance"))continue;
         const source=await ports.peopleFinancialEntry?.(access,assignment,retainedFinancial);
         if(source)options.push({assignmentId:assignment.id,assignmentVersion:assignment.version!,role:assignment.role,label:assignment.label??assignment.role.replaceAll("_"," "),target:input.target,purchasePurpose:source.purchasePurpose,sourceRecord:true});

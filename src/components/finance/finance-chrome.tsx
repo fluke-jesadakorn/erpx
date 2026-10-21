@@ -25,11 +25,13 @@ import { FinanceAiPanel } from "./finance-ai-panel";
 import styles from "./finance-workspace.module.css";
 import { FinancePurchaseProvider } from "./purchase-context";
 import { financeActionAllowed, type FinancePurchaseControls } from "@/server/modules/finance/public/rules/purchase-controls";
+import { hasPermission } from "@/lib/identity_access/permissions";
 
 const legacyIds = [
   "finance-overview",
   "finance-sales",
   "finance-receivables",
+  "finance-expenses",
   "finance-payables",
   "finance-bank",
   "finance-hotels",
@@ -43,6 +45,7 @@ const legacyIds = [
 ];
 const legacyLabels: Record<string, string> = {
   "finance-overview": "My work",
+  "finance-expenses": "Employee expenses",
   "finance-bank": "Cash & banking",
   "finance-hotels": "Hotel accounting",
   "finance-ledger": "Accounting",
@@ -55,6 +58,8 @@ const legacyLabels: Record<string, string> = {
 const legacyActive: Record<string, string> = {
   work: "finance-overview",
   receivables: "finance-receivables",
+  expenses: "finance-expenses",
+  "finance-expenses": "finance-expenses",
   payables: "finance-payables",
   cash: "finance-bank",
   hotels: "finance-hotels",
@@ -104,6 +109,8 @@ export function FinanceChrome({
 }: FinanceChromeProps) {
   const actions = !actionsPurpose || financeActionAllowed(purchases, actionsPurpose) ? suppliedActions : undefined;
   const context = useFeatureNavigation();
+  const expenseNavigationActor = { role: context.role ?? "employee", permissions: context.permissions, assignmentScope: context.scopeKind };
+  const canReadExpenses = hasPermission(expenseNavigationActor, "expense.read") || hasPermission(expenseNavigationActor, "expense.review.read");
   const pathname = usePathname();
   const query = useSearchParams();
   if (!context.financeWorkspaceV2)
@@ -118,7 +125,7 @@ export function FinanceChrome({
           {actions}
         </header>
         <nav className={styles.nav} aria-label="Finance work areas">
-          {legacyIds.map((id) => {
+          {legacyIds.filter(id => id !== "finance-expenses" || canReadExpenses).map((id) => {
             const destination = financeDestinations.find((entry) => entry.id === id)!;
             return (
               <Link

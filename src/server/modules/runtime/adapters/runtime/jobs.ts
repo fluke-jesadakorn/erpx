@@ -218,5 +218,11 @@ export async function supportWork(env:JobEnv) {
 }
 
 export async function customerNotificationWork(env:JobEnv) {
- for(const slot of await activeSlots(env)) await (await import("@/server/modules/sales/public/sales-customer-notifications")).drainCustomerNotifications(registeredResources(env,slot.id).write,env);
+ for(const slot of await activeSlots(env)) {
+  const write=registeredResources(env,slot.id).write;
+  try{await (await import("@/server/modules/sales/public/sales-customer-notifications")).drainCustomerNotifications(write,env);}
+  catch(error){console.error(JSON.stringify({event:"sales_customer_notification_delivery_failed",holdingId:slot.id,code:error instanceof Error?error.name:"DeliveryError"}));}
+  try{await (await import("@/server/modules/customer_authority/public/portal-invitation-delivery")).drainCustomerPortalInvitations(write,env)();}
+  catch(error){console.error(JSON.stringify({event:"customer_portal_invitation_delivery_failed",holdingId:slot.id,code:error instanceof Error?error.name:"DeliveryError"}));}
+ }
 }

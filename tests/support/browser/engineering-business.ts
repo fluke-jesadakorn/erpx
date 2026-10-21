@@ -1,8 +1,9 @@
 import {expect,type Browser,type BrowserContext,type Page,type TestInfo,type Locator} from '@playwright/test';
-import {readFile} from 'node:fs/promises';
+import {lstat,readFile,realpath} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {Pool} from 'pg';
 import {createEngineeringBrowserContext} from "./engineering-browser-evidence";
+import {decryptSensitiveSandboxEmailBody} from '../sandbox-email';
 
 export const businessBase='/holdings/simulation',businessApi=`/api/v1${businessBase}`;
 type User={email:string;role:string;roles?:string[];label:string;userId:string};
@@ -13,7 +14,7 @@ export type BusinessFixture={
  ecommerce:{channelId:string;listingId:string;cartId:string;warehouseId:string;productId:string;partyId:string;openingCountId:string;initialQuantityMilli:number;initialValueMinor:number;amountMinor:number};
  fieldService:{id:string;ticketId:string;agreementId:string;amountMinor:number;bankAccountId:string;bankTransactionId:string};
  retail:{registerId:string;registerName:string;warehouseId:string;productId:string;productName:string;openingCountId:string;initialQuantityMilli:number;initialValueMinor:number;priceMinor:number};
- customerAuthority:{bindingId:string;orderId:string;excludedOrderId:string;recipientUserId:string;recipientEmail:string;unrelatedUserId:string};
+ customerAuthority:{bindingId:string;orderId:string;excludedOrderId:string;recipientUserId:string;recipientEmail:string;invitedBindingId:string;invitedEmail:string;unrelatedUserId:string};
 };
 type State={synthetic:true;companyId:string;branchId:string;chartId:string;periodId:string;today:string;accounting:{inventory:string;wip:string;labor:string;overhead:string};personas:{sourceUserId:string;reviewerUserId:string;financeUserId:string;inspectorUserId:string};viewports:Record<string,BusinessFixture>};
 export async function businessFixture(info:TestInfo){
@@ -25,6 +26,83 @@ export async function businessFixture(info:TestInfo){
  return {run,state,fixture,credentials,db:new Pool({connectionString:url.href,max:1})};
 }
 type Loaded=Awaited<ReturnType<typeof businessFixture>>;
+/** Reads one isolated encrypted sandbox message and returns its private invitation URL in memory only. */
+type CustomerPortalMailLinkOptions={subject:string;purpose:'invitation'|'verification';deliveryKey?:string;createdAfter?:number};
+async function customerPortalControlUrl(loaded:Loaded){
+ const directory=resolve('.runtime/browser',loaded.run),manifest=JSON.parse(await readFile(resolve(directory,'databases.json'),'utf8')) as {databases:{CONTROL_DB?:string}},database=manifest.databases.CONTROL_DB;
+ if(typeof database!=='string')throw new Error('CUSTOMER_PORTAL_CONTROL_DATABASE_REQUIRED');
+ const url=new URL(database);
+ if(url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||url.pathname!==`/erpx_browser_${loaded.run}_control_db`)throw new Error('CUSTOMER_PORTAL_CONTROL_DATABASE_SCOPE_INVALID');
+ return {directory,url};
+}
+export async function customerPortalAccountState(loaded:Loaded,email:string){
+ const {url}=await customerPortalControlUrl(loaded),control=new Pool({connectionString:url.href,max:1});
+ try{
+  const row=(await control.query<{id:string;emailVerified:boolean|number|string}>(`SELECT id,"emailVerified" FROM "user" WHERE lower(email)=lower($1)`,[email])).rows[0];
+  if(!row)return null;
+  if(![true,false,0,1,'0','1'].includes(row.emailVerified))throw new Error('CUSTOMER_PORTAL_ACCOUNT_VERIFICATION_STATE_INVALID');
+  return {id:row.id,emailVerified:row.emailVerified===true||row.emailVerified===1||row.emailVerified==='1'};
+ }finally{await control.end();}
+}
+/** Reads one isolated encrypted sandbox message and returns its private link in memory only. */
+export async function customerPortalEmailLink(loaded:Loaded,email:string,options:CustomerPortalMailLinkOptions){
+ const {directory,url}=await customerPortalControlUrl(loaded);
+ const runtimePath=resolve(directory,'runtime.json'),runtimeStat=await lstat(runtimePath);
+ if(!runtimeStat.isFile()||(runtimeStat.mode&0o077)!==0||await realpath(runtimePath)!==runtimePath)throw new Error('CUSTOMER_PORTAL_PRIVATE_RUNTIME_REQUIRED');
+ const runtime=JSON.parse(await readFile(resolve(directory,'runtime.json'),'utf8')) as {secret?:unknown};
+ if(typeof runtime.secret!=='string'||!runtime.secret)throw new Error('CUSTOMER_PORTAL_ENCRYPTION_SECRET_REQUIRED');
+ const control=new Pool({connectionString:url.href,max:1});
+ try{
+  let delivery:{delivery_key:string;recipient:string;subject:string;body_text:string;body_ciphertext:string|null;provider_id:string}|undefined;
+  const query=options.deliveryKey
+   ?{sql:'SELECT delivery_key,recipient,subject,body_text,body_ciphertext,provider_id FROM sandbox_email_deliveries WHERE delivery_key=$1',values:[options.deliveryKey]}
+   :{sql:'SELECT delivery_key,recipient,subject,body_text,body_ciphertext,provider_id FROM sandbox_email_deliveries WHERE recipient=$1 AND subject=$2 AND created_at>=$3 ORDER BY created_at DESC LIMIT 1',values:[email,options.subject,options.createdAfter??0]};
+  for(let attempt=0;attempt<60&&!delivery;attempt++){
+   delivery=(await control.query<{delivery_key:string;recipient:string;subject:string;body_text:string;body_ciphertext:string|null;provider_id:string}>(query.sql,query.values)).rows[0];
+   if(!delivery)await new Promise(resolve=>setTimeout(resolve,500));
+  }
+  if(!delivery){
+   const invitationId=options.deliveryKey?.startsWith('customer-portal-invitation-')?options.deliveryKey.slice('customer-portal-invitation-'.length):undefined;
+   const state=invitationId?(await loaded.db.query<{state:string;last_error:string|null;attempts:number}>('SELECT state,last_error,attempts FROM customer_portal_invitations WHERE id=$1',[invitationId])).rows[0]:undefined;
+   throw new Error(`CUSTOMER_PORTAL_SENSITIVE_DELIVERY_NOT_REDACTED:${JSON.stringify(state??null)}`);
+  }
+  if(delivery.recipient!==email||delivery.subject!==options.subject||delivery.body_text!=='[redacted sensitive email body]'||!delivery.body_ciphertext)throw new Error('CUSTOMER_PORTAL_SENSITIVE_DELIVERY_NOT_REDACTED');
+  let body:string;
+  try{body=decryptSensitiveSandboxEmailBody(runtime.secret,delivery);}catch{throw new Error('CUSTOMER_PORTAL_SENSITIVE_DELIVERY_INVALID');}
+  const links=body.match(/https?:\/\/[^\s<>\"]+/g)??[];
+  if(links.length!==1)throw new Error('CUSTOMER_PORTAL_INVITATION_LINK_INVALID');
+  const invitation=new URL(links[0]),origin=new URL(process.env.ERPX_E2E_BASE_URL??'http://127.0.0.1:3104');
+  const valid=options.purpose==='invitation'
+   ?invitation.pathname==='/customer-portal/enroll'&&invitation.search===''&&!!new URLSearchParams(invitation.hash.slice(1)).get('token')
+   :invitation.pathname==='/api/auth/verify-email'&&!!invitation.searchParams.get('token')&&invitation.searchParams.get('callbackURL')===`${origin.origin}/customer-portal/enroll?verified=1`;
+  if(invitation.origin!==origin.origin||!valid)throw new Error('CUSTOMER_PORTAL_INVITATION_LINK_SCOPE_INVALID');
+  if(options.purpose==='invitation'){
+   const invitationId=options.deliveryKey?.startsWith('customer-portal-invitation-')?options.deliveryKey.slice('customer-portal-invitation-'.length):undefined;
+   if(!invitationId)throw new Error('CUSTOMER_PORTAL_INVITATION_ID_REQUIRED');
+   let state:{state:string;last_error:string|null}|undefined;
+   // A failed sandbox attempt remains queued until its first exponential backoff expires.
+   // Wait through that retry window so a transient worker/database error does not
+   // turn an eventually delivered invitation into a false-negative browser run.
+   for(let attempt=0;attempt<300;attempt++){
+    state=(await loaded.db.query<{state:string;last_error:string|null}>('SELECT state,last_error FROM customer_portal_invitations WHERE id=$1',[invitationId])).rows[0];
+    if(state?.state==='sent')break;
+    if(!state||['accepted','expired','failed','revoked','superseded'].includes(state.state))throw new Error(`CUSTOMER_PORTAL_INVITATION_DELIVERY_NOT_SENT:${state?.state??'missing'}:${state?.last_error??'none'}`);
+    await new Promise(resolve=>setTimeout(resolve,250));
+   }
+   if(state?.state!=='sent')throw new Error(`CUSTOMER_PORTAL_INVITATION_DELIVERY_NOT_SENT:${state?.state??'missing'}:${state?.last_error??'none'}`);
+  }
+  return invitation.href;
+ }finally{await control.end();}
+}
+/** Navigate without recording the private email link as a Playwright action argument. */
+export async function navigateCustomerPortalMailLink(page:Page,link:string){
+ try{
+  await Promise.all([
+   page.waitForNavigation({waitUntil:'commit',timeout:45_000}),
+   page.evaluate(url=>window.location.assign(url),link),
+  ]);
+ }catch{throw new Error('CUSTOMER_PORTAL_MAIL_LINK_NAVIGATION_FAILED');}
+}
 export async function businessActor(browser:Browser,info:TestInfo,loaded:Loaded,persona:'source'|'reviewer'|'finance'|'inspector',path:string){
  const userId=loaded.state.personas[`${persona}UserId`],user=loaded.credentials.users.find(row=>row.userId===userId);expect(user,`normal ${persona} credentials`).toBeTruthy();
  const role=persona==='finance'?'finance_approver':persona==='inspector'?'quality_inspector':'holding_owner',context=await createEngineeringBrowserContext(browser,info),page=await context.newPage(),origin=process.env.ERPX_E2E_BASE_URL??'http://127.0.0.1:3104';

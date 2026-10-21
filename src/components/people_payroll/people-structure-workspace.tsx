@@ -165,7 +165,7 @@ function LazyDetail({
   const query = useSearchParams(),
     archived = query.get("status") === "archived";
   const filters = new URLSearchParams();
-  if (section === "Changes")
+  if (section === "Changes" || section === "Settings")
     for (const name of ["changeId", "changeState", "changeQuery", "changePage"]) {
       const value = query.get(name);
       if (value !== null) filters.set(name, value);
@@ -176,6 +176,11 @@ function LazyDetail({
   const [result, setResult] = useState<{ key: string; detail: Detail } | null>(seeded?{key,detail:seeded}:null);
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const refresh = () => setAttempt((current) => current + 1);
+    window.addEventListener("erpx:work-changed", refresh);
+    return () => window.removeEventListener("erpx:work-changed", refresh);
+  }, []);
   useEffect(() => {
     if(seeded && !attempt)return;
     const controller = new AbortController();

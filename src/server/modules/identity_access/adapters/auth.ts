@@ -1,5 +1,5 @@
 import {createPasswordResetCompleted} from '../application/auth-hooks';
-import { authPolicy, legalInvitationAccountAllowed } from '../domain/auth';
+import { authPolicy, invitationAccountAllowed } from '../domain/auth';
 import { directoryAuthPlugin, directoryOidcConfig, localCredentialAllowed } from "@/server/modules/identity_access/public/iam-auth";
 import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
@@ -23,21 +23,29 @@ const ordinaryAuthFactories = new WeakMap<AuthRuntime, {
     pool: PostgresDatabase['pool'];
     factories: Map<string, Promise<AuthFactory>>;
 }>();
-export async function createAuth(requestOrigin?: string, directoryId?: string, legalInvitationEmail?: string) {
+type VerificationDeliveryTracker={attempted:boolean;failed:boolean;pending:Promise<void>|null};
+const invitationVerificationDeliveries=new WeakMap<object,VerificationDeliveryTracker>();
+export async function invitationVerificationOutcome(auth:object):Promise<'not-attempted'|'sent'|'failed'>{
+    const tracker=invitationVerificationDeliveries.get(auth);
+    if(!tracker?.attempted)return 'not-attempted';
+    await tracker.pending?.catch(()=>undefined);
+    return tracker.failed?'failed':'sent';
+}
+export async function createAuth(requestOrigin?: string, directoryId?: string, invitationEmail?: string) {
     const env = await runtimeEnv();
     const local = env.ERPX_ENVIRONMENT === "local";
     const beta = env.ERPX_PUBLIC_BETA === "true";
-    const policy = authPolicy({ local, defaultOrigin: env.BETTER_AUTH_URL, pmsOrigin: process.env.ERPX_FRONT_PMS_ORIGIN, posOrigin: process.env.ERPX_FRONT_POS_ORIGIN, beta, legalInvitationEmail }, requestOrigin);
+    const policy = authPolicy({ local, defaultOrigin: env.BETTER_AUTH_URL, pmsOrigin: process.env.ERPX_FRONT_PMS_ORIGIN, posOrigin: process.env.ERPX_FRONT_POS_ORIGIN, beta, invitationEmail }, requestOrigin);
     const productOrigin = trustedProductOrigin(requestOrigin ?? "");
     if (productOrigin) {
         const audience = productHostForHost(new URL(productOrigin).host)!;
         policy.baseURL = productOrigin;
         policy.cookiePrefix = `erpx-${audience}`;
         policy.trustedOrigins = [productOrigin];
-        policy.disableSignUp = !(audience==='account'&&legalInvitationEmail);
+        policy.disableSignUp = !(audience==='account'&&invitationEmail);
     }
     // Provider configuration and invitation identity are evaluated on every call.
-    if (directoryId || legalInvitationEmail) return buildAuth(env, local, policy, directoryId, legalInvitationEmail);
+    if (directoryId || invitationEmail) return buildAuth(env, local, policy, directoryId, invitationEmail);
     const pool = (env.CONTROL_DB as PostgresDatabase).pool;
     let bucket = ordinaryAuthFactories.get(env);
     if (!bucket || bucket.database !== env.CONTROL_DB || bucket.pool !== pool) {
@@ -64,10 +72,11 @@ export async function createAuth(requestOrigin?: string, directoryId?: string, l
     // context and reads the joined user/session row on each getSession call.
     return created;
 }
-async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<typeof authPolicy>, directoryId?: string, legalInvitationEmail?: string) {
+async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<typeof authPolicy>, directoryId?: string, invitationEmail?: string) {
     const { baseURL, cookiePrefix } = policy;
     const audience = productHostForHost(new URL(baseURL).host);
     const sso = audience ? productSsoStore(env.CONTROL_DB as PostgresDatabase, "development", ssoOrigins()) : null;
+    const verificationDelivery:VerificationDeliveryTracker|undefined=invitationEmail?{attempted:false,failed:false,pending:null}:undefined;
     const auth = betterAuth({
         database: drizzleAdapter(drizzle((env.CONTROL_DB as PostgresDatabase).pool, { schema: authSchema }), { provider: "pg", schema: authSchema, transaction: true }),
         baseURL,
@@ -89,7 +98,12 @@ async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<ty
             sendOnSignUp: policy.sendOnSignUp, autoSignInAfterVerification: true,
             sendVerificationEmail: async ({ user, url }) => {
                 const { sendBetaEmail } = await import("@/server/modules/manage_erpx/public/beta-email");
-                await sendBetaEmail(env, user.email, `Verify your ${policy.verificationProduct} email`, url);
+                const delivery=sendBetaEmail(env, user.email, `Verify your ${policy.verificationProduct} email`, url, undefined, { sensitive: true });
+                if(verificationDelivery){
+                    verificationDelivery.attempted=true;
+                    verificationDelivery.pending=delivery.then(()=>undefined,error=>{verificationDelivery.failed=true;throw error;});
+                    await verificationDelivery.pending;
+                } else await delivery;
             },
         },
         session: {
@@ -101,12 +115,13 @@ async function buildAuth(env: AuthRuntime, local: boolean, policy: ReturnType<ty
             storage: "database",
         },
         account: { encryptOAuthTokens: true, accountLinking: { enabled: false } },
-        databaseHooks: { ...(audience === "account" && sso ? { session: { create: { after: session => sso.registerCentral(session) } } } : {}), ...(legalInvitationEmail ? { user: { create: { before: async (user: {
+        databaseHooks: { ...(audience === "account" && sso ? { session: { create: { after: session => sso.registerCentral(session) } } } : {}), ...(invitationEmail ? { user: { create: { before: async (user: {
                             email: string;
-                        }) => legalInvitationAccountAllowed(user.email, legalInvitationEmail) ? undefined : false } } } : {}), account: { create: { before: async (account) => account.providerId === "credential" && !await localCredentialAllowed(account.userId) ? false : undefined } } },
+                        }) => invitationAccountAllowed(user.email, invitationEmail) ? undefined : false } } } : {}), account: { create: { before: async (account) => account.providerId === "credential" && !await localCredentialAllowed(account.userId) ? false : undefined } } },
         plugins: [multiSession({ maximumSessions: 5 }), directoryAuthPlugin(), ...(directoryId ? [genericOAuth({ config: [await directoryOidcConfig(directoryId)] })] : [])],
         trustedOrigins: policy.trustedOrigins,
     });
+    if(verificationDelivery)invitationVerificationDeliveries.set(auth,verificationDelivery);
     if (audience && sso) {
         const getSession = auth.api.getSession;
         Object.assign(auth.api, { getSession: async (input: { headers: Headers }) => {

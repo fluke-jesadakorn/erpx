@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/foundation";
 import { contextIsSwitching, registerContextSwitchBlocker, registerUnsavedWork, setContextSwitching } from "@/lib/work_projection/context-switch";
 
 import { usePathname, useSearchParams } from "next/navigation";
-const DraftScope = createContext<{ scope: string; close: (action: () => void, root?: () => Element | null) => void; trackCommandPending: (token: object, form: HTMLFormElement | undefined, pending: boolean) => void } | undefined>(undefined);
+type PendingCommand = { form?: HTMLFormElement; returnHref?: string };
+const DraftScope = createContext<{ scope: string; close: (action: () => void, root?: () => Element | null) => void; trackCommandPending: (token: object | string, form: HTMLFormElement | undefined, pending: boolean, returnHref?: string) => void } | undefined>(undefined);
 export const useFinanceDraftScope = () => useContext(DraftScope)?.scope;
 export function useFinanceDraftCommandPending() {
   const context = useContext(DraftScope);
-  return (token: object, completion: ReturnType<typeof captureFinanceForm>, pending: boolean) => {
-    context?.trackCommandPending(token, completion?.form, pending);
+  return (token: object | string, completion: ReturnType<typeof captureFinanceForm>, pending: boolean) => {
+    context?.trackCommandPending(token, completion?.form, pending, pending && typeof window !== "undefined" ? window.location.href : undefined);
   };
 }
 export function useFinanceDraftAction() {
@@ -39,7 +40,7 @@ export function markFinanceFormEdited(form: HTMLFormElement | null | undefined) 
 
 /** Track dirty Finance forms and unresolved commands; searches and filters are never drafts. */
 export function FinanceDraftBoundary({ children }: { children: ReactNode }) {
-  const scope = useId(), trigger = useRef<HTMLAnchorElement | null>(null), dirtyForms=useRef(new Set<HTMLFormElement>()), pendingCommands=useRef(new Map<object,HTMLFormElement|undefined>());
+  const scope = useId(), trigger = useRef<HTMLAnchorElement | null>(null), dirtyForms=useRef(new Set<HTMLFormElement>()), pendingCommands=useRef(new Map<object|string,PendingCommand>());
   const [destination, setDestination] = useState<string | null>(null), [closing, setClosing] = useState(false), [commandPending,setCommandPending]=useState(false);
   const closeGuard = useRef<(action: () => void, root?: () => Element | null) => void>(action => action()), pendingClose = useRef<{action: () => void; root?: Element; readRoot?: () => Element | null} | null>(null), clearDrafts = useRef<(root?: Element) => void>(() => {});
   const pathname = usePathname(), query = useSearchParams().toString();
@@ -51,10 +52,10 @@ export function FinanceDraftBoundary({ children }: { children: ReactNode }) {
     const discardDisconnected = (forms:Set<HTMLFormElement>) => { for (const form of forms) if (!form.isConnected) forms.delete(form); };
     const dirty = (root?: Element) => {
       discardDisconnected(forms);
-      return [...forms].some(form => !root || root.contains(form))||[...pendingCommands.current.values()].some(form=>!form||!root||root.contains(form));
+      return [...forms].some(form => !root || root.contains(form))||[...pendingCommands.current.values()].some(command=>!command.form||!root||root.contains(command.form));
     };
     const unregister = registerUnsavedWork(dirty), unregisterSwitchBlocker = registerContextSwitchBlocker(() => pendingCommands.current.size > 0 ? "An original Finance request is awaiting confirmation. Return to Finance and retry it before switching account, Company, or role." : null);
-    clearDrafts.current = root => { for (const form of forms) if (!root || root.contains(form)) forms.delete(form);for(const [token,form]of pendingCommands.current)if(form&&(!root||root.contains(form)))pendingCommands.current.delete(token); };
+    clearDrafts.current = root => { for (const form of forms) if (!root || root.contains(form)) forms.delete(form);for(const [token,command]of pendingCommands.current)if(command.form&&(!root||root.contains(command.form)))pendingCommands.current.delete(token); };
     closeGuard.current = (action, readRoot) => {
       const root = readRoot?.();
       if (readRoot && (!root || !root.isConnected)) return;
@@ -115,20 +116,30 @@ export function FinanceDraftBoundary({ children }: { children: ReactNode }) {
     };
   }, [scope, pathname, query]);
   const stayHere=()=>{setDestination(null);setClosing(false);pendingClose.current=null;};
-  const trackCommandPending = (token: object, form: HTMLFormElement | undefined, pending: boolean) => {
+  const trackCommandPending = (token: object|string, form: HTMLFormElement | undefined, pending: boolean, returnHref?: string) => {
     if (pending) {
-      pendingCommands.current.set(token, form);
+      const existing=pendingCommands.current.get(token);
+      pendingCommands.current.set(token, {form,returnHref:existing?.returnHref??returnHref});
       setCommandPending(pendingCommands.current.size > 0);
       return;
     }
     pendingCommands.current.delete(token);
     setCommandPending(pendingCommands.current.size > 0);
   };
+  const returnToOriginalRequest=()=>{
+    const href=[...pendingCommands.current.values()].map(command=>command.returnHref).find((value):value is string=>typeof value==="string");
+    if(!href||typeof window==="undefined")return stayHere();
+    try{
+      const target=new URL(href,window.location.href);
+      if(target.origin!==window.location.origin||!["http:","https:"].includes(target.protocol)||target.href===window.location.href)return stayHere();
+      setContextSwitching(true);window.location.assign(target.href);
+    }catch{return stayHere();}
+  };
   return <DraftScope.Provider value={{scope, close: (action, root) => closeGuard.current(action, root),trackCommandPending}}>{children}
     <Dialog appearance="standard" open={destination !== null || closing} title={commandPending?"Confirm pending Finance action":closing ? "Discard unsaved Finance changes?" : "Leave unsaved Finance work?"} onClose={stayHere} finalFocus={() => trigger.current}>
       <p>{commandPending?"The original Finance request may have completed. Retry its original confirmation before leaving this page.":"Your changes have not been saved. Leaving will discard them."}</p>
       <div className="ui-form-actions">
-        {commandPending?<Button appearance="standard" data-autofocus onClick={stayHere}>Return to the original request</Button>:<Button appearance="standard" data-autofocus onClick={stayHere}>Keep editing</Button>}
+        {commandPending?<Button appearance="standard" data-autofocus onClick={returnToOriginalRequest}>Return to the original request</Button>:<Button appearance="standard" data-autofocus onClick={stayHere}>Keep editing</Button>}
         {!commandPending&&<Button appearance="standard" variant="danger" onClick={() => {
           if (closing) {
             const pending = pendingClose.current; pendingClose.current = null; setClosing(false);

@@ -62,7 +62,7 @@ export default async function Expense({
   const staffOptions = await expensePageCapabilities(actor);
   if (expense.workflow_version === 2)
     return (
-      <ExpenseEnvironment actor={actor}><FeaturePage className="ui-page-content" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="receivables" title={String(expense.merchant || "New expense claim")} description={`${expense.legal_name} · ${expense.request_kind === "payment" ? "Payment request" : "Expense claim"}`} actions={<StatusBadge appearance="standard" status={String(expense.status)}/>}><WorkReturn base={base}/><BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title={expense.request_kind === "payment" ? "Payment request" : "Expense claim"} reference={String(expense.receipt_reference ?? id)} printing={printing}/><ExpenseWorkflowPage
+      <ExpenseEnvironment actor={actor}><FeaturePage className="ui-page-content" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="finance-expenses" title={String(expense.merchant || "New expense claim")} description={`${expense.legal_name} · ${expense.request_kind === "payment" ? "Payment request" : "Expense claim"}`} actions={<StatusBadge appearance="standard" status={String(expense.status)}/>}><WorkReturn base={base}/><BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title={expense.request_kind === "payment" ? "Payment request" : "Expense claim"} reference={String(expense.receipt_reference ?? id)} printing={printing}/><ExpenseWorkflowPage
         base={base}
         actor={actor}
         data={data}
@@ -81,7 +81,7 @@ export default async function Expense({
     ].includes(actor.userId);
   const flow = await documentFlow(actor,"expense",id);
   return (
-    <ExpenseEnvironment actor={actor}><FeaturePage className="ui-page-content" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="receivables" title={String(expense.merchant)} description={`${expense.legal_name} · ${expense.expense_date} · ${expense.category_name}`} actions={<StatusBadge appearance="standard" status={String(expense.status)}/>}><WorkReturn base={base}/>
+    <ExpenseEnvironment actor={actor}><FeaturePage className="ui-page-content" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="finance-expenses" title={String(expense.merchant)} description={`${expense.legal_name} · ${expense.expense_date} · ${expense.category_name}`} actions={<StatusBadge appearance="standard" status={String(expense.status)}/>}><WorkReturn base={base}/>
       <BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title="Expense claim" reference={String(expense.receipt_reference ?? id)} printing={printing}/>
       <FinanceLegacyHeading><Link className="back-link" href={canonicalUiHref(`${base}/expenses`)}>
         ← Employee expenses

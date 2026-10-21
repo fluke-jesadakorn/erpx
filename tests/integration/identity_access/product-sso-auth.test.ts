@@ -61,6 +61,13 @@ it("completes start/authorize/callback with host-bound cookies and a clean URL t
   const { productSsoRequest } = await import("@/server/modules/identity_access/adapters/product-sso");
   const { createAuth } = await import("@/server/modules/identity_access/adapters/auth");
   const central = await signIn(issuer);
+  const accountAuth = await createAuth(issuer);
+  const parent = await accountAuth.api.getSession({ headers: request(issuer, "/", central.cookie).headers });
+  expect(parent?.user.email).toBe(email);
+  if (!parent) throw new Error("ACCOUNT_PARENT_SESSION_REQUIRED");
+  const parentBinding = await db.prepare(`SELECT b.audience,b.environment,b.parent_session_id,s."userId" AS user_id
+    FROM sso_session_bindings b JOIN session s ON s.id=b.session_id WHERE b.session_id=?`).bind(parent.session.id).first();
+  expect(parentBinding).toEqual({ audience: "account", environment: "development", parent_session_id: null, user_id: parent.user.id });
   const start = await productSsoRequest(request(app, "/sso/start?next=" + encodeURIComponent("/holdings/acme/finance/documents?status=paid")), "start");
   expect(start.status).toBe(303);
   const authorizeUrl = new URL(start.headers.get("location")!);
@@ -75,6 +82,11 @@ it("completes start/authorize/callback with host-bound cookies and a clean URL t
   expect(callback.headers.get("referrer-policy")).toBe("no-referrer");
   const child = await (await createAuth(app)).api.getSession({ headers: request(app, "/", cookies(callback)).headers });
   expect(child?.user.email).toBe(email);
+  expect(child?.user.id).toBe(parent.user.id);
+  if (!child) throw new Error("FINANCE_CHILD_SESSION_REQUIRED");
+  const childBinding = await db.prepare(`SELECT b.audience,b.environment,b.parent_session_id,s."userId" AS user_id
+    FROM sso_session_bindings b JOIN session s ON s.id=b.session_id WHERE b.session_id=?`).bind(child.session.id).first();
+  expect(childBinding).toEqual({ audience: "finance", environment: "development", parent_session_id: parent.session.id, user_id: parent.user.id });
   const copied = await (await createAuth("https://people-dev-erpx.jesadakorn.com")).api.getSession({ headers: request("https://people-dev-erpx.jesadakorn.com", "/", cookies(callback)).headers });
   expect(copied).toBeNull();
   const replay = await productSsoRequest(request(app, callbackUrl.pathname + callbackUrl.search, cookies(start)), "callback");

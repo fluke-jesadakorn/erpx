@@ -78,12 +78,14 @@ it("rejects late fingerprint interruption while retaining completed cleanup and 
   const mockedModules = ["node:child_process", "node:net", "../../scripts/testing/catalogue", "../../scripts/local/source-fingerprint", "../../../scripts/testing/required-case-inventory", "../../scripts/testing/browser-prerequisites", "../../scripts/testing/browser-evidence"];
   const suite: Suite = { id: "controlled.e2e", owner: "shared.test-infrastructure", modules: [], lane: "e2e", fixture: "general-company", files: ["tests/e2e/controlled.spec.ts"], requires: { jobs: false, scanner: false } };
   const identity: BrowserCaseIdentity = { suite: suite.id, file: suite.files[0], title: "retained business case", project: "desktop" };
+  const unrelatedTitle = "another required but unselected case";
   const fingerprint = "a".repeat(64);
   for (const boundary of ["none", "runtime", "verification", "probe"] as const) {
     const root = await mkdtemp(join(tmpdir(), "erpx-browser-interruption-"));
     const listenersBefore = new Set(process.listeners("SIGINT"));
     const retained: string[] = [], destroyed: string[] = [];
-    let executed = false, liveChildren = 0, blocked = false;
+    let executed = false, liveChildren = 0, blocked = false, prepared = 0;
+    const executedTitles: string[] = [];
     let reached!: () => void, release!: () => void;
     const atBoundary = new Promise<void>(done => { reached = done; });
     const fingerprintPending = new Promise<void>(done => { release = done; });
@@ -97,7 +99,7 @@ it("rejects late fingerprint interruption while retaining completed cleanup and 
       vi.stubGlobal("fetch", vi.fn(async () => ({ status: 200 })));
       vi.doMock("../../../scripts/testing/catalogue", () => ({ repositoryRoot: root }));
       vi.doMock("../../../scripts/local/source-fingerprint", () => ({ runtimeSourceFingerprint: () => source("runtime"), verificationSourceFingerprint: () => source("verification") }));
-      vi.doMock("../../../scripts/assets/prepare-pdf-assets", () => ({ preparePdfAssets: async () => {} }));
+      vi.doMock("../../../scripts/assets/prepare-pdf-assets", () => ({ preparePdfAssets: async () => { prepared++; } }));
       vi.doMock("../../../scripts/testing/required-case-inventory", async () => ({ ...await vi.importActual<typeof import("../../../scripts/testing/required-case-inventory")>("../../../scripts/testing/required-case-inventory"), loadRequiredCases: () => [{ runner: "playwright", file: identity.file, title: identity.title, project: identity.project }] }));
       vi.doMock("../../../scripts/testing/browser-prerequisites", () => ({ prepareBrowserCasePrerequisites: async () => ({}) }));
       vi.doMock("../../../scripts/testing/browser-evidence", () => ({ retainBrowserFixtureEvidence: async (_root: string, run: string) => { retained.push(run); } }));
@@ -117,8 +119,12 @@ it("rejects late fingerprint interruption while retaining completed cleanup and 
             } else if (args.includes("destroy")) { await rm(directory, { recursive: true }); destroyed.push(run); }
             else if (args.includes("--reporter=json")) {
               const collection = args.includes("--list");
-              await writeFile(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME, JSON.stringify({ suites: [{ title: "controlled.spec.ts", specs: [{ file: identity.file, title: identity.title, tests: [{ projectName: identity.project, expectedStatus: "passed", status: "expected", results: collection ? [] : [{ status: "passed" }] }] }] }] }));
-              if (!collection) executed = true;
+              const unrelated = !collection && args.some(arg => arg.includes(unrelatedTitle));
+              const title = unrelated ? unrelatedTitle : identity.title;
+              const specs = [{ file: identity.file, title, tests: [{ projectName: identity.project, expectedStatus: "passed", status: "expected", results: collection ? [] : [{ status: "passed" }] }] }];
+              if (collection) specs.push({ file: identity.file, title: unrelatedTitle, tests: [{ projectName: identity.project, expectedStatus: "passed", status: "expected", results: [] }] });
+              await writeFile(options.env.PLAYWRIGHT_JSON_OUTPUT_NAME, JSON.stringify({ suites: [{ title: "controlled.spec.ts", specs }] }));
+              if (!collection) { executed = true; executedTitles.push(title); }
             }
             liveChildren--; child.emit("exit", 0);
           } catch (error) { liveChildren--; child.emit("error", error); }
@@ -126,7 +132,10 @@ it("rejects late fingerprint interruption while retaining completed cleanup and 
         return child;
       } }));
       const runner = await import("../../../scripts/testing/browser-runner");
-      const result = runner.runBrowserSuites([suite], { projects: ["desktop"], ...(boundary === "probe" ? { faultProbe: identity } : {}) }).then(value => ({ value, error: undefined }), error => ({ value: undefined, error }));
+      await expect(runner.runBrowserSuites([suite], { projects: ["desktop"], caseSelection: [{ suite: suite.id, title: "unregistered case", project: "desktop" }] }))
+        .rejects.toThrow("UNKNOWN_REGISTERED_BROWSER_CASE");
+      expect(prepared).toBe(0);
+      const result = runner.runBrowserSuites([suite], { projects: ["desktop"], ...(boundary === "probe" ? { faultProbe: identity } : { caseSelection: [{ suite: suite.id, file: identity.file, title: identity.title, project: identity.project }] }) }).then(value => ({ value, error: undefined }), error => ({ value: undefined, error }));
       if (boundary === "runtime" || boundary === "verification") {
         await atBoundary;
         expect(liveChildren).toBe(0);
@@ -141,6 +150,10 @@ it("rejects late fingerprint interruption while retaining completed cleanup and 
       expect(receipt.cleanupFailures).toEqual([]);
       expect(receipt.receipts).toHaveLength(1);
       expect(receipt.receipts[0].cleanup).toEqual({ completed: true, ownedDirectoryAbsent: true });
+      if (boundary !== "probe") {
+        expect(receipt.inventory.map(item => item.title)).toEqual([identity.title]);
+        expect(executedTitles).toEqual([identity.title]);
+      }
       expect(retained).toHaveLength(3);
       expect(new Set(destroyed)).toEqual(new Set(retained));
       expect(retained.every(run => !existsSync(join(root, ".runtime/browser", run)))).toBe(true);

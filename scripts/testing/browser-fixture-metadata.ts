@@ -16,7 +16,7 @@ export function clonedFixtureMetadata(value: unknown, templateRun: string, run: 
 }
 
 export function isClonedFixtureDocument(name: string) {
-  return ["credentials.json", "fixture.json", "demo-guide.json", "hospitality-guide.json", "legal-guide.json", "legal-credentials.json", "engineering-money-people.json", "engineering-thai-payroll.json", "engineering-finance-close.json", "workplace-platform-guide.json", "workplace-platform-credentials.json"].includes(name);
+  return ["credentials.json", "fixture.json", "demo-guide.json", "hospitality-guide.json", "legal-guide.json", "legal-credentials.json", "engineering-money-people.json", "engineering-thai-payroll.json", "engineering-finance-close.json", "workplace-platform-guide.json", "workplace-platform-credentials.json", "executive-work-credentials.json"].includes(name);
 }
 
 /** Execution evidence must be produced by the new case, never inherited and relabelled. */
@@ -36,7 +36,7 @@ export function moduleBrowserHoldingDisplayName(profile: string): string {
   return ["local-seed", "staff-work"].includes(profile) ? "Acme Group" : "Isolated Acme fixture";
 }
 
-const moduleReleaseProfiles = new Set(["local-seed", "staff-work", "expense", "work-cards", "messaging", "services"]);
+const moduleReleaseProfiles = new Set(["local-seed", "staff-work", "expense", "work-cards", "messaging", "services", "executive-work"]);
 
 /** Compiled module cohorts may enroll only the Companies created by their own fixture. */
 export function moduleBrowserReleaseVerificationCompanyIds(profile: string, fixture: unknown): string[] | null {

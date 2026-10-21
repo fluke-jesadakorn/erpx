@@ -322,10 +322,69 @@ test("H002 guest journey includes independent guest account correction, payment,
     const incorrectRow = cashierPage.locator("tr").filter({ hasText: incorrectDescription });
     await expect(incorrectRow).toBeVisible();
     const correctionReason = `Fictional minibar line was entered by mistake; request independent reversal ${run}`;
-    const correctionForm = incorrectRow.locator("details").filter({ hasText: "Request reversal" });
+    const guestAccountAfterCharge = (await (await cashier.request.get(pmsApi)).json()).data;
+    const incorrectEntry = guestAccountAfterCharge.snapshot.records.find((record: PmsRecord) => record.kind === "entry" && record.data.description === incorrectDescription) as PmsRecord | undefined;
+    expect(incorrectEntry).toBeTruthy();
+    await incorrectRow.getByRole("link", { name: incorrectDescription, exact: true }).click();
+    const recordDrawer = cashierPage.locator('[data-testid="record-detail-drawer"]');
+    await expect(recordDrawer).toBeVisible();
+    await expect(recordDrawer.locator('[data-record-drawer-content]')).toContainText("Guest Account entry");
+    const correctionForm = recordDrawer.locator("details").filter({ hasText: "Request reversal" });
     await correctionForm.locator("summary").click();
     await correctionForm.locator('input[name="reason"]').fill(correctionReason);
-    const requested = await sendPms(cashierPage, "Request reversal");
+
+    let releaseCorrectionAck!: () => void;
+    let markCorrectionRequestReached!: () => void;
+    const correctionAckGate = new Promise<void>(resolve => { releaseCorrectionAck = resolve; });
+    const correctionRequestReached = new Promise<void>(resolve => { markCorrectionRequestReached = resolve; });
+    let correctionPostCount = 0;
+    let capturedCorrectionCommand: { operation?: string; input?: { id?: string; reason?: string } } | undefined;
+    const commandRoute = `**${pmsCommandPath}`;
+    await cashierPage.route(commandRoute, async route => {
+      const request = route.request();
+      if (request.method() !== "POST") return route.continue();
+      const command = request.postDataJSON() as { operation?: string; input?: { id?: string; reason?: string } };
+      if (command.operation !== "charge.correction.request" || command.input?.id !== incorrectEntry!.id) return route.continue();
+      correctionPostCount++;
+      capturedCorrectionCommand = command;
+      const committedResponse = await route.fetch();
+      markCorrectionRequestReached();
+      await correctionAckGate;
+      await route.fulfill({ response: committedResponse });
+    });
+    let requested: { data: { id?: string; [key: string]: unknown } } | null = null;
+    try {
+      const submit = correctionForm.getByRole("button", { name: "Request reversal", exact: true }).click();
+      await correctionRequestReached;
+      expect(correctionPostCount).toBe(1);
+      expect(capturedCorrectionCommand).toMatchObject({ operation: "charge.correction.request", input: { id: incorrectEntry!.id, reason: correctionReason } });
+      const newerReason = `Newer cashier note typed while correction acknowledgement is pending ${run}`;
+      await correctionForm.locator('input[name="reason"]').fill(newerReason);
+      await expect(recordDrawer.getByRole("status").filter({ hasText: "Unsaved changes" })).toBeVisible();
+      const response = cashierPage.waitForResponse(row => row.request().method() === "POST" && row.url().endsWith(pmsCommandPath));
+      releaseCorrectionAck();
+      await submit;
+      const result = await response;
+      expect(result.ok(), `${result.status()}: ${await result.text()}`).toBe(true);
+      requested = await result.json() as { data: { id?: string; [key: string]: unknown } };
+      await expect(recordDrawer.getByText("Awaiting independent review", { exact: true })).toBeVisible();
+      await expect(recordDrawer.locator('[data-record-drawer-retained-draft]')).toContainText(newerReason);
+      await expect(recordDrawer.getByRole("status").filter({ hasText: "Unsaved changes" })).toBeVisible();
+      expect(correctionPostCount).toBe(1);
+
+      await recordDrawer.getByRole("button", { name: /Close details|Close dialog/ }).click();
+      await expect(cashierPage.getByRole("heading", { name: "Discard unsaved changes?", exact: true })).toBeVisible();
+      await cashierPage.getByRole("button", { name: "Keep editing", exact: true }).click();
+      await expect(recordDrawer.locator('[data-record-drawer-retained-draft]')).toContainText(newerReason);
+      await expect(recordDrawer.getByRole("status").filter({ hasText: "Unsaved changes" })).toBeVisible();
+      await recordDrawer.getByRole("button", { name: /Close details|Close dialog/ }).click();
+      await cashierPage.getByRole("button", { name: "Discard changes", exact: true }).click();
+      await expect(recordDrawer).not.toBeVisible();
+    } finally {
+      releaseCorrectionAck();
+      await cashierPage.unroute(commandRoute);
+    }
+    if (!requested) throw new Error("PMS correction request was not acknowledged.");
     const correctionId = String(requested.data.id);
     expect(correctionId).toMatch(/^pms-correction-/);
 

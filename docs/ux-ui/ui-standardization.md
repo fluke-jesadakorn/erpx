@@ -1,6 +1,6 @@
 # ERPX shared UI standardization
 
-Status: implementation in progress, **not accepted as complete**. The [verification receipt](standard-verification.json) records its original source's checks, environment health and deliberately failing completion gate. The regenerated [coverage manifest](standard-coverage.json) currently inventories 1236 route files and 719 component files, including the pre-existing canonical route split. Route dependency closures use a shared path table to keep the generated inventory compact. Source inventory and browser smoke observations do not prove every permission, data, popup, print, and query state. The completion guard intentionally fails while those cases remain pending.
+Status: implementation in progress, **not accepted as complete**. The [verification receipt](standard-verification.json) records its original source's checks, environment health and deliberately failing completion gate. The regenerated [coverage manifest](standard-coverage.json) currently inventories 1237 route files and 721 component files, including the pre-existing canonical route split. Route dependency closures use a shared path table to keep the generated inventory compact. Source inventory and browser smoke observations do not prove every permission, data, popup, print, and query state. The completion guard intentionally fails while those cases remain pending.
 
 ## Shared presentation
 

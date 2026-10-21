@@ -2536,6 +2536,24 @@
       }
     },
     {
+      "id": "customer_authority.portal-invitation.e2e",
+      "lane": "e2e",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority",
+        "customer_360",
+        "identity_access"
+      ],
+      "files": [
+        "tests/e2e/customer_authority/portal-invitation.spec.ts"
+      ],
+      "fixture": "general-company",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
       "id": "customer_360.demo-customer-timeline.e2e",
       "lane": "e2e",
       "owner": "customer_360",
@@ -6673,6 +6691,22 @@
         "tests/unit/marketing/public-forms-page.test.tsx"
       ],
       "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "marketing.forms-host.e2e",
+      "lane": "e2e",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "files": [
+        "tests/e2e/marketing/forms-host.spec.ts"
+      ],
+      "fixture": "engineering",
       "requires": {
         "jobs": false,
         "scanner": false
@@ -11006,7 +11040,8 @@
         "collaboration"
       ],
       "files": [
-        "tests/unit/customer_authority/customer-authority-application.test.ts"
+        "tests/unit/customer_authority/customer-authority-application.test.ts",
+        "tests/unit/customer_authority/portal-invitations.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -11263,7 +11298,8 @@
         "operations"
       ],
       "files": [
-        "tests/unit/manage_erpx/management-services.test.ts"
+        "tests/unit/manage_erpx/management-services.test.ts",
+        "tests/unit/manage_erpx/sandbox-email-protection.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -13727,6 +13763,26 @@
       "fixture": "none",
       "requires": {
         "jobs": false,
+        "scanner": false
+      }
+    },
+    {
+      "id": "shared.executive.executive-work-mcp.e2e",
+      "lane": "e2e",
+      "owner": "shared.executive",
+      "modules": [
+        "commercial",
+        "identity_access",
+        "manage_erpx",
+        "operations",
+        "people_payroll"
+      ],
+      "files": [
+        "tests/e2e/shared.executive/executive-work-mcp.spec.ts"
+      ],
+      "fixture": "executive-work",
+      "requires": {
+        "jobs": true,
         "scanner": false
       }
     }

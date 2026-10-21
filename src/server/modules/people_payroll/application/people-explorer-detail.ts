@@ -11,7 +11,7 @@ export function createPeopleExplorerApplication(ports:PeopleExplorerPorts){async
   const canReadPay = hasPermission(actor, "people.compensation.read") || hasPermission(actor, "people.compensation.payroll");
   const tabs = peopleExplorerTabs(selection.kind, local && canManage, local && canReadPay);
   if (!tabs.some(t => t.toLowerCase() === tab.toLowerCase())) throw new BusinessRuleError(403, "EXPLORER_TAB_FORBIDDEN", "This detail section is not available to your role.");
-  const search = { ...(tab.toLowerCase() === "changes" ? changeSearch : {}), person: person?.id, department: selection.kind === "department" ? selection.id : undefined, team: selection.kind === "team" ? selection.id : undefined, tab: tab.toLowerCase() };
+  const search = { ...(["changes","settings"].includes(tab.toLowerCase()) ? changeSearch : {}), person: person?.id, department: selection.kind === "department" ? selection.id : undefined, team: selection.kind === "team" ? selection.id : undefined, tab: tab.toLowerCase() };
   const base = canonicalUiHref(`/holdings/${actor.holdingSlug}`);
   const selected = person;
   const currentCompany = selected?.companyId === actor.companyId;

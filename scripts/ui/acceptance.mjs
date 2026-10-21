@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {existsSync,lstatSync,readFileSync,realpathSync} from 'node:fs';
 import {createReadStream} from 'node:fs';
-import {resolve,dirname,isAbsolute} from 'node:path';
+import {resolve,dirname,isAbsolute,join,relative} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {inflateSync} from 'node:zlib';
 
@@ -12,6 +12,13 @@ const sha=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const fail=code=>{throw Error(code);};
 const widths=[320,390,768,1024,1440],themes=['light','dark','system'];
+const formsHostOrigin='https://forms-dev-erpx.jesadakorn.com';
+const formsHostWorkflow='forms.versioned-consent-submit-replay';
+const formsHostSuite='marketing.forms-host.e2e';
+const formsHostFile='tests/e2e/marketing/forms-host.spec.ts';
+const formsHostTitle='isolated anonymous Forms host submits the published version and replays exact consent once';
+const formsHostOwnerContext='Anonymous public visitor; no ERPX account or authenticated session';
+const formsHostAuthorityBranch='published public marketing form';
 const basicChecks=['long-thai','dense-data','currency','keyboard','focus','escape','dirty-reload','history','product-switch','loaded','loading','empty','error','validation','denied','stale','disabled/read-only','pagination/search/reset','portalled popup/draft focus','print if document'];
 const sorted=values=>[...values].sort();
 const unique=(values,code)=>{if(new Set(values).size!==values.length)fail(code);return values;};
@@ -46,11 +53,35 @@ function routeMatches(route,url){
  const escaped=route.split('/').filter(Boolean).map(part=>/^\[\[\.\.\.[^\]]+\]\]$/.test(part)?'(?:/.*)?':/^\[\.\.\.[^\]]+\]$/.test(part)?'/.+':/^\[[^\]]+\]$/.test(part)?'/[^/]+':'/'+escape(part)).join('')||'/';
  return new RegExp(`^${escaped}/?$`).test(new URL(url).pathname);
 }
-function acceptedUrl(value,state,transport){
+function acceptedUrl(value,state,transport,formsLease){
  let url;try{url=new URL(value);}catch{fail('UI_OBSERVED_URL_REQUIRED');}
  if(url.username||url.password||state.origin!=='http://127.0.0.1:3104')fail('UI_OWNED_COMPILED_ORIGIN_REQUIRED');
+ if(formsLease){
+  const fixture=formsLease.fixture,expected=new URL(`/forms/${encodeURIComponent(fixture.slug)}/${encodeURIComponent(fixture.formId)}?utm_source=${encodeURIComponent(`Declared fictional Forms visitor ${formsLease.run}`)}`,formsHostOrigin);
+  if(transport!==formsLease||state.formsHosts!==true||state.productHosts!==false||state.executiveWorkHosts!==false||url.href!==expected.href)fail('UI_FORMS_HOST_ROUTE_REQUIRED');
+  return url;
+ }
  if(transport)return transport.projectUrl(url.href);
  if(state.productHosts===true||url.origin!==state.origin)fail('UI_OWNED_COMPILED_ORIGIN_REQUIRED');return url;
+}
+function isFormsHostCase(nativeCase){return nativeCase.suite===formsHostSuite&&nativeCase.file===formsHostFile&&nativeCase.title===formsHostTitle;}
+function validFormsHostLease(lease,nativeCase,state,observation,current){
+ const evidence=lease?.requestEvidence,fixture=lease?.fixture,ui=lease?.ui,backend=ui?.backend,stateBinding=backend?.state;
+ const statePath=typeof stateBinding?.path==='string'?stateBinding.path.replaceAll('\\','/') : '';
+ return object(lease)&&lease.schema==='erpx-owned-forms-host-browser/v1'&&lease.run===nativeCase.run&&lease.workflow===formsHostWorkflow&&lease.origin===formsHostOrigin&&
+  lease.formsOnly===true&&lease.productHosts===false&&lease.executiveWorkHosts===false&&lease.commercial===false&&lease.mfa===false&&lease.apply===false&&lease.packageEnforcement===false&&lease.wholeProductAcceptance===false&&
+  lease.sourceFingerprint===current.runtimeFingerprint&&lease.verificationFingerprint===current.verificationFingerprint&&lease.release?.id===state.release?.id&&lease.release?.fileManifestSha256===state.release?.fileManifestSha256&&
+  object(fixture)&&fixture.slug==='simulation'&&/^[A-Za-z0-9_-]{1,180}$/.test(fixture.formId??'')&&Number.isSafeInteger(fixture.formVersion)&&fixture.formVersion>0&&
+  (fixture.mediaPublicationId===undefined||/^[A-Za-z0-9_-]{1,180}$/.test(fixture.mediaPublicationId))&&
+  Number.isSafeInteger(lease.pid)&&lease.pid>0&&lease.port===3102&&lease.upstream==='http://127.0.0.1:3104'&&sha(lease.spki)&&sha(lease.certificateSha256)&&
+  object(lease.plan)&&text(lease.plan.path)&&sha(lease.plan.sha256)&&object(lease.certificate)&&sha(lease.certificate.sha256)&&object(lease.key)&&sha(lease.key.sha256)&&object(lease.ca)&&sha(lease.ca.sha256)&&object(lease.chromium)&&sha(lease.chromium.sha256)&&
+  object(lease.databases)&&text(lease.databases.path)&&sha(lease.databases.sha256)&&Number.isSafeInteger(lease.databases.bytes)&&lease.databases.bytes>0&&object(lease.fixtureGuide)&&text(lease.fixtureGuide.path)&&sha(lease.fixtureGuide.sha256)&&Number.isSafeInteger(lease.fixtureGuide.bytes)&&lease.fixtureGuide.bytes>0&&
+  ui?.version===1&&ui.listener?.address==='127.0.0.1'&&ui.listener?.port===3102&&ui.listener?.pid===lease.pid&&
+  Number.isSafeInteger(backend?.pid)&&backend.pid===state.pid&&Number.isSafeInteger(backend?.jobsPid)&&backend.jobsPid===state.jobsPid&&
+  typeof backend?.webEntrypoint==='string'&&backend.webEntrypoint===state.webEntrypoint&&typeof backend?.jobsEntrypoint==='string'&&backend.jobsEntrypoint===state.jobsEntrypoint&&
+  statePath.endsWith(`/.runtime/browser/${nativeCase.run}/state.json`)&&stateBinding.sha256===observation.state.sha256&&stateBinding.bytes===observation.state.bytes&&
+  typeof ui.source?.path==='string'&&ui.source.path.endsWith('/scripts/testing/forms-host-cohort.ts')&&
+  object(evidence)&&evidence.acceptedPosts===2&&evidence.replayCount===1&&evidence.refusalCount===0&&Array.isArray(evidence.refusalLog)&&evidence.refusalLog.length===0&&sha(evidence.bodySha256)&&sha(evidence.idempotencyKeySha256);
 }
 function originalCaseLeaves(nativeCase,observation){
  const witness=nativeCase.uiEvidence;
@@ -59,7 +90,9 @@ function originalCaseLeaves(nativeCase,observation){
  const observed=witness.observations.filter(binding=>binding.path===observation.observation?.path),images=witness.screenshots.filter(binding=>binding.path===observation.screenshot?.path);
  if(!sameLeaf(observation.report,witness.report)||!sameLeaf(observation.state,witness.state)||observed.length!==1||images.length!==1||!sameLeaf(observation.observation,observed[0])||!sameLeaf(observation.screenshot,images[0]))fail('UI_ORIGINAL_CASE_LEAF_CHANGED');
  if(witness.productHostLease!==undefined&&!sameLeaf(nativeCase.productHostLease,witness.productHostLease))fail('UI_ORIGINAL_PRODUCT_HOST_LEASE_CHANGED');
- for(const binding of [witness.report,witness.state,...witness.observations,...witness.screenshots,...(witness.productHostLease?[witness.productHostLease]:[])])pathName(binding.path);
+ if(witness.formsHostLease!==undefined&&!sameLeaf(nativeCase.formsHostLease,witness.formsHostLease))fail('UI_ORIGINAL_FORMS_HOST_LEASE_CHANGED');
+ if(nativeCase.formsHostLease!==undefined&&witness.formsHostLease===undefined)fail('UI_ORIGINAL_FORMS_HOST_LEASE_REQUIRED');
+ for(const binding of [witness.report,witness.state,...witness.observations,...witness.screenshots,...(witness.productHostLease?[witness.productHostLease]:[]),...(witness.formsHostLease?[witness.formsHostLease]:[])])pathName(binding.path);
 }
 function pngSize(bytes){
  if(bytes.length<45||!bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))||bytes.readUInt32BE(8)!==13||bytes.subarray(12,16).toString()!=='IHDR')fail('UI_NATIVE_PNG_REQUIRED');
@@ -106,8 +139,17 @@ export async function validateUiAcceptance({index,inventory,frozen,retirements,c
     if(!/^[a-f0-9]{12}$/.test(nativeCase.run??'')||actual.run!==nativeCase.run||nativeCase.cleanup?.completed!==true||nativeCase.cleanup.ownedDirectoryAbsent!==true||state.run!==nativeCase.run||state.sourceFingerprint!==current.runtimeFingerprint||state.softwareVersion!==`release-${current.runtimeFingerprint}`||state.release?.id!==candidate.release.id||state.release.fileManifestSha256!==candidate.release.fileManifestSha256||state.ready!==true||state.diagnostic||state.port!==3104||state.origin!=='http://127.0.0.1:3104'||!Number.isInteger(state.pid)||state.pid<1||!Number.isInteger(state.jobsPid)||state.jobsPid<1||state.jobsPaused===true||!state.webEntrypoint?.endsWith(`/.runtime/browser/${nativeCase.run}/release/server.js`)||!state.jobsEntrypoint?.endsWith(`/.runtime/browser/${nativeCase.run}/release/tools/jobs.mjs`))fail('UI_NATIVE_COMPILED_COHORT_REQUIRED');
     ports.browserCase(report,observation.case,observation.observation,observation.screenshot);
     if(!object(actual)||actual.schema!=='erpx-ui-browser-observation/v1'||actual.result!=='passed'||actual.sourceFingerprint!==current.runtimeFingerprint||actual.verificationFingerprint!==current.verificationFingerprint||actual.candidate!==current.candidate||actual.releaseId!==candidate.release.id||actual.releaseManifestSha256!==candidate.release.fileManifestSha256||actual.targetSource!==target.source||actual.targetKind!==target.kind||actual.targetFingerprint!==target.fingerprint||!covered.has(actual.routeSource))fail('UI_BROWSER_OBSERVATION_SOURCE_MISMATCH');
-    let transport;if(state.productHosts===true||nativeCase.productHostLease!==undefined||nativeCase.uiEvidence.productHostLease!==undefined){if(typeof ports.productHost!=='function'||!nativeCase.uiEvidence.productHostLease)fail('UI_ORIGINAL_PRODUCT_HOST_LEASE_REQUIRED');transport=await ports.productHost(nativeCase,state,observation);}
-    const url=acceptedUrl(actual.url,state,transport),caller=inventory.routes.find(route=>route.source===actual.routeSource);if(!caller||!routeMatches(caller.route,url.href)||!text(actual.ownerContext)||!text(actual.authorityBranch)||actual.authentication!=='normal-native-owner')fail('UI_BROWSER_OWNER_ENTRY_REQUIRED');
+    const formsClaim=state.formsHosts===true||nativeCase.formsHostLease!==undefined||nativeCase.uiEvidence.formsHostLease!==undefined||actual.authentication==='anonymous-public-visitor'||typeof actual.url==='string'&&actual.url.startsWith(formsHostOrigin),formsCase=isFormsHostCase(nativeCase);
+    let transport,formsLease;
+    if(formsClaim||formsCase){
+     if(!formsCase||state.formsHosts!==true||state.profile!=='engineering'||state.productHosts!==false||state.executiveWorkHosts!==false||nativeCase.productHostLease!==undefined||nativeCase.executiveWorkHostLease!==undefined||nativeCase.uiEvidence.productHostLease!==undefined||nativeCase.uiEvidence.executiveWorkHostLease!==undefined)fail('UI_FORMS_HOST_EXACT_CASE_REQUIRED');
+     if(!nativeCase.formsHostLease||!nativeCase.uiEvidence.formsHostLease||typeof ports.formsHost!=='function')fail('UI_ORIGINAL_FORMS_HOST_LEASE_REQUIRED');
+     formsLease=await ports.formsHost(nativeCase,state,observation);if(!validFormsHostLease(formsLease,nativeCase,state,observation,current))fail('UI_FORMS_HOST_LEASE_SOURCE_REQUIRED');transport=formsLease;
+    }else if(state.productHosts===true||nativeCase.productHostLease!==undefined||nativeCase.uiEvidence.productHostLease!==undefined){if(typeof ports.productHost!=='function'||!nativeCase.uiEvidence.productHostLease)fail('UI_ORIGINAL_PRODUCT_HOST_LEASE_REQUIRED');transport=await ports.productHost(nativeCase,state,observation);}
+    const url=acceptedUrl(actual.url,state,transport,formsLease),caller=inventory.routes.find(route=>route.source===actual.routeSource);
+    const ownerEntry=!!caller&&routeMatches(caller.route,url.href)&&text(actual.ownerContext)&&text(actual.authorityBranch)&&
+     (formsLease?actual.authentication==='anonymous-public-visitor'&&actual.ownerContext===formsHostOwnerContext&&actual.authorityBranch===formsHostAuthorityBranch:actual.authentication==='normal-native-owner');
+    if(!ownerEntry)fail(formsLease?'UI_FORMS_HOST_PUBLIC_VISITOR_REQUIRED':'UI_BROWSER_OWNER_ENTRY_REQUIRED');
     if(!object(actual.viewport)||!widths.includes(actual.viewport.width)||!Number.isSafeInteger(actual.viewport.height)||actual.viewport.height<1||actual.deviceScaleFactor!==1||!themes.includes(actual.theme)||!['light','dark'].includes(actual.resolvedTheme)||actual.theme!=='system'&&actual.resolvedTheme!==actual.theme)fail('UI_NATIVE_VIEWPORT_THEME_REQUIRED');
     if(!Array.isArray(actual.checks)||!actual.checks.length||actual.checks.some(check=>!requirements.includes(check))||new Set(actual.checks).size!==actual.checks.length)fail('UI_OBSERVED_REQUIREMENT_KEYS_INVALID');
     if(!same(actual.screenshot,observation.screenshot)||!visual.reviewedImages.includes(observation.screenshot?.sha256))fail('UI_SCREENSHOT_BINDING_MISMATCH');images.add(observation.screenshot.sha256);const size=pngSize(ports.bytes(observation.screenshot));if(size.width!==actual.viewport.width||size.height!==actual.viewport.height)fail('UI_NATIVE_VIEWPORT_IMAGE_MISMATCH');
@@ -151,8 +193,8 @@ export async function loadUiAcceptance(root,inventory){
  if(!object(index)||index.version!==1||!Array.isArray(index.records)||Object.keys(index).some(key=>!['version','records'].includes(key)))fail('UI_ACCEPTANCE_INDEX_INVALID');if(!index.records.length)return empty;
  const fingerprints=await import('../local/source-fingerprint.ts'),runtimeFingerprint=await fingerprints.runtimeSourceFingerprint(root),verificationFingerprint=await fingerprints.verificationSourceFingerprint(root,runtimeFingerprint),git=spawnSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'});if(git.status!==0||!/^[a-f0-9]{40}$/.test(git.stdout.trim()))fail('UI_CURRENT_GIT_CANDIDATE_REQUIRED');
  const current={runtimeFingerprint,verificationFingerprint,candidate:git.stdout.trim()},frozen=JSON.parse(readFileSync(localFile(root,'scripts/ui/frozen-boundaries.json'))),retirements=existsSync(resolve(root,'scripts/ui/frozen-retirements.json'))?JSON.parse(readFileSync(localFile(root,'scripts/ui/frozen-retirements.json'))):[];
- const [{aggregateCiRegression},{internalRequiredCases,loadRequiredCases},{assertBrowserCasePassed}]=await Promise.all([import('../testing/browser-sharding.ts'),import('../testing/required-case-inventory.ts'),import('../testing/browser-results.ts')]);
- const catalogue=JSON.parse(readFileSync(localFile(root,'tests/catalogue/suite-manifest.json'))),required=internalRequiredCases(loadRequiredCases(root),catalogue.suites),used=new Map(),artifacts=new Map(),productTransports=new Map(),bytes=binding=>{const raw=readBinding(root,binding);used.set(binding.path,{...binding,sha256:digest(raw)});return raw;},json=binding=>JSON.parse(bytes(binding));
+ const [{aggregateCiRegression},{verifyBrowserEvidenceArtifacts},{internalRequiredCases,loadRequiredCases},{assertBrowserCasePassed}]=await Promise.all([import('../testing/browser-sharding.ts'),import('../testing/browser-evidence-artifacts.ts'),import('../testing/required-case-inventory.ts'),import('../testing/browser-results.ts')]);
+ const catalogue=JSON.parse(readFileSync(localFile(root,'tests/catalogue/suite-manifest.json'))),required=internalRequiredCases(loadRequiredCases(root),catalogue.suites),used=new Map(),artifacts=new Map(),productTransports=new Map(),formsTransports=new Map(),bytes=binding=>{const raw=readBinding(root,binding);used.set(binding.path,{...binding,sha256:digest(raw)});return raw;},json=binding=>JSON.parse(bytes(binding));
  const accepted=await validateUiAcceptance({index,inventory,frozen,retirements,current},{bytes,json,source:path=>readFileSync(localFile(root,path)),exists:path=>existsSync(resolve(root,path)),git(commit,path){if(!path.startsWith('src/'))fail('UI_ORIGINAL_SOURCE_PATH_REQUIRED');pathName(path);const result=spawnSync('git',['show',`${commit}:${path}`],{cwd:root});if(result.status!==0)fail('UI_ORIGINAL_GIT_SOURCE_UNAVAILABLE');return result.stdout;},
   caseWitness(nativeCase,observation){if(!text(nativeCase.report)||resolve(root,nativeCase.report)!==resolve(root,observation.report.path)||resolve(root,observation.state.path)!==resolve(dirname(nativeCase.report),'state.json'))fail('UI_EXACT_CASE_RETAINED_STATE_REQUIRED');},
   async productHost(nativeCase,state,observation){
@@ -161,12 +203,27 @@ export async function loadUiAcceptance(root,inventory){
    const [{verifyProductHostUiLease},{chromium}]=await Promise.all([import('../testing/product-host-ui-evidence.ts'),import('playwright')]);
    const verified=await verifyProductHostUiLease({root,leaseBinding:lease,state,expected:{run:nativeCase.run,sourceFingerprint:current.runtimeFingerprint,verificationFingerprint:current.verificationFingerprint,release:state.release,stateBinding:observation.state,chromiumPath:chromium.executablePath()}});productTransports.set(key,verified);return verified;
   },
+  async formsHost(nativeCase,state,observation){
+   const lease=nativeCase.uiEvidence.formsHostLease;if(resolve(root,lease.path)!==resolve(dirname(nativeCase.report),'forms-host-lease.json'))fail('UI_EXACT_CASE_FORMS_HOST_LEASE_REQUIRED');bytes(lease);
+   const key=JSON.stringify([lease,observation.state]),cached=formsTransports.get(key);if(cached)return cached;
+   const [{readFormsHostLease},{chromium}]=await Promise.all([import('../testing/forms-host-cohort.ts'),import('playwright')]);
+   const verified=await readFormsHostLease(root,resolve(root,lease.path));
+   const stateBytes=bytes(observation.state),retainedState=JSON.parse(stateBytes.toString('utf8')),statePath=resolve(root,'.runtime/browser',nativeCase.run,'state.json');
+   if(!same(retainedState,state))fail('UI_FORMS_HOST_RETAINED_STATE_CHANGED');
+   if(verified.run!==nativeCase.run||verified.sourceFingerprint!==current.runtimeFingerprint||verified.verificationFingerprint!==current.verificationFingerprint||verified.release.id!==state.release?.id||verified.release.fileManifestSha256!==state.release?.fileManifestSha256||
+      verified.ui.backend.state.path!==statePath||verified.ui.backend.state.sha256!==digest(stateBytes)||verified.ui.backend.state.bytes!==stateBytes.length||
+      verified.ui.backend.pid!==state.pid||verified.ui.backend.jobsPid!==state.jobsPid||verified.ui.backend.webEntrypoint!==state.webEntrypoint||verified.ui.backend.jobsEntrypoint!==state.jobsEntrypoint||
+      verified.ui.source.path!==join(root,'scripts/testing/forms-host-cohort.ts')||verified.chromium.path!==chromium.executablePath())fail('UI_FORMS_HOST_ORIGINAL_COHORT_REQUIRED');
+   for(const binding of [verified.plan,verified.certificate,verified.key,verified.ca,verified.chromium,verified.databases,verified.fixtureGuide,verified.ui.node,verified.ui.source])
+    bytes({path:relative(root,binding.path),sha256:binding.sha256,...('bytes'in binding?{bytes:binding.bytes}:{})});
+   formsTransports.set(key,verified);return verified;
+  },
   browserCase(report,wanted,observation,screenshot){assertBrowserCasePassed(report,wanted);const attachments=reportAttachments(report);for(const binding of [observation,screenshot])if(!attachments.some(item=>text(item.path)&&resolve(root,item.path)===resolve(root,binding.path)))fail('UI_BROWSER_REPORT_ATTACHMENT_REQUIRED');},
   async candidate(receipt){
    const proof=receipt.regression;if(!object(proof)||!Array.isArray(proof.browsers)||!proof.browsers.length)fail('UI_NATIVE_AND_BROWSER_REGRESSION_BINDINGS_REQUIRED');
-   const native=json(proof.native),browsers=proof.browsers.map(json),submitted=json(proof.aggregate),aggregate=aggregateCiRegression({native,browsers,candidate:current.candidate,total:browsers[0].shard.total,requiredSuiteIds:catalogue.suites.filter(suite=>['e2e','journeys','uat'].includes(suite.lane)).map(suite=>suite.id),requiredCases:required});
+   const native=json(proof.native),browsers=proof.browsers.map(json),submitted=json(proof.aggregate);for(const browser of browsers)await verifyBrowserEvidenceArtifacts(browser,resolve(root,'.scratch/dev/test-suites'));const aggregate=aggregateCiRegression({native,browsers,candidate:current.candidate,total:browsers[0].shard.total,requiredSuiteIds:catalogue.suites.filter(suite=>['e2e','journeys','uat'].includes(suite.lane)).map(suite=>suite.id),requiredCases:required});
    if(!same(submitted,aggregate)||aggregate.runtimeFingerprint!==runtimeFingerprint||aggregate.verificationFingerprint!==verificationFingerprint)fail('UI_FULL_CURRENT_REGRESSION_REQUIRED');
-   for(const browser of browsers)for(const test of browser.receipts)if(test.uiEvidence!==undefined){const originals=browser.isolation.forward.receipts.filter(original=>original.suite===test.suite&&original.file===test.file&&original.title===test.title&&original.project===test.project&&original.run===test.run);if(originals.length!==1||!same(originals[0].uiEvidence,test.uiEvidence)||test.uiEvidence.productHostLease!==undefined&&!same(originals[0].productHostLease,test.productHostLease))fail('UI_NATIVE_ORIGINAL_WITNESS_MISMATCH');}
+   for(const browser of browsers)for(const test of browser.receipts)if(test.uiEvidence!==undefined){const originals=browser.isolation.forward.receipts.filter(original=>original.suite===test.suite&&original.file===test.file&&original.title===test.title&&original.project===test.project&&original.run===test.run);if(originals.length!==1||!same(originals[0].uiEvidence,test.uiEvidence)||test.uiEvidence.productHostLease!==undefined&&!same(originals[0].productHostLease,test.productHostLease)||test.uiEvidence.formsHostLease!==undefined&&!same(originals[0].formsHostLease,test.formsHostLease))fail('UI_NATIVE_ORIGINAL_WITNESS_MISMATCH');}
    for(const lane of ['unit','integration'])for(const suite of catalogue.suites.filter(suite=>suite.lane===lane))for(const file of suite.files)if(!native.cases.some(test=>test.file===file&&test.status==='passed'))fail('UI_FULL_NATIVE_FILE_COVERAGE_REQUIRED');
    const release=json(proof.release),filesBytes=bytes(proof.releaseFiles),files=JSON.parse(filesBytes);if(release.sourceFingerprint!==runtimeFingerprint||release.node!=='26.11.1'||release.postgres!=='18.6'||release.id!==aggregate.release.id||release.fileManifestSha256!==aggregate.release.fileManifestSha256||digest(filesBytes)!==release.fileManifestSha256||!object(files)||!Object.keys(files).length)fail('UI_SAME_COMPILED_RELEASE_REQUIRED');
    const directory=dirname(resolve(root,proof.release.path));if(!directory.startsWith(resolve(root,'.runtime')+'/')||proof.release.path.split('/').at(-1)!=='release.json'||proof.releaseFiles.path!==proof.release.path.replace(/release\.json$/,'release-files.json'))fail('UI_EXACT_RELEASE_METADATA_REQUIRED');

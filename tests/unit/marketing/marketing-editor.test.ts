@@ -1,6 +1,7 @@
 import { describe, expect, it,vi } from "vitest";
 import { marketingAssetDraft, marketingAssetEditorSchema } from "../../../src/lib/collaboration/marketing-editor";
 import {createPublicMarketingCommand,validPublicMarketingReceipt,publicMarketingAttemptCurrent,publicMarketingAcknowledgementCurrent} from '../../../src/lib/marketing/public-form-command';
+import {readBoundedPublicMarketingBody} from '../../../src/server/modules/marketing/public/public-form-body';
 import {PublicMarketingForm} from '../../../src/components/marketing/public-marketing-form';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
@@ -53,5 +54,24 @@ describe('public Forms exact submission acknowledgement',()=>{
  });
  it('releases a definitely refused fresh request for correction while retaining unknown server outcomes',async()=>{
   const commands=createPublicMarketingCommand(()=> 'refused-key'),attempt=commands.select(body,context,0,0);await expect(commands.execute(attempt,async()=>Response.json({error:{message:'Review these fields.'}},{status:422}),()=>true)).rejects.toThrow('Review these fields.');expect(commands.retry()).toBeNull();expect(commands.select(body+'corrected',context,0,1).body).toBe(body+'corrected');await expect(commands.execute(attempt,async()=>Response.json({error:{message:'Unknown server result'}},{status:500}),()=>true)).rejects.toThrow('Unknown server result');expect(commands.retry()).toBe(attempt);
+ });
+});
+
+describe('public Forms bounded request body',()=>{
+ it('rejects a declared oversized body before acquiring a stream reader',async()=>{
+  const cancel=vi.fn(async()=>{}),getReader=vi.fn(),request={headers:new Headers({'content-length':String(32*1024+1)}),body:{cancel,getReader}} as unknown as Request;
+  await expect(readBoundedPublicMarketingBody(request)).rejects.toMatchObject({status:413,code:'BODY_TOO_LARGE'});
+  expect(cancel).toHaveBeenCalledOnce();expect(getReader).not.toHaveBeenCalled();
+ });
+ it('cancels a chunked body as soon as streamed bytes exceed 32 KiB',async()=>{
+  let reads=0,cancelled=false,released=false;
+  const reader={read:async()=>{reads++;return reads<=2?{done:false,value:new Uint8Array(reads===1?20*1024:13*1024)}:{done:false,value:new Uint8Array(1024*1024)};},cancel:async()=>{cancelled=true;},releaseLock:()=>{released=true;}};
+  const request={headers:new Headers(),body:{getReader:()=>reader}} as unknown as Request;
+  await expect(readBoundedPublicMarketingBody(request)).rejects.toMatchObject({status:413,code:'BODY_TOO_LARGE'});
+  expect(reads).toBe(2);expect(cancelled).toBe(true);expect(released).toBe(true);
+ });
+ it('preserves valid UTF-8 form text under the byte budget',async()=>{
+  const body=JSON.stringify({brief:'ก'.repeat(9000)}),bytes=new TextEncoder().encode(body),request={headers:new Headers(),body:{getReader:()=>{let sent=false;return {read:async()=>{if(sent)return {done:true,value:undefined};sent=true;return {done:false,value:bytes};},cancel:async()=>{},releaseLock:()=>{}};}}} as unknown as Request;
+  expect(await readBoundedPublicMarketingBody(request)).toBe(body);
  });
 });

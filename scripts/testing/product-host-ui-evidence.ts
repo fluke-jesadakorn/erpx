@@ -6,6 +6,7 @@ import {createReadStream} from "node:fs";
 import {lstat,readFile,realpath} from "node:fs/promises";
 import {isAbsolute,join,resolve} from "node:path";
 import {productIds,developmentProductOrigin} from "../../src/lib/commercial/product-registry";
+import {sharedHostKeys} from "../../src/lib/commercial/product-registry";
 import {productPageAllowed,productFrontBackofficeAllowed} from "../../src/lib/runtime/product-route-policy";
 import {workspacePathParts} from "../../src/lib/work_projection/destination-registry";
 import {productHostProducts,type ProductHostLease,type ProductHostPlan} from "./product-host-cohort";
@@ -14,7 +15,7 @@ export type ProductHostUiState={run:string;prefix?:string;productHosts?:boolean;
 type Expected={root:string;run:string;sourceFingerprint:string;verificationFingerprint:string;release:{id:string;fileManifestSha256:string};stateBinding:Binding;chromiumPath:string};
 const hash=(bytes:Uint8Array|string)=>createHash("sha256").update(bytes).digest("hex");
 function assert(value:unknown,code:string):asserts value{if(!value)throw Error(code);}
-const hosts=[...productIds,"account","apps","admin"] as const;
+const hosts=[...productIds,"account","apps","admin","legal-portal"] as const;
 const origins=hosts.map(developmentProductOrigin);
 const absolute=(root:string,path:string)=>isAbsolute(path)?path:resolve(root,path);
 function boundShape(value:Binding){return value&&typeof value.path==="string"&&/^[a-f0-9]{64}$/.test(value.sha256)&&(value.bytes===undefined||Number.isSafeInteger(value.bytes)&&value.bytes>=0);}
@@ -24,8 +25,9 @@ function equalBinding(root:string,a:Binding,b:Binding){return boundShape(a)&&bou
  * the real bound bytes, certificate chain/SPKI and exact executable files. */
 export function assertProductHostUiMetadata(lease:ProductHostLease,plan:ProductHostPlan,state:ProductHostUiState,expected:Expected){
  const {root,run,release}=expected,ui=lease.ui;
- assert(JSON.stringify(productHostProducts)===JSON.stringify(productIds)&&JSON.stringify(lease.origins)===JSON.stringify(origins),"UI_PRODUCT_HOST_REGISTRY_REQUIRED");
- assert(lease.schema==="erpx-owned-product-host-browser/v1"&&lease.run===run&&/^[a-f0-9]{12}$/.test(run)&&lease.sourceFingerprint===expected.sourceFingerprint&&lease.verificationFingerprint===expected.verificationFingerprint&&JSON.stringify(lease.release)===JSON.stringify(release)&&lease.port===3102&&lease.upstream==="http://127.0.0.1:3104"&&lease.readOnlyBusiness===true&&lease.scopedBusinessWorkflow===null&&lease.isolatedNormalCommercial===true&&lease.wholeProductAcceptance===false,"UI_PRODUCT_HOST_LEASE_SOURCE_REQUIRED");
+ assert(JSON.stringify(productHostProducts)===JSON.stringify(productIds)&&sharedHostKeys.includes("legal-portal")&&JSON.stringify(lease.origins)===JSON.stringify(origins),"UI_PRODUCT_HOST_REGISTRY_REQUIRED");
+ const businessWorkflow=lease.scopedBusinessWorkflow;
+ assert(lease.schema==="erpx-owned-product-host-browser/v1"&&lease.run===run&&/^[a-f0-9]{12}$/.test(run)&&lease.sourceFingerprint===expected.sourceFingerprint&&lease.verificationFingerprint===expected.verificationFingerprint&&JSON.stringify(lease.release)===JSON.stringify(release)&&lease.port===3102&&lease.upstream==="http://127.0.0.1:3104"&&(businessWorkflow===null||businessWorkflow===plan.allowIsolatedBusinessWorkflow)&&(!businessWorkflow||lease.readOnlyWorkflow===null)&&(lease.readOnlyWorkflow===null||lease.readOnlyWorkflow==="admin.company-brand-organization-iam")&&lease.readOnlyBusiness===(businessWorkflow===null)&&lease.isolatedNormalCommercial===(lease.readOnlyWorkflow===null&&businessWorkflow!=="legal.invitation-enrollment")&&lease.wholeProductAcceptance===false,"UI_PRODUCT_HOST_LEASE_SOURCE_REQUIRED");
  assert(state.run===run&&state.prefix===`erpx_browser_${run}`&&state.productHosts===true&&state.sourceFingerprint===expected.sourceFingerprint&&state.softwareVersion===`release-${expected.sourceFingerprint}`&&JSON.stringify(state.release)===JSON.stringify(release)&&state.ready===true&&!state.diagnostic&&state.port===3104&&state.origin==="http://127.0.0.1:3104"&&!state.jobsPaused,"UI_PRODUCT_HOST_BACKEND_REQUIRED");
  assert(ui&&ui.version===1&&ui.listener&&ui.backend&&ui.backend.state&&Number.isInteger(lease.pid)&&lease.pid>0&&ui.listener.address==="127.0.0.1"&&ui.listener.port===3102&&ui.listener.pid===lease.pid&&Number.isInteger(state.pid)&&Number(state.pid)>0&&Number.isInteger(state.jobsPid)&&Number(state.jobsPid)>0&&ui.backend.pid===state.pid&&ui.backend.jobsPid===state.jobsPid&&ui.backend.webEntrypoint===state.webEntrypoint&&ui.backend.jobsEntrypoint===state.jobsEntrypoint&&state.webEntrypoint===join(root,".runtime/browser",run,"release/server.js")&&state.jobsEntrypoint===join(root,".runtime/browser",run,"release/tools/jobs.mjs"),"UI_PRODUCT_HOST_OWNED_PROCESSES_REQUIRED");
  assert(ui.backend.state.path===join(root,".runtime/browser",run,"state.json")&&ui.backend.state.sha256===expected.stateBinding.sha256&&ui.backend.state.bytes===expected.stateBinding.bytes,"UI_PRODUCT_HOST_ORIGINAL_STATE_REQUIRED");

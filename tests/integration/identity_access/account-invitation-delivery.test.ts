@@ -171,7 +171,8 @@ it("delivers through the explicit sandbox adapter with a durable provider receip
     ERPX_EMAIL_ADAPTER: "sandbox",
     ERPX_PUBLIC_ORIGIN: "https://erpx.example.test",
   };
-  expect(await deliverAccountInvitation(control, sandboxEnv, sendBetaEmail, now)).toBe(true);
+  expect(await deliverAccountInvitation(control, sandboxEnv, (deliveryEnv, to, subject, url, key) =>
+    sendBetaEmail(deliveryEnv as Parameters<typeof sendBetaEmail>[0], to, subject, url, key), now)).toBe(true);
   const job = await control
     .prepare("SELECT state,provider_id FROM account_invitation_delivery_jobs WHERE id=?")
     .bind(item.jobId)

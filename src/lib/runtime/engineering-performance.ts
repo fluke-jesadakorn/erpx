@@ -1,4 +1,8 @@
 export type PerformanceSample = { kind: "work"|"people"|"pms"|"page"|"public"; actor: string; elapsedMs: number; atMs: number; status: number; validated: boolean; pageKind?: "work"|"people"|"pms" };
+export function engineeringPerformanceWorkspacePath(holding: string, kind: "work"|"people"|"pms") {
+  const section = kind === "people" ? "people-organization/people" : kind;
+  return `/holdings/${encodeURIComponent(holding)}/${section}`;
+}
 export function percentile(values: number[], fraction: number) {
   const sorted=[...values].sort((a,b)=>a-b);
   return sorted.length ? sorted[Math.max(0,Math.ceil(sorted.length*fraction)-1)]! : null;

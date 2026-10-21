@@ -187,6 +187,13 @@ describe('Product owner link transport',()=>{
   linkMocks.dirty.mockReturnValue(true);router!.push(base+'/finance/invoices/invoice-1');expect(linkMocks.push).not.toHaveBeenCalled();expect(linkMocks.dispatch).toHaveBeenCalledTimes(1);const event=linkMocks.dispatch.mock.calls[0][0];expect(event.type).toBe('erpx:product-navigate');expect(unwrap(event.detail.href).launch.searchParams.get('companyId')).toBe('company-two');
   router!.replace(base+'/services/assets/register?q=retained');expect(linkMocks.replace).toHaveBeenCalledWith(base+'/services/assets/register?q=retained',undefined);
  });
+ it('preserves exact return query state when a drawer closes on the same owned route',()=>{
+  let router:ReturnType<typeof useDestinationRouter>|undefined;function Capture(){router=useDestinationRouter();return null;}
+  const finance=h(ProductLinkEnvironment,{audience:'finance',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:h(Capture)})}),origin='https://finance-dev-erpx.jesadakorn.com',list=base+'/finance/documents/sales/invoices?tab=invoices&q=issued&tag=one&tag=two#invoices';
+  vi.stubGlobal('window',{location:{href:origin+base+'/finance/documents/invoices/invoice-1/overview',origin},dispatchEvent:linkMocks.dispatch});renderToStaticMarkup(finance);router!.pushPreservingQuery(list,{scroll:false});
+  expect(linkMocks.push).toHaveBeenCalledExactlyOnceWith(list,{scroll:false});
+  linkMocks.push.mockClear();router!.push(list,{scroll:false});expect(linkMocks.push).toHaveBeenCalledExactlyOnceWith(base+'/finance/documents/sales/invoices?q=issued&tag=one&tag=two#invoices',{scroll:false});
+ });
 });
 
 

@@ -1,6 +1,7 @@
 import type { BrowserRunCaseReceipt, BrowserRunReceipt } from "./browser-runner";
 import { assignedBrowserShard, browserCaseKey, type BrowserCaseIdentity, type BrowserShard } from "./browser-sharding";
 import { canonicalCaseFile } from "./required-case-inventory";
+import type { Suite } from "./catalogue";
 
 export type BrowserIsolationProof = { forward: BrowserRunReceipt; reverse: BrowserRunReceipt; probe: BrowserRunReceipt };
 export type FullRegressionBrowserCase = {
@@ -13,9 +14,66 @@ export type FullRegressionBrowserCase = {
   required?: boolean;
 };
 
-export function browserRunCaseIdentity(test: BrowserRunCaseReceipt): BrowserCaseIdentity {
+export function browserRunCaseIdentity(test: { suite: string; file?: string; title?: string; project: "desktop" | "mobile" }): BrowserCaseIdentity {
   if (!test.suite || !test.file || !test.title || !["desktop", "mobile"].includes(test.project)) throw new Error("ISOLATION_CASE_IDENTITY_REQUIRED");
   return { suite: test.suite, file: test.file, title: test.title, project: test.project };
+}
+
+/** Validate one persisted acceptance receipt before it can be merged into a lane proof. */
+export function validateBrowserAcceptanceCohort(
+  receipt: BrowserRunReceipt,
+  expected: {
+    suites: readonly Pick<Suite, "id" | "files">[];
+    runtimeFingerprint: string;
+    verificationFingerprint: string;
+    shard: BrowserShard;
+    caseOrder: "forward" | "reverse";
+  },
+) {
+  const suiteIds = expected.suites.map(suite => suite.id);
+  if (receipt.version !== 1 || receipt.passed !== true || receipt.runtimeFingerprint !== expected.runtimeFingerprint ||
+      receipt.verificationFingerprint !== expected.verificationFingerprint || JSON.stringify(receipt.shard) !== JSON.stringify(expected.shard) ||
+      receipt.interrupted !== null || !Array.isArray(receipt.cleanupFailures) || receipt.cleanupFailures.length !== 0 ||
+      receipt.execution?.mode !== "acceptance" || receipt.execution.caseOrder !== expected.caseOrder ||
+      JSON.stringify(receipt.suites) !== JSON.stringify(suiteIds) || !Array.isArray(receipt.inventory) || !Array.isArray(receipt.receipts)) {
+    throw new Error("CI_BROWSER_COHORT_ACCEPTANCE_METADATA_REQUIRED");
+  }
+
+  const suiteById = new Map(expected.suites.map(suite => [suite.id, suite]));
+  const inventoryKeys: string[] = [];
+  const inventoryByKey = new Map<string, BrowserRunReceipt["inventory"][number]>();
+  const suiteProjects = new Set<string>();
+  for (const test of receipt.inventory) {
+    const identity = browserRunCaseIdentity(test), suite = suiteById.get(identity.suite);
+    if (!suite || canonicalCaseFile(identity.file, suite.files) !== identity.file || typeof test.required !== "boolean" ||
+        (!test.required && !test.reason?.trim())) throw new Error("CI_BROWSER_COHORT_INVENTORY_MEMBERSHIP_REQUIRED");
+    const key = browserCaseKey(identity);
+    if (inventoryByKey.has(key)) throw new Error("CI_BROWSER_COHORT_DUPLICATE_INVENTORY_CASE");
+    inventoryKeys.push(key);
+    inventoryByKey.set(key, test);
+    suiteProjects.add(JSON.stringify([identity.suite, identity.project]));
+  }
+  if (expected.suites.some(suite => ["desktop", "mobile"].some(project => !suiteProjects.has(JSON.stringify([suite.id, project]))))) {
+    throw new Error("CI_BROWSER_COHORT_SUITE_PROJECT_MISSING");
+  }
+
+  const assigned = receipt.inventory.filter(test => assignedBrowserShard(test.suite, test, expected.shard));
+  if (receipt.receipts.length !== assigned.length) throw new Error("CI_BROWSER_COHORT_CASE_RECEIPTS_REQUIRED");
+  const runIds = new Set<string>();
+  for (let index = 0; index < assigned.length; index++) {
+    const wanted = assigned[index], observed = receipt.receipts[index], identity = browserRunCaseIdentity(observed);
+    if (browserCaseKey(identity) !== browserCaseKey(wanted)) throw new Error("CI_BROWSER_COHORT_CASE_ORDER_MISMATCH");
+    if (wanted.required) {
+      if (observed.required !== undefined || observed.passed !== true || !observed.run || !/^[a-f0-9]{12}$/.test(observed.run) || runIds.has(observed.run) ||
+          observed.cleanup?.completed !== true || observed.cleanup.ownedDirectoryAbsent !== true || observed.faultProbe || observed.failure) {
+        throw new Error("CI_BROWSER_COHORT_CASE_CLEANUP_REQUIRED");
+      }
+      runIds.add(observed.run);
+    } else if (observed.required !== false || observed.reason !== wanted.reason || observed.passed !== undefined || observed.run !== undefined || observed.cleanup !== undefined || observed.faultProbe || observed.failure) {
+      throw new Error("CI_BROWSER_COHORT_EXCLUSION_RECEIPT_MISMATCH");
+    }
+  }
+  return { inventoryCases: inventoryKeys.length, assignedCases: assigned.length };
 }
 
 export function serializeFullRegressionBrowserCases(

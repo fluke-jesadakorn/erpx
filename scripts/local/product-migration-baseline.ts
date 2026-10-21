@@ -31,13 +31,14 @@ async function snapshot(database: SqlDatabase, holding: string | null) {
     const rollouts = await read("company_feature_rollouts", "company_id,module_id,rollout_state,version,reason", "company_id,module_id");
     const grants = await read("company_package_grants", "company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence", "company_id,package_id");
     const integrations = await read("iam_connections", "id,company_id,provider,status,version,tested_version,health", "company_id,id");
-    // Never read provider credentials or connection configuration. Count/digest
-    // selected owner tables to detect later changes without exporting their rows.
+    // These owner tables can contain credentials, payment data, or private
+    // evidence. Record only their row counts; authority-bearing values above are
+    // selected explicitly so no arbitrary row serialization reads secret fields.
     const protectedTables = tables.filter(name => /^(?:billing_|beta_|company_release_|iam_connections$|iam_members$|iam_principals$|iam_revoked_|.*(?:integration|provider_connections)$)/.test(name));
     const protectedState = [];
     for (const table of protectedTables) {
       if (!/^[a-z0-9_]+$/.test(table)) throw new Error("INVALID_BASELINE_TABLE");
-      const state = await tx.prepare(`SELECT count(*)::integer AS rows,md5(COALESCE(string_agg(row_hash,'' ORDER BY row_hash),'')) AS digest FROM (SELECT md5(to_jsonb(t)::text) AS row_hash FROM "${table}" t) fingerprints`).first();
+      const state = await tx.prepare(`SELECT count(*)::integer AS rows FROM "${table}"`).first();
       protectedState.push({ table, ...state });
     }
     return { holding, identity, organizations, assignments, roles, revisions, rollouts, grants, integrations, protectedState,

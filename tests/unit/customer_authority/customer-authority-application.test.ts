@@ -25,6 +25,10 @@ it("customer access review remains independent even when the requester has appro
   const source = repository<AccessRepository>({ replay: async () => null, binding: async () => ({ ...grant, created_by: "reviewer" }) });
   await expect(access(source).changeCustomerAccess("grant", { action: "approve", expectedVersion: 1, reason: "Self review" }, "key")).rejects.toThrow("INDEPENDENT_APPROVER_REQUIRED");
 });
+it("does not advertise Portal invitation for an approved binding whose source order is canceled", async () => {
+  const source = repository<AccessRepository>({ binding: async () => ({ id: "binding", number: "Q-1", email: "customer@example.test", status: "approved", expires_at: 500, version: 2, created_by: "reviewer", approved_by: "manager", reviewed_at: 90, order_id: "order", order_state: "cancelled", branch_id: "branch", department_id: null, updated_at: 90, actor_eligible: 1 }) });
+  expect(await access(source).customerAccessBinding("binding")).toMatchObject({ canInvite: false });
+});
 it("the original requester may revoke without approval permission and preserves prior review evidence", async () => {
   const source = repository<AccessRepository>({ replay: async () => null, binding: async () => ({ ...grant, created_by: "reviewer", approved_by: "independent", reviewed_at: 90 }), change: async (_command, row, facts) => { expect(row.approved_by).toBe("independent"); expect(facts).toEqual({ review: false, status: "revoked", now: 100 }); return { id: "grant", status: "revoked" }; } });
   expect(await access(source, { canApprove: () => false }).changeCustomerAccess("grant", { action: "revoke", expectedVersion: 2, reason: "Authority withdrawn" }, "key")).toMatchObject({ status: "revoked" });

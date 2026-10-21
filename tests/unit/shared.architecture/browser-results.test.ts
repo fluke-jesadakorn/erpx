@@ -9,6 +9,9 @@ function report(status: string, expectedStatus = "passed", results = [{ status }
 it("requires exactly the selected browser case to pass without retries", () => {
   const wanted = browserCases(report("passed"))[0];
   expect(() => assertBrowserCasePassed(report("passed"), wanted)).not.toThrow();
+  const relativePathReport = report("passed");
+  relativePathReport.suites[0].specs[0].file = "e2e/example.spec.ts";
+  expect(() => assertBrowserCasePassed(relativePathReport, { ...wanted, file: "tests/e2e/example.spec.ts" })).not.toThrow();
   expect(() => assertBrowserCasePassed(report("skipped"), wanted)).toThrow("REQUIRED_BROWSER_CASE_DID_NOT_PASS");
   expect(() => assertBrowserCasePassed(report("passed", "skipped"), wanted)).toThrow("REQUIRED_BROWSER_CASE_DID_NOT_PASS");
   expect(() => assertBrowserCasePassed(report("passed", "passed", [{ status: "failed" }, { status: "passed" }]), wanted)).toThrow("REQUIRED_BROWSER_CASE_DID_NOT_PASS");

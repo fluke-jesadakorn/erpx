@@ -23,6 +23,7 @@ import {ApiError} from "../../runtime/public/http";
 import {requireFinanceCurrentAuthority,requireFinancePurchasedRead,withFinancePurchasedCommand} from "./purchase-boundary";
 import type {CapabilityPurpose} from "../../commercial/public/rules/packages";
 import {financeSourceAccess} from "./source-purchases";
+import {standaloneSalesCompletionReceiptQuery} from "./sales-completion-proof";
 
 export type FinanceDocumentKind="invoice"|"journal"|"payment"|"refund"|"supplier-batch";
 const tables={invoice:"finance_invoices",journal:"finance_journals",payment:"finance_payments",refund:"finance_refund_obligations","supplier-batch":"finance_supplier_batches"} as const;
@@ -37,7 +38,16 @@ type CommerceProof="ordinary"|"retained";
 const commerceProofs=(kind:FinanceDocumentKind,capability:string):readonly (CommerceProof|undefined)[]=>(capability==="finance.sales-posting"||capability==="finance.inventory-valuation")&&(kind==="journal"||kind==="payment")?["ordinary","retained"]:[undefined];
 function commerceOwnerPredicate(kind:FinanceDocumentKind,capability:string,commerceProof?:CommerceProof){
   const commerce=capability==="finance.sales-posting"?(commerceProof==="ordinary"?commerceSalesFinanceOrdinaryRecordSources:commerceFinanceRecordSources.sales):capability==="finance.inventory-valuation"?(commerceProof==="ordinary"?commercePurchaseFinanceOrdinaryRecordSources:commerceFinanceRecordSources.purchase):null;
-  return commerce?`EXISTS(SELECT 1 FROM (${roots(kind)}) root JOIN (${commerce[kind]}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id)`:"FALSE";
+  if(!commerce)return "FALSE";
+  const linked=`EXISTS(SELECT 1 FROM (${roots(kind)}) root JOIN (${commerce[kind]}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id)`;
+  if(capability!=="finance.sales-posting"||kind!=="invoice")return linked;
+  // Standalone service invoices are born from Sales' exact completion command,
+  // even though they have no Commerce fulfillment FK. Tie the included Finance
+  // history/posting right to that committed command receipt and its normal
+  // audit/outbox evidence; source labels and a caller-supplied invoice ID alone
+  // never establish Sales ownership.
+  const standalone=`(d.kind='receivable' AND d.source_type='standalone' AND d.source_id IS NULL AND EXISTS(${standaloneSalesCompletionReceiptQuery("d")}))`;
+  return `(${linked} OR ${standalone})`;
 }
 function ownerPredicate(kind:FinanceDocumentKind,capability:string,commerceProof?:CommerceProof){
   if(capability==="finance.service-invoice"){const original=kind==="invoice"||kind==="journal"||kind==="payment"?`EXISTS(SELECT 1 FROM (${roots(kind)}) root JOIN (${fieldServiceFinanceRecordSources[kind]}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id)`:"FALSE";return kind==="journal"?`(${original} OR ${serviceInitialStockJournalPredicate("d")})`:original;}
@@ -118,7 +128,7 @@ function financeDocumentOwnerPredicate(kind:FinanceDocumentKind,capability:strin
 }
 export function financeDocumentSourceGuards(database:SqlDatabase,actor:WorkContext,kind:FinanceDocumentKind,id:string,capability:string,key:string,commerceProof?:CommerceProof){
   if(capability===base(kind))return [];
-  return [...(capability==="finance.service-invoice"?fieldServiceFinanceSourceReadLocks(database):[]),...(capability==="finance.production-costing"?manufacturingFinanceSourceReadLocks(database):[]),...(capability==="assets.parts-costs"?maintenanceFinanceSourceReadLocks(database):[]),...(commercePostCapability(capability)?commerceFinanceSourceReadLocks(database):[]),...(capability==="finance.inventory-valuation"||kind==="journal"&&["finance.sales-posting","finance.production-costing","finance.pos-posting","finance.service-invoice"].includes(capability)?inventoryFinanceSourceReadLocks(database):[]),database.prepare(`SELECT id FROM ${tables[kind]} WHERE id=? AND company_id=? FOR SHARE`).bind(id,actor.companyId),assertion(database,key,"finance-document-owner",`EXISTS(SELECT 1 FROM ${tables[kind]} d WHERE d.id=? AND d.company_id=? AND ${financeDocumentOwnerPredicate(kind,capability,commerceProof)})`,[id,actor.companyId])];
+  return [...(capability==="finance.service-invoice"?fieldServiceFinanceSourceReadLocks(database):[]),...(capability==="finance.production-costing"?manufacturingFinanceSourceReadLocks(database):[]),...(capability==="assets.parts-costs"?maintenanceFinanceSourceReadLocks(database):[]),...(commercePostCapability(capability)?commerceFinanceSourceReadLocks(database):[]),...(capability==="finance.inventory-valuation"||kind==="journal"&&["finance.sales-posting","finance.production-costing","finance.pos-posting","finance.service-invoice"].includes(capability)?inventoryFinanceSourceReadLocks(database):[]),database.prepare(`SELECT id FROM ${tables[kind]} WHERE id=? AND company_id=? FOR SHARE`).bind(id,actor.companyId),...(capability==="finance.sales-posting"&&kind==="invoice"?[database.prepare("SELECT command_id FROM command_receipts WHERE record_id=? AND operation='finance.sales-invoice.prepare' FOR SHARE").bind(id)]:[]),assertion(database,key,"finance-document-owner",`EXISTS(SELECT 1 FROM ${tables[kind]} d WHERE d.id=? AND d.company_id=? AND ${financeDocumentOwnerPredicate(kind,capability,commerceProof)})`,[id,actor.companyId])];
 }
 const commercePostCapability=(capability:string)=>["finance.sales-posting","finance.inventory-valuation"].includes(capability);
 export function financeSourceDocumentReadLeases(database:SqlDatabase,companyId:string,paymentWriter=false,source?:"supplier-correction",refundCashWriter=false){

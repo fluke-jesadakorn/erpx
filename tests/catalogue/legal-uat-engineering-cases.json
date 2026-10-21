@@ -179,8 +179,8 @@
     "id": "UAT-17",
     "review": "reviewed",
     "file": "tests/uat/legal/legal-uat.spec.ts",
-    "title": "UAT-17: external counsel sees only the shared revision and sends one reviewed spending request to Finance",
-    "proof": "Ordinary external identity sees only explicitly shared original revision and no internal comments; another recipient sees no private billing; one repeated billing receipt creates exactly one reviewed Finance spending request; revoke denies portal and replay.",
+    "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+    "proof": "Ordinary external identity sees only explicitly shared immutable versions and no internal comments; external counsel downloads the exact private PDF bytes pinned by document checksum/version, and the owner evidence export records one portal.download for that actor/document. A revoked share denies another download without adding a download event; another recipient sees no private billing; one repeated billing receipt creates exactly one reviewed Finance spending request.",
     "projects": [
       "desktop",
       "mobile"

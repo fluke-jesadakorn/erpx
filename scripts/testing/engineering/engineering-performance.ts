@@ -7,7 +7,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { Pool } from "pg";
-import { evaluateEngineeringPerformance, type PerformanceSample } from "../../../src/lib/runtime/engineering-performance";
+import { evaluateEngineeringPerformance, engineeringPerformanceWorkspacePath, type PerformanceSample } from "../../../src/lib/runtime/engineering-performance";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../../local/source-fingerprint";
 import { frontWorkspacePath, signInFrontRole } from "../../../tests/support/helpers/front-simulation-session";
 
@@ -128,7 +128,7 @@ try {
   const publicContext = await browser.newContext(), publicPage = await publicContext.newPage(), publicOrigin = "http://dev-erpx.localhost:3104/";
   const pageAccounts = (["work", "people", "pms"] as const).map(kind => contexts.find(account => account.kind === kind)!);
   await Promise.all(contexts.map(account => readApi(account, false)));
-  for (const account of pageAccounts) await navigate(account.page, `/holdings/${account.holding}/${account.kind}`, account.actor, account.kind, false);
+  for (const account of pageAccounts) await navigate(account.page, engineeringPerformanceWorkspacePath(account.holding, account.kind), account.actor, account.kind, false);
   await navigate(publicPage, publicOrigin, "anonymous", undefined, false);
   started = performance.now();
   console.log(JSON.stringify({ event: "performance_started", run, accounts: 10, requestedDurationMs: requestedDuration, sourceFingerprint }));
@@ -137,7 +137,7 @@ try {
     const tickBegin = performance.now();
     await Promise.all(contexts.map(account => readApi(account)));
     if (tick % 3 === 0) {
-      await Promise.all(pageAccounts.map(account => navigate(account.page, `/holdings/${account.holding}/${account.kind}`, account.actor, account.kind)));
+      await Promise.all(pageAccounts.map(account => navigate(account.page, engineeringPerformanceWorkspacePath(account.holding, account.kind), account.actor, account.kind)));
       await navigate(publicPage, publicOrigin, "anonymous");
       await monitor();
     }

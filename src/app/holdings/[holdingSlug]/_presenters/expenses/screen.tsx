@@ -45,7 +45,7 @@ export default async function Expenses({
     <ExpenseEnvironment actor={actor}><FeaturePage className="ui-page-content" data-source="live">
       <FinanceRecordWorkspace
         base={base}
-        active="receivables"
+        active="finance-expenses"
         title="Employee expenses"
         description="Review receipts, accounting and reimbursement evidence."
         actions={

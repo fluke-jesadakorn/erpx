@@ -558,9 +558,18 @@ it('separates verified Support ticket transport from staff, Sales and unknown pu
 
 
 it('retains the real Helpdesk Portal binding page instead of interpreting it as a Support ticket record',async()=>{
- const {supportTicketPortalEntry:entry,supportTicketPortalLanding:landing}=await import('@/server/modules/support/public/rules/ticket-portal-entry');
+ const {supportTicketPortalEntry:entry,supportTicketPortalLanding:landing}=await import('@/server/modules/support/public/rules/ticket-portal-entry'),{productEntryCapability}=await import('@/server/modules/commercial/public/rules/product-entry-capability'),{productDestinationAvailable}=await import('@/server/modules/work_projection/public/rules/product-landings');
  expect(entry(landing)).toEqual({});expect(entry(landing+'/support-portal-original%3Akey')).toEqual({bindingId:'support-portal-original:key'});
- for(const suffix of ['/new','/%2f','/%5c','/%252f','/%00','/%','/../binding','/binding/decisions'])expect(entry(landing+suffix)).toBeNull();
+ const ownerContext={role:'support_agent',permissions:['support.read'],scopeKind:'holding' as const,modules:['support'],readyModules:['support'],capabilities:['support.tickets','support.portal']};
+ expect(productEntryCapability('support',landing)).toBe('support.portal');expect(productEntryCapability('support',landing+'/binding-original')).toBe('support.portal');
+ expect(productEntryCapability('support',landing+'/support-portal-original%3Akey')).toBe('support.portal');
+ expect(productDestinationAvailable('support',landing,ownerContext)).toBe(true);
+ expect(productDestinationAvailable('support',landing,{...ownerContext,capabilities:['support.tickets']})).toBe(false);
+ expect(productDestinationAvailable('support',landing,{...ownerContext,permissions:[]})).toBe(false);
+ expect(productEntryCapability('support','customers-sales/customers/service/cases')).toBe('support.tickets');
+ for(const suffix of ['/new','/%2f','/%5c','/%252f','/%00','/%','/../binding','/binding/decisions','/binding-original/new']){
+  expect(entry(landing+suffix)).toBeNull();expect(productEntryCapability('support',landing+suffix)).toBeNull();
+ }
  for(const scope of ['', 'branches/main/','departments/team/','branches/main/departments/team/']){
   const base=`/holdings/acme/${scope}`,query='?ticketId=ticket-original&tag=one&tag=two#binding-original';
   expect(canonicalUiHref(base+'support/ticket-portal'+query)).toBe(base+landing+query);

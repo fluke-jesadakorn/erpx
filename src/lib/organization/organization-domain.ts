@@ -72,6 +72,7 @@ export function reportingIssues(person: OrganizationPerson, people: Organization
   return issues;
 }
 
-export function organizationChangeHref(id:string) {
-  return `/people/organization?changeId=${encodeURIComponent(id)}#organization-change-${encodeURIComponent(id)}`;
+export function organizationChangeHref(id:string,companyId:string) {
+  const query=new URLSearchParams({view:"legacy",company:companyId,tab:"changes",changeId:id});
+  return `/people/organization?${query}#organization-change-${encodeURIComponent(id)}`;
 }

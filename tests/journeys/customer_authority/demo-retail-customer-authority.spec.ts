@@ -1,5 +1,7 @@
 import {test,expect,type BrowserContext,type Page} from '@playwright/test';
-import {businessActor,businessCustomerActor,businessPosFront,businessFixture,businessOpen,businessReady,businessClick,businessRead,businessRequest,businessEvidence,closeBusiness} from "../../support/browser/engineering-business";
+import {randomUUID} from 'node:crypto';
+import {businessActor,businessCustomerActor,businessPosFront,businessFixture,businessOpen,businessReady,businessClick,businessRead,businessRequest,businessEvidence,closeBusiness,customerPortalAccountState,customerPortalEmailLink,navigateCustomerPortalMailLink} from "../../support/browser/engineering-business";
+import {createEngineeringBrowserContext} from "../../support/browser/engineering-browser-evidence";
 
 async function posClick(page:Page,operation:string,click:()=>Promise<void>){
  const suffix=`/pos/${operation.replace('.', '/')}`;
@@ -7,6 +9,32 @@ async function posClick(page:Page,operation:string,click:()=>Promise<void>){
  await click();const response=await pending,body=await response.json();expect(response.ok(),JSON.stringify(body)).toBe(true);return body.data as Record<string,unknown>;
 }
 
+async function fillPortalPassword(page:Page,password:string){
+ try{
+  await page.evaluate(value=>{
+   const input=document.querySelector<HTMLInputElement>('input[type="password"]'),setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set;
+   if(!input||!setter)throw new Error('PASSWORD_FIELD_REQUIRED');
+   setter.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));
+  },password);
+ }catch{throw new Error('CUSTOMER_PORTAL_PASSWORD_ENTRY_FAILED');}
+}
+
+async function openCustomerAccessAction(page:Page,label:string,reason:string,action?:string){
+ const drawer=page.getByTestId('record-detail-drawer'),opener=drawer.getByRole('button',{name:label,exact:true});
+ await expect(opener).toBeVisible();await expect(opener).toBeEnabled();
+ const form=page.locator('form[data-crm-draft]').filter({has:page.getByRole('button',{name:label,exact:true})});
+ let opened=false;
+ for(let attempt=0;attempt<3&&!opened;attempt++){
+  await opener.click();
+  try{await expect(form).toHaveCount(1,{timeout:3000});opened=true;}catch(error){if(attempt===2)throw error;}
+ }
+ if(action){const select=form.locator('select[name="action"]');await expect(select).toBeEnabled();await expect(select.locator(`option[value="${action}"]`)).toBeEnabled();await select.selectOption(action);}
+ await form.locator('[name="reason"]').fill(reason);
+ const submit=form.getByRole('button',{name:label,exact:true});await expect(submit).toBeEnabled();
+ return submit;
+}
+
+test.use({trace:'off'});
 test.describe('native retail and customer authority engineering workflows',()=>{
  test.skip(!process.env.ERPX_DEMO_RUN,'Requires the disposable normal-login browser simulation.');
  test.setTimeout(240_000);
@@ -83,35 +111,125 @@ test.describe('native retail and customer authority engineering workflows',()=>{
   }finally{holdScripts=false;for(const release of releaseScripts.splice(0))release();await closeBusiness(contexts,db);}
  });
 
- test('independently approves one customer portal binding scans scoped support evidence revokes cached access and retains immutable authority history',async({browser},info)=>{
-  const loaded=await businessFixture(info),{fixture,db}=loaded,a=fixture.customerAuthority,contexts:BrowserContext[]=[],path=`customer-access/${a.bindingId}`,portalApi='/api/customer-portal/simulation';
+ test.describe('customer portal invitation acceptance',()=>{
+ test.setTimeout(480_000);
+ test('independently approves one binding invites the verified account scopes its document and support evidence revokes access and retains immutable authority history',async({browser},info)=>{
+  const loaded=await businessFixture(info),{fixture,db}=loaded,a=fixture.customerAuthority,contexts:BrowserContext[]=[],path=`customers-sales/customers/reviews/access/${a.bindingId}/overview`,portalApi='/api/customer-portal/simulation';
   try{
    const source=await businessActor(browser,info,loaded,'source',path),reviewer=await businessActor(browser,info,loaded,'reviewer',path),customer=await businessCustomerActor(browser,info,loaded,a.recipientUserId),unrelated=await businessCustomerActor(browser,info,loaded,a.unrelatedUserId);
-   contexts.push(source.context,reviewer.context,customer.context,unrelated.context);expect(customer.email).toBe(a.recipientEmail);
+   contexts.push(source.context,reviewer.context,customer.context,unrelated.context);if(customer.email!==a.recipientEmail)throw new Error('CUSTOMER_PORTAL_RECIPIENT_FIXTURE_MISMATCH');
    await expect(customer.page.getByRole('heading',{name:'No approved documents yet',exact:true})).toBeVisible();await expect(source.page.getByRole('button',{name:'Record independent decision',exact:true})).toHaveCount(0);
+   if((await db.query('SELECT binding_id FROM customer_access_identities WHERE binding_id=$1',[a.bindingId])).rows.length!==0)throw new Error('CUSTOMER_PORTAL_IDENTITY_EXISTS_BEFORE_INVITATION');
    const self=await businessRequest(source.page,'customer-access',{id:a.bindingId,action:'approve',expectedVersion:1,reason:'The requester attempts to approve their own external authority.'});expect(self.status()).toBe(403);expect((await self.json()).error.code).toBe('INDEPENDENT_APPROVER_REQUIRED');
-   const approval=reviewer.page.locator("#workspace-content").locator('form').filter({has:reviewer.page.getByRole('button',{name:'Record independent decision',exact:true})});await approval.locator('[name="action"]').selectOption('approve');await approval.locator('[name="reason"]').fill('Different Sales reviewer verifies the normal account email and shares only this approved quotation.');
-   await businessClick(reviewer.page,'customer-access',()=>approval.getByRole('button',{name:'Record independent decision',exact:true}).click());
-   await customer.page.reload({waitUntil:'domcontentloaded'});const projectionResponse=await customer.page.request.get(portalApi);expect(projectionResponse.ok()).toBe(true);const projection=(await projectionResponse.json()).data.items as Array<Record<string,unknown>>;
+   const approval=await openCustomerAccessAction(reviewer.page,'Record independent decision','Different Sales reviewer verifies the normal account email and shares only this approved quotation.','approve');
+   await businessClick(reviewer.page,'customer-access',()=>approval.click());
+   await customer.page.reload({waitUntil:'domcontentloaded'});await expect(customer.page.getByRole('heading',{name:'No approved documents yet',exact:true})).toBeVisible();
+   await businessOpen(source.page,path);const invite=await openCustomerAccessAction(source.page,'Invite verified customer to the Portal','Invite the verified customer to claim only this independently approved quotation.');
+   const issued=await businessClick(source.page,'customer-access',()=>invite.click());
+   if(issued.id!==a.bindingId||issued.state!=='queued'||'token'in issued||'tokenHash'in issued)throw new Error('CUSTOMER_PORTAL_INVITATION_RECEIPT_INVALID');
+   const invitationLink=await customerPortalEmailLink(loaded,a.recipientEmail,{subject:'Your ERPX Customer Portal invitation',purpose:'invitation',deliveryKey:`customer-portal-invitation-${String(issued.invitationId)}`});
+   try{await navigateCustomerPortalMailLink(customer.page,invitationLink);}catch{throw new Error('CUSTOMER_PORTAL_INVITATION_PAGE_UNAVAILABLE');}
+   await expect(customer.page.getByRole('heading',{name:'Accept your Customer Portal invitation',exact:true})).toBeVisible();
+   await expect.poll(()=>customer.page.evaluate(()=>window.location.hash==='')).toBe(true);
+   const acceptance=customer.page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/customer-portal/enroll');
+   await customer.page.getByRole('button',{name:'Accept while signed in',exact:true}).click();const accepted=await acceptance;
+   if(!accepted.ok())throw new Error('CUSTOMER_PORTAL_INVITATION_ACCEPTANCE_FAILED');
+   const completion=(await accepted.json()).data as {portalUrl?:unknown};
+   if(typeof completion.portalUrl!=='string')throw new Error('CUSTOMER_PORTAL_INVITATION_COMPLETION_INVALID');
+   const baseUrl=process.env.ERPX_E2E_BASE_URL??'http://127.0.0.1:3104',portalUrl=new URL(completion.portalUrl,baseUrl);
+   if(portalUrl.origin!==new URL(baseUrl).origin||portalUrl.pathname!=='/customer-portal/simulation')throw new Error('CUSTOMER_PORTAL_DESTINATION_INVALID');
+   await expect(customer.page.getByRole('link',{name:'Open Customer Portal',exact:true})).toHaveAttribute('href',completion.portalUrl);
+   await customer.page.getByRole('link',{name:'Open Customer Portal',exact:true}).click();await expect(customer.page.getByRole('heading',{name:'Customer documents',exact:true})).toBeVisible();
+   const projectionResponse=await customer.page.request.get(portalApi);expect(projectionResponse.ok()).toBe(true);const projection=(await projectionResponse.json()).data.items as Array<Record<string,unknown>>;
    expect(projection).toHaveLength(1);expect(projection[0]).toMatchObject({binding_id:a.bindingId,binding_version:2,order_id:a.orderId});expect(projection.some(row=>row.order_id===a.excludedOrderId)).toBe(false);for(const field of ['reason','created_by','customer_id','subtotal_minor','accounts_json'])expect(projection[0]).not.toHaveProperty(field);
+   await expect(customer.page.locator(`#customer-order-${a.bindingId}`)).toBeVisible();
    const wrong=await unrelated.page.request.post(portalApi,{headers:{Origin:new URL(unrelated.page.url()).origin,'Idempotency-Key':crypto.randomUUID()},data:{bindingId:a.bindingId,expectedBindingVersion:2,action:'request_support',note:'Another normal account tries to use this customer binding.'}});expect(wrong.status()).toBe(403);expect((await wrong.json()).error.code).toBe('CUSTOMER_PORTAL_BINDING_UNAVAILABLE');
    expect((await (await unrelated.page.request.get(portalApi)).json()).data.items).toEqual([]);
    const stale=await customer.page.request.post(portalApi,{headers:{Origin:new URL(customer.page.url()).origin,'Idempotency-Key':crypto.randomUUID()},data:{bindingId:a.bindingId,expectedBindingVersion:1,action:'request_support',note:'A cached stale version attempts a customer command.'}});expect(stale.status()).toBe(409);expect((await stale.json()).error.code).toBe('CUSTOMER_PORTAL_BINDING_CHANGED');
-   const evidence=customer.page.getByRole('region',{name:'Support request photos and documents',exact:true});await evidence.locator('input[type="file"]').first().setInputFiles({name:`customer-authority-${info.project.name}.png`,mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64')});await expect(evidence).toContainText(/1\/\d+ ready/,{timeout:90_000});
+   await customer.page.getByText('Request support',{exact:true}).click();const evidence=customer.page.getByRole('region',{name:'Support request photos and documents',exact:true});await evidence.locator('input[type="file"]').first().setInputFiles({name:`customer-authority-${info.project.name}.png`,mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64')});await expect(evidence).toContainText(/1\/\d+ ready/,{timeout:90_000});
    await customer.page.getByLabel('Message to the company (optional for support)',{exact:true}).fill('Fictional customer requests clarification of the approved quotation; scanned evidence belongs only to this source.');
    const pendingResponse=customer.page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===portalApi),pendingRequest=customer.page.waitForRequest(request=>request.method()==='POST'&&new URL(request.url()).pathname===portalApi);
-   await customer.page.getByRole('button',{name:'Request support',exact:true}).click();const [recorded,request]=await Promise.all([pendingResponse,pendingRequest]);expect(recorded.ok(),await recorded.text()).toBe(true);const action=(await recorded.json()).data,commandKey=String(request.headers()['idempotency-key']);
+   const sendSupport=customer.page.getByRole('button',{name:'Send support request',exact:true});await sendSupport.scrollIntoViewIfNeeded();const sendSupportBox=await sendSupport.boundingBox();if(!sendSupportBox)throw new Error('CUSTOMER_PORTAL_SUPPORT_SUBMIT_UNAVAILABLE');await sendSupport.click({position:{x:Math.max(1,sendSupportBox.width-12),y:sendSupportBox.height/2},timeout:30_000});const [recorded,request]=await Promise.all([pendingResponse,pendingRequest]);expect(recorded.ok(),await recorded.text()).toBe(true);const action=(await recorded.json()).data,commandKey=String(request.headers()['idempotency-key']);
    const replay=await customer.page.request.post(portalApi,{headers:{Origin:new URL(customer.page.url()).origin,'Idempotency-Key':commandKey},data:request.postDataJSON()});expect(replay.ok(),await replay.text()).toBe(true);expect((await replay.json()).data).toEqual(action);
    const bound=(await db.query("SELECT s.state,l.state link_state,l.id link_id,f.source_state FROM attachment_sets s JOIN attachment_links l ON l.set_id=s.id JOIN attachments f ON f.id=l.attachment_id WHERE s.target_type='customer_access_binding' AND s.target_id=$1 AND s.state='bound'",[a.bindingId])).rows;expect(bound).toHaveLength(1);expect(bound[0]).toMatchObject({state:'bound',link_state:'bound',source_state:'available'});
    const preview=`${portalApi}/attachments/attachment-links/${bound[0].link_id}/content?variant=preview`,previewResponse=await customer.page.request.get(preview);expect(previewResponse.ok()).toBe(true);expect(previewResponse.headers()['content-type']).toBe('image/webp');expect((await previewResponse.body()).byteLength).toBeGreaterThan(0);expect((await customer.page.request.get(preview.replace('variant=preview','variant=original'))).status()).toBe(403);expect((await unrelated.page.request.get(preview)).status()).toBe(404);
    expect((await db.query('SELECT user_id,email FROM customer_access_identities WHERE binding_id=$1',[a.bindingId])).rows).toEqual([{user_id:a.recipientUserId,email:a.recipientEmail}]);
    expect((await db.query('SELECT COUNT(*)::integer count FROM customer_portal_actions WHERE binding_id=$1',[a.bindingId])).rows[0].count).toBe(1);expect((await db.query('SELECT COUNT(*)::integer count FROM audit_events WHERE command_id=$1',[commandKey])).rows[0].count).toBe(1);expect((await db.query('SELECT COUNT(*)::integer count FROM outbox_events WHERE command_id=$1',[commandKey])).rows[0].count).toBe(1);
-   await customer.page.reload({waitUntil:'domcontentloaded'});await expect(customer.page.getByRole('button',{name:'Support requested',exact:true})).toBeDisabled();await businessEvidence(customer.page,info,'scoped-customer-portal-support-with-scanned-evidence');
-   await businessOpen(source.page,path);const revoke=source.page.locator("#workspace-content").locator('form').filter({has:source.page.getByRole('button',{name:'Revoke access',exact:true})});await revoke.locator('[name="reason"]').fill('Fictional customer withdraws portal authority; retained source and customer action history must remain.');await businessClick(source.page,'customer-access',()=>revoke.getByRole('button',{name:'Revoke access',exact:true}).click());
+   await customer.page.reload({waitUntil:'domcontentloaded'});await customer.page.getByText('Request support',{exact:true}).click();await expect(customer.page.getByRole('button',{name:'Support requested',exact:true})).toBeDisabled();await businessEvidence(customer.page,info,'scoped-customer-portal-support-with-scanned-evidence');const supportDrawer=customer.page.getByRole('dialog',{name:'Request support',exact:true});await supportDrawer.getByRole('button',{name:'Close dialog',exact:true}).click();await expect(supportDrawer).toBeHidden();
+   await businessOpen(source.page,path);const revoke=await openCustomerAccessAction(source.page,'Revoke access','Fictional customer withdraws portal authority; retained source and customer action history must remain.');await businessClick(source.page,'customer-access',()=>revoke.click());
    const cachedResponse=customer.page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===portalApi);await customer.page.getByRole('button',{name:'Acknowledge delivery',exact:true}).click();const cached=await cachedResponse;expect(cached.status()).toBe(403);expect((await cached.json()).error.code).toBe('CUSTOMER_PORTAL_BINDING_EXPIRED');expect((await customer.page.request.get(preview)).status()).toBe(404);
    await customer.page.reload({waitUntil:'domcontentloaded'});await expect(customer.page.getByRole('heading',{name:'No approved documents yet',exact:true})).toBeVisible();expect((await (await customer.page.request.get(portalApi)).json()).data.items).toEqual([]);
-   await businessOpen(source.page,path);const history=await businessRead<{binding:{status:string;version:number};events:Array<{action:string}>;reads:Array<{user_id:string;binding_version:number;projection_version:string}>}>(source.page,`customer-access?id=${a.bindingId}`);expect(history.binding).toMatchObject({status:'revoked',version:4});expect(history.events.map(row=>row.action)).toEqual(['request','approve','portal-evidence-bind','revoke']);expect(history.reads.length).toBeGreaterThan(0);expect(history.reads.every(row=>row.user_id===a.recipientUserId&&[2,3].includes(Number(row.binding_version))&&row.projection_version==='customer-order-v1')).toBe(true);
+   await businessOpen(source.page,path);const history=await businessRead<{binding:{status:string;version:number};events:Array<{action:string}>;reads:Array<{user_id:string;binding_version:number;projection_version:string}>;invitations:Array<{id:string;state:string;accepted_user_id:string|null}>;invitationEvents:Array<{invitation_id:string;action:string}>}>(source.page,`customer-access?id=${a.bindingId}`);expect(history.binding).toMatchObject({status:'revoked',version:4});expect(history.events.map(row=>row.action)).toEqual(['request','approve','portal-evidence-bind','revoke']);expect(history.reads.length).toBeGreaterThan(0);expect(history.reads.every(row=>row.user_id===a.recipientUserId&&[2,3].includes(Number(row.binding_version))&&row.projection_version==='customer-order-v1')).toBe(true);expect(history.invitations).toContainEqual(expect.objectContaining({state:'accepted',accepted_user_id:a.recipientUserId}));expect(history.invitationEvents.some(row=>row.action==='accepted')).toBe(true);
    expect((await db.query('SELECT COUNT(*)::integer count FROM customer_portal_actions WHERE binding_id=$1',[a.bindingId])).rows[0].count).toBe(1);await expect(source.page.getByRole('heading',{name:'Immutable decision history',exact:true})).toBeVisible();await expect(source.page.getByRole('heading',{name:'Customer read audit',exact:true})).toBeVisible();await businessEvidence(source.page,info,'revoked-customer-portal-retains-versioned-decisions-and-read-audit');
   }finally{await closeBusiness(contexts,db);}
+ });
+ });
+
+ test.describe('external customer portal invitation signup',()=>{
+  test.setTimeout(360_000);
+  test('independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history',async({browser},info)=>{
+   const loaded=await businessFixture(info),{fixture,db}=loaded,a=fixture.customerAuthority,contexts:BrowserContext[]=[],path=`customers-sales/customers/reviews/access/${a.invitedBindingId}/overview`,portalApi='/api/customer-portal/simulation';
+   try{
+    const source=await businessActor(browser,info,loaded,'source',path);contexts.push(source.context);
+    const reviewer=await businessActor(browser,info,loaded,'reviewer',path);contexts.push(reviewer.context);
+    const unrelated=await businessCustomerActor(browser,info,loaded,a.unrelatedUserId);contexts.push(unrelated.context);
+    const inviteeContext=await createEngineeringBrowserContext(browser,info);contexts.push(inviteeContext);const invitee=await inviteeContext.newPage();
+    expect(await customerPortalAccountState(loaded,a.invitedEmail)).toBeNull();
+    expect((await db.query('SELECT binding_id FROM customer_access_identities WHERE binding_id=$1',[a.invitedBindingId])).rows).toEqual([]);
+
+    const self=await businessRequest(source.page,'customer-access',{id:a.invitedBindingId,action:'approve',expectedVersion:1,reason:'The requester attempts to approve their own customer authority.'});expect(self.status()).toBe(403);expect((await self.json()).error.code).toBe('INDEPENDENT_APPROVER_REQUIRED');
+    const approval=await openCustomerAccessAction(reviewer.page,'Record independent decision','A separate Sales reviewer approves one document for this external customer email.','approve');
+    await businessClick(reviewer.page,'customer-access',()=>approval.click());
+    await businessOpen(source.page,path);const invite=await openCustomerAccessAction(source.page,'Invite verified customer to the Portal','Issue a private invitation to the newly approved external customer contact.');
+    const issued=await businessClick(source.page,'customer-access',()=>invite.click());
+    if(issued.id!==a.invitedBindingId||issued.state!=='queued'||'token'in issued||'tokenHash'in issued||typeof issued.invitationId!=='string')throw new Error('CUSTOMER_PORTAL_INVITATION_RECEIPT_INVALID');
+    const invitationLink=await customerPortalEmailLink(loaded,a.invitedEmail,{subject:'Your ERPX Customer Portal invitation',purpose:'invitation',deliveryKey:`customer-portal-invitation-${issued.invitationId}`});
+    try{await navigateCustomerPortalMailLink(invitee,invitationLink);}catch{throw new Error('CUSTOMER_PORTAL_INVITATION_PAGE_UNAVAILABLE');}
+    await expect(invitee.getByRole('heading',{name:'Accept your Customer Portal invitation',exact:true})).toBeVisible();await expect.poll(()=>invitee.evaluate(()=>window.location.hash==='')).toBe(true);
+    const password=`Portal!${randomUUID()}`,signupStartedAt=Date.now(),signupResponse=invitee.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/customer-portal/enroll');
+    await invitee.getByLabel('Your name').fill('External Portal invitee');await fillPortalPassword(invitee,password);await invitee.getByRole('button',{name:'Create invited account',exact:true}).click();
+    const signup=await signupResponse;if(!signup.ok()){const body=await signup.json().catch(()=>null) as {error?:{code?:unknown}}|null;throw new Error(`CUSTOMER_PORTAL_INVITED_SIGNUP_FAILED:${signup.status()}:${typeof body?.error?.code==='string'?body.error.code:'UNKNOWN'}`);}await expect(invitee.getByRole('status')).toContainText('Check the invited email address and verify your account');
+    const unverified=await customerPortalAccountState(loaded,a.invitedEmail);expect(unverified).not.toBeNull();expect(unverified?.emailVerified).toBe(false);expect((await db.query('SELECT binding_id FROM customer_access_identities WHERE binding_id=$1',[a.invitedBindingId])).rows).toEqual([]);
+    const verificationLink=await customerPortalEmailLink(loaded,a.invitedEmail,{subject:'Verify your ERPX email',purpose:'verification',createdAfter:signupStartedAt});
+    try{await navigateCustomerPortalMailLink(invitee,verificationLink);}catch{throw new Error('CUSTOMER_PORTAL_EMAIL_VERIFICATION_UNAVAILABLE');}
+    await expect.poll(async()=>{const current=new URL(invitee.url());return current.pathname==='/customer-portal/enroll'&&current.searchParams.get('verified')==='1';}).toBe(true);
+    await expect(invitee.getByText('Your email verification step is complete. Reopen the invitation email and sign in to accept the approved document.',{exact:true})).toBeVisible();
+    await expect.poll(async()=>Boolean((await customerPortalAccountState(loaded,a.invitedEmail))?.emailVerified),{timeout:20_000}).toBe(true);
+    let accountSession=await invitee.request.get('/api/auth/get-session');let sessionBody=accountSession.ok()?await accountSession.json().catch(()=>null):null;
+    if((sessionBody as {user?:{email?:string}}|null)?.user?.email!==a.invitedEmail){
+     await invitee.goto('/login?next=%2Fcustomer-portal%2Fenroll',{waitUntil:'domcontentloaded'});await invitee.locator('input[type="email"]').fill(a.invitedEmail);await fillPortalPassword(invitee,password);
+     const signedIn=invitee.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/auth/sign-in/email');await invitee.getByRole('button',{name:'Sign in',exact:true}).click();if(!(await signedIn).ok())throw new Error('CUSTOMER_PORTAL_INVITED_ACCOUNT_SIGN_IN_FAILED');
+     await expect.poll(async()=>{const current=new URL(invitee.url());return current.pathname==='/customer-portal/enroll';}).toBe(true);
+     accountSession=await invitee.request.get('/api/auth/get-session');sessionBody=accountSession.ok()?await accountSession.json().catch(()=>null):null;
+    }
+    if((sessionBody as {user?:{email?:string}}|null)?.user?.email!==a.invitedEmail)throw new Error('CUSTOMER_PORTAL_VERIFIED_INVITEE_SESSION_REQUIRED');
+    const invitedAccount=await customerPortalAccountState(loaded,a.invitedEmail);expect(invitedAccount).toMatchObject({emailVerified:true});if(!invitedAccount)throw new Error('CUSTOMER_PORTAL_INVITED_ACCOUNT_MISSING');
+
+    try{await navigateCustomerPortalMailLink(invitee,invitationLink);}catch{throw new Error('CUSTOMER_PORTAL_INVITATION_REOPEN_FAILED');}
+    await expect(invitee.getByRole('heading',{name:'Accept your Customer Portal invitation',exact:true})).toBeVisible();await expect.poll(()=>invitee.evaluate(()=>window.location.hash==='')).toBe(true);
+    const acceptance=invitee.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/customer-portal/enroll');await invitee.getByRole('button',{name:'Accept while signed in',exact:true}).click();const accepted=await acceptance;if(!accepted.ok()){const body=await accepted.json().catch(()=>null) as {error?:{code?:unknown}}|null;throw new Error(`CUSTOMER_PORTAL_INVITATION_ACCEPTANCE_FAILED:${accepted.status()}:${typeof body?.error?.code==='string'?body.error.code:'UNKNOWN'}`);}
+    const acceptedBody=await accepted.json().catch(()=>null) as {data?:{bindingId?:unknown;portalUrl?:unknown}}|null;if(acceptedBody?.data?.bindingId!==a.invitedBindingId||typeof acceptedBody.data.portalUrl!=='string')throw new Error('CUSTOMER_PORTAL_INVITATION_COMPLETION_INVALID');
+    const portalUrl=new URL(acceptedBody.data.portalUrl,process.env.ERPX_E2E_BASE_URL??'http://127.0.0.1:3104');if(portalUrl.origin!==new URL(process.env.ERPX_E2E_BASE_URL??'http://127.0.0.1:3104').origin||portalUrl.pathname!=='/customer-portal/simulation')throw new Error('CUSTOMER_PORTAL_DESTINATION_INVALID');
+    await expect(invitee.getByRole('link',{name:'Open Customer Portal',exact:true})).toHaveAttribute('href',acceptedBody.data.portalUrl);await invitee.getByRole('link',{name:'Open Customer Portal',exact:true}).click();await expect(invitee.getByRole('heading',{name:'Customer documents',exact:true})).toBeVisible();
+    const projectionResponse=await invitee.request.get(portalApi);expect(projectionResponse.ok()).toBe(true);const projection=(await projectionResponse.json()).data.items as Array<Record<string,unknown>>;expect(projection).toHaveLength(1);expect(projection[0]).toMatchObject({binding_id:a.invitedBindingId,binding_version:2,order_id:a.orderId});expect(projection.some(row=>row.order_id===a.excludedOrderId)).toBe(false);for(const field of ['reason','created_by','customer_id','subtotal_minor','accounts_json'])expect(projection[0]).not.toHaveProperty(field);await expect(invitee.locator(`#customer-order-${a.invitedBindingId}`)).toBeVisible();
+    expect((await db.query('SELECT binding_id,user_id,email FROM customer_access_identities WHERE binding_id=$1',[a.invitedBindingId])).rows).toEqual([{binding_id:a.invitedBindingId,user_id:invitedAccount.id,email:a.invitedEmail}]);
+    expect((await db.query('SELECT state,accepted_user_id FROM customer_portal_invitations WHERE id=$1',[issued.invitationId])).rows).toEqual([{state:'accepted',accepted_user_id:invitedAccount.id}]);
+    const invitationEvents=(await db.query('SELECT action FROM customer_portal_invitation_events WHERE invitation_id=$1',[issued.invitationId])).rows as Array<{action:string}>;expect(invitationEvents.some(row=>row.action==='accepted')).toBe(true);
+    const wrong=await unrelated.page.request.get(portalApi);expect(wrong.ok()).toBe(true);expect((await wrong.json()).data.items).toEqual([]);
+
+     await invitee.getByText('Request support',{exact:true}).click();const evidence=invitee.getByRole('region',{name:'Support request photos and documents',exact:true});await evidence.locator('input[type="file"]').first().setInputFiles({name:`customer-invitation-${info.project.name}.png`,mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64')});await expect(evidence).toContainText(/1\/\d+ ready/,{timeout:90_000});
+     await invitee.getByLabel('Message to the company (optional for support)',{exact:true}).fill('Fictional invited customer requests clarification; evidence is limited to this accepted customer binding.');
+     const supportResponse=invitee.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===portalApi,{timeout:30_000}),supportRequest=invitee.waitForRequest(request=>request.method()==='POST'&&new URL(request.url()).pathname===portalApi,{timeout:30_000});
+     const supportSubmit=invitee.getByRole('button',{name:'Send support request',exact:true});await expect(supportSubmit).toBeEnabled();const supportSubmitBox=await supportSubmit.boundingBox();if(!supportSubmitBox)throw new Error('CUSTOMER_PORTAL_SUPPORT_SUBMIT_UNAVAILABLE');await supportSubmit.click({position:{x:Math.max(4,supportSubmitBox.width-24),y:supportSubmitBox.height/2}});const [supported,supportCommand]=await Promise.all([supportResponse,supportRequest]);if(!supported.ok())throw new Error('CUSTOMER_PORTAL_INVITEE_SUPPORT_REQUEST_FAILED');
+     const supportReceipt=(await supported.json()).data,commandKey=supportCommand.headers()['idempotency-key'];if(!commandKey)throw new Error('CUSTOMER_PORTAL_SUPPORT_COMMAND_KEY_MISSING');
+     const replay=await invitee.request.post(portalApi,{headers:{Origin:new URL(invitee.url()).origin,'Idempotency-Key':commandKey},data:supportCommand.postDataJSON()});expect(replay.ok()).toBe(true);expect((await replay.json()).data).toEqual(supportReceipt);
+     const attachment=(await db.query("SELECT l.id link_id FROM attachment_sets s JOIN attachment_links l ON l.set_id=s.id WHERE s.target_type='customer_access_binding' AND s.target_id=$1 AND s.state='bound' AND l.state='bound'",[a.invitedBindingId])).rows[0] as {link_id:string}|undefined;if(!attachment)throw new Error('CUSTOMER_PORTAL_INVITEE_EVIDENCE_NOT_BOUND');
+     const preview=`${portalApi}/attachments/attachment-links/${attachment.link_id}/content?variant=preview`,previewResponse=await invitee.request.get(preview);expect(previewResponse.ok()).toBe(true);expect(previewResponse.headers()['content-type']).toBe('image/webp');expect((await previewResponse.body()).byteLength).toBeGreaterThan(0);expect((await invitee.request.get(preview.replace('variant=preview','variant=original'))).status()).toBe(403);expect((await unrelated.page.request.get(preview)).status()).toBe(404);
+
+    await businessOpen(source.page,path);const revoke=await openCustomerAccessAction(source.page,'Revoke access','Withdraw the external customer grant while retaining the exact invitation decision history.');await businessClick(source.page,'customer-access',()=>revoke.click());
+     await invitee.reload({waitUntil:'domcontentloaded'});await expect(invitee.getByRole('heading',{name:'No approved documents yet',exact:true})).toBeVisible();expect((await (await invitee.request.get(portalApi)).json()).data.items).toEqual([]);expect((await invitee.request.get(preview)).status()).toBe(404);
+    await businessOpen(source.page,path);const history=await businessRead<{binding:{status:string;version:number};invitations:Array<{id:string;state:string;accepted_user_id:string|null}>;invitationEvents:Array<{invitation_id:string;action:string}>}>(source.page,`customer-access?id=${a.invitedBindingId}`);expect(history.binding).toMatchObject({status:'revoked',version:4});expect(history.invitations).toContainEqual(expect.objectContaining({id:issued.invitationId,state:'accepted',accepted_user_id:invitedAccount.id}));expect(history.invitationEvents.some(row=>row.invitation_id===issued.invitationId&&row.action==='accepted')).toBe(true);
+   }finally{await closeBusiness(contexts,db);}
+  });
  });
 });

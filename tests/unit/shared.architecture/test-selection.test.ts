@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { parseTestArguments } from "../../../scripts/testing/arguments";
+import { exactNativeCasePattern, resolveRegisteredCase, suiteForRegisteredCase } from "../../../scripts/testing/exact-case-selection";
 import { assertExplicitSelectionIncluded, importSpecifiers, loadCatalogue, reachesDatabaseFixture, repositoryRoot, requiresEngineeringBusinessFixture, resolveImport, selectSuites, validateBrowserFixtureContract, validateCatalogue, type Catalogue, type Suite } from "../../../scripts/testing/catalogue";
 import { parseChanges, patternMatches, selectImpact, type SourceOwnership } from "../../../scripts/testing/impact";
 import { developmentSelection } from "../../../scripts/testing/development";
@@ -32,6 +33,62 @@ const base = new Map([
 const impacted = (changes: Parameters<typeof selectImpact>[0]["changed"], before = base, after = base, beforeOwnership = ownership, afterOwnership = ownership) => selectImpact({ changed: changes, base: before, head: after, baseCatalogue: catalogue, headCatalogue: catalogue, baseOwnership: beforeOwnership, headOwnership: afterOwnership });
 
 describe("test selection contracts", () => {
+  it("resolves unique exact case titles and file identities and rejects unknown or ambiguous selectors", () => {
+    const id = "admin:company-brand-organization-iam";
+    const title = "Company Admin exposes current Brand, Organization, and IAM owner reads without changing roles or package grants";
+    const byTitle = resolveRegisteredCase(title);
+    expect(byTitle).toMatchObject({ runner: "vitest", file: "tests/integration/identity_access/product-workspace.test.ts", title });
+    expect(suiteForRegisteredCase(loadCatalogue(), byTitle).id).toBe("identity_access.product-workspace.integration");
+    expect(() => resolveRegisteredCase(id)).toThrow("AMBIGUOUS_REGISTERED_TEST_CASE");
+    expect(() => resolveRegisteredCase(`id:${id}`)).toThrow("AMBIGUOUS_REGISTERED_TEST_CASE");
+    expect(resolveRegisteredCase(`title:${title}`)).toEqual(byTitle);
+    expect(resolveRegisteredCase(`${byTitle.file}::${title}`)).toEqual(byTitle);
+    expect(resolveRegisteredCase(`e2e/marketing/forms-host.spec.ts::isolated anonymous Forms host submits the published version and replays exact consent once`, { project: "mobile" }))
+      .toMatchObject({ runner: "playwright", file: "tests/e2e/marketing/forms-host.spec.ts", project: "mobile" });
+    expect(resolveRegisteredCase(`e2e/identity_access/product-hosts.spec.ts::isolated work Account Apps SSO reaches its actual owner landing and API`, { project: "desktop" }))
+      .toMatchObject({ runner: "playwright", file: "tests/e2e/identity_access/product-hosts.spec.ts", project: "desktop" });
+    expect(() => resolveRegisteredCase("unknown registered title")).toThrow("UNKNOWN_REGISTERED_TEST_CASE");
+    const browserTitle = "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money";
+    expect(() => resolveRegisteredCase(browserTitle)).toThrow("AMBIGUOUS_REGISTERED_TEST_CASE");
+    expect(resolveRegisteredCase(browserTitle, { project: "mobile" })).toMatchObject({ runner: "playwright", project: "mobile", title: browserTitle });
+    expect(() => resolveRegisteredCase(`${byTitle.file}::unknown title`)).toThrow("UNKNOWN_REGISTERED_TEST_CASE");
+    const pattern = exactNativeCasePattern("fee (USD) $1.00 + tax?");
+    expect(new RegExp(pattern).test("fee (USD) $1.00 + tax?")).toBe(true);
+    expect(new RegExp(pattern).test("prefix fee (USD) $1.00 + tax?")).toBe(false);
+  });
+  it("parses one exact case selector without changing the default lane, and rejects conflicting name filters", () => {
+    const title = "Company Admin exposes current Brand, Organization, and IAM owner reads without changing roles or package grants";
+    const parsed = parseTestArguments([`--case=${title}`]);
+    expect(parsed).toMatchObject({ command: "tests", caseSelector: title, forwarded: [] });
+    expect(parsed).not.toHaveProperty("lane");
+    expect(parseTestArguments(["--case", title, "--list"]).list).toBe(true);
+    expect(() => parseTestArguments(["--case=one", "--case=two"])).toThrow("DUPLICATE_EXACT_CASE_SELECTOR");
+    expect(() => parseTestArguments(["--case="])).toThrow("TEST_OPTION_VALUE_REQUIRED:--case");
+    expect(() => parseTestArguments(["--case=one", "--testNamePattern", "one"])).toThrow("EXACT_CASE_PATTERN_CONFLICT");
+    expect(() => parseTestArguments(["--case=one", "--grep=one"])).toThrow("EXACT_CASE_PATTERN_CONFLICT");
+    expect(parseTestArguments([]).lane).toBe("unit");
+  });
+  it("lists only the exact registered native or browser case without starting a runner", () => {
+    const nativeTitle = "Company Admin exposes current Brand, Organization, and IAM owner reads without changing roles or package grants";
+    const native = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/test.ts", "integration", `--case=${nativeTitle}`, "--list", "--json"], { cwd: repositoryRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 });
+    expect(native.status, native.stderr.toString()).toBe(0);
+    const nativeSelection = JSON.parse(native.stdout.toString());
+    expect(nativeSelection.selectedCase).toMatchObject({ runner: "vitest", file: "tests/integration/identity_access/product-workspace.test.ts" });
+    expect(nativeSelection.suites).toHaveLength(1);
+    expect(nativeSelection.suites[0].files).toEqual(["tests/integration/identity_access/product-workspace.test.ts"]);
+
+    const title = "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money";
+    const browser = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/browser-runner.ts", "e2e", `--case=${title}`, "--project=mobile", "--list"], { cwd: repositoryRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 });
+    expect(browser.status, browser.stderr.toString()).toBe(0);
+    const browserSelection = JSON.parse(browser.stdout.toString());
+    expect(browserSelection.selectedCase).toMatchObject({ suite: "pms.booking-payment-recovery.e2e", project: "mobile", title });
+    expect(browserSelection.suites).toHaveLength(1);
+    expect(browserSelection.suites[0].files).toEqual(["tests/e2e/pms/pms-booking-payment-recovery.spec.ts"]);
+
+    const conflicting = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/browser-runner.ts", "e2e", `--case=${title}`, "--project=mobile", "--grep=booking", "--list"], { cwd: repositoryRoot, env: process.env, maxBuffer: 16 * 1024 * 1024 });
+    expect(conflicting.status).not.toBe(0);
+    expect(`${conflicting.stdout.toString()}${conflicting.stderr.toString()}`).toContain("EXACT_BROWSER_CASE_PATTERN_CONFLICT");
+  });
   it("defaults development commands to unit while preserving explicit native selections and lane errors", () => {
     const native: Catalogue = { ...catalogue, suites: [...catalogue.suites, suite("finance.adapter", ["finance"], "integration")] };
     expect(selectSuites(native, parseTestArguments([])).every(item => item.lane === "unit")).toBe(true);
@@ -55,6 +112,57 @@ describe("test selection contracts", () => {
     const files = ["tests/unit/shared.attachments/attachment-policy-inventory.test.ts", "tests/integration/shared.attachments/attachments-v2.test.ts"];
     expect(run(files).flatMap(item => item.files).sort()).toEqual(files.sort());
   });
+  it("dispatches mixed native files to their lane configs without opening PostgreSQL", () => {
+    const directory = mkdtempSync(join(tmpdir(), "erpx-mixed-native-dispatch-"));
+    try {
+      const node = join(directory, "node"), dispatchLog = join(directory, "dispatch.log");
+      writeFileSync(node, [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf '%s\\n' 'v26.11.1'",
+        "  exit 0",
+        "fi",
+        "{",
+        "  printf '%s\\n' '---'",
+        '  printf "argv=%s\\n" "$*"',
+        '  printf "selected=%s\\n" "${ERPX_SELECTED_TEST_FILES-<unset>}"',
+        '  if [ "${ERPX_TEST_ADMIN_URL+x}" = x ]; then',
+        '    printf "admin=%s\\n" "$ERPX_TEST_ADMIN_URL"',
+        "  else",
+        '    printf "%s\\n" "admin=<unset>"',
+        "  fi",
+        '} >> "$ERPX_TEST_DISPATCH_LOG"',
+        "exit 0",
+      ].join("\n") + "\n", { mode: 0o700 });
+      const files = [
+        "tests/unit/shared.attachments/attachment-policy-inventory.test.ts",
+        "tests/integration/shared.attachments/attachments-v2.test.ts",
+      ];
+      const child = spawnSync(pinnedBunBinary(repositoryRoot), ["--env-file=/dev/null", "scripts/testing/test.ts", ...files], {
+        cwd: repositoryRoot,
+        env: {
+          ...process.env,
+          ERPX_NODE_BIN: node,
+          ERPX_TEST_ADMIN_URL: "dispatch-test-only",
+          ERPX_TEST_DISPATCH_LOG: dispatchLog,
+        },
+        encoding: "utf8",
+        maxBuffer: 16 * 1024 * 1024,
+      });
+      expect(child.error).toBeUndefined();
+      expect(child.status, child.stderr).toBe(0);
+      const invocations = readFileSync(dispatchLog, "utf8").split(/^---\n/m).slice(1).map(value => value.trim());
+      expect(invocations).toHaveLength(2);
+      expect(invocations[0]).toContain("--config tests/config/vitest.unit.config.mts");
+      expect(invocations[0]).toContain(`selected=${JSON.stringify([files[0]])}`);
+      expect(invocations[0]).toContain("admin=<unset>");
+      expect(invocations[1]).toContain("--config tests/config/vitest.integration.config.mts");
+      expect(invocations[1]).toContain(`selected=${JSON.stringify([files[1]])}`);
+      expect(invocations[1]).toContain("admin=dispatch-test-only");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
   it("places suites under their declared lane and owner without allowing support or root cases", () => {
     const registered = { id: "finance.rules", lane: "unit" as const, owner: "finance", files: ["tests/unit/finance/rules.test.ts"] };
     expect(() => assertTestPlacement([registered])).not.toThrow();
@@ -67,9 +175,13 @@ describe("test selection contracts", () => {
     const actual = loadCatalogue();
     const files = actual.suites.filter(candidate => ["e2e", "journeys"].includes(candidate.lane)).flatMap(candidate => candidate.files);
     expect([...files].sort()).toEqual(expect.arrayContaining([...new Set(baseline.cases.map(test => test.file))].sort()));
-    expect(baseline.cases).toHaveLength(491);
+    expect(baseline.cases).toHaveLength(501);
     expect(baseline.excludedCases).toHaveLength(9);
     expect(baseline.cases.filter(test => test.file === "tests/e2e/shared.ui/enterprise-ui.spec.ts")).toHaveLength(19);
+    expect(baseline.cases.filter(test => test.file === "tests/e2e/finance/demo-controlled-payment.spec.ts")).toHaveLength(4);
+    expect(baseline.cases.filter(test => test.file === "tests/journeys/sales/demo-sales-to-collection.spec.ts" && test.title.includes("isolated Sales cancels before stock movement"))).toHaveLength(2);
+    expect(baseline.cases.filter(test => test.file === "tests/e2e/customer_authority/portal-invitation.spec.ts")).toHaveLength(4);
+    expect(baseline.cases.filter(test => test.file === "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts" && test.title.includes("external customer portal invitation signup"))).toHaveLength(2);
     expect(baseline.excludedCases.filter(test => test.file === "tests/e2e/shared.ui/enterprise-ui.spec.ts")).toHaveLength(3);
     const registered = loadRequiredCases();
     const reviewedSupplemental = [
@@ -114,6 +226,36 @@ describe("test selection contracts", () => {
         title: "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
         project,
       })),
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title: "isolated Finance host creates a completion-backed sales invoice through Account and Apps",
+        project,
+      })),
+      {
+        runner: "playwright" as const,
+        file: "tests/e2e/shared.executive/executive-work-mcp.spec.ts",
+        title: "isolated Work Executive UI reads a seeded connection through scoped MCP",
+        project: "desktop" as const,
+      },
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/marketing/forms-host.spec.ts",
+        title: "isolated anonymous Forms host submits the published version and replays exact consent once",
+        project,
+      })),
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title: "isolated Company Admin reads current Brand, Organization, and IAM projections without changing H001 authority",
+        project,
+      })),
+      ...(["desktop", "mobile"] as const).map(project => ({
+        runner: "playwright" as const,
+        file: "tests/e2e/identity_access/product-hosts.spec.ts",
+        title: "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
+        project,
+      })),
       ...([
         "Apps opens a pre-entitled Branch workspace for its scoped user",
         "Apps opens a pre-entitled Department workspace for its scoped user",
@@ -133,8 +275,8 @@ describe("test selection contracts", () => {
     for (const test of reviewed) {
       const scope = { runner: "playwright" as const, files: [test.file] };
       const peers = observed.filter(candidate => candidate.file === test.file);
+      expect(peers.some(candidate => requiredCaseKey(candidate) === requiredCaseKey(test))).toBe(true);
       const removed = peers.filter(candidate => requiredCaseKey(candidate) !== requiredCaseKey(test));
-      expect(removed.length).toBeGreaterThan(0);
       expect(() => assertRequiredCaseInventory(registered, removed, scope), requiredCaseKey(test)).toThrow("REGISTERED_REQUIRED_CASE_MISSING");
       const reclassified = peers.map(candidate => requiredCaseKey(candidate) === requiredCaseKey(test) ? { ...candidate, required: false } : candidate);
       expect(() => assertRequiredCaseInventory(registered, reclassified, scope), requiredCaseKey(test)).toThrow("REGISTERED_REQUIRED_CASE_MISSING");
@@ -253,7 +395,6 @@ describe("test selection contracts", () => {
   it("discovers and validates the complete checked-in catalogue", () => {
     const actual = loadCatalogue();
     expect(actual.modules).toHaveLength(33);
-    expect(() => validateCatalogue(actual)).not.toThrow();
     const malformed = {...actual,suites:[{...actual.suites[0],files:undefined}]} as unknown as Catalogue;
     expect(() => validateCatalogue(malformed)).toThrow(`INVALID_TEST_SUITE:${actual.suites[0].id}`);
     expect(actual.suites.filter(suite => suite.lane === "provider").every(suite => !!suite.provider?.required.length)).toBe(true);

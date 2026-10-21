@@ -1,11 +1,12 @@
 import {expect,test,type Browser,type BrowserContext,type Page,type TestInfo} from '@playwright/test';
-import {readFile} from 'node:fs/promises';
-import {resolve} from 'node:path';
+import {readFile,writeFile} from 'node:fs/promises';
+import {relative,resolve} from 'node:path';
 import {prepareProductPurchases,verifyProductHost} from '../../support/browser/product-host-session';
 import {signIn} from '../../support/helpers/context-switching-browser';
-import {readProductHostLease,workRequestDraftProductHostCase} from '../../../scripts/testing/product-host-cohort';
-import {randomUUID} from 'node:crypto';
+import {companyAdminOwnerReadsProductHostCase,financeSalesInvoiceProductHostCase,legalInvitationEnrollmentProductHostCase,productHostReadOnlyWorkflowForCase,readProductHostLease,workRequestDraftProductHostCase} from '../../../scripts/testing/product-host-cohort';
+import {createHash,randomUUID} from 'node:crypto';
 import {productIds} from '../../../src/lib/commercial/product-registry';
+import {legalInvitationAccountState,legalInvitationBrowserFixture,legalInvitationEmailLinks,legalInvitationShare,legalInvitationShareForRecipient,legalInvitationStaffAssignments,legalVerificationEmailUrl} from '../../support/browser/legal-invitation';
 
 // Missing owned mode is a failure, never an accepted skip/Console fallback.
 for(const product of productIds)test(`isolated ${product} Account Apps SSO reaches its actual owner landing and API`,async({browser},testInfo)=>{
@@ -34,6 +35,90 @@ test('isolated Finance native invoice drawer keeps dirty work across the appeara
   if(origin!=='https://finance-dev-erpx.jesadakorn.com')throw Error('EXACT_FINANCE_PRODUCT_ORIGIN_REQUIRED');
   await observeFinanceInvoiceDrawer(page,context,testInfo,origin,companyId,userId);
  });
+});
+
+test(financeSalesInvoiceProductHostCase,async({browser},testInfo)=>{
+ test.setTimeout(300_000);if(!process.env.ERPX_PRODUCT_HOST_LEASE)throw Error('ARMED_OFFICIAL_PRODUCT_HOST_MODE_REQUIRED');
+ await verifyProductHost(browser,testInfo,'finance',async({page,origin,companyId,userId,scopedBusinessWorkflow})=>{
+  const scope='finance.sales-invoice',fixture=await loadProductHostFixture(),run=fixture.state.run,customerId=fixture.state.fixture.customerId,lease=await readProductHostLease(process.cwd(),process.env.ERPX_PRODUCT_HOST_LEASE!),stateBytes=await readFile(resolve(fixture.directory,'state.json'));
+  const stateSha256=createHash('sha256').update(stateBytes).digest('hex');expect(lease.ui?.backend.state.sha256).toBe(stateSha256);expect(lease.ui?.backend.state.bytes).toBe(stateBytes.length);
+  expect(lease.run).toBe(run);expect(lease.scopedBusinessWorkflow).toBe(scope);expect(lease.readOnlyBusiness).toBe(false);expect(lease.isolatedNormalCommercial).toBe(true);
+  expect(origin).toBe('https://finance-dev-erpx.jesadakorn.com');expect(scopedBusinessWorkflow).toBe(scope);expect(customerId).toBeTruthy();
+  const invoicePath='/api/v1/holdings/simulation/finance/sales/invoices',invoiceUrl=origin+invoicePath,description=`Fictional Finance Product Host completed service ${run}`,completionNote=`Fictional Finance Product Host completion evidence ${run}`;
+  const routedRequests:{idempotencyKey:string;body:string;contentType:string}[]=[];
+  const markInvoiceWorkflow=async(route:import('@playwright/test').Route)=>{
+   const request=route.request();if(request.method()!=='POST')return route.continue();
+   const headers=request.headers(),body=request.postData()??'',idempotencyKey=headers['idempotency-key']??'';routedRequests.push({idempotencyKey,body,contentType:headers['content-type']??''});
+   return route.continue({headers:{...request.headers(),'x-erpx-isolated-product-workflow':scope}});
+  };
+  await page.route(invoiceUrl,markInvoiceWorkflow);
+  const owner=page.locator('[data-work-revision]').first();await expect(owner).toHaveAttribute('data-work-company',companyId);await expect(owner).toHaveAttribute('data-work-user',userId);await expect(owner).toHaveAttribute('data-work-stale','false');
+  await page.goto(origin+'/holdings/simulation/finance/documents/sales/new?kind=invoice',{waitUntil:'domcontentloaded'});
+  await expect(page.getByRole('heading',{name:'Invoice completed services',exact:true})).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(0);
+  const form=page.getByRole('main');await form.getByRole('combobox',{name:'Customer',exact:true}).selectOption(customerId);
+  await form.getByRole('textbox',{name:'Description',exact:true}).fill(description);await form.getByLabel('Quantity',{exact:true}).fill('2');await form.getByLabel('Unit price',{exact:true}).fill('100');
+  const invoiceDate=await form.getByLabel('Invoice date',{exact:true}).inputValue(),dueDate=await form.getByLabel('Due date',{exact:true}).inputValue();expect(dueDate).toBe(invoiceDate);
+  await form.getByRole('textbox',{name:'Completion evidence',exact:true}).fill(completionNote);await form.getByRole('checkbox').check();await expect(page.getByText('Total THB 214.00',{exact:true})).toBeVisible();
+  const responsePromise=page.waitForResponse(response=>response.url()===invoiceUrl&&response.request().method()==='POST');await form.getByRole('button',{name:'Prepare invoice',exact:true}).click();const response=await responsePromise;expect(response.status()).toBe(200);
+  const result=(await response.json()).data;expect(result.number).toMatch(/^INV-\d{4}-\d{6,}$/);expect(result.total).toBe('214.00');expect(result.completionEvidence.note).toBe(completionNote);
+  expect(routedRequests).toHaveLength(1);const submitted=JSON.parse(routedRequests[0]!.body);expect(routedRequests[0]!.idempotencyKey).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  expect(Object.keys(submitted).sort()).toEqual(['completionConfirmed','completionNote','currency','dueDate','invoiceDate','lines','partyId'].sort());expect(submitted).toMatchObject({partyId:customerId,invoiceDate,dueDate,currency:'THB',completionConfirmed:true,completionNote});expect(submitted.lines).toEqual([{description,quantity:'2',unitPrice:'100',taxBps:700}]);
+  await expect(page.getByTestId('record-detail-drawer').locator('h1')).toHaveText(result.number);await expect(owner).toHaveAttribute('data-work-company',companyId);await page.locator('summary').filter({hasText:'Service completion evidence'}).click();await expect(page.getByText(completionNote,{exact:true})).toBeVisible();
+  const screenshotPath=testInfo.outputPath('finance-product-host-sales-invoice-screen.png'),screenshotBytes=await page.screenshot({path:screenshotPath,fullPage:true}),screenshotAttachmentIndex=testInfo.attachments.length;
+  await testInfo.attach('finance-product-host-sales-invoice-screen',{path:screenshotPath,contentType:'image/png'});
+  const screenshotAttachment=testInfo.attachments[screenshotAttachmentIndex];if(!screenshotAttachment?.path)throw Error('FINANCE_PRODUCT_HOST_SCREENSHOT_ATTACHMENT_REQUIRED');
+  await testInfo.attach('finance-product-host-simulation-state',{body:stateBytes,contentType:'application/json'});
+  expect(routedRequests[0]!.contentType).toBe('application/json');
+  await testInfo.attach('finance-product-host-sales-invoice',{body:Buffer.from(JSON.stringify({schema:'erpx-product-host-finance-sales-invoice/v1',workflow:scope,run,sourceFingerprint:lease.sourceFingerprint,verificationFingerprint:lease.verificationFingerprint,release:lease.release,project:testInfo.project.name,origin,companyId,userId,fixturePartyId:customerId,invoiceId:result.id,invoiceNumber:result.number,currency:'THB',total:result.total,idempotencyKey:routedRequests[0]!.idempotencyKey,contentType:routedRequests[0]!.contentType,requestBody:routedRequests[0]!.body,requestSha256:createHash('sha256').update(routedRequests[0]!.body).digest('hex'),completionEvidence:result.completionEvidence,disposableCohortCleanup:true,wholeProductAcceptance:false})),contentType:'application/json'});
+  const ownerContext={companyId:await owner.getAttribute('data-work-company'),userId:await owner.getAttribute('data-work-user'),assignmentId:await owner.getAttribute('data-work-assignment'),revision:await owner.getAttribute('data-work-revision')};expect(ownerContext).toEqual({companyId,userId,assignmentId:expect.any(String),revision:expect.any(String)});
+  const observationPath=testInfo.outputPath('finance-product-host-sales-invoice-observation.json');await writeFile(observationPath,JSON.stringify({schema:'erpx-ui-browser-observation/v1',result:'passed',run,sourceFingerprint:lease.sourceFingerprint,verificationFingerprint:lease.verificationFingerprint,url:page.url(),ownerContext,screenshot:{path:relative(process.cwd(),screenshotAttachment.path).replaceAll('\\','/'),sha256:createHash('sha256').update(screenshotBytes).digest('hex'),bytes:screenshotBytes.length}},null,2)+'\n',{flag:'wx',mode:0o600});
+  await testInfo.attach('erpx-ui-observation',{path:observationPath,contentType:'application/json'});
+ });
+});
+
+test(legalInvitationEnrollmentProductHostCase,async({browser},testInfo)=>{
+ test.setTimeout(300_000);if(!process.env.ERPX_PRODUCT_HOST_LEASE||!process.env.ERPX_DEMO_RUN)throw Error('ARMED_OFFICIAL_PRODUCT_HOST_MODE_REQUIRED');
+ const scope='legal.invitation-enrollment',fixture=await legalInvitationBrowserFixture(),run=fixture.run,lease=await readProductHostLease(root,process.env.ERPX_PRODUCT_HOST_LEASE!),owner=fixture.state.fixture.legal?.invitationEnrollment;
+ if(!owner)throw Error('EXACT_LEGAL_INVITATION_FIXTURE_REQUIRED');expect(lease.run).toBe(run);expect(lease.scopedBusinessWorkflow).toBe(scope);expect(lease.isolatedNormalCommercial).toBe(false);expect(lease.wholeProductAcceptance).toBe(false);
+ const account='https://account-dev-erpx.jesadakorn.com',legal='https://legal-dev-erpx.jesadakorn.com',portal='https://legal-portal-dev-erpx.jesadakorn.com',inviteeEmail=`legal-invite-${run}@example.test`,inviteePassword=`Legal-Invitee-${randomUUID()}-2026!`,unexpectedWrites:string[]=[];
+ const permittedPosts=new Set([`${account}/api/auth/sign-in/email`,`${account}/api/auth/sign-out`,`${account}/api/legal-portal/enroll`,`${legal}/launch`,`${legal}/api/v1/holdings/simulation/legal`,`${portal}/api/legal-portal/simulation`]);
+ const attachWorkflow=async(context:BrowserContext)=>{
+  await context.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(request.method()==='POST'){
+    if(permittedPosts.has(url.origin+url.pathname)){const headers={...request.headers(),'x-erpx-isolated-product-workflow':scope};await route.continue({headers});return;}
+    unexpectedWrites.push(`${request.method()} ${url.origin}${url.pathname}`);
+   }await route.continue();
+  });
+ };
+ const contextFor=async()=>{const context=await browser.newContext({...testInfo.project.use,ignoreHTTPSErrors:false,serviceWorkers:'block',proxy:{server:'http://127.0.0.1:3102'}});await attachWorkflow(context);return context;};
+ const readSession=async(context:BrowserContext,origin:string)=>{const response=await context.request.get(origin+'/api/auth/get-session');try{expect(response.status()).toBe(200);return await response.json() as {user:{id:string;email:string;emailVerified?:boolean};session:{id:string;userId:string}};}finally{await response.dispose();}};
+ const signInUi=async(page:Page,email:string,password:string)=>{await page.goto(account+'/login');await page.locator('input[name="email"][type="email"]').fill(email);await page.locator('input[name="password"][type="password"]').fill(password);const response=page.waitForResponse(item=>item.url()===account+'/api/auth/sign-in/email'&&item.request().method()==='POST');await page.locator('form button[type="submit"]').click();expect((await response).status()).toBe(200);await expect(page.locator('input[name="password"]')).toHaveCount(0);};
+ const ownerCredentials=JSON.parse(await readFile(resolve(fixture.directory,'legal-credentials.json'),'utf8')) as {password:string;users:{key:string;name:string;email:string;userId:string;role:string;companyId:string;assignmentId:string}[]},ownerUser=ownerCredentials.users.find(user=>user.key==='invitation-owner');
+ if(!ownerUser||ownerUser.userId!==owner.ownerUserId||ownerUser.companyId!==owner.companyId||ownerUser.assignmentId!==owner.ownerAssignmentId||ownerUser.role!=='legal_manager')throw Error('EXACT_LEGAL_INVITATION_OWNER_CREDENTIAL_REQUIRED');
+ const ownerContext=await contextFor();let inviteeContext:BrowserContext|undefined;let shareId='';let inviteeUserId='';let accountSessionId='';let screenshotBytes:Buffer|undefined;
+ try{
+  const ownerPage=await ownerContext.newPage();await signInUi(ownerPage,ownerUser.email,ownerCredentials.password);const ownerAccountSession=await readSession(ownerContext,account);expect(ownerAccountSession.user.id).toBe(ownerUser.userId);
+  await openApps(ownerPage);const appTiles=await productTiles(ownerPage),legalTile=appTiles.find(tile=>{const handoff=new URL(tile.href);return handoff.origin===legal&&handoff.pathname==='/sso/start'&&tile.companyId===owner.companyId&&tile.target==='/holdings/simulation/services/legal/mine';});
+  expect(legalTile,'The Legal owner has an actual Legal Apps entry').toBeTruthy();await selectVisibleTile(ownerPage,legalTile!.href);await expect(ownerPage).toHaveURL(url=>url.origin===legal);
+  if(new URL(ownerPage.url()).pathname==='/choose-work-role'){const roleForm=ownerPage.locator('form[action="/launch"]').filter({hasText:/legal manager/i});await expect(roleForm).toHaveCount(1);await roleForm.locator('button[type="submit"]').click();}
+  await expect(ownerPage).toHaveURL(url=>url.origin===legal&&url.pathname==='/holdings/simulation/services/legal/mine');const ownerProductSession=await readSession(ownerContext,legal);expect(ownerProductSession.user.id).toBe(ownerUser.userId);expect(ownerProductSession.session.userId).toBe(ownerUser.userId);expect(ownerProductSession.session.id).not.toBe(ownerAccountSession.session.id);
+  await ownerPage.goto(`${legal}/holdings/simulation/services/legal/contract/${encodeURIComponent(owner.recordId)}`);await expect(ownerPage.getByRole('heading',{name:`Disposable invitation source ${run}`,exact:true})).toBeVisible();await ownerPage.getByRole('tab',{name:'Access',exact:true}).click();
+  await ownerPage.getByLabel('Verified account email',{exact:true}).fill(inviteeEmail);await ownerPage.getByLabel('Document version',{exact:true}).selectOption(owner.documentId);const createResponse=ownerPage.waitForResponse(response=>response.url()===legal+'/api/v1/holdings/simulation/legal'&&response.request().method()==='POST');await ownerPage.getByRole('button',{name:'Create external access',exact:true}).click();expect((await createResponse).status()).toBe(200);
+  let share=await legalInvitationShareForRecipient(fixture);if(!share)throw Error('LEGAL_INVITATION_SHARE_NOT_CREATED');shareId=share.id;expect(share).toMatchObject({item_id:owner.recordId,document_id:owner.documentId,email:inviteeEmail,user_id:null,revoked_at:null});expect(Number(share.expires_at)).toBeGreaterThan(Date.now());
+  const links=await legalInvitationEmailLinks(fixture,shareId);expect(new URL(links.portalUrl).searchParams.get('share')).toBe(shareId);inviteeContext=await contextFor();const inviteePage=await inviteeContext.newPage();await inviteePage.goto(links.portalUrl);await expect(inviteePage).toHaveURL(url=>url.origin===portal&&url.pathname==='/login');expect(await legalInvitationShare(fixture,shareId)).toMatchObject({user_id:null,revoked_at:null});
+  await inviteePage.goto(links.enrollmentUrl);await expect(inviteePage.getByRole('heading',{name:'Accept your Legal invitation',exact:true})).toBeVisible();await expect(inviteePage.getByRole('button',{name:'Create invited account and send verification',exact:true})).toBeVisible();await inviteePage.getByLabel('Your name',{exact:true}).fill(`Legal invitation recipient ${run}`);await inviteePage.getByLabel('Choose a password',{exact:true}).fill(inviteePassword);
+  const enrolledAfter=Date.now()-1000,enrollmentResponse=inviteePage.waitForResponse(response=>response.url()===account+'/api/legal-portal/enroll'&&response.request().method()==='POST');await inviteePage.getByRole('button',{name:'Create invited account and send verification',exact:true}).click();expect((await enrollmentResponse).status()).toBe(200);await expect(inviteePage.getByRole('status')).toContainText('Check your invited email address to verify the account');
+  const pendingAccount=await legalInvitationAccountState(fixture,inviteeEmail);expect(pendingAccount).toBeTruthy();if(!pendingAccount)throw Error('EXACT_INVITED_ACCOUNT_REQUIRED');expect(pendingAccount.emailVerified).toBe(false);inviteeUserId=pendingAccount.id;expect(await legalInvitationStaffAssignments(fixture,inviteeUserId)).toBe(0);expect(await legalInvitationShare(fixture,shareId)).toMatchObject({user_id:null,revoked_at:null});
+  const verificationUrl=await legalVerificationEmailUrl(fixture,shareId,inviteeEmail,enrolledAfter);expect(new URL(verificationUrl).origin).toBe(account);await inviteePage.goto(verificationUrl);await expect.poll(async()=>Boolean((await legalInvitationAccountState(fixture,inviteeEmail))?.emailVerified)).toBe(true);
+  let accountSession=await readSession(inviteeContext,account).catch(()=>null);if(!accountSession||accountSession.user.id!==inviteeUserId||!accountSession.user.emailVerified){await signInUi(inviteePage,inviteeEmail,inviteePassword);accountSession=await readSession(inviteeContext,account);}expect(accountSession.user.id).toBe(inviteeUserId);expect(accountSession.user.email).toBe(inviteeEmail);expect(accountSession.user.emailVerified).toBe(true);accountSessionId=accountSession.session.id;
+  const continuation='/legal-portal/continue?'+new URLSearchParams({holding:'simulation',share:shareId});await inviteePage.goto(account+continuation);await expect(inviteePage).toHaveURL(url=>url.origin===portal&&url.pathname==='/legal-portal/simulation'&&url.searchParams.get('share')===shareId);await expect(inviteePage.getByRole('heading',{name:'Legal portal',exact:true})).toBeVisible();await expect(inviteePage.getByRole('button',{name:'Accept invitation',exact:true})).toBeVisible();
+  const continued=await legalInvitationShare(fixture,shareId);expect(continued.user_id).toBeNull();expect(continued.revoked_at).toBeNull();const inviteePortalSession=await readSession(inviteeContext,portal);expect(inviteePortalSession.user.id).toBe(inviteeUserId);expect(inviteePortalSession.user.email).toBe(inviteeEmail);expect(inviteePortalSession.session.userId).toBe(inviteeUserId);expect(inviteePortalSession.session.id).not.toBe(accountSessionId);expect(inviteePortalSession.session.id).toBeTruthy();expect(await legalInvitationStaffAssignments(fixture,inviteeUserId)).toBe(0);
+  const acceptResponse=inviteePage.waitForResponse(response=>response.url()===portal+'/api/legal-portal/simulation'&&response.request().method()==='POST');await inviteePage.getByRole('button',{name:'Accept invitation',exact:true}).click();expect((await acceptResponse).status()).toBe(200);await expect(inviteePage.getByRole('status')).toContainText('The exact shared-document action was saved');await expect.poll(async()=>(await legalInvitationShare(fixture,shareId)).user_id).toBe(inviteeUserId);expect(await legalInvitationStaffAssignments(fixture,inviteeUserId)).toBe(0);
+  await ownerPage.goto(`${legal}/holdings/simulation/services/legal/contract/${encodeURIComponent(owner.recordId)}`);await ownerPage.getByRole('tab',{name:'Access',exact:true}).click();const shareCard=ownerPage.locator('div').filter({hasText:inviteeEmail}).filter({has:ownerPage.getByRole('button',{name:'Revoke share',exact:true})}).last();await expect(shareCard).toBeVisible();const revokeResponse=ownerPage.waitForResponse(response=>response.url()===legal+'/api/v1/holdings/simulation/legal'&&response.request().method()==='POST');await ownerPage.getByRole('button',{name:'Revoke share',exact:true}).click();const revoke=await revokeResponse;expect(revoke.status()).toBe(200);share=await legalInvitationShare(fixture,shareId);expect(share.user_id).toBe(inviteeUserId);expect(Number(share.revoked_at)).toBeGreaterThan(0);
+  const denied=await inviteeContext.request.get(`${portal}/api/legal-portal/simulation/${encodeURIComponent(shareId)}`);try{expect(denied.status()).toBeGreaterThanOrEqual(400);}finally{await denied.dispose();}expect(Number(share.revoked_at)).toBeGreaterThan(0);expect(await legalInvitationStaffAssignments(fixture,inviteeUserId)).toBe(0);expect(unexpectedWrites).toEqual([]);
+  const screenPath=testInfo.outputPath('legal-invitation-owner-access.png');screenshotBytes=await ownerPage.screenshot({path:screenPath,fullPage:true});await testInfo.attach('legal-invitation-owner-access-screen',{path:screenPath,contentType:'image/png'});
+  const screenshot={path:relative(process.cwd(),screenPath).replaceAll('\\','/'),sha256:createHash('sha256').update(screenshotBytes).digest('hex'),bytes:screenshotBytes.length},observationPath=testInfo.outputPath('legal-invitation-owner-access-observation.json');await writeFile(observationPath,JSON.stringify({schema:'erpx-ui-browser-observation/v1',result:'passed',run,sourceFingerprint:fixture.state.sourceFingerprint,verificationFingerprint:lease.verificationFingerprint,url:ownerPage.url(),screenshot},null,2)+'\n',{flag:'wx',mode:0o600});await testInfo.attach('erpx-ui-observation',{path:observationPath,contentType:'application/json'});
+  await testInfo.attach('legal-product-host-invitation-enrollment',{body:Buffer.from(JSON.stringify({schema:'erpx-product-host-legal-invitation-enrollment/v1',result:'passed',workflow:scope,run,sourceFingerprint:lease.sourceFingerprint,verificationFingerprint:lease.verificationFingerprint,release:lease.release,project:testInfo.project.name,authority:{companyId:owner.companyId,userId:owner.ownerUserId,assignmentId:owner.ownerAssignmentId,role:'legal_manager',normalAccountSignIn:true,normalAppsSso:true,distinctProductSession:true},invitation:{recordId:owner.recordId,documentId:owner.documentId,shareId,email:inviteeEmail,verifiedEmailBinding:true,emailVerified:true,accountUserId:inviteeUserId,staffAssignments:0,continuationDidNotAccept:true,explicitAcceptance:true,acceptedUserId:inviteeUserId,revoked:true,revocationDeniedAccess:true},unexpectedWrites,wholeProductAcceptance:false})),contentType:'application/json'});
+ }finally{await Promise.all([ownerContext.close(),inviteeContext?.close()??Promise.resolve()]);}
 });
 
 test(workRequestDraftProductHostCase,async({browser},testInfo)=>{
@@ -65,6 +150,63 @@ test(workRequestDraftProductHostCase,async({browser},testInfo)=>{
  });
 });
 
+test(companyAdminOwnerReadsProductHostCase,async({browser},testInfo)=>{
+ if(!process.env.ERPX_PRODUCT_HOST_LEASE||!process.env.ERPX_DEMO_RUN)throw Error('ARMED_OFFICIAL_PRODUCT_HOST_MODE_REQUIRED');
+ const fixture=await loadProductHostFixture(),user=fixture.credentials.users.find(candidate=>candidate.email==='source@simulation.test'),lease=await readProductHostLease(root,process.env.ERPX_PRODUCT_HOST_LEASE);
+ expect(user).toBeTruthy();expect(user!.role).toBe('holding_owner');
+ expect(productHostReadOnlyWorkflowForCase('tests/e2e/identity_access/product-hosts.spec.ts',companyAdminOwnerReadsProductHostCase)).toBe('admin.company-brand-organization-iam');
+ expect(lease.readOnlyWorkflow).toBe('admin.company-brand-organization-iam');expect(lease.scopedBusinessWorkflow).toBeNull();expect(lease.readOnlyBusiness).toBe(true);expect(lease.isolatedNormalCommercial).toBe(false);
+ const companyId=fixture.state.fixture.companyId,context=await signedInAccountContext(browser,testInfo,fixture.credentials,user!);
+ const forbiddenWrites:string[]=[];context.on('request',request=>{
+  const method=request.method().toUpperCase();if(method==='GET'||method==='HEAD')return;
+  const url=new URL(request.url()),authPost=url.origin===accountOrigin&&method==='POST'&&['/api/auth/sign-in/email','/api/auth/sign-out'].includes(url.pathname);
+  if(!authPost)forbiddenWrites.push(`${method} ${url.origin}${url.pathname}`);
+ });
+ try{
+  const page=await context.newPage(),observedPages:{owner:'brand'|'organization'|'iam';path:string;observation:string;screenshot:string}[]=[],paths={
+   brand:'/holdings/simulation/administration/brand/identity',
+   organization:'/holdings/simulation/administration/technology/organization',
+   iam:'/holdings/simulation/administration/technology/settings/roles',
+  };
+  await openApps(page);
+  const adminOrigin='https://admin-dev-erpx.jesadakorn.com',companyTarget='/holdings/simulation/administration',tiles=[] as {href:string;target:string}[];
+  for(const anchor of await page.locator('a[data-product-switch].tile').all()){
+   const rawHref=await anchor.getAttribute('href');if(!rawHref)continue;const href=new URL(rawHref,page.url());
+   if(href.origin!==adminOrigin||href.pathname!=='/sso/start')continue;const next=href.searchParams.get('next');if(!next)continue;
+   const target=new URL(next,adminOrigin);if(target.pathname==='/admin/launch'&&target.searchParams.get('companyId')===companyId&&target.searchParams.get('next')===companyTarget)tiles.push({href:href.href,target:target.href});
+  }
+  expect(tiles).toHaveLength(1);await selectVisibleTile(page,tiles[0]!.href);
+  await page.waitForURL(url=>url.origin===adminOrigin&&(url.pathname===companyTarget||url.pathname==='/admin/choose-work-role'));
+  expect(new URL(page.url()).pathname,'Existing Company authority must land without choosing a role').toBe(companyTarget);
+  let assignmentId:string|undefined;
+  const assertCompanyAuthority=async()=>{
+   const owner=page.locator('[data-work-company]').first();await expect(owner).toHaveAttribute('data-work-company',companyId);await expect(owner).toHaveAttribute('data-work-user',user!.userId);await expect(owner).toHaveAttribute('data-work-stale','false');
+   const current=await owner.getAttribute('data-work-assignment');expect(current).toBeTruthy();if(assignmentId)expect(current).toBe(assignmentId);else assignmentId=current??undefined;return owner;
+  };
+  const capture=async(name:string)=>{const imagePath=testInfo.outputPath(`${name}.png`);await page.screenshot({path:imagePath,fullPage:true});await testInfo.attach(name,{path:imagePath,contentType:'image/png'});};
+  await page.goto(adminOrigin+paths.brand,{waitUntil:'domcontentloaded'});await expect(page).toHaveURL(adminOrigin+paths.brand);await assertCompanyAuthority();
+  await expect(page.getByRole('heading',{name:'Published identity'})).toBeVisible();
+  const brandSurface=page.locator('[data-owner-embedded]').first(),brandName=await brandSurface.locator('h3').first().textContent(),brandText=(brandName??(await brandSurface.innerText())).trim();
+  expect(brandText).toBeTruthy();await capture('company-admin-brand-identity');observedPages.push({owner:'brand',path:paths.brand,observation:brandText,screenshot:'company-admin-brand-identity'});
+  await page.goto(adminOrigin+paths.organization,{waitUntil:'domcontentloaded'});await expect(page.getByRole('heading',{name:'Organization & Access'})).toBeVisible();await assertCompanyAuthority();
+  await expect(page.getByTestId('organization-structure-surface')).toBeVisible();const companyNode=page.getByTestId(`org-company-${companyId}`);await expect(companyNode).toBeVisible();const organizationText=(await companyNode.innerText()).trim();expect(organizationText).toBeTruthy();
+  await capture('company-admin-organization');observedPages.push({owner:'organization',path:paths.organization,observation:organizationText,screenshot:'company-admin-organization'});
+  await page.goto(adminOrigin+paths.iam,{waitUntil:'domcontentloaded'});await expect(page.getByRole('heading',{name:'Access settings'})).toBeVisible();await assertCompanyAuthority();
+  const roles=page.getByRole('region',{name:'Roles & permissions'});await expect(roles).toBeVisible();const roleRows=roles.getByRole('button');await expect(roleRows.first()).toBeVisible();const roleText=(await roleRows.first().innerText()).trim();
+  const iamResponse=await context.request.get(`${adminOrigin}/api/v1/holdings/simulation/iam`);let iam:Record<string,unknown>;
+  try{expect(iamResponse.status()).toBe(200);const payload=await iamResponse.json();iam=payload.data as Record<string,unknown>;}finally{await iamResponse.dispose();}
+  expect(iam).toMatchObject({companyId,currentUserId:user!.userId,currentAssignmentId:assignmentId,scopeKind:'holding'});
+  expect(iam.assignments).toContainEqual(expect.objectContaining({id:assignmentId,user_id:user!.userId,role:'holding_owner'}));
+  await capture('company-admin-iam-roles');observedPages.push({owner:'iam',path:paths.iam,observation:`${roleText}; current assignment ${String(iam.currentAssignmentId)}`,screenshot:'company-admin-iam-roles'});
+  expect(forbiddenWrites).toEqual([]);
+  await testInfo.attach('company-admin-owner-reads',{body:Buffer.from(JSON.stringify({
+   schema:'erpx-product-host-company-admin-owner-reads/v1',result:'passed',workflow:'admin.company-brand-organization-iam',run:lease.run,
+   sourceFingerprint:lease.sourceFingerprint,verificationFingerprint:lease.verificationFingerprint,release:lease.release,project:testInfo.project.name,
+   authority:{companyId,userId:user!.userId,assignmentId,role:'holding_owner',sameOwnerAssignmentAcrossPages:true,ownerAssignmentUnchanged:true},pages:observedPages,blockedWrites:forbiddenWrites,
+  },null,2)+'\n'),contentType:'application/json'});
+ }finally{await signOutAndClose(context);}
+});
+
 
 const root = process.cwd();
 const accountOrigin = "https://account-dev-erpx.jesadakorn.com";
@@ -85,6 +227,7 @@ type SimulationState = {
   release?: { id: string; fileManifestSha256: string };
   fixture: {
     companyId: string;
+    customerId: string;
     hospitality: { companyId: string };
   };
 };

@@ -35,6 +35,7 @@ import { records, record, pmsAccountKeys, type Config } from "../../../src/serve
 import { availability } from "../../../src/lib/pms/pms-engine";
 import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
 import { confirmManualRate } from "../../../src/server/modules/finance/public/company-money";
+import { POST as publicBookingPost } from "../../../src/app/api/public/booking/[holdingSlug]/[action]/route";
 
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", async () => {
   const { env } = await import("../../support/runtime-env");
@@ -548,6 +549,82 @@ it("blocks bookings during night closure and rate limits abuse", async () => {
     /Too many/,
   );
   await bookingRateLimit(db, "same-client", 1, now + 60000);
+});
+it("cancels oversized chunked public booking bodies before rate or reservation writes", async () => {
+  vi.stubEnv("PMS_STRIPE_BOOKING_ENABLED", "true");
+  vi.stubEnv("ERPX_PUBLIC_ORIGIN", "https://hotel.example.test");
+  const ip = `203.0.113.${Math.floor(Math.random() * 200) + 1}`;
+  const context = { params: Promise.resolve({ holdingSlug: "acme", action: "reservations" }) };
+  const snapshot = async () => Promise.all([
+    db.prepare("SELECT count(*)::int n FROM pms_booking_limits").first<number>("n"),
+    db.prepare("SELECT count(*)::int n FROM pms_booking_receipts").first<number>("n"),
+    db.prepare("SELECT count(*)::int n FROM pms_booking_tokens").first<number>("n"),
+    db.prepare("SELECT count(*)::int n FROM pms_booking_emails").first<number>("n"),
+    db.prepare("SELECT count(*)::int n FROM pms_records WHERE property_id=? AND kind='reservation'").bind(propertyId).first<number>("n"),
+  ]);
+  const before = await snapshot();
+  let pulls = 0, cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulls++;
+      controller.enqueue(new Uint8Array(pulls === 1 ? 70_000 : 60_001));
+    },
+    cancel() { cancelled = true; },
+  });
+  const response = await publicBookingPost(new Request("https://hotel.example.test/api/public/booking/acme/reservations", {
+    method: "POST",
+    headers: { host: "hotel.example.test", origin: "https://hotel.example.test", "content-type": "application/json", "x-forwarded-for": ip },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" }), context);
+
+  expect(response.status).toBe(413);
+  expect((await response.json()).error.code).toBe("BODY_TOO_LARGE");
+  expect(cancelled).toBe(true);
+  expect(pulls).toBeLessThan(4);
+  expect(await snapshot()).toEqual(before);
+});
+it("rejects short malformed UTF-8 booking JSON before rate or reservation writes", async () => {
+  vi.stubEnv("PMS_STRIPE_BOOKING_ENABLED", "true");
+  vi.stubEnv("ERPX_PUBLIC_ORIGIN", "https://hotel.example.test");
+  const ip = `203.0.113.${Math.floor(Math.random() * 200) + 1}`;
+  const context = { params: Promise.resolve({ holdingSlug: "acme", action: "reservations" }) };
+  const snapshot = async () => Promise.all([
+    db.prepare("SELECT count(*)::int n FROM pms_booking_limits").first<number>("n"),
+    db.prepare("SELECT count(*)::int n FROM pms_booking_receipts").first<number>("n"),
+    db.prepare("SELECT count(*)::int n FROM pms_booking_tokens").first<number>("n"),
+    db.prepare("SELECT count(*)::int n FROM pms_booking_emails").first<number>("n"),
+    db.prepare("SELECT count(*)::int n FROM pms_records WHERE property_id=? AND kind='reservation'").bind(propertyId).first<number>("n"),
+  ]);
+  const before = await snapshot();
+  const encoded = new TextEncoder().encode(JSON.stringify({
+    propertyId,
+    quoteToken: "invalid-quote-fixture",
+    guest: { name: "MalformedGuest", email: "guest@example.test", phone: "0123456789" },
+    notes: "",
+  }));
+  const marker = new TextEncoder().encode('"name":"MalformedGuest"');
+  const markerStart = encoded.findIndex((_value, index) => marker.every((byte, offset) => encoded[index + offset] === byte));
+  expect(markerStart).toBeGreaterThanOrEqual(0);
+  encoded[markerStart + new TextEncoder().encode('"name":"').length] = 0xff;
+  expect(encoded.byteLength).toBeLessThan(120_000);
+  expect(JSON.parse(new TextDecoder().decode(encoded))).toMatchObject({ guest: { name: expect.stringContaining("\uFFFD") } });
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoded);
+      controller.close();
+    },
+  });
+  const response = await publicBookingPost(new Request("https://hotel.example.test/api/public/booking/acme/reservations", {
+    method: "POST",
+    headers: { host: "hotel.example.test", origin: "https://hotel.example.test", "content-type": "application/json", "x-forwarded-for": ip, "Idempotency-Key": key() },
+    body,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" }), context);
+
+  expect(response.status).toBe(422);
+  expect((await response.json()).error.code).toBe("INVALID_ENCODING");
+  expect(await snapshot()).toEqual(before);
 });
 it("handles timezone cutoffs and rejects missing child pricing", async () => {
   expect(localDeadline("2026-07-01", "18:00", "America/New_York")).toBe(

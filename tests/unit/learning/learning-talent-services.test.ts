@@ -173,11 +173,12 @@ import {LearningCertificateControls} from '../../../src/components/learning/lear
 import {learningConsoleSnapshot,type LearningPurchaseControls} from '../../../src/lib/learning/purchase-controls';
 import {createLearningCommands,validLearningReceipt,type LearningAttempt} from '../../../src/lib/learning/command';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/holding/knowledge/learning/assignments',useSearchParams:()=>new URLSearchParams()}));
-const sourcePage=vi.hoisted(()=>({host:'people-dev-erpx.jesadakorn.com',hire:vi.fn(),privacy:vi.fn(),learning:vi.fn(),talent:vi.fn(),learningActor:undefined as WorkContext|undefined}));
+const sourcePage=vi.hoisted(()=>({host:'people-dev-erpx.jesadakorn.com',hire:vi.fn(),privacy:vi.fn(),privacyCommand:vi.fn(),learning:vi.fn(),talent:vi.fn(),learningActor:undefined as WorkContext|undefined}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:sourcePage.host,'x-product-host':'people'})}));
 vi.mock('@/server/modules/identity_access/public/authorization',()=>({requireWorkContext:async()=>sourcePage.learningActor??sourceActor,publicScope:(value:WorkContext)=>value.scope}));
 vi.mock('@/server/modules/learning/public/learning',()=>({learningAssignmentDetail:sourcePage.learning}));
 vi.mock('@/server/modules/talent/public/talent',()=>({talentDetail:sourcePage.talent}));
+vi.mock('@/server/modules/people_payroll/public/people-handoffs',async()=>({...await import('../../../src/server/modules/people_payroll/domain/people-handoffs'),changeCandidatePrivacy:sourcePage.privacyCommand}));
 vi.mock('@/server/modules/people_payroll/public/hire-handoff-workspace',()=>({hireHandoffWorkspace:sourcePage.hire}));
 vi.mock('@/server/modules/talent/public/candidate-privacy-workspace',()=>({candidatePrivacyWorkspace:sourcePage.privacy}));
 vi.mock('@/server/modules/work_projection/public/page-error',()=>({pageError:(error:unknown)=>{throw error;}}));
@@ -227,6 +228,7 @@ import {talentCandidatePrivacySourceEntry} from '../../../src/server/modules/tal
 import {talentProductPresentationOptions} from '../../../src/server/modules/talent/public/product-presentation-request';
 import {HireHandoffPage} from '../../../src/components/talent/hire-handoff-page';
 import {CandidatePrivacyPage} from '../../../src/components/talent/candidate-privacy-page';
+import {POST as talentPOST} from '../../../src/app/api/v1/holdings/[holdingSlug]/talent/route';
 const sourceActor:WorkContext={holdingId:'holding',holdingSlug:'holding',holdingName:'Actual Holding',companyId:'company',branchId:null,departmentId:null,userId:'source-company-reviewer',name:'Source reviewer',email:'reviewer@example.test',assignmentId:'private-assignment-marker',role:'holding_owner',assignmentScope:'holding',inherited:false,modules:['people'],assignments:[],workspaces:[],scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Actual Holding',companyId:'company'}};
 function productSourceEnvironment(){vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_ENVIRONMENT','local');}
 describe('Actual Talent source-only Server product presentation',()=>{
@@ -242,6 +244,19 @@ describe('Actual Talent source-only Server product presentation',()=>{
 });
 const privacySource={candidate:{id:'actual-private-candidate',status:'active',version:1,retentionUntil:'2027-09-30',privacyHold:false},actions:{hold:true,release:false,withdraw:true,erase:false},history:[],purchase:{newWork:false,settleExisting:true,history:true,revision:'minimal-privacy-source-revision'}};
 describe('Bounded Company candidate privacy without contact disclosure',()=>{
+ it('returns validation errors for malformed/non-object JSON and dispatches only the exact privacy command',async()=>{
+  const url='https://recruit.example.test/api/v1/holdings/holding/talent',context={params:Promise.resolve({holdingSlug:'holding'})},request=(body:string,key='original-key',origin='https://recruit.example.test')=>new Request(url,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body});
+  sourcePage.learningActor=sourceActor;sourcePage.privacyCommand.mockReset().mockResolvedValue({id:'actual-private-candidate',status:'active',version:2,privacyHold:true});
+  try{
+   const malformed=await talentPOST(request('{'),context);expect(malformed.status).toBe(422);expect(await malformed.json()).toMatchObject({error:{code:'INVALID_JSON'}});
+   const nonObject=await talentPOST(request('null'),context);expect(nonObject.status).toBe(422);expect(await nonObject.json()).toMatchObject({error:{code:'INVALID_BODY'}});
+   const wrongOrigin=await talentPOST(request(JSON.stringify({entity:'candidate-privacy',id:'actual-private-candidate',action:'hold',expectedVersion:1,reason:'Preserve evidence'}),'original-key','https://attacker.test'),context);expect(wrongOrigin.status).toBe(403);
+   const missingKey=await talentPOST(request(JSON.stringify({entity:'candidate-privacy',id:'actual-private-candidate',action:'hold',expectedVersion:1,reason:'Preserve evidence'}),''),context);expect(missingKey.status).toBe(422);
+   const accepted=await talentPOST(request(JSON.stringify({entity:'candidate-privacy',id:'actual-private-candidate',action:'hold',expectedVersion:1,reason:'Preserve evidence'})),context);
+   expect(accepted.status).toBe(200);expect(accepted.headers.get('Cache-Control')).toBe('private, no-store');expect(sourcePage.privacyCommand).toHaveBeenCalledExactlyOnceWith(sourceActor,'actual-private-candidate',{action:'hold',expectedVersion:1,reason:'Preserve evidence'},'original-key');
+   const extra=await talentPOST(request(JSON.stringify({entity:'candidate-privacy',id:'actual-private-candidate',action:'hold',expectedVersion:1,reason:'Preserve evidence',companyId:'foreign'})),context);expect(extra.status).toBe(422);expect(sourcePage.privacyCommand).toHaveBeenCalledOnce();
+  }finally{sourcePage.learningActor=undefined;}
+ });
  it('offers original preservation and withdrawal separately from independent erasure and retained history',()=>{const html=renderToStaticMarkup(createElement(CandidatePrivacyEditor,{base:'/holdings/holding',data:privacySource}));expect(html).toContain('Preserve candidate contact');expect(html).toContain('Withdraw recruitment processing');expect(html).not.toContain('Independently erase withdrawn contact');const historyOnly=renderToStaticMarkup(createElement(CandidatePrivacyEditor,{base:'/holdings/holding',data:{...privacySource,purchase:{...privacySource.purchase,settleExisting:false}}}));expect(historyOnly).toContain('Preserve candidate contact');expect(historyOnly).not.toContain('Withdraw recruitment processing');expect(html).not.toMatch(/@example|Consent evidence|Legal name|Phone/);});
  it('keeps original hold and independent reviewer state in every rendered action',()=>{const held=renderToStaticMarkup(createElement(CandidatePrivacyEditor,{base:'/holdings/holding',data:{...privacySource,candidate:{...privacySource.candidate,status:'withdrawn',privacyHold:true},actions:{hold:false,release:true,withdraw:false,erase:false}}}));expect(held).toContain('Release candidate preservation hold');expect(held).not.toContain('Independently erase withdrawn contact');const independent=renderToStaticMarkup(createElement(CandidatePrivacyEditor,{base:'/holdings/holding',data:{...privacySource,candidate:{...privacySource.candidate,status:'withdrawn'},actions:{hold:false,release:false,withdraw:false,erase:true}}}));expect(independent).toContain('Independently erase withdrawn contact');});
  it('retains immutable decision metadata after contact erasure while hiding all mutation triggers',()=>{const html=renderToStaticMarkup(createElement(CandidatePrivacyEditor,{base:'/holdings/holding',data:{...privacySource,candidate:{...privacySource.candidate,status:'erased',version:5},actions:{hold:false,release:false,withdraw:false,erase:false},history:[{id:'retained-decision',action:'erase',candidate_version:5,created_at:100}]}}));expect(html).toContain('Revision 5');expect(html).not.toContain('Independently erase withdrawn contact');expect(html).not.toContain('Withdraw recruitment processing');});
