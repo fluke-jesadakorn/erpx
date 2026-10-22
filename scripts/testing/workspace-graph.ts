@@ -2,11 +2,12 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve, posix } from "node:path";
 import { execFileSync } from "node:child_process";
-import ts from "typescript";
+import { parseWorkspaceSource, type WorkspaceSource } from "./workspace-imports";
+import { workspaceSourceCache } from "./workspace-source-cache";
 import { appDefinitions, appDefinition } from "@erpx/contracts/apps";
-import { verificationSources, importSpecifiers, resolveImport, type Suite, repositoryRoot } from "./catalogue";
+import { verificationSources, resolveImport, type Suite, repositoryRoot } from "./catalogue";
 
-export type WorkspaceGraph = { runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
+export type WorkspaceGraph = { sourceCache?: {hits:number;misses:number;persisted:boolean;loaded:boolean}; runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
 const resourcePrefix = 'resource-input:';
 export function workspaceInputFile(file: string) { return file.startsWith(resourcePrefix) ? file.slice(resourcePrefix.length) : file; }
 const sourceExtension = /\.(?:[cm]?[jt]sx?|json|css|mjs|md|mdx|yml|yaml|py|sh|plist|toml|html|sql)$/;
@@ -23,9 +24,13 @@ export function workspaceSourcePaths(root = repositoryRoot): string[] {
   return [...["apps", "packages", "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations"].flatMap(visit),
     ...["next.config.ts", "tsconfig.base.json", "tsconfig.json", "postcss.config.mjs", "package.json", "bun.lock", "eslint.config.mjs", "README.md", "AGENTS.md", "CONTEXT.md", "CONTRACT_POLICY.md", ".bun-version", ".node-version", "bunfig.toml", "turbo.json", ".gitignore"].filter(file => existsSync(resolve(root, file)))].sort();
 }
-export function createWorkspaceGraph(files: Map<string, string>): WorkspaceGraph {
+export function createWorkspaceGraph(files: Map<string, string>, parseSource: (file:string,source:string)=>WorkspaceSource = parseWorkspaceSource): WorkspaceGraph {
   files = new Map(files);
   const names = new Set(files.keys()), imports = new Map<string, Set<string>>(), reverse = new Map<string, Set<string>>();
+  const parsed=new Map<string,WorkspaceSource>();
+  const resources=new Map<string,Set<string>>();
+  const manifests=new Map<string,{exports?:Record<string,string>}>();
+  for(const [file,text] of files){const owner=/^packages\/([^/]+)\/package\.json$/.exec(file)?.[1];if(owner)manifests.set(owner,JSON.parse(text));}
   const directories = new Map<string, string[]>();
   for (const file of names) {
     const parts = file.split("/");
@@ -36,14 +41,16 @@ export function createWorkspaceGraph(files: Map<string, string>): WorkspaceGraph
   }
   for (const [file, text] of [...files]) {
     const dependencies = new Set<string>();
+    const reads=new Set<string>();resources.set(file,reads);
+    const syntax=/\.[cm]?[jt]sx?$/.test(file)?parseSource(file,text):undefined;
+    if(syntax)parsed.set(file,syntax);
     const styleImports = file.endsWith('.css') ? [...text.matchAll(/@(?:import|reference)\s+["']([^"']+)["']/g)].map(match => match[1]) : [];
-    for (const specifier of /\.[cm]?[jt]sx?$/.test(file) ? importSpecifiers(text, file) : styleImports) {
+    for (const specifier of syntax ? syntax.modules.map(item=>item.specifier) : styleImports) {
       let target = resolveImport(file, specifier, names);
       if (specifier.startsWith("@erpx/")) {
         const [, owner, ...subpath] = specifier.split("/");
-        const manifestText = files.get(`packages/${owner}/package.json`);
-        if (manifestText) {
-          const manifest = JSON.parse(manifestText) as { exports?: Record<string, string> };
+        const manifest = manifests.get(owner);
+        if (manifest) {
           const exported = manifest.exports?.[subpath.length ? `./${subpath.join("/")}` : "."];
           if (typeof exported !== "string" || !exported.startsWith("./src/") || exported.split("/").includes(".."))
             throw new Error(`WORKSPACE_EXPORT_UNDECLARED:${file}:${specifier}`);
@@ -59,6 +66,7 @@ export function createWorkspaceGraph(files: Map<string, string>): WorkspaceGraph
         dependencies.add(target);
       }
       else if (specifier.startsWith("@erpx/")) throw new Error(`WORKSPACE_EXPORT_UNRESOLVED:${file}:${specifier}`);
+      else if (specifier.startsWith(".") || specifier.startsWith("@/")) throw new Error(`WORKSPACE_IMPORT_UNRESOLVED:${file}:${specifier}`);
     }
     if (file.endsWith('.css')) for (const match of text.matchAll(/@source\s+["']([^"']+)["']/g)) {
       const path = posix.normalize(posix.join(posix.dirname(file), match[1])).replace(/\/$/, "");
@@ -74,35 +82,16 @@ export function createWorkspaceGraph(files: Map<string, string>): WorkspaceGraph
         files.set(resource, createHash('sha256').update(files.get(source)!).digest('hex'));
         imports.set(resource, new Set());
         dependencies.add(resource);
+        reads.add(resource);
         const readers = reverse.get(source) ?? new Set<string>(); readers.add(resource); reverse.set(source, readers);
       }
     }
-    // Source assertions and file fixtures are dependencies too, even without imports.
-    if (/\.[cm]?[jt]sx?$/.test(file) && /^(?:tests|fixtures|scripts)\//.test(file)) {
-      const tree = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-      function visit(node: ts.Node) {
-        if (ts.isStringLiteralLike(node) && names.has(node.text)) dependencies.add(node.text);
-        // File readers often assemble root-relative paths or enumerate a whole
-        // directory. Those inputs participate in verification, including docs.
-        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && ["join", "resolve", "readdir", "readdirSync", "readFile", "readFileSync"].includes(node.expression.text)) {
-          const fragments: string[] = [];
-          for (const argument of [...node.arguments].reverse()) {
-            if (!ts.isStringLiteralLike(argument)) break;
-            fragments.unshift(argument.text);
-          }
-          if (fragments.length) {
-            const path = posix.normalize(fragments.join("/"));
-            if (names.has(path)) dependencies.add(path);
-            else for (const candidate of directories.get(path) ?? []) dependencies.add(candidate);
-          }
-        }
-        if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "URL" && node.arguments?.length && ts.isStringLiteralLike(node.arguments[0])) {
-          const target = resolveImport(file, node.arguments[0].text, names);
-          if (target) dependencies.add(target);
-        }
-        ts.forEachChild(node, visit);
-      }
-      visit(tree);
+    // Resolve resource syntax against today's file inventory, never cached targets.
+    if(syntax){
+      for(const literal of syntax.strings)if(names.has(literal))reads.add(literal);
+      for(const path of syntax.paths){if(names.has(path))reads.add(path);else for(const candidate of directories.get(path)??[])reads.add(candidate);}
+      for(const url of syntax.urls){const target=resolveImport(file,url,names);if(target)reads.add(target);}
+      for(const target of reads)dependencies.add(target);
     }
     imports.set(file, dependencies);
     for (const target of dependencies) { const users = reverse.get(target) ?? new Set<string>(); users.add(file); reverse.set(target, users); }
@@ -110,37 +99,15 @@ export function createWorkspaceGraph(files: Map<string, string>): WorkspaceGraph
   const runtimeImports = new Map<string, Set<string>>();
   for (const [file, dependencies] of imports) {
     const runtime = new Set(dependencies);
-    if (/\.[cm]?[jt]sx?$/.test(file)) {
-      const tree = ts.createSourceFile(file, files.get(file)!, ts.ScriptTarget.Latest, true);
-      const executable = new Map<string, boolean>();
-      function targetOf(specifier:string) {
+    const syntax=parsed.get(file);
+    if(syntax){
+      const executable=new Map<string,boolean>();
+      for(const {specifier,runtime:value} of syntax.modules){
         let target=resolveImport(file,specifier,names);
-        if(specifier.startsWith('@erpx/')) {
-          const [,owner,...subpath]=specifier.split('/'),manifest=files.get(`packages/${owner}/package.json`);
-          if(manifest){const exported=JSON.parse(manifest).exports?.[subpath.length?`./${subpath.join('/')}`:'.'];if(typeof exported==='string')target=`packages/${owner}/${exported.slice(2)}`;}
-        }
-        return target;
+        if(specifier.startsWith('@erpx/')){const [,owner,...subpath]=specifier.split('/'),exported=manifests.get(owner)?.exports?.[subpath.length?`./${subpath.join('/')}`:'.'];if(typeof exported==='string')target=`packages/${owner}/${exported.slice(2)}`;}
+        if(target)executable.set(target,executable.get(target)===true||value);
       }
-      function runtimeCalls(node:ts.Node) {
-        if(ts.isCallExpression(node) && (node.expression.kind===ts.SyntaxKind.ImportKeyword || ts.isIdentifier(node.expression)&&node.expression.text==='require') && node.arguments.length && ts.isStringLiteralLike(node.arguments[0])) {
-          const target=targetOf(node.arguments[0].text);if(target)executable.set(target,true);
-        }
-        ts.forEachChild(node,runtimeCalls);
-      }
-      runtimeCalls(tree);
-      for (const statement of tree.statements) {
-        if ((ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
-          const specifier = statement.moduleSpecifier.text;
-          const target = targetOf(specifier);
-          const typeOnly = ts.isImportDeclaration(statement)
-            ? statement.importClause?.isTypeOnly || statement.importClause?.namedBindings && ts.isNamedImports(statement.importClause.namedBindings) && !statement.importClause.name && statement.importClause.namedBindings.elements.length > 0 && statement.importClause.namedBindings.elements.every(item => item.isTypeOnly)
-            : statement.isTypeOnly || statement.exportClause && ts.isNamedExports(statement.exportClause) && statement.exportClause.elements.length > 0 && statement.exportClause.elements.every(item => item.isTypeOnly);
-          if (target) executable.set(target, executable.get(target) === true || !typeOnly);
-        }
-      }
-      // A separate type export must never erase a value export from the same
-      // module. Public owner facades commonly contain both declarations.
-      for (const [target, value] of executable) if (!value) runtime.delete(target);
+      for(const [target,value]of executable)if(!value&&!resources.get(file)?.has(target))runtime.delete(target);
     }
     runtimeImports.set(file, runtime);
   }
@@ -151,9 +118,14 @@ export function createWorkspaceGraph(files: Map<string, string>): WorkspaceGraph
   }
   return graph;
 }
-export function loadWorkspaceGraph(root = repositoryRoot): WorkspaceGraph {
-  return createWorkspaceGraph(new Map(workspaceSourcePaths(root).map(file => [file, /^(?:public|docs|\.github|ops|migrations)\//.test(file) || /^(?:README|AGENTS|CONTEXT|CONTRACT_POLICY)\.md$/.test(file) ? "resource-sha256:" + createHash("sha256").update(readFileSync(resolve(root, file))).digest("hex") : readFileSync(resolve(root, file), "utf8")])));
+function graphWithSourceCache(files:Map<string,string>,root:string,cacheRoot=root):WorkspaceGraph{
+  const cache=workspaceSourceCache(root,cacheRoot);
+  try{const graph=createWorkspaceGraph(files,cache.parse);cache.flush();graph.sourceCache={...cache.stats};return graph;}catch(error){cache.flush();throw error;}
 }
+export function loadWorkspaceGraph(root = repositoryRoot, options:{cacheRoot?:string}={}): WorkspaceGraph {
+  return graphWithSourceCache(new Map(workspaceSourcePaths(root).map(file => [file, /^(?:public|docs|\.github|ops|migrations)\//.test(file) || /^(?:README|AGENTS|CONTEXT|CONTRACT_POLICY)\.md$/.test(file) ? "resource-sha256:" + createHash("sha256").update(readFileSync(resolve(root, file))).digest("hex") : readFileSync(resolve(root, file), "utf8")])),root,options.cacheRoot);
+}
+
 export function dependencyClosure(graph: Pick<WorkspaceGraph, "imports">, entries: Iterable<string>): Set<string> {
   const seen = new Set<string>(), pending = [...entries];
   for (const file of pending) { if (seen.has(file)) continue; seen.add(file); for (const dependency of graph.imports.get(file) ?? []) if (!seen.has(dependency)) pending.push(dependency); }
@@ -225,7 +197,7 @@ export function loadRevisionWorkspaceGraph(revision: string, root = repositoryRo
     if (metadata[1] !== 'blob' || !Number.isSafeInteger(size)) throw new Error(`GIT_SOURCE_UNREADABLE:${file}`);
     offset = end + 1; files.set(file, /^(?:public|docs|\.github|ops|migrations)\//.test(file) || /^(?:README|AGENTS|CONTEXT|CONTRACT_POLICY)\.md$/.test(file) ? "resource-sha256:" + createHash("sha256").update(contents.subarray(offset,offset + size)).digest("hex") : contents.subarray(offset, offset + size).toString()); offset += size + 1;
   }
-  return createWorkspaceGraph(files);
+  return graphWithSourceCache(files,root);
 }
 export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph, suites: readonly Suite[], changed: string[], apps: string[] = []) {
   const known = changed.filter(file => head.files.has(file) || base.files.has(file));

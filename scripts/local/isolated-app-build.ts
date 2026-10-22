@@ -16,7 +16,7 @@ async function files(directory:string):Promise<string[]>{
 }
 async function keyFor(id:string,bundler:string){
  const runtime=appRuntimeFingerprint(loadWorkspaceGraph(root),id),hash=createHash('sha256').update('isolated-app-build/v2').update(runtime).update(bundler).update(process.env.NEXT_DEPLOYMENT_ID??'default-runtime-deployment');
- for(const name of ['scripts/local/app-task.ts','scripts/local/isolated-app-build.ts','scripts/local/standalone-links.ts','scripts/local/app-artifact-cache.ts','scripts/local/workspace-copy-input.ts','scripts/local/workspace-settings.json'])hash.update(name).update(await readFile(join(root,name)));
+ for(const name of ['scripts/local/app-task.ts','scripts/local/isolated-app-build.ts','scripts/local/standalone-links.ts','scripts/local/app-artifact-cache.ts','scripts/local/workspace-copy-input.ts'])hash.update(name).update(await readFile(join(root,name)));
  return {runtime,key:hash.digest('hex')};
 }
 /** Build from a private source copy: Next may rewrite next-env and route types. */

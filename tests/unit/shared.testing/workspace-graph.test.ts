@@ -225,3 +225,98 @@ it('keeps storage and availability leaves from regaining indirect business-comma
   runtimeImports.get(read)!.add(command);
   expect(runtimeLeafViolations({runtimeImports})).toEqual([{source,target:command}]);
 });
+
+import { readFile, readdir, symlink } from 'node:fs/promises';
+import { workspaceSourceCache } from '../../../scripts/testing/workspace-source-cache';
+it('includes import-type queries in verification inputs without rebuilding application runtime', () => {
+  const files=sources(),entry='packages/contracts/src/finance.ts',target='packages/contracts/src/money.ts';
+  files.set(entry,'export type Amount = import("./money").Amount; export const currency="THB";');
+  files.set(target,'export type Amount={minor:number};');
+  const original=createWorkspaceGraph(files),beforeRuntime=appRuntimeFingerprint(original,'finance'),beforeTypes=workspaceFingerprint(original,[entry]);
+  expect(original.imports.get(entry)?.has(target)).toBe(true);
+  expect(original.runtimeImports.get(entry)?.has(target)).toBe(false);
+  files.set(target,'export type Amount={minor:string};');
+  const changed=createWorkspaceGraph(files);
+  expect(appRuntimeFingerprint(changed,'finance')).toBe(beforeRuntime);
+  expect(workspaceFingerprint(changed,[entry])).not.toBe(beforeTypes);
+});
+it('retains a real resource read alongside a type-only import of the same file', () => {
+  const files=sources();files.set('apps/finance/src/app/page.tsx','import "../../../../scripts/local/reader";');
+  files.set('scripts/local/reader.ts','import type { Amount } from "../../packages/contracts/src/money"; import {readFileSync} from "node:fs"; export const source=readFileSync(new URL("../../packages/contracts/src/money.ts",import.meta.url));');
+  const before=appRuntimeFingerprint(createWorkspaceGraph(files),'finance');
+  files.set('packages/contracts/src/money.ts','export type Amount=string; export const currency="USD";');
+  expect(appRuntimeFingerprint(createWorkspaceGraph(files),'finance')).not.toBe(before);
+});
+it('includes external import-equals syntax as a runtime module dependency', () => {
+  const files=sources();files.set('packages/contracts/src/finance.ts','import money = require("./money"); export const currency=money.currency;');
+  expect(createWorkspaceGraph(files).runtimeImports.get('packages/contracts/src/finance.ts')?.has('packages/contracts/src/money.ts')).toBe(true);
+});
+it('reuses source syntax across invocations and invalidates by bytes rather than file timestamps', async () => {
+  const root=await mkdtemp(join(tmpdir(),'erpx-source-cache-'));
+  try{
+    const first=workspaceSourceCache(root),file='packages/contracts/src/finance.ts';
+    expect(first.parse(file,'export * from "./money";').modules).toEqual([{specifier:'./money',runtime:true}]);first.flush();
+    expect(first.stats.persisted).toBe(true);
+    const next=workspaceSourceCache(root);expect(next.stats.loaded).toBe(true);
+    expect(next.parse(file,'export * from "./money";').modules).toEqual([{specifier:'./money',runtime:true}]);
+    expect(next.stats).toMatchObject({hits:1,misses:0});
+    expect(next.parse(file,'export * from "./person";').modules).toEqual([{specifier:'./person',runtime:true}]);
+    expect(next.stats.misses).toBe(1);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+it('reparses corrupted syntax cache entries and repairs the owned cache without hiding imports', async () => {
+  const root=await mkdtemp(join(tmpdir(),'erpx-source-cache-'));
+  try{
+    const file='packages/contracts/src/finance.ts',source='export * from "./money";',cache=workspaceSourceCache(root);cache.parse(file,source);cache.flush();
+    const path=join(root,'.scratch/dev/workspace-graph/source-syntax.json'),content=JSON.parse(await readFile(path,'utf8'));
+    content.entries[0][1].modules=[];await writeFile(path,JSON.stringify(content));
+    const repaired=workspaceSourceCache(root);expect(repaired.stats.loaded).toBe(false);
+    expect(repaired.parse(file,source).modules).toEqual([{specifier:'./money',runtime:true}]);repaired.flush();
+    const next=workspaceSourceCache(root);expect(next.stats.loaded).toBe(true);expect(next.parse(file,source).modules).toHaveLength(1);expect(next.stats.hits).toBe(1);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+it('resolves warm cached imports against changed exports and refuses missing mappings', async () => {
+  const root=await mkdtemp(join(tmpdir(),'erpx-source-cache-'));
+  try{
+    const files=sources(),cache=workspaceSourceCache(root),manifest={name:'@erpx/contracts',exports:{'./finance':'./src/finance.ts','./people':'./src/people.ts'}};
+    files.set('packages/contracts/package.json',JSON.stringify(manifest));createWorkspaceGraph(files,cache.parse);cache.flush();
+    const warm=workspaceSourceCache(root);manifest.exports['./finance']='./src/people.ts';files.set('packages/contracts/package.json',JSON.stringify(manifest));
+    const changed=createWorkspaceGraph(files,warm.parse);
+    expect(changed.imports.get('apps/finance/src/app/page.tsx')).toEqual(new Set(['packages/contracts/src/people.ts']));
+    files.set('packages/contracts/package.json',JSON.stringify({name:'@erpx/contracts',exports:{'./people':'./src/people.ts'}}));
+    expect(()=>createWorkspaceGraph(files,warm.parse)).toThrow('WORKSPACE_EXPORT_UNDECLARED');
+    expect(warm.stats.hits).toBeGreaterThan(0);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+it('does not follow an unrelated cache-directory symlink and still parses current source', async () => {
+  const root=await mkdtemp(join(tmpdir(),'erpx-source-cache-')),outside=await mkdtemp(join(tmpdir(),'erpx-other-cache-'));
+  try{
+    await mkdir(join(root,'.scratch'));await symlink(outside,join(root,'.scratch/dev'));
+    const cache=workspaceSourceCache(root);expect(cache.parse('source.ts','import "./money";').modules).toEqual([{specifier:'./money',runtime:true}]);cache.flush();
+    expect(cache.stats.persisted).toBe(false);expect(await readdir(outside)).toEqual([]);
+  }finally{await rm(root,{recursive:true,force:true});await rm(outside,{recursive:true,force:true});}
+});
+it('stops graph selection on an unresolved relative source instead of silently dropping its dependency', () => {
+  const files=sources();files.delete('packages/contracts/src/money.ts');
+  expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_IMPORT_UNRESOLVED:packages/contracts/src/finance.ts:./money');
+});
+it('rejects a graph cache override outside its repository before creating files', async () => {
+  const root=await mkdtemp(join(tmpdir(),'erpx-source-cache-')),outside=await mkdtemp(join(tmpdir(),'erpx-other-cache-'));
+  try{expect(()=>workspaceSourceCache(root,outside)).toThrow('WORKSPACE_CACHE_ROOT_OUTSIDE_REPOSITORY');expect(await readdir(outside)).toEqual([]);}
+  finally{await rm(root,{recursive:true,force:true});await rm(outside,{recursive:true,force:true});}
+});
+
+import { workspaceTaskDefinition } from '../../../scripts/testing/workspace-tasks';
+import { appDefinition } from '@erpx/contracts/apps';
+it('separates type and lint inputs from runtime compiler inputs while retaining their validation dependency', () => {
+  const config=workspaceTaskDefinition(createWorkspaceGraph(sources()),appDefinition('finance'));
+  expect(config.tasks.typecheck.inputs).toContain('$TURBO_ROOT$/packages/contracts/src/person.ts');
+  expect(config.tasks.build.inputs).not.toContain('$TURBO_ROOT$/packages/contracts/src/person.ts');
+  for(const file of ['scripts/testing/app-typecheck.ts','scripts/testing/scoped-lint.ts','scripts/testing/workspace-imports.ts','scripts/testing/workspace-source-cache.ts']){
+    expect(config.tasks.typecheck.inputs).toContain('$TURBO_ROOT$/'+file);
+    expect(config.tasks.build.inputs).not.toContain('$TURBO_ROOT$/'+file);
+  }
+  expect(config.tasks.build.dependsOn).toEqual(['typecheck']);
+  expect(config.tasks.build.inputs).toContain('$TURBO_ROOT$/scripts/local/isolated-app-build.ts');
+  expect(config.tasks.build.inputs).not.toContain('$TURBO_ROOT$/scripts/local/workspace-settings.json');
+});

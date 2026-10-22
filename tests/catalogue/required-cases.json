@@ -1511,6 +1511,126 @@
       "runner": "vitest",
       "file": "tests/unit/legal/file-destruction-ports.test.ts",
       "title": "reads remote destruction authority afresh and exposes its revocation to storage"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "rejects application internals across application and shared-package boundaries"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "resolves only declared package subpath exports when a manifest is present"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "keeps generated app outputs and verification edits outside the global runtime identity"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "resolves runtime resources from the composition root and refuses path traversal"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "invalidates verification for assembled documentation paths without changing app runtime"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "tracks CSS imports and Tailwind text inputs without executing imports from scanned files"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "keys copied migration resources but keeps generated release metadata out of runtime identity"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "retains runtime edges when a facade exports both values and types from one implementation"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "reads only the owned maintenance marker without loading the worker composition"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "keeps verification-only package commands out of app runtime identities"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "selects declared black-box boundary smoke without expanding into unrelated native suites"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "retains lazy import and require edges alongside type-only imports of the same implementation"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "keeps development app profiles explicit and rejects compatibility mixed into product apps"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "keeps storage and availability leaves from regaining indirect business-command dependencies"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "includes import-type queries in verification inputs without rebuilding application runtime"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "retains a real resource read alongside a type-only import of the same file"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "includes external import-equals syntax as a runtime module dependency"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "reuses source syntax across invocations and invalidates by bytes rather than file timestamps"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "reparses corrupted syntax cache entries and repairs the owned cache without hiding imports"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "resolves warm cached imports against changed exports and refuses missing mappings"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "does not follow an unrelated cache-directory symlink and still parses current source"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "stops graph selection on an unresolved relative source instead of silently dropping its dependency"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "rejects a graph cache override outside its repository before creating files"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "separates type and lint inputs from runtime compiler inputs while retaining their validation dependency"
     }
   ]
 }

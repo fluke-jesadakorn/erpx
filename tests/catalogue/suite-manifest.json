@@ -19274,6 +19274,8 @@
       ],
       "packages": [
         "@erpx/feature-finance",
+        "@erpx/feature-records",
+        "@erpx/feature-shared",
         "@erpx/feature-work_projection"
       ]
     },
@@ -26096,10 +26098,12 @@
         "@erpx/feature-finance",
         "@erpx/feature-identity_access",
         "@erpx/feature-legal",
+        "@erpx/feature-operations",
         "@erpx/feature-organization",
         "@erpx/feature-people_payroll",
         "@erpx/feature-pms",
         "@erpx/feature-pos",
+        "@erpx/feature-procurement",
         "@erpx/feature-records",
         "@erpx/feature-runtime",
         "@erpx/feature-sales",
@@ -38121,6 +38125,7 @@
       ],
       "packages": [
         "@erpx/feature-billing",
+        "@erpx/feature-records",
         "@erpx/feature-shared",
         "@erpx/feature-work_projection",
         "@erpx/server-agent",
