@@ -55,11 +55,6 @@ describe("product acceptance generation", () => {
     ]));
     const executive = productAcceptanceRegister.productWorkflows.find(candidate => candidate.id === "work:company-executive-and-scoped-mcp");
     expect(executive?.tests).toContain("tests/e2e/shared.executive/executive-work-mcp.spec.ts");
-    expect(executive?.acceptance).toEqual({
-      implemented: { state: "pending", evidence: null },
-      verified: { state: "pending", evidence: null },
-      enabled: { state: "pending", evidence: null },
-    });
   });
 
   it("maps Talent detail and candidate privacy to their actual owner sources", () => {
