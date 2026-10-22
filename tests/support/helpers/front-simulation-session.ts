@@ -115,14 +115,28 @@ export async function signInFrontRole(
   const initialLanguage = toggleLabel === "EN" ? "th" : "en";
   await expect(html).toHaveAttribute("lang", initialLanguage);
   const nextLanguage = initialLanguage === "th" ? "en" : "th";
-  await page.getByRole("button", { name: initialLanguage === "th" ? "EN" : "ไทย", exact: true }).click();
-  await expect(html).toHaveAttribute("lang", nextLanguage);
-  await page.getByRole("button", { name: initialLanguage === "th" ? "ไทย" : "EN", exact: true }).click();
-  await expect(html).toHaveAttribute("lang", initialLanguage!);
+  const changeLanguage = async (buttonName: "EN" | "ไทย", language: "en" | "th") => {
+    const saved = page.waitForResponse((response) => {
+      const request = response.request();
+      if (request.method() !== "PATCH" || new URL(response.url()).pathname !== "/api/v1/account/preferences")
+        return false;
+      try {
+        return JSON.parse(request.postData() ?? "{}").language === language;
+      } catch {
+        return false;
+      }
+    });
+    await page.getByRole("button", { name: buttonName, exact: true }).click();
+    await expect(html).toHaveAttribute("lang", language);
+    const response = await saved;
+    expect(response.status(), `The ${language} account preference is saved before the workflow starts`).toBe(200);
+    expect((await response.json()).data?.preference?.language).toBe(language);
+  };
+  await changeLanguage(initialLanguage === "th" ? "EN" : "ไทย", nextLanguage);
+  await changeLanguage(initialLanguage === "th" ? "ไทย" : "EN", initialLanguage);
   // The journeys use English accessible labels after proving both language
   // transitions; fictional Front accounts initially default to Thai.
   if(initialLanguage==='th') {
-    await page.getByRole('button',{name:'EN',exact:true}).click();
-    await expect(html).toHaveAttribute('lang','en');
+    await changeLanguage("EN", "en");
   }
 }

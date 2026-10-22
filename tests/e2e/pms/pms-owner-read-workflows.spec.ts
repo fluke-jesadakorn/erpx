@@ -146,10 +146,18 @@ function watchForWrites(page: Page) {
   const mutations: string[] = [];
   page.on("request", (request) => {
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method())) {
-      mutations.push(`${request.method()} ${new URL(request.url()).pathname}`);
+      const pathname = new URL(request.url()).pathname;
+      // Mounting a workspace remembers its last location as an account
+      // navigation preference; it does not invoke a PMS command.
+      if (pathname === "/api/v1/workspace-preference") return;
+      mutations.push(`${request.method()} ${pathname}`);
     }
   });
-  return () => expect(mutations, "Owner read workflow must not submit writes or provider actions").toEqual([]);
+  return () => expect(mutations, "Owner read workflow must not submit business writes or provider actions").toEqual([]);
+}
+
+function normalizeVisibleText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 test("pms/dashboard renders the selected hotel's live room status through its owner-scoped read", async ({ browser }, info) => {
@@ -280,17 +288,17 @@ test("pms/inventory opens the mounted minibar route with inventory section ident
     await expect(chargeSummary).toBeVisible();
     await chargeSummary.click();
     const chargeDialog = fixture.page.getByRole("dialog").filter({ hasText: "Post minibar charge to guest account" });
-    await expect(chargeDialog.getByLabel("Quantity", { exact: true })).toHaveValue("1");
+    await expect(chargeDialog.getByRole("spinbutton", { name: "Quantity", exact: true })).toHaveValue("1");
     const roomIds = records(snapshot, "room").map((room) => room.id);
     const guestAccountIds = records(snapshot, "guest_account")
       .filter((account) => account.data.state !== "closed")
       .map((account) => account.id);
     expect(roomIds.length).toBeGreaterThan(0);
-    const availableRoomIds = await chargeDialog.getByLabel("Room", { exact: true }).locator("option").evaluateAll((options) =>
+    const availableRoomIds = await chargeDialog.getByRole("combobox", { name: "Room", exact: true }).locator("option").evaluateAll((options) =>
       options.map((option) => (option as HTMLOptionElement).value).filter(Boolean),
     );
     expect(availableRoomIds).toEqual(expect.arrayContaining(roomIds));
-    const availableGuestAccountIds = await chargeDialog.getByLabel("Guest Account", { exact: true }).locator("option").evaluateAll((options) =>
+    const availableGuestAccountIds = await chargeDialog.getByRole("combobox", { name: "Guest Account", exact: true }).locator("option").evaluateAll((options) =>
       options.map((option) => (option as HTMLOptionElement).value).filter(Boolean),
     );
     expect(availableGuestAccountIds).toEqual(expect.arrayContaining(guestAccountIds));
@@ -417,14 +425,20 @@ test("pms/reports runs a date-range report for the selected hotel using read-onl
       ["Deposit", ownerBalances.deposit, glBalances.deposit],
     ] as const) {
       const row = pmsVsGl.getByRole("row", { name: new RegExp(`^${label}\\b`) });
-      expect(await row.locator("th, td").evaluateAll((cells) =>
-        cells.slice(0, 4).map((cell) => cell.textContent?.trim() ?? ""),
-      )).toEqual([
-        label,
-        money(pmsValue),
-        money(glValue),
-        money(pmsValue - glValue),
-      ]);
+      const cells = (await row.locator("th, td").evaluateAll((nodes) =>
+        nodes.slice(0, 4).map((cell) => cell.textContent ?? ""),
+      )).map(normalizeVisibleText);
+      expect(cells[0]).toBe(label);
+      for (const [displayed, expected] of [
+        [cells[1], money(pmsValue)],
+        [cells[2], money(glValue)],
+        [cells[3], money(pmsValue - glValue)],
+      ] as const) {
+        const [nativeAmount, conversion, information] = displayed.split(" · ");
+        expect(nativeAmount).toBe(normalizeVisibleText(expected));
+        expect(conversion).toMatch(/^≈ USD /);
+        expect(information).toBe("ข้อมูลประกอบ");
+      }
       expect(pmsValue).toBe(glValue);
     }
     expect(glBalances.debit).toBe(glBalances.credit);
@@ -485,7 +499,8 @@ test("pms/settings shows configured rooms and rates from the selected hotel's sc
       await expect(fixture.page.getByText(room.data.number, { exact: true })).toBeVisible();
     }
     for (const rate of records(snapshot, "rate")) {
-      await expect(fixture.page.getByText(rate.data.name, { exact: true })).toBeVisible();
+      const rateRow = fixture.page.locator(`[data-pms-record="${rate.id}"]`);
+      await expect(rateRow.locator("strong")).toContainText(rate.data.name);
     }
     assertNoWrites();
   } finally {

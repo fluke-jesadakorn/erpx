@@ -239,10 +239,11 @@ function Form({
           <UiField appearance="standard"
             orientation="inline"
             key={f.name}
+            label={f.type === "checkbox" ? undefined : f.label}
+            required={f.required && f.type !== "checkbox"}
             className={f.type === "textarea" ? styles.wide : undefined}
           >
-            {f.label}
-            {f.required && f.type !== "checkbox" ? " *" : ""}
+            {f.type === "checkbox" ? f.label : null}
             {f.type === "select" && f.name === "guestId" && choiceApi && propertyId ? (
               <PmsChoiceSelect key={`${choiceApi}:${propertyId}:${f.name}`} api={choiceApi} propertyId={propertyId} kind="guest" label={f.label} name={f.name} options={f.options} defaultValue={String(f.value??"")} required={f.required} autoLoad={false} emptyLabel={`Select ${f.label}`} />
             ) : f.type === "select" ? (

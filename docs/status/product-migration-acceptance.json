@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
-  "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+  "sourceFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "54d07049eedcc730b09678fb800eb37ccea1ae25aa1449715db5fe4cec88e01e",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -12101,7 +12101,7 @@
           ],
           "acceptance": {
             "implemented": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "pms/dashboard",
                 "phase": "implemented",
@@ -12350,7 +12350,7 @@
           ],
           "acceptance": {
             "implemented": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "pms/inventory",
                 "phase": "implemented",
@@ -12429,7 +12429,7 @@
           ],
           "acceptance": {
             "implemented": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "pms/reports",
                 "phase": "implemented",
@@ -12508,7 +12508,7 @@
           ],
           "acceptance": {
             "implemented": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "pms/settings",
                 "phase": "implemented",
@@ -13108,7 +13108,7 @@
       "origin": "https://finance-dev-erpx.jesadakorn.com",
       "acceptance": {
         "implemented": {
-          "state": "recorded",
+          "state": "source-changed",
           "evidence": {
             "id": "finance:sales-invoice-workspace",
             "phase": "implemented",
@@ -13540,7 +13540,7 @@
           "id": "portal:tenant-token-invitation-document-and-private-files",
           "acceptance": {
             "implemented": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "portal:tenant-token-invitation-document-and-private-files",
                 "phase": "implemented",
@@ -13556,7 +13556,7 @@
               }
             },
             "verified": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "portal:tenant-token-invitation-document-and-private-files",
                 "phase": "verified",
@@ -13648,7 +13648,7 @@
           "id": "legal-portal:scoped-shared-version-access-and-revocation",
           "acceptance": {
             "implemented": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "legal-portal:scoped-shared-version-access-and-revocation",
                 "phase": "implemented",
@@ -13664,7 +13664,7 @@
               }
             },
             "verified": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "legal-portal:scoped-shared-version-access-and-revocation",
                 "phase": "verified",
@@ -13697,7 +13697,7 @@
           "id": "legal-portal:private-document-download-and-access-history",
           "acceptance": {
             "implemented": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "legal-portal:private-document-download-and-access-history",
                 "phase": "implemented",
@@ -13713,7 +13713,7 @@
               }
             },
             "verified": {
-              "state": "recorded",
+              "state": "source-changed",
               "evidence": {
                 "id": "legal-portal:private-document-download-and-access-history",
                 "phase": "verified",
