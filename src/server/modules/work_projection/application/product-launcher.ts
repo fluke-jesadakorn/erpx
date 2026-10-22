@@ -154,7 +154,7 @@ export function createProductLauncher(ports: {
           }
           if(!roleLanding&&definition.id==="sales"&&access.scope.kind!=="department"&&permissions?.includes("inventory.read")&&permissions.includes("inventory.prepare")&&await readyModule("inventory")&&await readyModule("sales")&&await readyModule("finance")){
             const entry=await ports.initialPhysicalStockCountEntry?.(access,assignment);
-            if(entry)roleLanding=initialPhysicalStockCountLanding;
+            if(entry){roleLanding=initialPhysicalStockCountLanding;includedPurpose=entry.purchasePurpose;}
           }
           const capability = roleLanding && productEntryCapability(definition.id,roleLanding);
           const purpose = includedPurpose ?? (capability ? purchasedCapabilityPurpose(facts,candidate.companyId,capability,ports.now()) : null);

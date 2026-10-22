@@ -17,6 +17,7 @@ export type ProductLandingContext = Pick<NavigationContext, "role" | "permission
   modules: readonly string[];
   readyModules: readonly string[];
   capabilities: readonly string[];
+  executiveVisible?: boolean;
 };
 function navigationContext(input: ProductLandingContext): NavigationContext {
   return { ...input, workspaceBase: "", moduleIds: input.modules,

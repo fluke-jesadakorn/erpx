@@ -45,7 +45,13 @@ export function withoutRecordDrawer(current:string) {
  const url=new URL(current,'https://erpx.invalid'),parts=workspacePathParts(url.pathname),target=parts?recordTarget(url.pathname,parts.base):null;
  const returnTo=url.searchParams.get('returnTo');
  const frontBase=url.pathname.match(/^(\/front\/[^/]+\/[^/]+\/(?:pos|pms)\/(?:holding|branches\/[^/]+(?:\/departments\/[^/]+)?|departments\/[^/]+))\//)?.[1]??url.pathname.match(/^(\/[^/]+\/[^/]+\/(?:holding|branches\/[^/]+(?:\/departments\/[^/]+)?|departments\/[^/]+))\//)?.[1];
- if(returnTo&&!returnTo.startsWith('//')&&(parts?returnTo.startsWith(parts.base+'/'):frontBase&&returnTo.startsWith(frontBase+'/')))return canonicalUiHref(returnTo);
+ const returnBase=parts?.base??frontBase;
+ if(returnTo&&returnBase&&!returnTo.startsWith('//')&&returnTo.startsWith(returnBase+'/')){
+  const destination=new URL(returnTo,'https://erpx.invalid');
+  // The return path is untrusted query data. Keep it inside the current
+  // workspace while preserving list selectors and filters exactly.
+  if(destination.origin==='https://erpx.invalid'&&destination.pathname.startsWith(returnBase+'/'))return destination.pathname+destination.search+destination.hash;
+ }
  if(target){url.pathname=url.pathname.split('/').slice(0,-2).join('/');}
  else url.pathname=url.pathname.replace(/\/records\/[^/]+\/[^/]+\/overview$/,'');
  url.pathname=url.pathname.replace(/\/receipts\/[^/]+\/overview$/,'');

@@ -32,6 +32,11 @@ import type { AppearancePreference } from "@/lib/shared/appearance-preference";
 import { useContextSwitch } from "@/components/workplace/context-switch-provider";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useAccountPreferences } from "@/components/identity_access/account-preferences-context";
+import {
+  confirmContextSwitch,
+  contextSwitchBlockReason,
+  setContextSwitching,
+} from "@/lib/work_projection/context-switch";
 
 type AppKind = "pos" | "pms";
 type FrontWorkRole = {
@@ -210,6 +215,7 @@ export function StandardFrontAppShell({
   );
   const accountPreference = useAccountPreferences();
   const [localLanguage, setLanguage] = useState({ userId, value: initialLanguage });
+  const [signOutError, setSignOutError] = useState("");
   const language = accountPreference?.preference && (accountPreference.preference.version > 0 || accountPreference.revision > 0)
     ? accountPreference.preference.language : localLanguage.userId === userId ? localLanguage.value : initialLanguage;
   const languageReady = useHydrated();
@@ -257,9 +263,25 @@ export function StandardFrontAppShell({
   }
 
   async function signOut() {
-    const { authClient } = await import("@/lib/identity_access/auth-client");
-    await authClient.signOut();
-    window.location.replace("/login");
+    const blockedReason = contextSwitchBlockReason();
+    if (blockedReason) {
+      setSignOutError(blockedReason);
+      return;
+    }
+    const prompt = language === "th"
+      ? "ออกจากระบบและทิ้งข้อมูลที่ยังไม่บันทึกหรือไม่?"
+      : "Sign out and discard unsaved changes?";
+    if (!confirmContextSwitch(prompt)) return;
+    setSignOutError("");
+    setContextSwitching(true);
+    try {
+      const { authClient } = await import("@/lib/identity_access/auth-client");
+      await authClient.signOut();
+      window.location.replace("/login");
+    } catch (cause) {
+      setContextSwitching(false);
+      setSignOutError(cause instanceof Error ? cause.message : "Could not sign out. Try again.");
+    }
   }
 
   const page = (
@@ -371,6 +393,7 @@ export function StandardFrontAppShell({
                     {language === "th" ? "เปลี่ยนบริษัท" : "Change company"}
                   </Link>
                 )}
+                {signOutError && <p role="alert">{signOutError}</p>}
                 <Button appearance="standard"
                   variant="plain"
                   type="button"

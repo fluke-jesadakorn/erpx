@@ -3,6 +3,8 @@ import {projectWorkerStartupEntry} from "../../people_payroll/public/rules/proje
 import {manufacturingInitialPhysicalStockCountEntry} from "../../inventory/public/rules/manufacturing-initial-physical-stock-count";
 import {socialPostSourceEntry} from '../../collaboration/public/rules/product-entry';
 import {workforceSelfServiceEntry} from '../../people_payroll/public/rules/self-service-product-entry';
+import {peopleFinancialEntry} from '../../people_payroll/public/rules/financial-product-entry';
+import {supportTicketPortalEntry,supportTicketPortalLanding} from '../../support/public/rules/ticket-portal-entry';
 import { destinationProduct, type ProductId } from "@/lib/commercial/product-registry";
 
 /** Entry/collection discovery only. Record panels and commands retain their
@@ -14,8 +16,9 @@ export function productEntryCapability(id: ProductId, path: string): string | nu
       : path.startsWith("inbox/messages") || path.startsWith("inbox/teams") ? "work.messages"
         : path.startsWith("calendar") ? "work.calendar" : path.startsWith("knowledge") ? "work.handbook"
           : path.startsWith("work") || path.startsWith("projects-routines/tasks") ? "work.actions" : "work.today";
-    case "finance": return /^(?:finance\/accounting\/(?:engines|instruments|book-adjustments)|finance\/reports\/(?:group|group-editions))(?:\/|$)/.test(path)
-      ? "finance.advanced" : "finance.accounting";
+    case "finance": return peopleFinancialEntry(path)?.kind === "expense" ? "people.expenses"
+      : /^(?:finance\/accounting\/(?:engines|instruments|book-adjustments)|finance\/reports\/(?:group|group-editions))(?:\/|$)/.test(path)
+        ? "finance.advanced" : "finance.accounting";
     case "people": return path.startsWith("people-organization/benefits") ? "people.benefits"
       : /\/people\/(?:payroll|payslips)(?:\/|$)/.test(path) ? "people.payroll"
         : path.includes("/people/roster") ? "people.workforce" : path.includes("/people/evaluation") ? "people.performance" : "people.directory";
@@ -35,7 +38,8 @@ export function productEntryCapability(id: ProductId, path: string): string | nu
     case "projects": return projectWorkerStartupEntry(path) ? "people.worker-reference" : /\/projects\/[^/]+\/(?:costs|costing)(?:\/|$)/.test(path) ? "projects.costs" : "projects.wbs";
     case "recruit": return "recruit.positions";
     case "learn": return learningWorkerStartupEntry(path) ? "people.learner-reference" : "learn.assignments";
-    case "support": return "support.tickets";
+    case "support": return supportTicketPortalEntry(path) ? "support.portal"
+      : path.startsWith(supportTicketPortalLanding + "/") ? null : "support.tickets";
     case "service": return path === "services/field-service/settings/parts" || path === "services/field-service/settings/initial-stock" || path.startsWith("services/field-service/settings/initial-stock/") ? "service.parts-assets" : "service.orders";
     case "legal": return "legal.matters";
     case "manufacturing": return manufacturingInitialPhysicalStockCountEntry(path) ? "inventory.stock-core" : path === "production/manufacturing/settings/posting" ? "manufacturing.costs" : path.startsWith("production/planning/mrp") ? "planning.advanced-mrp"

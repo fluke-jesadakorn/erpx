@@ -1,0 +1,744 @@
+{
+  "version": 1,
+  "workflows": [
+    {
+      "id": "apps:all-company-branch-department-product-selection",
+      "blockers": {
+        "verified": "The new Apps browser cases must pass on the isolated product-host lease and attach the required UI observation evidence before this workflow can be verified."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/shared.ui/product-launcher.test.ts",
+          "title": "enumerates every Company and inherited Branch/Department without promoting a direct Department to its parent",
+          "proof": "Enumerates Company, inherited Branch and Department product destinations while proving a direct Department grant does not promote authority to its parent."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/shared.ui/product-launcher.test.ts",
+          "title": "checks explicit Company authority for every scope and caches only the grant read per Company in one render",
+          "proof": "Requires current Company authority at every scope and confines cached grants to one Company during product discovery."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+          "project": "desktop",
+          "proof": "A pre-entitled Branch user selects a visible Apps product tile and lands on the matching Branch workspace under the same Company and account."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+          "project": "mobile",
+          "proof": "A pre-entitled Branch user selects a visible Apps product tile and lands on the matching Branch workspace under the same Company and account."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+          "project": "desktop",
+          "proof": "A pre-entitled Department user selects a visible Apps product tile and lands on the matching Department workspace without broadening its scope."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+          "project": "mobile",
+          "proof": "A pre-entitled Department user selects a visible Apps product tile and lands on the matching Department workspace without broadening its scope."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Branch user cannot open another Company through an Apps product context",
+          "project": "desktop",
+          "proof": "A Branch user's Apps session cannot discover or enter a different Company through the product launch route."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Branch user cannot open another Company through an Apps product context",
+          "project": "mobile",
+          "proof": "A Branch user's Apps session cannot discover or enter a different Company through the product launch route."
+        }
+      ]
+    },
+    {
+      "id": "apps:single-product-direct-entry",
+      "blockers": {
+        "verified": "The new Apps Branch and Department browser cases must pass on the isolated product-host lease and attach the required UI observation evidence before direct-entry verification."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/identity_access/product-workspace.test.ts",
+          "title": "checks explicit Company access before setting a host-only cookie and preserves the target query",
+          "proof": "The product launch handler checks explicit Company authority before issuing its host-only context cookie and retains the exact requested target query."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+          "project": "desktop",
+          "proof": "One already-entitled Branch product tile opens its actual product host and reaches the requested Company/Branch workspace."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Branch workspace for its scoped user",
+          "project": "mobile",
+          "proof": "One already-entitled Branch product tile opens its actual product host and reaches the requested Company/Branch workspace."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+          "project": "desktop",
+          "proof": "One already-entitled Department product tile opens its actual product host and reaches the requested Company/Department workspace."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Apps opens a pre-entitled Department workspace for its scoped user",
+          "project": "mobile",
+          "proof": "One already-entitled Department product tile opens its actual product host and reaches the requested Company/Department workspace."
+        }
+      ]
+    },
+    {
+      "id": "apps:dirty-product-switch",
+      "blockers": {
+        "verified": "The existing dirty-switch browser case must pass on the isolated product-host lease and attach the required UI observation evidence before this workflow can be verified."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/shared.ui/workplace-navigation.test.ts",
+          "title": "Product owner link transport routes imperative handoffs through the existing dirty guard while keeping normal same-product navigation local",
+          "proof": "A dirty cross-product handoff is routed through the shared guard while same-product navigation remains local."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Assets native drawer and dirty product switch observations across the appearance matrix",
+          "project": "desktop",
+          "proof": "The leased Assets product-host workflow exercises a real dirty drawer across an attempted product switch and records its retained draft state."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Assets native drawer and dirty product switch observations across the appearance matrix",
+          "project": "mobile",
+          "proof": "The leased Assets product-host workflow exercises a real dirty drawer across an attempted product switch and records its retained draft state."
+        }
+      ]
+    },
+    {
+      "id": "account:central-login-and-directory-link",
+      "blockers": {
+        "verified": "No isolated browser workflow traverses Account login or directory-linked login into the expected product session and confirms its linked identity."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/product-sso-auth.test.ts",
+          "title": "completes start/authorize/callback with host-bound cookies and a clean URL through real handlers",
+          "proof": "A fictional Account credential session completes the real Finance SSO flow, and persisted parent/child bindings prove the same user identity across Account and Finance while preserving host isolation and single-use callback behavior."
+        }
+      ]
+    },
+    {
+      "id": "account:profile-language-theme",
+      "blockers": {
+        "verified": "The new Account profile browser case must pass on the isolated product-host lease and attach the required UI observation evidence before this workflow can be verified."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/product-sso-auth.test.ts",
+          "title": "reads and changes a central Account profile without Company or Platform authority",
+          "proof": "The actual Account profile endpoint persists Thai language and dark theme preferences for the signed-in account without requiring Company or Platform authority."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Account profile language and theme preferences persist after navigation and reload",
+          "project": "desktop",
+          "proof": "The Account profile UI changes language and theme, navigates away, reloads, and confirms both preferences remain selected and applied."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "Account profile language and theme preferences persist after navigation and reload",
+          "project": "mobile",
+          "proof": "The Account profile UI changes language and theme, navigates away, reloads, and confirms both preferences remain selected and applied."
+        }
+      ]
+    },
+    {
+      "id": "account:role-company-account-switch",
+      "blockers": {
+        "verified": "No single isolated browser workflow currently covers role, Company, and account switching together on the Account/Apps product path."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/account-work-context.test.ts",
+          "title": "re-resolves account, Company and role before allowing a command under current authority",
+          "proof": "With a fictional authenticated Account B session replacing Account A, the service offers only B's Company, requires an explicit B role choice, and rejects a command carrying A's assignment without side effects. This proves context re-resolution after an identity switch, not the BetterAuth activation UI."
+        }
+      ]
+    },
+    {
+      "id": "account:mfa-expiry-replay-family-all-device-revocation",
+      "blockers": {
+        "verified": "The focused MFA replay and Account family-revocation cases have no matching isolated browser workflow with UI observation evidence."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/iam.test.ts",
+          "title": "prevents authenticator replay and rejects MFA proof after the five minute boundary",
+          "proof": "Authenticator replay is rejected and a proof outside the five-minute freshness boundary cannot authorize a mutation."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/product-sso-auth.test.ts",
+          "title": "revokes all actual own devices and product sessions without touching another account or issuing a replacement grant",
+          "proof": "Account-wide revocation removes the owner's device and child product sessions while preserving another account and creating no replacement grant."
+        }
+      ]
+    },
+    {
+      "id": "account:authorized-package-area",
+      "blockers": {
+        "verified": "No isolated browser case currently exercises the Account package area and its authorized-product result."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/iam.test.ts",
+          "title": "preserves actual Company financial-role Apps/SSO entry and original redacted owner readers without People module or base Finance purchase",
+          "proof": "For a synthetic Company with only People parent/payroll/expenses package facts and a finance-only role, the native launch projection emits exactly Finance and People SSO destinations, including owner-history exceptions, and no other product links. This verifies projection eligibility only; it does not render Account/Apps."
+        }
+      ]
+    },
+    {
+      "id": "admin:company-brand-organization-iam",
+      "blockers": {
+        "verified": "Registered desktop/mobile Admin cases must pass with bound read-only H001 owner projections before this workflow can be verified."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/identity_access/product-workspace.test.ts",
+          "title": "Company Admin exposes current Brand, Organization, and IAM owner reads without changing roles or package grants",
+          "proof": "On a synthetic H001 Company, a holding_owner assignment seeded with Brand, Organization, and IAM modules and no Commercial packages exposes the three exact Company Admin destinations. Each owner reader returns the Company-scoped projection, while the read sequence leaves the existing selected Finance role, assignment snapshot, and empty package-grant snapshot unchanged."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Company Admin reads current Brand, Organization, and IAM projections without changing H001 authority",
+          "project": "desktop",
+          "proof": "Normal Account sign-in and the actual Apps Company administration tile open the existing H001 Company without selecting a role. Desktop reads show the Company-scoped Brand identity, Company organization node, and current holding_owner IAM assignment with one unchanged assignment id across the three destinations. The exact case attachment binds three screenshots and an empty list of non-authentication writes; the read-only Product Host edge denies Commercial, MFA, role, package and grant POSTs."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Company Admin reads current Brand, Organization, and IAM projections without changing H001 authority",
+          "project": "mobile",
+          "proof": "Normal Account sign-in and the actual Apps Company administration tile open the existing H001 Company without selecting a role. Mobile reads show the Company-scoped Brand identity, Company organization node, and current holding_owner IAM assignment with one unchanged assignment id across the three destinations. The exact case attachment binds three screenshots and an empty list of non-authentication writes; the read-only Product Host edge denies Commercial, MFA, role, package and grant POSTs."
+        }
+      ]
+    },
+    {
+      "id": "admin:platform-only-entry",
+      "blockers": {
+        "verified": "The native Platform authority check has no matching isolated browser entry workflow and UI observation evidence."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/identity_access/admin-workspace.test.ts",
+          "title": "requires actual matching Platform plus ERPX Holding permission for management without selecting a role",
+          "proof": "Management is available only for the same account with matching Platform authority and ERPX Holding permission, without selecting or mutating a role."
+        }
+      ]
+    },
+    {
+      "id": "admin:provider-authority-separation",
+      "blockers": {
+        "verified": "The isolated provider-authority integration cases have no matching browser workflow through the Admin product with UI observation evidence."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "title": "provides a real Platform-only preview with no Company role or package mutation",
+          "proof": "Platform-only preview returns the reviewed legacy candidates while leaving Company roles and package grants unchanged."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "title": "requires fresh MFA before entering the Holding mutation, and read-only Platform authority cannot apply",
+          "proof": "A Platform session without current MFA and a read-only authority cannot enter a Company grant mutation."
+        }
+      ]
+    },
+    {
+      "id": "admin:legacy-preview-apply-and-audit",
+      "blockers": {
+        "verified": "The isolated legacy preview/apply/audit integrations have no matching browser workflow through the Admin product with UI observation evidence."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/legacy-module-preview.test.ts",
+          "title": "reads actual published module ceilings and HR restrictions without modifying Company grants or assignments",
+          "proof": "Legacy preview applies current published module ceilings and HR restrictions while asserting the Company grant and assignment rows remain unchanged."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/legacy-module-preview.test.ts",
+          "title": "projects the published commerce/iam/people legacy witness into current Sales workspace entry without writing grants",
+          "proof": "One actual Company owner assignment supplies commerce, iam and people compatibility from current published permissions; preview.after is overlaid in memory onto current purchase facts, exposing canonical Sales coverage to the current Sales host while assignment and package-grant rows remain unchanged."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "title": "atomically applies the reviewed batch through Commercial and preserves immutable review provenance on replay",
+          "proof": "The isolated reviewed legacy batch applies atomically and preserves immutable review provenance for an exact replay."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/commercial/provider-legacy-grants.test.ts",
+          "title": "roundtrips actual ordinary and legacy Commercial receipts through the captured Provider UI acknowledgement without losing newer drafts",
+          "proof": "A captured Provider acknowledgement accepts the exact ordinary and legacy receipts while preserving a newer in-progress draft."
+        }
+      ]
+    },
+    {
+      "id": "booking:tenant-room-availability-reservation-consent-payment-callback",
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/pms/pms-booking.test.ts",
+          "title": "shares exact nightly prices, child occupancy and policy snapshots",
+          "proof": "The public availability result and accepted reservation use the exact nightly prices, child occupancy and frozen policy snapshot."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/pms/pms-booking.test.ts",
+          "title": "atomically confirms and queues email without creating money entries",
+          "proof": "Reservation confirmation commits once with its notification job and does not create money entries before a payment callback."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/pms/pms-booking.test.ts",
+          "title": "confirms a timely provider payment after local hold expiry only when capacity is still available",
+          "proof": "A timely verified provider callback confirms a booking after local hold expiry only when the room remains available."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/pms/pms-booking-payment-recovery.spec.ts",
+          "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+          "project": "desktop",
+          "proof": "The isolated browser journey searches rooms, records consent, starts checkout, processes the signed payment callback, recovers the interrupted receipt and retains one approved refund without duplicate money."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/pms/pms-booking-payment-recovery.spec.ts",
+          "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
+          "project": "mobile",
+          "proof": "The isolated browser journey searches rooms, records consent, starts checkout, processes the signed payment callback, recovers the interrupted receipt and retains one approved refund without duplicate money."
+        }
+      ]
+    },
+    {
+      "id": "portal:tenant-token-invitation-document-and-private-files",
+      "blockers": {
+        "verified": "The existing internal journey covers acceptance by an already verified invited account; the new desktop/mobile journey covers external invitation signup, email verification, acceptance of one approved document, revocation and immutable invitation history. Frozen-source browser receipts for both flows still need to be captured."
+      },
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/customer_authority/customer-access.test.ts",
+          "title": "issues a tenant-token invitation and binds only the invited verified Portal identity",
+          "proof": "Before invitation, the approved binding has no Portal identity and projects no documents. A staff-issued invitation is delivered as a sensitive message without returning its token or hash; the wrong email cannot accept it and creates no identity. The exact invited verified account explicitly accepts the sent token, which creates one binding identity, exposes only the approved source, records scoped reads and leaves another user excluded."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+          "title": "native retail and customer authority engineering workflows customer portal invitation acceptance independently approves one binding invites the verified account scopes its document and support evidence revokes access and retains immutable authority history",
+          "project": "desktop",
+          "proof": "A normal source owner independently approves one customer binding and sends a sensitive sandbox invitation. The exact verified customer signs in, opens the fragment-scrubbed invitation, explicitly accepts it and sees only the approved document. The customer uploads scoped support evidence and consumes its sanitized private preview; another account is denied. Source revocation immediately removes cached access while immutable decisions and read audit remain."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+          "title": "native retail and customer authority engineering workflows customer portal invitation acceptance independently approves one binding invites the verified account scopes its document and support evidence revokes access and retains immutable authority history",
+          "project": "mobile",
+          "proof": "A normal source owner independently approves one customer binding and sends a sensitive sandbox invitation. The exact verified customer signs in, opens the fragment-scrubbed invitation, explicitly accepts it and sees only the approved document. The customer uploads scoped support evidence and consumes its sanitized private preview; another account is denied. Source revocation immediately removes cached access while immutable decisions and read audit remain."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+          "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+          "project": "desktop",
+          "proof": "A normal source owner independently approves one binding and sends a sensitive email-pinned invitation. The external recipient creates and verifies the invited account, explicitly accepts the invitation and sees only the approved document. Revocation removes access while the separate invitation history remains immutable; capture of the frozen-source desktop receipt is still pending."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+          "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+          "project": "mobile",
+          "proof": "A normal source owner independently approves one binding and sends a sensitive email-pinned invitation. The external recipient creates and verifies the invited account, explicitly accepts the invitation and sees only the approved document. Revocation removes access while the separate invitation history remains immutable; capture of the frozen-source mobile receipt is still pending."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+          "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+          "project": "desktop",
+          "proof": "The browser verifies that an invitation token is scrubbed from the address and rendered page, the invited account email is pinned, the sign-in guidance is clear, and no enrollment request or mutation occurs before an explicit action."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+          "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+          "project": "mobile",
+          "proof": "The browser verifies that an invitation token is scrubbed from the address and rendered page, the invited account email is pinned, the sign-in guidance is clear, and no enrollment request or mutation occurs before an explicit action."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+          "title": "offers verification resend when the invited account was created but email delivery failed",
+          "project": "desktop",
+          "proof": "A deterministic failed-delivery response preserves the invitation-token signup request without allowing an email override, reports that account creation succeeded, offers the ordinary verification-resend route, and scrubs the invitation fragment after submission."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+          "title": "offers verification resend when the invited account was created but email delivery failed",
+          "project": "mobile",
+          "proof": "A deterministic failed-delivery response preserves the invitation-token signup request without allowing an email override, reports that account creation succeeded, offers the ordinary verification-resend route, and scrubs the invitation fragment after submission."
+        }
+      ]
+    },
+    {
+      "id": "legal-portal:scoped-shared-version-access-and-revocation",
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/legal/legal.test.ts",
+          "title": "limits external readers to shared versions and hides internal comments",
+          "proof": "An external reader sees only the selected immutable shared version, no internal comments or newer private revision, and revocation removes quick access and detail."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/uat/legal/legal-uat.spec.ts",
+          "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+          "project": "desktop",
+          "proof": "The browser verifies selected-version-only access and hidden internal discussion, external counsel downloads exact private PDF bytes matched to the document checksum/version, and the owner evidence export records one portal.download for that actor/document; it also covers one reviewed Finance request and denial after share revocation."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/uat/legal/legal-uat.spec.ts",
+          "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+          "project": "mobile",
+          "proof": "The mobile browser verifies selected-version-only access and hidden internal discussion, external counsel downloads exact private PDF bytes matched to the document checksum/version, and the owner evidence export records one portal.download for that actor/document; it also covers one reviewed Finance request and denial after share revocation."
+        }
+      ]
+    },
+    {
+      "id": "legal-portal:private-document-download-and-access-history",
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/legal/legal-download-route.test.ts",
+          "title": "returns native portal 404 envelopes without bytes for mismatched and revoked shares while preserving the exact authorized original",
+          "proof": "Mismatched and revoked shares return non-enumerating 404 responses without bytes, while the exact authorized original remains readable."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/legal/legal-download-route.test.ts",
+          "title": "legalPortalRead orders a normal share withdrawal after buffered original bytes and the complete owned access audits",
+          "proof": "The read buffers the authorized original and commits complete owned access audits before a normal share withdrawal; late changes roll back access."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/legal/legal-download-route.test.ts",
+          "title": "legalPortalDetailRead keeps a normal share withdrawal after the original private detail and view audit",
+          "proof": "The authorized private detail and view audit finish before share withdrawal, retaining exact bytes and audit ordering."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/legal/legal-portal-download-session.test.ts",
+          "title": "holds the actual normally authenticated Legal Portal family through lazy original bytes and both Holding audits before normal product sign-out",
+          "proof": "A normally authenticated Legal Portal session remains current through original private bytes and both Holding access audits before sign-out."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/legal/legal-portal-download-session.test.ts",
+          "title": "holds the actual normal Legal detail family until its original view audit and complete authorized response finish before product sign-out",
+          "proof": "The normal detail response and its original view audit complete within the authenticated session before sign-out."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/uat/legal/legal-uat.spec.ts",
+          "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+          "project": "desktop",
+          "proof": "Desktop Portal download returns the exact private PDF bytes pinned by the shared document id, version and checksum; the normal owner UI evidence export contains exactly one matching portal.download access event, and revocation denies another download without adding an event."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/uat/legal/legal-uat.spec.ts",
+          "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+          "project": "mobile",
+          "proof": "Mobile Portal download returns the exact private PDF bytes pinned by the shared document id, version and checksum; the normal owner UI evidence export contains exactly one matching portal.download access event, and revocation denies another download without adding an event."
+        }
+      ]
+    },
+    {
+      "id": "forms:tenant-published-version-consent-submit-and-replay",
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/marketing/public-marketing-form.test.ts",
+          "title": "requires the rendered version for a new Forms-host submission while retaining exact legacy receipts and current publication authority",
+          "proof": "The Forms host requires the version displayed to the visitor, records consent under that version and replays only the exact original submission receipt."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/marketing/forms-host.spec.ts",
+          "title": "isolated anonymous Forms host submits the published version and replays exact consent once",
+          "project": "desktop",
+          "proof": "The isolated Forms-only HTTPS edge opens the exact public form and approved creative, submits explicit consent for the published version, and replays the byte-identical visitor request with the same idempotency key against the disposable Company clone."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/marketing/forms-host.spec.ts",
+          "title": "isolated anonymous Forms host submits the published version and replays exact consent once",
+          "project": "mobile",
+          "proof": "The isolated Forms-only HTTPS edge opens the exact public form and approved creative, submits explicit consent for the published version, and replays the byte-identical visitor request with the same idempotency key against the disposable Company clone."
+        }
+      ]
+    },
+    {
+      "id": "work:company-executive-and-scoped-mcp",
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/unit/identity_access/product-workspace.test.ts",
+          "title": "launches Company Executive on Work with its current permission and independent release, without buying Finance or changing the role",
+          "proof": "Company Executive opens on Work only with current executive permission and its independent release, without requiring Finance purchase or changing the selected role."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/shared.executive/executive-canvas.test.ts",
+          "title": "requires executive eligibility and an explicit effective grant",
+          "proof": "The Company Executive canvas rejects users without executive eligibility or an explicit effective grant."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/shared.executive/executive-mcp.test.ts",
+          "title": "connects the official client through Work while denying its valid credential on Finance and retired Console before MCP dispatch",
+          "proof": "The official MCP client reaches the Company service through Work and the same credential is denied on Finance and retired Console before dispatch."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/shared.executive/executive-mcp.test.ts",
+          "title": "isolates company, branch and department scopes and denies unshared dashboards",
+          "proof": "The MCP service constrains Company, Branch and Department reads to the credential's assigned scope and refuses unshared reports."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/shared.executive/executive-work-mcp.spec.ts",
+          "title": "isolated Work Executive UI reads a seeded connection through scoped MCP",
+          "project": "desktop",
+          "proof": "The isolated Work product-host flow opens Company Executive and reads its seeded connection through the scoped MCP client."
+        }
+      ]
+    },
+    {
+      "id": "finance:sales-invoice-workspace",
+      "cases": [
+        {
+          "runner": "vitest",
+          "file": "tests/integration/finance/finance-sales-workspace.test.ts",
+          "title": "Sales-only grants can create and replay standalone service invoices while draining blocks new invoices",
+          "proof": "A Sales-only Company with approved defaults creates and posts a standalone service invoice, replays the original command, proves the Sales entitlement owns the invoice without granting general Finance, and refuses new invoices during package draining."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/integration/finance/finance-sales-workspace.test.ts",
+          "title": "Sales-only standalone invoice posting fails closed when completion outbox evidence is missing",
+          "proof": "After the durable completion outbox event is removed from a synthetic invoice, Sales ownership is no longer inferred, posting access and the post command are denied, and the invoice remains draft; the creator's completion note alone does not grant the boundary."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "Finance draft boundary blocks same-view invoice query navigation while a marked draft is dirty",
+          "proof": "A dirty invoice drawer retains its draft and presents the Finance navigation guard when its own query state changes."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "marks state-managed Finance form edits in the same dirty-navigation boundary",
+          "proof": "State-managed invoice line changes join the native Finance dirty-navigation boundary."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "Finance draft boundary blocks navigation and explicit discard while a Finance acknowledgement is unresolved",
+          "proof": "The drawer prevents navigation and discard while the original Finance request is awaiting confirmation."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales command registers its original request with FinanceDraftBoundary through ambiguous retry and preserves newer edits",
+          "proof": "Ambiguous invoice responses keep the original command registered for exact retry while retaining subsequent edits."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales command releases the boundary lock after a definitive first response",
+          "proof": "A definitive invoice response releases the Finance draft boundary."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice Escape uses Finance confirmation and discards only its own form",
+          "proof": "Escape requests scoped Finance discard confirmation and leaves other marked forms intact."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice Close uses Finance confirmation and discards only its own form",
+          "proof": "The drawer Close control requests scoped Finance discard confirmation and leaves other marked forms intact."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice Add service is dirty and preserves the close confirmation",
+          "proof": "Adding a service line marks the editor dirty and keeps the drawer mounted through the close confirmation."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice Remove service is dirty when it is the only edit after an acknowledged baseline",
+          "proof": "Removing a service line after an acknowledged baseline is treated as a new unsaved edit."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice scoped discard refuses a replaced owner root and retains other Finance drafts",
+          "proof": "Scoped discard refuses a stale form root and preserves other Finance drafts."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice retains its native dismissal guard for pending commands",
+          "proof": "A pending invoice command disables native dismissal and prevents route replacement."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice retains its native dismissal guard for unresolved commands",
+          "proof": "An unresolved invoice command disables native dismissal and prevents route replacement."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice drawer preserves the submitted command and newer service edits while the command is unresolved",
+          "proof": "Recovery retains the captured invoice request while newer service edits remain visible in the drawer."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice clean close removes only its open flag and retains current repeated filters, cursor and hash",
+          "proof": "Closing a clean invoice drawer removes its own query flag while preserving repeated filters, cursor, and hash."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice discard close removes only its open flag and retains current repeated filters, cursor and hash",
+          "proof": "Discarding the invoice drawer removes only its open query flag and retains other URL state."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice clean close keeps another dirty Sales owner mounted without URL replacement",
+          "proof": "Closing a clean invoice drawer does not replace the URL or unmount another dirty Sales form."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-navigation.test.ts",
+          "title": "actual Sales invoice inline close and already-absent open flag do not navigate",
+          "proof": "The dedicated inline form and an already-closed invoice drawer do not trigger redundant navigation."
+        },
+        {
+          "runner": "vitest",
+          "file": "tests/unit/finance/finance-product-presentation.test.ts",
+          "title": "routes direct Finance invoice setup failures through the access boundary before rendering the form",
+          "proof": "The dedicated Finance invoice form checks write authority and routes setup failures through the page access boundary before rendering."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/finance-sales-workspace.spec.ts",
+          "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+          "project": "desktop",
+          "proof": "The isolated normal-login workflow checks the Sales & collections register, opens the completed-services invoice drawer, verifies the calculated total and completion evidence, prepares an invoice, opens direct invoice and quotation forms, and checks receipt navigation."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/finance/finance-sales-workspace.spec.ts",
+          "title": "English sales workspace opens drawers, calculates invoices and keeps direct forms available",
+          "project": "mobile",
+          "proof": "The isolated normal-login workflow checks the Sales & collections register, opens the completed-services invoice drawer, verifies the calculated total and completion evidence, prepares an invoice, opens direct invoice and quotation forms, and checks receipt navigation."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+          "title": "Finance invoice drawer observations native prepared invoice drawers retain dirty work and keyboard focus across the appearance matrix",
+          "project": "desktop",
+          "proof": "Owner-authenticated observations verify drawer geometry, keyboard focus, dirty-work recovery, and stable Finance state across the viewport and appearance matrix."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/uat/shared.ui/uat-route-matrix.spec.ts",
+          "title": "Finance invoice drawer observations native prepared invoice drawers retain dirty work and keyboard focus across the appearance matrix",
+          "project": "mobile",
+          "proof": "Owner-authenticated observations verify drawer geometry, keyboard focus, dirty-work recovery, and stable Finance state across the viewport and appearance matrix."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
+          "project": "desktop",
+          "proof": "The isolated Finance Product Host verifies current-owner drawer geometry and draft preservation across the viewport and appearance matrix without issuing Finance commands."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
+          "project": "mobile",
+          "proof": "The isolated Finance Product Host verifies current-owner drawer geometry and draft preservation across the viewport and appearance matrix without issuing Finance commands."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Finance host creates a completion-backed sales invoice through Account and Apps",
+          "project": "desktop",
+          "proof": "The Finance Product Host follows Account and Apps into the current Company owner session, creates one THB service invoice for the disposable fixture customer, verifies the 214.00 total and retained completion evidence, and binds the exact request to its isolated cohort."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Finance host creates a completion-backed sales invoice through Account and Apps",
+          "project": "mobile",
+          "proof": "The Finance Product Host follows Account and Apps into the current Company owner session, creates one THB service invoice for the disposable fixture customer, verifies the 214.00 total and retained completion evidence, and binds the exact request to its isolated cohort."
+        }
+      ]
+    }
+  ]
+}

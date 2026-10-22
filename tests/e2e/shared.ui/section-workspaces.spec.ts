@@ -6,8 +6,8 @@ test.setTimeout(600_000);
 async function signIn(page:Page){
  const credentials=JSON.parse(readFileSync('.scratch/dev/credentials/console-dev.json','utf8')) as {origin:string;email:string;password:string};
  if(credentials.origin!==origin)throw new Error('Development sign-in origin mismatch');
- await page.getByLabel('Work email',{exact:true}).fill(credentials.email);
- await page.getByLabel('Password',{exact:true}).fill(credentials.password);
+ await page.getByRole('textbox',{name:'Work email',exact:true}).fill(credentials.email);
+ await page.getByRole('textbox',{name:'Password',exact:true}).fill(credentials.password);
  await page.getByRole('button',{name:'Sign in',exact:true}).click();
  await expect(page.getByRole('button',{name:'Switch workspace',exact:true})).toBeEnabled({timeout:60_000});
 }
@@ -15,7 +15,7 @@ async function ready(page:Page){await expect(page.getByRole('button',{name:'Swit
 test.beforeEach(async({page,baseURL})=>{
  if(baseURL!==origin)throw new Error('This read-only route check requires the authorized development console');
  await page.goto(origin+'/login?next='+encodeURIComponent(base+'/administration/technology/directory/connections'));
- await page.getByLabel('Work email',{exact:true}).waitFor({state:'visible',timeout:60_000});await signIn(page);
+ await page.getByRole('textbox',{name:'Work email',exact:true}).waitFor({state:'visible',timeout:60_000});await signIn(page);
  await ready(page);
 });
 test('workspace shell hydrates before its topic controls become interactive',async({page},info)=>{
@@ -53,7 +53,7 @@ test('path records preserve repeated collection filters and selected detail tabs
 test('signed-out deep links return through normal sign-in to the same detail path',async({browser})=>{
  const context=await browser.newContext();const page=await context.newPage();
  const path=base+'/people-organization/people/directory/person/demo-org-v1-bangkok-accounting-staff-engagement/employment';
- await page.goto(origin+path);await expect(page.getByLabel('Work email',{exact:true})).toBeVisible({timeout:60_000});
+ await page.goto(origin+path);await expect(page.getByRole('textbox',{name:'Work email',exact:true})).toBeVisible({timeout:60_000});
  expect(new URL(page.url()).searchParams.get('next')).toBe(path);await signIn(page);await expect(page).toHaveURL(origin+path);await expect(page.getByRole('complementary',{name:'Tara Suwan details',exact:true})).toBeVisible({timeout:60_000});await context.close();
 });
 test('missing record IDs recover without command writes',async({page})=>{

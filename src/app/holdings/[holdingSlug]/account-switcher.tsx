@@ -16,6 +16,11 @@ import styles from "@/components/workplace/account.module.css";
 import { Appearance } from "@/components/workplace/workplace-controls";
 import { leavePushSession } from "@/lib/shared/push-client";
 import { useContextSwitch } from "@/components/workplace/context-switch-provider";
+import {
+  confirmContextSwitch,
+  contextSwitchBlockReason,
+  setContextSwitching,
+} from "@/lib/work_projection/context-switch";
 
 type DeviceSession = {
   session: { token: string; userId: string };
@@ -197,15 +202,29 @@ export function AccountSwitcher({
   }
 
   async function signOut() {
-    setPending("logout");
-    try {
-      if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
-    } catch {
-      /* Revoking the auth session also blocks future sends. */
+    const blockedReason = contextSwitchBlockReason();
+    if (blockedReason) {
+      setError(blockedReason);
+      return;
     }
-    const { authClient } = await import("@/lib/identity_access/auth-client");
-    await authClient.signOut();
-    window.location.replace(new URL("/login", window.location.origin));
+    if (!confirmContextSwitch("Sign out and discard unsaved changes?")) return;
+    setError("");
+    setPending("logout");
+    setContextSwitching(true);
+    try {
+      try {
+        if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
+      } catch {
+        /* Revoking the auth session also blocks future sends. */
+      }
+      const { authClient } = await import("@/lib/identity_access/auth-client");
+      await authClient.signOut();
+      window.location.replace(new URL("/login", window.location.origin));
+    } catch (cause) {
+      setContextSwitching(false);
+      setPending("");
+      setError(cause instanceof Error ? cause.message : "Could not sign out. Try again.");
+    }
   }
 
   const accounts = sessions.some((item) => item.user.id === activeUser.id)

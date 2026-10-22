@@ -2161,7 +2161,7 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
                 label: `${row.action} ${row.node_kind} · ${row.display_name}`,
                 summary: `Submitted · ${row.branch_name}`,
                 status: row.state,
-                href: organizationChangeHref(row.id),
+                href: organizationChangeHref(row.id, actor.companyId),
             })),
             hasMore,
             nextCursor: hasMore && items.length ? Buffer.from(JSON.stringify({ at: organizationEvidenceNumber(items.at(-1)!.updated_at, "update time"), id: items.at(-1)!.id })).toString("base64url") : null,
@@ -2184,7 +2184,7 @@ export function createExecutiveEvidenceApplication(ports: ExecutiveEvidencePorts
             created_at: organizationEvidenceNumber(row.created_at, "creation time"),
             updated_at: organizationEvidenceNumber(row.updated_at, "update time"),
             branch_name: row.branch_name,
-            href: organizationChangeHref(row.id),
+            href: organizationChangeHref(row.id, actor.companyId),
         };
         const queryHash = await ports.digest(JSON.stringify({ providerId: organizationProviderId, metric: pendingStructureMetric, filters, scope: [actor.companyId, actor.assignmentId, actor.branchId, actor.departmentId], recordId }));
         await ports.currentAuthority(actor);

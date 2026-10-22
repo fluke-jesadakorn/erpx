@@ -7,13 +7,15 @@ import { Button, Field as UiField, Select, TextArea, TextInput } from "@/compone
 import { FeatureWidget, WidgetGrid } from "@/components/shared/features/feature-page";
 import { SetupChecklist } from "@/components/ui/setup-checklist";
 import { decimalToMinor } from "@/lib/finance/finance-money";
+import { pmsSectionPath } from "@/lib/pms/section-route";
 import { visiblePmsSections, operationPermission, plusDays, records, type DataMap, type Kind, type PmsRecord } from "@/server/modules/pms/public/rules/pms-model";
 import { useCurrency, useMoneyFormatter } from "@/components/finance/money/currency-provider";
 import { workFetch } from "@/lib/work_projection/work-fetch";
 import { createLatestRead } from "@/lib/shared/latest-read";
 import type { PmsWorkspace } from "@/server/modules/pms/public/pms";
 import { Hotel, Plus, RefreshCw } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "@/lib/shared/destination-router";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PmsListPagination } from "./list-pagination";
 import dynamic from "next/dynamic";
@@ -716,7 +718,7 @@ export function BackofficePmsWorkspace(props: {
             )
             .map((item) => ({
               ...item,
-              href: `${base}/pms/${item.id}${propertyId ? `?property=${encodeURIComponent(propertyId)}` : ""}`,
+              href: `${base}/pms/${pmsSectionPath(item.id)}${propertyId ? `?property=${encodeURIComponent(propertyId)}` : ""}`,
             }))}
         />
         {s?.listMeta&&<PmsListPagination key={JSON.stringify(s.listMeta)} meta={s.listMeta} roomTypes={rows("room_type").map(row=>({id:row.id,name:row.data.name}))}/>}

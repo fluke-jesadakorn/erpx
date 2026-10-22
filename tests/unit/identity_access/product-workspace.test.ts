@@ -38,11 +38,14 @@ const access = (): AccountAccessContext => ({ scope: { kind: "holding", holdingS
   assignments: [{ id: "assignment", role: "holding_owner", companyId: "c2", branchId: null, modules: ["finance"], scopeKind: "holding", scopeNodeId: null, version: 1 }] });
 const selected = () => ({ session_id: "session", user_id: "user", company_id: "c2", assignment_id: "assignment", assignment_version: 1, revision: 3, expires_at: Date.now() + 60_000 });
 it("launches Company Executive on Work with its current permission and independent release, without buying Finance or changing the role",async()=>{
- const account=access();account.assignments[0].modules=[];let permissions=["executive.access"],released=true;
- const ready=vi.fn(async(_access:unknown,id:string)=>id!=="executive"||released),service=createProductWorkspace({access:async()=>account,modules:async()=>({modulesByAssignment:new Map([["assignment",[]]]),presentationModulesByAssignment:new Map([["assignment",[]]]),permissionsByAssignment:new Map([["assignment",permissions]]),beta:false}),purchaseFacts:async()=>({grants:[{companyId:"c2",packageId:"work",packageVersion:1,state:"active" as const,startsAt:0,endsAt:null,version:1,reason:"Fixture",evidence:"test:original-executive-entry"}],history:[]}),ready,selection:async()=>selected(),select:mocks.select,now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)});
+ const account=access();account.assignments[0].modules=[];let permissions=["executive.access"],released=true,visible=false;
+ const ready=vi.fn(async(_access:unknown,id:string)=>id!=="executive"||released),executiveVisible=vi.fn(async()=>visible),service=createProductWorkspace({access:async()=>account,modules:async()=>({modulesByAssignment:new Map([["assignment",[]]]),presentationModulesByAssignment:new Map([["assignment",[]]]),permissionsByAssignment:new Map([["assignment",permissions]]),beta:false}),purchaseFacts:async()=>({grants:[{companyId:"c2",packageId:"work",packageVersion:1,state:"active" as const,startsAt:0,endsAt:null,version:1,reason:"Fixture",evidence:"test:original-executive-entry"}],history:[]}),ready,executiveVisible,selection:async()=>selected(),select:mocks.select,now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)});
  const target="/holdings/acme/insights/executive/reports/original?tag=one&tag=two#canvas",input=productWorkspaceTarget("work","c2",target)!;
- expect(await service.read("work",input)).toMatchObject({target});expect(ready).toHaveBeenCalledWith(account,"executive");expect(mocks.select).not.toHaveBeenCalled();expect(account.assignments[0].modules).toEqual([]);
- released=false;await expect(service.read("work",input)).rejects.toMatchObject({code:"PRODUCT_ROLE_REQUIRED"});released=true;permissions=[];await expect(service.read("work",input)).rejects.toMatchObject({code:"PRODUCT_ROLE_REQUIRED"});
+ await expect(service.read("work",input)).rejects.toMatchObject({code:"PRODUCT_ROLE_REQUIRED"});expect(executiveVisible).toHaveBeenCalledWith(account,account.assignments[0]);
+ visible=true;expect(await service.read("work",input)).toMatchObject({target});expect(ready).toHaveBeenCalledWith(account,"executive");expect(mocks.select).not.toHaveBeenCalled();expect(account.assignments[0].modules).toEqual([]);
+ released=false;await expect(service.read("work",input)).rejects.toMatchObject({code:"PRODUCT_ROLE_REQUIRED"});released=true;permissions=[];visible=false;await expect(service.read("work",input)).rejects.toMatchObject({code:"PRODUCT_ROLE_REQUIRED"});
+ // A current shared-report reader is visible even without general author permission.
+ visible=true;expect(await service.read("work",input)).toMatchObject({target});
  expect(productWorkspaceTarget("finance","c2",target)).toBeNull();expect(productWorkspaceTarget("admin","c2",target)).toBeNull();
 });
 beforeEach(() => {
@@ -674,6 +677,33 @@ it('uses Learning worker preparation only as the missing ordinary landing fallba
 
 
 // Permission-based included financial entry; no People module or base Finance purchase.
+it('requires the named Employee Expenses purchase and the current Finance owner proof',async()=>{
+ const {productEntryCapability}=await import('@/server/modules/commercial/public/rules/product-entry-capability');
+ const account=access();account.assignments[0]={...account.assignments[0],role:'custom_expense_accounting',modules:['finance']};
+ let packages=['finance'],modules=['finance'],permissions=['module.finance.read','finance.read','expense.read','expense.prepare'],ownerAllowed=true;
+ const owner=vi.fn(async()=>ownerAllowed?{revision:'private-employee-expense-source',purchasePurpose:'history' as const}:null),input=productWorkspaceTarget('finance','c2','/holdings/acme/finance/documents/expenses/claim-original/overview')!;
+ const service=createProductWorkspace({access:async()=>account,modules:async()=>({modulesByAssignment:new Map([['assignment',modules]]),presentationModulesByAssignment:new Map([['assignment',modules]]),permissionsByAssignment:new Map([['assignment',permissions]]),beta:false}),purchaseFacts:async()=>({grants:packages.map(packageId=>({companyId:'c2',packageId,packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Fixture',evidence:'test:employee-expenses-entry'})),history:[]}),ready:async()=>true,peopleFinancialEntry:owner,selection:async()=>selected(),select:mocks.select,now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)});
+ expect(productEntryCapability('finance','finance/documents/expenses')).toBe('people.expenses');expect(productEntryCapability('finance','finance/documents/expenses/claim-original/overview')).toBe('people.expenses');
+ await expect(service.read('finance',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});expect(owner).not.toHaveBeenCalled();
+ packages=['people','people-expenses'];
+ expect(await service.read('finance',input)).toMatchObject({target:input.target,sourceRecord:true,options:[{purchasePurpose:'history',sourceRecord:true}]});expect(owner).toHaveBeenCalledWith(account,account.assignments[0],{kind:'expense',id:'claim-original'});
+ owner.mockClear();ownerAllowed=false;await expect(service.read('finance',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});expect(owner).toHaveBeenCalledOnce();
+ ownerAllowed=true;modules=[];owner.mockClear();await expect(service.read('finance',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});expect(owner).not.toHaveBeenCalled();
+ modules=['finance'];permissions=['module.finance.read','finance.read','expense.read'];owner.mockClear();await expect(service.read('finance',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});expect(owner).not.toHaveBeenCalled();
+});
+
+it('requires the Helpdesk Portal add-on, its Support base dependency, and the existing Support owner permission',async()=>{
+ const {supportTicketPortalLanding}=await import('@/server/modules/support/public/rules/ticket-portal-entry');
+ const account=access();account.assignments[0]={...account.assignments[0],role:'custom_support_agent',modules:['support']};
+ let packages=['support'],modules=['support'],permissions=['support.read'];
+ const service=createProductWorkspace({access:async()=>account,modules:async()=>({modulesByAssignment:new Map([['assignment',modules]]),presentationModulesByAssignment:new Map([['assignment',modules]]),permissionsByAssignment:new Map([['assignment',permissions]]),beta:false}),purchaseFacts:async()=>({grants:packages.map(packageId=>({companyId:'c2',packageId,packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Fixture',evidence:'test:helpdesk-portal-entry'})),history:[]}),ready:async()=>true,selection:async()=>selected(),select:mocks.select,now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)}),input=productWorkspaceTarget('support','c2',`/holdings/acme/${supportTicketPortalLanding}/binding-original`)!;
+ await expect(service.read('support',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});
+ packages=['support-portal'];await expect(service.read('support',input)).rejects.toMatchObject({code:'PRODUCT_PACKAGE_REQUIRED'});
+ packages=['support','support-portal'];expect(await service.read('support',input)).toMatchObject({target:input.target,options:[{purchasePurpose:'new-work'}]});
+ permissions=[];await expect(service.read('support',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});
+ permissions=['support.read'];modules=[];await expect(service.read('support',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});
+});
+
 it('opens exact Expense Finance and Payroll People owner pages for the current financial assignment without expanding its modules',async()=>{
  const {peopleFinancialEntry}=await import('@/server/modules/people_payroll/public/rules/financial-product-entry');
  const account=access();account.assignments[0]={...account.assignments[0],role:'custom_financial_settlement',modules:['finance']};

@@ -26,7 +26,7 @@ export async function promoteAccountInvitationDeliveries(control: SqlDatabase, h
   const application = createInvitationDeliveryApplication({ repository: repository(control, holding), clock: { now: () => now }, identifiers: { next: () => crypto.randomUUID() }, activationLink: () => { throw new Error("DELIVERY_NOT_REQUESTED"); }, send: async () => { throw new Error("DELIVERY_NOT_REQUESTED"); } });
   await application.promote(holdingId);
 }
-export async function deliverAccountInvitation(control: SqlDatabase, env: DeliveryEnv, send: (env: DeliveryEnv, to: string, subject: string, url: string, key?: string) => Promise<string | null | void> = sendBetaEmail, now = Date.now()) {
+export async function deliverAccountInvitation(control: SqlDatabase, env: DeliveryEnv, send: (env: DeliveryEnv, to: string, subject: string, url: string, key?: string) => Promise<string | null | void> = ((deliveryEnv,to,subject,url,key)=>sendBetaEmail(deliveryEnv as Parameters<typeof sendBetaEmail>[0],to,subject,url,key)), now = Date.now()) {
   return createInvitationDeliveryApplication({ repository: repository(control), clock: { now: () => now }, identifiers: { next: () => crypto.randomUUID() },
     activationLink(id) { const secret = String(env.BETTER_AUTH_SECRET ?? ""), origin = applicationOrigin("account", String(env.ERPX_PUBLIC_ORIGIN ?? env.BETTER_AUTH_URL ?? "")); if (!secret) throw new Error("INVITATION_SECRET_NOT_CONFIGURED"); if (!origin) throw new Error("PUBLIC_ORIGIN_NOT_CONFIGURED"); const token = createHmac("sha256", secret).update(`invitation:${id}`).digest("hex"); return new URL(`/activate?token=${encodeURIComponent(token)}`, origin).href; },
     send: (to, subject, url, key) => send(env, to, subject, url, key),

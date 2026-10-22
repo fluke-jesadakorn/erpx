@@ -1,11 +1,19 @@
-import { mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
-import { aggregateCiRegression, parseBrowserShard, requiredNativePhases, type BrowserCaseExclusion, type BrowserCaseReceipt, type BrowserCiReceipt, type NativeCiReceipt } from "./browser-sharding";
+import { aggregateCiRegression, assignedBrowserShard, parseBrowserShard, requiredNativePhases, type BrowserCaseExclusion, type BrowserCaseReceipt, type BrowserCiReceipt, type NativeCiReceipt } from "./browser-sharding";
 import { loadCatalogue, repositoryRoot, validateCatalogue } from "./catalogue";
-import { runBrowserIsolation } from "./browser-isolation";
+import { assertCohortsDestroyed, runBrowserIsolation } from "./browser-isolation";
+import { mergeBrowserAcceptanceReceipts, partitionBrowserIsolationSuites } from "./browser-isolation-groups";
+import { validateBrowserIsolation } from "./browser-isolation-receipts";
+import { runBrowserSuites, type BrowserRunReceipt } from "./browser-runner";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../local/source-fingerprint";
 import { internalRequiredCases, loadRequiredCases, readNativeCaseReceipt } from "./required-case-inventory";
+import { preparePdfAssets } from "../assets/prepare-pdf-assets";
+import { browserEvidenceArtifactRootFromReceiptPath, verifyBrowserEvidenceArtifacts } from "./browser-evidence-artifacts";
+import { discoverCiReceiptFiles } from "./ci-receipt-discovery";
+import { productHostSuiteId, validateProductHostCommercialCohorts } from "./product-host-commercial-evidence";
+import { productHostPlanPathsFromEnvironment } from "./product-host-cohort";
 
 const root = repositoryRoot, catalogue = loadCatalogue();
 validateCatalogue(catalogue);
@@ -27,17 +35,22 @@ process.on("SIGINT", () => signal("SIGINT")); process.on("SIGTERM", () => signal
 if (mode === "aggregate") {
   const source = option("--directory");
   if (!source) throw new Error("CI_EVIDENCE_DIRECTORY_REQUIRED");
-  async function files(path: string): Promise<string[]> {
-    return (await Promise.all((await readdir(path, { withFileTypes: true })).map(entry => entry.isDirectory() ? files(join(path, entry.name)) : /^(?:native|browser-\d+-\d+)\.json$/.test(entry.name) ? [join(path, entry.name)] : []))).flat();
-  }
-  const receipts = await Promise.all((await files(resolve(root, source))).map(async path => JSON.parse(await readFile(path, "utf8")) as NativeCiReceipt | BrowserCiReceipt));
-  const natives = receipts.filter(receipt => receipt.kind === "native") as NativeCiReceipt[];
-  const browsers = receipts.filter(receipt => receipt.kind === "browser") as BrowserCiReceipt[];
+  const loaded = await Promise.all((await discoverCiReceiptFiles(resolve(root, source))).map(async path => ({ path, receipt: JSON.parse(await readFile(path, "utf8")) as NativeCiReceipt | BrowserCiReceipt })));
+  const natives = loaded.filter(item => item.receipt.kind === "native").map(item => item.receipt) as NativeCiReceipt[];
+  const browsers = loaded.filter((item): item is { path: string; receipt: BrowserCiReceipt } => item.receipt.kind === "browser");
   if (natives.length !== 1 || !browsers.length) throw new Error("FULL_CI_RECEIPTS_REQUIRED");
-  const receipt = aggregateCiRegression({ native: natives[0], browsers, candidate, total: browsers[0].shard.total, requiredSuiteIds: browserSuites.map(suite => suite.id), requiredCases });
+  for(const {path,receipt} of browsers){
+    await verifyBrowserEvidenceArtifacts(receipt,browserEvidenceArtifactRootFromReceiptPath(path));
+    if(!natives[0].release)throw new Error("NATIVE_CANDIDATE_RELEASE_REQUIRED");
+    await validateProductHostCommercialCohorts(root,receipt.cohorts,
+      {runtimeFingerprint:natives[0].runtimeFingerprint,verificationFingerprint:natives[0].verificationFingerprint,release:natives[0].release},
+      browserSuites.some(suite=>suite.id===productHostSuiteId));
+  }
+  const receipt = aggregateCiRegression({ native: natives[0], browsers: browsers.map(item=>item.receipt), candidate, total: browsers[0].receipt.shard.total, requiredSuiteIds: browserSuites.map(suite => suite.id), requiredCases });
   await writeFile(join(directory, "aggregate.json"), JSON.stringify(receipt, null, 2) + "\n", { mode: 0o600 });
   console.log(JSON.stringify(receipt));
 } else {
+  await preparePdfAssets();
   const runtimeFingerprint = await runtimeSourceFingerprint(root), verificationFingerprint = await verificationSourceFingerprint(root, runtimeFingerprint);
   async function stable() {
     if (await runtimeSourceFingerprint(root) !== runtimeFingerprint || await verificationSourceFingerprint(root, runtimeFingerprint) !== verificationFingerprint) throw new Error("CI_REGRESSION_SOURCE_CHANGED");
@@ -81,19 +94,88 @@ if (mode === "aggregate") {
     finally { await writeFile(join(directory, "native.json"), JSON.stringify(receipt, null, 2) + "\n", { mode: 0o600 }); }
   } else {
     const shard = parseBrowserShard(option("--shard") ?? "");
-    const receipt: BrowserCiReceipt = { version: 1, kind: "browser", candidate, runtimeFingerprint, verificationFingerprint, passed: false, shard, inventory: [], receipts: [], exclusions: [], isolation: null };
+    const receipt: BrowserCiReceipt = { version: 1, kind: "browser", candidate, runtimeFingerprint, verificationFingerprint, passed: false, shard, inventory: [], receipts: [], exclusions: [], isolation: null, cohorts: [] };
     try {
       if (args.includes("--build")) await execute(["run", "deploy:build"]);
       if (!process.env.ERPX_TEST_RELEASE_DIR && !args.includes("--build")) throw new Error("CI_ATTESTED_RELEASE_DIRECTORY_REQUIRED");
       const { releaseDirectory, identity } = await verifiedRelease(process.env.ERPX_TEST_RELEASE_DIR ?? join(root, ".runtime/releases/latest"));
       receipt.release = identity;
-      const isolated = await runBrowserIsolation(browserSuites, { releaseDirectory, shard });
-      const browser = isolated.forward.receipt;
+      const groups = partitionBrowserIsolationSuites(browserSuites);
+      const productHostPlanPaths = productHostPlanPathsFromEnvironment(process.env);
+      const formsHostPlanPath = process.env.ERPX_TEST_FORMS_HOST_PLAN;
+      const assignedRequiredSuites = new Set<string>();
+      for (const test of requiredCases.filter(test => test.runner === "playwright" && test.project)) {
+        const owners = browserSuites.filter(suite => suite.files.includes(test.file));
+        if (owners.length !== 1) throw new Error(`CI_BROWSER_REQUIRED_CASE_SUITE_BINDING_REQUIRED:${test.file}`);
+        if (assignedBrowserShard(owners[0].id, { file: test.file, title: test.title, project: test.project! }, shard)) assignedRequiredSuites.add(owners[0].id);
+      }
+      const forwardGroups: { suites: typeof browserSuites; receipt: BrowserRunReceipt }[] = [];
+      const reverseGroups: { suites: typeof browserSuites; receipt: BrowserRunReceipt }[] = [];
+      let probe: BrowserRunReceipt | undefined;
+      async function readReceipt(evidenceDirectory: string) {
+        return JSON.parse(await readFile(join(evidenceDirectory, "receipt.json"), "utf8")) as BrowserRunReceipt;
+      }
+      for (const group of groups) {
+        const hasAssignedRequiredCases = group.suites.some(suite => assignedRequiredSuites.has(suite.id));
+        const cohort = { group: group.id, suiteIds: group.suites.map(suite => suite.id), passed: false } as NonNullable<BrowserCiReceipt["cohorts"]>[number];
+        receipt.cohorts!.push(cohort);
+        try {
+          if (group.id === "product-host" && (!productHostPlanPaths.default || !productHostPlanPaths.businessWorkflows?.["work.request-draft"] || !productHostPlanPaths.businessWorkflows?.["finance.sales-invoice"])) {
+            cohort.reason = "PRODUCT_HOST_SCOPED_PLANS_REQUIRED";
+            receipt.blocker = { phase: "product-host", reason: "PRODUCT_HOST_SCOPED_PLANS_REQUIRED" };
+            throw new Error("CI_PRODUCT_HOST_SCOPED_PLANS_REQUIRED");
+          }
+          if (group.id === "forms-host" && hasAssignedRequiredCases && !formsHostPlanPath) {
+            cohort.reason = "FORMS_HOST_PLAN_REQUIRED";
+            receipt.blocker = { phase: "forms-host", reason: "FORMS_HOST_PLAN_REQUIRED" };
+            throw new Error("CI_FORMS_HOST_PLAN_REQUIRED");
+          }
+          if (hasAssignedRequiredCases) {
+            const isolated = await runBrowserIsolation(group.suites, { releaseDirectory, shard, productHostPlanPaths, formsHostPlanPath });
+            forwardGroups.push({ suites: group.suites, receipt: isolated.forward.receipt });
+            reverseGroups.push({ suites: group.suites, receipt: isolated.reverse.receipt });
+            cohort.forward = isolated.forward.receipt;
+            cohort.reverse = isolated.reverse.receipt;
+            cohort.forwardEvidenceDirectory = relative(root, isolated.forward.result.evidenceDirectory);
+            cohort.reverseEvidenceDirectory = relative(root, isolated.reverse.result.evidenceDirectory);
+            if (!probe) {
+              probe = isolated.probe.receipt;
+              cohort.probe = isolated.probe.receipt;
+              cohort.probeEvidenceDirectory = relative(root, isolated.probe.evidenceDirectory);
+            }
+          } else {
+            const forwardResult = await runBrowserSuites(group.suites, { releaseDirectory, shard, productHostPlanPaths, formsHostPlanPath, caseOrder: "forward" });
+            const forward = await readReceipt(forwardResult.evidenceDirectory);
+            assertCohortsDestroyed(forward);
+            if (forward.receipts.some(test => test.required !== false)) throw new Error("CI_BROWSER_EMPTY_SHARD_GROUP_CONTRADICTS_REQUIRED_CASES");
+            const reverseResult = await runBrowserSuites(group.suites, { releaseDirectory, shard, productHostPlanPaths, formsHostPlanPath, caseOrder: "reverse" });
+            const reverse = await readReceipt(reverseResult.evidenceDirectory);
+            assertCohortsDestroyed(reverse);
+            if (reverse.receipts.some(test => test.required !== false)) throw new Error("CI_BROWSER_EMPTY_SHARD_GROUP_CONTRADICTS_REQUIRED_CASES");
+            forwardGroups.push({ suites: group.suites, receipt: forward });
+            reverseGroups.push({ suites: group.suites, receipt: reverse });
+            cohort.forward = forward;
+            cohort.reverse = reverse;
+            cohort.forwardEvidenceDirectory = relative(root, forwardResult.evidenceDirectory);
+            cohort.reverseEvidenceDirectory = relative(root, reverseResult.evidenceDirectory);
+          }
+          cohort.passed = true;
+        } catch (error) {
+          if (!cohort.reason) cohort.reason = error instanceof Error && /^[A-Z0-9_]+$/.test(error.message) ? error.message : "BROWSER_COHORT_FAILED";
+          throw error;
+        }
+      }
+      if (!probe) throw new Error("CI_BROWSER_SHARD_EXECUTABLE_PROBE_REQUIRED");
+      const forward = mergeBrowserAcceptanceReceipts(browserSuites, forwardGroups, "forward", shard);
+      const reverse = mergeBrowserAcceptanceReceipts(browserSuites, reverseGroups, "reverse", shard);
+      const proof = { forward, reverse, probe };
+      validateBrowserIsolation(proof, { runtimeFingerprint, verificationFingerprint, shard });
+      const browser = forward;
       if (!browser.passed || browser.runtimeFingerprint !== runtimeFingerprint || browser.verificationFingerprint !== verificationFingerprint) throw new Error("CI_BROWSER_RECEIPT_MISMATCH");
       receipt.inventory = browser.inventory;
       receipt.receipts = browser.receipts.filter((test): test is BrowserCaseReceipt => test.required !== false && typeof test.file === "string" && typeof test.title === "string" && typeof test.passed === "boolean");
       receipt.exclusions = browser.receipts.filter((test): test is BrowserCaseExclusion => test.required === false && typeof test.file === "string" && typeof test.title === "string" && typeof test.reason === "string");
-      receipt.isolation = isolated.proof;
+      receipt.isolation = proof;
       await stable(); receipt.passed = true;
     } finally { await writeFile(join(directory, `browser-${shard.index}-${shard.total}.json`), JSON.stringify(receipt, null, 2) + "\n", { mode: 0o600 }); }
   }

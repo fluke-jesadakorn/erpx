@@ -4,3 +4,6 @@ export function financeActionAllowed(purchases: FinancePurchaseControls | undefi
   const access = purchases[capability];
   return !!access && (purpose === "new-work" ? access.newWork : purpose === "settle-existing" ? access.settleExisting : access.history);
 }
+export function financeSalesInvoiceNewWorkAllowed(purchases: FinancePurchaseControls | undefined) {
+  return financeActionAllowed(purchases, "new-work", "finance.accounting") || financeActionAllowed(purchases, "new-work", "finance.sales-posting");
+}

@@ -1,0 +1,410 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "portal:tenant-token-invitation-document-and-private-files",
+  "phase": "verified",
+  "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+  "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+  "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+  "release": {
+    "id": "2026-10-22T04-54-29-019Z",
+    "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "customer_authority.customer-access.integration",
+      "file": "tests/integration/customer_authority/customer-access.test.ts",
+      "title": "issues a tenant-token invitation and binds only the invited verified Portal identity",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "customer_authority.demo-retail-customer-authority.journeys",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows customer portal invitation acceptance independently approves one binding invites the verified account scopes its document and support evidence revokes access and retains immutable authority history",
+      "project": "desktop",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "customer_authority.demo-retail-customer-authority.journeys",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows customer portal invitation acceptance independently approves one binding invites the verified account scopes its document and support evidence revokes access and retains immutable authority history",
+      "project": "mobile",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "customer_authority.demo-retail-customer-authority.journeys",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+      "project": "desktop",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "customer_authority.demo-retail-customer-authority.journeys",
+      "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+      "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+      "project": "mobile",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "customer_authority.portal-invitation.e2e",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+      "project": "desktop",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "customer_authority.portal-invitation.e2e",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+      "project": "mobile",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "customer_authority.portal-invitation.e2e",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "offers verification resend when the invited account was created but email delivery failed",
+      "project": "desktop",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "customer_authority.portal-invitation.e2e",
+      "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+      "title": "offers verification resend when the invited account was created but email delivery failed",
+      "project": "mobile",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-20261022-a826d11f/portal-verified.json",
+      "sha256": "6e72f1ea4b118b9ac690923d0b726014bb957394c59a0df84a5cb711f3117cec"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "73d63b864f88e3ef1633eeb5d3eb8a593fd67fd0848e0ac863796d619317ec45"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T04-54-29-019Z/release.json",
+      "sha256": "473b124a0325492583815d825d585bb341dbb1ef83df3baf027c3ab5bcd98490"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T04-54-29-019Z/release-files.json",
+      "sha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/4e614dd98959/result.json",
+      "sha256": "e7faf18026a7cfeeabfe1662c3ce35864e5eed49594fdde0d4e8442227b02c13"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/4e614dd98959/state.json",
+      "sha256": "af87262e5be6e98fa9a2391b088c0da0e049981787dfdc4e84e84b67b134e617"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/4e614dd98959/artifacts/journeys-customer_authorit-23cdd-immutable-authority-history-desktop/attachments/erpx-ui-observation-cc1c18d5890a3ba6d9197148c9fa5400fa08ca41.json",
+      "sha256": "c8f010ad83b9989e3032cf85082d26421ac4ff59243d4f997a92961f63abd2f8"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/4e614dd98959/artifacts/journeys-customer_authorit-23cdd-immutable-authority-history-desktop/attachments/product-migration-ui-screenshot-0d813a6c6f18d9316bff7777784ef817c99f13ae.png",
+      "sha256": "1e7545dbd607393d74d83ee508445b46a0b086265e0cc5a9fe2ba63335e90cf9"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/3a7afaad962c/result.json",
+      "sha256": "ef14ee7d44877283bc52aeea4913b899a354100d400a09a5095423343031d562"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/3a7afaad962c/state.json",
+      "sha256": "b44d5d984ca5fb958fce6fc36edae1e180331c14f27e6cf3ff82b937a0eed595"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/3a7afaad962c/artifacts/journeys-customer_authorit-23cdd-immutable-authority-history-mobile/attachments/erpx-ui-observation-7d844c4e7c14f9b4f298a84cccd5788a705be9ea.json",
+      "sha256": "c80443c2100bca431432383d1d36adb33709470bb8f183fbeb3b6eae4aaba8e8"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/3a7afaad962c/artifacts/journeys-customer_authorit-23cdd-immutable-authority-history-mobile/attachments/product-migration-ui-screenshot-809c8e2f2f57bb735e5f2c2cc07ccde949c18a96.png",
+      "sha256": "4d6656de489e0045377ce4575d6a363a17babe60844f6c245be78a7a4c6c7ead"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/5eead96ca4bb/result.json",
+      "sha256": "7483bfe71fce708289afa29fbc851c67c508b4899089d9389677917177ddd917"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/5eead96ca4bb/state.json",
+      "sha256": "e634b13158b8a061d6379fa9c7ffc7cb57d72ef2bb1125f11a3c9d353b9a45a4"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/5eead96ca4bb/artifacts/journeys-customer_authorit-d2828-mmutable-invitation-history-desktop/attachments/erpx-ui-observation-1cd72d9d24dda5c772d2ae38af386d65301d492a.json",
+      "sha256": "3f02414177ce682c280dc5dc27ece792aa77caa0d08f4d4c804010deddc015d0"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/5eead96ca4bb/artifacts/journeys-customer_authorit-d2828-mmutable-invitation-history-desktop/attachments/product-migration-ui-screenshot-68dab0e690904f514f00571550e913dd96785846.png",
+      "sha256": "1e7545dbd607393d74d83ee508445b46a0b086265e0cc5a9fe2ba63335e90cf9"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/388a1514dd8e/result.json",
+      "sha256": "bdd69c7477d125e7121cfa43de5bc80c445ccf9866c85c49eaa6b0e0541f04b6"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/388a1514dd8e/state.json",
+      "sha256": "8bebeff820c4d4c1f5bbf69f8562b2b02c2865f38f9e0988ef7e4fb81a83091f"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/388a1514dd8e/artifacts/journeys-customer_authorit-d2828-mmutable-invitation-history-mobile/attachments/erpx-ui-observation-896836cdc18d862a6159181d4fb81e2f97760bcb.json",
+      "sha256": "a6d9bdc880d4fa0ae83a827ae02f912542c3dee3e688f26f184933814bcef52f"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/388a1514dd8e/artifacts/journeys-customer_authorit-d2828-mmutable-invitation-history-mobile/attachments/product-migration-ui-screenshot-2fbc3d363c762227692c97c37ab8231bf5d10b8e.png",
+      "sha256": "4d6656de489e0045377ce4575d6a363a17babe60844f6c245be78a7a4c6c7ead"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/8ba830e99453/result.json",
+      "sha256": "87db3e26f992f6e3084453615b4595485c5971343031d62eb67a0ea7d00167f3"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/8ba830e99453/state.json",
+      "sha256": "765480b6676cf7ce67e7ee4e35525982c71980af68baf5575478194fd4ca05ad"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/8ba830e99453/artifacts/e2e-customer_authority-por-fe188-d-enrollment-and-acceptance-desktop/attachments/erpx-ui-observation-3099149707fc248cba9d610bfb090840d4628467.json",
+      "sha256": "46fefd884fec147cadf391594328051e839a243c681e8089970c77e6679a2487"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/8ba830e99453/artifacts/e2e-customer_authority-por-fe188-d-enrollment-and-acceptance-desktop/attachments/product-migration-ui-screenshot-6cbec78bf75bb814c79a9769d4e56444f8ea7ad8.png",
+      "sha256": "132b8f1e8ee8369c25f6042b7bdf3b25f5c1826ebebe99d9fafa047e9ee75ae3"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/f2e0d251fcdb/result.json",
+      "sha256": "a701d57dca58d7adaf9371b817b023f4abb9f6741a05ce7fe94c2ee02ecbb185"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/f2e0d251fcdb/state.json",
+      "sha256": "f0ba702ccb3045b028f28eac4650e54bf8910a22ad5307ff8a20b7941b5690ae"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/f2e0d251fcdb/artifacts/e2e-customer_authority-por-fe188-d-enrollment-and-acceptance-mobile/attachments/erpx-ui-observation-dce4cb8b9af9badb4683e6cfa7e892bf8b2192c0.json",
+      "sha256": "9d9679b4374eb921a772a4fd2acdccce796b3016a932df26360f9da9dc48e2d7"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/f2e0d251fcdb/artifacts/e2e-customer_authority-por-fe188-d-enrollment-and-acceptance-mobile/attachments/product-migration-ui-screenshot-0eb71ccdbb51c17b58f41e68b5c6faab3d63074c.png",
+      "sha256": "f8e37cf1726379fdcdc53607de73c28f7a7619afd777384921542c02c7eefd4c"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/b828ad4ba4a8/result.json",
+      "sha256": "79be1d030454dbbb8e7b7a7c44f2de31c7f182fe12ddc180e7a24a9563ab8386"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/b828ad4ba4a8/state.json",
+      "sha256": "38e2ec807894ff88efe768d850107219eb6362b3a0814845dc5d0b7ac010dbd5"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/b828ad4ba4a8/artifacts/e2e-customer_authority-por-a31c2-d-but-email-delivery-failed-desktop/attachments/erpx-ui-observation-4e97bed8a32232c110bfe4b877208f7ec3a54c76.json",
+      "sha256": "35830e730535b04a646df9ba05843850bfe66b3e4b73c047432e6edbe1d35d8d"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/b828ad4ba4a8/artifacts/e2e-customer_authority-por-a31c2-d-but-email-delivery-failed-desktop/attachments/product-migration-ui-screenshot-484e56c7520d0bac00a55b2c84730c38729af185.png",
+      "sha256": "1ba3dde031745b654cd56ee67d7857620942ec519f863ee50da7c9f8521bae09"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/ad516eb496cb/result.json",
+      "sha256": "6ebc399d5db7381a4023fb0c3c8125a2731d3771fab12dcc914b0fcc861eb51d"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/ad516eb496cb/state.json",
+      "sha256": "4dc98a13a10d46783d56c1bdb33f395921359e0fa37b3dd04b5f17a590e01b07"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/ad516eb496cb/artifacts/e2e-customer_authority-por-a31c2-d-but-email-delivery-failed-mobile/attachments/erpx-ui-observation-a5789c8369e1d2a49ce55fde165611ffb1e6acb2.json",
+      "sha256": "60ef547c38e6a3a4b7953e5fb93a28ca7e31502ef36653ade8680744a4662a50"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/ad516eb496cb/artifacts/e2e-customer_authority-por-a31c2-d-but-email-delivery-failed-mobile/attachments/product-migration-ui-screenshot-92f6036016f7521eacb71e076682fdc7849480a5.png",
+      "sha256": "fb10e5d905d5c09a0ab33df4b4048b32370d3ac3964684b1852bf31e46f2ac52"
+    },
+    {
+      "kind": "browser-run-receipt",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+      "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "73d63b864f88e3ef1633eeb5d3eb8a593fd67fd0848e0ac863796d619317ec45"
+    },
+    "browserRuns": [
+      {
+        "run": "4e614dd98959",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "customer_authority.demo-retail-customer-authority.journeys",
+            "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+            "title": "native retail and customer authority engineering workflows customer portal invitation acceptance independently approves one binding invites the verified account scopes its document and support evidence revokes access and retains immutable authority history",
+            "project": "desktop"
+          }
+        ]
+      },
+      {
+        "run": "3a7afaad962c",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "customer_authority.demo-retail-customer-authority.journeys",
+            "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+            "title": "native retail and customer authority engineering workflows customer portal invitation acceptance independently approves one binding invites the verified account scopes its document and support evidence revokes access and retains immutable authority history",
+            "project": "mobile"
+          }
+        ]
+      },
+      {
+        "run": "5eead96ca4bb",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "customer_authority.demo-retail-customer-authority.journeys",
+            "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+            "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+            "project": "desktop"
+          }
+        ]
+      },
+      {
+        "run": "388a1514dd8e",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "customer_authority.demo-retail-customer-authority.journeys",
+            "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+            "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+            "project": "mobile"
+          }
+        ]
+      },
+      {
+        "run": "8ba830e99453",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "customer_authority.portal-invitation.e2e",
+            "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+            "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+            "project": "desktop"
+          }
+        ]
+      },
+      {
+        "run": "f2e0d251fcdb",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "customer_authority.portal-invitation.e2e",
+            "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+            "title": "scrubs the invitation fragment and presents email-pinned enrollment and acceptance",
+            "project": "mobile"
+          }
+        ]
+      },
+      {
+        "run": "b828ad4ba4a8",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "customer_authority.portal-invitation.e2e",
+            "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+            "title": "offers verification resend when the invited account was created but email delivery failed",
+            "project": "desktop"
+          }
+        ]
+      },
+      {
+        "run": "ad516eb496cb",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "customer_authority.portal-invitation.e2e",
+            "file": "tests/e2e/customer_authority/portal-invitation.spec.ts",
+            "title": "offers verification resend when the invited account was created but email delivery failed",
+            "project": "mobile"
+          }
+        ]
+      }
+    ]
+  }
+}

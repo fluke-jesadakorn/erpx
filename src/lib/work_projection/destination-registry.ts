@@ -163,6 +163,16 @@ export function canonicalUiHref(href:string):string {
  const orderPath=parts.path.match(/^(purchasing\/orders|customers-sales\/sales\/documents\/(?:quote|sales))\/[^/]+(?:\/[^/]+)?$/);
  const orderView=orderPath?(orderPath[1]==='purchasing/orders'?'purchase':orderPath[1].endsWith('/quote')?'quote':'sales'):null;
  const query:Record<string,string>={...exact?.selection,...Object.fromEntries(url.searchParams),...(orderView?{view:orderView}:{})};
+ // The People organization workspace retains its legacy structure editor for
+ // owners reviewing branch and department settings. Its query-driven company
+ // selection must stay on that owner page when the editor updates the URL.
+ if(source==='people'&&query.view==='legacy'&&(query.company||query.branch)){
+  url.pathname=`${parts.base}/people-organization/people/organization`;
+  // The server selects this tab for legacy organization settings, so serialize
+  // that selection for client components that read the URL after hydration.
+  if(!url.searchParams.has('tab'))url.searchParams.set('tab','settings');
+  return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;
+ }
  if(source==='work'&&query.new&&['task','expense','purchase_request'].includes(query.new)){const route=query.new==='task'?'projects-routines/tasks/new':query.new==='expense'?'finance/documents/expenses/new':'services/desk/new';url.pathname=parts.base+'/'+route;if(query.new==='purchase_request')url.searchParams.set('kind','purchase');for(const key of ['new','view','queue','type','responsibility'])url.searchParams.delete(key);return `${absolute?url.origin:''}${url.pathname}${url.search}${url.hash}`;}
  if(source==='people'&&query.new){query.view='internal';query.status??='current';}
  if(source==='legal'&&query.new)query.kind??='request';

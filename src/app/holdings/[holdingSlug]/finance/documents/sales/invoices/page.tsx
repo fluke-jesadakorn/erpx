@@ -1,4 +1,4 @@
-import Screen from "./_screen";
+import Screen from "../../../../_presenters/finance/sales/screen";
 export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
  const query={...await searchParams,...{"tab":"invoices"}};
  const props={params:Promise.resolve({...await params,...{}}),searchParams:Promise.resolve(query)} as Parameters<typeof Screen>[0];

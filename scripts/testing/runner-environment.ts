@@ -56,6 +56,10 @@ export function browserChildEnvironment(ambient: Environment, overrides: Environ
     selected.RESEND_API_KEY = overrides.RESEND_API_KEY;
     selected.RESEND_FROM = overrides.RESEND_FROM;
   }
+  if (overrides.ERPX_BROWSER_SIMULATION_CUSTOMER_PORTAL_INVITATIONS === "1" && overrides.ERPX_EMAIL_ADAPTER === "sandbox" && overrides.ERPX_ENVIRONMENT === "local" && ["http://127.0.0.1:3102", "http://127.0.0.1:3104"].includes(overrides.ERPX_PUBLIC_ORIGIN ?? "") && /\/\.runtime\/browser\/[a-f0-9]{12}$/.test(overrides.ERPX_DATA_DIR ?? "") && overrides.RESEND_API_KEY === "isolated-sandbox-no-provider-key" && overrides.RESEND_FROM === "Fictional <no-reply@example.test>") {
+    selected.RESEND_API_KEY = overrides.RESEND_API_KEY;
+    selected.RESEND_FROM = overrides.RESEND_FROM;
+  }
   if (overrides.ERPX_PMS_PROVIDER_FIXTURE === '1') {
     if (overrides.ERPX_ENVIRONMENT !== 'local' || overrides.ERPX_PUBLIC_ORIGIN !== 'http://127.0.0.1:3104' ||
         !/\/\.runtime\/browser\/[a-f0-9]{12}$/.test(overrides.ERPX_DATA_DIR ?? '') ||

@@ -46,10 +46,11 @@ export function StandardPmsImport({
     [uncertain, setUncertain] = useState(false),
     [journal, setJournal] = useState("");
   const source=useRef<PmsImportSource|null>(null),attempts=useRef<ReturnType<typeof createPmsImportCommands>|null>(null),flight=useRef(false);
-  const protectedView=useCallback(()=>flight.current||draft.isDirty()||Boolean(attempts.current?.hasPending()),[draft]);
-  useLayoutEffect(()=>installPmsPendingNavigation(protectedView,()=>window.confirm(language==='th'
+  const pendingCommand=useCallback(()=>flight.current||Boolean(attempts.current?.hasPending()),[]),
+    localDraftPending=useCallback(()=>draft.isDirty(),[draft]);
+  useLayoutEffect(()=>installPmsPendingNavigation(pendingCommand,()=>window.confirm(language==='th'
     ? 'แบบร่างหรือคำขอนำเข้าเดิมยังไม่สิ้นสุด หากส่งแล้วอาจบันทึกสำเร็จ ออกจากหน้านี้และปิดการกู้คืนหรือไม่?'
-    : 'Your import draft or submitted action is still open. A submitted action may already be saved. Leave this view and close its local recovery?')),[protectedView,language]);
+    : 'Your import draft or submitted action is still open. A submitted action may already be saved. Leave this view and close its local recovery?'),localDraftPending),[pendingCommand,localDraftPending,language]);
   useLayoutEffect(()=>{
     source.current=isCurrentOwner?{api,propertyId,companyId,propertyVersion,href:new URL(pathname+(query?'?'+query:''),window.location.origin).href}:null;
     attempts.current??=createPmsImportCommands(()=>source.current);

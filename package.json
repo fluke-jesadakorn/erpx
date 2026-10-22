@@ -42,7 +42,7 @@
     "test:business:local": "bun --conditions=react-server scripts/testing/workflows/verify-business-workflows.ts && bun --conditions=react-server scripts/testing/workflows/verify-identity-workflows.ts && bun --conditions=react-server scripts/testing/workflows/verify-ledger-payroll.ts && bun --conditions=react-server scripts/testing/workflows/verify-expense-workflows.ts && bun --conditions=react-server scripts/testing/workflows/verify-inventory-counts.ts && bun --conditions=react-server scripts/testing/workflows/verify-inventory-transfers.ts",
     "test:staff:local": "playwright test --config tests/config/playwright.config.ts tests/e2e/operations/staff-work.spec.ts",
     "beta:eval:ai": "bun scripts/testing/workflows/eval-social-ai.ts",
-    "typecheck": "tsc --noEmit && tsc --noEmit --project tests/config/tsconfig.json",
+    "typecheck": "tsc --noEmit && node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc --noEmit --project tests/config/tsconfig.json",
     "preview": "bun run deploy:build",
     "deploy:build": "bun scripts/assets/prepare-pdf-assets.ts && bun scripts/local/build-release.ts",
     "deploy:provision": "bun scripts/local/provision.ts",
@@ -83,6 +83,7 @@
     "products:manifest": "bun scripts/docs/generate-product-manifest.ts && bun scripts/docs/generate-product-acceptance.ts",
     "products:check": "bun scripts/docs/generate-product-manifest.ts --check && bun scripts/docs/generate-product-acceptance.ts --check",
     "products:acceptance": "bun scripts/docs/generate-product-acceptance.ts --acceptance",
+    "products:receipts:import": "bun scripts/docs/import-product-migration-receipt.ts",
     "console:retirement:check": "bun scripts/local/check-console-retirement.ts"
   },
   "packageManager": "bun@1.4.3",

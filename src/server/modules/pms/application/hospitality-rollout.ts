@@ -158,7 +158,9 @@ export function createPmsRollout(ports: {
     async function assertProductionModuleEnabled(db: PmsRolloutRepository, companyId: string, moduleId: string) {
         if (ports.environment() !== 'production')
             return;
-        if (moduleRegistry.some(module => module.id === moduleId) && await db.engineering(companyId))
+        const registeredEngineeringFeature = moduleRegistry.some(module =>
+            module.sections.some(section => section.id === moduleId && section.capability));
+        if ((moduleRegistry.some(module => module.id === moduleId) || registeredEngineeringFeature) && await db.engineering(companyId))
             return;
         if (!isReleaseModule(moduleId))
             throw ports.error(403, 'FEATURE_COMING_SOON', 'This feature is outside the approved release scopes');

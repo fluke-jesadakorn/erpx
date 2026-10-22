@@ -1,11 +1,46 @@
-import {expect,it} from 'vitest';
+import {afterEach,expect,it,vi} from 'vitest';
+import {build} from 'esbuild';
+import {chromium,expect as browserExpect} from '@playwright/test';
 import {existsSync,readFileSync} from 'node:fs';
+import {createServer} from 'node:http';
 import {recordTarget,recordDrawerHref,recordCanonicalHref,withoutRecordDrawer} from '../../../src/lib/records/record-drawer';
 import {canonicalUiHref,destinations,destinationTrail} from '../../../src/lib/work_projection/destination-registry';
 import {canonicalDestinationLinks} from '../../../src/lib/work_projection/destination-links';
 import {destinationProduct} from '../../../src/lib/commercial/product-registry';
 import {productPageAllowed} from '../../../src/lib/runtime/product-route-policy';
 import {productEntryCapability} from '../../../src/server/modules/commercial/public/rules/product-entry-capability';
+const recordDrawerHarness=vi.hoisted(()=>({active:false,states:[] as unknown[],stateCursor:0,refs:[] as {current:unknown}[],refCursor:0,effects:[] as (()=>void|(()=>void))[],contentNode:undefined as unknown}));
+vi.mock('react',async importOriginal=>{
+ const actual=await importOriginal<typeof import('react')>();
+ return {...actual,
+  useState:(initial:unknown)=>{
+   if(!recordDrawerHarness.active)return actual.useState(initial);
+   const index=recordDrawerHarness.stateCursor++;
+   if(!(index in recordDrawerHarness.states))recordDrawerHarness.states[index]=index===0&&recordDrawerHarness.contentNode?recordDrawerHarness.contentNode:initial;
+   return [recordDrawerHarness.states[index],(next:unknown)=>{recordDrawerHarness.states[index]=typeof next==='function'?(next as (previous:unknown)=>unknown)(recordDrawerHarness.states[index]):next;}];
+  },
+  useRef:(initial:unknown)=>{
+   if(!recordDrawerHarness.active)return actual.useRef(initial);
+   const index=recordDrawerHarness.refCursor++;
+   return recordDrawerHarness.refs[index]??(recordDrawerHarness.refs[index]={current:initial});
+  },
+  useEffect:(effect:()=>void|(()=>void),dependencies:readonly unknown[])=>{
+   if(!recordDrawerHarness.active)return actual.useEffect(effect,dependencies);
+   recordDrawerHarness.effects.push(effect);
+  }
+ };
+});
+vi.mock('react-dom',()=>({createPortal:(children:unknown)=>children}));
+vi.mock('@/components/ui/workspace',()=>({WorkspaceDetail:(props:{children?:unknown})=>props.children}));
+vi.mock('@/components/ui/workspace-overlay',()=>({useWorkspaceOverlay:()=>({editors:0})}));
+vi.mock('../../../src/components/records/record-workspace',()=>({useRecordWorkspace:()=>({host:null})}));
+vi.mock('@/lib/shared/destination-search',()=>({useSearchParams:()=>({get:()=>null})}));
+vi.mock('@/lib/shared/destination-router',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn(),back:vi.fn()})}));
+vi.mock('@/components/ui/dialog',()=>({Dialog:(props:{children?:unknown})=>props.children}));
+vi.mock('@/components/ui/button',()=>({Button:(props:{children?:unknown})=>props.children}));
+vi.mock('../../../src/components/records/record-context',()=>({EmbeddedRecord:(props:{children?:unknown})=>props.children}));
+vi.mock('@/lib/work_projection/context-switch',()=>({registerUnsavedWork:()=>()=>{}}));
+import {RecordDrawer} from '../../../src/components/records/record-drawer';
 const base='/holdings/acme';
 it('keeps repeated collection filters, pagination and focus fragment when closing a path drawer',()=>{
  const current=`${base}/projects-routines/projects?q=desk&filter=a&filter=b&cursor=page2#projects`;
@@ -13,6 +48,13 @@ it('keeps repeated collection filters, pagination and focus fragment when closin
  expect(new URL(selected,'https://test.invalid').pathname).toBe(`${base}/projects-routines/projects/project%3Aline%20%2F%20encoded/documents`);
  expect(withoutRecordDrawer(selected)).toBe(current);
  expect(new URL(selected,'https://test.invalid').searchParams.has('detailId')).toBe(false);
+});
+it('preserves exact in-workspace drawer return selectors without allowing scope escapes',()=>{
+ const list=`${base}/finance/documents/sales/invoices?tab=invoices&q=issued&tag=one&tag=two#invoices`,detail=new URL(`${base}/finance/documents/invoices/invoice-1/overview`,'https://erpx.invalid');
+ detail.searchParams.set('returnTo',list);
+ expect(withoutRecordDrawer(detail.pathname+detail.search)).toBe(list);
+ detail.searchParams.set('returnTo',`${base}/../other/finance/documents/sales/invoices?tab=invoices`);
+ expect(withoutRecordDrawer(detail.pathname+detail.search)).not.toContain('/holdings/other/');
 });
 it('opens the same record and section from a direct or modified-click link',()=>{
  const target={kind:'stock_position' as const,id:'product:1',args:{warehouseId:'warehouse:2'}};
@@ -33,6 +75,12 @@ it('normalizes generated owner links and keeps APIs, filters and workspace scope
  expect(canonicalUiHref(`${base}/finance/setup?step=books&chart=chart-1`)).toBe(`${base}/finance/setup/books?chart=chart-1`);
  expect(canonicalUiHref(`/api/v1${base}/finance/invoices?kind=payable`)).toBe(`/api/v1${base}/finance/invoices?kind=payable`);
  expect(canonicalDestinationLinks({data:{href:'/finance/payments/payment-1',version:7},api:`/api/v1${base}/finance/payments`,input:{path:'finance/payments'}})).toEqual({data:{href:'/finance/cash/payments/payment-1/overview',version:7},api:`/api/v1${base}/finance/payments`,input:{path:'finance/payments'}});
+});
+it('keeps legacy organization settings navigation on the organization workspace',()=>{
+ const legacy=`${base}/people?view=legacy&company=company-1`,expected=`${base}/people-organization/people/organization?view=legacy&company=company-1&tab=settings`;
+ expect(canonicalUiHref(legacy)).toBe(expected);
+ expect(canonicalUiHref(expected)).toBe(expected);
+ expect(canonicalUiHref(canonicalUiHref(legacy))).toBe(expected);
 });
 it('provides distinct Server Component pages and clickable breadcrumb parents for every destination',()=>{
  const paths=destinations.map(destination=>destination.path);
@@ -79,4 +127,109 @@ it('keeps original price-list identity and drawer return filters on Sales instea
  for(const scope of [base,base+'/branches/main']){const current=`${scope}/customers-sales/sales/pricing?tag=one&tag=two#prices`,target={kind:'price_list' as const,id:'list:original /version'},href=recordDrawerHref(current,target),url=new URL(href,'https://test.invalid');expect(url.pathname).toBe(`${scope}/customers-sales/sales/pricing/records/price_list/list%3Aoriginal%20%2Fversion/overview`);expect(destinationProduct(url.pathname.slice(scope.length+1))).toBe('sales');expect(canonicalUiHref(href)).toBe(href);expect(canonicalUiHref(canonicalUiHref(href))).toBe(href);expect(recordTarget(href,scope)).toEqual({...target,args:{returnTo:current,section:'overview'}});expect(withoutRecordDrawer(href)).toBe(current);expect(canonicalUiHref(`${scope}/record-details/price_list/original?tag=one&tag=two`)).toBe(`${scope}/customers-sales/sales/pricing/records/price_list/original/overview?tag=one&tag=two`);}
  for(const suffix of ['[id]','[id]/[recordSection]'])for(const slot of ['', '@record/'])expect(existsSync(`src/app/holdings/[holdingSlug]/${slot}customers-sales/sales/pricing/records/price_list/${suffix}/page.tsx`)).toBe(true);
  const path='customers-sales/sales/pricing/records/price_list/original/overview';expect(productPageAllowed('sales',base+'/'+path)).toBe(true);expect(productPageAllowed('finance',base+'/'+path)).toBe(false);expect(productEntryCapability('sales',path)).toBe('sales.orders');
+});
+
+class DrawerTarget {
+ listeners=new Map<string,(event:unknown)=>void>();
+ addEventListener(type:string,listener:(event:unknown)=>void){this.listeners.set(type,listener);}
+ removeEventListener(type:string){this.listeners.delete(type);}
+ emit(type:string,event:unknown){this.listeners.get(type)?.(event);}
+}
+class DrawerElement extends DrawerTarget {
+ isConnected=true;
+ private attributes=new Map<string,string>();
+ constructor(private readonly options:{form?:boolean;parentForm?:DrawerElement}={}){super();}
+ matches(selector:string){return selector==='form'&&this.options.form===true;}
+ closest(selector:string){return selector==='form, [contenteditable="true"]'?this.options.parentForm??null:null;}
+ setAttribute(name:string,value:string){this.attributes.set(name,value);}
+ getAttribute(name:string){return this.attributes.get(name)??null;}
+ querySelector(){return null;}
+ removeAttribute(name:string){this.attributes.delete(name);}
+ contains(node:unknown){return node===this;}
+}
+class DrawerMutationObserver {observe(){} disconnect(){}}
+afterEach(()=>{recordDrawerHarness.active=false;recordDrawerHarness.states=[];recordDrawerHarness.stateCursor=0;recordDrawerHarness.refs=[];recordDrawerHarness.refCursor=0;recordDrawerHarness.effects=[];recordDrawerHarness.contentNode=undefined;vi.unstubAllGlobals();});
+it('keeps a newer RecordDrawer edit dirty when the original command acknowledgement mutates its form stamp',()=>{
+ const contentNode=new DrawerElement(),windowTarget=Object.assign(new DrawerTarget(),{location:{href:'https://erpx.example.test/holdings/acme/finance/documents/invoices/1/overview'},history:{state:null}});
+ vi.stubGlobal('Element',DrawerElement);vi.stubGlobal('MutationObserver',DrawerMutationObserver);vi.stubGlobal('document',{querySelector:()=>null,querySelectorAll:()=>[]});vi.stubGlobal('window',windowTarget);vi.stubGlobal('crypto',{randomUUID:(()=>{let version=0;return()=>`drawer-edit-${++version}`;})()});
+ recordDrawerHarness.active=true;recordDrawerHarness.contentNode=contentNode;
+ RecordDrawer({title:'Invoice',fullHref:'/holdings/acme/finance/documents/invoices/1',children:null});
+ for(const effect of recordDrawerHarness.effects)effect();
+ const form=new DrawerElement({form:true}),field=new DrawerElement({parentForm:form}),inputEvent={target:field};
+ const edit=()=>{contentNode.emit('input',inputEvent);windowTarget.emit('input',inputEvent);};
+ edit();const original=form.getAttribute('data-erpx-edit-version');expect(original).toBe('drawer-edit-1');expect(recordDrawerHarness.states[2]).toBe(true);
+ windowTarget.emit('erpx:record-command-saved',{type:'erpx:record-command-saved',detail:{form,formEditVersion:original}});expect(recordDrawerHarness.states[2]).toBe(false);
+ edit();const newer=form.getAttribute('data-erpx-edit-version');expect(newer).toBe('drawer-edit-2');expect(recordDrawerHarness.states[2]).toBe(true);
+ // An owner can update the DOM stamp while acknowledging its earlier request.
+ // The drawer's retained local stamp must still identify the newer edit.
+ form.setAttribute('data-erpx-edit-version',original!);
+ windowTarget.emit('erpx:record-command-saved',{type:'erpx:record-command-saved',detail:{form,formEditVersion:original}});expect(recordDrawerHarness.states[2]).toBe(true);
+ windowTarget.emit('erpx:record-command-saved',{type:'erpx:record-command-saved',detail:{form,formEditVersion:newer}});expect(recordDrawerHarness.states[2]).toBe(false);
+});
+
+it('keeps a newer edit dirty after a late acknowledgement in a mounted React RecordDrawer',async()=>{
+ const stubs:Record<string,string>={
+  '@/components/ui/workspace':'export function WorkspaceDetail({children}){return children;}',
+  '@/components/ui/workspace-overlay':'export function useWorkspaceOverlay(){return {editors:0};}',
+  './record-workspace':'export function useRecordWorkspace(){return {host:null};}',
+  '@/lib/shared/destination-search':'export function useSearchParams(){return {get:()=>null};}',
+  '@/lib/shared/destination-router':'export function useRouter(){return {push(){},pushPreservingQuery(){},replace(){},refresh(){},back(){}};}',
+  '@/components/ui/dialog':'export function Dialog({children,title}){return <div role="dialog" aria-label={title}>{children}</div>;}',
+  '@/components/ui/button':'export function Button({children,onClick,type="button"}){return <button type={type} onClick={onClick}>{children}</button>;}',
+  './record-context':'export function EmbeddedRecord({children}){return children;}',
+  '@/lib/work_projection/context-switch':'export function registerUnsavedWork(){return ()=>{};}',
+  '@/lib/records/record-drawer':'export function recordDrawerHref(){return "/record";} export function withoutRecordDrawer(){return "/list";}',
+ };
+ const bundle=await build({
+  stdin:{sourcefile:'record-drawer-mounted-harness.tsx',loader:'tsx',resolveDir:process.cwd(),contents:`
+   import {createElement as h,useEffect,useState} from 'react';
+   import {createRoot} from 'react-dom/client';
+   import {RecordDrawer} from './src/components/records/record-drawer';
+   function RecordDrawerHarness(){
+    const [generation,setGeneration]=useState(0);
+    useEffect(()=>{const replace=()=>setGeneration(value=>value+1);window.addEventListener('test:replace-record-form',replace);return()=>window.removeEventListener('test:replace-record-form',replace);},[]);
+    const input=h('input',{name:'note',defaultValue:'Saved value'});
+    const form=h('form',{key:generation,'aria-label':'Record fields'},h('label',null,'Record note',input));
+    return h(RecordDrawer,{title:'Record',fullHref:'/record/full'},form);
+   }
+   const root=createRoot(document.querySelector('#root')!);
+   root.render(h(RecordDrawerHarness));
+   Object.assign(window,{unmountRecordDrawer:()=>root.unmount()});
+  `},
+  bundle:true,write:false,platform:'browser',format:'iife',globalName:'RecordDrawerMountedHarness',target:'es2022',jsx:'automatic',loader:{'.css':'empty'},
+  plugins:[{name:'record-drawer-mounted-boundary-stubs',setup(builder){
+   builder.onResolve({filter:/^@\//},args=>{if(!Object.hasOwn(stubs,args.path))throw new Error(`Missing RecordDrawer test boundary stub: ${args.path}`);return {path:args.path,namespace:'record-drawer-stub'};});
+   builder.onResolve({filter:/^\.\//},args=>args.importer.endsWith('/src/components/records/record-drawer.tsx')&&Object.hasOwn(stubs,args.path)?{path:args.path,namespace:'record-drawer-stub'}:undefined);
+   builder.onLoad({filter:/.*/,namespace:'record-drawer-stub'},args=>({contents:stubs[args.path]!,loader:'tsx',resolveDir:process.cwd()}));
+  }}]
+ });
+ const server=createServer((_request,response)=>{response.writeHead(200,{'content-type':'text/html'});response.end('<!doctype html><html><body><div id="root"></div></body></html>');});
+ await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
+ const address=server.address();if(!address||typeof address==='string')throw new Error('RecordDrawer browser harness did not acquire a loopback port.');
+ let browser:Awaited<ReturnType<typeof chromium.launch>>|undefined;
+ try{
+  browser=await chromium.launch({headless:true});const page=await browser.newPage();await page.goto(`http://127.0.0.1:${address.port}`);await page.addScriptTag({content:bundle.outputFiles[0]!.text});
+  const input=page.locator('input[name="note"]'),content=page.locator('[data-record-drawer-content]'),form=content.locator('form'),status=page.locator('.record-drawer-toolbar [role="status"]');
+  await input.fill('Submitted value');await browserExpect(status).toHaveText('Unsaved changes');
+  const submittedVersion=await form.getAttribute('data-erpx-edit-version');expect(submittedVersion).toBeTruthy();
+  await input.fill('Newer local value');await browserExpect(status).toHaveText('Unsaved changes');
+  const newerVersion=await form.getAttribute('data-erpx-edit-version');expect(newerVersion).toBeTruthy();expect(newerVersion).not.toBe(submittedVersion);
+  await page.evaluate(version=>{const form=document.querySelector('[data-record-drawer-content] form')!;form.setAttribute('data-erpx-edit-version',String(version));window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form,formEditVersion:version}}));},submittedVersion);
+  await browserExpect(status).toHaveText('Unsaved changes');await browserExpect(content).toHaveAttribute('data-record-dirty','true');await browserExpect(input).toHaveValue('Newer local value');
+  const replaceForm=()=>page.evaluate(()=>window.dispatchEvent(new Event('test:replace-record-form')));
+  await replaceForm();
+  const retained=page.locator('[data-record-drawer-retained-draft]');await browserExpect(retained).toBeVisible();await browserExpect(retained.locator('output')).toHaveText('Newer local value');
+  await input.fill('Newer local value');const replacementVersion=await form.getAttribute('data-erpx-edit-version');expect(replacementVersion).toBeTruthy();
+  await page.evaluate(()=>document.querySelector('[data-record-drawer-content] form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  await page.evaluate(version=>{const form=document.querySelector('[data-record-drawer-content] form')!;window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form,formEditVersion:version}}));},replacementVersion);
+  await browserExpect(status).toHaveText('Unsaved changes');await browserExpect(content).toHaveAttribute('data-record-dirty','true');await browserExpect(retained.locator('output')).toHaveText('Newer local value');
+
+  await page.reload();await page.addScriptTag({content:bundle.outputFiles[0]!.text});
+  const reloadedInput=page.locator('input[name="note"]'),reloadedContent=page.locator('[data-record-drawer-content]'),reloadedForm=reloadedContent.locator('form'),reloadedStatus=page.locator('.record-drawer-toolbar [role="status"]');
+  await reloadedInput.fill('A later retained value');await replaceForm();const reloadedRetained=page.locator('[data-record-drawer-retained-draft]');await browserExpect(reloadedRetained).toBeVisible();
+  await reloadedInput.fill('A different submitted value');const differentVersion=await reloadedForm.getAttribute('data-erpx-edit-version');expect(differentVersion).toBeTruthy();
+  await page.evaluate(()=>document.querySelector('[data-record-drawer-content] form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  await page.evaluate(version=>{const form=document.querySelector('[data-record-drawer-content] form')!;window.dispatchEvent(new CustomEvent('erpx:record-command-saved',{detail:{form,formEditVersion:version}}));},differentVersion);
+  await browserExpect(reloadedStatus).toHaveText('Unsaved changes');await browserExpect(reloadedContent).toHaveAttribute('data-record-dirty','true');await browserExpect(reloadedRetained.locator('output')).toHaveText('A later retained value');
+ }finally{await browser?.close();await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
 });

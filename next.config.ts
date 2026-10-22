@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
-import { dirname, join } from "node:path";
+import { realpathSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { developmentProductOrigin, productIds, sharedHostKeys } from "./src/server/modules/commercial/public/product-registry";
 const cohortDirectory = process.env.ERPX_DATA_DIR;
 // Case apps link dependencies from an immutable sibling fixture template.
@@ -10,12 +11,21 @@ const isolatedBrowserRoot = process.env.NODE_ENV === "development" &&
   ["http://127.0.0.1:3102", "http://127.0.0.1:3104"].includes(process.env.ERPX_PUBLIC_ORIGIN ?? "") &&
   cohortDirectory && /\/\.runtime\/browser\/[a-f0-9]{12}$/.test(cohortDirectory) &&
   process.cwd() === join(cohortDirectory, "app") ? dirname(cohortDirectory) : undefined;
+const isolatedDependencyRoot = isolatedBrowserRoot && realpathSync(join(process.cwd(), "node_modules"));
+const isolatedDependencyRelative = isolatedBrowserRoot && isolatedDependencyRoot
+  ? relative(isolatedBrowserRoot, isolatedDependencyRoot)
+  : "";
+const dependencyRootIsOutside = isolatedDependencyRelative === ".." ||
+  isolatedDependencyRelative.startsWith(`..${sep}`) || isAbsolute(isolatedDependencyRelative);
+const isolatedTurbopackRoot = dependencyRootIsOutside && isolatedDependencyRoot
+  ? dirname(isolatedDependencyRoot)
+  : isolatedBrowserRoot;
 const nextConfig: NextConfig = {
   // Version asset URLs so browsers and the CDN load the matching UI bundle.
   deploymentId:
     process.env.NEXT_DEPLOYMENT_ID ?? "navigation-more-20260916-v1",
-  turbopack: { root: isolatedBrowserRoot ?? process.cwd() },
-  outputFileTracingRoot: isolatedBrowserRoot ?? process.cwd(),
+  turbopack: { root: isolatedTurbopackRoot ?? process.cwd() },
+  outputFileTracingRoot: isolatedTurbopackRoot ?? process.cwd(),
   output: "standalone",
   // Keep the public development console's mobile navigation unobstructed.
   // Compile/runtime errors still appear without the floating dev indicator.
@@ -84,7 +94,10 @@ const nextConfig: NextConfig = {
     }] : [];
   },
   outputFileTracingExcludes: {
-    "/*": ["./.env*", "./.runtime/**/*", "./.scratch/**/*", "./.wrangler/**/*", "./.open-next/**/*", "./fixtures/**/*", "./tests/**/*", "./Designed/**/*", "./docs/**/*"],
+    // Next compiles application modules into .next/server. The migration
+    // runner reads the copied SQL tree at runtime; source files under src are
+    // a false positive from tracing its dynamic readdir rooted at cwd.
+    "/*": ["./.env*", "./.runtime/**/*", "./.scratch/**/*", "./.wrangler/**/*", "./.open-next/**/*", "./fixtures/**/*", "./tests/**/*", "./Designed/**/*", "./docs/**/*", "./src/**/*"],
   },
 };
 

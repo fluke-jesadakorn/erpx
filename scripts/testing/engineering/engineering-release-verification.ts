@@ -6,7 +6,7 @@ import type { EngineeringGate, EngineeringGateId, EngineeringManifest, Engineeri
 import { evaluateEngineeringPerformance, type PerformanceSample } from "../../../src/lib/runtime/engineering-performance";
 import { attachmentReconciliationEvidenceValid,businessWorkerEvidenceValid,financialContinuityEvidenceValid,stockContinuityEvidenceValid } from "../../../src/lib/runtime/engineering-gate-evidence";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../../local/source-fingerprint";
-import { playwrightObservations,requiredBrowserExecutionsValid } from "./engineering-test-results";
+import { playwrightObservations,requiredBrowserExecutionsValid,syntheticRollbackEvidenceValid } from "./engineering-test-results";
 
 const hash=(bytes:string|Buffer)=>createHash("sha256").update(bytes).digest("hex");
 type IntegrationResult={gate:EngineeringGate;observations:EngineeringObservation[]};
@@ -96,7 +96,7 @@ export async function runReleaseVerification(context:Context) {
   for(const [name,receipt] of [["migration-upgrade.json",upgrade],["encrypted-recovery.json",recovery]] as const)
     await privateJson(join(directory,name),{...receipt,candidateReportSha256});
   await add("migration-upgrade","migration-upgrade.json",upgrade.compiledCandidate&&upgrade.sourceFingerprint===sourceFingerprint&&upgrade.fileManifestSha256===build.fileManifestSha256&&upgrade.tracks===8&&upgrade.beforeSha256===upgrade.afterSha256&&upgrade.priorReceiptsPreserved&&upgrade.backfillCount===1&&upgrade.replayBackfillCount===0&&upgrade.postedEvidenceImmutable&&upgrade.checksumsVerified&&upgrade.quotaDeltaBytes===0&&upgrade.pmsPriceBackfill?.count===1&&upgrade.pmsPriceBackfill?.replayCount===0&&["originalQuoteRetained","unquotedNotInvented","ownerHistoryRetained"].every(key=>upgrade.pmsPriceBackfill[key]===true));
-  await add("recovery","encrypted-recovery.json",recovery.compiledCandidate&&recovery.sourceFingerprint===sourceFingerprint&&recovery.fileManifestSha256===build.fileManifestSha256&&recovery.databaseCount===8&&recovery.tableCount>=555&&recovery.restored&&recovery.compatibleRollback&&recovery.incompatibleRollbackRejected&&recovery.ciphertextTamperingRejected);
+  await add("recovery","encrypted-recovery.json",recovery.compiledCandidate&&recovery.sourceFingerprint===sourceFingerprint&&recovery.fileManifestSha256===build.fileManifestSha256&&recovery.databaseCount===8&&recovery.tableCount>=555&&recovery.restored&&recovery.compatibleRollback&&recovery.incompatibleRollbackRejected&&syntheticRollbackEvidenceValid(recovery,sourceFingerprint,build.fileManifestSha256)&&recovery.ciphertextTamperingRejected);
 
   const files=(await import("node:fs/promises")).readdir;
   const browserFiles=[...(await files(join(root,"tests/e2e"),{recursive:true})).filter(name=>/(?:^|\/)demo-.*\.spec\.ts$/.test(name)).map(name=>`tests/e2e/${name}`),"tests/uat/legal/legal-uat.spec.ts"];

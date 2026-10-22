@@ -2,19 +2,43 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { assertExplicitSelectionIncluded, loadCatalogue, listSelection, reachesDatabaseFixture, repositoryRoot as root, selectSuites, validateCatalogue, type Suite } from "./catalogue";
 import { parseTestArguments } from "./arguments";
+import { exactNativeCasePattern, resolveRegisteredCase, suiteForRegisteredCase } from "./exact-case-selection";
 import { impactFromGit } from "./impact";
 import { vitestChildEnvironment } from "./runner-environment";
+import { attachmentToolEnvironment } from "./runtime-tooling";
 import { writeJsonOutput } from "./json-output";
 import { assertTestPlacement } from "./layout";
 import { runDevelopmentTests } from "./development";
 
 if (Bun.version !== "1.4.3") throw new Error("Tests require Bun 1.4.3.");
 const options = parseTestArguments(process.argv.slice(2));
+if (options.caseSelector && ["impact", "dev"].includes(options.command)) throw new Error("EXACT_CASE_SELECTION_NOT_AVAILABLE_FOR_IMPACT");
 if (options.command === "dev") process.exit(await runDevelopmentTests(options));
 const catalogue = loadCatalogue();
 validateCatalogue(catalogue);
 assertTestPlacement(catalogue.suites);
 if (options.check) { console.log(`TEST_CATALOGUE_VALID:${catalogue.modules.length} modules, ${catalogue.suites.length} suites`); process.exit(0); }
+function requestedBrowserProject(args: readonly string[]): "desktop" | "mobile" | undefined {
+  const values: string[] = [];
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg.startsWith("--project=")) values.push(arg.slice("--project=".length));
+    else if (arg === "--project") {
+      const value = args[++index];
+      if (!value || value.startsWith("-")) throw new Error("TEST_OPTION_VALUE_REQUIRED:--project");
+      values.push(value);
+    }
+  }
+  if (values.length > 1) throw new Error("DUPLICATE_TEST_PROJECT_SELECTION");
+  if (!values.length) return undefined;
+  if (values[0] !== "desktop" && values[0] !== "mobile") throw new Error("UNKNOWN_BROWSER_PROJECT");
+  return values[0];
+}
+const requestedProject = options.caseSelector ? requestedBrowserProject(options.forwarded) : undefined;
+const registeredCase = options.caseSelector ? resolveRegisteredCase(options.caseSelector, { project: requestedProject }) : undefined;
+const caseSuite = registeredCase ? suiteForRegisteredCase(catalogue, registeredCase) : undefined;
+if (caseSuite && options.lane && caseSuite.lane !== options.lane) throw new Error(`TEST_CASE_LANE_MISMATCH:${options.caseSelector}:${caseSuite.lane}:${options.lane}`);
+if (registeredCase?.runner === "vitest" && requestedProject) throw new Error("BROWSER_PROJECT_ONLY_FOR_PLAYWRIGHT_CASE");
 let suites: Suite[];
 if (options.command === "impact") {
   const impact = impactFromGit(options.base!, root, options.head);
@@ -31,16 +55,18 @@ if (options.command === "impact") {
   }
   suites = impact.suites;
 } else {
-  suites = selectSuites(catalogue, options);
-  if (options.command === "tests") suites = suites.filter(suite => suite.lane === "unit" || suite.lane === "integration");
+  suites = selectSuites(catalogue, registeredCase ? { ...options, files: [...(options.files ?? []), registeredCase.file] } : options);
+  if (caseSuite) suites = suites.filter(suite => suite.id === caseSuite.id);
+  if (options.command === "tests" && !registeredCase) suites = suites.filter(suite => suite.lane === "unit" || suite.lane === "integration");
   if (!suites.length) throw new Error("EMPTY_TEST_SELECTION");
   assertExplicitSelectionIncluded(options, suites);
 }
 if (options.list) {
   const browserSelection = suites.some(suite => ["e2e", "journeys", "uat"].includes(suite.lane));
-  if (options.json) writeJsonOutput(browserSelection ? { suites, execution: { caseOrder: options.caseOrder ?? "forward", mode: "acceptance" } } : suites);
+  if (options.json) writeJsonOutput(browserSelection ? { suites, ...(registeredCase ? { selectedCase: registeredCase } : {}), execution: { caseOrder: options.caseOrder ?? "forward", mode: "acceptance" } } : registeredCase ? { suites, selectedCase: registeredCase } : suites);
   else {
     console.log(listSelection(suites));
+    if (registeredCase) console.log(`TEST_SELECTED_CASE:${registeredCase.runner}:${registeredCase.file}:${registeredCase.title}${registeredCase.project ? `:${registeredCase.project}` : ""}`);
     if (browserSelection) console.log(`TEST_BROWSER_EXECUTION_ORDER:${options.caseOrder ?? "forward"}`);
   }
   process.exit(0);
@@ -95,15 +121,17 @@ for (const kind of ["unit", "integration", "provider"] as const) {
     if (postgres) databaseCredentials();
     const selectedFiles = group.flatMap(suite => suite.files);
     const patternIndex = options.forwarded.findIndex(arg => ["-t", "--testNamePattern"].includes(arg) || arg.startsWith("--testNamePattern="));
-    const namePattern = patternIndex < 0 ? undefined : options.forwarded[patternIndex].split("=").slice(1).join("=") || options.forwarded[patternIndex + 1];
+    const namePattern = registeredCase?.runner === "vitest" ? exactNativeCasePattern(registeredCase.title) : patternIndex < 0 ? undefined : options.forwarded[patternIndex].split("=").slice(1).join("=") || options.forwarded[patternIndex + 1];
     const defaultReporter = options.forwarded.some(arg => arg === "--reporter" || arg.startsWith("--reporter=")) ? [] : ["--reporter", "default"];
-    const childEnv = vitestChildEnvironment({ ...env, ERPX_SELECTED_TEST_FILES: JSON.stringify(selectedFiles), ERPX_SELECTED_PROVIDER: kind === "provider" ? "1" : "0", ERPX_TEST_NAME_PATTERN: namePattern }, postgres);
-    const exit = await execute([node, resolve(root, "node_modules/vitest/vitest.mjs"), "run", "--config", postgres ? "tests/config/vitest.integration.config.mts" : "tests/config/vitest.unit.config.mts", ...options.forwarded, ...defaultReporter, "--reporter", resolve(root, "scripts/testing/required-cases-reporter.ts")], childEnv);
+    const integrationEnvironment = kind === "integration" ? { ...env, ...attachmentToolEnvironment(root) } : env;
+    const childEnv = vitestChildEnvironment({ ...integrationEnvironment, ERPX_SELECTED_TEST_FILES: JSON.stringify(selectedFiles), ERPX_SELECTED_PROVIDER: kind === "provider" ? "1" : "0", ERPX_TEST_NAME_PATTERN: namePattern }, postgres);
+    const exactPatternArgs = registeredCase?.runner === "vitest" ? ["--testNamePattern", exactNativeCasePattern(registeredCase.title)] : [];
+    const exit = await execute([node, resolve(root, "node_modules/vitest/vitest.mjs"), "run", "--config", postgres ? "tests/config/vitest.integration.config.mts" : "tests/config/vitest.unit.config.mts", ...options.forwarded, ...exactPatternArgs, ...defaultReporter, "--reporter", resolve(root, "scripts/testing/required-cases-reporter.ts")], childEnv);
     if (exit !== 0) process.exit(exit);
   }
 }
 const browser = suites.filter(suite => ["e2e", "journeys", "uat"].includes(suite.lane));
 if (browser.length) {
-  const exit = await execute([process.execPath, resolve(root, "scripts/testing/browser-runner.ts"), ...browser.flatMap(suite => ["--suite", suite.id]), ...options.forwarded, ...(options.caseOrder ? ["--case-order", options.caseOrder] : [])], env);
+  const exit = await execute([process.execPath, resolve(root, "scripts/testing/browser-runner.ts"), ...browser.flatMap(suite => ["--suite", suite.id]), ...options.forwarded, ...(options.caseSelector ? ["--case", options.caseSelector] : []), ...(options.caseOrder ? ["--case-order", options.caseOrder] : [])], env);
   if (exit !== 0) process.exit(exit);
 }

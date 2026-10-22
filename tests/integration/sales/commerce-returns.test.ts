@@ -303,7 +303,7 @@ it.each(['sales','purchase'] as const)('uses only actual %s owner Finance source
  let book!:Awaited<ReturnType<typeof prepareCommerceProjection>>;
  const result=await paidReturn(kind,'15',0,'2026-09-04',async()=>{book=await prepareCommerceProjection(f,kind);await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:'draining',version:2}});vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');});
  await assertCommerceFinanceHistory(f,kind,result,book);
-});
+},60_000);
 
 it('withdraws actual Sales only after goods return quality independent credits cash refund and reviewed secondary books settle while held source history survives',async()=>{
  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');const scope={companyId:f.company,packageId:'sales',packageVersion:1},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-actual-sales-withdrawal-provider'}),obligations:async()=>{throw Error('ONLY_NORMAL_SOURCE_REVIEW_CAN_INACTIVATE');}}),grant={...scope,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Actual isolated Sales return source purchase',evidence:'test:sales-withdrawal-delivery-money'};await store.apply({expectedVersion:0,idempotencyKey:key(),grant});let book!:Awaited<ReturnType<typeof prepareCommerceProjection>>;

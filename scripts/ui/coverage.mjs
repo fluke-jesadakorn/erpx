@@ -6,8 +6,10 @@ import { scopeFor } from './standard-scope.mjs';
 import { appPageContext, appPageBoundaries } from './route-topology.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const walk = dir => readdirSync(dir, {withFileTypes:true}).flatMap(x => x.isDirectory() ? walk(resolve(dir,x.name)) : [resolve(dir,x.name)]);
-const files = walk(resolve(root,'src')).filter(x=>/\.(tsx?|css)$/.test(x));
 const rel = x => relative(root,x).replaceAll('\\','/');
+const files = walk(resolve(root,'src')).filter(x=>/\.(tsx?|css)$/.test(x)).sort((a,b)=>{
+ const left=rel(a),right=rel(b);return left<right?-1:left>right?1:0;
+});
 const hash = text => createHash('sha256').update(text).digest('hex');
 const resolveImport = (owner, name) => {
   if (!name.startsWith('.') && !name.startsWith('@/')) return null;

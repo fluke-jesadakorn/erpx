@@ -3,10 +3,24 @@
 let generation = 0;
 let switching = false;
 const dirtyChecks = new Set<() => boolean>();
+const contextSwitchBlockers = new Set<() => string | null>();
 
 export function registerUnsavedWork(check: () => boolean) {
   dirtyChecks.add(check);
   return () => { dirtyChecks.delete(check); };
+}
+
+export function registerContextSwitchBlocker(reason: () => string | null) {
+  contextSwitchBlockers.add(reason);
+  return () => { contextSwitchBlockers.delete(reason); };
+}
+
+export function contextSwitchBlockReason() {
+  for (const reason of contextSwitchBlockers) {
+    const message = reason();
+    if (message) return message;
+  }
+  return null;
 }
 
 export function hasUnsavedWork() {
@@ -14,8 +28,8 @@ export function hasUnsavedWork() {
     !!document.querySelector('[data-work-dirty="true"]');
 }
 
-export function confirmContextSwitch() {
-  return !hasUnsavedWork() || window.confirm("Change account or role and discard unsaved changes?");
+export function confirmContextSwitch(message = "Change account or role and discard unsaved changes?") {
+  return !contextSwitchBlockReason() && (!hasUnsavedWork() || window.confirm(message));
 }
 
 export function contextGeneration() { return generation; }

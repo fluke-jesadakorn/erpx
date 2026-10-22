@@ -164,6 +164,7 @@ export default async function OrderPage({
             base={base}
             order={order}
             canApprove={flow.canAct && permissions.approve && order.created_by !== actor.userId}
+            canCancel={permissions.approve && order.created_by !== actor.userId}
           />
         )}
         {!printing && (

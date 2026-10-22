@@ -3,7 +3,7 @@ import {isProductHandoffHref} from "@/lib/work_projection/product-navigation";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { hasUnsavedWork, setContextSwitching } from "@/lib/work_projection/context-switch";
+import { contextSwitchBlockReason, hasUnsavedWork, setContextSwitching } from "@/lib/work_projection/context-switch";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { UiAppearance } from "@/components/ui/appearance";
@@ -12,6 +12,7 @@ import type { UiAppearance } from "@/components/ui/appearance";
 export function ProductNavigationBoundary({ children, language = "en", appearance = "standard" }: { children: ReactNode; language?: "en" | "th"; appearance?: UiAppearance }) {
   const router = useRouter();
   const [destination, setDestination] = useState<string | null>(null);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const trigger = useRef<HTMLAnchorElement | null>(null);
   const th = language === "th";
   useEffect(() => {
@@ -25,6 +26,8 @@ export function ProductNavigationBoundary({ children, language = "en", appearanc
     };
     const requested=(event:Event)=>{const href=(event as CustomEvent<{href?:unknown}>).detail?.href;if(typeof href!=="string"||!isProductHandoffHref(href))return;
       trigger.current=document.activeElement instanceof HTMLAnchorElement?document.activeElement:null;
+      const blocked = contextSwitchBlockReason();
+      if (blocked) { setDestination(null); setBlockedReason(blocked); return; }
       if(hasUnsavedWork())setDestination(href);else window.location.assign(href);
     };
     window.addEventListener("erpx:product-navigate",requested);
@@ -36,20 +39,31 @@ export function ProductNavigationBoundary({ children, language = "en", appearanc
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target as HTMLElement;
     const anchor = target.closest<HTMLAnchorElement>("a[data-product-switch]");
-    if (!anchor || anchor.target && anchor.target !== "_self" || !hasUnsavedWork()) return;
+    if (!anchor || anchor.target && anchor.target !== "_self") return;
+    const blocked = contextSwitchBlockReason();
+    if (blocked) {
+      event.preventDefault(); event.stopPropagation();
+      setDestination(null); setBlockedReason(blocked);
+      return;
+    }
+    if (!hasUnsavedWork()) return;
     event.preventDefault(); event.stopPropagation();
     trigger.current = anchor; setDestination(anchor.href);
   }}>{children}
-    <Dialog appearance={appearance} open={destination !== null} onClose={() => setDestination(null)}
-      title={th ? "ออกจากหน้าที่มีงานค้าง?" : "Leave unsaved work?"} finalFocus={() => trigger.current}>
-      <p>{th ? "ข้อมูลที่แก้ไขในหน้านี้ยังไม่ได้บันทึก หากออกจากหน้าจะสูญเสียข้อมูลเหล่านี้" : "Your changes on this page have not been saved. Leaving will discard them."}</p>
+    <Dialog appearance={appearance} open={destination !== null || blockedReason !== null} onClose={() => { setDestination(null); setBlockedReason(null); }}
+      title={blockedReason ? (th ? "กู้คืนคำขอเดิมก่อนเปลี่ยนผลิตภัณฑ์" : "Recover the original request before switching") : (th ? "ออกจากหน้าที่มีงานค้าง?" : "Leave unsaved work?")} finalFocus={() => trigger.current}>
+      {blockedReason ? <p role="alert">{blockedReason}</p> : <p>{th ? "ข้อมูลที่แก้ไขในหน้านี้ยังไม่ได้บันทึก หากออกจากหน้าจะสูญเสียข้อมูลเหล่านี้" : "Your changes on this page have not been saved. Leaving will discard them."}</p>}
       <div className="ui-form-actions">
-        <Button appearance={appearance} data-autofocus onClick={() => setDestination(null)}>{th ? "แก้ไขต่อ" : "Keep editing"}</Button>
-        <Button appearance={appearance} variant="secondary" onClick={() => {
-          if (!destination) return;
-          const href = destination;
-          setContextSwitching(true); setDestination(null); window.location.assign(href);
-        }}>{th ? "ทิ้งข้อมูลและออกจากหน้า" : "Discard and leave"}</Button>
+        {blockedReason ? <Button appearance={appearance} data-autofocus onClick={() => setBlockedReason(null)}>{th ? "กลับไปทำรายการเดิม" : "Return to the original request"}</Button> : <>
+          <Button appearance={appearance} data-autofocus onClick={() => setDestination(null)}>{th ? "แก้ไขต่อ" : "Keep editing"}</Button>
+          <Button appearance={appearance} variant="secondary" onClick={() => {
+            if (!destination) return;
+            const blocked = contextSwitchBlockReason();
+            if (blocked) { setDestination(null); setBlockedReason(blocked); return; }
+            const href = destination;
+            setContextSwitching(true); setDestination(null); window.location.assign(href);
+          }}>{th ? "ทิ้งข้อมูลและออกจากหน้า" : "Discard and leave"}</Button>
+        </>}
       </div>
     </Dialog>
   </div>;

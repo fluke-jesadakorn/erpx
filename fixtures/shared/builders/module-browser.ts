@@ -1,8 +1,9 @@
 import { chmod, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { randomBytes } from "node:crypto";
+import { basename, join } from "node:path";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import type { RuntimeEnv } from "../../../src/server/modules/runtime/adapters/runtime/env";
+import { isTransactionalSqlDatabase } from "../../../src/server/modules/runtime/public/runtime/types";
 import { seedExpenseCompany } from "../../expenses/company";
 import { mapSpendingOrganization } from "../../../tests/support/helpers/spending-organization";
 import { businessRoles } from "../../../src/lib/identity_access/business-roles";
@@ -11,7 +12,7 @@ import { moduleBrowserHoldingDisplayName } from "../../../scripts/testing/browse
 
 /** Called only after browser-simulation validated its exact eight owned DBs. */
 export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, directory: string) {
-  if (!["local-seed", "staff-work", "expense", "work-cards", "messaging", "services", "booking"].includes(profile)) throw new Error(`UNSUPPORTED_MODULE_BROWSER_PROFILE:${profile}`);
+  if (!["local-seed", "staff-work", "expense", "work-cards", "messaging", "services", "executive-work", "booking"].includes(profile)) throw new Error(`UNSUPPORTED_MODULE_BROWSER_PROFILE:${profile}`);
   await env.CONTROL_DB.batch([
     env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h001',?,?,'H001_DB','H001_READ_DB','H001_FILES','active')").bind(profile === "booking" ? "booking-test" : "acme", moduleBrowserHoldingDisplayName(profile)),
     env.CONTROL_DB.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES('h002','northstar','Isolated Northstar fixture','H002_DB','H002_READ_DB','H002_FILES','active')"),
@@ -25,7 +26,7 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
     await import("../../../scripts/seed/seed-staff-work");
     // Tests use the normal explicitly declared Acme staffing personas; the
     // workflow's separate development CLI retains its existing dev-only guard.
-    const actors = await (await import("../../../scripts/seed/seed-acme-organization")).seedAcmeOrganizationForBrowser(directory);
+    const { companyId, actors } = await (await import("../../../scripts/seed/seed-acme-organization")).seedAcmeOrganizationForBrowser(directory);
     const current = (await import("../../../src/server/modules/runtime/adapters/runtime/env")).getRuntime();
     if (profile === "local-seed") await (await import("./local-browser-erpx-realm")).seedLocalBrowserRealm(current, directory);
     await (await import("../../people_payroll/builders/local-browser-roster-directory")).seedLocalBrowserRosterDirectory(current, directory);
@@ -37,7 +38,7 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
       current.CONTROL_DB.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,'credential','local:credential',?,?,?,?)").bind(`account-${id}`, id, id, hash, now, now),
       current.CONTROL_DB.prepare("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES(?,?,?,'active',?)").bind(`principal-${id}`, id, "Fictional account without assignments", now),
     ]);
-    return { profile, holdingSlug: "acme", nativeSeed: true, noRole, actors };
+    return { profile, holdingSlug: "acme", nativeSeed: true, noRole, actors, releaseVerificationCompanyIds: [companyId] };
   }
   if (profile === "booking") return process.env.ERPX_BROWSER_SIMULATION_PMS_SCALE === "1"
     ? (await import("../../pms/builders/pms-scale-browser")).seedPmsScaleBrowser(env,directory)
@@ -62,6 +63,45 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
       await env.H001_DB.prepare("UPDATE assignments SET modules_json=? WHERE id=?").bind(JSON.stringify(modules), assignment.id).run();
     }
     await env.H001_DB.prepare("UPDATE hr_people SET email=? WHERE user_id=? AND company_id=?").bind(actor.email, actor.userId, actor.companyId).run();
+  }
+  if (profile === "executive-work") {
+    const { f, actors } = await company();
+    await account(actors.owner, "Executive Company owner");
+    actors.owner.holdingSlug = "acme";
+    actors.owner.holdingName = "Acme Group";
+    actors.owner.scope = { ...actors.owner.scope, holdingSlug: "acme", holdingName: "Acme Group" };
+    const now = Date.now(), packageImage = {
+      companyId: f.company, packageId: "work", packageVersion: 1, state: "active", startsAt: now - 1_000,
+      endsAt: null, version: 1, reason: "Isolated Executive browser fixture package visibility.",
+      evidence: "Disposable browser cohort fixture; not a Commercial purchase or installed grant.",
+    };
+    const run = basename(directory), eventId = `fixture:executive-work:${run}`;
+    if (!isTransactionalSqlDatabase(env.H001_DB)) throw new Error("EXECUTIVE_WORK_PACKAGE_FIXTURE_TRANSACTION_REQUIRED");
+    await env.H001_DB.transaction(async tx => {
+      await tx.prepare("INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
+        .bind(packageImage.companyId, packageImage.packageId, packageImage.packageVersion, packageImage.state, packageImage.startsAt, packageImage.endsAt, packageImage.version, packageImage.reason, packageImage.evidence, now).run();
+      await tx.prepare("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) VALUES(?,?,?,?,?,NULL,?::jsonb,?)")
+        .bind(eventId, packageImage.companyId, packageImage.packageId, actors.owner.userId,
+          createHash("sha256").update(JSON.stringify([eventId, packageImage])).digest("hex"), JSON.stringify(packageImage), now).run();
+    });
+    const { createExternalConnection } = await import("../../../src/server/modules/runtime/public/executive/connections");
+    const issued = await createExternalConnection(env.CONTROL_DB, env.H001_DB, actors.owner,
+      { name: "Executive read-only browser proof", scopeId: f.company, expiresDays: 7 }, randomUUID());
+    const assignment = await env.H001_DB.prepare("SELECT version FROM assignments WHERE id=? AND company_id=? AND user_id=?")
+      .bind(actors.owner.assignmentId, f.company, actors.owner.userId).first<{ version: number }>();
+    if (!assignment) throw new Error("EXECUTIVE_WORK_OWNER_ASSIGNMENT_REQUIRED");
+    const credentials = {
+      profile: "executive-work", run, companyId: f.company,
+      assignmentId: actors.owner.assignmentId, assignmentVersion: Number(assignment.version), email: actors.owner.email,
+      password, token: issued.secret,
+    };
+    const credentialPath = join(directory, "executive-work-credentials.json");
+    await writeFile(credentialPath, JSON.stringify(credentials, null, 2) + "\n", { mode: 0o600 }); await chmod(credentialPath, 0o600);
+    const fixture = { profile, company: f.company, branch: f.branch, department: f.department,
+      owner: { email: actors.owner.email, userId: actors.owner.userId }, releaseVerificationCompanyIds: [f.company] };
+    const path = join(directory, "fixture.json");
+    await writeFile(path, JSON.stringify(fixture, null, 2) + "\n", { mode: 0o600 }); await chmod(path, 0o600);
+    return { profile, holdingSlug: "acme", fixturePath: path, releaseVerificationCompanyIds: [f.company] };
   }
   let fixture: unknown;
   if (profile === "work-cards") {
@@ -100,7 +140,10 @@ export async function prepareModuleBrowser(profile: string, env: RuntimeEnv, dir
       fixture = { company: f.company, branch: f.branch, department: f.department, accounts: f.accounts, period: f.period, password, actors, ...supplies };
     }
   }
+  const releaseVerificationCompanyIds = profile === "work-cards"
+    ? [...new Set(Object.values((fixture as { accounts: Record<string, { company: string }> }).accounts).map(account => account.company))]
+    : [(fixture as { company: string }).company];
   const path = join(directory, "fixture.json");
   await writeFile(path, JSON.stringify(fixture, null, 2) + "\n", { mode: 0o600 }); await chmod(path, 0o600);
-  return { profile, holdingSlug: "acme", fixturePath: path };
+  return { profile, holdingSlug: "acme", fixturePath: path, releaseVerificationCompanyIds };
 }

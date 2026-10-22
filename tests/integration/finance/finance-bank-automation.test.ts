@@ -27,7 +27,9 @@ import {
 import {
   createJournal,
   createJournalSchema,
+  importBankStatement,
   postJournal,
+  reconcileBankTransaction,
 } from "../../../src/server/modules/finance/public/finance";
 vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
@@ -95,6 +97,44 @@ async function receipt(amount: string) {
       .first("id"),
   );
 }
+
+it("plain BankImport replays an identical same-key import after the committed response is lost without duplicating persisted rows or receipt evidence", async () => {
+  const command = key(), input = {
+    bankAccount: f.accounts.cash,
+    statementNumber: `LOST-${key()}`,
+    statementDate: "2026-09-30",
+    opening: "1000.00",
+    closing: "1075.00",
+    sourceHash: key(),
+    rows: [
+      { externalId: `${command}-receipt`, transactionDate: "2026-09-12", description: "First original BankImport movement", amount: "100.00", currency: "THB" },
+      { externalId: `${command}-withdrawal`, transactionDate: "2026-09-13", description: "Second original BankImport movement", amount: "-25.00", currency: "THB" },
+    ],
+  }, expected = { id: `statement-${command}`, status: "imported", imported: input.rows.length };
+
+  // The first owner call commits to PostgreSQL; deliberately ignore its response as if it were lost.
+  await importBankStatement(f.owner, input, command);
+  const replay = await importBankStatement(f.owner, input, command);
+  expect(replay).toEqual(expected);
+
+  expect(await db.prepare("SELECT count(*)::int n FROM finance_bank_statements WHERE id=? AND company_id=?").bind(expected.id, f.company).first("n")).toBe(1);
+  expect((await db.prepare("SELECT id,external_id,amount_minor FROM finance_bank_transactions WHERE statement_id=? AND company_id=? ORDER BY id").bind(expected.id, f.company).all()).results).toEqual([
+    { id: `bankrow-${command}-0`, external_id: `${command}-receipt`, amount_minor: 10000 },
+    { id: `bankrow-${command}-1`, external_id: `${command}-withdrawal`, amount_minor: -2500 },
+  ]);
+
+  const receipt = await db.prepare("SELECT operation,record_id,actor_id,result_json FROM command_receipts WHERE command_id=? AND operation='finance.bank.import'").bind(command).first<{ operation: string; record_id: string; actor_id: string; result_json: string }>();
+  expect(receipt).toMatchObject({ operation: "finance.bank.import", record_id: expected.id, actor_id: f.owner.userId });
+  expect(receipt && JSON.parse(receipt.result_json)).toEqual(expected);
+  for (const [table, predicate] of [
+    ["command_receipts", "operation='finance.bank.import'"],
+    ["audit_events", "action='finance.bank.import'"],
+    ["outbox_events", "event_type='finance.bank.import'"],
+  ] as const) {
+    expect(Number(await db.prepare(`SELECT count(*)::int n FROM ${table} WHERE command_id=? AND ${predicate}`).bind(command).first("n"))).toBe(1);
+  }
+});
+
 async function statement() {
   const mapping = await createBankCsvMapping(
     f.owner,
@@ -128,6 +168,180 @@ async function statement() {
     .first<{ id: string }>();
   return { input, statement: r, bank: bank!.id };
 }
+it("reconciles an exact payment once and leaves stale or reused-source bank rows untouched", async () => {
+  const cashLine = await receipt("100"),
+    journalId = String(
+      await db
+        .prepare("SELECT journal_id FROM finance_journal_lines WHERE id=?")
+        .bind(cashLine)
+        .first("journal_id"),
+    ),
+    paymentId = key();
+  await db
+    .prepare(
+      "INSERT INTO finance_payments(id,company_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,released_by,created_at,updated_at) VALUES(?,?,'receipt',?,'2026-09-04','THB',10000,0,?,'settled',?,?,?,?,1,1)",
+    )
+    .bind(
+      paymentId,
+      f.company,
+      paymentId,
+      f.accounts.cash,
+      journalId,
+      f.reviewer.userId,
+      f.manager.userId,
+      f.payer.userId,
+    )
+    .run();
+  const prefix = key(),
+    imported = await importBankStatement(
+      f.owner,
+      {
+        bankAccount: f.accounts.cash,
+        statementNumber: key(),
+        statementDate: "2026-09-30",
+        opening: "0",
+        closing: "200",
+        sourceHash: key(),
+        rows: ["a", "b"].map((suffix) => ({
+          externalId: `${prefix}-${suffix}`,
+          transactionDate: "2026-09-04",
+          amount: "100",
+          currency: "THB",
+        })),
+      },
+      key(),
+    ),
+    bankRows = (
+      await db
+        .prepare(
+          "SELECT id,external_id,version::int version,match_status,matched_type,matched_id FROM finance_bank_transactions WHERE statement_id=? ORDER BY external_id",
+        )
+        .bind(imported.id)
+        .all<{
+          id: string;
+          external_id: string;
+          version: number;
+          match_status: string;
+          matched_type: string | null;
+          matched_id: string | null;
+        }>()
+    ).results;
+  expect(bankRows).toHaveLength(2);
+  expect(
+    bankRows.map(({ version, match_status, matched_type, matched_id }) => ({
+      version,
+      match_status,
+      matched_type,
+      matched_id,
+    })),
+  ).toEqual([
+    { version: 1, match_status: "unmatched", matched_type: null, matched_id: null },
+    { version: 1, match_status: "unmatched", matched_type: null, matched_id: null },
+  ]);
+  const assertCommandEffects = async (command: string, expected: number) => {
+    for (const table of [
+      "command_receipts",
+      "audit_events",
+      "outbox_events",
+      "decision_evidence",
+    ])
+      expect(
+        Number(
+          await db
+            .prepare(`SELECT COUNT(*) n FROM ${table} WHERE command_id=?`)
+            .bind(command)
+            .first("n"),
+        ),
+      ).toBe(expected);
+  };
+  // Model a concurrent owner update after the caller read version 1. The
+  // reconciliation must reject that genuinely stale version without writing
+  // command or decision effects.
+  await db
+    .prepare(
+      "UPDATE finance_bank_transactions SET version=version+1 WHERE id=? AND company_id=? AND version=1",
+    )
+    .bind(bankRows[0].id, f.company)
+    .run();
+  const staleKey = key(),
+    proof = "Reviewed exact imported customer receipt against its posted payment.",
+    staleInput = {
+      expectedVersion: bankRows[0].version,
+      matchedType: "payment",
+      matchedId: paymentId,
+      proof,
+      attachmentSetIds: [],
+    };
+  await expect(
+    reconcileBankTransaction(f.manager, bankRows[0].id, staleInput, staleKey),
+  ).rejects.toThrow();
+  expect(
+    await db
+      .prepare(
+        "SELECT version::int version,match_status,matched_type,matched_id FROM finance_bank_transactions WHERE id=?",
+      )
+      .bind(bankRows[0].id)
+      .first(),
+  ).toEqual({ version: 2, match_status: "unmatched", matched_type: null, matched_id: null });
+  await assertCommandEffects(staleKey, 0);
+
+  const matchKey = key(),
+    matchInput = { ...staleInput, expectedVersion: 2 },
+    matched = await reconcileBankTransaction(
+      f.manager,
+      bankRows[0].id,
+      matchInput,
+      matchKey,
+    );
+  expect(matched).toEqual({ id: bankRows[0].id, status: "matched", version: 3 });
+  expect(
+    await reconcileBankTransaction(
+      f.manager,
+      bankRows[0].id,
+      matchInput,
+      matchKey,
+    ),
+  ).toEqual(matched);
+  expect(
+    await db
+      .prepare(
+        "SELECT version::int version,match_status,matched_type,matched_id FROM finance_bank_transactions WHERE id=?",
+      )
+      .bind(bankRows[0].id)
+      .first(),
+  ).toEqual({ version: 3, match_status: "matched", matched_type: "payment", matched_id: paymentId });
+  await assertCommandEffects(matchKey, 1);
+
+  const reusedKey = key(),
+    reusedInput = { ...matchInput, expectedVersion: bankRows[1].version };
+  await expect(
+    reconcileBankTransaction(
+      f.manager,
+      bankRows[1].id,
+      reusedInput,
+      reusedKey,
+    ),
+  ).rejects.toThrow();
+  expect(
+    await db
+      .prepare(
+        "SELECT version::int version,match_status,matched_type,matched_id FROM finance_bank_transactions WHERE id=?",
+      )
+      .bind(bankRows[1].id)
+      .first(),
+  ).toEqual({ version: 1, match_status: "unmatched", matched_type: null, matched_id: null });
+  expect(
+    Number(
+      await db
+        .prepare(
+          "SELECT COUNT(*) n FROM finance_bank_transactions WHERE company_id=? AND match_status='matched' AND matched_type='payment' AND matched_id=?",
+        )
+        .bind(f.company, paymentId)
+        .first("n"),
+    ),
+  ).toBe(1);
+  await assertCommandEffects(reusedKey, 0);
+});
 it("imports a saved mapping atomically, rejects duplicate files and proposes one bank movement to multiple posted lines", async () => {
   const a = await receipt("60.01"),
     b = await receipt("39.99"),

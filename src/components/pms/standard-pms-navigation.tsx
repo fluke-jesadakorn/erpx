@@ -4,6 +4,7 @@ import {ChevronDown} from 'lucide-react';
 import {Button} from '@/components/ui/foundation';
 import Link from '@/components/workplace/workspace-link';
 import {pmsMenu} from '@/components/shared/hospitality/module-menu';
+import {pmsSectionPath} from '@/lib/pms/section-route';
 import {useFrontLanguage} from '@/components/front/front-language';
 import styles from './standard-pms-navigation.module.css';
 
@@ -24,7 +25,7 @@ export function StandardPmsNavigation({href,section,permissions,propertyId}:{
  ] as const;
  const visible=new Set<string>(allowed.filter(([,enabled])=>enabled).map(([id])=>id));
  const items=pmsMenu(language).filter(item=>visible.has(item.id)).map(item=>({
-  ...item,href:href+(item.id==='dashboard'?'today':item.id)+(propertyId?'?property='+encodeURIComponent(propertyId):''),
+  ...item,href:href+(item.id==='dashboard'?'today':pmsSectionPath(item.id))+(propertyId?'?property='+encodeURIComponent(propertyId):''),
  }));
  const label=language==='th'?'งานโรงแรม':'Hotel tasks',selected=items.find(item=>item.id===section);
  const [expanded,setExpanded]=useState(false),menuId=useId();

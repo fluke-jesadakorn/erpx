@@ -17,10 +17,11 @@ import { commerceFinanceSalesSources } from "../../commerce/public/finance-sales
 import { commerceSalesDocuments } from "../../commerce/public/commerce";
 import { readListPage } from "../../work_projection/public/list-page";
 import { assertion, executeCommand, replayCommand } from "../../workflow/public/commands";
-import { financeCommandReceipts } from "../../workflow/public/finance-command-receipts";
 import { createInvoice } from "../public/finance";
 import {withSalesCustomerReceiptRead,withSalesCustomerReceiptIssue} from './sales-customer-receipts';
 import {salesDefaultsReferences,withSalesPostingCommand} from './sales-posting-setup';
+import { withFinancePurchasedCommand } from './purchase-boundary';
+import {standaloneSalesCompletionReceiptQuery} from './sales-completion-proof';
 import {salesPostingDefaultsSchema,salesPostingDecisionSchema} from '../domain/sales-posting-setup';
 type Row = Record<string, string | number | null>;
 async function database(actor: WorkContext, permission = "finance.read") { requirePermission(actor, permission); return (await holdingResources(actor.holdingId)).write; }
@@ -124,7 +125,7 @@ export async function customerReceiptExport(actor:WorkContext,id:string){return 
 });}
 export async function createSalesInvoiceDraft(actor: WorkContext, raw: z.input<typeof salesInvoiceDraftSchema>, key: string) {
   const db = await database(actor, "finance.write"); companyAuthority(actor); const input = salesInvoiceDraftSchema.parse(raw);
-  return financeTransaction(db, async tx => {
+  const execute = async (tx: SqlDatabase) => {
     const previous = await replayCommand(tx, actor, key, "finance.sales-invoice.prepare", `invoice-${key}-invoice`, input); if (previous) return previous;
     const defaults = await tx.prepare("SELECT * FROM finance_sales_defaults WHERE company_id=? AND currency=? AND status='approved' FOR SHARE").bind(actor.companyId, input.currency).first<SalesDefaults>();
     if (!defaults) throw new ApiError(409, "SALES_DEFAULTS_REQUIRED", "Ask Finance to approve sales defaults for this currency.");
@@ -133,14 +134,16 @@ export async function createSalesInvoiceDraft(actor: WorkContext, raw: z.input<t
     const number = await tx.prepare("SELECT erpx_sales_document_number(?,'INV',?) number").bind(actor.companyId, input.invoiceDate).first<string>("number");
     const result = await createInvoice(actor, { kind: "receivable", partyId: input.partyId, invoiceNumber: number!, invoiceDate: input.invoiceDate, dueDate: input.dueDate, currency: input.currency, debitAccountId: defaults.receivable_account_id, creditAccountId: defaults.revenue_account_id, taxAccountId: defaults.tax_account_id ?? undefined, subtotal: totals.subtotal, tax: totals.tax, lines }, `${key}-invoice`, undefined, tx);
     return executeCommand(tx, actor, key, "finance.sales-invoice.prepare", input, result.id, 1, { ...result, number, total: minorToDecimal(totals.totalMinor), completionEvidence: { note: input.completionNote, confirmedBy: actor.userId, confirmedAt: Date.now(), invoiceRevision: 1 } }, []);
-  });
+  };
+  return withFinancePurchasedCommand(actor, { key, operation: "finance.sales-invoice.prepare", purpose: "new-work", capability: "finance.accounting", alternativeCapabilities: ["finance.sales-posting"] }, tx => tx ? execute(tx) : financeTransaction(db, execute));
 }
 
 export async function invoiceSalesCompletion(actor: WorkContext, invoiceId: string) {
   const db = await database(actor);
-  const invoice = await db.prepare(`SELECT i.id FROM finance_invoices i WHERE i.id=? AND i.company_id=? AND ${invoiceScope}`).bind(invoiceId, actor.companyId, ...scopeArgs(actor)).first();
-  if (!invoice) return null;
-  const receipt = await financeCommandReceipts(db).salesCompletion(actor.companyId, invoiceId);
+  const receipt = await db.prepare(`SELECT sales_completion.result_json FROM finance_invoices i
+    CROSS JOIN LATERAL (${standaloneSalesCompletionReceiptQuery("i")}) sales_completion
+    WHERE i.id=? AND i.company_id=? AND ${invoiceScope}
+      AND i.kind='receivable' AND i.source_type='standalone' AND i.source_id IS NULL`).bind(invoiceId, actor.companyId, ...scopeArgs(actor)).first<{result_json:string}>();
   return receipt ? (JSON.parse(receipt.result_json).completionEvidence ?? null) as { note: string; confirmedBy: string; confirmedAt: number; invoiceRevision: number } | null : null;
 }
 

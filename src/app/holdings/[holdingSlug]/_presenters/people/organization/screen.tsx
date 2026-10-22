@@ -65,7 +65,7 @@ export default async function OrganizationPage({
     destination.panel = "settings";
     destination.section = "templates";
   }
-  if (!query.position && (query.view === "spending" || query.view === "legacy")) {
+  if (!query.position && !query.tab && (query.view === "spending" || query.view === "legacy")) {
     destination.tab = "settings";
     if (query.view === "spending") destination.section = "spending";
   }

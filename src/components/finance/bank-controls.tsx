@@ -5,12 +5,12 @@ import { InlineNotice } from "@/components/ui/foundation";
 import { FormDrawer } from "@/components/ui/dialog";
 import { Button, Field, Select, TextInput } from "@/components/ui/foundation";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@/lib/shared/destination-router";
 import { minorToDecimal } from "@/lib/finance/finance-money";
-import { createFinanceBankCommands, type FinanceBankRequest, type FinanceBankScope } from "@/lib/finance/bank-command";
+import { createFinanceBankCommands, type FinanceBankDraft, type FinanceBankRequest, type FinanceBankScope } from "@/lib/finance/bank-command";
 import { useFinanceActionAllowed } from "./purchase-context";
-import { acknowledgeFinanceForm, useFinanceDraftClose, useFinanceDraftScope } from "./finance-draft-boundary";
+import { acknowledgeFinanceForm, captureFinanceForm, useFinanceDraftClose, useFinanceDraftCommandPending, useFinanceDraftScope } from "./finance-draft-boundary";
 import { announceWorkChange } from "@/lib/work_projection/work-refresh";
 import {
   AttachmentPanel,
@@ -20,45 +20,90 @@ import { Card, Stack, FormGrid, FormLayout } from "@/components/ui/foundation";
 type Row = Record<string, string | number | null>;
 type BankCommandOutcome = { unchanged: boolean; completion: HTMLFormElement | null };
 function useBankCommand(scope: FinanceBankScope) {
-  const [manager] = useState(() => {
-    let current: FinanceBankScope | null = scope;
-    return { commands: createFinanceBankCommands(() => current), update(value: FinanceBankScope) { current = value; } };
+  const identity=`finance-bank:${JSON.stringify([scope.base,scope.ownerKey])}`,trackCommandPending=useFinanceDraftCommandPending();
+  const trackPending=useCallback((token:object|string,completion:ReturnType<typeof captureFinanceForm>,pending:boolean)=>{
+    trackCommandPending(token,completion,pending);
+  },[trackCommandPending]);
+  const [scopeStore] = useState(() => {
+    let snapshot={scope,identity,trackPending};
+    return {read:()=>snapshot,update:(next:typeof snapshot)=>{snapshot=next;}};
   });
-  const commands = manager.commands;
-  useLayoutEffect(() => { manager.update(scope); }, [manager, scope]);
-  const [error, setError] = useState(""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [pendingRequest, setPendingRequest] = useState<FinanceBankRequest | null>(null);
-  const refreshPending = useCallback(() => {
-    try { setPendingRequest(commands.pending()?.request ?? null); }
-    catch (cause) { setPendingRequest(null); setError(cause instanceof Error ? cause.message : "Return to the original Bank owner to recover this request."); }
-  }, [commands]);
+  const trackedIdentity=useRef(identity),commands=useMemo(()=>createFinanceBankCommands(()=>{const current=scopeStore.read();return current.identity===identity?current.scope:null;}),[identity,scopeStore]);
+  const [error, setError] = useState(""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [pendingState, setPendingState] = useState<{identity:string;request:FinanceBankRequest|null}>({identity,request:null});
+  const pendingRequest=pendingState.identity===identity?pendingState.request:null;
+  useLayoutEffect(()=>{
+    scopeStore.update({scope,identity,trackPending});
+    if(trackedIdentity.current===identity)return;
+    trackedIdentity.current=identity;setPendingState({identity,request:null});setError("");setNotice("");setBusy(false);
+  },[identity,scope,scopeStore,trackPending]);
+  const refreshPending = useCallback((completion?: ReturnType<typeof captureFinanceForm>) => {
+    if(scopeStore.read().identity!==identity)return;
+    try {
+      const request = commands.pending()?.request ?? null;
+      const current=scopeStore.read();
+      if(current.identity!==identity)return;
+      setPendingState({identity,request});
+      current.trackPending(identity, request ? completion ?? captureFinanceForm() : undefined, request !== null);
+    }
+    catch (cause) {
+      const current=scopeStore.read();
+      if(current.identity!==identity)return;
+      current.trackPending(identity, completion ?? captureFinanceForm(), true);
+      setError(cause instanceof Error ? cause.message : "Return to the original Bank owner to recover this request.");
+    }
+  }, [commands,identity,scopeStore]);
+  const readDraft = useCallback(():FinanceBankDraft|null=>{
+    if(scopeStore.read().identity!==identity)return null;
+    try{return commands.readDraft();}
+    catch(cause){setError(cause instanceof Error?cause.message:"Return to the original Bank owner to recover this draft.");return null;}
+  },[commands,identity,scopeStore]);
+  const saveDraft = useCallback((draft:FinanceBankDraft):boolean=>{
+    if(scopeStore.read().identity!==identity)return false;
+    try{commands.saveDraft(draft);return true;}
+    catch(cause){setError(cause instanceof Error?cause.message:"The newer Bank draft could not be retained.");return false;}
+  },[commands,identity,scopeStore]);
+  const clearSavedDraft = useCallback(()=>{
+    if(scopeStore.read().identity!==identity)return;
+    try{commands.clearDraft();}
+    catch(cause){setError(cause instanceof Error?cause.message:"The newer Bank draft could not be cleared.");}
+  },[commands,identity,scopeStore]);
   useEffect(() => {
     let active = true;
     queueMicrotask(() => { if (active) refreshPending(); });
     return () => { active = false; };
   }, [refreshPending, scope.base, scope.ownerKey, scope.source, scope.canRecover]);
-  async function complete(operation: Promise<Awaited<ReturnType<ReturnType<typeof createFinanceBankCommands>["submit"]>>>) {
+  async function complete(operation: Promise<Awaited<ReturnType<ReturnType<typeof createFinanceBankCommands>["submit"]>>>, completion?: ReturnType<typeof captureFinanceForm>) {
+    const submittedIdentity=identity;
+    const submittedScope=scopeStore.read();
+    if(submittedScope.identity!==submittedIdentity)return null;
+    submittedScope.trackPending(submittedIdentity, completion ?? captureFinanceForm(), true);
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await operation, acknowledgement = result.acknowledge();
       if (!acknowledgement) throw Error("The original Bank acknowledgement was already consumed. Review the current Bank record.");
       if (acknowledgement.completion) acknowledgeFinanceForm(acknowledgement.completion);
       announceWorkChange();
-      setNotice(acknowledgement.unchanged ? "The original Bank request is confirmed." : "The original Bank request is confirmed. Your newer draft is retained for review.");
+      if(scopeStore.read().identity===submittedIdentity)setNotice(acknowledgement.unchanged ? "The original Bank request is confirmed." : "The original Bank request is confirmed. Your newer draft is retained for review.");
       return { unchanged: acknowledgement.unchanged, completion: acknowledgement.completion?.form ?? null } satisfies BankCommandOutcome;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The original Bank request is not confirmed. Retry it safely.");
+      if(scopeStore.read().identity===submittedIdentity)setError(cause instanceof Error ? cause.message : "The original Bank request is not confirmed. Retry it safely.");
       return null;
-    } finally { setBusy(false); refreshPending(); }
+    } finally { if(scopeStore.read().identity===submittedIdentity){setBusy(false);refreshPending(completion);} }
   }
   function send(request: FinanceBankRequest, form: HTMLFormElement) {
     setError("");
-    return complete(commands.submit(request, form));
+    const completion = { form, formEditVersion: form.getAttribute("data-erpx-edit-version") }, operation = commands.submit(request, form);
+    // The command is durable before its first network await. Publish that fact
+    // now so edits made while the first POST is still running are saved as a
+    // separate draft, even before complete() reaches its finally block.
+    refreshPending(completion);
+    return complete(operation, completion);
   }
   function retry(form?: HTMLFormElement) {
     setError("");
-    return complete(commands.retry(form));
+    return complete(commands.retry(form), form ? { form, formEditVersion: form.getAttribute("data-erpx-edit-version") } : captureFinanceForm());
   }
-  return { send, retry, error, notice, busy, pendingRequest, pending: pendingRequest !== null, refreshPending };
+  return { send, retry, error, notice, busy, pendingRequest, pending: pendingRequest !== null, refreshPending, readDraft, saveDraft, clearSavedDraft };
 }
 export function BankImport({
   base,
@@ -72,11 +117,19 @@ export function BankImport({
   returnHref?: string;
 }) {
   const router = useRouter(), draftScope = useFinanceDraftScope(), canBank = useFinanceActionAllowed("settle-existing", "finance.banking"),
-    draftRevision = useRef(0), formRef = useRef<HTMLFormElement>(null), restoredRequest = useRef<string | null>(null);
-  const [fields, setFields] = useState({ bankAccount: "", number: "", date: "", opening: "", closing: "" }),
+    ownerIdentity=JSON.stringify([base]),currentOwnerIdentity=useRef(ownerIdentity),lastOwnerIdentity=useRef(ownerIdentity),
+    draftRevision = useRef(0), formRef = useRef<HTMLFormElement>(null), restoredRequest = useRef<string | null>(null), restoredDraft = useRef<string|null>(null);
+  const [formOwner,setFormOwner]=useState(ownerIdentity),
+    [fields, setFields] = useState({ bankAccount: "", number: "", date: "", opening: "", closing: "" }),
     [rows, setRows] = useState<{ externalId: string; transactionDate: string; description: string; amount: string }[]>([
       { externalId: "", transactionDate: "", description: "", amount: "0.00" },
     ]), [open, setOpen] = useState(initialOpen), [visited, setVisited] = useState(initialOpen), [confirmedWithNewerDraft, setConfirmedWithNewerDraft] = useState(false);
+  if(formOwner!==ownerIdentity){
+    setFormOwner(ownerIdentity);
+    setFields({bankAccount:"",number:"",date:"",opening:"",closing:""});
+    setRows([{externalId:"",transactionDate:"",description:"",amount:"0.00"}]);
+    setConfirmedWithNewerDraft(false);
+  }
   const requestFromDraft = (): FinanceBankRequest | null => {
     const account = accounts.find(item => String(item.id) === fields.bankAccount);
     if (!account) return null;
@@ -87,23 +140,55 @@ export function BankImport({
     } };
   };
   const command = useBankCommand({ base, ownerKey: "statement-import", source: JSON.stringify([accounts, canBank]), draft: () => draftRevision.current, draftRequest: requestFromDraft, canStart: canBank, canRecover: canBank });
-  useEffect(() => {
-    const request = command.pendingRequest;
+  const pendingRequest=command.pendingRequest,readRecoveryDraft=command.readDraft;
+  const importDraftFromForm = ():FinanceBankDraft|null => {
+    const form=formRef.current;
+    if(!form||!command.pending)return null;
+    const values=new FormData(form),indices=Array.from(values.keys()).flatMap(name=>{const match=/^(?:externalId|transactionDate|description|amount)-(\d+)$/.exec(name);return match?[Number(match[1])]:[];});
+    const rowCount=Math.max(0,...indices)+1;
+    if(rowCount>500)return null;
+    const value=(name:string)=>{const item=values.get(name);return typeof item==="string"?item:"";};
+    return {kind:"import",fields:{bankAccount:value("bankAccount"),number:value("number"),date:value("date"),opening:value("opening"),closing:value("closing")},rows:Array.from({length:rowCount},(_,index)=>({externalId:value(`externalId-${index}`),transactionDate:value(`transactionDate-${index}`),description:value(`description-${index}`),amount:value(`amount-${index}`)}))};
+  };
+  const persistImportDraft = (draft?:FinanceBankDraft|null) => {
+    const next=draft??importDraftFromForm();
+    if(next?.kind==="import")command.saveDraft(next);
+  };
+  // Restore before the retry controls can receive input. A passive effect can
+  // run after paint and make an untouched recovered request look like a new draft.
+  useLayoutEffect(() => {
+    currentOwnerIdentity.current=ownerIdentity;
+    if(lastOwnerIdentity.current!==ownerIdentity){
+      lastOwnerIdentity.current=ownerIdentity;
+      draftRevision.current=0;restoredRequest.current=null;restoredDraft.current=null;
+    }
+    const draft=readRecoveryDraft();
+    if(draft?.kind==="import"){
+      const stamp=JSON.stringify(draft);
+      if(restoredDraft.current===stamp)return;
+      restoredDraft.current=stamp;
+      draftRevision.current=1;
+      const restoreOwner=ownerIdentity;
+      queueMicrotask(()=>{if(currentOwnerIdentity.current===restoreOwner&&draftRevision.current===1){setFields(draft.fields);setRows(draft.rows);}});
+      return;
+    }
+    const request = pendingRequest;
     if (request?.kind !== "import" || draftRevision.current > 0) return;
     const stamp = JSON.stringify(request);
     if (restoredRequest.current === stamp) return;
     restoredRequest.current = stamp;
     setFields({ bankAccount: request.input.bankAccount, number: request.input.statementNumber, date: request.input.statementDate, opening: request.input.opening, closing: request.input.closing });
     setRows(request.input.rows.map(row => ({ externalId: row.externalId, transactionDate: row.transactionDate, description: row.description ?? "", amount: row.amount })));
-  }, [command.pendingRequest]);
+  }, [ownerIdentity,pendingRequest,readRecoveryDraft]);
   const clearDraft = () => {
+    command.clearSavedDraft();
     setFields({ bankAccount: "", number: "", date: "", opening: "", closing: "" });
     setRows([{ externalId: "", transactionDate: "", description: "", amount: "0.00" }]);
-    draftRevision.current = 0; setConfirmedWithNewerDraft(false);
+    draftRevision.current = 0; restoredRequest.current=null; restoredDraft.current=null; setConfirmedWithNewerDraft(false);
   };
   const closeDraft = useFinanceDraftClose(() => { clearDraft(); setOpen(false); }, { root: () => formRef.current });
-  const markDraft = () => { draftRevision.current += 1; };
-  const markStructure = () => { markDraft(); formRef.current?.dispatchEvent(new Event("change", { bubbles: true })); };
+  const markDraft = () => { draftRevision.current += 1; persistImportDraft(); };
+  const markStructure = (nextRows:typeof rows) => { markDraft(); formRef.current?.dispatchEvent(new Event("change", { bubbles: true })); persistImportDraft({kind:"import",fields,rows:nextRows}); };
   async function retryOriginal() {
     const outcome = await command.retry(formRef.current ?? undefined);
     if (!outcome) return;
@@ -196,7 +281,7 @@ export function BankImport({
                 <Button appearance="standard"
                   variant="secondary"
                   type="button"
-                  onClick={() => { markStructure(); setRows(rows.filter((_, j) => j !== i)); }}
+                  onClick={() => { const nextRows=rows.filter((_,j)=>j!==i);markStructure(nextRows);setRows(nextRows); }}
                 >
                   Remove row {i + 1}
                 </Button>
@@ -208,11 +293,10 @@ export function BankImport({
               variant="secondary"
               type="button"
               onClick={() => {
-                markStructure();
-                setRows([
+                const nextRows=[
                   ...rows,
                   { externalId: "", transactionDate: "", description: "", amount: "0.00" },
-                ]);
+                ];markStructure(nextRows);setRows(nextRows);
               }}
             >
               Add statement row
@@ -245,24 +329,56 @@ export function BankMatch({
   canApprove: boolean;
 }) {
   const router = useRouter(), draftScope = useFinanceDraftScope(), canBank = useFinanceActionAllowed("settle-existing", "finance.banking") && canWrite && canApprove,
-    draftRevision = useRef(0), formRef = useRef<HTMLFormElement>(null), [files, setFiles] = useState<AttachmentPanelChange | null>(null),
-    [selectedPayment, setSelectedPayment] = useState(""), [proof, setProof] = useState(""), [confirmedWithNewerDraft, setConfirmedWithNewerDraft] = useState(false);
-  const requestFromDraft = (): FinanceBankRequest | null => selectedPayment && proof.trim() ? { kind: "reconcile", id: String(transaction.id), input: {
-    expectedVersion: Number(transaction.version), matchedType: "payment", matchedId: selectedPayment, proof,
-    attachmentSetIds: files?.setId && files.readyCount > 0 && files.bindable ? [files.setId] : [],
-  } } : null;
-  const command = useBankCommand({ base, ownerKey: `transaction:${String(transaction.id)}`, source: JSON.stringify([transaction, payments, canBank]), draft: () => draftRevision.current, draftRequest: requestFromDraft, canStart: canBank && transaction.match_status !== "matched", canRecover: canBank });
+    formRef = useRef<HTMLFormElement>(null), ownerIdentity=JSON.stringify([base,String(transaction.id)]),
+    [draft,setDraft] = useState(() => ({ ownerIdentity, files: null as AttachmentPanelChange | null, selectedPayment: "", proof: "", confirmedWithNewerDraft: false, revision: 0 })),
+    lastOwnerIdentity=useRef(ownerIdentity),draftRevision=useRef({ownerIdentity,revision:0}),pendingDraft=useRef<{ownerIdentity:string;request:FinanceBankRequest|null}>({ownerIdentity,request:null}),restoredDraft=useRef<string|null>(null);
+  const currentDraft=draft.ownerIdentity===ownerIdentity?draft:{ownerIdentity,files:null,selectedPayment:"",proof:"",confirmedWithNewerDraft:false,revision:0};
+  if(draft.ownerIdentity!==ownerIdentity)setDraft(currentDraft);
+  const requestFromDraft = (): FinanceBankRequest | null => {
+    const recovered=pendingDraft.current.ownerIdentity===ownerIdentity?pendingDraft.current.request:null;
+    if(draftRevision.current.ownerIdentity===ownerIdentity&&draftRevision.current.revision===0&&recovered?.kind==="reconcile"&&recovered.id===String(transaction.id))return recovered;
+    return currentDraft.ownerIdentity===ownerIdentity&&currentDraft.selectedPayment && currentDraft.proof.trim() ? { kind: "reconcile", id: String(transaction.id), input: {
+    expectedVersion: Number(transaction.version), matchedType: "payment", matchedId: currentDraft.selectedPayment, proof: currentDraft.proof,
+    attachmentSetIds: currentDraft.files?.setId && currentDraft.files.readyCount > 0 && currentDraft.files.bindable ? [currentDraft.files.setId] : [],
+    } } : null;
+  };
+  const command = useBankCommand({ base, ownerKey: `transaction:${String(transaction.id)}`, source: JSON.stringify([transaction, payments, canBank]), draft: () => draftRevision.current.ownerIdentity===ownerIdentity?draftRevision.current.revision:0, draftRequest: requestFromDraft, canStart: canBank && transaction.match_status !== "matched", canRecover: canBank });
+  const pendingRequest=command.pendingRequest,readRecoveryDraft=command.readDraft;
+  const updateDraft=(patch:Partial<typeof currentDraft>,edited=false)=>{
+    if(edited){const previous=draftRevision.current;draftRevision.current=previous.ownerIdentity===ownerIdentity?{ownerIdentity,revision:previous.revision+1}:{ownerIdentity,revision:1};}
+    setDraft(previous=>{
+      const ownerDraft=previous.ownerIdentity===ownerIdentity?previous:{ownerIdentity,files:null,selectedPayment:"",proof:"",confirmedWithNewerDraft:false,revision:0},next={...ownerDraft,...patch,revision:ownerDraft.revision+(edited?1:0)};
+      if(edited&&command.pending)command.saveDraft({kind:"reconcile",id:String(transaction.id),selectedPayment:next.selectedPayment,proof:next.proof});
+      return next;
+    });
+  };
+  useLayoutEffect(()=>{
+    const saved=readRecoveryDraft();
+    if(saved?.kind!=="reconcile"||saved.id!==String(transaction.id))return;
+    const stamp=JSON.stringify(saved);
+    if(restoredDraft.current===stamp)return;
+    restoredDraft.current=stamp;
+    draftRevision.current={ownerIdentity,revision:1};
+    queueMicrotask(()=>{if(draftRevision.current.ownerIdentity!==ownerIdentity||draftRevision.current.revision!==1)return;setDraft(previous=>{const ownerDraft=previous.ownerIdentity===ownerIdentity?previous:{ownerIdentity,files:null,selectedPayment:"",proof:"",confirmedWithNewerDraft:false,revision:0};return {...ownerDraft,selectedPayment:saved.selectedPayment,proof:saved.proof,revision:1};});});
+  },[ownerIdentity,transaction.id,pendingRequest,readRecoveryDraft]);
+  useLayoutEffect(()=>{pendingDraft.current={ownerIdentity,request:pendingRequest};},[ownerIdentity,pendingRequest]);
+  useLayoutEffect(()=>{
+    if(lastOwnerIdentity.current===ownerIdentity)return;
+    lastOwnerIdentity.current=ownerIdentity;
+    draftRevision.current={ownerIdentity,revision:0};
+    restoredDraft.current=null;
+    if(formRef.current)window.dispatchEvent(new CustomEvent("erpx:record-saved",{detail:{root:formRef.current}}));
+  },[ownerIdentity]);
   const markStructure = () => {
     const form = formRef.current;
     if (form) form.dispatchEvent(new Event("change", { bubbles: true }));
-    else draftRevision.current += 1;
+    else updateDraft({},true);
   };
   const pendingForTransaction = command.pendingRequest?.kind === "reconcile" && command.pendingRequest.id === String(transaction.id);
-  useEffect(() => {
-    const request = command.pendingRequest;
-    if (request?.kind !== "reconcile" || request.id !== String(transaction.id) || draftRevision.current > 0) return;
-    setSelectedPayment(request.input.matchedId); setProof(request.input.proof);
-  }, [command.pendingRequest, transaction.id]);
+  const matched = transaction.match_status === "matched", hasRetainedDraft = pendingForTransaction || currentDraft.revision > 0 || currentDraft.confirmedWithNewerDraft;
+  const restoredRequest=command.pendingRequest?.kind==="reconcile"&&command.pendingRequest.id===String(transaction.id)&&currentDraft.revision===0&&currentDraft.ownerIdentity===ownerIdentity?command.pendingRequest:null,
+    selectedPayment=restoredRequest?.input.matchedId??currentDraft.selectedPayment,
+    proof=restoredRequest?.input.proof??currentDraft.proof;
   const matches = payments.filter(
     (p) =>
       p.currency === transaction.currency &&
@@ -274,31 +390,26 @@ export function BankMatch({
     const outcome = await command.retry(formRef.current ?? undefined);
     if (!outcome) return;
     if (outcome.unchanged) router.refresh();
-    else setConfirmedWithNewerDraft(true);
+    else updateDraft({confirmedWithNewerDraft:true});
   }
-  const matched = transaction.match_status === "matched";
-  if (matched && !pendingForTransaction) return <div>{command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}<span className="muted">This bank movement is already matched.</span></div>;
-  if (matched && pendingForTransaction) return <div>
-    {command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}
-    {command.notice && <InlineNotice tone="info" role="status">{command.notice}</InlineNotice>}
-    <InlineNotice tone="info" role="status">The original match request is still awaiting its native receipt. Recovery resends its exact body and key.</InlineNotice>
-    <Button appearance="standard" type="button" variant="secondary" disabled={command.busy || !canBank} onClick={() => void retryOriginal()}>Retry original bank match</Button>
-  </div>;
+  if (matched && !hasRetainedDraft) return <div>{command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}<span className="muted">This bank movement is already matched.</span></div>;
   return (
     <div>
       {command.error && <InlineNotice tone="danger" role="alert">{command.error}</InlineNotice>}
       {command.notice && <InlineNotice tone="info" role="status">{command.notice}</InlineNotice>}
-      {pendingForTransaction && <InlineNotice tone="info" role="status">The original match request is not confirmed yet. Retry resends the exact body and key; edits below remain separate.</InlineNotice>}
+      {pendingForTransaction && <InlineNotice tone="info" role="status">{matched ? "This bank movement is already marked matched. The original request is not confirmed yet; retry resends its exact body and key, while edits below remain separate." : "The original match request is not confirmed yet. Retry resends the exact body and key; edits below remain separate."}</InlineNotice>}
       {pendingForTransaction && <Button appearance="standard" type="button" variant="secondary" disabled={command.busy || !canBank} onClick={() => void retryOriginal()}>Retry original bank match</Button>}
-      {confirmedWithNewerDraft && <InlineNotice tone="info" role="status">The earlier match was saved. Your newer evidence remains here for review; close this review to load the current Bank movement.</InlineNotice>}
-      {!matches.length ? (
+      {currentDraft.confirmedWithNewerDraft && <InlineNotice tone="info" role="status">The earlier match was saved. Your newer evidence remains here for review; close this review to load the current Bank movement.</InlineNotice>}
+      {!matches.length && !hasRetainedDraft ? (
         <span className="muted">No posted payment matches this amount, bank and currency.</span>
       ) : (
         <FormLayout
           ref={formRef}
           data-finance-draft={draftScope}
-          onInputCapture={() => { draftRevision.current += 1; }}
-          onChangeCapture={() => { draftRevision.current += 1; }}
+          onChangeCapture={(event) => {
+            if (event.target === event.currentTarget) updateDraft({},true);
+            else if (event.target instanceof HTMLInputElement && event.target.type === "file" && event.target.files?.length) updateDraft({},true);
+          }}
           className="ui-form-grid"
           onSubmit={async (e) => {
             e.preventDefault();
@@ -307,13 +418,14 @@ export function BankMatch({
             const outcome = await command.send(request, e.currentTarget);
             if (!outcome) return;
             if (outcome.unchanged) router.refresh();
-            else setConfirmedWithNewerDraft(true);
+            else updateDraft({confirmedWithNewerDraft:true});
           }}
         >
           <Field appearance="standard">
             Match payment
-            <Select appearance="standard" name="payment" required value={selectedPayment} onChange={event => setSelectedPayment(event.target.value)}>
+            <Select appearance="standard" name="payment" required value={selectedPayment} onChange={event => updateDraft({selectedPayment:event.target.value},true)}>
               <option value="">Review and select</option>
+              {hasRetainedDraft && selectedPayment && !matches.some(payment => String(payment.id) === selectedPayment) && <option value={selectedPayment}>Previously selected payment · unavailable after match</option>}
               {matches.map((p) => (
                 <option value={String(p.id)} key={String(p.id)}>
                   {String(p.payment_number)} · {String(p.payment_date)} ·{" "}
@@ -324,7 +436,7 @@ export function BankMatch({
           </Field>
           <Field appearance="standard">
             Review evidence
-            <TextInput appearance="standard" name="proof" required minLength={3} value={proof} onChange={event => setProof(event.target.value)} />
+            <TextInput appearance="standard" name="proof" required minLength={3} value={proof} onChange={event => updateDraft({proof:event.target.value},true)} />
           </Field>
           <div
             onClickCapture={event => {
@@ -338,6 +450,7 @@ export function BankMatch({
             onDropCapture={event => { if (event.dataTransfer.files.length > 0) markStructure(); }}
           >
             <AttachmentPanel appearance="standard"
+              key={ownerIdentity}
               base={base}
               targetType="finance_bank_transaction"
               targetId={String(transaction.id)}
@@ -348,10 +461,10 @@ export function BankMatch({
               title="Reconciliation workpaper"
               description="Attach the bank matching workpaper or other evidence reviewed for this match."
               visibility="Visible only to authorized Company Finance reviewers."
-              onChange={setFiles}
+              onChange={change => updateDraft({files:change})}
             />
           </div>
-          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={command.busy || command.pending || confirmedWithNewerDraft || !canBank}>
+          <Button appearance="standard" clientManaged type="submit" variant="secondary" disabled={matched || command.busy || command.pending || currentDraft.confirmedWithNewerDraft || !canBank}>
             Confirm match
           </Button>
         </FormLayout>

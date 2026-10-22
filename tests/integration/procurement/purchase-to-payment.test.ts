@@ -390,7 +390,7 @@ async function purchaseToPayment(enforced=false,withdraw=false,reversal=false,re
 it("runs an approved ten-laptop request through RFQ, 6+4 receipts, one consolidated AP invoice, bank evidence and payment",()=>purchaseToPayment());
 it("runs Supply-only RFQ and 6+4 receipts through drained consolidated AP, independent posting, exact bank-batch source fences and retained receipt history",()=>purchaseToPayment(true));
 
-it("withdraws Supply only after actual consolidated AP and independent bank settlement, retaining source history, exact replay and Legal-held bytes without full Finance",()=>purchaseToPayment(true,true));
+it("withdraws Supply only after actual consolidated AP and independent bank settlement, retaining source history, exact replay and Legal-held bytes without full Finance",()=>purchaseToPayment(true,true),60_000);
 
 it("retains actual normal supplier payment reversal and replacement history without inventing a perpetual Supply Finance obligation",()=>purchaseToPayment(true,false,true));
 

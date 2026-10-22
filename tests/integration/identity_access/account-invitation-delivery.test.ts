@@ -171,7 +171,8 @@ it("delivers through the explicit sandbox adapter with a durable provider receip
     ERPX_EMAIL_ADAPTER: "sandbox",
     ERPX_PUBLIC_ORIGIN: "https://erpx.example.test",
   };
-  expect(await deliverAccountInvitation(control, sandboxEnv, sendBetaEmail, now)).toBe(true);
+  expect(await deliverAccountInvitation(control, sandboxEnv, (deliveryEnv, to, subject, url, key) =>
+    sendBetaEmail(deliveryEnv as Parameters<typeof sendBetaEmail>[0], to, subject, url, key), now)).toBe(true);
   const job = await control
     .prepare("SELECT state,provider_id FROM account_invitation_delivery_jobs WHERE id=?")
     .bind(item.jobId)
@@ -282,10 +283,10 @@ it("backs off transient errors and exposes a recoverable failed state", async ()
 
 it("delivers the same approved invitation token on the Account owner without extending its access or expiry", async () => {
   const item = await invitation("queued", Date.now() + 86400000);
-  const keys = ["ERPX_ENVIRONMENT", "ERPX_PRODUCT_ENVIRONMENT", "ERPX_PRODUCT_ROUTING", "ERPX_PRODUCT_SSO"];
+  const keys = ["ERPX_ENVIRONMENT", "ERPX_PRODUCT_ENVIRONMENT", "ERPX_PRODUCT_ROUTING", "ERPX_PRODUCT_SSO", "ERPX_PUBLIC_ORIGIN"];
   const previous = keys.map(key => process.env[key]);
   try {
-    for (const [key, value] of Object.entries({ ERPX_ENVIRONMENT: "local", ERPX_PRODUCT_ENVIRONMENT: "development", ERPX_PRODUCT_ROUTING: "enabled", ERPX_PRODUCT_SSO: "enabled" })) vi.stubEnv(key, value);
+    for (const [key, value] of Object.entries({ ERPX_ENVIRONMENT: "local", ERPX_PRODUCT_ENVIRONMENT: "development", ERPX_PRODUCT_ROUTING: "enabled", ERPX_PRODUCT_SSO: "enabled", ERPX_PUBLIC_ORIGIN: "https://console-dev-erpx.jesadakorn.com" })) vi.stubEnv(key, value);
     const before = await control.prepare("SELECT token_hash,role,scope_kind,expires_at,status FROM account_invitations WHERE id=?").bind(item.invitationId).first();
     const sent: string[] = [];
     expect(await deliverAccountInvitation(control, { ...env, ERPX_PUBLIC_ORIGIN: "https://console-dev-erpx.jesadakorn.com" }, async (_env, _to, _subject, link) => { sent.push(link); return "account-invitation-fixture"; }, now)).toBe(true);

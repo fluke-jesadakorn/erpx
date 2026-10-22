@@ -6,6 +6,7 @@ import {
   confirmContextSwitch,
   contextGeneration,
   contextIsSwitching,
+  registerContextSwitchBlocker,
   hasUnsavedWork,
   registerUnsavedWork,
   setContextSwitching,
@@ -170,6 +171,17 @@ it("asks before discarding registered unsaved work and stops asking once it is u
   stop();
   expect(confirmContextSwitch()).toBe(true);
   expect(view.confirm).toHaveBeenCalledTimes(1);
+});
+it("refuses sign-out when a command is unresolved and uses a sign-out prompt for drafts", () => {
+  const stop = registerContextSwitchBlocker(() => "Retry the original Finance action before leaving.");
+  subscriptions.push(stop);
+  expect(confirmContextSwitch("Sign out and discard unsaved changes?")).toBe(false);
+  expect(view.confirm).not.toHaveBeenCalled();
+  stop();
+  dirtyMarker = true;
+  view.confirm.mockReturnValue(false);
+  expect(confirmContextSwitch("Sign out and discard unsaved changes?")).toBe(false);
+  expect(view.confirm).toHaveBeenCalledWith("Sign out and discard unsaved changes?");
 });
 it("reads registered and DOM-marked drafts for an app-owned confirmation without opening a native prompt", () => {
   expect(hasUnsavedWork()).toBe(false);

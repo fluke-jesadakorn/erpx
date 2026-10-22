@@ -1,6 +1,21 @@
 import { relative, resolve } from "node:path";
 import type { EngineeringObservation } from "../../../src/lib/runtime/engineering-completion";
 
+const record=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==="object"&&!Array.isArray(value);
+const digest=(value:unknown):value is string=>typeof value==="string"&&/^[a-f0-9]{64}$/.test(value);
+/** Accept only the isolated synthetic-prior switch evidence; this says nothing about booting an older deployed release. */
+export function syntheticRollbackEvidenceValid(value:unknown,sourceFingerprint:string,fileManifestSha256:string) {
+  if(!record(value)||value.compiledCandidate!==true||value.sourceFingerprint!==sourceFingerprint||value.fileManifestSha256!==fileManifestSha256||
+    typeof value.candidateReleaseId!=="string"||!record(value.rollback))return false;
+  const rollback=value.rollback;
+  return rollback.scope==="isolated-synthetic-prior-release"&&rollback.candidateReleaseId===value.candidateReleaseId&&
+    typeof rollback.previousReleaseId==="string"&&rollback.previousReleaseId!==rollback.candidateReleaseId&&
+    digest(rollback.candidateArtifactSha256)&&digest(rollback.previousArtifactSha256)&&rollback.candidateArtifactSha256!==rollback.previousArtifactSha256&&
+    digest(rollback.candidateServerSha256)&&digest(rollback.previousServerSha256)&&rollback.candidateServerSha256!==rollback.previousServerSha256&&
+    rollback.switchedToPrevious===true&&rollback.databaseAndFilesUnchanged===true&&
+    digest(rollback.databaseStateBeforeSha256)&&rollback.databaseStateBeforeSha256===rollback.databaseStateAfterSha256&&
+    digest(rollback.privateFilesStateBeforeSha256)&&rollback.privateFilesStateBeforeSha256===rollback.privateFilesStateAfterSha256;
+}
 type VitestReport = { success: boolean; testResults: Array<{ name: string; assertionResults: Array<{ fullName: string; status: string; duration?: number }> }> };
 export function vitestObservations(root: string, report: VitestReport): EngineeringObservation[] {
   if (!Array.isArray(report.testResults)) throw new Error("VITEST_EXECUTION_RECEIPT_REQUIRED");

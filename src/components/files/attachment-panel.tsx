@@ -72,12 +72,14 @@ export type AttachmentPanelProps = {
   visibility?: string;
   compact?: boolean;
   disabled?: boolean;
+  interactionDisabled?: boolean;
   frozen?: boolean;
   requiredCount?: number;
   maxFiles?: number;
   initialSet?: AttachmentSetDto | null;
   fieldName?: string;
   onChange?: (change: AttachmentPanelChange) => void;
+  onActivityChange?: (active: boolean) => void;
   onAvailabilityChange?: (available: boolean) => void;
   bindMode?: "action" | "record";
   onBound?: (result: { setId: string; version: number }) => void;
@@ -171,12 +173,14 @@ function AttachmentPanelContent({ appearance = "legacy",
   visibility = "Access follows this record and its current authorized reviewers.",
   compact = false,
   disabled = false,
+  interactionDisabled = false,
   frozen = false,
   requiredCount: requiredOverride,
   maxFiles: maxOverride,
   initialSet = null,
   fieldName,
   onChange,
+  onActivityChange,
   onAvailabilityChange,
   bindMode = "action",
   onBound,
@@ -201,6 +205,7 @@ function AttachmentPanelContent({ appearance = "legacy",
   const [checking, setChecking] = useState(!initialSet);
   const [gateUnavailable, setGateUnavailable] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [dragging, setDragging] = useState(false);
   const [caption, setCaption] = useState("");
   const [error, setError] = useState("");
@@ -209,6 +214,17 @@ function AttachmentPanelContent({ appearance = "legacy",
   const [boundLocally, setBoundLocally] = useState(initialSet?.state === "bound");
   const [retryableLinkIds, setRetryableLinkIds] = useState<Set<string>>(() => new Set());
   const [attestationNote, setAttestationNote] = useState("");
+
+  const setActivity = useCallback(
+    (active: boolean) => {
+      busyRef.current = active;
+      if (mounted.current) setBusy(active);
+      // Keep the owner guard active while an upload still has an in-memory
+      // File available for explicit retry, even after the active request ends.
+      onActivityChange?.(active || retryUploads.current.size > 0);
+    },
+    [onActivityChange],
+  );
 
   const requiredCount = Math.max(set?.requiredCount ?? 0, requiredOverride ?? 0);
   const maxFiles = Math.min(100, Math.max(1, set?.maxFiles ?? maxOverride ?? 10));
@@ -433,7 +449,7 @@ function AttachmentPanelContent({ appearance = "legacy",
 
   const addFiles = useCallback(
     async (selected: File[]) => {
-      if (!draftMutable || busy || !selected.length) return;
+      if (!draftMutable || interactionDisabled || busyRef.current || !selected.length) return;
       setError("");
       const remaining = maxFiles - activeLinks.length;
       if (selected.length > remaining) {
@@ -447,7 +463,7 @@ function AttachmentPanelContent({ appearance = "legacy",
         setError(`${invalid.file.name}: ${invalid.error}`);
         return;
       }
-      setBusy(true);
+      setActivity(true);
       try {
         const destination = await ensureSet();
         for (const file of selected) {
@@ -535,7 +551,7 @@ function AttachmentPanelContent({ appearance = "legacy",
           setGateUnavailable(true);
         else setError(cause instanceof Error ? cause.message : "Unable to start secure upload.");
       } finally {
-        if (mounted.current) setBusy(false);
+        setActivity(false);
       }
     },
     [
@@ -546,16 +562,18 @@ function AttachmentPanelContent({ appearance = "legacy",
       draftMutable,
       ensureSet,
       invalidateSanitizationAttestation,
+      interactionDisabled,
       maxFiles,
       patchLink,
       poll,
+      setActivity,
     ],
   );
 
   async function retryUpload(linkId: string) {
     const pending = retryUploads.current.get(linkId);
-    if (!pending || !draftMutable || busy) return;
-    setBusy(true);
+    if (!pending || !draftMutable || interactionDisabled || busyRef.current) return;
+    setActivity(true);
     setError("");
     patchLink(linkId, { localState: "uploading", localError: undefined });
     try {
@@ -578,13 +596,13 @@ function AttachmentPanelContent({ appearance = "legacy",
       patchLink(linkId, { localState: undefined, localError: message });
       setError(message);
     } finally {
-      if (mounted.current) setBusy(false);
+      setActivity(false);
     }
   }
 
   async function withdraw() {
-    if (!draftMutable || !withdrawId || withdrawReason.trim().length < 3) return;
-    setBusy(true);
+    if (!draftMutable || interactionDisabled || busyRef.current || !withdrawId || withdrawReason.trim().length < 3) return;
+    setActivity(true);
     setError("");
     try {
       const status = await withdrawAttachmentLink(
@@ -610,21 +628,22 @@ function AttachmentPanelContent({ appearance = "legacy",
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to withdraw this file.");
     } finally {
-      setBusy(false);
+      setActivity(false);
     }
   }
 
   async function attestSanitization() {
     if (
       !draftMutable ||
+      interactionDisabled ||
       !set ||
       !sanitizationRequired ||
       !filesBindable ||
       attestationNote.trim().length < 10 ||
-      busy
+      busyRef.current
     )
       return;
-    setBusy(true);
+    setActivity(true);
     setError("");
     try {
       const reviewed = await attestAttachmentSetSanitized(
@@ -640,13 +659,13 @@ function AttachmentPanelContent({ appearance = "legacy",
         cause instanceof Error ? cause.message : "Unable to record the sanitization review.",
       );
     } finally {
-      if (mounted.current) setBusy(false);
+      setActivity(false);
     }
   }
 
   async function bindRecord() {
-    if (!draftMutable || bindMode !== "record" || !set || readyCount < 1 || !bindable) return;
-    setBusy(true);
+    if (!draftMutable || interactionDisabled || busyRef.current || bindMode !== "record" || !set || readyCount < 1 || !bindable) return;
+    setActivity(true);
     setError("");
     try {
       if (bindKey.current?.setId !== set.id)
@@ -670,7 +689,7 @@ function AttachmentPanelContent({ appearance = "legacy",
         cause instanceof Error ? cause.message : "Unable to lock these files to the record.",
       );
     } finally {
-      if (mounted.current) setBusy(false);
+      setActivity(false);
     }
   }
 
@@ -710,7 +729,7 @@ function AttachmentPanelContent({ appearance = "legacy",
             <TextInput appearance={appearance}
               value={caption}
               maxLength={500}
-              disabled={disabled || busy}
+              disabled={disabled || interactionDisabled || busy}
               onChange={(event) => setCaption(event.target.value)}
               placeholder="What this file proves or contains"
             />
@@ -720,7 +739,7 @@ function AttachmentPanelContent({ appearance = "legacy",
             data-dragging={dragging}
             onDragEnter={(event) => {
               event.preventDefault();
-              if (!disabled && !readOnly && !busy) setDragging(true);
+              if (!disabled && !interactionDisabled && !readOnly && !busy) setDragging(true);
             }}
             onDragOver={(event) => event.preventDefault()}
             onDragLeave={(event) => {
@@ -730,7 +749,7 @@ function AttachmentPanelContent({ appearance = "legacy",
             onDrop={(event) => {
               event.preventDefault();
               setDragging(false);
-              void addFiles(Array.from(event.dataTransfer.files));
+              if (!interactionDisabled) void addFiles(Array.from(event.dataTransfer.files));
             }}
           >
             <Upload aria-hidden size={24} />
@@ -744,7 +763,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                   type="file"
                   multiple
                   accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,application/pdf"
-                  disabled={disabled || busy || activeLinks.length >= maxFiles}
+                  disabled={disabled || interactionDisabled || busy || activeLinks.length >= maxFiles}
                   onChange={(event) => {
                     void addFiles(Array.from(event.target.files ?? []));
                     event.currentTarget.value = "";
@@ -758,7 +777,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                   type="file"
                   accept="image/*"
                   capture="environment"
-                  disabled={disabled || busy || activeLinks.length >= maxFiles}
+                  disabled={disabled || interactionDisabled || busy || activeLinks.length >= maxFiles}
                   onChange={(event) => {
                     void addFiles(Array.from(event.target.files ?? []));
                     event.currentTarget.value = "";
@@ -795,7 +814,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                     value={attestationNote}
                     minLength={10}
                     maxLength={1000}
-                    disabled={!filesBindable || busy}
+                    disabled={!filesBindable || interactionDisabled || busy}
                     onChange={(event) => setAttestationNote(event.target.value)}
                     placeholder="Reviewed the artifact; credentials and sensitive system material were removed."
                   />
@@ -804,7 +823,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                   variant="secondary"
                   type="button"
 
-                  disabled={!filesBindable || attestationNote.trim().length < 10 || busy}
+                  disabled={!filesBindable || attestationNote.trim().length < 10 || interactionDisabled || busy}
                   onClick={() => void attestSanitization()}
                 >
                   Record sanitization review
@@ -922,7 +941,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                       className={styles.iconAction}
                       aria-label={`Retry upload for ${link.filename}`}
                       title="Retry interrupted upload"
-                      disabled={busy}
+                      disabled={interactionDisabled || busy}
                       onClick={() => void retryUpload(link.id)}
                     >
                       <Upload aria-hidden size={15} />
@@ -935,7 +954,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                       className={styles.iconAction}
                       aria-label={`Withdraw ${link.filename}`}
                       title="Withdraw before this evidence is locked"
-                      disabled={busy}
+                      disabled={interactionDisabled || busy}
                       onClick={() => {
                         setWithdrawId(link.id);
                         setWithdrawReason("");
@@ -955,6 +974,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                         maxLength={1000}
                         required
                         autoFocus
+                        disabled={interactionDisabled}
                         onChange={(event) => setWithdrawReason(event.target.value)}
                       />
                     </Field>
@@ -971,7 +991,7 @@ function AttachmentPanelContent({ appearance = "legacy",
                         variant="primary"
                         type="button"
 
-                        disabled={busy || withdrawReason.trim().length < 3}
+                        disabled={interactionDisabled || busy || withdrawReason.trim().length < 3}
                         onClick={() => void withdraw()}
                       >
                         Withdraw file
@@ -1108,7 +1128,7 @@ function AttachmentPanelContent({ appearance = "legacy",
             variant="primary"
             type="button"
             className="primary"
-            disabled={busy || !bindable}
+            disabled={interactionDisabled || busy || !bindable}
             onClick={() => void bindRecord()}
           >
             <LockKeyhole aria-hidden size={15} />

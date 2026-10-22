@@ -12,16 +12,19 @@ import { ListPagination } from "@/components/ui/list-pagination";
 import { StatusBadge } from "@/components/ui/primitives";
 import { hasPermission } from "@/lib/identity_access/permissions";
 import { workspaceBase } from "@/lib/work_projection/workspace";
+import { firstPageSearchValues, type PageSearchParams } from "@/lib/shared/page-search-params";
 import { minorToDecimal } from "@/lib/finance/finance-money";
 import { publicScope, requireWorkContext } from "@/server/modules/identity_access/public/authorization";
 import { salesWorkspace, salesDefaultsWorkspace } from "@/server/modules/finance/public/sales";
+import { financePurchaseControls } from "@/server/modules/finance/public/purchases";
+import { financeSalesInvoiceNewWorkAllowed } from "@/server/modules/finance/public/rules/purchase-controls";
 import { commerceOverview } from "@/server/modules/commerce/public/commerce";
 import { pageError } from "@/server/modules/work_projection/public/page-error";
 import { ApiError } from "@/server/modules/runtime/public/http";
 import styles from "@/components/finance/sales-workspace.module.css";
 export const dynamic = "force-dynamic";
-export default async function SalesPage({ params, searchParams }: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
-  const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), search = await searchParams;
+export default async function SalesPage({ params, searchParams }: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<PageSearchParams> }) {
+  const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), search = firstPageSearchValues(await searchParams);
   const data = await salesWorkspace(actor, search).catch(error => pageError(error, holdingSlug));
   const tab = data.query.tab, local = !!actor.branchId || !!actor.departmentId;
   const setup = !local ? await salesDefaultsWorkspace(actor) : null;
@@ -32,7 +35,8 @@ export default async function SalesPage({ params, searchParams }: { params: Prom
     try { orderOptions = await commerceOverview(actor); }
     catch (error) { if (error instanceof ApiError && error.code === "COMMERCE_SETUP_REQUIRED") commerceSetupRequired = true; else return pageError(error, holdingSlug); }
   }
-  const [quotePurchase,salesPurchase] = await Promise.all([commercePurchaseControls(actor,{type:"kind",kind:"quote"}),commercePurchaseControls(actor,{type:"kind",kind:"sales"})]);
+  const [quotePurchase,salesPurchase,invoicePurchases] = await Promise.all([commercePurchaseControls(actor,{type:"kind",kind:"quote"}),commercePurchaseControls(actor,{type:"kind",kind:"sales"}),canInvoice?financePurchaseControls(actor,["finance.accounting","finance.sales-posting"]).catch(error=>pageError(error,holdingSlug)):Promise.resolve(undefined)]);
+  const invoiceNewWorkAllowed=financeSalesInvoiceNewWorkAllowed(invoicePurchases);
   const url = (change: Record<string, string>) => { const query = new URLSearchParams(Object.entries(search).filter((pair): pair is [string,string] => !!pair[1])); query.delete("cursor"); query.delete("new"); for (const [key,value] of Object.entries(change)) { if (value) query.set(key,value); else query.delete(key); } return canonicalUiHref(`${base}/finance/sales?${query}`); };
   const statuses = tab === "invoices" ? ["draft", "posted", "partially_paid", "paid", "voided", "no_charge_confirmed"] : tab === "receipts" ? ["issued", "ready", "cancelled"] : ["draft", "submitted", "confirmed", "partially_fulfilled", "fulfilled", "converted", "cancelled"];
   const rows = data.page?.items ?? [];
@@ -45,10 +49,11 @@ export default async function SalesPage({ params, searchParams }: { params: Prom
       {!local && !approved.length && <InlineNotice tone="warning">Sales account defaults need independent Finance approval. <Link href={canonicalUiHref(`${base}/finance/sales/settings`)}>Configure sales defaults</Link>. <Link href={canonicalUiHref(`${base}/finance/setup`)}>Open Finance setup</Link>.</InlineNotice>}
       {setup?.issues.map(issue => <InlineNotice key={issue.currency} tone="warning">{issue.currency}: {issue.message} <Link href={canonicalUiHref(`${base}/finance/setup`)}>Review accounts</Link> · <Link href={canonicalUiHref(`${base}/finance/sales/settings`)}>Sales defaults</Link></InlineNotice>)}
       {commerceSetupRequired && <InlineNotice tone="warning">Approve Company sales accounts before preparing quotations or orders. <Link href={canonicalUiHref(`${base}/finance/sales/settings`)}>Open sales settings</Link> · <Link href={canonicalUiHref(`${base}/finance/setup`)}>Create ledgers and accounts</Link>.</InlineNotice>}
-      <FormActions>{canSales && quotePurchase?.newWork !== false && <Link href={url({ tab:"quotations",new:"quotation" })}>New quotation</Link>}{canSales && salesPurchase?.newWork !== false && tab === "orders" && <Link href={url({new:"order"})}>New sales order</Link>}{canInvoice && approved.length > 0 && tab === "invoices" && <Link href={url({new:"invoice"})}>Invoice completed services</Link>}<Link href={canonicalUiHref(`${base}/commerce?view=products`)}>Items & services</Link><Link href={canonicalUiHref(`${base}/commerce?view=parties&kind=customer`)}>Customers</Link></FormActions>
+      {canInvoice && !invoiceNewWorkAllowed && <InlineNotice tone="info">Invoice preparation is unavailable while neither Finance Accounting nor Sales posting allows new work.</InlineNotice>}
+      <FormActions>{canSales && quotePurchase?.newWork !== false && <Link href={url({ tab:"quotations",new:"quotation" })}>New quotation</Link>}{canSales && salesPurchase?.newWork !== false && tab === "orders" && <Link href={url({new:"order"})}>New sales order</Link>}{canInvoice && invoiceNewWorkAllowed && approved.length > 0 && tab === "invoices" && <Link href={url({new:"invoice"})}>Invoice completed services</Link>}<Link href={canonicalUiHref(`${base}/commerce?view=products`)}>Items & services</Link><Link href={canonicalUiHref(`${base}/commerce?view=parties&kind=customer`)}>Customers</Link></FormActions>
       {data.permissionRequired ? <InlineNotice tone="warning">A Commerce read assignment is required to view quotations and sales orders.</InlineNotice> : <><TableFrame appearance="standard" label="Sales documents"><Table><thead><tr><th>Document</th><th>Customer</th><th>Date</th><th>Status</th><th>Total</th>{tab === "invoices" && <th>Outstanding</th>}</tr></thead><tbody>{rows.map(row => { const href = tab === "receipts" ? row.receipt_id ? canonicalUiHref(`${base}/finance/sales/receipts/${row.receipt_id}`) : null : canonicalUiHref(`${base}/${tab === "invoices" ? "finance/invoices" : "commerce/orders"}/${row.id}`); return <tr key={String(row.id)}><td>{href ? <Link href={href}>{String(row.number)}</Link> : <>{String(row.number)}{canInvoice && <IssueCustomerReceipt base={base} paymentId={String(row.id)} />}</>}</td><td>{String(row.party_name)}</td><td>{String(row.date ?? row.order_date)}</td><td><StatusBadge appearance="standard" status={String(row.status ?? row.state)} /></td><td>{String(row.currency)} {minorToDecimal(Number(row.total_minor ?? Number(row.subtotal_minor) + Number(row.tax_minor)))}</td>{tab === "invoices" && <td>{String(row.currency)} {minorToDecimal(Number(row.outstanding_minor))}</td>}</tr>; })}</tbody></Table></TableFrame>{!rows.length && <p>No documents match these filters.</p>}{data.page && <ListPagination nextCursor={data.page.nextCursor} previousCursor={data.page.previousCursor} query={search} count={rows.length} />}</>}
       {orderOptions && <CommerceEnvironment purchase={tab === "quotations" ? quotePurchase : salesPurchase}><OrderEditor base={base} options={orderOptions} kind={tab === "quotations" ? "quote" : "sales"} initialOpen drawer /></CommerceEnvironment>}
-      {search.new === "invoice" && setup && canInvoice && approved.length > 0 && <SalesInvoiceEditor base={base} parties={setup.options.parties} defaults={approved} />}
+      {search.new === "invoice" && setup && canInvoice && invoiceNewWorkAllowed && approved.length > 0 && <SalesInvoiceEditor base={base} parties={setup.options.parties} defaults={approved} />}
     </div>
   </FinanceWorkspace></FeaturePage>;
 }

@@ -1,6 +1,6 @@
 /* The daily parent uses standard surfaces and controls. Native calendar, room,
    housekeeping, business-date, money and print owners keep their own geometry. */
-.workspace { display: grid; gap: 22px; min-width: 0; padding: 8px 0 0; }
+.workspace { display: flex; flex-direction: column; gap: 22px; min-width: 0; padding: 8px 0 0; }
 .workspace > * { min-width: 0; }
 .headerTools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--ui-muted); font-size: var(--ui-type-meta); }
 .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; min-width: 0; }

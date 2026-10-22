@@ -5,12 +5,13 @@ import { BrowserFaultProbeError, runBrowserSuites, type BrowserRunReceipt } from
 import { repositoryRoot, type Suite } from "./catalogue";
 import type { BrowserShard } from "./browser-sharding";
 import { browserRunCaseIdentity, validateBrowserIsolation, type BrowserIsolationProof } from "./browser-isolation-receipts";
+import type { ProductHostPlanPaths } from "./product-host-cohort";
 
 async function retainedReceipt(evidenceDirectory: string): Promise<BrowserRunReceipt> {
   return JSON.parse(await readFile(join(evidenceDirectory, "receipt.json"), "utf8")) as BrowserRunReceipt;
 }
 
-function assertCohortsDestroyed(receipt: BrowserRunReceipt) {
+export function assertCohortsDestroyed(receipt: BrowserRunReceipt) {
   if (receipt.cleanupFailures.length) throw new Error("ISOLATION_CLEANUP_FAILED");
   for (const test of receipt.receipts) {
     if (test.required === false) continue;
@@ -19,9 +20,9 @@ function assertCohortsDestroyed(receipt: BrowserRunReceipt) {
 }
 
 /** Prove every selected case twice and restart after a real, declared harness failure. */
-export async function runBrowserIsolation(suites: Suite[], options: { releaseDirectory?: string; shard?: BrowserShard; onEvidence?: (stage: "forward" | "probe" | "reverse", directory: string) => Promise<void> } = {}) {
+export async function runBrowserIsolation(suites: Suite[], options: { releaseDirectory?: string; port?: 3102 | 3104; shard?: BrowserShard; productHostPlanPath?: string; productHostPlanPaths?: ProductHostPlanPaths; formsHostPlanPath?: string; onEvidence?: (stage: "forward" | "probe" | "reverse", directory: string) => Promise<void> } = {}) {
   console.log("Browser isolation: forward acceptance");
-  const forwardResult = await runBrowserSuites(suites, { ...options, caseOrder: "forward" });
+  const forwardResult = await runBrowserSuites(suites, { releaseDirectory: options.releaseDirectory, port: options.port, shard: options.shard, productHostPlanPath: options.productHostPlanPath, productHostPlanPaths: options.productHostPlanPaths, formsHostPlanPath: options.formsHostPlanPath, caseOrder: "forward" });
   const forward = { result: forwardResult, receipt: await retainedReceipt(forwardResult.evidenceDirectory) };
   await options.onEvidence?.("forward", forwardResult.evidenceDirectory);
   assertCohortsDestroyed(forward.receipt);
@@ -33,7 +34,7 @@ export async function runBrowserIsolation(suites: Suite[], options: { releaseDir
   let probeDirectory: string;
   console.log("Browser isolation: declared failure and cleanup");
   try {
-    await runBrowserSuites([suite], { releaseDirectory: options.releaseDirectory, projects: [wanted.project], faultProbe: identity });
+    await runBrowserSuites([suite], { releaseDirectory: options.releaseDirectory, port: options.port, productHostPlanPath: options.productHostPlanPath, productHostPlanPaths: options.productHostPlanPaths, formsHostPlanPath: options.formsHostPlanPath, projects: [wanted.project], faultProbe: identity });
     throw new Error("ISOLATION_EXPECTED_FAILURE_DID_NOT_OCCUR");
   } catch (error) {
     if (!(error instanceof BrowserFaultProbeError)) throw error;
@@ -43,7 +44,7 @@ export async function runBrowserIsolation(suites: Suite[], options: { releaseDir
   await options.onEvidence?.("probe", probeDirectory);
   assertCohortsDestroyed(probe.receipt);
   console.log("Browser isolation: reverse acceptance after failure");
-  const reverseResult = await runBrowserSuites(suites, { ...options, caseOrder: "reverse" });
+  const reverseResult = await runBrowserSuites(suites, { releaseDirectory: options.releaseDirectory, port: options.port, shard: options.shard, productHostPlanPath: options.productHostPlanPath, productHostPlanPaths: options.productHostPlanPaths, formsHostPlanPath: options.formsHostPlanPath, caseOrder: "reverse" });
   const reverse = { result: reverseResult, receipt: await retainedReceipt(reverseResult.evidenceDirectory) };
   await options.onEvidence?.("reverse", reverseResult.evidenceDirectory);
   assertCohortsDestroyed(reverse.receipt);

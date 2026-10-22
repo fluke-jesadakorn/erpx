@@ -3,7 +3,7 @@ import { addDays, rosterMonday, rosterPending, rosterCommandSchema, type RosterD
 readWeek(fact0:string,fact1:string):Promise<RosterWeek|null>;
 readShift(fact0:string,fact1:string):Promise<ShiftWithWeek|null>;
 readTimes(fact0:string,fact1:string,fact2:string,fact3:string,fact4:string,fact5:string,fact6:string,fact7:string,fact8:string,fact9:string):Promise<{ starts_at: number; ends_at: number; local_start: string; local_end: string }|null>;
-readRosterGaps(fact0:string,fact1:string,fact2:string,fact3:string,fact4:string,fact5:string,fact6:string,fact7:string,fact8:string,fact9:string):Promise<(RosterGap)[]>;
+readRosterGaps(fact0:string,fact1:string,fact2:string,fact3:string,fact4:string,fact5:string,fact6:string,fact7:string):Promise<(RosterGap)[]>;
 readEscalateRosterCoverage():Promise<({ company_id: string; department_id: string; branch_id: string | null })[]>;
 applyEscalateRosterCoverage(fact0:string,fact1:string,fact2:string,fact3:string,fact4:string,fact5:string,fact6:string,fact7:number,fact8:string,fact9:number,fact10:number,fact11:string | null):Promise<{meta:{changes:number};success:boolean}>;
 readAssignmentIssues(fact0:number,fact1:string,fact2:number,fact3:string):Promise<{ first_day: string; last_day: string }|null>;
@@ -95,7 +95,7 @@ async function eligible(w: Pick<RosterWeek, "company_id" | "branch_id" | "depart
   return matches[0];
 }
 async function rosterGaps(companyId: string, departmentId: string, start: string) {
-  return repository.readRosterGaps(start,companyId,departmentId,start,start,start,start,start,start,start);
+  return repository.readRosterGaps(start,companyId,departmentId,start,start,start,start,start);
 }
 async function escalateRosterCoverage(today:string) {
   const departments = await repository.readEscalateRosterCoverage();

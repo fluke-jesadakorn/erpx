@@ -1,8 +1,15 @@
-import { beforeAll, expect, it } from "vitest";
+import { beforeAll, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { legacyCompanyModuleAccess } from "@/server/modules/identity_access/public/legacy-module-access";
 import { legacyPackagePreview } from "@/server/modules/commercial/domain/legacy-packages";
+import { createProductWorkspace } from "@/server/modules/identity_access/application/product-workspace";
+import { productWorkspaceTarget } from "@/server/modules/identity_access/domain/product-workspace";
+import { workspaceGrantsForAccount, type AccountAccessContext } from "@/server/modules/identity_access/public/authorization";
+import { accountWorkModuleAccess } from "@/server/modules/identity_access/public/work-module-access";
+import { readCompanyPurchaseFacts } from "@/server/modules/commercial/public/package-grants";
+import { ApiError } from "@/server/modules/runtime/public/http";
+vi.mock("@/server/modules/runtime/public/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
 const db=env.H001_DB;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 it("reads actual published module ceilings and HR restrictions without modifying Company grants or assignments", async()=>{
@@ -54,4 +61,84 @@ it("proves old Company group labels from current published permissions while pre
   expect(plan.roles.every(role => role.missingPurchasedCoverage.length === 0)).toBe(true);
   expect(await db.prepare("SELECT modules_json,version FROM assignments WHERE id=?").bind(f.owner.assignmentId).first()).toEqual(before);
   expect(await db.prepare("SELECT 1 FROM company_package_grants WHERE company_id=?").bind(f.company).first()).toBeNull();
+});
+
+it("projects the published commerce/iam/people legacy witness into current Sales workspace entry without writing grants", async () => {
+  const f = await seedExpenseCompany(db, env.H001_FILES);
+  await db.prepare("UPDATE assignments SET modules_json=? WHERE id=?")
+    .bind(JSON.stringify(["commerce", "iam", "people"]), f.owner.assignmentId).run();
+
+  // This snapshot is taken after shaping the fixture as a genuine legacy assignment.
+  const assignmentsBefore = (await db.prepare("SELECT id,user_id,role,company_id,modules_json,version,revoked_at,scope_kind,scope_node_id,valid_from,valid_until FROM assignments WHERE company_id=? ORDER BY id")
+    .bind(f.company).all()).results;
+  const grantsBefore = (await db.prepare("SELECT * FROM company_package_grants WHERE company_id=? ORDER BY package_id")
+    .bind(f.company).all()).results;
+
+  const facts = await legacyCompanyModuleAccess(db, f.company);
+  const witness = facts.witnesses.find(row => row.assignmentId === f.owner.assignmentId)!;
+  expect(witness.modules).toEqual(["commerce", "iam", "people", "people_payroll"]);
+  expect(witness.compatibility).toEqual(expect.arrayContaining([
+    { label: "commerce", modules: ["sales", "procurement", "inventory"], source: "published-permission-policy/v1" },
+    { label: "iam", modules: ["identity_access"], source: "published-permission-policy/v1" },
+    { label: "people", modules: ["people_payroll"], source: "published-permission-policy/v1" },
+  ]));
+
+  const now = Date.now();
+  const preview = legacyPackagePreview(facts, [], {
+    startsAt: now,
+    now,
+    reason: "Review legacy compatibility for direct Sales entry",
+    evidence: "test:legacy-direct-sales-entry",
+  });
+  const ownerCoverage = preview.roles.find(row => row.assignmentId === f.owner.assignmentId)!;
+  expect(ownerCoverage.compatibilityLabels).toEqual(["commerce", "iam", "people"]);
+  expect(ownerCoverage.purchaseCoverageModules).toEqual(["identity_access", "inventory", "people_payroll", "procurement", "sales"]);
+  expect(ownerCoverage.missingPurchasedCoverage).toEqual([]);
+  expect(preview.requiredPackages).toEqual(expect.arrayContaining(["sales", "supply", "people-payroll"]));
+
+  const sessionId = crypto.randomUUID(), expiresAt = Date.now() + 600_000;
+  const scope = { kind: "holding" as const, holdingId: "h001" as const, holdingSlug: "test", holdingName: "Fixture", companyId: f.company };
+  const access = async (): Promise<AccountAccessContext> => {
+    const { rows, roles } = await workspaceGrantsForAccount(db, f.company, f.owner.userId);
+    return {
+      scope, sessionId, userId: f.owner.userId, expiresAt, name: "Fictional legacy owner", email: "legacy-owner@example.test", requestHeaders: new Headers(),
+      assignments: rows.filter(row => roles.get(row.role)?.scopes.includes(row.scope_kind)).map(row => ({
+        id: row.id, role: row.role, companyId: row.company_id, branchId: row.branch_id, scopeKind: row.scope_kind,
+        scopeNodeId: row.scope_node_id, modules: JSON.parse(row.modules_json) as string[], version: row.version,
+        validUntil: row.valid_until, label: roles.get(row.role)?.name,
+      })),
+    };
+  };
+  const input = productWorkspaceTarget("sales", f.company, "/holdings/test/customers-sales/sales/today?legacy=compatibility#entry")!;
+  const service = createProductWorkspace({
+    access,
+    modules: accountWorkModuleAccess,
+    // Only the in-memory projection is supplied to the current host; no grant store or write path is used.
+    purchaseFacts: async account => {
+      const actual = await readCompanyPurchaseFacts(db, account.scope.companyId);
+      return { ...actual, grants: preview.after.map(grant => ({ ...grant })) };
+    },
+    ready: async () => true,
+    selection: async (account, applicable) => {
+      const owner = applicable.find(assignment => assignment.id === f.owner.assignmentId);
+      if (!owner) return null;
+      return { session_id: account.sessionId, user_id: account.userId, company_id: f.company,
+        assignment_id: owner.id, assignment_version: owner.version!, revision: 1, expires_at: account.expiresAt };
+    },
+    select: async () => { throw new Error("UNEXPECTED_WORK_SELECTION_WRITE"); },
+    now: Date.now,
+    error: (status, code, message) => new ApiError(status, code, message),
+  });
+  const state = await service.read("sales", input);
+  expect(state.options.find(option => option.assignmentId === f.owner.assignmentId)).toMatchObject({
+    assignmentVersion: witness.assignmentVersion,
+    target: input.target,
+    purchasePurpose: "new-work",
+  });
+  expect(state.target).toBe(input.target);
+
+  expect((await db.prepare("SELECT id,user_id,role,company_id,modules_json,version,revoked_at,scope_kind,scope_node_id,valid_from,valid_until FROM assignments WHERE company_id=? ORDER BY id")
+    .bind(f.company).all()).results).toEqual(assignmentsBefore);
+  expect((await db.prepare("SELECT * FROM company_package_grants WHERE company_id=? ORDER BY package_id")
+    .bind(f.company).all()).results).toEqual(grantsBefore);
 });

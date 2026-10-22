@@ -243,6 +243,7 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   for(const item of fixture.restaurant.menu)products[item.sku]=item.stockSku?products[item.stockSku]:String((await saveMaster(admin,"products",null,{sku:`RLH-${item.sku}`,name:item.name,unit:"each",price:String(item.priceMinor/100),taxBps:fixture.property.taxAndService.vatBpsExampleOnly},crypto.randomUUID())).id);
   // Opening inventory is fixture-only evidence in a disposable database; it is not a production import.
   for(const stock of fixture.restaurant.openingStock)await input.db.prepare("INSERT INTO commerce_stock(warehouse_id,product_id,quantity_milli,value_minor,version) VALUES(?,?,?,?,1)").bind(warehouseId,products[stock.sku],stock.quantityMilli,stock.valueMinor).run();
+  await pms("item.save",{name:"Riverside minibar water",kind:"minibar",productId:products.WATER,warehouseId,price:fixture.restaurant.menu.find(item=>item.sku==="WATER")!.priceMinor});
   const openingEquityId=`${f.company}-hospitality-opening-equity`;
   await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'HOTEL-OPEN','Demo opening inventory equity','equity','THB',?,?)").bind(openingEquityId,f.chart,f.company,now,now).run();
   const openingValue=fixture.restaurant.openingStock.reduce((sum,item)=>sum+item.valueMinor,0);

@@ -1,13 +1,40 @@
 import { captureInvestorCheckpoint } from "../../support/helpers/investor-capture";
 import {createEngineeringBrowserContext} from "../../support/browser/engineering-browser-evidence";
 import { customerDeliveryProofPdf } from "../../support/browser/customer-delivery-proof";
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 
 type DemoUser = { email: string; role: string; roles?: string[]; label: string; userId: string };
 type Credentials = { password: string; users: DemoUser[] };
-type DemoState = { fixture: { quotationId: string; periodId: string; closeBankAccountId: string; customerRefundBankTransactionId: string } };
+type DemoState = { fixture: { quotationId: string; periodId: string; closeBankAccountId: string; customerRefundBankTransactionId: string; customerId: string; sourceWarehouseId: string; productId: string } };
+type SalesOrderSnapshot = {
+  order: { id: string; number: string; version: number; state: string; party_id: string; warehouse_id: string; approved_by: string | null };
+  lines: Array<{ id: string; product_id: string; quantity_milli: number; price_minor: number }>;
+  fulfillments: Array<{ id: string }>;
+  history: Array<{ action: string; actor_id: string; record_version: number }>;
+  fulfillmentEvidence: Array<{ fulfillment_id: string; attachment_id: string; checksum_sha256: string }>;
+  pendingDeliveryEvidence: unknown[];
+};
+type DeliveryEvidenceSet = {
+  id: string;
+  targetType: string;
+  targetId: string;
+  purposeKey: string;
+  expectedTargetVersion: number;
+  state: "draft" | "bound" | "withdrawn" | "expired";
+  links: Array<{
+    id: string;
+    sourceId: string | null;
+    filename: string;
+    mediaType: string;
+    bytes: number | null;
+    sourceState: string | null;
+    linkState: string;
+    boundAt: number | null;
+  }>;
+};
 
 async function signInRole(context: BrowserContext, page: Page, credentials: Credentials, role: string, user: DemoUser, path: string) {
   const login = await context.request.post("/api/auth/sign-in/email", { headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") }, data: { email: user.email, password: credentials.password } });
@@ -49,6 +76,196 @@ async function waitForOrderState(page: Page, orderId: string, state: string) {
   }
   throw new Error(`Order ${orderId} did not reach ${state}.`);
 }
+
+async function createSalesOrder(page: Page, state: DemoState, note: string) {
+  await page.goto("/holdings/simulation/customers-sales/sales/documents/sales?new=1", { waitUntil: "domcontentloaded" });
+  const drawer = page.getByRole("dialog", { name: "New sales order", exact: true });
+  await expect(drawer).toBeVisible();
+  const form = drawer.locator("form");
+  const customer = form.getByRole("combobox", { name: "Customer", exact: true });
+  await expect(customer).toHaveAccessibleName("Customer");
+  await expect(customer).toBeEnabled();
+  await expect(customer.locator(`option[value="${state.fixture.customerId}"]`)).toHaveCount(1);
+  await customer.selectOption(state.fixture.customerId, { timeout: 15_000 });
+  await expect(customer).toHaveValue(state.fixture.customerId);
+  await form.getByRole("button", { name: "Add item", exact: true }).click();
+  await form.getByRole("combobox", { name: "Warehouse", exact: true }).selectOption(state.fixture.sourceWarehouseId);
+  await form.getByRole("combobox", { name: "Product 1", exact: true }).selectOption(state.fixture.productId);
+  await form.getByRole("spinbutton", { name: "Quantity 1", exact: true }).fill("1");
+  await form.getByRole("textbox", { name: "Order notes", exact: true }).fill(note);
+  const response = page.waitForResponse((item) => item.request().method() === "POST" && new URL(item.url()).pathname === "/api/v1/holdings/simulation/commerce/orders");
+  await form.getByRole("button", { name: "Save draft", exact: true }).click();
+  const result = await response;
+  expect(result.status(), await result.text()).toBe(200);
+  const orderId = String((await result.json()).data.id);
+  expect(orderId).toBeTruthy();
+  const orderPath = `/holdings/simulation/customers-sales/sales/documents/sales/${orderId}`;
+  await page.goto(orderPath, { waitUntil: "domcontentloaded" });
+  await expect(page.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
+  await expect(page.getByRole("heading", { name: /^SO-/ }).first()).toBeVisible();
+  return { id: orderId, path: orderPath };
+}
+
+async function readSalesOrder(request: APIRequestContext, id: string) {
+  const response = await request.get(`/api/v1/holdings/simulation/commerce/orders/${id}`);
+  expect(response.ok(), await response.text()).toBe(true);
+  return (await response.json()).data as SalesOrderSnapshot;
+}
+
+async function readDeliveryEvidence(request: APIRequestContext, orderId: string) {
+  const query = new URLSearchParams({
+    targetType: "commerce_order_delivery",
+    targetId: orderId,
+    purposeKey: "proof_of_delivery",
+    componentKind: "action",
+  });
+  const response = await request.get(`/api/v1/holdings/simulation/attachment-sets?${query}`);
+  expect(response.ok(), await response.text()).toBe(true);
+  return (await response.json()).data as DeliveryEvidenceSet[];
+}
+
+async function attemptOrderCancellation(page: Page, id: string, expectedVersion: number) {
+  const contextNode = page.locator("[data-work-revision]").first();
+  const workContext = {
+    revision: await contextNode.getAttribute("data-work-revision"),
+    company: await contextNode.getAttribute("data-work-company"),
+    assignment: await contextNode.getAttribute("data-work-assignment"),
+  };
+  if (!workContext.revision || !workContext.company || !workContext.assignment)
+    throw new Error("SALES_CANCELLATION_WORK_CONTEXT_REQUIRED");
+  return page.request.post(`/api/v1/holdings/simulation/commerce/orders/${id}/transition`, {
+    headers: {
+      Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102",
+      "Idempotency-Key": randomUUID(),
+      "x-erpx-context-revision": workContext.revision,
+      "x-erpx-context-company": workContext.company,
+      "x-erpx-context-assignment": workContext.assignment,
+    },
+    data: { action: "cancel", expectedVersion },
+  });
+}
+
+test("isolated Sales cancels before stock movement and requires a controlled return after delivery", async ({ browser }, testInfo) => {
+  const run = process.env.ERPX_DEMO_RUN;
+  test.skip(!run, "Set ERPX_DEMO_RUN to an exact prepared browser-simulation run.");
+  test.setTimeout(300_000);
+  const directory = resolve(`.runtime/browser/${run}`);
+  const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as Credentials;
+  const state = JSON.parse(await readFile(resolve(directory, "state.json"), "utf8")) as DemoState;
+  const salesOperator = credentials.users.find((user) => user.roles?.includes("sales_operator"));
+  const salesManager = credentials.users.find((user) => user.roles?.includes("sales_manager"));
+  const warehouse = credentials.users.find((user) => user.roles?.includes("warehouse_manager"));
+  for (const [label, user] of Object.entries({ salesOperator, salesManager, warehouse })) expect(user, `${label} demo account`).toBeTruthy();
+
+  const salesContext = await createEngineeringBrowserContext(browser, testInfo);
+  const managerContext = await createEngineeringBrowserContext(browser, testInfo);
+  const warehouseContext = await createEngineeringBrowserContext(browser, testInfo);
+  try {
+    const salesPage = await salesContext.newPage();
+    const managerPage = await managerContext.newPage();
+    const warehousePage = await warehouseContext.newPage();
+
+    await signInRole(salesContext, salesPage, credentials, "sales_operator", salesOperator!, "/holdings/simulation/customers-sales/sales/documents/sales");
+    const cancellable = await createSalesOrder(salesPage, state, `Pre-movement cancellation witness ${testInfo.project.name}`);
+    await clickCommand(salesPage, `/commerce/orders/${cancellable.id}/transition`, "Submit for approval");
+    await signInRole(managerContext, managerPage, credentials, "sales_manager", salesManager!, cancellable.path);
+    await clickCommand(managerPage, `/commerce/orders/${cancellable.id}/transition`, "Approve order");
+    await waitForOrderState(managerPage, cancellable.id, "confirmed");
+    const confirmed = await readSalesOrder(managerContext.request, cancellable.id);
+    expect(confirmed.order).toMatchObject({ state: "confirmed", version: 3, party_id: state.fixture.customerId, warehouse_id: state.fixture.sourceWarehouseId });
+    expect(confirmed.order.approved_by).toBe(salesManager!.userId);
+    expect(confirmed.fulfillments).toHaveLength(0);
+    expect(confirmed.fulfillmentEvidence).toHaveLength(0);
+
+    await clickCommand(managerPage, `/commerce/orders/${cancellable.id}/transition`, "Cancel approved order");
+    const cancelled = await readSalesOrder(managerContext.request, cancellable.id);
+    expect(cancelled.order).toMatchObject({ id: confirmed.order.id, number: confirmed.order.number, state: "cancelled", version: 4, party_id: confirmed.order.party_id, warehouse_id: confirmed.order.warehouse_id, approved_by: confirmed.order.approved_by });
+    expect(cancelled.lines).toEqual(confirmed.lines);
+    expect(cancelled.fulfillments).toHaveLength(0);
+    expect(cancelled.history.map((event) => event.action)).toEqual(expect.arrayContaining(["commerce.order.create", "commerce.order.submit", "commerce.order.approve", "commerce.order.cancel"]));
+
+    const delivered = await createSalesOrder(salesPage, state, `Post-delivery cancellation witness ${testInfo.project.name}`);
+    await clickCommand(salesPage, `/commerce/orders/${delivered.id}/transition`, "Submit for approval");
+    await managerPage.goto(delivered.path, { waitUntil: "domcontentloaded" });
+    await expect(managerPage.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
+    await clickCommand(managerPage, `/commerce/orders/${delivered.id}/transition`, "Approve order");
+    await waitForOrderState(managerPage, delivered.id, "confirmed");
+
+    await signInRole(warehouseContext, warehousePage, credentials, "warehouse_manager", warehouse!, delivered.path);
+    await expect(warehousePage.getByRole("heading", { name: "Deliver goods", exact: true })).toBeVisible();
+    let orderDrawer = warehousePage.getByRole("dialog").first();
+    await orderDrawer.getByRole("button", { name: "Record delivery", exact: true }).click();
+    let deliveryEditor = orderDrawer.locator("[data-record-editor]");
+    await expect(deliveryEditor).toBeVisible();
+    let deliveryForm = deliveryEditor.locator("form");
+    let proofPanel = deliveryForm.getByRole("region", { name: "Proof of delivery", exact: true });
+    const chooseFiles = proofPanel.getByText("Choose files", { exact: true });
+    const fileChooserPromise = warehousePage.waitForEvent("filechooser");
+    await chooseFiles.click();
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles({ name: "cancellation-delivery-proof.pdf", mimeType: "application/pdf", buffer: customerDeliveryProofPdf() });
+    await expect(proofPanel).toContainText("cancellation-delivery-proof.pdf");
+    await expect(proofPanel).toContainText(/1\/\d+ ready/, { timeout: 90_000 });
+    await warehousePage.reload({ waitUntil: "domcontentloaded" });
+    await expect(warehousePage.getByRole("heading", { name: "Deliver goods", exact: true })).toBeVisible();
+    orderDrawer = warehousePage.getByRole("dialog").first();
+    await orderDrawer.getByRole("button", { name: "Record delivery", exact: true }).click();
+    deliveryEditor = orderDrawer.locator("[data-record-editor]");
+    await expect(deliveryEditor).toBeVisible();
+    deliveryForm = deliveryEditor.locator("form");
+    proofPanel = deliveryForm.getByRole("region", { name: "Proof of delivery", exact: true });
+    await expect(proofPanel).toContainText("cancellation-delivery-proof.pdf");
+    await expect(proofPanel).toContainText(/1\/\d+ ready/);
+    await deliveryForm.getByRole("textbox", { name: "Receipt confirmation note", exact: true }).fill("Customer signed the retained cancellation-boundary delivery proof.");
+    await deliveryForm.getByRole("spinbutton", { name: "SIM-ITEM quantity", exact: true }).fill("1");
+    const deliveryResponse = warehousePage.waitForResponse((item) => item.request().method() === "POST" && new URL(item.url()).pathname === `/api/v1/holdings/simulation/commerce/orders/${delivered.id}/fulfill`);
+    await deliveryForm.getByRole("button", { name: "Record delivery", exact: true }).click();
+    const deliveryResult = await deliveryResponse;
+    expect(deliveryResult.status(), await deliveryResult.text()).toBe(200);
+    await waitForOrderState(warehousePage, delivered.id, "fulfilled");
+
+    const beforeRejectedCancellation = await readSalesOrder(managerContext.request, delivered.id);
+    expect(beforeRejectedCancellation.order.state).toBe("fulfilled");
+    expect(beforeRejectedCancellation.fulfillments).toHaveLength(1);
+    const beforeRejectedEvidence = await readDeliveryEvidence(warehouseContext.request, delivered.id);
+    expect(beforeRejectedEvidence).toHaveLength(1);
+    expect(beforeRejectedEvidence[0]).toMatchObject({
+      targetType: "commerce_order_delivery",
+      targetId: delivered.id,
+      purposeKey: "proof_of_delivery",
+      state: "bound",
+      links: [expect.objectContaining({
+        filename: "cancellation-delivery-proof.pdf",
+        mediaType: "application/pdf",
+        sourceState: "available",
+        linkState: "bound",
+        boundAt: expect.any(Number),
+      })],
+    });
+    const evidenceLink = beforeRejectedEvidence[0].links[0];
+    expect(evidenceLink.sourceId).toBeTruthy();
+    const evidenceContentPath = `/api/v1/holdings/simulation/attachment-links/${evidenceLink.id}/content`;
+    const evidenceBefore = await warehouseContext.request.get(evidenceContentPath);
+    expect(evidenceBefore.status()).toBe(200);
+    const proofBytes = customerDeliveryProofPdf();
+    expect(await evidenceBefore.body()).toEqual(proofBytes);
+    const rejectedCancellation = await attemptOrderCancellation(managerPage, delivered.id, beforeRejectedCancellation.order.version);
+    expect(rejectedCancellation.status()).toBe(409);
+    expect((await rejectedCancellation.json()).error.code).toBe("ORDER_REVERSAL_REQUIRED");
+    const afterRejectedCancellation = await readSalesOrder(managerContext.request, delivered.id);
+    expect(afterRejectedCancellation.order).toMatchObject({ id: beforeRejectedCancellation.order.id, number: beforeRejectedCancellation.order.number, state: "fulfilled", version: beforeRejectedCancellation.order.version });
+    expect(afterRejectedCancellation.lines).toEqual(beforeRejectedCancellation.lines);
+    expect(afterRejectedCancellation.fulfillments).toEqual(beforeRejectedCancellation.fulfillments);
+    expect(afterRejectedCancellation.history).toEqual(beforeRejectedCancellation.history);
+    const afterRejectedEvidence = await readDeliveryEvidence(warehouseContext.request, delivered.id);
+    expect(afterRejectedEvidence).toEqual(beforeRejectedEvidence);
+    const evidenceAfter = await warehouseContext.request.get(evidenceContentPath);
+    expect(evidenceAfter.status()).toBe(200);
+    expect(await evidenceAfter.body()).toEqual(proofBytes);
+  } finally {
+    await Promise.allSettled([salesContext.close(), managerContext.close(), warehouseContext.close()]);
+  }
+});
 
 test("isolated demo carries a quotation through sales delivery, customer invoice and collection", async ({ browser }, testInfo) => {
   const run = process.env.ERPX_DEMO_RUN;

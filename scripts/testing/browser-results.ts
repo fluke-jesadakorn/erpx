@@ -2,6 +2,17 @@ export type BrowserAnnotation = { type: string; description?: string };
 export type BrowserCase = { file: string; fileTitle?: string; title: string; project: "desktop" | "mobile"; expectedStatus: string; annotations?: BrowserAnnotation[] };
 type Suite = { title?: string; suites?: Suite[]; specs?: { file: string; title: string; tests: { projectName: string; expectedStatus: string; status?: string; results?: { status: string }[]; annotations?: BrowserAnnotation[] }[] }[] };
 
+function canonicalBrowserFile(file: string): string {
+  const normalized = file.replaceAll("\\", "/");
+  const index = normalized.lastIndexOf("tests/");
+  if (index >= 0) return normalized.slice(index);
+  return normalized.startsWith("/") ? normalized : `tests/${normalized}`;
+}
+
+export function sameBrowserFileIdentity(actual: string, expected: string): boolean {
+  return canonicalBrowserFile(actual) === canonicalBrowserFile(expected);
+}
+
 export function browserCases(report: { suites: Suite[] }): BrowserCase[] {
   const cases: BrowserCase[] = [];
   function visit(suite: Suite, parents: string[], fileTitle?: string) {
@@ -20,7 +31,7 @@ export function browserCases(report: { suites: Suite[] }): BrowserCase[] {
 /** An exit code alone can hide skip, expected failure, or an empty grep. */
 export function assertBrowserCasePassed(report: { suites: Suite[] }, wanted: BrowserCase) {
   const cases = browserCases(report);
-  if (cases.length !== 1 || cases[0].file !== wanted.file || cases[0].title !== wanted.title || cases[0].project !== wanted.project)
+  if (cases.length !== 1 || !sameBrowserFileIdentity(cases[0].file, wanted.file) || cases[0].title !== wanted.title || cases[0].project !== wanted.project)
     throw new Error("EXACT_BROWSER_CASE_EXECUTION_REQUIRED");
   let passed = false;
   function visit(suite: Suite) {

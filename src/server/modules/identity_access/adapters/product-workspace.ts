@@ -33,6 +33,11 @@ import { readCompanyPurchaseFacts } from "../../commercial/public/package-grants
 import { holdingResources } from "../../runtime/public/runtime";
 import { initializeWorkSelection, selectWorkRole } from "../../work_projection/public/work-role-store";
 import { assertProductionModuleEnabled } from "../../pms/public/hospitality-rollout";
+import { executiveVisible as isExecutiveVisible } from "../../runtime/public/executive/access";
+import { loadIamAuthority } from "./iam-store";
+import { betaAccess } from "./beta-access";
+import { effectiveWorkModules } from "../domain/work-modules";
+import type { WorkContext } from "../public/authorization";
 import { productCompany } from "../../organization/public/product-company";
 import { z } from "zod";
 
@@ -47,6 +52,24 @@ function service() {
     ready: async (access, moduleId) => {
       try { await assertProductionModuleEnabled((await holdingResources(access.scope.holdingId)).write, access.scope.companyId, moduleId); return true; }
       catch (error) { if (error instanceof ApiError && error.code === "FEATURE_COMING_SOON") return false; throw error; }
+    },
+    executiveVisible: async (access, assignment) => {
+      const { write } = await holdingResources(access.scope.holdingId);
+      const [iam, beta] = await Promise.all([
+        loadIamAuthority(write, access.scope.companyId, access.userId, assignment.role, access.sessionId),
+        betaAccess(write, access.scope.companyId, new Headers()),
+      ]);
+      const actor: WorkContext = {
+        iam, userId: access.userId, name: access.name, email: access.email, assignmentId: assignment.id,
+        role: assignment.role, companyId: access.scope.companyId,
+        branchId: access.scope.kind === "holding" ? null : access.scope.branchId,
+        departmentId: access.scope.kind === "department" ? access.scope.departmentId : null,
+        holdingId: access.scope.holdingId, holdingSlug: access.scope.holdingSlug, holdingName: access.scope.holdingName,
+        scope: access.scope, assignmentScope: assignment.scopeKind, inherited: assignment.scopeKind !== access.scope.kind,
+        modules: effectiveWorkModules(assignment.role, assignment.modules, iam.permissions, beta),
+        assignments: [assignment], availableAssignments: access.assignments, beta, workspaces: [],
+      };
+      return isExecutiveVisible(write, actor);
     },
     selection: async (access, applicable) => initializeWorkSelection((await holdingResources(access.scope.holdingId)).write,
       { sessionId: access.sessionId, userId: access.userId, companyId: access.scope.companyId, expiresAt: access.expiresAt }, access.assignments, applicable),

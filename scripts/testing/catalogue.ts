@@ -8,8 +8,8 @@ import { loadProviderRehearsals } from "./provider-rehearsals";
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const testLanes = ["unit", "integration", "e2e", "journeys", "uat", "provider"] as const;
 export type TestLane = typeof testLanes[number];
-export type FixtureProfile = "none" | "postgres" | "local-seed" | "general-company" | "expense" | "staff-work" | "work-cards" | "messaging" | "services" | "hospitality" | "booking" | "legal" | "engineering" | "uat" | "provider";
-const fixtureProfiles = new Set<FixtureProfile>(["none", "postgres", "local-seed", "general-company", "expense", "staff-work", "work-cards", "messaging", "services", "hospitality", "booking", "legal", "engineering", "uat", "provider"]);
+export type FixtureProfile = "none" | "postgres" | "local-seed" | "general-company" | "expense" | "staff-work" | "work-cards" | "messaging" | "services" | "executive-work" | "hospitality" | "booking" | "legal" | "engineering" | "uat" | "provider";
+const fixtureProfiles = new Set<FixtureProfile>(["none", "postgres", "local-seed", "general-company", "expense", "staff-work", "work-cards", "messaging", "services", "executive-work", "hospitality", "booking", "legal", "engineering", "uat", "provider"]);
 export type Suite = {
   id: string;
   lane: TestLane;

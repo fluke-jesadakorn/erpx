@@ -10,7 +10,7 @@ async function signIn(context: BrowserContext, page: Page, credentials: Credenti
   const endpoint = "/api/v1/holdings/simulation/assignments/active", active = (await (await context.request.get(endpoint)).json()).data;
   const assignment = active.options.find((row: {role:string}) => row.role === role); expect(assignment).toBeTruthy();
   const selected = await context.request.post(endpoint, { headers: { Origin: origin }, data: { assignmentId: assignment.id, revision: active.revision } }); expect(selected.ok()).toBe(true);
-  await page.goto("/holdings/simulation/finance/sales", { waitUntil: "domcontentloaded" });
+  await page.goto("/holdings/simulation/finance/documents/sales/invoices", { waitUntil: "domcontentloaded" });
 }
 test("English sales workspace opens drawers, calculates invoices and keeps direct forms available", async ({browser}, info) => {
   const run = process.env.ERPX_DEMO_RUN; expect(run, "An isolated general-company fixture is required").toBeTruthy();
@@ -24,6 +24,8 @@ test("English sales workspace opens drawers, calculates invoices and keeps direc
     for (const label of ["Quotations","Sales orders","Invoices","Receipts"]) await expect(page.getByRole("navigation",{name:"Sales documents"}).getByRole("link",{name:label,exact:true})).toBeVisible();
     await page.getByRole("button",{name:"Search",exact:true}).click();
     await expect(page.getByRole("heading",{name:"Sales & collections",exact:true})).toBeVisible();
+    const salesListPath="/holdings/simulation/finance/documents/sales/invoices",returnFilters={tab:"invoices",q:"drawer-return-context",status:"draft",queue:"awaiting",startDate:"2026-10-01",endDate:"2026-10-31",currency:"THB"};
+    await page.goto(`${salesListPath}?${new URLSearchParams(returnFilters)}`);
     await page.getByRole("link",{name:"Invoice completed services",exact:true}).click();
     const drawer = page.getByRole("dialog",{name:"Invoice completed services",exact:true}); await expect(drawer).toBeVisible();
     const box = await drawer.boundingBox(); expect(box).toBeTruthy(); const width = page.viewportSize()!.width;
@@ -39,19 +41,53 @@ test("English sales workspace opens drawers, calculates invoices and keeps direc
     const prepared = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/finance/sales/invoices"));
     await drawer.getByRole("button",{name:"Prepare invoice",exact:true}).click(); const response = await prepared; expect(response.ok(),await response.text()).toBe(true);
     const data = (await response.json()).data; expect(data.number).toMatch(/^INV-\d{4}-\d{6,}$/);
-    await expect(page.getByRole("heading",{name:data.number,exact:true})).toBeVisible();
+    await expect(page.getByTestId("record-detail-drawer").locator("h1")).toHaveText(data.number);
     await expect(page.getByText("Completed installation acceptance test",{exact:true}).first()).toBeVisible();
     await page.locator("summary").filter({hasText:"Service completion evidence"}).click();
     await expect(page.getByText("Fictional installation completed and accepted by the customer",{exact:true})).toBeVisible();
-    await page.goto("/holdings/simulation/finance/sales/new?kind=invoice");
+    const detailUrl=new URL(page.url()),returnTo=detailUrl.searchParams.get("returnTo");
+    expect(detailUrl.pathname).toBe(`/holdings/simulation/finance/documents/invoices/${data.id}/overview`);expect(returnTo).toBeTruthy();
+    const returnedList=new URL(returnTo!,page.url());expect(returnedList.pathname).toBe(salesListPath);expect(Object.fromEntries(returnedList.searchParams)).toEqual(returnFilters);expect(returnedList.searchParams.has("new")).toBe(false);
+    await page.reload({waitUntil:"domcontentloaded"});await expect(page.getByTestId("record-detail-drawer").locator("h1")).toHaveText(data.number);await expect(new URL(page.url()).searchParams.get("returnTo")).toBe(returnTo);
+    await page.getByTestId("record-detail-drawer").getByRole("button",{name:"Close details",exact:true}).click();await expect(page).toHaveURL(url=>url.pathname===salesListPath&&Object.fromEntries(url.searchParams).tab===returnFilters.tab&&Object.fromEntries(url.searchParams).q===returnFilters.q&&Object.fromEntries(url.searchParams).status===returnFilters.status&&Object.fromEntries(url.searchParams).queue===returnFilters.queue&&Object.fromEntries(url.searchParams).startDate===returnFilters.startDate&&Object.fromEntries(url.searchParams).endDate===returnFilters.endDate&&Object.fromEntries(url.searchParams).currency===returnFilters.currency);
+    await page.goto("/holdings/simulation/finance/documents/sales/new?kind=invoice");
     await expect(page.getByRole("heading",{name:"Invoice completed services",exact:true})).toBeVisible(); await expect(page.getByRole("dialog")).toHaveCount(0);
-    await page.goto("/holdings/simulation/finance/sales?tab=receipts");
+    const directForm = page.getByRole("main");
+    await directForm.getByRole("combobox",{name:"Customer",exact:true}).selectOption(state.fixture.customerId);
+    await directForm.getByRole("textbox",{name:"Description",exact:true}).fill("Completed maintenance acceptance test");
+    await directForm.getByLabel("Quantity",{exact:true}).fill("3"); await directForm.getByLabel("Unit price",{exact:true}).fill("100");
+    await directForm.getByRole("textbox",{name:"Completion evidence",exact:true}).fill("Fictional maintenance completed and accepted by the customer");
+    await directForm.getByRole("checkbox").check(); await expect(page.getByText("Total THB 321.00",{exact:true})).toBeVisible();
+    await info.attach("sales-standalone-invoice-form",{body:await page.screenshot({fullPage:true}),contentType:"image/png"});
+    const directPrepared = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/finance/sales/invoices"));
+    await directForm.getByRole("button",{name:"Prepare invoice",exact:true}).click(); const directResponse = await directPrepared; expect(directResponse.ok(),await directResponse.text()).toBe(true);
+    const directData = (await directResponse.json()).data; expect(directData.number).toMatch(/^INV-\d{4}-\d{6,}$/); expect(directData.total).toBe("321.00");
+    await expect(page.getByTestId("record-detail-drawer").locator("h1")).toHaveText(directData.number);
+    await expect(page.getByText("Completed maintenance acceptance test",{exact:true}).first()).toBeVisible();
+    await page.locator("summary").filter({hasText:"Service completion evidence"}).click();
+    await expect(page.getByText("Fictional maintenance completed and accepted by the customer",{exact:true})).toBeVisible();
+    await page.goto("/holdings/simulation/finance/documents/sales/receipts");
     await expect(page.getByRole("heading",{name:"Sales & collections",exact:true})).toBeVisible();
     await expect(page.getByRole("navigation",{name:"Sales documents"}).getByRole("link",{name:"Receipts",exact:true})).toHaveAttribute("aria-current","page");
     await signIn(context,page,credentials,"holding_owner");
-    await page.getByRole("link",{name:"New quotation",exact:true}).click();
-    const quotation=page.getByRole("dialog",{name:"Order details",exact:true});await expect(quotation).toBeVisible();
-    await expect(quotation.getByLabel(/debit|credit|ledger account/i)).toHaveCount(0);
-    await info.attach("sales-quotation-drawer",{body:await page.screenshot({fullPage:true}),contentType:"image/png"});
+    await page.goto("/holdings/simulation/finance/documents/sales/new?kind=quote");
+    await expect(page.getByRole("heading",{name:"New quotation",exact:true})).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("combobox",{name:"Customer",exact:true})).toBeVisible();
+    await expect(page.getByRole("main").getByLabel(/debit|credit|ledger account/i)).toHaveCount(0);
+    await info.attach("sales-direct-quotation-form",{body:await page.screenshot({fullPage:true}),contentType:"image/png"});
+    await page.goto("/holdings/simulation/finance", { waitUntil: "domcontentloaded" });
+    let expenseLink = page.getByRole("navigation", { name: "Primary", exact: true }).getByRole("link", { name: "Employee expenses", exact: true });
+    if (info.project.name === "mobile") {
+      const mobileNavigation = page.getByRole("navigation", { name: "Mobile navigation", exact: true });
+      await mobileNavigation.getByRole("button", { name: "App launcher", exact: true }).click();
+      const launcher = page.getByRole("dialog", { name: "App launcher", exact: true });
+      await launcher.getByRole("searchbox", { name: "Search apps and pages", exact: true }).fill("Employee expenses");
+      expenseLink = launcher.getByRole("link", { name: /^Employee expenses(?:\s|$)/ });
+    }
+    await expect(expenseLink).toHaveAttribute("href", "/holdings/simulation/finance/documents/expenses");
+    await expenseLink.click();
+    await expect(page).toHaveURL(/\/holdings\/simulation\/finance\/documents\/expenses$/);
+    await expect(page.locator("h1").first()).toHaveText("Employee expenses");
   } finally { await context.close(); }
 });

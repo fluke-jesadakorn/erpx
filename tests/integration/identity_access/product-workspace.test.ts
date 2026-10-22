@@ -15,9 +15,9 @@ import { ownerPackageObligations, withOwnerPackageObligations } from "@/server/m
 import { packageGrantRevision } from "@/server/modules/commercial/public/package-grants";
 import { readPurchasedAccess } from "@/server/modules/commercial/public/purchase-command-boundary";
 
-vi.mock("@/server/modules/runtime/public/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }) }));
+vi.mock("@/server/modules/runtime/public/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
 const db = env.H001_DB;
-beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
+beforeAll(async () => { await Promise.all([applyMigrations(db, env.STAFF_TEST_MIGRATIONS), applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS)]); });
 async function fixture(marketing = true, ownerModule = "marketing", initialPackages?:string[]) {
   const f = await seedExpenseCompany(db, env.H001_FILES), userId = f.owner.userId, sessionId = randomUUID();
   await db.prepare("UPDATE assignments SET modules_json=? WHERE id=?").bind(JSON.stringify([ownerModule]),f.owner.assignmentId).run();
@@ -177,4 +177,41 @@ it('opens native Company Admin foundation with no packages, preserves a differen
  const {createAdminWorkspace}=await import('@/server/modules/identity_access/application/admin-workspace'),{adminWorkspaceTarget}=await import('@/server/modules/identity_access/domain/admin-workspace'),{adminWorkspaceDestinations}=await import('@/server/modules/identity_access/adapters/admin-workspace'),f=await fixture(false,'identity_access',[]),input=adminWorkspaceTarget(f.company,'/holdings/test/administration/technology/settings/roles?q=own#draft')!,service=createAdminWorkspace({access:f.nativeAccess,destinations:adminWorkspaceDestinations,management:async()=>false,selection:(account,applicable)=>initializeWorkSelection(db,{sessionId:f.sessionId,userId:f.userId,companyId:f.company,expiresAt:account.expiresAt},account.assignments,applicable),select:(account,option,revision)=>selectWorkRole(db,{sessionId:f.sessionId,userId:f.userId,companyId:f.company,expiresAt:account.expiresAt,assignmentId:option.assignmentId,assignmentVersion:option.assignmentVersion,revision}),now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)});
  const assignmentImage=()=>db.prepare('SELECT id,version,role,modules_json,revoked_at FROM assignments WHERE company_id=? ORDER BY id').bind(f.company).all(),before=(await assignmentImage()).results,state=await service.read(input);expect(state.target).toBeNull();expect(state.options.map(option=>option.assignmentId)).toEqual([f.owner.assignmentId]);expect((await f.current())?.assignment_id).toBe(f.financeId);expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);await expect(service.choose(input,f.owner.assignmentId,state.selection!.revision-1,1)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect((await f.current())?.assignment_id).toBe(f.financeId);await service.choose(input,f.owner.assignmentId,state.selection!.revision,1);expect((await service.read(input)).target).toBe(input.target);expect((await assignmentImage()).results).toEqual(before);expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);
  const current=(await f.current())!;await db.prepare('UPDATE assignments SET version=version+1 WHERE id=?').bind(f.owner.assignmentId).run();const changed=await service.read(input);expect(changed.target).toBeNull();expect(changed.options).toMatchObject([{assignmentId:f.owner.assignmentId,assignmentVersion:2}]);await expect(service.choose(input,f.owner.assignmentId,current.revision,1)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});await service.choose(input,f.owner.assignmentId,current.revision,2);expect((await service.read(input)).target).toBe(input.target);await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.owner.assignmentId).run();await expect(service.read(input)).rejects.toMatchObject({code:'ADMIN_ROLE_REQUIRED'});
+});
+
+it('Company Admin exposes current Brand, Organization, and IAM owner reads without changing roles or package grants',async()=>{
+ const f=await fixture(false,'identity_access',[]),modules=['brand','organization','identity_access'];
+ await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),f.owner.assignmentId).run();
+ const access=await f.nativeAccess(),assignment=access.assignments.find(item=>item.id===f.owner.assignmentId)!;
+ const {adminWorkspaceDestinations}=await import('@/server/modules/identity_access/adapters/admin-workspace');
+ const {createAdminWorkspace}=await import('@/server/modules/identity_access/application/admin-workspace');
+ const {adminWorkspaceTarget}=await import('@/server/modules/identity_access/domain/admin-workspace');
+ const {brandIdentityWorkspace}=await import('@/server/modules/brand/public/brand-identity');
+ const {organizationAccessData}=await import('@/server/modules/organization/public/organization-access');
+ const {iamOverview}=await import('@/server/modules/identity_access/public/iam-service');
+ const {loadIamAuthority}=await import('@/server/modules/identity_access/public/iam-store');
+ const assignmentImage=()=>db.prepare('SELECT id,version,role,modules_json,revoked_at FROM assignments WHERE company_id=? ORDER BY id').bind(f.company).all();
+ const assignmentsBefore=(await assignmentImage()).results,packagesBefore=await readCompanyPackageGrants(db,f.company);
+ expect(packagesBefore).toEqual([]);
+ const iam=await loadIamAuthority(db,f.company,f.userId,assignment.role,f.sessionId),owner={...f.owner,modules:[...assignment.modules],assignments:access.assignments,iam};
+ const paths=(await adminWorkspaceDestinations(access,assignment)).map(item=>item.path);
+ expect(paths).toEqual(expect.arrayContaining(['administration/brand/identity','administration/technology/organization','administration/technology/settings/roles']));
+ const service=createAdminWorkspace({access:f.nativeAccess,destinations:adminWorkspaceDestinations,management:async()=>false,
+  selection:async()=>{throw new Error('COMPANY_ADMIN_AVAILABILITY_MUST_NOT_READ_SELECTION');},select:async()=>{throw new Error('COMPANY_ADMIN_AVAILABILITY_MUST_NOT_SELECT_ROLE');},
+  now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)});
+ for(const path of ['administration/brand/identity','administration/technology/organization','administration/technology/settings/roles']){
+  const input=adminWorkspaceTarget(f.company,`/holdings/test/${path}`)!;
+  await expect(service.available(input)).resolves.toBe(true);
+ }
+ const [brand,organization,identity]=await Promise.all([
+  brandIdentityWorkspace(owner),organizationAccessData(db,owner),
+  iamOverview(db,{...owner,scopeKind:'holding',scopeNodeId:null,platform:false,sessionId:f.sessionId} as import('@/server/modules/identity_access/public/iam-context').IamActor),
+ ]);
+ expect(brand.actorId).toBe(f.userId);expect(brand.initial.identity.shortName).toBeTruthy();
+ expect(organization.actorId).toBe(f.userId);expect(organization.nodes).toContainEqual(expect.objectContaining({id:f.company,kind:'company'}));expect(organization.nodes).toContainEqual(expect.objectContaining({id:f.branch,kind:'branch'}));
+ expect(identity).toMatchObject({companyId:f.company,scopeKind:'holding',currentUserId:f.userId,currentAssignmentId:f.owner.assignmentId});
+ expect(identity.assignments).toContainEqual(expect.objectContaining({id:f.owner.assignmentId,user_id:f.userId,role:'holding_owner'}));
+ expect((await f.current())?.assignment_id).toBe(f.financeId);
+ expect(await readCompanyPackageGrants(db,f.company)).toEqual(packagesBefore);
+ expect((await assignmentImage()).results).toEqual(assignmentsBefore);
 });

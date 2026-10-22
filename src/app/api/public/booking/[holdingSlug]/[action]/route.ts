@@ -18,6 +18,7 @@ import { ApiError, errorResponse } from "@/server/modules/runtime/public/http";
 import { requestPublicOrigin } from "@/server/modules/manage_erpx/public/public-origin";
 import {guestBookingDocument} from "@/server/modules/pms/public/pms/guest-document";
 import { publicChangeQuote, confirmBookingChange } from "@/server/modules/pms/public/pms-booking-changes";
+import { readBoundedPublicBookingBody } from "@/server/modules/pms/public/public-booking-body";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; action: string }> };
 export async function GET(request: Request, { params }: Context) {
@@ -55,9 +56,7 @@ export async function POST(request: Request, { params }: Context) {
       ].includes(action)
     )
       throw new ApiError(404, "NOT_FOUND", "Page not found");
-    const text = await request.text();
-    if (Buffer.byteLength(text) > 120000)
-      throw new ApiError(413, "BODY_TOO_LARGE", "Request is too large");
+    const text = await readBoundedPublicBookingBody(request);
     let body: unknown;
     try {
       body = JSON.parse(text);

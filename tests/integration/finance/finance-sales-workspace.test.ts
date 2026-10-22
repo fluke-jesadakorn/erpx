@@ -119,6 +119,7 @@ it("allocates concurrent automatic invoice numbers and replays without creating 
   const input = { partyId: String(customer.id), invoiceDate: "2026-09-02", dueDate: "2026-09-10", currency: "THB", completionConfirmed: true as const, completionNote: "Completed service confirmed by the customer", lines: [{ description: "Consulting", quantity: "1", unitPrice: "100", taxBps: 700 }] };
   const keys = [key(), key()];
   const results = await Promise.all(keys.map(command => createSalesInvoiceDraft(f.owner, input, command)));
+  expect(results.map(row => row.total)).toEqual(["107.00", "107.00"]);
   expect(new Set(results.map(row => row.number)).size).toBe(2);
   expect(await invoiceSalesCompletion(f.owner,String(results[0].id))).toMatchObject({note:input.completionNote,confirmedBy:f.owner.userId,invoiceRevision:1});
   expect(await invoiceSalesCompletion({...f.owner,companyId:"another-company"},String(results[0].id))).toBeNull();
@@ -127,6 +128,22 @@ it("allocates concurrent automatic invoice numbers and replays without creating 
   expect(await createSalesInvoiceDraft(f.owner, input, keys[0])).toEqual(results[0]);
   expect(await db.prepare("SELECT COUNT(*) n FROM finance_invoices WHERE company_id=?").bind(f.company).first("n")).toBe(3);
   await expect(createSalesInvoiceDraft({ ...f.owner, branchId: f.branch }, input, key())).rejects.toMatchObject({ code: "COMPANY_SCOPE_REQUIRED" });
+  vi.stubEnv("ERPX_FINANCE_PACKAGE_ENFORCEMENT","enforced");
+  const purchaseCommand=key();
+  await expect(createSalesInvoiceDraft(f.owner,input,purchaseCommand)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+  const grants=packageGrantStore(db,{authorize:async()=>({userId:"isolated-standalone-sales-invoice-purchase"}),obligations:async()=>{throw Error("No Finance withdrawal witness is needed for this standalone invoice fixture");}});
+  const applyGrant=async(state:"active"|"draining")=>{
+    const current=(await readCompanyPackageGrants(db,f.company)).find(grant=>grant.packageId==="finance");
+    return grants.apply({expectedVersion:current?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:"finance",packageVersion:1,state,startsAt:0,endsAt:null,version:(current?.version??0)+1,reason:"Reviewed standalone invoice package boundary",evidence:"test:finance-sales-invoice-purchase"}});
+  };
+  await applyGrant("active");
+  const purchased=await createSalesInvoiceDraft(f.owner,input,purchaseCommand);
+  expect(await createSalesInvoiceDraft(f.owner,input,purchaseCommand)).toEqual(purchased);
+  await applyGrant("draining");
+  await expect(createSalesInvoiceDraft(f.owner,{...input,completionNote:"New work cannot begin during Finance drain"},key())).rejects.toMatchObject({code:"PACKAGE_DRAINING"});
+  expect(await createSalesInvoiceDraft(f.owner,input,purchaseCommand)).toEqual(purchased);
+  await expect(createSalesInvoiceDraft(f.owner,{...input,completionNote:"Changed original command"},purchaseCommand)).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+  expect(await db.prepare("SELECT COUNT(*) n FROM finance_invoices WHERE company_id=?").bind(f.company).first("n")).toBe(4);
 });
 
 it("combines equipment and installation, preserving stock cost and itemized source lines", async () => {
@@ -354,6 +371,69 @@ it('Sales-only service startup creates its empty ledger and independently review
   for(const evidence of [ordinaryFile,retainedFile])await expect(fileApi.attachmentContent(db,env.H001_FILES,z.manager,evidence.linkId,'original')).rejects.toMatchObject({status:404,code:'ATTACHMENT_TARGET_NOT_FOUND'});
   expect(await(await env.H001_FILES.get(ordinaryObjectKey))!.text()).toBe('%PDF-1.7');expect(await(await env.H001_FILES.get(retainedObjectKey))!.text()).toBe('%PDF-1.7');
 
+});
+
+it('Sales-only grants can create and replay standalone service invoices while draining blocks new invoices',async()=>{
+  const z=await zeroLedgerSalesCompany();await z.purchase();
+  const refs=await zeroSalesReferences(z),edition=await refs.api.prepareSalesPostingDefaults(z.reviewer,{...await zeroSalesEnvelope(z.reviewer),input:refs.defaults},key());
+  const decision={contextKey:(await zeroSalesEnvelope(z.manager)).contextKey,input:{expectedVersion:1,action:'approve' as const,reason:'Independent Company Finance reviewer approved the actual Sales posting defaults'}};
+  await refs.api.decideSalesPostingDefaults(z.manager,String(edition.id),decision,key());
+  const customer=await saveMaster(z.owner,'parties',null,{kind:'customer',code:key(),name:'Standalone Sales-only invoice customer'},key());
+  const input={partyId:String(customer.id),invoiceDate:'2026-09-02',dueDate:'2026-09-10',currency:'THB',completionConfirmed:true as const,completionNote:'Customer confirmed the Sales service was completed',lines:[{description:'Completed installation',quantity:'1',unitPrice:'100',taxBps:700}]};
+  const command=key(),draft=await createSalesInvoiceDraft(z.owner,input,command);
+  expect(await createSalesInvoiceDraft(z.owner,input,command)).toEqual(draft);
+  const {financeProductDocumentEntry,financeDocumentPostAccess}=await import('../../../src/server/modules/finance/public/document-purchases'),{postInvoice:postStandaloneInvoice,createInvoice:makeFinanceInvoice}=await import('../../../src/server/modules/finance/public/finance'),scope={companyId:z.company,branchId:null,departmentId:null,userId:z.reviewer.userId,assignmentId:z.reviewer.assignmentId,assignmentVersion:Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(z.reviewer.assignmentId).first('version')),role:z.reviewer.role};
+  expect(await financeProductDocumentEntry(db,scope,{kind:'invoice',id:String(draft.id)})).toEqual({capability:'finance.sales-posting',purchasePurpose:'history'});
+  expect(await financeDocumentPostAccess(z.manager,'invoice',String(draft.id))).toEqual({canPost:true});
+  // Finance edits may replace both the current creator and invoice number.
+  // The immutable Sales completion receipt must remain the ownership source.
+  vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');
+  let edited:Awaited<ReturnType<typeof makeFinanceInvoice>>;
+  try{edited=await makeFinanceInvoice(z.reviewer,{expectedVersion:1,kind:'receivable',partyId:String(customer.id),invoiceNumber:`EDIT-${key()}`,invoiceDate:'2026-09-02',dueDate:'2026-09-10',currency:'THB',subtotal:'100',tax:'7',taxAccountId:refs.accounts.taxAccountId,debitAccountId:refs.accounts.receivableAccountId,creditAccountId:refs.accounts.revenueAccountId,lines:[{description:'Reviewed edited installation',quantity:'1',unitPrice:'100',taxBps:700,accountId:refs.accounts.revenueAccountId,taxAccountId:refs.accounts.taxAccountId}]},key(),String(draft.id));}
+  finally{vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');}
+  expect(edited!).toMatchObject({id:String(draft.id),status:'draft',version:2});
+  expect(await financeProductDocumentEntry(db,scope,{kind:'invoice',id:String(draft.id)})).toEqual({capability:'finance.sales-posting',purchasePurpose:'history'});
+  expect(await financeDocumentPostAccess(z.manager,'invoice',String(draft.id))).toEqual({canPost:true});
+  await assignZeroSales(z,'invoice',String(draft.id),'draft',z.manager);
+  const postInput={expectedVersion:2,periodId:refs.period.id,entryDate:'2026-09-03'},postKey=key(),posted=await postStandaloneInvoice(z.manager,String(draft.id),postInput,postKey);
+  expect(await postStandaloneInvoice(z.manager,String(draft.id),postInput,postKey)).toEqual(posted);
+  expect(await financeProductDocumentEntry(db,scope,{kind:'invoice',id:String(draft.id)})).toEqual({capability:'finance.sales-posting',purchasePurpose:'history'});
+
+  // A legacy Finance-only draft in the same Sales-purchased Company must not
+  // be reclassified as Sales merely because the Company has a Sales entitlement.
+  vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');
+  let ordinary:Awaited<ReturnType<typeof makeFinanceInvoice>>;
+  try{ordinary=await makeFinanceInvoice(z.owner,{kind:'receivable',partyId:String(customer.id),invoiceNumber:`FIN-${key()}`,invoiceDate:'2026-09-02',dueDate:'2026-09-10',currency:'THB',subtotal:'50',tax:'0',debitAccountId:refs.accounts.receivableAccountId,creditAccountId:refs.accounts.revenueAccountId},key());}
+  finally{vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');}
+  expect(await financeProductDocumentEntry(db,scope,{kind:'invoice',id:String(ordinary!.id)})).toBeNull();
+  expect((await readCompanyPackageGrants(db,z.company)).map(grant=>[grant.packageId,grant.state])).toEqual([['sales','active']]);
+  await z.store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...z.grant,state:'draining',version:2}});
+  await expect(createSalesInvoiceDraft(z.owner,{...input,completionNote:'New work is blocked during Sales drain'},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
+  expect(await createSalesInvoiceDraft(z.owner,input,command)).toEqual(draft);
+  expect(await db.prepare('SELECT count(*) n FROM finance_invoices WHERE company_id=?').bind(z.company).first('n')).toBe(2);
+});
+
+it('Sales-only standalone invoice posting fails closed when completion outbox evidence is missing',async()=>{
+  const {z,refs}=await readySalesServiceCatalogue(),customer=await saveMaster(z.owner,'parties',null,{kind:'customer',code:key(),name:'Evidence-bound standalone invoice customer'},key());
+  const input={partyId:String(customer.id),invoiceDate:'2026-09-02',dueDate:'2026-09-10',currency:'THB',completionConfirmed:true as const,completionNote:'Customer confirmed the original installation was completed',lines:[{description:'Completed installation',quantity:'1',unitPrice:'100',taxBps:700}]};
+  const {financeProductDocumentEntry,financeDocumentPostAccess}=await import('../../../src/server/modules/finance/public/document-purchases');
+  const command=key(),draft=await createSalesInvoiceDraft(z.owner,input,command),invoiceId=String(draft.id),scope={companyId:z.company,branchId:null,departmentId:null,userId:z.reviewer.userId,assignmentId:z.reviewer.assignmentId,assignmentVersion:1,role:z.reviewer.role,sessionId:key()};
+  await assignZeroSales(z,'invoice',invoiceId,'draft',z.manager);
+  expect(await invoiceSalesCompletion(z.owner,invoiceId)).toMatchObject({note:input.completionNote,confirmedBy:z.owner.userId,invoiceRevision:1});
+  expect(await financeProductDocumentEntry(db,scope,{kind:'invoice',id:invoiceId})).toEqual({capability:'finance.sales-posting',purchasePurpose:'history'});
+  expect(await db.prepare("SELECT count(*) n FROM outbox_events WHERE command_id=? AND event_type='finance.sales-invoice.prepare'").bind(command).first('n')).toBe(1);
+
+  // Simulate a missing durable event after the otherwise valid completion
+  // command. The draft row and creator attestation remain, but neither grants
+  // the Sales-owned Finance posting boundary by themselves.
+  await db.prepare("DELETE FROM outbox_events WHERE command_id=? AND event_type='finance.sales-invoice.prepare'").bind(command).run();
+  expect(await invoiceSalesCompletion(z.owner,invoiceId)).toBeNull();
+  expect(await financeProductDocumentEntry(db,scope,{kind:'invoice',id:invoiceId})).toBeNull();
+  await expect(financeDocumentPostAccess(z.manager,'invoice',invoiceId)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+  const postCommand=key();
+  await expect(postInvoice(z.manager,invoiceId,{expectedVersion:1,periodId:refs.period.id,entryDate:'2026-09-03'},postCommand)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
+  expect(await db.prepare('SELECT status,version,journal_id FROM finance_invoices WHERE id=? AND company_id=?').bind(invoiceId,z.company).first()).toEqual({status:'draft',version:1,journal_id:null});
+  expect(await zeroSalesCommandImage(postCommand)).toEqual([[],[],[]]);
 });
 
 // A separate original legacy fixture supplies the same-Company no-purchase

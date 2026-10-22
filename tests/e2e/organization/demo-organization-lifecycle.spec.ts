@@ -66,21 +66,40 @@ test("isolated organization setup supports reviewed correction, safe suspension 
   const contexts=await Promise.all(Array.from({length:3},()=>createEngineeringBrowserContext(browser,testInfo)));
   contexts.forEach(context=>context.setDefaultTimeout(15_000));
   const [ownerContext,reviewerContext,staffContext]=contexts;
-  const path="/holdings/simulation/people/organization";
+  const path="/holdings/simulation/people-organization/people/organization";
   const unitsPath=`${path}?view=legacy`;
   const main=(page:Page)=>page.locator("#workspace-content:visible");
   const queue=(page:Page)=>main(page).getByRole("region",{name:"Organization change requests",exact:true});
   const card=(page:Page,label:string)=>queue(page).getByRole("article",{name:label,exact:true});
+  const scopedQueuePath=async(page:Page,values:Record<string,string>)=>{
+    const current=new URL(page.url()),company=current.searchParams.get("company")??await page.locator("[data-work-stale]").getAttribute("data-work-company");
+    expect(company,"company context").toBeTruthy();
+    return `${path}?${new URLSearchParams({view:"legacy",company:company!,tab:"settings",...values})}`;
+  };
   const unit=(page:Page,name:string)=>main(page).getByRole("heading",{name,level:3,exact:true}).locator("xpath=ancestor::section[1]");
   const recordIds:string[]=[];
   async function openUnitSettings(page:Page){
-    const summary=main(page).locator("summary").filter({hasText:/^Branches, departments, and official documents$/});
+    const dialog=page.locator('aside[role="dialog"][data-testid="people-detail"][aria-modal="true"]').last();
+    const selectedCompany=new URL(page.url()).searchParams.has("company");
+    let detail:Locator=selectedCompany&&page.viewportSize()!.width<=1250?dialog:page.getByTestId("people-detail").last();
+    if(selectedCompany)await expect(detail).toBeVisible();
+    else if(!(await detail.count())||!(await detail.isVisible())){
+      await main(page).getByRole("button",{name:"Unit details",exact:true}).click();
+      detail=page.getByTestId("people-detail").last();
+    }
+    await expect(detail).toBeVisible();
+    const settings=detail.getByRole("link",{name:"Settings",exact:true});
+    if(await settings.getAttribute("aria-current")!=="page")await settings.click();
+    const summary=detail.locator("summary").filter({hasText:/^Branches, departments, and official documents$/});
     await expect(summary).toBeVisible();
     if(await summary.locator("..").getAttribute("open")===null)await summary.click();
-    await expect(main(page).locator("summary > strong").filter({hasText:/^Propose a new branch or department$/})).toBeVisible();
+    await expect(detail.locator("summary > strong").filter({hasText:/^Propose a new branch or department$/})).toBeVisible();
   }
   async function reloadUnits(page:Page){
-    if(new URL(page.url()).searchParams.get("view")!=="legacy")await page.goto(unitsPath);
+    const current=new URL(page.url()),company=current.searchParams.get("company")??await page.locator("[data-work-stale]").getAttribute("data-work-company");
+    expect(company,"company context").toBeTruthy();
+    const selectedUnitsPath=`${path}?${new URLSearchParams({view:"legacy",company:company!,tab:"settings"})}`;
+    await page.goto(selectedUnitsPath);
     await expect(page.locator('[data-work-stale]')).toHaveAttribute('data-work-stale','false');
     await openUnitSettings(page);
     await page.reload({waitUntil:"domcontentloaded"});
@@ -94,7 +113,12 @@ test("isolated organization setup supports reviewed correction, safe suspension 
   }
   async function review(page:Page,label:string,id:string,decision:"approve"|"reject",reason:string,status=200){
     if(new URL(page.url()).searchParams.get("changeId")===id)await page.reload();
-    else await page.goto(`${path}?changeId=${encodeURIComponent(id)}#organization-change-${encodeURIComponent(id)}`);
+    else {
+      const current=new URL(page.url()),company=current.searchParams.get("company")??await page.locator("[data-work-stale]").getAttribute("data-work-company");
+      expect(company,"current company context").toBeTruthy();
+      const query=new URLSearchParams({view:"legacy",company:company!,tab:"changes",changeId:id});
+      await page.goto(`${path}?${query}#organization-change-${encodeURIComponent(id)}`);
+    }
     const request=card(page,label);await expect(request).toBeVisible();
     await request.getByLabel("Review reason",{exact:true}).fill(reason);
     return command(page,request.getByRole("button",{name:decision==="approve"?"Approve and apply":"Return for correction",exact:true}),`${id}/review`,status);
@@ -119,13 +143,13 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await command(ownerPage,request.getByRole("button",{name:"Submit for review",exact:true}),`${draft.id}/submit`);
     await expect(request.getByText(/Awaiting an independent Company HR/)).toBeVisible();
     await expect(request.getByRole("button",{name:"Approve and apply",exact:true})).toHaveCount(0);
-    await reviewerPage.goto("/holdings/simulation/work?type=organization_change&view=actions");
+    await reviewerPage.goto("/holdings/simulation/work/actions?type=organization_change");
     const workLink=main(reviewerPage).getByRole("link").filter({hasText:`create branch: ${originalName}`});
     await expect(workLink).toBeVisible();await workLink.click();
     await expect(reviewerPage).toHaveURL(new RegExp(`changeId=${draft.id}`));
     await expect(card(reviewerPage,`create branch: ${originalName}`).getByRole("button",{name:"Approve and apply",exact:true})).toBeVisible();
     await review(reviewerPage,`create branch: ${originalName}`,draft.id,"reject","Clarify the operating branch name before opening.");
-    await ownerPage.goto("/holdings/simulation/inbox?tab=updates");
+    await ownerPage.goto("/holdings/simulation/inbox/notifications");
     const returnedLink=main(ownerPage).getByRole("link",{name:`Organization change returned for correction: ${originalName}`,exact:true}).first();
     await expect(returnedLink).toBeVisible();await returnedLink.click();
     await expect(ownerPage).toHaveURL(new RegExp(`changeId=${draft.id}`));
@@ -139,8 +163,12 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await reloadUnits(ownerPage);await expect(unit(ownerPage,branchName)).toContainText("branch · active · revision 1");
     await queue(ownerPage).getByRole("combobox",{name:"Change status",exact:true}).selectOption("applied");
     await queue(ownerPage).getByRole("button",{name:"Filter changes",exact:true}).click();
+    await openUnitSettings(ownerPage);
     const history=card(ownerPage,`create branch: ${branchName}`);
-    await history.locator("summary").filter({hasText:/^Decision history$/}).click();
+    await expect(history).toBeVisible();
+    const decisionHistory=history.locator("details").last();
+    await expect(decisionHistory).toContainText("Decision history");
+    await decisionHistory.locator(":scope > summary").click();
     await expect(history.locator("ol li")).toHaveCount(5);
     await expect(history.locator("ol")).toContainText("Clarify the operating branch name before opening.");
     await expect(history.locator("ol")).toContainText("Operating scope and business reason verified independently.");
@@ -175,7 +203,7 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await expect(card(reviewerPage,`suspend branch: ${renamedName}`)).toContainText("submitted");
     await reloadUnits(ownerPage);await expect(unit(ownerPage,renamedName)).toContainText("branch · active");
     await command(ownerPage,card(ownerPage,`suspend branch: ${renamedName}`).getByRole("button",{name:"Cancel request",exact:true}),`${blocked.id}/cancel`);
-    await ownerPage.goto(`${path}?changeState=cancelled`);
+    await ownerPage.goto(await scopedQueuePath(ownerPage,{changeState:"cancelled"}));await openUnitSettings(ownerPage);
     await expect(card(ownerPage,`suspend branch: ${renamedName}`)).toContainText("cancelled");
     await ownerPage.goto(unitsPath);await openUnitSettings(ownerPage);
 
@@ -289,7 +317,7 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await expect(queue(staffPage)).toHaveCount(0);
     const restricted=await staffContext.request.get("/api/v1/holdings/simulation/people/organization?changeState=all");
     expect(restricted.status()).toBe(403);
-    await ownerPage.goto(`${path}?changeState=all&changeQuery=${encodeURIComponent(branchName)}`);
+    await ownerPage.goto(await scopedQueuePath(ownerPage,{changeState:"all",changeQuery:branchName}));await openUnitSettings(ownerPage);
     await expect(queue(ownerPage).getByRole("article")).toHaveCount(5);
     await testInfo.attach("organization-lifecycle-result",{contentType:"application/json",body:JSON.stringify({project:testInfo.project.name,run,recordIds,branchId:applied.nodeId,destinationBranchId:destinationApplied.nodeId,relocatedFromDepartmentId:movableApplied.nodeId,relocatedToDepartmentId:relocationApplied.nodeId,relocatedPositionId:movablePosition.id,archivedAndReactivatedDepartmentId:archiveSeedApplied.nodeId,requester:owner.userId,reviewer:reviewer.userId,finalBranchStatus:"active",finalDepartmentStatus:"active",blockedSuspensionStatus:409,workReviewLink:true,inboxCorrectionLink:true},null,2)});
     await queue(ownerPage).evaluate(element=>element.scrollIntoView({block:"start"}));

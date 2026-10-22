@@ -1,8 +1,9 @@
 {
-  "version": 1,
+  "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "9f174129d74a126ba4e5e2a00444e62efbd4915de1a943ad7680e19bd653710c",
+  "sourceFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -663,7 +664,8 @@
         "shared.test-infrastructure.product-host-cohort.unit",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     },
     {
@@ -958,6 +960,7 @@
         "identity_access.context-switching.e2e",
         "shared.ui.demo-client-form-hydration.e2e",
         "organization.demo-company-setup-acceptance.e2e",
+        "customer_authority.portal-invitation.e2e",
         "identity_access.demo-identity-activation-revocation.e2e",
         "organization.demo-organization-lifecycle.e2e",
         "shared.workplace-journeys.demo-workplace-platform-lifecycle.journeys",
@@ -1151,7 +1154,8 @@
         "shared.test-infrastructure.product-host-cohort.unit",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     },
     {
@@ -2232,6 +2236,7 @@
         "shared.calendar.calendar-layout.e2e",
         "shared.ui.demo-client-form-hydration.e2e",
         "customer_authority.demo-customer-duplicate-review.e2e",
+        "customer_authority.portal-invitation.e2e",
         "customer_360.demo-customer-timeline.e2e",
         "customer_authority.demo-retail-customer-authority.journeys",
         "shared.ui.demo-workspace-header.e2e",
@@ -2543,6 +2548,7 @@
         "shared.calendar.calendar-layout.e2e",
         "shared.ui.demo-client-form-hydration.e2e",
         "customer_authority.demo-customer-duplicate-review.e2e",
+        "customer_authority.portal-invitation.e2e",
         "customer_authority.demo-retail-customer-authority.journeys",
         "shared.ui.demo-workspace-header.e2e",
         "shared.ui.enterprise-ui.e2e",
@@ -4486,7 +4492,8 @@
             "src/app/holdings/[holdingSlug]/services/assets/accounting/page.tsx",
             "src/app/holdings/[holdingSlug]/services/assets/accounting/[id]/page.tsx",
             "src/components/assets/asset-accounting.tsx",
-            "src/components/assets/asset-maintenance-console.tsx"
+            "src/components/assets/asset-maintenance-console.tsx",
+            "src/components/records/record-drawer.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/assets/route.ts",
@@ -4507,6 +4514,7 @@
           ],
           "tests": [
             "tests/integration/assets/asset-maintenance.test.ts",
+            "tests/integration/finance/finance-assets.test.ts",
             "tests/unit/finance/finance-asset-services.test.ts",
             "tests/unit/shared.business-contracts/asset-maintenance-applications.test.ts"
           ],
@@ -4690,6 +4698,7 @@
         "shared.calendar.calendar-timeline.unit",
         "shared.calendar.calendar.integration",
         "shared.evidence.capability-delivery.unit",
+        "shared.evidence.product-migration-receipts.unit",
         "shared.evidence.capability-gate-reviews.unit",
         "shared.runtime.cloudflare-bindings.integration",
         "shared.commands.command-composition.integration",
@@ -5995,7 +6004,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     },
     {
@@ -7190,7 +7200,13 @@
           "id": "people_payroll/feature-expenses",
           "label": "Expenses",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/people/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/people/screen.tsx",
+            "src/app/holdings/[holdingSlug]/finance/documents/expenses/page.tsx",
+            "src/app/holdings/[holdingSlug]/finance/documents/expenses/[id]/page.tsx",
+            "src/app/holdings/[holdingSlug]/finance/documents/expenses/new/page.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/expenses/screen.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/expenses/[id]/screen.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/expenses/new/screen.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts"
@@ -7202,7 +7218,8 @@
             "migrations/postgres/holding-write/0026_people_lifecycle.sql"
           ],
           "tests": [
-            "tests/integration/people_payroll/expense-v2.test.ts"
+            "tests/integration/people_payroll/expense-v2.test.ts",
+            "tests/e2e/people_payroll/expense-v2.spec.ts"
           ],
           "acceptance": {
             "implemented": {
@@ -7475,7 +7492,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     },
     {
@@ -8122,6 +8140,7 @@
         "shared.attachments.local-file-streams.unit",
         "shared.ui.local-shortcuts.unit",
         "marketing.editor.unit",
+        "marketing.forms-host.e2e",
         "marketing.marketing.integration",
         "shared.runtime.native-proxy.unit",
         "shared.runtime.native-runtime.integration",
@@ -10430,7 +10449,11 @@
           "id": "talent/applications",
           "label": "Applications",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
+            "src/app/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/talent/[id]/screen.tsx",
+            "src/components/records/loaders/modules--talent-console.tsx",
+            "src/components/talent/talent-console.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts"
@@ -10463,7 +10486,11 @@
           "id": "talent/offers",
           "label": "Offers",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
+            "src/app/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/talent/[id]/screen.tsx",
+            "src/components/records/loaders/modules--talent-console.tsx",
+            "src/components/talent/talent-console.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts"
@@ -10496,19 +10523,31 @@
           "id": "talent/feature-candidates-privacy",
           "label": "Candidates & privacy",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
+            "src/app/holdings/[holdingSlug]/people-organization/talent/candidates/[id]/privacy/page.tsx",
+            "src/components/talent/candidate-privacy-page.tsx",
+            "src/components/talent/candidate-privacy-editor.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts"
           ],
           "services": [
-            "src/server/modules/talent/public/talent.ts"
+            "src/server/modules/talent/public/talent.ts",
+            "src/server/modules/talent/public/candidate-privacy-workspace.ts",
+            "src/server/modules/talent/adapters/candidate-privacy-workspace.ts",
+            "src/server/modules/talent/public/people-hire-handoff-facts.ts",
+            "src/server/modules/talent/adapters/people-hire-handoff-facts.ts",
+            "src/server/modules/people_payroll/public/people-handoffs.ts",
+            "src/server/modules/people_payroll/adapters/people-handoffs.ts",
+            "src/server/modules/people_payroll/application/people-handoffs.ts"
           ],
           "schema": [
-            "migrations/postgres/holding-write/0230_talent.sql"
+            "migrations/postgres/holding-write/0230_talent.sql",
+            "src/server/modules/people_payroll/domain/people-handoffs.ts"
           ],
           "tests": [
-            "tests/integration/talent/talent.test.ts"
+            "tests/integration/talent/talent.test.ts",
+            "tests/unit/learning/learning-talent-services.test.ts"
           ],
           "acceptance": {
             "implemented": {
@@ -10570,7 +10609,11 @@
           "id": "talent/feature-proposals",
           "label": "Proposals",
           "pages": [
-            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx"
+            "src/app/holdings/[holdingSlug]/_presenters/talent/screen.tsx",
+            "src/app/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
+            "src/app/holdings/[holdingSlug]/_presenters/talent/[id]/screen.tsx",
+            "src/components/records/loaders/modules--talent-console.tsx",
+            "src/components/talent/talent-console.tsx"
           ],
           "apis": [
             "src/app/api/v1/holdings/[holdingSlug]/talent/route.ts"
@@ -12058,8 +12101,20 @@
           ],
           "acceptance": {
             "implemented": {
-              "state": "pending",
-              "evidence": null
+              "state": "source-changed",
+              "evidence": {
+                "id": "pms/dashboard",
+                "phase": "implemented",
+                "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T06-54-39-259Z",
+                  "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-pms-dashboard-038cdaf91353b70c8354575ec404e862afedebf11b15676e124956ad9f82f7d8-implemented.json",
+                "sha256": "4fbc2924b97c100a4328de3b59f99c3d0cccf2470b997f4e1e9750a9f7f0c31c"
+              }
             },
             "verified": {
               "state": "pending",
@@ -12295,8 +12350,20 @@
           ],
           "acceptance": {
             "implemented": {
-              "state": "pending",
-              "evidence": null
+              "state": "source-changed",
+              "evidence": {
+                "id": "pms/inventory",
+                "phase": "implemented",
+                "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T06-54-39-259Z",
+                  "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-pms-inventory-68132ee18373436f21c8cd0f1bfd58c0119f8657c47fe48264f58a4992a0d151-implemented.json",
+                "sha256": "da4a458a4856e3f30b015fe251fe6217651c2c69227bad4e525cd79e74d11f83"
+              }
             },
             "verified": {
               "state": "pending",
@@ -12362,8 +12429,20 @@
           ],
           "acceptance": {
             "implemented": {
-              "state": "pending",
-              "evidence": null
+              "state": "source-changed",
+              "evidence": {
+                "id": "pms/reports",
+                "phase": "implemented",
+                "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T06-54-39-259Z",
+                  "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-pms-reports-7c6bf13d1ba2f755e604f465748f7568ee7faad7b3b08f177761148b21bf299b-implemented.json",
+                "sha256": "0499e1804d687ceb587a10df8f5b0222833d89707f754abf739b7990a66fa84f"
+              }
             },
             "verified": {
               "state": "pending",
@@ -12429,8 +12508,20 @@
           ],
           "acceptance": {
             "implemented": {
-              "state": "pending",
-              "evidence": null
+              "state": "source-changed",
+              "evidence": {
+                "id": "pms/settings",
+                "phase": "implemented",
+                "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T06-54-39-259Z",
+                  "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-pms-settings-7b6571edf88940a22d79e9ff919c9d0730915c04e27750d0cc284b9be1f0240d-implemented.json",
+                "sha256": "ed550e3f674d288627cded4cf82170a5a8940e128ca5ad24be8a2a2cf0ab7e38"
+              }
             },
             "verified": {
               "state": "pending",
@@ -12484,6 +12575,7 @@
         "shared.ui.page-layouts.e2e",
         "pms.booking.e2e",
         "pms.pms.e2e",
+        "pms.owner-read-workflows.e2e",
         "shared.ui.shared-workspace.e2e",
         "pms.thai-hotel-v1-ai.journeys",
         "pms.thai-hotel-v1-hotel.journeys",
@@ -12931,7 +13023,8 @@
         "identity_access.product-hosts.e2e",
         "shared.attachments.attachment-policy-inventory.unit",
         "shared.attachments.sensitive-attachment-policy.unit",
-        "shared.attachments.specialized-attachment-media.unit"
+        "shared.attachments.specialized-attachment-media.unit",
+        "shared.executive.executive-work-mcp.e2e"
       ]
     }
   ],
@@ -12951,13 +13044,16 @@
       ],
       "services": [
         "src/server/modules/runtime/adapters/executive/reports.ts",
-        "src/server/modules/runtime/adapters/executive/mcp.ts"
+        "src/server/modules/runtime/adapters/executive/mcp.ts",
+        "src/server/modules/identity_access/application/product-workspace.ts",
+        "src/server/modules/work_projection/domain/product-landings.ts"
       ],
       "tests": [
         "tests/unit/identity_access/product-workspace.test.ts",
         "tests/unit/shared.ui/workplace-navigation.test.ts",
         "tests/integration/shared.executive/executive-canvas.test.ts",
-        "tests/integration/shared.executive/executive-mcp.test.ts"
+        "tests/integration/shared.executive/executive-mcp.test.ts",
+        "tests/e2e/shared.executive/executive-work-mcp.spec.ts"
       ],
       "origin": "https://work-dev-erpx.jesadakorn.com",
       "acceptance": {
@@ -12973,6 +13069,76 @@
           "state": "pending",
           "evidence": null
         }
+      },
+      "receiptMapping": {
+        "native": {
+          "state": "mapped"
+        },
+        "browser": {
+          "state": "mapped"
+        }
+      }
+    },
+    {
+      "id": "finance:sales-invoice-workspace",
+      "product": "finance",
+      "owner": "finance",
+      "pages": [
+        "src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
+        "src/app/holdings/[holdingSlug]/_presenters/finance/sales/screen.tsx",
+        "src/app/holdings/[holdingSlug]/finance/documents/sales/new/page.tsx",
+        "src/app/holdings/[holdingSlug]/_presenters/finance/sales/new/screen.tsx",
+        "src/components/finance/sales-controls.tsx"
+      ],
+      "apis": [
+        "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts"
+      ],
+      "services": [
+        "src/server/modules/finance/adapters/sales.ts",
+        "src/server/modules/finance/adapters/document-purchases.ts"
+      ],
+      "schema": [
+        "migrations/postgres/holding-write/1069_finance_sales_standalone_invoice_source.sql",
+        "migrations/postgres/holding-write/1070_finance_sales_standalone_evidence_indexes.sql"
+      ],
+      "tests": [
+        "tests/integration/finance/finance-sales-workspace.test.ts",
+        "tests/e2e/finance/finance-sales-workspace.spec.ts"
+      ],
+      "origin": "https://finance-dev-erpx.jesadakorn.com",
+      "acceptance": {
+        "implemented": {
+          "state": "source-changed",
+          "evidence": {
+            "id": "finance:sales-invoice-workspace",
+            "phase": "implemented",
+            "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+            "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+            "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+            "release": {
+              "id": "2026-10-22T06-54-39-259Z",
+              "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+            },
+            "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-finance-sales-invoice-workspace-a7413b9edefb2c064f662dc158636cfbb092b9bf55e54145f50262c93e6443c6-implemented.json",
+            "sha256": "8da099f480472a31c36ecfa292c4db45b74f09a2e17af9295b8a1295bad94e04"
+          }
+        },
+        "verified": {
+          "state": "pending",
+          "evidence": null
+        },
+        "enabled": {
+          "state": "pending",
+          "evidence": null
+        }
+      },
+      "receiptMapping": {
+        "native": {
+          "state": "mapped"
+        },
+        "browser": {
+          "state": "mapped"
+        }
       }
     }
   ],
@@ -12984,14 +13150,8 @@
           "id": "apps:all-company-branch-department-product-selection",
           "acceptance": {
             "implemented": {
-              "state": "source-changed",
-              "evidence": {
-                "id": "apps:all-company-branch-department-product-selection",
-                "phase": "implemented",
-                "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
-                "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
-                "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
-              }
+              "state": "pending",
+              "evidence": null
             },
             "verified": {
               "state": "pending",
@@ -13000,6 +13160,14 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
             }
           }
         },
@@ -13018,6 +13186,14 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
+            }
           }
         },
         {
@@ -13034,6 +13210,14 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
             }
           }
         }
@@ -13065,6 +13249,15 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "No isolated browser workflow traverses Account login or directory-linked login into the expected product session and confirms its linked identity."
+            }
           }
         },
         {
@@ -13081,6 +13274,14 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
             }
           }
         },
@@ -13099,6 +13300,15 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "No single isolated browser workflow currently covers role, Company, and account switching together on the Account/Apps product path."
+            }
           }
         },
         {
@@ -13116,6 +13326,15 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The focused MFA replay and Account family-revocation cases have no matching isolated browser workflow with UI observation evidence."
+            }
           }
         },
         {
@@ -13132,6 +13351,15 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "No isolated browser case currently exercises the Account package area and its authorized-product result."
             }
           }
         }
@@ -13166,20 +13394,22 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
+            }
           }
         },
         {
           "id": "admin:platform-only-entry",
           "acceptance": {
             "implemented": {
-              "state": "source-changed",
-              "evidence": {
-                "id": "admin:platform-only-entry",
-                "phase": "implemented",
-                "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
-                "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
-                "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
-              }
+              "state": "pending",
+              "evidence": null
             },
             "verified": {
               "state": "pending",
@@ -13188,6 +13418,15 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The native Platform authority check has no matching isolated browser entry workflow and UI observation evidence."
             }
           }
         },
@@ -13195,14 +13434,8 @@
           "id": "admin:provider-authority-separation",
           "acceptance": {
             "implemented": {
-              "state": "source-changed",
-              "evidence": {
-                "id": "admin:provider-authority-separation",
-                "phase": "implemented",
-                "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
-                "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
-                "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
-              }
+              "state": "pending",
+              "evidence": null
             },
             "verified": {
               "state": "pending",
@@ -13212,20 +13445,23 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The isolated provider-authority integration cases have no matching browser workflow through the Admin product with UI observation evidence."
+            }
           }
         },
         {
           "id": "admin:legacy-preview-apply-and-audit",
           "acceptance": {
             "implemented": {
-              "state": "source-changed",
-              "evidence": {
-                "id": "admin:legacy-preview-apply-and-audit",
-                "phase": "implemented",
-                "sourceFingerprint": "981972a5770d9a1b747802b7b8b94efd4092c0abdacc7cdebf793b62a8f94e3d",
-                "path": "docs/testing/evidence/2026-10-15-commercial-apps-settlement-98197.json",
-                "sha256": "635252b8664d13e4e588bc6e2ebf0ad94e37e0718c1e759d7aa4b0ae8dc5a5a7"
-              }
+              "state": "pending",
+              "evidence": null
             },
             "verified": {
               "state": "pending",
@@ -13234,6 +13470,15 @@
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "pending",
+              "blocker": "The isolated legacy preview/apply/audit integrations have no matching browser workflow through the Admin product with UI observation evidence."
             }
           }
         }
@@ -13266,6 +13511,14 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
+            }
           }
         }
       ],
@@ -13274,6 +13527,9 @@
       ],
       "apis": [
         "src/app/api/public/booking/[holdingSlug]/[action]/route.ts"
+      ],
+      "services": [
+        "src/server/modules/pms/public/public-booking-body.ts"
       ],
       "origin": "https://booking-dev-erpx.jesadakorn.com"
     },
@@ -13284,16 +13540,48 @@
           "id": "portal:tenant-token-invitation-document-and-private-files",
           "acceptance": {
             "implemented": {
-              "state": "pending",
-              "evidence": null
+              "state": "source-changed",
+              "evidence": {
+                "id": "portal:tenant-token-invitation-document-and-private-files",
+                "phase": "implemented",
+                "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T04-54-29-019Z",
+                  "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-portal-tenant-token-invitation-document-and-private-files-50e1027946cca35d73235f274379fd70429f2b3bf522eb0d1398ccf0481744ae-implemented.json",
+                "sha256": "6e8ea4360b63d7713dbcf8f9733445672fe734ccc1ee6d9d878f8c4f0b095b12"
+              }
             },
             "verified": {
-              "state": "pending",
-              "evidence": null
+              "state": "source-changed",
+              "evidence": {
+                "id": "portal:tenant-token-invitation-document-and-private-files",
+                "phase": "verified",
+                "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T04-54-29-019Z",
+                  "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-portal-tenant-token-invitation-document-and-private-files-50e1027946cca35d73235f274379fd70429f2b3bf522eb0d1398ccf0481744ae-verified.json",
+                "sha256": "4f0d1df69857874937dd8bc03552cadc75dc870bf9599ee23989086fff01e4f5"
+              }
             },
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
             }
           }
         }
@@ -13301,17 +13589,55 @@
       "pages": [
         "src/app/customer-portal/[holdingSlug]/page.tsx",
         "src/app/customer-portal/[holdingSlug]/tickets/page.tsx",
-        "src/components/customer_authority/support-ticket-portal.tsx"
+        "src/app/customer-portal/enroll/page.tsx",
+        "src/components/customer_authority/support-ticket-portal.tsx",
+        "src/components/customer_authority/customer-portal-enrollment.tsx"
       ],
       "tests": [
         "tests/integration/customer_authority/customer-access.test.ts",
-        "tests/unit/shared.business-contracts/customer-portal-application.test.ts"
+        "tests/unit/customer_authority/portal-invitations.test.ts",
+        "tests/unit/shared.business-contracts/customer-portal-application.test.ts",
+        "tests/e2e/customer_authority/portal-invitation.spec.ts",
+        "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts"
       ],
       "apis": [
         "src/app/api/customer-portal/[holdingSlug]/route.ts",
+        "src/app/api/customer-portal/enroll/route.ts",
         "src/app/api/customer-portal/[holdingSlug]/tickets/route.ts",
         "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
         "src/app/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts"
+      ],
+      "services": [
+        "src/server/modules/customer_authority/application/portal-invitations.ts",
+        "src/server/modules/customer_authority/application/portal-invitation-delivery.ts",
+        "src/server/modules/customer_authority/domain/portal-invitation.ts",
+        "src/server/modules/customer_authority/adapters/portal-invitations.ts",
+        "src/server/modules/customer_authority/adapters/portal-invitation-delivery.ts",
+        "src/server/modules/customer_authority/adapters/portal-enrollment.ts",
+        "src/server/modules/customer_authority/adapters/portal-invitation-crypto.ts"
+      ],
+      "schema": [
+        "migrations/postgres/holding-write/1071_customer_portal_invitations.sql"
+      ],
+      "browserCases": [
+        {
+          "workflow": "tenant-token-invitation-document-and-private-files",
+          "runner": "playwright",
+          "suite": "customer_authority.demo-retail-customer-authority.journeys",
+          "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+          "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+          "project": "desktop",
+          "executionOrigin": "local-simulation-only"
+        },
+        {
+          "workflow": "tenant-token-invitation-document-and-private-files",
+          "runner": "playwright",
+          "suite": "customer_authority.demo-retail-customer-authority.journeys",
+          "file": "tests/journeys/customer_authority/demo-retail-customer-authority.spec.ts",
+          "title": "native retail and customer authority engineering workflows external customer portal invitation signup independently approves a binding verifies a newly created account accepts its one approved document revokes access and retains immutable invitation history",
+          "project": "mobile",
+          "executionOrigin": "local-simulation-only"
+        }
       ],
       "origin": "https://portal-dev-erpx.jesadakorn.com"
     },
@@ -13319,28 +13645,113 @@
       "id": "legal-portal",
       "workflows": [
         {
-          "id": "legal-portal:invitation-mfa-document-version-consent-signing-and-private-files",
+          "id": "legal-portal:scoped-shared-version-access-and-revocation",
           "acceptance": {
             "implemented": {
-              "state": "pending",
-              "evidence": null
+              "state": "source-changed",
+              "evidence": {
+                "id": "legal-portal:scoped-shared-version-access-and-revocation",
+                "phase": "implemented",
+                "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T04-54-29-019Z",
+                  "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-legal-portal-scoped-shared-version-access-and-revocation-e1c7cbf4a8e4cd81b0216e720e776ef4c90991907acf1bc3f2687be767718ecc-implemented.json",
+                "sha256": "bb98c51d1b2a84138b0c318b843952be731fbd75b563b408d4489b147495ad03"
+              }
             },
             "verified": {
-              "state": "pending",
-              "evidence": null
+              "state": "source-changed",
+              "evidence": {
+                "id": "legal-portal:scoped-shared-version-access-and-revocation",
+                "phase": "verified",
+                "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T04-54-29-019Z",
+                  "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-legal-portal-scoped-shared-version-access-and-revocation-e1c7cbf4a8e4cd81b0216e720e776ef4c90991907acf1bc3f2687be767718ecc-verified.json",
+                "sha256": "f2220e3293dfde8e6093b856d196ecefd8fb534442e7dad07296c88dbc1ee039"
+              }
             },
             "enabled": {
               "state": "pending",
               "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
+            }
+          }
+        },
+        {
+          "id": "legal-portal:private-document-download-and-access-history",
+          "acceptance": {
+            "implemented": {
+              "state": "source-changed",
+              "evidence": {
+                "id": "legal-portal:private-document-download-and-access-history",
+                "phase": "implemented",
+                "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T04-54-29-019Z",
+                  "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-legal-portal-private-document-download-and-access-history-0cf2cacace828e15c42c9f616ba30d12684cd3f40a96adce08b409b85021ac10-implemented.json",
+                "sha256": "4fe34c287177c06ed3a41ce2c43f95f4b95e1e17f380300f6296b1a6ba5adbd7"
+              }
+            },
+            "verified": {
+              "state": "source-changed",
+              "evidence": {
+                "id": "legal-portal:private-document-download-and-access-history",
+                "phase": "verified",
+                "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+                "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+                "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+                "release": {
+                  "id": "2026-10-22T04-54-29-019Z",
+                  "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+                },
+                "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-legal-portal-private-document-download-and-access-history-0cf2cacace828e15c42c9f616ba30d12684cd3f40a96adce08b409b85021ac10-verified.json",
+                "sha256": "8c91596dce08fe90c7f4764b49c4fca2aeb5c0c37cd6c245d17423e22ee25d55"
+              }
+            },
+            "enabled": {
+              "state": "pending",
+              "evidence": null
+            }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
             }
           }
         }
       ],
       "pages": [
         "src/app/legal-portal/[holdingSlug]/page.tsx",
+        "src/app/legal-portal/enroll/page.tsx",
         "src/components/legal/legal-portal.tsx"
       ],
       "tests": [
+        "tests/integration/legal/legal.test.ts",
+        "tests/integration/legal/legal-download-route.test.ts",
+        "tests/integration/legal/legal-portal-download-session.test.ts",
         "tests/unit/legal/legal-command-client.test.ts"
       ],
       "apis": [
@@ -13366,6 +13777,14 @@
               "state": "pending",
               "evidence": null
             }
+          },
+          "receiptMapping": {
+            "native": {
+              "state": "mapped"
+            },
+            "browser": {
+              "state": "mapped"
+            }
           }
         }
       ],
@@ -13374,6 +13793,30 @@
       ],
       "apis": [
         "src/app/api/public/marketing/[holdingSlug]/[formId]/route.ts"
+      ],
+      "services": [
+        "src/server/modules/marketing/adapters/public-form-body.ts",
+        "src/server/modules/marketing/public/public-form-body.ts"
+      ],
+      "browserCases": [
+        {
+          "workflow": "tenant-published-version-consent-submit-and-replay",
+          "runner": "playwright",
+          "suite": "marketing.forms-host.e2e",
+          "file": "tests/e2e/marketing/forms-host.spec.ts",
+          "title": "isolated anonymous Forms host submits the published version and replays exact consent once",
+          "project": "desktop",
+          "executionOrigin": "isolated-forms-host"
+        },
+        {
+          "workflow": "tenant-published-version-consent-submit-and-replay",
+          "runner": "playwright",
+          "suite": "marketing.forms-host.e2e",
+          "file": "tests/e2e/marketing/forms-host.spec.ts",
+          "title": "isolated anonymous Forms host submits the published version and replays exact consent once",
+          "project": "mobile",
+          "executionOrigin": "isolated-forms-host"
+        }
       ],
       "origin": "https://forms-dev-erpx.jesadakorn.com"
     }

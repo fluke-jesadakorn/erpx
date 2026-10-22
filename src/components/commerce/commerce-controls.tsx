@@ -365,10 +365,12 @@ export function OrderActions({
   base,
   order,
   canApprove,
+  canCancel,
 }: {
   base: string;
   order: Row;
   canApprove: boolean;
+  canCancel: boolean;
 }) {
   const { send, pending, error, notice, canPrepare, canSettle, purchase, hasAttempt } = useCommand(base);
   const states =
@@ -380,8 +382,8 @@ export function OrderActions({
           : ["return"]
         : order.state === "confirmed"
           ? order.kind === "quote"
-            ? ["convert", ...(canApprove ? ["cancel"] : [])]
-            : canApprove
+            ? ["convert", ...(canCancel ? ["cancel"] : [])]
+            : canCancel
               ? ["cancel"]
               : []
           : [];
