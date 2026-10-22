@@ -28,6 +28,13 @@ const nextConfig: NextConfig = {
     // files and executed-copy multipart metadata so owners enforce their limits.
     proxyClientMaxBodySize: 11 * 1024 * 1024,
   },
+  webpack(config, { dev }) {
+    // The isolated release build disables Webpack's filesystem cache. Its
+    // production graph includes large generated modules that overflow the
+    // cache's serialized-string limit in CI; cache state does not affect output.
+    if (!dev && process.env.ERPX_RELEASE_NO_WEBPACK_CACHE === "1") config.cache = false;
+    return config;
+  },
   skipProxyUrlNormalize: true,
   // Retired Console bookmarks must reach the 410 boundary before Next adds
   // an automatic trailing-slash redirect. Installed environments keep policy.

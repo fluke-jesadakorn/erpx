@@ -8,8 +8,62 @@ import {dirname, join} from "node:path";
 import {verificationSourceFingerprint} from "../../../scripts/local/source-fingerprint";
 import type { BrowserRunReceipt } from "../../../scripts/testing/browser-runner";
 import type { BrowserIsolationProof } from "../../../scripts/testing/browser-isolation-receipts";
+import { assertPrCaseCoverage, assertPrReceiptBinding, summarizeNativeCaseRun } from "../../../scripts/testing/pr-evidence";
 
 const candidate = "a".repeat(40), fingerprint = "b".repeat(64);
+
+describe("PR profile evidence", () => {
+  const binding = { kind: "native" as const, base: "c".repeat(40), candidate, selectionFingerprint: fingerprint };
+  const receipt = { scope: "pr-regression", kind: "native", base: binding.base, candidate, selectionFingerprint: fingerprint, passed: true };
+
+  it("binds receipts to the PR profile, base, candidate and selection", () => {
+    expect(() => assertPrReceiptBinding(receipt, binding)).not.toThrow();
+    expect(() => assertPrReceiptBinding({ ...receipt, scope: "internal-regression" }, binding)).toThrow("PR_RECEIPT_SCOPE_MISMATCH");
+    expect(() => assertPrReceiptBinding({ ...receipt, candidate: "d".repeat(40) }, binding)).toThrow("PR_RECEIPT_CANDIDATE_MISMATCH");
+    expect(() => assertPrReceiptBinding({ ...receipt, selectionFingerprint: "e".repeat(64) }, binding)).toThrow("PR_RECEIPT_CANDIDATE_MISMATCH");
+    expect(() => assertPrReceiptBinding({ ...receipt, passed: false }, binding)).toThrow("PR_RECEIPT_NOT_PASSED");
+  });
+
+  it("requires exact non-skipped case coverage and successful cleanup", () => {
+    const observed = [
+      { key: "finance/post/required case", passed: true, cleanup: { completed: true, ownedDirectoryAbsent: true } },
+      { key: "iam/authority/required case", passed: true, cleanup: { completed: true, ownedDirectoryAbsent: true } },
+    ];
+    expect(() => assertPrCaseCoverage(["finance/post/required case", "iam/authority/required case"], observed, true)).not.toThrow();
+    expect(() => assertPrCaseCoverage(["finance/post/required case", "iam/authority/required case"], observed.slice(0, 1), true)).toThrow("PR_CASE_COVERAGE_INCOMPLETE");
+    expect(() => assertPrCaseCoverage(["finance/post/required case"], [{ ...observed[0], passed: false }], true)).toThrow("PR_CASE_DID_NOT_PASS");
+    expect(() => assertPrCaseCoverage(["finance/post/required case"], [{ ...observed[0], cleanup: { completed: true, ownedDirectoryAbsent: false } }], true)).toThrow("PR_CASE_CLEANUP_INCOMPLETE");
+    expect(() => assertPrCaseCoverage(["finance/post/required case"], [observed[0], observed[0]], true)).toThrow("PR_CASE_RESULT_DUPLICATE");
+  });
+
+  it("retains failed native case identities and statuses in evidence while rejecting the lane", () => {
+    const file = "tests/integration/finance/payment-ledger.test.ts";
+    const required: RequiredCaseIdentity = { runner: "vitest", file, title: "posts one balanced ledger entry" };
+    const result = summarizeNativeCaseRun({ commandPassed: false, selectedFiles: [file], requiredCases: [required], receipt: {
+      version: 1, runner: "vitest", files: [file], passed: false,
+      cases: [{ ...required, status: "failed" }, { runner: "vitest", file, title: "replays the same idempotency key", status: "passed" }],
+    } });
+    expect(result.passed).toBe(false);
+    expect(result.cases).toEqual([
+      { ...required, status: "failed" },
+      { runner: "vitest", file, title: "replays the same idempotency key", status: "passed" },
+    ]);
+    expect(result.failureCodes).toEqual(expect.arrayContaining(["NATIVE_CASE_DID_NOT_PASS", "NATIVE_COMMAND_FAILED", "NATIVE_REPORTER_REJECTED_CASES"]));
+  });
+
+  it("rejects missing native receipts and missing required native identities", () => {
+    const file = "tests/integration/identity_access/current-authority.test.ts";
+    const required: RequiredCaseIdentity = { runner: "vitest", file, title: "revocation applies before command commit" };
+    expect(summarizeNativeCaseRun({ commandPassed: true, selectedFiles: [file], requiredCases: [required], receipt: undefined }).failureCodes).toContain("NATIVE_CASE_RECEIPT_MISSING");
+    expect(summarizeNativeCaseRun({ commandPassed: true, selectedFiles: [file], requiredCases: [required], receipt: {
+      version: 1, runner: "vitest", files: [file], passed: true, cases: [{ runner: "vitest", file, title: "an optional case", status: "passed" }],
+    } }).failureCodes).toContain("NATIVE_REQUIRED_CASE_MISSING");
+    expect(summarizeNativeCaseRun({ commandPassed: true, selectedFiles: [file], requiredCases: [required], receipt: {
+      version: 1, runner: "vitest", files: [file], passed: true, cases: [{ ...required, status: "passed", required: false }],
+    } }).failureCodes).toContain("NATIVE_REQUIRED_CASE_MISSING");
+  });
+});
+
 function isolationFixture(shard: BrowserCiReceipt): BrowserIsolationProof {
   let run = shard.shard.index * 1000;
   const freshRun = () => (++run).toString(16).padStart(12, "0");

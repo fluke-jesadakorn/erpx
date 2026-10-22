@@ -30,7 +30,11 @@ if(await runtimeSourceFingerprint(work)!==sourceFingerprint||await runtimeSource
 const softwareVersion=`release-${sourceFingerprint}`;
 await writeFile(join(work,'src/data/release-artifact.json'),JSON.stringify({softwareVersion})+'\n');
 // No development .env, database, fixture state or secrets enter the build tree.
-const child=Bun.spawn([node,join(work,'node_modules/next/dist/bin/next'),'build'],{cwd:work,stdout:'inherit',stderr:'inherit',env:{...process.env,NODE_ENV:'production',NEXT_DEPLOYMENT_ID:softwareVersion,ERPX_BUILD_DIR:'.next'}});
+const inheritedNodeOptions=process.env.NODE_OPTIONS??'';
+const nodeOptions=/(?:^|\s)--max-old-space-size(?:=|\s+)\d+/.test(inheritedNodeOptions)
+  ? inheritedNodeOptions
+  : `${inheritedNodeOptions} --max-old-space-size=8192`.trim();
+const child=Bun.spawn([node,join(work,'node_modules/next/dist/bin/next'),'build','--webpack'],{cwd:work,stdout:'inherit',stderr:'inherit',env:{...process.env,NODE_ENV:'production',NODE_OPTIONS:nodeOptions,NEXT_DEPLOYMENT_ID:softwareVersion,ERPX_BUILD_DIR:'.next',ERPX_RELEASE_NO_WEBPACK_CACHE:'1'}});
 if(await child.exited!==0)throw new Error('NEXT_BUILD_FAILED');
 await cp(join(work,'.next/standalone'),release,{recursive:true,mode:constants.COPYFILE_FICLONE});
 await relocateStandaloneLinks(join(work,'.next/standalone'),release);

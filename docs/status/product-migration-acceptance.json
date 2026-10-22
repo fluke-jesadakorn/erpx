@@ -2,7 +2,7 @@
   "version": 1,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "11a632fdfe2f5c076b56c9779567db1bc728d162ec226c3d2879cf9533c4af9e",
+  "sourceFingerprint": "9f174129d74a126ba4e5e2a00444e62efbd4915de1a943ad7680e19bd653710c",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",

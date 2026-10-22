@@ -7,6 +7,7 @@ export type SourceTree = ReadonlyMap<string, string>;
 export type SourceOwnership = { owners: { id: string; modules: string[]; source: string[] }[] };
 export type ChangedFile = { status: string; path: string; previousPath?: string };
 export type ImpactResult = { mode: "full" | "affected" | "none"; reasons: string[]; modules: string[]; suites: Suite[]; changed: ChangedFile[] };
+export type ImpactProfile = "acceptance" | "pull-request";
 
 export function patternMatches(path: string, pattern: string): boolean {
   const expression = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\u0000").replace(/\*/g, "[^/]*").replaceAll("\u0000", ".*");
@@ -35,12 +36,14 @@ export function selectImpact(input: {
   changed: ChangedFile[]; base: SourceTree; head: SourceTree;
   baseCatalogue: Catalogue; headCatalogue: Catalogue;
   baseOwnership: SourceOwnership; headOwnership: SourceOwnership;
-}): ImpactResult {
+}, profile: ImpactProfile = "acceptance"): ImpactResult {
   const { changed, headCatalogue } = input;
   const required = headCatalogue.suites.filter(suite => suite.lane !== "provider");
   const result: ImpactResult = { mode: "none", reasons: [], modules: [], suites: [], changed };
   const full = (reason: string): ImpactResult => ({ ...result, mode: "full", reasons: [reason], modules: headCatalogue.modules, suites: required });
-  const relevant = changed.flatMap(change => [change.path, ...(change.previousPath ? [change.previousPath] : [])]).filter(path => globalPatterns.some(pattern => patternMatches(path, pattern)) || !documentationOnly(path));
+  const relevant = changed.flatMap(change => [change.path, ...(change.previousPath ? [change.previousPath] : [])]).filter(path =>
+    !(profile === "pull-request" && /^docs\/testing\/.*\.(?:md|txt)$/i.test(path)) &&
+    (globalPatterns.some(pattern => patternMatches(path, pattern)) || !documentationOnly(path)));
   if (!relevant.length) return result;
   const global = relevant.find(path => globalPatterns.some(pattern => patternMatches(path, pattern)));
   if (global) return full(`GLOBAL_DEPENDENCY:${global}`);
@@ -119,7 +122,7 @@ export function parseChanges(output: string): ChangedFile[] {
   }
   return changed;
 }
-export function impactFromGit(baseReference: string, root = repositoryRoot, headReference?: string): ImpactResult {
+export function impactFromGit(baseReference: string, root = repositoryRoot, headReference?: string, profile: ImpactProfile = "acceptance"): ImpactResult {
   const baseRef = checkedRef(root, baseReference), headRef = headReference ? checkedRef(root, headReference) : "HEAD";
   const base = snapshot(root, baseRef), head = snapshot(root, headReference ? headRef : undefined);
   const changed = parseChanges(git(root, ["diff", "--name-status", "--find-renames", "-z", baseRef, headRef]).toString());
@@ -132,5 +135,5 @@ export function impactFromGit(baseReference: string, root = repositoryRoot, head
   const baseCatalogue = read<Catalogue>(base, "tests/catalogue/suite-manifest.json"), baseOwnership = read<SourceOwnership>(base, "src/server/modules/ownership.json"), headOwnership = read<SourceOwnership>(head, "src/server/modules/ownership.json");
   // The first adoption PR cannot reconstruct a missing historical mapping safely.
   if (!baseCatalogue || !baseOwnership || !headOwnership) return { mode: "full", reasons: ["BASE_OR_HEAD_MAPPING_MISSING"], modules: headCatalogue.modules, suites: headCatalogue.suites.filter(suite => suite.lane !== "provider"), changed };
-  return selectImpact({ changed, base, head, baseCatalogue, headCatalogue, baseOwnership, headOwnership });
+  return selectImpact({ changed, base, head, baseCatalogue, headCatalogue, baseOwnership, headOwnership }, profile);
 }

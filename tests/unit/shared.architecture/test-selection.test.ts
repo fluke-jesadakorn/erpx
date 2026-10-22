@@ -5,7 +5,8 @@ import { delimiter, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { parseTestArguments } from "../../../scripts/testing/arguments";
 import { assertExplicitSelectionIncluded, importSpecifiers, loadCatalogue, reachesDatabaseFixture, repositoryRoot, requiresEngineeringBusinessFixture, resolveImport, selectSuites, validateBrowserFixtureContract, validateCatalogue, type Catalogue, type Suite } from "../../../scripts/testing/catalogue";
-import { parseChanges, patternMatches, selectImpact, type SourceOwnership } from "../../../scripts/testing/impact";
+import { parseChanges, patternMatches, selectImpact, type ImpactResult, type SourceOwnership } from "../../../scripts/testing/impact";
+import { selectCiSuites } from "../../../scripts/testing/ci-selection";
 import { developmentSelection } from "../../../scripts/testing/development";
 import { nativeCaseTitle, requiredCaseFailures } from "../../../scripts/testing/required-cases-reporter";
 import { browserChildEnvironment, vitestChildEnvironment } from "../../../scripts/testing/runner-environment";
@@ -17,7 +18,7 @@ import { assertLocalBrowserRealmTarget } from "../../../fixtures/shared/builders
 import { pinnedBunBinary } from "../../../scripts/testing/runtime-tooling";
 import { assertTestPlacement } from "../../../scripts/testing/layout";
 
-const suite = (id: string, modules: string[], lane: Suite["lane"] = "unit"): Suite => ({ id, lane, owner: modules[0], modules, files: [`tests/${id}.test.ts`], fixture: "none", requires: { jobs: false, scanner: false } });
+const suite = (id: string, modules: string[], lane: Suite["lane"] = "unit"): Suite => ({ id, lane, owner: modules[0], modules, files: [`tests/${id}.test.ts`], fixture: "none", requires: { jobs: false, scanner: false }, ...(["unit", "integration"].includes(lane) ? { ci: { critical: true, reason: "Test fixture covers a protected business invariant." } } : {}) });
 const catalogue: Catalogue = { version: 1, modules: ["sales", "finance", "people_payroll"], suites: [suite("sales.rules", ["sales"]), suite("finance.rules", ["finance"]), suite("people_payroll.expense", ["people_payroll"]), suite("sales.collection", ["sales", "finance"], "journeys")] };
 const ownership: SourceOwnership = { owners: [
   { id: "sales", modules: ["sales"], source: ["src/server/sales/**"] },
@@ -30,6 +31,19 @@ const base = new Map([
   ["src/server/people/expense.ts", "export const expense = 1"],
 ]);
 const impacted = (changes: Parameters<typeof selectImpact>[0]["changed"], before = base, after = base, beforeOwnership = ownership, afterOwnership = ownership) => selectImpact({ changed: changes, base: before, head: after, baseCatalogue: catalogue, headCatalogue: catalogue, baseOwnership: beforeOwnership, headOwnership: afterOwnership });
+function ciCatalogues() {
+  const baseCritical = suite("finance.critical", ["finance"]);
+  const headCritical = { ...baseCritical, ci: { critical: false, reason: "Deliberately weakened candidate classification for regression coverage." } };
+  const nativeLow = { ...suite("sales.low-risk", ["sales"]), ci: { critical: false, reason: "Synthetic presentation-only coverage for selector tests." } };
+  const nativeIntegration = { ...suite("sales.changed", ["sales"], "integration"), ci: { critical: false, reason: "Synthetic non-risk coverage for selector tests." } };
+  const browser = [suite("identity_access.auth-smoke.e2e", ["identity_access"], "e2e"), suite("finance.demo-controlled-payment.e2e", ["finance"], "e2e"),
+    suite("sales.change-flow.journeys", ["sales"], "journeys"), suite("identity_access.product-hosts.e2e", ["identity_access"], "e2e"), suite("finance.routes.uat", ["finance"], "uat")];
+  const modules = ["finance", "sales", "identity_access"];
+  const baseCatalogue: Catalogue = { version: 1, modules, suites: [baseCritical, nativeLow, nativeIntegration, ...browser] };
+  const headCatalogue: Catalogue = { version: 1, modules, suites: [headCritical, nativeLow, nativeIntegration, ...browser] };
+  return { baseCatalogue, headCatalogue, baseCritical, headCritical, nativeLow, nativeIntegration };
+}
+const ciImpact = (mode: ImpactResult["mode"], suites: Suite[] = [], changed: ImpactResult["changed"] = []): ImpactResult => ({ mode, suites, changed, modules: [], reasons: [mode === "full" ? "GLOBAL_DEPENDENCY" : mode === "affected" ? "OWNED_CHANGE" : "DOCUMENTATION_ONLY"] });
 
 describe("test selection contracts", () => {
   it("defaults development commands to unit while preserving explicit native selections and lane errors", () => {
@@ -315,17 +329,18 @@ describe("conservative base and head impact selection", () => {
   it("requires complete semantic ownership in impact CI even after import boundaries pass", () => {
     const workflow = readFileSync(join(process.cwd(), ".github/workflows/nextjs.yml"), "utf8");
     const impactJob = workflow.match(/^  impact:\n([\s\S]*?)(?=^  native:)/m)?.[1];
-    expect(impactJob).toContain("run: bun scripts/architecture/acceptance.ts");
-    expect(impactJob).not.toContain("run: bun run architecture:check");
+    expect(impactJob).toContain("run: bun scripts/testing/pr-regression.ts native");
+    const regressionRunner = readFileSync(join(process.cwd(), "scripts/testing/pr-regression.ts"), "utf8");
+    for (const command of ['"scripts/architecture/acceptance.ts"', '"run", "structure:check"', '"run", "docs:check"', '"run", "products:check"', '"run", "lint"', '"run", "typecheck"', '"run", "deploy:build"']) expect(regressionRunner).toContain(command);
   });
   it("starts CI for operational runners, nested fixtures and workspace rules that force full impact", () => {
     const workflow=readFileSync(join(process.cwd(),".github/workflows/nextjs.yml"),"utf8");
     for(const event of ["push"]){
-      const paths=workflow.match(new RegExp(`^  ${event}:\\n    paths: (\\[[^\\n]+\\])`,"m"))?.[1];
-      if(!paths)throw new Error(`Missing ${event} CI paths`);
-      const patterns=JSON.parse(paths.replaceAll("'",'"')) as string[];
+      const block=workflow.match(new RegExp(`^  ${event}:\\n([\\s\\S]*?)(?=^  (?:pull_request|merge_group|workflow_dispatch):)`,"m"))?.[1];
+      if(!block)throw new Error(`Missing ${event} CI trigger`);
+      expect(block).toContain("branches: [development]");
+      expect(block).not.toMatch(/^    paths:/m);
       for(const path of ["AGENTS.md","ops/ucs/gpo_runner.py","ops/windows/PeopleDirectoryRunner.ps1","ops/samba/build-samba-apk.sh","ops/macos/erpxctl.py","fixtures/finance/expansion.ts","fixtures/pos/images/menu-americano.png"]){
-        expect(patterns.some(pattern=>patternMatches(path,pattern)),`${event}:${path}`).toBe(true);
         expect(impacted([{status:"M",path}]).mode).toBe("full");
       }
     }
@@ -335,14 +350,28 @@ describe("conservative base and head impact selection", () => {
     // A path- or branch-filtered required workflow stays pending rather than
     // producing a candidate receipt. Keep the PR event entirely unconditional.
     expect(workflow).toMatch(/^  pull_request: \{\}$/m);
-    const pushPaths=JSON.parse(workflow.match(/^  push:\n    paths: (\[[^\n]+\])/m)![1].replaceAll("'", '"')) as string[];
+    const pushBlock=workflow.match(/^  push:\n([\s\S]*?)(?=^  pull_request:)/m)?.[1] ?? "";
+    expect(pushBlock).not.toMatch(/^    paths:/m);
     for(const path of ["docs/contracts/next/people.md","CONTEXT.md","adr/026-owner-boundaries.md"]){
-      expect(pushPaths.some(pattern=>patternMatches(path,pattern)),path).toBe(false);
       expect(impacted([{status:"M",path}]).mode).toBe("none");
     }
-    expect(workflow).toContain('process.env.BASE_BRANCH==="development"');
-    expect(workflow).toContain("if: always() && (github.event_name != 'pull_request' || github.event.pull_request.base.ref == 'development'");
-    expect(workflow).toContain('test "$SCOPE_RESULT" = success && test "$NATIVE_RESULT" = success && test "$BROWSER_RESULT" = success');
+    expect(workflow).toMatch(/^  merge_group:/m);
+    expect(workflow).toMatch(/^  workflow_dispatch:/m);
+    expect(workflow).toContain("branches: [development]");
+    expect(workflow).toContain('if [ "$EVENT_NAME" = push ] && [ "$base_is_zero" = true ]; then');
+    expect(workflow).toContain("Unable to resolve the event base; refusing an under-scoped PR profile.");
+    expect(workflow).not.toContain("base.ref == 'development'");
+    expect(workflow).toContain("cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}");
+    expect(workflow).toContain("if: needs.scope.outputs.profile == 'pr'");
+    expect(workflow).toContain('name: Browser full regression ${{ matrix.shard }}/64');
+    expect(workflow).toContain('contains(fromJSON(needs.scope.outputs.browser_shards), matrix.shard)');
+    expect(workflow).toContain('pr-regression.ts browser --base=${{ needs.scope.outputs.base }} --head=${{ needs.scope.outputs.candidate }} --shard=${{ matrix.shard }}/4');
+    expect(workflow).toContain('ci-regression.ts browser --shard=${{ matrix.shard }}/64');
+    expect(workflow).not.toContain('browser-pr:');
+    expect(workflow).toContain('test "$IMPACT_RESULT" = success');
+    expect(workflow).toContain('test "$BROWSER_RESULT" = success');
+    expect(workflow).toContain('pattern: pr-*-${{ needs.scope.outputs.candidate }}');
+    expect(workflow).toContain('name: full-candidate-${{ needs.scope.outputs.candidate }}');
   });
   it("includes the owning module, reverse import consumers and journeys", () => {
     expect(impacted([{ status: "M", path: "src/server/sales/pricing.ts" }]).modules).toEqual(["finance", "sales"]);
@@ -400,6 +429,83 @@ describe("conservative base and head impact selection", () => {
     expect(resolveImport("src/server/a.ts", "./b.js", new Set(["src/server/b.ts"]))).toBe("src/server/b.ts");
     expect(patternMatches("src/server/a/deep/b.ts", "src/server/a/**")).toBe(true);
     expect(patternMatches("src/server/a/deep/b.ts", "src/server/a/*.ts")).toBe(false);
+  });
+});
+
+describe("PR regression selection", () => {
+  it("selects candidate-critical suites even when the base has no critical suite", () => {
+    const lowRisk = { ...suite("sales.presentation", ["sales"]), ci: { critical: false, reason: "Presentation-only fixture used to verify the candidate classification path." } };
+    const newCritical = { ...suite("sales.money-and-authority", ["sales"]), ci: { critical: true, reason: "The candidate assertions retain money and current-authority invariants." } };
+    const browser = [suite("identity_access.auth-smoke.e2e", ["identity_access"], "e2e"), suite("finance.demo-controlled-payment.e2e", ["finance"], "e2e")];
+    const modules = ["sales", "identity_access", "finance"];
+    const baseCatalogue: Catalogue = { version: 1, modules, suites: [lowRisk, ...browser] };
+    const headCatalogue: Catalogue = { version: 1, modules, suites: [lowRisk, newCritical, ...browser] };
+    const plan = selectCiSuites({ impact: ciImpact("none"), baseCatalogue, headCatalogue });
+    expect(plan.native.map(item => item.id)).toEqual([newCritical.id]);
+  });
+
+  it("keeps base-critical suites even when candidate metadata weakens their classification", () => {
+    const { baseCatalogue, headCatalogue, headCritical } = ciCatalogues();
+    const plan = selectCiSuites({ impact: ciImpact("none"), baseCatalogue, headCatalogue });
+    expect(plan.native.map(item => item.id)).toContain(headCritical.id);
+    expect(plan.reasons.find(item => item.id === headCritical.id)?.reasons).toContain("critical on base; carried across this change");
+    expect(plan.browser.map(item => item.id)).toEqual(["identity_access.auth-smoke.e2e", "finance.demo-controlled-payment.e2e"]);
+  });
+
+  it("unions changed cross-module suites with every critical suite and the two-browser baseline", () => {
+    const { baseCatalogue, headCatalogue, nativeLow, nativeIntegration } = ciCatalogues();
+    const plan = selectCiSuites({ impact: ciImpact("affected", [nativeLow, nativeIntegration]), baseCatalogue, headCatalogue });
+    expect(plan.native.map(item => item.id)).toEqual(["finance.critical", "sales.low-risk", "sales.changed"]);
+    expect(plan.reasons.find(item => item.id === nativeIntegration.id)?.reasons).toContain("affected by base/head ownership or reverse dependencies");
+    expect(plan.browser).toHaveLength(2);
+  });
+
+  it("fails closed when a base-critical test is deleted and follows a critical file move", () => {
+    const initial = ciCatalogues();
+    const renamedFile = "tests/unit/finance/critical-renamed.test.ts";
+    const movedCatalogue: Catalogue = { ...initial.headCatalogue, suites: initial.headCatalogue.suites.map(item => item.id === initial.headCritical.id
+      ? { ...item, id: "finance.critical-moved", files: [renamedFile], ci: { critical: false, reason: "Candidate classification changed during a move." } }
+      : item) };
+    const moved = selectCiSuites({ impact: ciImpact("affected", [], [{ status: "R100", previousPath: initial.baseCritical.files[0], path: renamedFile }]), baseCatalogue: initial.baseCatalogue, headCatalogue: movedCatalogue });
+    expect(moved.native.map(item => item.id)).toContain("finance.critical-moved");
+    expect(() => selectCiSuites({ impact: ciImpact("affected", [], [{ status: "D", path: initial.baseCritical.files[0] }]), baseCatalogue: initial.baseCatalogue, headCatalogue: initial.headCatalogue }))
+      .toThrow("BASE_CRITICAL_TEST_REMOVED");
+  });
+
+  it("runs all PR-supported suites on global/missing-mapping fallback and defers UAT and product-host suites", () => {
+    const { baseCatalogue, headCatalogue } = ciCatalogues();
+    const plan = selectCiSuites({ impact: ciImpact("full"), baseCatalogue, headCatalogue });
+    expect(plan.native).toHaveLength(3);
+    expect(plan.browser.map(item => item.id)).toEqual(["identity_access.auth-smoke.e2e", "finance.demo-controlled-payment.e2e", "sales.change-flow.journeys"]);
+    expect(plan.deferredToFull.map(item => item.id)).toEqual(expect.arrayContaining(["identity_access.product-hosts.e2e", "finance.routes.uat"]));
+    const missingBase: Catalogue = { ...baseCatalogue, suites: baseCatalogue.suites.map(item => item.lane === "unit" || item.lane === "integration" ? { ...item, ci: undefined } : item) };
+    const conservative = selectCiSuites({ impact: ciImpact("affected", []), baseCatalogue: missingBase, headCatalogue });
+    expect(conservative.baseCriticalFallback).toBe(true);
+    expect(conservative.native).toHaveLength(3);
+    expect(conservative.browser).toHaveLength(3);
+  });
+
+  it("treats docs/testing Markdown as docs-only while still selecting critical native and browser baselines", () => {
+    const { baseCatalogue, headCatalogue } = ciCatalogues();
+    const input = { changed: [{ status: "M", path: "docs/testing/README.md" }], base, head: base, baseCatalogue, headCatalogue, baseOwnership: ownership, headOwnership: ownership };
+    expect(selectImpact(input).mode).toBe("full");
+    const impact = selectImpact(input, "pull-request");
+    expect(impact).toMatchObject({ mode: "none", suites: [] });
+    const plan = selectCiSuites({ impact, baseCatalogue, headCatalogue });
+    expect(plan.native.map(item => item.id)).toEqual(["finance.critical"]);
+    expect(plan.browser.map(item => item.id)).toEqual(["identity_access.auth-smoke.e2e", "finance.demo-controlled-payment.e2e"]);
+  });
+
+  it("requires all native classifications and independently pins the money, IAM, transaction, isolation, and selector anchors", () => {
+    const actual = loadCatalogue();
+    const critical = new Set(actual.suites.filter(item => item.lane === "unit" || item.lane === "integration").filter(item => item.ci?.critical).map(item => item.id));
+    for (const id of ["finance.money.unit", "finance.company-money.unit", "finance.core-services.unit", "finance.books.integration", "people_payroll.accounting.unit",
+      "people_payroll.payroll-math.unit", "identity_access.iam.integration", "identity_access.account-recovery.unit", "shared.architecture.architecture-transaction.unit",
+      "shared.business-contracts.owner-isolation.unit", "shared.attachments.sensitive-attachment-access.integration", "files.application.unit", "shared.architecture.test-selection.unit",
+      "shared.test-infrastructure.ci-regression.unit", "shared.test-infrastructure.browser-isolation-receipts.unit"])
+      expect(critical.has(id), id).toBe(true);
+    const target = actual.suites.find(item => item.id === "finance.money.unit")!;
+    expect(() => validateCatalogue({ ...actual, suites: actual.suites.map(item => item.id === target.id ? { ...item, ci: undefined } : item) })).toThrow(`NATIVE_CI_CLASSIFICATION_REQUIRED:${target.id}`);
   });
 });
 
