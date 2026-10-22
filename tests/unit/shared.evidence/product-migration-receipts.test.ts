@@ -11,6 +11,7 @@ import {
   importProductMigrationReceipt,
   productMigrationReceiptManifestSchema,
   productMigrationBrowserCaseMatches,
+  productMigrationBrowserReceiptCaseMatches,
   productMigrationReceiptMatchesCurrent,
   productMigrationReceiptSchema,
   requiredProductMigrationCases,
@@ -521,10 +522,14 @@ describe("current-source product migration receipt v2", () => {
     }] }] }] };
     const actual = browserCases(report)[0]!;
     const rawReceiptCase = { ...expected, file: rawFile, passed: true };
+    const browserReceiptCase = { ...rawReceiptCase, runner: undefined };
     const reportCase = { runner: "playwright", suite: expected.suite, ...actual };
 
     expect(suite.files).toContain(expected.file);
     expect(productMigrationBrowserCaseMatches(rawReceiptCase, expected, suite.files)).toBe(true);
+    expect(productMigrationBrowserCaseMatches(browserReceiptCase, expected, suite.files)).toBe(false);
+    expect(productMigrationBrowserReceiptCaseMatches(browserReceiptCase, expected, suite.files)).toBe(true);
+    expect(productMigrationBrowserReceiptCaseMatches({ ...browserReceiptCase, runner: "vitest" }, expected, suite.files)).toBe(false);
     expect(productMigrationBrowserCaseMatches(reportCase, expected, suite.files)).toBe(true);
     expect(productMigrationBrowserCaseMatches({ ...rawReceiptCase, file: "e2e/identity_access/missing.spec.ts" }, expected, suite.files)).toBe(false);
     expect(productMigrationBrowserCaseMatches({ ...rawReceiptCase, title: `${expected.title} extra` }, expected, suite.files)).toBe(false);

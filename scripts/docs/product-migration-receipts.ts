@@ -414,6 +414,12 @@ export function productMigrationBrowserCaseMatches(actual: unknown, expected: Pr
     (actual.project ?? undefined) === (expected.project ?? undefined);
 }
 
+export function productMigrationBrowserReceiptCaseMatches(actual: unknown, expected: ProductMigrationCase, suiteFiles: readonly string[]) {
+  if (!record(actual) || expected.runner !== "playwright") return false;
+  const browserCase = actual.runner === undefined ? { ...actual, runner: "playwright" } : actual;
+  return productMigrationBrowserCaseMatches(browserCase, expected, suiteFiles);
+}
+
 function assertNativeProductMigrationSuiteBinding(expected: readonly ProductMigrationCase[]) {
   for (const test of expected) {
     const ownerSuite = catalogue.suites.find(suite => suite.id === test.suite);
@@ -542,7 +548,7 @@ async function browserWitness(root: string, value: Record<string, unknown> & { r
   const owners = catalogue.suites.filter(suite => suite.id === wanted.suite && suite.files.includes(wanted.file));
   if (owners.length !== 1) throw new Error("PRODUCT_MIGRATION_BROWSER_SUITE_BINDING_REQUIRED");
   const suiteFiles = owners[0].files;
-  const matching = value.receipts.filter(item => productMigrationBrowserCaseMatches(item, wanted, suiteFiles) && record(item) && item.passed === true);
+  const matching = value.receipts.filter(item => productMigrationBrowserReceiptCaseMatches(item, wanted, suiteFiles) && record(item) && item.passed === true);
   if (matching.length !== 1) throw new Error("PRODUCT_MIGRATION_EXACT_BROWSER_CASE_REQUIRED");
   const result = matching[0] as Record<string, unknown>;
   const businessWorkflow = productHostBusinessWorkflowForCase(wanted.file, wanted.title);
