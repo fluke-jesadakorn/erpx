@@ -242,6 +242,15 @@ test("pms/inventory opens the mounted minibar route with inventory section ident
       `${fixture.origin}/holdings/riverside-lantern/pms/settings?property=${encodeURIComponent(fixture.propertyId)}`,
     );
     await expect(fixture.page.locator('[data-source="live"]')).toBeVisible();
+    const expandMobileNavigation = async () => {
+      if (info.project.name !== "mobile") return;
+      const picker = fixture.page.getByRole("button", { name: /^Hotel tasks/ });
+      if (await picker.getAttribute("aria-expanded") !== "true") {
+        await picker.click();
+        await expect(picker).toHaveAttribute("aria-expanded", "true");
+      }
+    };
+    await expandMobileNavigation();
     const inventoryLink = fixture.page.getByRole("link", { name: "Minibar & linen", exact: true });
     await expect(inventoryLink).toHaveAttribute(
       "href",
@@ -251,6 +260,7 @@ test("pms/inventory opens the mounted minibar route with inventory section ident
     await expect(fixture.page).toHaveURL(
       `${fixture.origin}/holdings/riverside-lantern/pms/minibar?property=${encodeURIComponent(fixture.propertyId)}`,
     );
+    await expandMobileNavigation();
     await expect(fixture.page.getByRole("link", { name: "Minibar & linen", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(fixture.page.getByRole("heading", { name: "Minibar, supplies & linen", exact: true })).toBeVisible();
 
