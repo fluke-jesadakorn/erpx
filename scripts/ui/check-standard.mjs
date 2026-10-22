@@ -1,8 +1,10 @@
+import {routeDependsOn} from "./inventory.mjs";
 import {existsSync,readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import ts from 'typescript';
+const workspaceSourcePath=value=>typeof value==='string' && !value.includes('\\') && !value.split('/').some(part=>!part||part==='.'||part==='..') && /^(?:src\/|apps\/[a-z0-9_-]+\/src\/|packages\/[a-z0-9_-]+\/src\/)/.test(value);
 const root=resolve(import.meta.dirname,'../..');
 const manifest=JSON.parse(readFileSync(resolve(root,'docs/ux-ui/standard-coverage.json'),'utf8'));
 const controls=new Set(['Button','TextInput','TextArea','Select','Field','Card','TableFrame','StatusBadge','PageHeader','Dialog','FormDrawer','FormDisclosure','ListFilters','IconButton','ActionLink','ActionAnchor','FeatureTabBar']);
@@ -41,7 +43,7 @@ for(const file of frozen) {
  if(original.status!==0||!original.stdout||hash(original.stdout)!==file.fingerprint)violations.push(`${file.source}: original frozen evidence unavailable or changed`);
  for(const successor of retirement.successors) {
   const successorPath=resolve(root,successor.source);
-  if(!successor.source.startsWith('src/')||!existsSync(successorPath)||hash(readFileSync(successorPath))!==successor.fingerprint&&acceptance.transitions.get(file.source)?.successors.get(successor.source)!==hash(readFileSync(successorPath)))violations.push(`${file.source}: retired successor missing or changed: ${successor.source}`);
+  if(!workspaceSourcePath(successor.source)||!existsSync(successorPath)||hash(readFileSync(successorPath))!==successor.fingerprint&&acceptance.transitions.get(file.source)?.successors.get(successor.source)!==hash(readFileSync(successorPath)))violations.push(`${file.source}: retired successor missing or changed: ${successor.source}`);
  }
 }
 for(const source of manifest.sources) {
@@ -50,7 +52,7 @@ for(const source of manifest.sources) {
  if(createHash('sha256').update(text).digest('hex')!==source.fingerprint)violations.push(`${source.source}: inventory is stale; regenerate coverage`);
  const ast=ts.createSourceFile(source.source,text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  const importedControls=new Map();
- for(const node of ast.statements) if(ts.isImportDeclaration(node)&&ts.isStringLiteral(node.moduleSpecifier)&&/^@\/components\/(?:ui\/|shared\/features\/feature-page)/.test(node.moduleSpecifier.text)) {
+ for(const node of ast.statements) if(ts.isImportDeclaration(node)&&ts.isStringLiteral(node.moduleSpecifier)&&/^(?:@\/components\/(?:ui\/|shared\/features\/feature-page)|@erpx\/(?:ui\/components\/|feature-shared\/components\/features\/feature-page))/.test(node.moduleSpecifier.text)) {
   const bindings=node.importClause?.namedBindings;
   if(bindings&&ts.isNamedImports(bindings))for(const specifier of bindings.elements) {
    const original=(specifier.propertyName??specifier.name).text;if(controls.has(original))importedControls.set(specifier.name.text,original);
@@ -73,7 +75,7 @@ if(process.argv.includes('--complete')) {
  const pendingRetirements=retirements.filter(entry=>!acceptance.transitions.has(entry.source));
  if(pendingRetirements.length){console.error(`Completion blocked: ${pendingRetirements.length} retired boundaries require specialized browser acceptance.`);process.exitCode=1;}
  const pending=manifest.routes.filter(x=>x.verification==='pending'||x.verification==='excluded'&&x.scope!=='deferred-public-marketing');
- const pendingSources=manifest.sources.filter(x=>x.verification==='pending'||x.verification==='excluded'&&x.scope!=='deferred-public-marketing'&&manifest.routes.some(route=>route.source===x.source||(route.dependencies??[]).includes(x.source)));
+ const pendingSources=manifest.sources.filter(x=>x.verification==='pending'||x.verification==='excluded'&&x.scope!=='deferred-public-marketing'&&manifest.routes.some(route=>route.source===x.source||routeDependsOn(manifest,route,x.source)));
  if(pendingSources.length){console.error(`Completion blocked: ${pendingSources.length} component/page sources lack current state acceptance.`);process.exitCode=1;}
  if(pending.length){ console.error(`Completion blocked: ${pending.length} routes lack current browser acceptance.`);process.exitCode=1; }
 }

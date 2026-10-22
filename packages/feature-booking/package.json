@@ -1,0 +1,26 @@
+{
+  "name": "@erpx/feature-booking",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes/book/[holdingSlug]/manage/page": "./src/routes/book/[holdingSlug]/manage/page.tsx",
+    "./routes/book/[holdingSlug]/page": "./src/routes/book/[holdingSlug]/page.tsx",
+    "./routes/book/[holdingSlug]/[propertyId]/page": "./src/routes/book/[holdingSlug]/[propertyId]/page.tsx",
+    "./routes/api/public/booking/[holdingSlug]/[action]/route": "./src/routes/api/public/booking/[holdingSlug]/[action]/route.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-pms": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-manage_erpx": "workspace:*",
+    "@erpx/server-pms": "workspace:*",
+    "@erpx/server-runtime": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "next": "16.4.0",
+    "zod": "4.5.4"
+  }
+}

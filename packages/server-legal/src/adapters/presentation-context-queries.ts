@@ -1,0 +1,13 @@
+import "server-only";
+import { portalContext } from "@erpx/server-legal/public/legal/portal";
+import { portalList,portalDetail } from "@erpx/server-legal/public/legal/portal";
+
+type ReadArguments<F extends (...args: never[]) => unknown> = Parameters<F> extends [unknown, ...infer Rest] ? Rest : never;
+
+export async function legalPortalPresentationQueries(holdingSlug: string) {
+  const { write, actor } = await portalContext(holdingSlug);
+  return { actor, queries: {
+    portalList: (...args: ReadArguments<typeof portalList>) => portalList(write, ...args),
+    portalDetail: (...args:ReadArguments<typeof portalDetail>)=>portalDetail(write,...args),
+  } };
+}

@@ -1,0 +1,1 @@
+export {financeProductDocumentEntry,requireFinanceDocumentHistory,requireFinanceWorkspaceHistory,withFinanceFlowAssignment,financeFlowAccess,financeWorkspaceSearchScope,financeNotificationReadScope,withFinanceDocumentPost,financeDocumentPostAccess,financeSourceDocumentReadLocks,type FinanceDocumentKind} from "@erpx/server-finance/adapters/document-purchases";

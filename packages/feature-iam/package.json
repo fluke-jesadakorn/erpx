@@ -1,0 +1,34 @@
+{
+  "name": "@erpx/feature-iam",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/sections/roles": "./src/components/sections/roles.tsx",
+    "./components/sections/matrix": "./src/components/sections/matrix.tsx",
+    "./components/sections/connections": "./src/components/sections/connections.tsx",
+    "./components/sections/overview": "./src/components/sections/overview.tsx",
+    "./components/sections/users": "./src/components/sections/users.tsx",
+    "./components/sections/my-access": "./src/components/sections/my-access.tsx",
+    "./components/sections/reviews": "./src/components/sections/reviews.tsx",
+    "./components/sections/groups": "./src/components/sections/groups.tsx",
+    "./components/iam-console": "./src/components/iam-console.tsx",
+    "./components/iam.module.css": "./src/components/iam.module.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-identity_access": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-identity_access": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "lucide-react": "1.41.0",
+    "react": "19.3.0"
+  }
+}

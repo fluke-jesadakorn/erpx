@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { monthBounds } from "../../../src/lib/billing/billing";
-import { canonicalSeatIntervals, deriveHoldingSeatIntervals } from "../../../src/server/modules/commercial/public/seat-meter";
+import { monthBounds } from "@erpx/feature-billing/lib/billing";
+import { canonicalSeatIntervals, deriveHoldingSeatIntervals } from "@erpx/server-commercial/public/seat-meter";
 
 const month="2026-10",{start,end}=monthBounds(month),day=86400000;
 const role={event_id:1,company_id:"*",role_id:"employee",captured_at:start-1,present:true,

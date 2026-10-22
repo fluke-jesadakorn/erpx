@@ -1,16 +1,16 @@
-import registry from "../../src/data/module-registry.json";
-import { guestAccountCapabilityId } from "../../src/lib/identity_access/guest-account-compat";
-import { validateEngineeringInventory, inventoryVerification } from "../../src/lib/runtime/engineering-inventory-report";
-import { engineeringManifestSchema } from "../../src/lib/runtime/engineering-completion";
-import { reviewedCapabilityManifest } from "../../src/data/capability-gate-reviews";
-import { validateAcceptanceEvidence } from "../../src/data/acceptance-evidence";
+import registry from "@erpx/catalogue/module-registry.json";
+import { guestAccountCapabilityId } from "@erpx/feature-identity_access/lib/guest-account-compat";
+import { validateEngineeringInventory, inventoryVerification } from "@erpx/feature-runtime/lib/engineering-inventory-report";
+import { engineeringManifestSchema } from "@erpx/feature-runtime/lib/engineering-completion";
+import { reviewedCapabilityManifest } from "@erpx/catalogue/capability-gate-reviews";
+import { validateAcceptanceEvidence } from "@erpx/catalogue/acceptance-evidence";
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import {
   capabilityDelivery,
   type DeliveryStatus,
-} from "../../src/data/capability-delivery";
+} from "@erpx/catalogue/capability-delivery";
 
 const evidenceLedger = validateAcceptanceEvidence(JSON.parse(readFileSync("docs/status/business-acceptance-evidence.json", "utf8")));
 const capabilitiesWithReviews = reviewedCapabilityManifest(JSON.parse(readFileSync("docs/status/capability-gate-reviews.json", "utf8")));
@@ -130,7 +130,7 @@ console.log(`${checkOnly?"Verified":"Wrote"} ${capabilities.length} capabilities
 
 // Bundled, checksum-verified observations for the read-only readiness dashboard.
 // This is workspace simulation evidence, never a Company production sign-off.
-await writeOrCheck("src/data/business-readiness.generated.json", JSON.stringify({
+await writeOrCheck("packages/catalogue/src/business-readiness.generated.json", JSON.stringify({
   evidenceLedgerSha256:createHash("sha256").update(readFileSync("docs/status/business-acceptance-evidence.json")).digest("hex"),
   capabilities:capabilitiesWithReviews,
   observations:evidenceLedger.records,

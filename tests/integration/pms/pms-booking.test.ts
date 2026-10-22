@@ -1,5 +1,5 @@
 import {renderToStaticMarkup} from "react-dom/server";
-import { cancellationEligibility, localDeadline } from "../../../src/lib/pms/pms-booking";
+import { cancellationEligibility, localDeadline } from "@erpx/feature-pms/lib/pms-booking";
 import {
   createPublicReservation,
   bookingPaymentStatus,
@@ -15,29 +15,29 @@ import {
   bookingRateLimit,
   recoverBooking,
   requestBookingRefund,
-} from "../../../src/server/modules/pms/public/pms-booking";
-import {guestBookingDocument} from "../../../src/server/modules/pms/public/pms/guest-document";
-import {staffBookingChange} from "../../../src/server/modules/pms/public/pms/staff-booking-changes";
-import { publicChangeQuote, confirmBookingChange } from "../../../src/server/modules/pms/public/pms-booking-changes";
+} from "@erpx/server-pms/public/pms-booking";
+import {guestBookingDocument} from "@erpx/server-pms/public/pms/guest-document";
+import {staffBookingChange} from "@erpx/server-pms/public/pms/staff-booking-changes";
+import { publicChangeQuote, confirmBookingChange } from "@erpx/server-pms/public/pms-booking-changes";
 import { createHmac } from "node:crypto";
-import { posStripeWebhook,drainPos } from "../../../src/server/modules/pos/public/pos-stripe";
-import {pmsFinanceOverview} from "../../../src/server/modules/pms/public/pms/finance";
-import {createPmsStripePayment,pmsStripePaymentStatus,reconcilePmsStripePayment,requestPmsStripeRefund,approvePmsStripeRefund,processPmsStripeRefund,recoverPmsStripeRefund} from "../../../src/server/modules/pms/public/pms-stripe";
-import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@/server/modules/commercial/public/package-grants";
-import { withOwnerPackageObligations, readOwnerPackageObligations, ownerPackageObligations } from "@/server/modules/commercial/public/owner-package-obligations";
-import { publicBookingDirectory } from "@/server/modules/pms/public/public-booking-directory";
-import { activeHoldingBindings } from "@/server/modules/runtime/public/runtime";
+import { posStripeWebhook,drainPos } from "@erpx/server-pos/public/pos-stripe";
+import {pmsFinanceOverview} from "@erpx/server-pms/public/pms/finance";
+import {createPmsStripePayment,pmsStripePaymentStatus,reconcilePmsStripePayment,requestPmsStripeRefund,approvePmsStripeRefund,processPmsStripeRefund,recoverPmsStripeRefund} from "@erpx/server-pms/public/pms-stripe";
+import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
+import { withOwnerPackageObligations, readOwnerPackageObligations, ownerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
+import { publicBookingDirectory } from "@erpx/server-pms/public/public-booking-directory";
+import { activeHoldingBindings } from "@erpx/server-runtime/public/runtime";
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { pmsCommand, loadPms } from "../../../src/server/modules/pms/public/pms";
-import { records, record, pmsAccountKeys, type Config } from "../../../src/server/modules/pms/public/rules/pms";
-import { availability } from "../../../src/lib/pms/pms-engine";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { confirmManualRate } from "../../../src/server/modules/finance/public/company-money";
-import { POST as publicBookingPost } from "../../../src/app/api/public/booking/[holdingSlug]/[action]/route";
+import { pmsCommand, loadPms } from "../../../packages/server-pms/src/public/pms";
+import { records, record, pmsAccountKeys, type Config } from "@erpx/server-pms/public/rules/pms";
+import { availability } from "@erpx/feature-pms/lib/pms-engine";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { confirmManualRate } from "@erpx/server-finance/public/company-money";
+import { POST as publicBookingPost } from "@erpx/feature-booking/routes/api/public/booking/[holdingSlug]/[action]/route";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", async () => {
+vi.mock("@erpx/server-runtime/adapters/runtime", async () => {
   const { env } = await import("../../support/runtime-env");
   return { holdingResources: async (id:string) => ({ write: id==="h002"?env.H002_DB:env.H001_DB }), holdingBindingBySlug:async(slug:string)=>({id:slug==="other-tenant"?"h002":"h001",slug}), activeHoldingBindings:vi.fn(async()=>[]),runtimeEnv:async()=>({CONTROL_DB:env.CONTROL_DB,ERPX_ENVIRONMENT:"local",BETTER_AUTH_SECRET:"test-booking-secret-32-characters-long",ERPX_PUBLIC_ORIGIN:"https://hotel.example.test",RESEND_API_KEY:"test-key",RESEND_FROM:"hotel@example.test",ERPX_RESOURCE_SLOTS:JSON.stringify([{id:'h001',write:'H001_DB',read:'H001_READ_DB',files:'H001_FILES'},{id:'h002',write:'H002_DB',read:'H002_READ_DB',files:'H002_FILES',beta:true},{id:'h003',write:'H003_DB',read:'H003_READ_DB',files:'H003_FILES',internal:true}])}) };
 });
@@ -1276,19 +1276,19 @@ it('refuses ordinary staff release of an internal provider hold without changing
 });
 
 it('keeps actual guest receipt recovery and Stripe checkout returns on the configured Booking host without changing payment callbacks or token authority',async()=>{
- vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');const {bookingEnv}=await import('../../../src/server/modules/pms/public/pms-booking'),configured=await bookingEnv();expect(configured.origin).toBe('https://booking-dev-erpx.jesadakorn.com');
+ vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_SSO','enabled');const {bookingEnv}=await import('@erpx/server-pms/public/pms-booking'),configured=await bookingEnv();expect(configured.origin).toBe('https://booking-dev-erpx.jesadakorn.com');
  await db.prepare("UPDATE pms_booking_emails SET state='sent'").run();const unpaid=await createPublicReservation(db,'acme',await request(),key(),configured,now),send=vi.fn<typeof fetch>().mockResolvedValue(Response.json({id:'sandbox-provider-receipt'}));await deliverBookingEmails(db,configured,send,now);expect(send).toHaveBeenCalledTimes(1);const body=JSON.parse(String(send.mock.calls[0][1]?.body)) as {text:string},links=body.text.match(/https:\/\/booking-dev-erpx\.jesadakorn\.com\/book\/acme\/manage#token=[^\s]+/g);expect(links).toHaveLength(1);if(!links)throw Error('Actual management link missing');const link=new URL(links[0]),access=new URLSearchParams(link.hash.slice(1)).get('token');if(!access)throw Error('Original access token missing');expect((await manageBooking(db,access,now)).id).toBe(unpaid.id);await expect(manageBooking(db,access+'tampered',now)).rejects.toMatchObject({code:'PMS_LINK_EXPIRED'});await cancelPublicReservation(db,'acme',access,configured,now);
  vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','true');vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_isolated_host_return');await cmd('rate.save',{...record(await snapshot(),'rate',rateId).data,id:rateId,collection:{method:'full',depositPercent:30,changesAllowed:true}});await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?,'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();let success:string|null=null,cancel:string|null=null;vi.stubGlobal('fetch',vi.fn<typeof fetch>(Object.assign(async(url:Parameters<typeof fetch>[0],init?:Parameters<typeof fetch>[1])=>{expect(String(url)).toContain('/checkout/sessions');const form=new URLSearchParams(String(init?.body));success=form.get('success_url');cancel=form.get('cancel_url');return Response.json({id:'cs_isolated_booking_host',url:'https://checkout.stripe.com/c/pay/isolated-booking-host'});},{preconnect:vi.fn()})));const pending=await createPublicReservation(db,'acme',await request(),key(),configured,now);expect(pending.state).toBe('payment_pending');const expected='https://booking-dev-erpx.jesadakorn.com/book/acme/'+propertyId+'?'+new URLSearchParams({attempt:pending.attemptToken!});expect(success).toBe(expected);expect(cancel).toBe(expected);expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
  // A genuine retained checkout must return through the actual Server Page even
  // after the owner withdraws the property from new public reservations.
  vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(now);
  const provider=vi.mocked(fetch);provider.mockImplementation(async(url,init)=>{expect(init?.method).not.toBe('POST');expect(String(url)).toContain('/checkout/sessions/cs_isolated_booking_host');return Response.json({id:'cs_isolated_booking_host',status:'open',payment_status:'unpaid'});});
- const {default:HotelPage}=await import('../../../src/app/book/[holdingSlug]/[propertyId]/page');
+ const {default:HotelPage}=await import('@erpx/feature-booking/routes/book/[holdingSlug]/[propertyId]/page');
  const pageInput=(attempt:string|string[]=pending.attemptToken!,id=propertyId,holdingSlug='acme')=>({params:Promise.resolve({holdingSlug,propertyId:id}),searchParams:Promise.resolve({attempt})});
  const visible=await HotelPage(pageInput());expect(renderToStaticMarkup(visible)).toContain('Waiting for payment');
  await cmd('booking.save',settings(false));expect((await bookingCatalog(db)).some(hotel=>hotel.id===propertyId)).toBe(false);
  const page=await HotelPage(pageInput()),html=renderToStaticMarkup(page);expect(html).toContain('Waiting for payment');expect(html).toContain(pending.number);expect(html).not.toContain('Find rooms');expect(html).not.toContain('Guest details');expect(html).not.toContain('Test Hotel');expect(html).not.toContain('test@example');
- const {createElement}=await import('react'),{FrontLanguageContext}=await import('../../../src/components/front/front-language');const thai=renderToStaticMarkup(createElement(FrontLanguageContext.Provider,{value:'th'},page));expect(thai).toContain('รอการชำระเงิน');expect(thai).toContain('กันห้องไว้ให้ 30 นาที กรุณาชำระผ่าน Stripe Checkout');expect(thai).not.toContain('Waiting for payment');
+ const {createElement}=await import('react'),{FrontLanguageContext}=await import('@erpx/front/components/front-language');const thai=renderToStaticMarkup(createElement(FrontLanguageContext.Provider,{value:'th'},page));expect(thai).toContain('รอการชำระเงิน');expect(thai).toContain('กันห้องไว้ให้ 30 นาที กรุณาชำระผ่าน Stripe Checkout');expect(thai).not.toContain('Waiting for payment');
  expect(provider).toHaveBeenCalledTimes(3); // checkout creation and one authoritative read per server render; SSR adds no GET
  await expect(HotelPage({params:Promise.resolve({holdingSlug:'acme',propertyId})})).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404');
  await expect(HotelPage(pageInput(pending.attemptToken!+'tampered'))).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404');

@@ -1,23 +1,23 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { saveMaster, saveOrder, orderSchema } from "@/server/modules/commerce/public/commerce";
-import { createCustomerNote } from "@/server/modules/sales/public/customer-notes";
-import { createSupportTicket, changeSupportTicket, getSupportTicket } from "@/server/modules/support/public/support";
-import { createSupportIncident, changeSupportIncident, getSupportIncident } from "@/server/modules/support/public/support-incidents";
-import { requestSupportSession, changeSupportSession } from "@/server/modules/support/public/support-sessions";
-import { createSupportPolicy, changeSupportPolicy, attachSupportClock } from "@/server/modules/support/public/support-sla";
-import { drainSupportSla, supportAlerts, acknowledgeSupportAlert } from "@/server/modules/support/public/support-sla-alerts";
-import { supportPackageObligations } from "@/server/modules/support/public/package-obligations";
-import { ownerPackageObligations, readOwnerPackageObligations, withOwnerPackageObligations } from "@/server/modules/commercial/public/owner-package-obligations";
-import { readPackageObligations } from "@/server/modules/commercial/public/package-obligations";
-import { packageGrantStore } from "@/server/modules/commercial/adapters/package-grants";
-import { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
-import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import type { CompanyPackageGrant } from "@/server/modules/commercial/public/packages";
-import { readPurchasedAccess } from "@/server/modules/commercial/public/purchase-command-boundary";
+import { saveMaster, saveOrder, orderSchema } from "@erpx/server-commerce/public/commerce";
+import { createCustomerNote } from "@erpx/server-sales/public/customer-notes";
+import { createSupportTicket, changeSupportTicket, getSupportTicket } from "@erpx/server-support/public/support";
+import { createSupportIncident, changeSupportIncident, getSupportIncident } from "@erpx/server-support/public/support-incidents";
+import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
+import { createSupportPolicy, changeSupportPolicy, attachSupportClock } from "@erpx/server-support/public/support-sla";
+import { drainSupportSla, supportAlerts, acknowledgeSupportAlert } from "@erpx/server-support/public/support-sla-alerts";
+import { supportPackageObligations } from "@erpx/server-support/public/package-obligations";
+import { ownerPackageObligations, readOwnerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
+import { readPackageObligations } from "@erpx/server-commercial/public/package-obligations";
+import { packageGrantStore } from "@erpx/server-commercial/adapters/package-grants";
+import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
+import { readPurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
 
-vi.mock("@/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: supportDatabase ?? env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: supportDatabase ?? env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let supportDatabase: SqlDatabase | undefined;
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
@@ -41,7 +41,7 @@ const grant = (state: CompanyPackageGrant["state"], version: number) => ({
     state, version, startsAt: 0, endsAt: null, reason: "Native Helpdesk settlement review", evidence: "test:owner-command-history" },
 });
 async function lifecycle(change: ReturnType<typeof grant>, apply = false) {
-  const { packageGrantRevision, readCompanyPackageGrants } = await import("@/server/modules/commercial/public/package-grants");
+  const { packageGrantRevision, readCompanyPackageGrants } = await import("@erpx/server-commercial/public/package-grants");
   const request = { companyId: f.company, expectedRevision: packageGrantRevision(f.company, await readCompanyPackageGrants(db, f.company)),
     idempotencyKey: change.idempotencyKey, changes: [{ grant: change.grant, expectedVersion: change.expectedVersion }] };
   return withOwnerPackageObligations(db, input(), tx => apply
@@ -100,7 +100,7 @@ it.each(["inactive","future"] as const)("rolls %s withdrawal and a late normal o
   const commercial=store();await commercial.apply(grant("active",1));await commercial.apply(grant("draining",2));
   const next=grant(mode==='inactive'?"inactive":"active",3),reportKey=key();
   if(mode==='future')next.grant.startsAt=Date.now()+60000;
-  const {packageGrantRevision,readCompanyPackageGrants}=await import("@/server/modules/commercial/public/package-grants");
+  const {packageGrantRevision,readCompanyPackageGrants}=await import("@erpx/server-commercial/public/package-grants");
   await expect(withOwnerPackageObligations(db,input(),async tx=>{
     const request={companyId:f.company,expectedRevision:packageGrantRevision(f.company,await readCompanyPackageGrants(tx,f.company)),idempotencyKey:next.idempotencyKey,changes:[{grant:next.grant,expectedVersion:2}]};
     await commercial.batch.applyIn(tx,request,async()=>{});
@@ -156,7 +156,7 @@ it("uses real ticket settlement and independent review in normal Commercial Prev
   expect((await lifecycle(inactive)).after[0].state).toBe("inactive");
   expect(await db.prepare("SELECT count(*) total FROM company_package_grant_events WHERE company_id=?").bind(f.company).first()).toEqual(before);
   // The batch path must also own the transaction for concrete readers.
-  const { packageGrantRevision, readCompanyPackageGrants } = await import("@/server/modules/commercial/public/package-grants");
+  const { packageGrantRevision, readCompanyPackageGrants } = await import("@erpx/server-commercial/public/package-grants");
   const request = { companyId: f.company, expectedRevision: packageGrantRevision(f.company, await readCompanyPackageGrants(db, f.company)),
     idempotencyKey: key(), changes: [{ grant: inactive.grant, expectedVersion: 2 }] };
   expect((await withOwnerPackageObligations(db, input(), tx => commercial.batch.previewIn(tx, request))).after[0].state).toBe("inactive");

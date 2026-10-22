@@ -1,8 +1,8 @@
 # ERPX — Next.js (rebuilt 2026-09-02)
 
-Start with the [current production plan](docs/production-plan.md): engineering completion of the current 33 modules and 187 capabilities, with a fixed 12-task closure checklist. The completed engineering run dated 2026-10-03 verified all 187 capabilities on its recorded source/candidate; later revisions are not automatically reverified. [Documentation index](docs/TOC.md).
+Start with the [current production plan](docs/production-plan.md): the in-progress migration to22 independent Next.js apps in Bun workspaces and a scoped development/test platform. [ADR-049](docs/adr/ADR-049-product-app-workspaces-and-development-verification.md) records the architecture; [documentation index](docs/TOC.md) is the single hub. Historical engineering receipts certify only their recorded candidate.
 
-Active deployment: [Node.js/PostgreSQL on this Mac through Cloudflare Tunnel](ops/macos/README.md), per [ADR-024](docs/adr/ADR-024-local-postgresql-runtime.md). Cloudflare Workers configuration is historical. Use `bun run deploy:build` for an isolated release build; building does not authorize deployment.
+The development gateway serves port3100 and starts apps lazily on owned ports3200–3299. Each host switches only after its scoped checks and browser smoke pass. Installed production and staging are outside this migration. Full acceptance is deferred to an explicitly frozen production candidate and never runs automatically in daily CI.
 
 ## Recovery
 
@@ -21,29 +21,33 @@ Next.js 16.4 App Router + React 19.3 + TypeScript + Tailwind 4, built as a stand
 
 ```bash
 bun install --frozen-lockfile
-# On a fresh checkout/source archive, generate Next's ignored type declarations.
-# Use the pinned Node 26.11.1 executable on PATH.
-node node_modules/next/dist/bin/next typegen
+# Use pinned Node 26.11.1 and Bun 1.4.3 on PATH.
+# Each app generates its own ignored route types during dev/build.
+# Scoped app typechecks generate routes in a private project alongside dev.
 # Configure absolute data/manifest paths and a separate development PostgreSQL URL first.
 bun run seed:local           # development data only; never production
 bun run seed:verify:local   # read-only seed checks
-bun run dev                # :3100 UI development
-bun run deploy:build       # isolated production release
-bun run test                              # fast unit loop
-bun run test:dev --base=<verified-sha>      # impact-aware development check
-bun run lint; bun run typecheck; bun run test:integration
+bun run dev                              # lazy apps behind :3100
+bun run dev -- --app=finance              # prewarm one product
+bun run test:dev                          # staged/unstaged/untracked changes vs HEAD
+bun run test:dev --app=finance            # scoped development profile
+bun run test:dev --watch                  # cancel obsolete rounds after edits
+bun run test:ci --base=<sha> --head=<sha>  # clean exact candidate verification
+bun run build:affected                   # independent app build outputs/cache
 ```
 
 The rich local dataset and demo personas are documented in [docs/local-seed.md](docs/local-seed.md).
 
 ## Structure
 
-- `src/app/`: Next.js routes and APIs; route filenames and URLs retain framework conventions.
-- `src/server/modules/<owner>/`: domain, application, adapters and named public APIs. Consumers enter through `public/`; implementation files have one canonical location.
-- `src/components/<owner>/` and `src/lib/<owner>/`: owner-specific presentation and helpers. UI primitives live in `components/ui/`, the shared shell in `components/workplace/`, and common helpers in `lib/shared/`.
+- `apps/<id>/`: app-owned routes, layouts, handlers, config, route types and build output; no imports from another app. `apps/compat` preserves migration-era Console/non-product paths until the authorized cutover.
+- `packages/server-<owner>/src/{domain,application,adapters,public}/`: in-process business owners; consumers use named public exports and typed ports.
+- `packages/feature-<owner>/`, `packages/ui/`, `packages/workplace/`, `packages/front/`: owner presentation, primitives and shells with explicit subpath exports. `packages/contracts/` owns pure host/product metadata and shared contracts.
 - `tests/{unit,integration,e2e,journeys,uat,provider}/<owner>/`: executable suites, assigned from the catalogue rather than filenames. `tests/support/` holds helpers/setup; `tests/catalogue/` holds required-case registers; `tests/config/` holds runner/typecheck configuration.
 - `scripts/{testing,performance,seed,docs,assets,ui,local}/`: executable tooling by purpose. `fixtures/<owner>/`: fixture data and builders shared by seeds and tests. Executable fixture preparation belongs in `scripts/testing/fixtures/`.
 - `migrations/postgres/`: existing database tracks; `ops/`: operations; `docs/TOC.md`: documentation hub, with research in `docs/research/` and verification in `docs/testing/`.
+
+After changing workspace UI dependencies, run `bun run workspaces:styles` to refresh Tailwind source ownership; scoped verification rejects stale style inputs. App source imports must use declared package subpath exports.
 
 Register every test in `tests/catalogue/suite-manifest.json`, place it under its declared lane and owner, and keep test support outside executable suite folders. Use the owner's public entry point rather than adding legacy forwarding modules. `bun run structure:check` verifies these placement rules. The sole retained legacy runtime entry supports the unchanged staging bootstrap.
 
@@ -53,41 +57,10 @@ Register every test in `tests/catalogue/suite-manifest.json`, place it under its
 
 ## Verification
 
-`bun run lint`, `bun run typecheck`, `bun run deploy:build`, and `bun run test:integration` must pass. Shared development additionally requires deployed smoke and Playwright journeys.
+Daily verification uses affected suites and registered desktop browser smoke with `acceptance:false`. Unit/typecheck/lint/build tasks may use complete-input caches; selected integration and browser cases execute against isolated fictional fixtures. Missing dependency/suite mappings fail selection. Migration tests retain real migrations against empty databases.
 
-### Playwright end-to-end tests
+Use `bun run structure:check`, `bun run test:catalogue`, and `bun run architecture:check` for structural checks. The per-app development profile runs lint/typecheck, related unit/integration and registered browser smoke. [E2E specification](docs/testing/e2e-specification.md) records case identities and remaining gaps.
 
-Use Node 26.11.1 and Bun 1.4.3. Install Chromium once with
-`bunx playwright install chromium`. Reuse the development server on port 3100,
-or start `bun run dev` after checking that the port is free. Playwright uses
-`http://127.0.0.1:3100` by default and does not manage the server lifecycle.
+`bun run release:acceptance --candidate=<sha>` is reserved for intentional production preparation. It refuses an unfrozen candidate or a missing combined app/gateway/jobs release; the workspace-v2 acceptance adapter remains an explicit delivery blocker. It must not run during this migration. Existing dated receipts and specialized UI gates remain unchanged, and development observations never promote them.
 
-```bash
-bun run test:e2e:smoke                 # authentication smoke, desktop + mobile
-bun run test:e2e:work                  # Work filters, recovery and request draft lifecycle
-bun run test:e2e:smoke --project=desktop
-bun run test:e2e:ui                    # interactive test runner
-bun run test:e2e:report                # last HTML report
-bun run test:e2e:local                 # all existing business suites
-```
-
-The smoke suite checks health, signed-out route protection, rejected credentials,
-account recovery/signup navigation, and UI sign-in with session persistence.
-Local sign-in uses the existing seeded Mali account; prepare development data
-with `bun run seed:local` if needed. Set `ERPX_E2E_EMAIL` and
-`ERPX_E2E_PASSWORD` to use another account with holding home access.
-It does not create business records or send recovery emails.
-
-The [E2E specification and test cases](docs/testing/e2e-specification.md) maps
-current source behavior to executable cases and records remaining coverage gaps.
-The Work suite uses local seeded Mali, creates uniquely named service drafts,
-and cancels them while preserving audit history. It skips remote targets.
-
-Set `ERPX_E2E_BASE_URL` to test another running deployment. Remote authenticated
-smoke tests require explicit account environment variables; otherwise that test
-is skipped. Existing business suites have separate fixture requirements (see
-each spec and `scripts/seed/seed-*-e2e.ts`), and some still depend on historical
-Cloudflare fixtures; passing smoke tests does not certify those suites.
-Failure screenshots and traces are saved under ignored `test-results/`, with an
-HTML report under `playwright-report/`. Traces can contain session data; keep
-them private.
+Browser traces, logs, process leases and benchmark receipts remain private under ignored `.scratch/dev/`. Use the existing authorized dev account through normal sign-in; prepare fictional fixture accounts within isolated browser cases.

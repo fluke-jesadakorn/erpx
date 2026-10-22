@@ -1,0 +1,1 @@
+export {backfillSpecializedAttachments,backfillLegacyAttachments,reconcileAttachmentStorage} from '@erpx/server-files/adapters/attachments/migration';export type {AttachmentUnavailableSource} from '@erpx/server-files/domain/attachments/migration';

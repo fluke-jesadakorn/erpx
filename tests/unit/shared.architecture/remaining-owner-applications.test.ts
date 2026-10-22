@@ -1,13 +1,13 @@
 import {describe,expect,test} from "vitest";
-import {createAgreementApplication,type AgreementPorts} from "../../../src/server/modules/field_service/application/agreement";
-import {createDuplicateRequestApplication,type DuplicateRequestPorts} from "../../../src/server/modules/customer_authority/application/duplicate-request";
-import {createQueuePolicyApplication,type QueuePolicyPorts} from "../../../src/server/modules/operations/application/queue-policy";
-import {createAssetApplication,type AssetPorts} from "../../../src/server/modules/marketing/application/asset";
-import {formRequiresConsent} from "../../../src/server/modules/marketing/domain/asset";
-import {nextOccurrence,wallClock} from "../../../src/server/modules/maintenance/domain/recurrence";
-import {createMarketingApplication,type MarketingRepository,type MarketingMutation} from "../../../src/server/modules/marketing/application/marketing";
-import {createMarketingCampaignApplication} from "../../../src/server/modules/marketing/application/campaigns";
-import {createMarketingPresentationApplication,type MarketingPresentationPorts} from "../../../src/server/modules/marketing/application/public-form";
+import {createAgreementApplication,type AgreementPorts} from "@erpx/server-field_service/application/agreement";
+import {createDuplicateRequestApplication,type DuplicateRequestPorts} from "@erpx/server-customer_authority/application/duplicate-request";
+import {createQueuePolicyApplication,type QueuePolicyPorts} from "@erpx/server-operations/application/queue-policy";
+import {createAssetApplication,type AssetPorts} from "@erpx/server-marketing/application/asset";
+import {formRequiresConsent} from "@erpx/server-marketing/domain/asset";
+import {nextOccurrence,wallClock} from "@erpx/server-maintenance/domain/recurrence";
+import {createMarketingApplication,type MarketingRepository,type MarketingMutation} from "@erpx/server-marketing/application/marketing";
+import {createMarketingCampaignApplication} from "@erpx/server-marketing/application/campaigns";
+import {createMarketingPresentationApplication,type MarketingPresentationPorts} from "@erpx/server-marketing/application/public-form";
 
 type Command=Parameters<AgreementPorts["persist"]>[0]|Parameters<DuplicateRequestPorts["persist"]>[0]|Parameters<QueuePolicyPorts["persist"]>[0]|Parameters<AssetPorts["persist"]>[0];
 function fixture(){const commands:Command[]=[],calls:string[]=[];const ports={clock:{now:()=>42},branchId:"actor-branch" as string|null,departmentId:"actor-department" as string|null,companyScope:true,async authorize(){calls.push("authorize");},validatePresentation(){calls.push("presentation");},async replay():Promise<{id:string;version:number;status:string}|null>{calls.push("replay");return null;},async persist(command:Command):Promise<{id:string;version:number;status:string}>{commands.push(command);return {id:command.id,version:1,status:"draft"};}};return {ports,calls,commands};}
@@ -142,8 +142,8 @@ describe("Marketing public form projection",()=>{
  });
 });
 
-import {createPublicMarketingSubmissionApplication,type PublicMarketingSubmissionUnit,type PublicMarketingSubmissionPorts} from "../../../src/server/modules/marketing/application/public-submission";
-import type {PublicMarketingForm} from "../../../src/server/modules/marketing/application/public-form";
+import {createPublicMarketingSubmissionApplication,type PublicMarketingSubmissionUnit,type PublicMarketingSubmissionPorts} from "@erpx/server-marketing/application/public-submission";
+import type {PublicMarketingForm} from "@erpx/server-marketing/application/public-form";
 const submissionForm:PublicMarketingForm={id:'form',company_id:'company',name:'Reviewed form',version:2,preview_json:'{}',configuration_json:'{}'};
 const submissionBody={contactName:'Fictional visitor',contactDetail:'visitor@fixture.invalid',brief:'Fictional service inquiry',consentAccepted:true as const,source:'declared fixture'};
 function submissionFixture(overrides:Partial<PublicMarketingSubmissionUnit>={},outside:Partial<PublicMarketingSubmissionPorts>={}){

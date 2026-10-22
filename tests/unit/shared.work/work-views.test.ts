@@ -1,11 +1,11 @@
 import { expect, it } from "vitest";
-import { workInView, workItemHref, type WorkItem } from "../../../src/lib/work_projection/work-item";
+import { workInView, workItemHref, type WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 import {
  navigationAccordionStorageKey,
  navigationLauncher,
  navigationRailStorageKey,
-} from "../../../src/lib/work_projection/navigation-catalog";
-import { workplaceNavigation } from "../../../src/lib/work_projection/workplace-navigation";
+} from "@erpx/feature-work_projection/lib/navigation-catalog";
+import { workplaceNavigation } from "@erpx/feature-work_projection/lib/workplace-navigation";
 const task = (id: string, data: Partial<WorkItem> = {}): WorkItem => ({ id, type:"people_lifecycle", title:id, detail:"", href:"/people?case=a", status:"pending", updatedAt:1, queue:"todo", ...data });
 it("shows routing attention only to the source-authorized workflow manager", () => {
  const step = {key:'draft',action:'Prepare',role:'requester',teamName:'Requester',primary:null,candidates:[],status:'current' as const,blocker:'Former primary is no longer eligible'};

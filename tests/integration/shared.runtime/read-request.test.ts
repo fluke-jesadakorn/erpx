@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { env } from "../../support/runtime-env";
-import { measureReadRequest } from "../../../src/server/modules/runtime/adapters/runtime/read-request";
-import { measureReadPhase } from "../../../src/server/modules/runtime/adapters/runtime/read-metrics";
+import { measureReadRequest } from "@erpx/server-runtime/adapters/runtime/read-request";
+import { measureReadPhase } from "@erpx/server-runtime/adapters/runtime/read-metrics";
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 it("correlates nested driver reads without logging the response or SQL values", async () => {

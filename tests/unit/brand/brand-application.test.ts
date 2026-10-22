@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { createBrandIdentityApplication, type BrandIdentityPorts, type BrandMutation } from "../../../src/server/modules/brand/application/identity";
-import { brandIdentitySchema, type ActiveBrandIdentity, type BrandCategoryLock, type BrandDraft } from "../../../src/server/modules/brand/domain/identity";
+import { createBrandIdentityApplication, type BrandIdentityPorts, type BrandMutation } from "@erpx/server-brand/application/identity";
+import { brandIdentitySchema, type ActiveBrandIdentity, type BrandCategoryLock, type BrandDraft } from "@erpx/server-brand/domain/identity";
 
 const identity = { identity: { shortName: "ERPX", tagline: "Approved identity" }, visual: { accentColor: "#224488", logoPublicationId: null } };
 const draft: BrandDraft = { id: "draft-1", company_id: "company-1", based_revision: 0, identity_json: JSON.stringify(identity), status: "draft", version: 1, created_by: "maker", updated_by: "editor", updated_at: 10 };
@@ -64,9 +64,9 @@ describe("Brand application through semantic ports", () => {
     expect(brandIdentitySchema.safeParse({ ...identity, implementation: "hidden" }).success).toBe(false);
   });
 });
-import { createBrandingApplication, normalizeBrandMedia, type BrandingPorts, type BrandMutation as BrandingMutation } from "../../../src/server/modules/brand/application/branding";
-import { readBrandIdentityWorkspace } from "../../../src/server/modules/brand/application/identity-read";
-import { storefrontPresentation, type BrandProfileRow } from "../../../src/server/modules/brand/domain/branding";
+import { createBrandingApplication, normalizeBrandMedia, type BrandingPorts, type BrandMutation as BrandingMutation } from "@erpx/server-brand/application/branding";
+import { readBrandIdentityWorkspace } from "@erpx/server-brand/application/identity-read";
+import { storefrontPresentation, type BrandProfileRow } from "@erpx/server-brand/domain/branding";
 
 function brandingFixture(overrides: Partial<BrandingPorts<Uint8Array>> = {}) {
  const calls:string[]=[],mutations:BrandingMutation[]=[];

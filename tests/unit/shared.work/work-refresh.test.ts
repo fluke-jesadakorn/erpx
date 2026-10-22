@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { scheduleWorkRefresh } from "../../../src/lib/work_projection/work-refresh";
-import { workFetch } from "../../../src/lib/work_projection/work-fetch";
+import { scheduleWorkRefresh } from "@erpx/feature-work_projection/lib/work-refresh";
+import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 let page: EventTarget & { visibilityState: string; querySelector: () => typeof context };
 let view: EventTarget;
 let context: { isConnected: boolean; dataset: { workRevision: string; workCompany: string; workAssignment: string; workStale?: string } };

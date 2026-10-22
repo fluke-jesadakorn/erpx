@@ -1,0 +1,2 @@
+export {manufacturingAttachmentPurchaseScope,authorizeManufacturingAttachmentPurchase,manufacturingAttachmentSourceReadLocks,manufacturingAttachmentCommandBoundary,manufacturingAttachmentFailure} from "@erpx/server-manufacturing/adapters/attachment-purchases";
+export type {ManufacturingAttachmentPurchase} from "@erpx/server-manufacturing/adapters/attachment-purchases";

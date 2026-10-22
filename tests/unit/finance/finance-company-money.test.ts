@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createCompanyMoney, type CompanyMoneyPorts } from "../../../src/server/modules/finance/application/company-money";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import { createCompanyMoney, type CompanyMoneyPorts } from "@erpx/server-finance/application/company-money";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 const actor = { holdingId: 'h001', companyId: 'company', userId: 'user', assignmentId: 'assignment', role: 'finance_approver', branchId: null, departmentId: null } as WorkContext;
 const original = { sourceType: 'booked_price', sourceId: 'price', amountKind: 'total' };
 const source = { currency: 'THB', currency_scale: 2, amount_units: '42800', usd_units: '1189', fx_rate_id: 'original-rate', used_latest_fallback: false, original_source_type: null };

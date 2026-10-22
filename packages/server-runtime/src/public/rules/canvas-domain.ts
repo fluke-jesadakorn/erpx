@@ -1,0 +1,3 @@
+// Pure owner contract: native compatibility helpers remain outside the core graph.
+export { metricIds, breakdowns, widgetSchema, definitionSchema, filtersSchema, generateSchema, proposalSchema, shareSchema, sharePreviewSchema, transferOwnershipSchema, normalizeMetricData, defaultFilters, emptyDefinition, metricKey, monthBounds, filtersForMonth } from "@erpx/feature-runtime/lib/executive/canvas-domain";
+export type { MetricId, Breakdown, CanvasDefinition, Widget, Filters, Proposal, MetricInfo, MetricDataStatus, MetricData, LegacyMetricData, ReportSummary, ReportView, ShareView, Generation } from "@erpx/feature-runtime/lib/executive/canvas-domain";

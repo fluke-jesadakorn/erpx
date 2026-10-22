@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "activeApps": [],
+  "maxApps": 4,
+  "idleMinutes": 10,
+  "bundlers": {},
+  "defaultBundler": "webpack",
+  "bundlerReason": "Retain the measured compiler until each workspace passes its scoped Turbopack comparison."
+}

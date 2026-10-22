@@ -1,3 +1,0 @@
-/** Explicit public API. See ownership.json for capability migration status. */
-export { orderSchema, transitionSchema, fulfillmentSchema, invoiceFromDeliverySchema, settlementSchema, returnRequestSchema, returnDecisionSchema, returnCompleteSchema, productSchema, partyMasterSchema, warehouseSchema, commercePermissions, commerceOverview, workOrderRows, getOrder, stockReservationSchema, changeOrderReservation, requestCommerceReturn, decideCommerceReturn, completeCommerceReturn, saveOrder, transitionOrder, fulfillOrder, invoiceFulfillment, settleInvoice, prepareInvoiceSettlement, saveMaster, commercePage } from "./public/commerce";
-export type { Row } from "./public/commerce";

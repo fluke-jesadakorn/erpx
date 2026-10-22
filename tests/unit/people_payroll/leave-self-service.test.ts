@@ -1,5 +1,5 @@
 import { beforeEach,afterEach,describe, expect, it,vi } from "vitest";
-import { boundarySegment, calculateLeaveDays, dateRange } from "@/lib/people_payroll/leave-self-service";
+import { boundarySegment, calculateLeaveDays, dateRange } from "@erpx/feature-people_payroll/lib/leave-self-service";
 
 describe("leave working-day calculation", () => {
   it("uses the policy workweek and excludes holidays across a year boundary", () => {
@@ -40,9 +40,9 @@ describe("leave working-day calculation", () => {
 });
 
 const {workFetch}=vi.hoisted(()=>({workFetch:vi.fn()}));
-vi.mock('../../../src/lib/work_projection/work-fetch',()=>({workFetch}));
-import {createWorkforceCommandClient,validWorkforceReceipt,type WorkforceCommand} from '../../../src/lib/people_payroll/workforce-command-client';
-import {workforceActionAllowed,type WorkforcePurchase} from '../../../src/lib/people_payroll/workforce-controls';
+vi.mock("@erpx/feature-work_projection/lib/work-fetch",()=>({workFetch}));
+import {createWorkforceCommandClient,validWorkforceReceipt,type WorkforceCommand} from '@erpx/feature-people_payroll/lib/workforce-command-client';
+import {workforceActionAllowed,type WorkforcePurchase} from '@erpx/feature-people_payroll/lib/workforce-controls';
 describe('Workforce current purpose and original command recovery',()=>{
  let storage:Map<string,string>;
  beforeEach(()=>{storage=new Map();vi.stubGlobal('sessionStorage',{getItem:(key:string)=>storage.get(key)??null,setItem:(key:string,value:string)=>storage.set(key,value),removeItem:(key:string)=>storage.delete(key)});workFetch.mockReset();});
@@ -74,12 +74,12 @@ describe('Workforce current purpose and original command recovery',()=>{
 
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {LeaveEditor,LeaveDecisions} from '../../../src/components/people_payroll/self-service/leave-editor-content';
-import {OvertimeForm} from '../../../src/components/people_payroll/self-service/overtime';
-import {TimeEntryEditor} from '../../../src/components/people_payroll/self-service/time-entry-editor';
-import {LeaveControls} from '../../../src/components/people_payroll/leave-controls';
-import type {getLeave} from '../../../src/server/modules/people_payroll/public/leave';
-import type {OvertimeDetail} from '../../../src/server/modules/people_payroll/public/overtime';
+import {LeaveEditor,LeaveDecisions} from '@erpx/feature-people_payroll/components/self-service/leave-editor-content';
+import {OvertimeForm} from '@erpx/feature-people_payroll/components/self-service/overtime';
+import {TimeEntryEditor} from '@erpx/feature-people_payroll/components/self-service/time-entry-editor';
+import {LeaveControls} from '@erpx/feature-people_payroll/components/leave-controls';
+import type {getLeave} from '@erpx/server-people_payroll/public/leave';
+import type {OvertimeDetail} from '@erpx/server-people_payroll/public/overtime';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/test/leave',useSearchParams:()=>new URLSearchParams()}));
 const activeWorkforce:WorkforcePurchase={newWork:true,settleExisting:true,history:true,revision:'minimal-workforce'};
 const drainingWorkforce:WorkforcePurchase={...activeWorkforce,newWork:false};
@@ -111,7 +111,7 @@ describe('Workforce actual self-service presentation',()=>{
  });
 });
 
-import {createLeaveEvidenceClient} from '../../../src/lib/people_payroll/workforce-evidence-client';
+import {createLeaveEvidenceClient} from '@erpx/feature-people_payroll/lib/workforce-evidence-client';
 describe('Leave private evidence original upload acknowledgement',()=>{
  beforeEach(()=>{const storage=new Map<string,string>();vi.stubGlobal('sessionStorage',{getItem:(key:string)=>storage.get(key)??null,setItem:(key:string,value:string)=>storage.set(key,value),removeItem:(key:string)=>storage.delete(key)});workFetch.mockReset();});
  afterEach(()=>vi.unstubAllGlobals());
@@ -127,8 +127,8 @@ describe('Leave private evidence original upload acknowledgement',()=>{
  });
 });
 
-import {workforcePresentationContext} from '../../../src/server/modules/people_payroll/public/workforce-presentation';
-import type {WorkContext} from '../../../src/server/modules/identity_access/public/authorization';
+import {workforcePresentationContext} from '@erpx/server-people_payroll/public/workforce-presentation';
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 it('scopes the opaque Workforce draft identity to the original employee account, Company, role, assignment and current authority revision without requiring management modules',()=>{
  const actor:WorkContext={holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company',branchId:null,departmentId:null,userId:'employee',name:'Employee',email:'employee@example.test',assignmentId:'assignment',role:'employee',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,assignments:[],workspaces:[],modules:[],authority:{sessionId:'private-session-id',assignmentVersion:1,revision:1}},scope=workforcePresentationContext(actor);
  expect(scope).toMatch(/^[a-f0-9]{64}$/);expect(scope).not.toContain('private-session-id');expect(workforcePresentationContext({...actor,modules:['people_payroll']})).toBe(scope);
@@ -137,12 +137,12 @@ it('scopes the opaque Workforce draft identity to the original employee account,
 
 
 const pageReads=vi.hoisted(()=>({summary:vi.fn(),month:vi.fn(),list:vi.fn(),calendar:vi.fn(),resources:vi.fn()}));
-vi.mock('../../../src/server/modules/people_payroll/adapters/leave-self-service',async()=>({leaveListFilterSchema:(await import('../../../src/server/modules/people_payroll/domain/leave-self-service')).leaveListFilterSchema,leaveSummary:pageReads.summary,leaveCalendarMonth:pageReads.month,listOwnLeavePage:pageReads.list}));
-vi.mock('../../../src/server/modules/work_projection/public/calendar/index',()=>({calendarData:pageReads.calendar}));
-vi.mock('../../../src/server/modules/runtime/public/runtime',()=>({holdingResources:pageReads.resources}));
-import {leavePageSnapshot} from '../../../src/server/modules/people_payroll/public/leave-page-snapshot';
-import {LeaveSelfService} from '../../../src/components/people_payroll/leave/leave-self-service';
-import type {CalendarItem} from '../../../src/lib/work_projection/calendar';
+vi.mock("@erpx/server-people_payroll/adapters/leave-self-service",async()=>({leaveListFilterSchema:(await import('@erpx/server-people_payroll/domain/leave-self-service')).leaveListFilterSchema,leaveSummary:pageReads.summary,leaveCalendarMonth:pageReads.month,listOwnLeavePage:pageReads.list}));
+vi.mock("@erpx/server-work_projection/public/calendar/index",()=>({calendarData:pageReads.calendar}));
+vi.mock("@erpx/server-runtime/public/runtime",()=>({holdingResources:pageReads.resources}));
+import {leavePageSnapshot} from '@erpx/server-people_payroll/public/leave-page-snapshot';
+import {LeaveSelfService} from '@erpx/feature-people_payroll/components/leave/leave-self-service';
+import type {CalendarItem} from '@erpx/feature-work_projection/lib/calendar';
 const ownPageRow={id:'original-leave',number:'LV-1',start_date:'2026-10-16',end_date:'2026-10-17',start_segment:'full',end_segment:'full',calculated_units:2,days:2,state:'approved',cancellation_state:null,version:7,created_at:1,updated_at:2,decision_note:'PRIVATE_DECISION_NOTE',leave_type_name:'Annual leave'};
 const teamPageRow:CalendarItem={id:'approved-busy',source:'leave',sourceId:'coworker-leave',kind:'leave',title:'Team member away',description:'PRIVATE_MEDICAL_DESCRIPTION',allDay:true,startDate:'2026-10-16',endDate:'2026-10-18',startsAt:null,endsAt:null,timezone:'Asia/Bangkok',departmentId:'private-department',branchId:'private-branch',participants:[{id:'private-user',name:'PRIVATE_PERSON'}],owner:'private-owner',status:'approved',version:3,permittedActions:['approve'],warnings:[],history:[{action:'PRIVATE_REVIEW',actor:'private-reviewer',at:1}],redacted:true,details:{private:true,location:'PRIVATE_LOCATION'}};
 const snapshotActor:WorkContext={holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company',branchId:null,departmentId:null,userId:'employee',name:'Employee',email:'employee@example.test',assignmentId:'assignment',role:'employee',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,assignments:[],workspaces:[],modules:[]};

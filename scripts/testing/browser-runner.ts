@@ -16,7 +16,7 @@ import { assignedBrowserShard, type BrowserShard, type BrowserInventoryCase, typ
 import { assertBrowserFaultProbeSelection, browserFaultProbeError, isBrowserFaultProbeCase, orderedBrowserExecutionCases, orderedBrowserExecutionGroups, parseBrowserCaseOrder, selectBrowserCaseOrder, triggerBrowserFaultProbe, type BrowserCaseOrder } from "./browser-execution-plan";
 import { assertRequiredCaseInventory, canonicalCaseFile, loadRequiredCases } from "./required-case-inventory";
 import { writeJsonOutput } from "./json-output";
-import {productIds} from "../../src/lib/commercial/product-registry";
+import {productIds} from "@erpx/contracts/product-registry";
 import { assertProductHostPlanWorkflow, productHostBrowserFile, productHostProducts, productHostPlan, productHostBusinessWorkflowForCase, productHostPlanPathForWorkflow, productHostPlanPathsFromEnvironment, productHostReadOnlyWorkflowForCase, startProductHostEdge, type ProductHostBusinessWorkflow, type ProductHostPlanPaths } from "./product-host-cohort";
 import { executiveWorkHostBrowserFile, startExecutiveWorkHostEdge } from "./executive-work-host-cohort";
 import { formsHostBrowserFile, formsHostCaseTitle, formsHostOrigin, formsHostPlan, startFormsHostEdge } from "./forms-host-cohort";
@@ -54,14 +54,16 @@ async function execute(args: string[], env: Record<string, string | undefined>, 
 
 
 export type BrowserRunCaseReceipt = { suite: string; file?: string; project: "desktop" | "mobile"; title?: string; run?: string; report?: string; reportSha256?: string; passed?: boolean; required?: false; reason?: string; faultProbe?: true; failure?: string; productHostLease?:{path:string;sha256:string}; productHostCommercial?:{path:string;sha256:string;bytes:number}; productHostBusiness?:{proof:{path:string;sha256:string;bytes:number};fixtureState:{path:string;sha256:string;bytes:number};screenshot:{path:string;sha256:string;bytes:number}};productHostReadOnly?:{path:string;sha256:string;bytes:number}; executiveWorkHostLease?:{path:string;sha256:string}; formsHostLease?:{path:string;sha256:string}; cleanup?: { completed: boolean; ownedDirectoryAbsent: boolean }; uiEvidence?:UiBrowserEvidenceWitness };
-export type BrowserRunReceipt = { version: 1; passed: boolean; runtimeFingerprint: string; verificationFingerprint: string; shard: BrowserShard | null; interrupted: string | null; suites: string[]; cleanupFailures: string[]; inventory: BrowserInventoryCase[]; receipts: BrowserRunCaseReceipt[]; execution: { caseOrder: BrowserCaseOrder; mode: "acceptance" | "fault-probe"; faultProbe?: BrowserCaseIdentity }; evidencePath?: string };
+export type BrowserRunReceipt = { version: 1; acceptance?: false; passed: boolean; runtimeFingerprint: string; verificationFingerprint: string; shard: BrowserShard | null; interrupted: string | null; suites: string[]; cleanupFailures: string[]; inventory: BrowserInventoryCase[]; receipts: BrowserRunCaseReceipt[]; execution: { caseOrder: BrowserCaseOrder; mode: "acceptance" | "fault-probe" | "development-smoke"; acceptance?: false; faultProbe?: BrowserCaseIdentity }; evidencePath?: string };
 export class BrowserFaultProbeError extends Error {
   constructor(readonly evidenceDirectory: string) { super(browserFaultProbeError); this.name = "BrowserFaultProbeError"; }
 }
 
-export async function runBrowserSuites(suites: Suite[], options: { projects?: ("desktop" | "mobile")[]; grep?: string; headed?: boolean; releaseDirectory?: string; shard?: BrowserShard; caseOrder?: BrowserCaseOrder; faultProbe?: BrowserCaseIdentity; investorCapture?: boolean; port?: 3102 | 3104; caseSelection?: { suite: string; file?: string; title: string; project: "desktop" | "mobile" }[]; onInvestorEvidence?: (directory: string) => void; productHostPlanPath?:string; productHostPlanPaths?:ProductHostPlanPaths; formsHostPlanPath?:string } = {}) {
+export async function runBrowserSuites(suites: Suite[], options: { mode?: "development-smoke"; projects?: ("desktop" | "mobile")[]; grep?: string; headed?: boolean; releaseDirectory?: string; shard?: BrowserShard; caseOrder?: BrowserCaseOrder; faultProbe?: BrowserCaseIdentity; investorCapture?: boolean; port?: 3102 | 3104; caseSelection?: { suite: string; file?: string; title: string; project: "desktop" | "mobile" }[]; onInvestorEvidence?: (directory: string) => void; productHostPlanPath?:string; productHostPlanPaths?:ProductHostPlanPaths; formsHostPlanPath?:string } = {}) {
   if (!suites.length || suites.some(suite => !["e2e", "journeys", "uat"].includes(suite.lane))) throw new Error("BROWSER_SUITES_REQUIRED");
   if (options.shard && (options.grep || options.projects)) throw new Error("SHARDED_BROWSER_FULL_INVENTORY_REQUIRED");
+  const development = options.mode === "development-smoke";
+  if (development && (!options.caseSelection?.length || options.faultProbe || options.caseOrder && options.caseOrder !== "forward" || options.releaseDirectory || options.projects?.some(project => project !== "desktop"))) throw new Error("DEVELOPMENT_SMOKE_FORWARD_SELECTION_REQUIRED");
   const caseOrder = parseBrowserCaseOrder(options.caseOrder ?? "forward");
   const selection = options.caseSelection;
   const registeredCases = loadRequiredCases(root);
@@ -78,7 +80,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
   assertBrowserFaultProbeSelection(options.faultProbe, groups);
   if (options.faultProbe && (options.shard || options.grep)) throw new Error("EXACT_BROWSER_FAULT_PROBE_SELECTION_REQUIRED");
   await preparePdfAssets();
-  const execution: BrowserRunReceipt["execution"] = { caseOrder, mode: options.faultProbe ? "fault-probe" : "acceptance", ...(options.faultProbe ? { faultProbe: options.faultProbe } : {}) };
+  const execution: BrowserRunReceipt["execution"] = { caseOrder, mode: development ? "development-smoke" : options.faultProbe ? "fault-probe" : "acceptance", ...(development ? { acceptance: false as const } : {}), ...(options.faultProbe ? { faultProbe: options.faultProbe } : {}) };
   if (Bun.version !== "1.4.3" || Bun.spawnSync([node, "--version"]).stdout.toString().trim() !== "v26.11.1") throw new Error("PINNED_TOOLCHAIN_REQUIRED");
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const evidence = join(root, ".scratch/dev/test-suites/browser", stamp);
@@ -152,10 +154,15 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
     for (const { suite, project } of groups) {
       // Collection has its own cohort because legacy tests read fixture files at
       // module load time. Every executed case gets an entirely fresh cohort.
-      const required = await cohort(suite, project, undefined);
+      const required: BrowserCase[] = development ? selection!.filter(item => item.suite === suite.id && item.project === project).map(item => {
+        if (!item.file) throw new Error("DEVELOPMENT_SMOKE_FILE_IDENTITY_REQUIRED");
+        // Registered identities are collectable without opening PostgreSQL.
+        const fileTitle = relative(join(root,"tests"),join(root,item.file)).replaceAll("\\","/");
+        return { file: item.file, fileTitle, title: item.title, project, expectedStatus: "passed" };
+      }) : await cohort(suite, project, undefined);
       if (!required.length) throw new Error(`EMPTY_BROWSER_SUITE:${suite.id}:${project}`);
       assertRequiredCaseInventory(registeredCases, required.map(test => ({ ...test, runner: "playwright", ...browserCaseProjectRequirement(test) })), {
-        runner: "playwright", files: suite.files, projects: [project], titleMatches: test => !options.grep || new RegExp(options.grep).test(`${project} ${required.find(actual => canonicalCaseFile(actual.file, suite.files) === test.file)?.fileTitle ?? test.file.replace(/^tests\/e2e\//, "")} ${test.title}`),
+        runner: "playwright", files: development ? [...new Set(required.map(test=>test.file))] : suite.files, projects: [project], titleMatches: test => development ? required.some(item=>item.title===test.title && item.file===canonicalCaseFile(test.file,suite.files)) : !options.grep || new RegExp(options.grep).test(`${project} ${required.find(actual => canonicalCaseFile(actual.file, suite.files) === test.file)?.fileTitle ?? test.file.replace(/^tests\/e2e\//, "")} ${test.title}`),
       });
       if (options.faultProbe) {
         const selected = required.filter(test => isBrowserFaultProbeCase(suite.id, test, options.faultProbe));
@@ -189,7 +196,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
         catch (error) { cleanupErrors.push(error); }
       }
     } finally { interrupted = wasInterrupted; }
-    const receipt: BrowserRunReceipt = { version: 1, passed: completed && !interrupted && !cleanupErrors.length, runtimeFingerprint, verificationFingerprint, shard: options.shard ?? null, interrupted: interrupted ?? null, suites: suites.map(suite => suite.id), cleanupFailures: cleanupErrors.map(String), inventory, receipts, execution, evidencePath: relative(root, evidence) };
+    const receipt: BrowserRunReceipt = { version: 1, ...(development ? { acceptance: false as const } : {}), passed: completed && !interrupted && !cleanupErrors.length, runtimeFingerprint, verificationFingerprint, shard: options.shard ?? null, interrupted: interrupted ?? null, suites: suites.map(suite => suite.id), cleanupFailures: cleanupErrors.map(String), inventory, receipts, execution, evidencePath: relative(root, evidence) };
     await writeFile(join(evidence, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n", { mode: 0o600 });
     if (cleanupErrors.length && completed) throw new AggregateError(cleanupErrors, "BROWSER_COHORT_CLEANUP_FAILED");
     if (interrupted && completed) throw new Error(`BROWSER_RUN_INTERRUPTED:${interrupted}`);
@@ -235,9 +242,10 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
     const verifyRelease = (port === 3104 || productMode || suite.lane === "uat" || Boolean(suite.fictionalProvider)) && Boolean(releaseDirectory);
     // Global health requires the real worker, scanner and reconciled storage.
     // Capability-specific requirements remain explicit in the catalogue.
-    const requirements = { jobs: true, scanner: true };
+    const requirements = development ? { jobs: suite.requires.jobs, scanner: suite.requires.scanner } : { jobs: true, scanner: true };
     const env = {
       ERPX_BROWSER_SIMULATION_RUN_ID: run, ERPX_BROWSER_SIMULATION_PORT: String(port), ERPX_BROWSER_SIMULATION_PROFILE: suite.fixture,
+      ERPX_BROWSER_EXECUTION_MODE: development ? "development-smoke" : "acceptance",
       ERPX_BROWSER_SIMULATION_ATTACHMENTS: requirements.scanner ? "local" : "none", ERPX_BROWSER_SIMULATION_JOBS: requirements.jobs ? "1" : "0",
       ERPX_BROWSER_SIMULATION_LEGAL: suite.fixture === "legal" || suite.fixture === "uat" ? "1" : "0",
       ERPX_BROWSER_SIMULATION_MENU_IMAGES: options.investorCapture ? "1" : "0",
@@ -291,9 +299,9 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
         await execute(simulation("start"), { ...env, ERPX_BROWSER_SIMULATION_RELEASE_DIR: verifyRelease ? releaseDirectory : undefined }, join(output, "start.log"));
         const started = JSON.parse(await readFile(join(root, ".runtime/browser", run, "state.json"), "utf8"));
         if (!Number.isInteger(started.pid) || started.pid < 1) throw new Error("BROWSER_COHORT_PROCESS_REQUIRED");
-        await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid)], env, join(output, "readiness.log"));
+        await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid), ...(development ? ["--development", ...(requirements.jobs ? ["--jobs"] : []), ...(requirements.scanner ? ["--scanner"] : [])] : [])], env, join(output, "readiness.log"));
         Object.assign(testEnv, await prepareBrowserCasePrerequisites({ suite, wanted, run, directory: join(root, ".runtime/browser", run), releaseDirectory, evidenceDirectory: output, environment: testEnv, execute }));
-        await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid)], env, join(output, "prerequisites-readiness.log"));
+        await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid), ...(development ? ["--development", ...(requirements.jobs ? ["--jobs"] : []), ...(requirements.scanner ? ["--scanner"] : [])] : [])], env, join(output, "prerequisites-readiness.log"));
         if(productMode){
           productEdge=await startProductHostEdge(root,productPlan!,run,output,productHostBusinessWorkflowForCase(wanted.file,wanted.title),productHostReadOnlyWorkflowForCase(wanted.file,wanted.title));
           Object.assign(testEnv,{ERPX_PRODUCT_HOST_LEASE:productEdge.path,NODE_EXTRA_CA_CERTS:productEdge.lease.ca.path});

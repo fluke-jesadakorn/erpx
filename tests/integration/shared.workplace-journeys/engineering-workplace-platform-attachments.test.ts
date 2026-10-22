@@ -6,20 +6,20 @@ import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {workplaceAttachmentOwner,legalAttachmentOwner,controlAccount,type WorkplaceAttachmentTuple} from "../../support/helpers/engineering-workplace-platform-attachment-owners";
 import ownerMatrix from "../../catalogue/engineering-attachment-owner-cases.json";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {loadIamAuthority} from "../../../src/server/modules/identity_access/public/iam-store";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import {attachmentBindingState} from "../../support/helpers/attachment-v2";
-import {requiresSanitizedEvidenceAttestation} from "../../../src/server/modules/files/public/attachments/finance-operations-policy";
-import {attachmentContent,attachmentLinkStatus,attestAttachmentSetSanitized,bindRecordAttachmentSet,completeAttachmentUpload,createAttachmentSet,drainAttachmentScans,listAttachmentSets,prepareAttachmentBinding,reserveAttachmentFile,createAttachmentPublication,approveAttachmentPublication,publicAttachmentPublication} from "../../../src/server/modules/files/public/attachments/service";
-import {uploadDocument,documentExport} from "../../../src/server/modules/legal/public/legal/documents";
-import {legalCommand,detail as legalDetail} from "../../../src/server/modules/legal/public/legal/service";
-import {portalUpload,portalDetail} from "../../../src/server/modules/legal/public/legal/portal";
+import {requiresSanitizedEvidenceAttestation} from "@erpx/server-files/public/attachments/finance-operations-policy";
+import {attachmentContent,attachmentLinkStatus,attestAttachmentSetSanitized,bindRecordAttachmentSet,completeAttachmentUpload,createAttachmentSet,drainAttachmentScans,listAttachmentSets,prepareAttachmentBinding,reserveAttachmentFile,createAttachmentPublication,approveAttachmentPublication,publicAttachmentPublication} from "@erpx/server-files/public/attachments/service";
+import {uploadDocument,documentExport} from "@erpx/server-legal/public/legal/documents";
+import {legalCommand,detail as legalDetail} from "@erpx/server-legal/public/legal/service";
+import {portalUpload,portalDetail} from "@erpx/server-legal/public/legal/portal";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 // Declared clean scanner fixture only. Bytes, signature detection, real preview
 // rendering, private storage and all owner authorization/binding are native.
 // The compiled release scanner is independently required by the release gate.
-vi.mock("../../../src/server/modules/files/public/attachments/scanner",()=>({
+vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
  attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared engineering scanner fixture',definitionUpdatedAt:Date.now(),error:null}),
  scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared engineering scanner fixture',definitionUpdatedAt:Date.now()}),
 }));
@@ -139,8 +139,8 @@ async function foundationPrivateEvidence(target:typeof foundationTargets[number]
  const set=await createAttachmentSet(db,actor,{targetType:target,targetId:owner.targetId,purposeKey:tuple.purposeKey,componentKind:tuple.componentKind,componentRef:owner.componentRef??undefined,expectedTargetVersion:owner.version},key()),reserved=await reserveAttachmentFile(db,actor,set.id,{filename:'sanitized-foundation-evidence.png',mediaType:'image/png',bytes:png.byteLength,caption:'Reviewed synthetic Company foundation artifact.'},key()),uploaded=await completeAttachmentUpload(db,env.H001_FILES,actor,reserved.uploadIntentId,Uint8Array.from(png).buffer);
  await drainAttachmentScans(db,env.H001_FILES,uploaded.sourceId);
  if(requiresSanitizedEvidenceAttestation(target))await attestAttachmentSetSanitized(db,actor,set.id,{confirmed:true,note:'Reviewed actual synthetic artifact: no secrets, credentials, private keys or configuration/database dumps.'},key());
- const command=key(),bind=async(transaction:import('../../../src/server/modules/runtime/public/runtime/types').SqlDatabase)=>{
-  if(target==='organization_change'){const {decideOrganizationNodeChange}=await import('../../../src/server/modules/organization/public/organization');return decideOrganizationNodeChange(transaction,actor,owner.targetId,{expectedVersion:owner.version,decision:'approve',reason:'Independent original Company review of the synthetic branch',attachmentSetIds:[set.id]},command);}
+ const command=key(),bind=async(transaction:import("@erpx/server-runtime/public/runtime/types").SqlDatabase)=>{
+  if(target==='organization_change'){const {decideOrganizationNodeChange}=await import('@erpx/server-organization/public/organization');return decideOrganizationNodeChange(transaction,actor,owner.targetId,{expectedVersion:owner.version,decision:'approve',reason:'Independent original Company review of the synthetic branch',attachmentSetIds:[set.id]},command);}
   return bindRecordAttachmentSet(transaction,actor,set.id,owner.version,command);
  };
  return {owner,actor,target,tuple,set,reserved,sourceId:uploaded.sourceId,linkId:reserved.attachmentLinkId,bind};
@@ -149,7 +149,7 @@ for(const target of foundationTargets){
  it(`fresh foundation private bytes preserve ${target} Company authority without products and reject late native source or IAM changes`,async()=>{
   const file=await foundationPrivateEvidence(target),{owner,actor}=file;await file.bind(db);await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(file.sourceId).run();
   const identity=owner.idColumn??'id',nativeBefore=await db.prepare(`SELECT * FROM ${owner.table} WHERE ${identity}=?`).bind(owner.targetId).first(),objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key'));let consumed=0;
-  const files:import('../../../src/server/modules/runtime/public/runtime/types').FileStore={get:async(...args)=>{const object=await env.H001_FILES.get(...args);return object?{...object,arrayBuffer:async()=>{consumed++;return object.arrayBuffer();}}:null;},put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args)};
+  const files:import("@erpx/server-runtime/public/runtime/types").FileStore={get:async(...args)=>{const object=await env.H001_FILES.get(...args);return object?{...object,arrayBuffer:async()=>{consumed++;return object.arrayBuffer();}}:null;},put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args)};
   const code=target.startsWith('organization_')?'ORGANIZATION_FILE_READ_CHANGED':target.startsWith('iam_')?'IAM_FILE_READ_CHANGED':target==='company_release_acceptance'?'COMPANY_RELEASE_FILE_READ_CHANGED':'COMPANY_PROVISIONING_FILE_READ_CHANGED',transactionCode=code.replace('_CHANGED','_TRANSACTION_REQUIRED');
   try{
    for(const mode of ['disabled','enforced']){
@@ -170,7 +170,7 @@ for(const target of foundationTargets){
   await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(actor.assignmentId).run();await expect(attachmentContent(db,files,actor,file.linkId,'original')).rejects.toMatchObject({status:404,code:'ATTACHMENT_TARGET_NOT_FOUND'});expect(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='denied' AND reason='ATTACHMENT_TARGET_NOT_FOUND'").bind(file.linkId).first('n')).toBe(1);expect(consumed).toBe(6);expect(await db.prepare('SELECT legal_hold,revoked_at FROM attachments WHERE id=?').bind(file.sourceId).first()).toEqual({legal_hold:1,revoked_at:null});expect(Buffer.from(await(await env.H001_FILES.get(objectKey))!.arrayBuffer())).toEqual(png);
  });
  it(`fresh foundation private bytes see actual disabled ${target} native File binding before the first source snapshot`,async()=>{
-  const file=await foundationPrivateEvidence(target),{owner,actor}=file,{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),trigger=`foundation_snapshot_${key().replaceAll('-','')}`;
+  const file=await foundationPrivateEvidence(target),{owner,actor}=file,{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),trigger=`foundation_snapshot_${key().replaceAll('-','')}`;
   await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF(SELECT ${owner.versionColumn} FROM ${owner.table} WHERE ${owner.idColumn??'id'}='${owner.targetId}')<>${owner.version+1} THEN RAISE EXCEPTION 'FOUNDATION_FILE_STALE_FIRST_SNAPSHOT';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${trigger}()`);
   try{const observed=await measureReads(()=>committedSourceVisibility(db,transaction=>file.bind(transaction),()=>attachmentContent(db,env.H001_FILES,actor,file.linkId,'original')));expect(Buffer.from(await observed.result.object.arrayBuffer())).toEqual(png);expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_access_events;DROP FUNCTION ${trigger}()`);}
  });

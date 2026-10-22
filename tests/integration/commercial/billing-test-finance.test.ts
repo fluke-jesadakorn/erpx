@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, expect, it } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
-import { syncBillingTestFinance } from "../../../src/server/modules/commerce/public/billing-test-finance";
-import { mirrorInvoice, type BillingJobEnv } from "../../../src/server/modules/billing/public/billing-jobs";
-import type { StripeObject } from "../../../src/server/modules/billing/public/billing-stripe";
+import { syncBillingTestFinance } from "@erpx/server-commerce/public/billing-test-finance";
+import { mirrorInvoice, type BillingJobEnv } from "@erpx/server-billing/public/billing-jobs";
+import type { StripeObject } from "@erpx/server-billing/public/billing-stripe";
 
 const registry = {
   ERPX_RESOURCE_SLOTS: JSON.stringify([{ id: "h003", write: "H001_DB", read: "H001_READ_DB", files: "H001_FILES", internal: true }]),

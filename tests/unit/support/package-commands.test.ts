@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
-import { supportCommandPurchase } from "@/server/modules/support/domain/package-commands";
-import { supportChangeSchema } from "@/server/modules/support/domain/support";
-import { incidentChangeSchema } from "@/server/modules/support/domain/support-incidents";
-import { supportSessionActionSchema } from "@/server/modules/support/domain/support-sessions";
-import { supportPolicyChangeSchema } from "@/server/modules/support/domain/support-sla";
+import { supportCommandPurchase } from "@erpx/server-support/domain/package-commands";
+import { supportChangeSchema } from "@erpx/server-support/domain/support";
+import { incidentChangeSchema } from "@erpx/server-support/domain/support-incidents";
+import { supportSessionActionSchema } from "@erpx/server-support/domain/support-sessions";
+import { supportPolicyChangeSchema } from "@erpx/server-support/domain/support-sla";
 
 it("requires an explicit package classification for every current owner command schema", () => {
   const commands = ["support.create", "support.incident.create", "support.session.request", "support.sla.create", "support.sla.attach", "support.sla.acknowledge", "support.evidence.bind", "support.evidence.revoke"];

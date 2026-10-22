@@ -2,9 +2,9 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile, chmod } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { Pool } from 'pg';
-import { PostgresDatabase } from "../../src/server/modules/runtime/adapters/runtime/postgres";
-import { migrateDatabase } from "../../src/server/modules/runtime/adapters/runtime/migrations";
-import type { DatabaseManifest } from "../../src/server/modules/runtime/adapters/runtime/env";
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
+import type { DatabaseManifest } from "@erpx/server-runtime/adapters/runtime/env";
 
 const quote = (name: string) => {
   if (!/^[a-z][a-z0-9_]{2,55}$/.test(name)) throw new Error('INVALID_DATABASE_IDENTIFIER');

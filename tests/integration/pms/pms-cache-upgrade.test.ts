@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { env } from "../../support/runtime-env";
-import { migrateDatabase } from "../../../src/server/modules/runtime/adapters/runtime/migrations";
+import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
 
 it('preserves every original cache revision on the populated 1037 upgrade and replays 1038 once', async () => {
   const root = await mkdtemp(resolve('.runtime/tests/pms-cache-upgrade-'));

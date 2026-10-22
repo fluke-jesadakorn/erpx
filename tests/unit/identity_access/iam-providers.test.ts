@@ -18,7 +18,7 @@ vi.mock("ldapts", () => ({
     unbind = mocks.unbind;
   },
 }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   runtimeEnv: async () => ({ ERPX_IAM_SECRET_PROFILES: "/approved/iam.json" }),
 }));
 import {
@@ -27,8 +27,8 @@ import {
   readEntraDirectory,
   testDirectory,
   directorySecret,
-} from "../../../src/server/modules/identity_access/public/iam-providers";
-import type { ProviderConnection } from "../../../src/server/modules/identity_access/public/iam-providers";
+} from "@erpx/server-identity_access/public/iam-providers";
+import type { ProviderConnection } from "@erpx/server-identity_access/public/iam-providers";
 const id = "ac803e63-8b98-4e73-adea-68c7b148fabc",
   tenant = "aa803e63-8b98-4e73-adea-68c7b148fabc";
 const ucs: ProviderConnection = {

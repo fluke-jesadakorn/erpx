@@ -5,7 +5,7 @@ import {
   previewSandboxStorage,
   sandboxPricingForMonth,
   type SandboxPricingHypothesis,
-} from "../../../src/lib/billing/billing-pricing";
+} from "@erpx/feature-billing/lib/billing-pricing";
 
 it("keeps the 1,490 baht proposal explicitly unsellable and separate from approved Support plans", () => {
   expect(sandboxPricingForMonth("2026-08")).toBeNull();

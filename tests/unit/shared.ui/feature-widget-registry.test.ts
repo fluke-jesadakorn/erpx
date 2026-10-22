@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 import { expect, it } from 'vitest';
-import { widgetDefinitions, pageLayoutSchema, isConfigurablePage } from "../../../src/lib/work_projection/page-layouts";
+import { widgetDefinitions, pageLayoutSchema, isConfigurablePage } from "@erpx/feature-work_projection/lib/page-layouts";
 const files=(dir:string):string[]=>readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(join(dir,e.name)):e.name.endsWith('.tsx')?[join(dir,e.name)]:[]);
 it('keeps widget identities unique, validates layouts, and registers declared page types',()=>{
  expect(widgetDefinitions.every(w=>isConfigurablePage(w.page))).toBe(true);

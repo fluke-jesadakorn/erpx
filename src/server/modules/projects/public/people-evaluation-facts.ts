@@ -1,1 +1,0 @@
-export {peopleEvaluationProjectsFacts,peopleEvaluationProjectTaskReadScope,peopleEvaluationProjectSourceLocks,peopleEvaluationProjectSourceImage} from '../adapters/people-evaluation-facts';

@@ -63,3 +63,7 @@ Historical Rust terms and dated rollout evidence in older decisions apply to tha
 - [ADR-046 — Finance confirmation of a fully warranted Service visit](ADR-046-service-no-charge-confirmation.md)
 
 - [ADR-047 — Source-bound worker preparation foundation](ADR-047-source-bound-worker-preparation-foundation.md)
+
+- [ADR-048 — Ticket-bound Support Portal](ADR-048-ticket-bound-support-portal.md)
+
+- [ADR-049 — Product app workspaces and development verification](ADR-049-product-app-workspaces-and-development-verification.md)

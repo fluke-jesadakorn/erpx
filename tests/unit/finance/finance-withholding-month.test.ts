@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createWithholdingMonthSource, type WithholdingMonthSourcePorts } from "../../../src/server/modules/finance/application/withholding-month-source";
-import { createWithholdingMonth, type WithholdingMonthPorts } from "../../../src/server/modules/finance/application/withholding-month";
-import type { Package } from "../../../src/server/modules/finance/domain/withholding-month";
-import type { ThaiDocumentSnapshot } from "../../../src/lib/finance/finance-thai-document";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import { createWithholdingMonthSource, type WithholdingMonthSourcePorts } from "@erpx/server-finance/application/withholding-month-source";
+import { createWithholdingMonth, type WithholdingMonthPorts } from "@erpx/server-finance/application/withholding-month";
+import type { Package } from "@erpx/server-finance/domain/withholding-month";
+import type { ThaiDocumentSnapshot } from "@erpx/feature-finance/lib/finance-thai-document";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 const actor: WorkContext = { userId: 'payer', name: 'Payer', email: 'payer@example.test', assignmentId: 'assignment', role: 'treasury', companyId: 'company', branchId: null, departmentId: null, holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', scope: { kind: 'holding', holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', companyId: 'company' }, assignmentScope: 'holding', inherited: false, modules: ['finance'], assignments: [], workspaces: [] };
 const error = (status: number, code: string, message: string) => Object.assign(new Error(message), { status, code });
 function strict<T extends object>(facts: Partial<T>): T {

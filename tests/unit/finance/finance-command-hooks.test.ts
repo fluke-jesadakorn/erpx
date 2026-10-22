@@ -2,15 +2,15 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 const pendingTracker=vi.hoisted(()=>({track:(token:object,completion:unknown,pending:boolean):void=>{void token;void completion;void pending;}}));
-vi.mock('@/components/finance/finance-draft-boundary',async()=>{
- const actual=await vi.importActual<typeof import('@/components/finance/finance-draft-boundary')>('@/components/finance/finance-draft-boundary');
+vi.mock("@erpx/feature-finance/components/finance-draft-boundary",async()=>{
+ const actual=await vi.importActual<typeof import("@erpx/feature-finance/components/finance-draft-boundary")>("@erpx/feature-finance/components/finance-draft-boundary");
  return {...actual,useFinanceDraftCommandPending:()=>pendingTracker.track};
 });
 const router=vi.hoisted(()=>({refresh:vi.fn()}));
-vi.mock('@/lib/shared/destination-router',()=>({useRouter:()=>router}));
-import {contextSwitchBlockReason,registerContextSwitchBlocker} from '@/lib/work_projection/context-switch';
-import {useFinanceCommand} from '@/components/finance/use-finance-command';
-import {useRefundCommand} from '@/components/finance/use-refund-command';
+vi.mock("@erpx/feature-shared/lib/destination-router",()=>({useRouter:()=>router}));
+import {contextSwitchBlockReason,registerContextSwitchBlocker} from '@erpx/feature-work_projection/lib/context-switch';
+import {useFinanceCommand} from '@erpx/feature-finance/components/use-finance-command';
+import {useRefundCommand} from '@erpx/feature-finance/components/use-refund-command';
 
 const pendingBlockers:(()=>void)[]=[];
 afterEach(()=>{for(const unregister of pendingBlockers.splice(0))unregister();pendingTracker.track=()=>{};vi.unstubAllGlobals();router.refresh.mockReset();});
@@ -113,7 +113,7 @@ it.each(['finance','refund'] as const)('keeps unchanged %s hook parsed-success b
 });
 
 it('keeps a source-owned invoice posting on its exact path until original confirmation and retains newer edits',async()=>{
- const ts=await import('typescript'),{readFile}=await import('node:fs/promises'),{resolve}=await import('node:path'),source=await readFile(resolve('src/components/finance/invoice-controls.tsx'),'utf8'),ast=ts.createSourceFile('invoice-controls.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),declaration=ast.statements.find(statement=>ts.isFunctionDeclaration(statement)&&statement.name?.text==='useInvoiceCommand');
+ const ts=await import('typescript'),{readFile}=await import('node:fs/promises'),{resolve}=await import('node:path'),source=await readFile(resolve('packages/feature-finance/src/components/invoice-controls.tsx'),'utf8'),ast=ts.createSourceFile('invoice-controls.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),declaration=ast.statements.find(statement=>ts.isFunctionDeclaration(statement)&&statement.name?.text==='useInvoiceCommand');
  if(!declaration)throw Error('ACTUAL_INVOICE_COMMAND_HOOK_REQUIRED');
  const compiled=ts.transpileModule(declaration.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,cells:{value:unknown}[]=[],form={isConnected:true,getAttribute:(name:string)=>name==='data-erpx-edit-version'?completionEdit:null},completion={form,formEditVersion:'submitted-invoice-edit'},calls:{url:RequestInfo|URL;init:RequestInit|undefined;completion:unknown;mode:unknown}[]=[],acknowledge=vi.fn(),announce=vi.fn(),trackPending=vi.fn(),invoiceRouter={push:vi.fn(),refresh:vi.fn()};let completionEdit='submitted-invoice-edit',hookIndex=0;
  const useState=(initial:unknown)=>{const index=hookIndex++;cells[index]??={value:initial};return[cells[index].value,(value:unknown)=>{cells[index].value=typeof value==='function'?Reflect.apply(value,undefined,[cells[index].value]):value;}];},useRef=(initial:unknown)=>{const index=hookIndex++;cells[index]??={value:{current:initial}};return cells[index].value;};

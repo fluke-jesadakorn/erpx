@@ -1,10 +1,10 @@
 import {expect,it,vi} from "vitest";
-import {createHandbookService,type HandbookPorts,type OwnerCommands} from "../../../src/server/modules/collaboration/application/handbook";
-import {handbookSchema,type Article} from "../../../src/server/modules/collaboration/domain/handbook";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {ApiError} from "../../../src/server/modules/runtime/public/http";
-import {createHandbookCommands} from '../../../src/lib/collaboration/handbook-command';
-import {handbookCreateHref,handbookCreateReturn} from '../../../src/lib/collaboration/handbook-navigation';
+import {createHandbookService,type HandbookPorts,type OwnerCommands} from "@erpx/server-collaboration/application/handbook";
+import {handbookSchema,type Article} from "@erpx/server-collaboration/domain/handbook";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {ApiError} from "@erpx/server-runtime/public/http";
+import {createHandbookCommands} from '@erpx/feature-collaboration/lib/handbook-command';
+import {handbookCreateHref,handbookCreateReturn} from '@erpx/feature-collaboration/lib/handbook-navigation';
 function only<T>(values:Partial<T>):T{return new Proxy(values,{get(target,name){if(name in target)return Reflect.get(target,name);throw Error(`Unexpected port ${String(name)}`);}}) as T;}
 type Ports=HandbookPorts<string>;
 const actor={userId:"editor",companyId:"company",branchId:null,departmentId:null} as WorkContext;

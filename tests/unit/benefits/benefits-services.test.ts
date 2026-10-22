@@ -1,14 +1,14 @@
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {createBenefitCommands,validBenefitReceipt,type BenefitAttempt} from '../../../src/lib/benefits/command';
-import {benefitActionAllowed,benefitRetryAllowed,type BenefitPresentation} from '../../../src/lib/benefits/presentation';
-import {BenefitsConsole} from '../../../src/components/benefits/benefits-console';
-import {benefitSavedHref} from '../../../src/components/benefits/use-benefit-command';
-import type {benefitsWorkspace,benefitDetail} from '../../../src/server/modules/benefits/public/benefits';
+import {createBenefitCommands,validBenefitReceipt,type BenefitAttempt} from '@erpx/feature-benefits/lib/command';
+import {benefitActionAllowed,benefitRetryAllowed,type BenefitPresentation} from '@erpx/feature-benefits/lib/presentation';
+import {BenefitsConsole} from '@erpx/feature-benefits/components/benefits-console';
+import {benefitSavedHref} from '@erpx/feature-benefits/components/use-benefit-command';
+import type {benefitsWorkspace,benefitDetail} from '@erpx/server-benefits/public/benefits';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/holding/people-organization/benefits',useSearchParams:()=>new URLSearchParams()}));
-vi.mock('../../../src/components/files/record-document-panel',()=>({RecordDocumentPanel:(props:{targetType:string;editable:boolean})=>createElement('div',{'data-document-type':props.targetType,'data-editable':String(props.editable)})}));
-vi.mock('../../../src/components/files/attachment-panel',()=>({AttachmentPanel:()=>null}));
+vi.mock("@erpx/feature-files/components/record-document-panel",()=>({RecordDocumentPanel:(props:{targetType:string;editable:boolean})=>createElement('div',{'data-document-type':props.targetType,'data-editable':String(props.editable)})}));
+vi.mock("@erpx/feature-files/components/attachment-panel",()=>({AttachmentPanel:()=>null}));
 afterEach(()=>vi.unstubAllGlobals());
 const base='/holdings/holding',scope='rendered-account-company-role',createInput={entity:'plan',name:'Coverage',currency:'THB'},priorInput={entity:'election',id:'election',expectedVersion:3,action:'release',reason:'Independently reviewed'};
 const response=(data:unknown,status=200)=>Response.json({data},{status});
@@ -35,9 +35,9 @@ describe('Benefits original role, independent review and minimal purchase presen
  it('keeps the original independent release action unavailable to the acknowledger in the actual detail console',()=>{const detail:Awaited<ReturnType<typeof benefitDetail>>={election:{id:'election',plan_name:'Own coverage',status:'acknowledged',version:3,acknowledged_by:'acknowledger'},history:[],payroll:null,actorId:'acknowledger',canWrite:true,canReview:true,canManageDocuments:false,isOwner:false,workContext:'opaque',purchase:active};expect(renderToStaticMarkup(createElement(BenefitsConsole,{base,detail}))).not.toContain('Release payroll input');expect(renderToStaticMarkup(createElement(BenefitsConsole,{base,detail:{...detail,actorId:'independent'}}))).toContain('Release payroll input');});
 });
 
-import {BenefitCommandFeedback} from '../../../src/components/benefits/benefit-command-feedback';
-import type {useBenefitCommand} from '../../../src/components/benefits/use-benefit-command';
+import {BenefitCommandFeedback} from '@erpx/feature-benefits/components/benefit-command-feedback';
+import type {useBenefitCommand} from '@erpx/feature-benefits/components/use-benefit-command';
 it('provides the retained exact retry and later-draft recovery controls inside an editor feedback region under the current original role',()=>{const attempt:BenefitAttempt={input:priorInput,body:JSON.stringify(priorInput),key:'original-key',context:scope},command:ReturnType<typeof useBenefitCommand>={send:vi.fn(async()=>null),retry:vi.fn(async()=>null),retryAttempt:attempt,busy:false,error:'Unknown result',notice:'Your newer draft remains here',savedDraft:{receipt:{id:'election',version:4,status:'released'},href:'/saved-election'},clearSaved:vi.fn()};const current=renderToStaticMarkup(createElement(BenefitCommandFeedback,{command,view:{...view,purchase:inactive}}));expect(current).toContain('Retry submitted Benefits action');expect(current).toContain('Closing this editor does not cancel that request');expect(current).toContain('Open saved Benefits record');expect(current).toContain('Review retained draft');expect(current).not.toContain('disabled=""');const revoked=renderToStaticMarkup(createElement(BenefitCommandFeedback,{command,view:{...view,canReview:false}}));expect(revoked).toContain('disabled=""');expect(revoked).not.toContain('original-key');expect(revoked).not.toContain('Independently reviewed');});
 
-import {canonicalUiHref} from '../../../src/lib/work_projection/destination-registry';
+import {canonicalUiHref} from '@erpx/feature-work_projection/lib/destination-registry';
 it.each(['plans','enrollments','mine'])('preserves the canonical Benefits %s filter action across native GET and repeated owner normalization',view=>{const action=canonicalUiHref(`${base}/benefits?view=${view}`);expect(action).toBe(`${base}/people-organization/benefits/${view}`);expect(canonicalUiHref(`${action}?q=coverage&state=elected#history`)).toBe(`${base}/people-organization/benefits/${view}?q=coverage&state=elected#history`);});

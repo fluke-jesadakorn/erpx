@@ -1,0 +1,29 @@
+{
+  "name": "@erpx/feature-benefits",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/benefits-console": "./src/components/benefits-console.tsx",
+    "./components/benefit-editor": "./src/components/benefit-editor.tsx",
+    "./components/benefit-command-feedback": "./src/components/benefit-command-feedback.tsx",
+    "./components/benefit-draft-boundary": "./src/components/benefit-draft-boundary.tsx",
+    "./components/use-benefit-command": "./src/components/use-benefit-command.ts",
+    "./lib/presentation": "./src/lib/presentation.ts",
+    "./lib/command": "./src/lib/command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-procurement": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-benefits": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "react": "19.3.0"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@erpx/catalogue",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./hospitality-evidence.generated.json": "./src/hospitality-evidence.generated.json",
+    "./capability-delivery": "./src/capability-delivery.ts",
+    "./business-acceptance": "./src/business-acceptance.ts",
+    "./pms-delivery": "./src/pms-delivery.ts",
+    "./production-scope": "./src/production-scope.ts",
+    "./module-registry.json": "./src/module-registry.json",
+    "./business-readiness.generated.json": "./src/business-readiness.generated.json",
+    "./module-registry": "./src/module-registry.ts",
+    "./hospitality-future-features": "./src/hospitality-future-features.ts",
+    "./capability-gate-reviews": "./src/capability-gate-reviews.ts",
+    "./module-access": "./src/module-access.ts",
+    "./feature-widgets.json": "./src/feature-widgets.json",
+    "./release-artifact.json": "./src/release-artifact.json",
+    "./iso-4217-current.json": "./src/iso-4217-current.json",
+    "./acceptance-evidence": "./src/acceptance-evidence.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "zod": "4.5.4"
+  }
+}

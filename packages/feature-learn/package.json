@@ -1,0 +1,44 @@
+{
+  "name": "@erpx/feature-learn",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes/holdings/[holdingSlug]/knowledge/learning/settings/learners/[personId]/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/settings/learners/[personId]/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/settings/learners/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/settings/learners/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/settings/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/settings/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/records/learning_course/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/records/learning_course/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/records/learning_course/[id]/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/records/learning_course/[id]/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/assignments/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/assignments/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/assignments/[id]/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/assignments/[id]/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/assignments/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/assignments/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/courses/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/courses/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/mine/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/mine/page.tsx",
+    "./routes/holdings/[holdingSlug]/knowledge/learning/page": "./src/routes/holdings/[holdingSlug]/knowledge/learning/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/knowledge/learning/settings/learners/[personId]/page": "./src/routes/holdings/[holdingSlug]/@record/knowledge/learning/settings/learners/[personId]/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/knowledge/learning/settings/learners/page": "./src/routes/holdings/[holdingSlug]/@record/knowledge/learning/settings/learners/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/knowledge/learning/records/learning_course/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/@record/knowledge/learning/records/learning_course/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/knowledge/learning/records/learning_course/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/knowledge/learning/records/learning_course/[id]/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/knowledge/learning/assignments/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/@record/knowledge/learning/assignments/[id]/[recordSection]/page.tsx",
+    "./routes/holdings/[holdingSlug]/@record/knowledge/learning/assignments/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/knowledge/learning/assignments/[id]/page.tsx",
+    "./routes/api/v1/holdings/[holdingSlug]/learning/route": "./src/routes/api/v1/holdings/[holdingSlug]/learning/route.ts",
+    "./routes/api/v1/holdings/[holdingSlug]/people/learning-worker-startup/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/people/learning-worker-startup/[[...path]]/route.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-learning": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-identity_access": "workspace:*",
+    "@erpx/server-learning": "workspace:*",
+    "@erpx/server-manage_erpx": "workspace:*",
+    "@erpx/server-people_payroll": "workspace:*",
+    "@erpx/server-runtime": "workspace:*",
+    "@erpx/server-work_projection": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "next": "16.4.0"
+  }
+}

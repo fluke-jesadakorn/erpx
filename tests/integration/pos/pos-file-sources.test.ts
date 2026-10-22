@@ -3,20 +3,20 @@ import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { backfillSpecializedAttachments, reconcileAttachmentStorage } from "../../../src/server/modules/files/public/attachments/migration";
-import { attachmentContent,scanAttachmentNow } from "../../../src/server/modules/files/public/attachments/service";
+import { backfillSpecializedAttachments, reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
+import { attachmentContent,scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
 import {seedAttachmentSet} from '../../support/helpers/attachment-v2';
-import {packageGrantStore} from '../../../src/server/modules/commercial/public/package-grants';
-import type {FileStore} from '../../../src/server/modules/runtime/public/runtime/types';
-import { posProductImage, savePosProductImage } from "../../../src/server/modules/pos/public/pos-images";
+import {packageGrantStore} from '@erpx/server-commercial/public/package-grants';
+import type {FileStore} from '@erpx/server-runtime/public/runtime/types';
+import { posProductImage, savePosProductImage } from "@erpx/server-pos/public/pos-images";
 
 const scan = vi.hoisted(() => ({ clean: true }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", async () => {
+vi.mock("@erpx/server-runtime/adapters/runtime", async () => {
   const { env } = await import("../../support/runtime-env");
   return { runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }) };
 });
 
-vi.mock("../../../src/server/modules/files/public/attachments/scanner", () => ({
+vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "ClamAV POS-source fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: scan.clean, signature: scan.clean ? null : "POS source infected fixture", engine: "ClamAV POS-source fixture", definitionUpdatedAt: Date.now() }),
 }));
@@ -128,12 +128,12 @@ it.each(['disabled','enforced'] as const)('keeps specialized POS image bytes and
   expect(consumed).toBe(5);const response=await posProductImage(f.owner,imageId,true);expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);expect(consumed).toBe(6);expect(response.headers.get('cache-control')).toBe('private, no-store');
   expect(await db.prepare("SELECT count(*)::int n FROM attachment_events WHERE attachment_id=? AND action='content.read'").bind(sourceId).first('n')).toBe(1);
   expect(await db.prepare('SELECT version FROM pos_catalog WHERE product_id=?').bind(product).first('version')).toBe(2);expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.owner.assignmentId).first()).toEqual({revoked_at:null,version:1});
-  const {withPosProductImageRead}=await import('../../../src/server/modules/pos/public/product-image-read');await expect(db.transaction(tx=>withPosProductImageRead(tx,f.owner,imageId,async()=>{throw Error('ARBITRARY_SNAPSHOT_MUST_NOT_RUN');}))).rejects.toMatchObject({code:'POS_IMAGE_READ_TRANSACTION_REQUIRED'});
+  const {withPosProductImageRead}=await import('@erpx/server-pos/public/product-image-read');await expect(db.transaction(tx=>withPosProductImageRead(tx,f.owner,imageId,async()=>{throw Error('ARBITRARY_SNAPSHOT_MUST_NOT_RUN');}))).rejects.toMatchObject({code:'POS_IMAGE_READ_TRANSACTION_REQUIRED'});
  }finally{spy.mockRestore();}
 });
 
 it('observes committed native POS image sources before its read snapshot and reads two Companies without hidden transaction retries',async()=>{
- const {measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{companyPurchaseReadLocks}=await import('../../../src/server/modules/commercial/public/purchase-command-boundary');
+ const {measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{companyPurchaseReadLocks}=await import('@erpx/server-commercial/public/purchase-command-boundary');
  const other=await seedExpenseCompany(db,files),sources:{fixture:typeof f;product:string;bytes:Uint8Array;imageId:string}[]=[];
  for(const fixture of [f,other]){const {product,bytes}=await catalog(fixture),saved=await savePosProductImage(fixture.owner,product,bytes,'image/png','upload',crypto.randomUUID(),1);sources.push({fixture,product,bytes,imageId:String(saved.imageId)});}
  vi.stubEnv('ERPX_POS_PACKAGE_ENFORCEMENT','disabled');const first=sources[0],fault=`pos_image_visible_${crypto.randomUUID().replaceAll('-','')}`;

@@ -1,7 +1,7 @@
-import { getRuntime,closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
-import { resourceSlots } from "../../src/lib/runtime/holding-registry";
+import { getRuntime,closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
+import { resourceSlots } from "@erpx/feature-runtime/lib/holding-registry";
 import { dirname,join } from 'node:path';
-import type { SqlDatabase } from "../../src/server/modules/runtime/adapters/runtime/types";
+import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
 
 export async function ensureFixtureLevel(db:SqlDatabase,companyId:string){
   const id=`acceptance-level-${companyId}`,now=Date.now();

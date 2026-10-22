@@ -1,0 +1,3 @@
+import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';export function productionCommandSources(db:SqlDatabase){return {async accounts(companyId:string,companyId2:string){return db.prepare(`SELECT a.id,a.code,a.name,a.chart_id,a.category FROM finance_accounts a ${productioncommerceProjection.chartSettings} WHERE a.company_id=? AND s.company_id=? AND a.status='active' AND a.control_kind='none' ORDER BY a.code`)
+          .bind(companyId, companyId2).all<Row>();}};}

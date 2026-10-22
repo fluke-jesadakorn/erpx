@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { expenseAccountingViolation, expensePostingViolation, mayEditExpense, mayReviewExpense } from "../../../src/server/modules/people_payroll/domain/expense-policy";
-import { createExpensePreview, type ExpensePreviewActor, type ExpensePreviewPorts } from "../../../src/server/modules/people_payroll/application/expense-preview";
-import { createExpensePostingPreview } from "../../../src/server/modules/people_payroll/application/expense-posting-preview";
+import { expenseAccountingViolation, expensePostingViolation, mayEditExpense, mayReviewExpense } from "@erpx/server-people_payroll/domain/expense-policy";
+import { createExpensePreview, type ExpensePreviewActor, type ExpensePreviewPorts } from "@erpx/server-people_payroll/application/expense-preview";
+import { createExpensePostingPreview } from "@erpx/server-people_payroll/application/expense-posting-preview";
 
 describe("Expense domain independence", () => {
   const employee = { userId: "employee" };

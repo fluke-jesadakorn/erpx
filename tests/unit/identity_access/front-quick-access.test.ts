@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { frontActionItems, frontCompanyItems } from "../../../src/server/modules/work_projection/public/front-quick-access";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { frontText } from "../../../src/lib/shared/front-language";
+import { frontActionItems, frontCompanyItems } from "@erpx/server-work_projection/public/front-quick-access";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { frontText } from "@erpx/feature-shared/lib/front-language";
 
 function actor(permissions: string[]): WorkContext {
   return { userId: "staff-1", role: "staff", permissions, scope: { kind: "holding" } } as unknown as WorkContext;

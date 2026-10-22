@@ -1,3 +1,0 @@
-import { commercialOwnerProjectionSources as financeProjectionSources } from "../../finance/public/commercial-owner-projection-sources";
-import type {SqlDatabase} from '../../runtime/public/runtime/types';
-export function stageWorkflowPostedOrderRevision(db:SqlDatabase,now:number,journalId:string,companyId:string){return db.prepare(`UPDATE commerce_orders o SET version=o.version+1,updated_at=? FROM commerce_fulfillments f JOIN (${financeProjectionSources.finance_journals}) j ON j.id=f.journal_id WHERE f.order_id=o.id AND j.id=? AND j.company_id=? AND j.status='posted'`).bind(now,journalId,companyId);}

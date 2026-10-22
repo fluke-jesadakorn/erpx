@@ -6,12 +6,12 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import type { WorkContext, WorkAssignment } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext, WorkAssignment } from "@erpx/server-identity_access/public/authorization";
 import {
   saveServiceTeam,
   serviceTeamSchema,
   resolveServiceTeam,
-} from "../../../src/server/modules/support/public/service-teams";
+} from "@erpx/server-support/public/service-teams";
 import {
   actOnEmployeeRequest,
   employeeRequestDetail,
@@ -21,9 +21,9 @@ import {
   saveEmployeeRequest,
   prepareRequestOrderHandoff,
   employeeRequestWork,
-} from "../../../src/server/modules/records/public/employee-requests";
-import { executeCommand } from "../../../src/server/modules/workflow/public/commands";
-import { serviceAuthoritySnapshot } from "../../../src/server/modules/support/public/service-access";
+} from "@erpx/server-records/public/employee-requests";
+import { executeCommand } from "@erpx/server-workflow/public/commands";
+import { serviceAuthoritySnapshot } from "@erpx/server-support/public/service-access";
 import {
   actOnHandbook,
   handbookArticle,
@@ -31,16 +31,16 @@ import {
   handbookSchema,
   saveHandbookArticle,
   setHandbookEditor,
-} from "../../../src/server/modules/collaboration/public/handbook";
+} from "@erpx/server-collaboration/public/handbook";
 import {
   responsibilityContext,
   responsibilityRoles,
-} from "../../../src/lib/organization/responsibilities";
-import { commercePermissions } from "../../../src/server/modules/commerce/public/commerce";
-import { resourceRequestRoute } from "../../../src/server/modules/people_payroll/public/expense-routing";
+} from "@erpx/feature-organization/lib/responsibilities";
+import { commercePermissions } from "@erpx/server-commerce/public/commerce";
+import { resourceRequestRoute } from "@erpx/server-people_payroll/public/expense-routing";
 
 vi.mock("server-only", () => ({}));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -703,9 +703,9 @@ it("opens historical published handbook content and never exposes a requested dr
   );
 });
 it('maps an approved requisition into RFQ and atomically links the awarded PO without bypassing either owner',async()=>{
- const {createRfq,actRfq,rfqDetail}=await import("../../../src/server/modules/procurement/public/procurement-rfqs");
- const {saveMaster,saveOrder,orderSchema,getOrder}=await import("../../../src/server/modules/commerce/public/commerce");
- const {purchaseRequestProgress}=await import("../../../src/server/modules/procurement/public/purchase-request-progress");
+ const {createRfq,actRfq,rfqDetail}=await import("@erpx/server-procurement/public/procurement-rfqs");
+ const {saveMaster,saveOrder,orderSchema,getOrder}=await import("@erpx/server-commerce/public/commerce");
+ const {purchaseRequestProgress}=await import("@erpx/server-procurement/public/purchase-request-progress");
  const r=await assigned('purchase'),purchaser={...f.it,role:'purchasing_operator',assignmentId:await f.grant(f.it,'purchasing_operator')};
  const source=await getEmployeeRequest(db,purchaser,r.id),warehouse=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Requisition warehouse'},key())).id),product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Requested laptop',price:'100'},key())).id),party=String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:'Approved supplier'},key())).id);
  const input={requestId:r.id,requestVersion:source.version,title:'Source requisition RFQ',warehouseId:warehouse,neededDate:'2026-09-20',demandEvidence:'Product mapped to the approved laptop request',lines:[{requestItemOrdinal:0,productId:product,quantity:'1'}]};
@@ -731,9 +731,9 @@ it('maps an approved requisition into RFQ and atomically links the awarded PO wi
  expect(requesterProgress.steps.find(step=>step.id==='sourcing')?.href).toBeNull();
 });
 it('splits one approved request across supplier awards and snapshots exact unit conversions for two purchase orders',async()=>{
- const {createRfq,actRfq,rfqDetail}=await import("../../../src/server/modules/procurement/public/procurement-rfqs");
- const {requestQuotationSource}=await import("../../../src/server/modules/records/public/employee-requests");
- const {saveMaster,saveOrder,orderSchema}=await import("../../../src/server/modules/commerce/public/commerce");
+ const {createRfq,actRfq,rfqDetail}=await import("@erpx/server-procurement/public/procurement-rfqs");
+ const {requestQuotationSource}=await import("@erpx/server-records/public/employee-requests");
+ const {saveMaster,saveOrder,orderSchema}=await import("@erpx/server-commerce/public/commerce");
  await team('purchasing');
  const r=await request('purchase',f.claimant,{currency:'THB',items:[{description:'Laptop',quantity:'24',unit:'each',estimatedCost:'240000'}]});
  await act(f.claimant,r.id,'submit');await act(f.head,r.id,'approve');await act(f.reviewer,r.id,'approve');await act(f.manager,r.id,'approve');await act(f.it,r.id,'assign',{assigneeUserId:f.it.userId});await act(f.it,r.id,'start');
@@ -768,7 +768,7 @@ it('splits one approved request across supplier awards and snapshots exact unit 
  expect(new Set(orderIds).size).toBe(2);
  expect(Number(await db.prepare('SELECT count(*) n FROM procurement_request_orders WHERE request_id=?').bind(r.id).first('n'))).toBe(2);
  expect((await getEmployeeRequest(db,purchaser,r.id)).purchase_order_id).toBe(orderIds[0]);
- const progress=await (await import("../../../src/server/modules/procurement/public/purchase-request-progress")).purchaseRequestProgress(db,purchaser,r.id);expect(progress.steps.find(step=>step.id==='sourcing')?.state).toBe('complete');expect(progress.steps.find(step=>step.id==='order')?.detail).toContain('2 linked purchase orders');
+ const progress=await (await import("@erpx/server-procurement/public/purchase-request-progress")).purchaseRequestProgress(db,purchaser,r.id);expect(progress.steps.find(step=>step.id==='sourcing')?.state).toBe('complete');expect(progress.steps.find(step=>step.id==='order')?.detail).toContain('2 linked purchase orders');
 });
 
 it('rolls back request draft, event, receipt, audit and outbox after a late failure then replays one retry',async()=>{
@@ -795,7 +795,7 @@ it('rolls back handbook publication and canonical command journals then retries 
 });
 
 async function handbookWorkGrant(state:'active'|'draining'='active'){
- const {packageGrantStore,readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants'),prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='work');
+ const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='work');
  return packageGrantStore(db,{authorize:async()=>({userId:'isolated-handbook-provider'}),obligations:async()=>{throw Error('HANDBOOK_FIXTURE_CANNOT_INACTIVATE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'work',packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Original Work handbook owner fixture',evidence:'test:handbook-purchases'}});
 }
 it('purchasedHandbook preserves module-free membership and original private revisions through active draining archive and normal inactive history',async()=>{
@@ -807,7 +807,7 @@ it('purchasedHandbook preserves module-free membership and original private revi
  expect(await saveHandbookArticle(db,f.it,article.id,savedInput,saveKey)).toEqual(saved);await expect(saveHandbookArticle(db,f.it,article.id,{...savedInput,expectedVersion:3},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});await expect(actOnHandbook(db,f.it,article.id,{action:'publish',expectedVersion:3},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
  await setHandbookEditor(db,f.owner,{userId:f.head.userId,active:false,expectedVersion:1},key());await expect(setHandbookEditor(db,f.owner,{userId:f.head.userId,active:true,expectedVersion:2},key())).rejects.toMatchObject({code:'PACKAGE_DRAINING'});
  const archiveKey=key(),archiveInput={action:'archive' as const,expectedVersion:3},archived=await actOnHandbook(db,f.it,article.id,archiveInput,archiveKey);
- const {packageGrantStore,readCompanyPackageGrants,packageGrantRevision}=await import('../../../src/server/modules/commercial/public/package-grants'),{withOwnerPackageObligations,ownerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),grants=await readCompanyPackageGrants(db,f.company),grant=grants.find(row=>row.packageId==='work')!,request={companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:grant.version,grant:{...grant,state:'inactive' as const,version:grant.version+1,reason:'Original handbook archived through its normal owner',evidence:'test:handbook-normal-inactive'}}]},scope={companyId:f.company,packageId:'work',packageVersion:1},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-handbook-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)}),preview=await withOwnerPackageObligations(db,scope,tx=>store.batch.previewIn(tx,request));expect(await withOwnerPackageObligations(db,scope,tx=>store.batch.applyIn(tx,request,async()=>{}))).toEqual(preview);
+ const {packageGrantStore,readCompanyPackageGrants,packageGrantRevision}=await import('@erpx/server-commercial/public/package-grants'),{withOwnerPackageObligations,ownerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),grants=await readCompanyPackageGrants(db,f.company),grant=grants.find(row=>row.packageId==='work')!,request={companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:grant.version,grant:{...grant,state:'inactive' as const,version:grant.version+1,reason:'Original handbook archived through its normal owner',evidence:'test:handbook-normal-inactive'}}]},scope={companyId:f.company,packageId:'work',packageVersion:1},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-handbook-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)}),preview=await withOwnerPackageObligations(db,scope,tx=>store.batch.previewIn(tx,request));expect(await withOwnerPackageObligations(db,scope,tx=>store.batch.applyIn(tx,request,async()=>{}))).toEqual(preview);
  expect(await actOnHandbook(db,f.it,article.id,archiveInput,archiveKey)).toEqual(archived);expect((await handbookArticle(db,f.it,article.id,true)).revision.body).toBe('Unpublished employee content');await expect(handbookArticle(db,f.claimant,article.id,false,1)).rejects.toMatchObject({code:'ARTICLE_NOT_FOUND'});await expect(actOnHandbook(db,f.it,article.id,{action:'restore',expectedVersion:4},key())).rejects.toMatchObject({code:'PACKAGE_INACTIVE'});
  expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['work']);
 });
@@ -821,7 +821,7 @@ it('purchasedHandbook rolls back original publication revision receipts and curr
  const published=await actOnHandbook(db,f.it,article.id,input,command);expect(await actOnHandbook(db,f.it,article.id,input,command)).toEqual(published);expect((await handbookArticle(db,f.claimant,article.id)).revision.body).toBe('Original private owner text');await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.it.assignmentId).run();await expect(actOnHandbook(db,f.it,article.id,input,command)).rejects.toMatchObject({code:'WORK_HANDBOOK_AUTHORITY_CHANGED'});
 });
 it('purchasedHandbook observes an actual committed editor removal before the first command snapshot without deadlock or automatic retry',async()=>{
- await setHandbookEditor(db,f.owner,{userId:f.it.userId,active:true,expectedVersion:0},key());await handbookWorkGrant();vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');const article=await saveHandbookArticle(db,f.it,null,handbookSchema.parse({title:'Original editor source',body:'An earlier snapshot cannot borrow a removed editor'}),key()),command=key(),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics');
+ await setHandbookEditor(db,f.owner,{userId:f.it.userId,active:true,expectedVersion:0},key());await handbookWorkGrant();vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');const article=await saveHandbookArticle(db,f.it,null,handbookSchema.parse({title:'Original editor source',body:'An earlier snapshot cannot borrow a removed editor'}),key()),command=key(),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
  const observed=await committedSourceVisibility(db,tx=>tx.prepare('DELETE FROM handbook_editors WHERE company_id=? AND user_id=?').bind(f.company,f.it.userId).run(),()=>measureReads(async()=>{try{await actOnHandbook(db,f.it,article.id,{action:'publish',expectedVersion:1},command);return null;}catch(error){return error;}}));
  expect(observed.result).toMatchObject({code:'HANDBOOK_EDITOR_REQUIRED'});expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);expect(await db.prepare('SELECT command_id FROM command_receipts WHERE command_id=?').bind(command).first()).toBeNull();await expect(db.transaction(tx=>actOnHandbook(tx,f.owner,article.id,{action:'publish',expectedVersion:1},key()))).rejects.toMatchObject({code:'WORK_HANDBOOK_TRANSACTION_REQUIRED'});
 });

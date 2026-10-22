@@ -1,16 +1,16 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import { rememberWorkspace } from "../../../src/server/modules/work_projection/public/workspace-preferences";
+import { rememberWorkspace } from "@erpx/server-work_projection/public/workspace-preferences";
 
 const request = vi.hoisted(() => ({ headers: new Headers(), session: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: async () => request.headers }));
-vi.mock("../../../src/server/modules/identity_access/public/auth", () => ({ createAuth: async () => ({ api: { getSession: request.session } }) }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-identity_access/public/auth", () => ({ createAuth: async () => ({ api: { getSession: request.session } }) }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   runtimeEnv: async () => env,
   holdingResources: async () => ({ write: env.H001_DB }),
   holdingBindingBySlug: async (slug: string) => ({ id: "h001", slug, displayName: "Acme" }),
 }));
-import { resolveWorkspaceScope } from "../../../src/server/modules/identity_access/public/authorization";
+import { resolveWorkspaceScope } from "@erpx/server-identity_access/public/authorization";
 
 beforeAll(async () => {
   await Promise.all([

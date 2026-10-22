@@ -1,1 +1,0 @@
-export {initialPhysicalStockGoodsReceiptRows,initialPhysicalStockCommerceSource,initialPhysicalStockMasterChoices,initialPhysicalStockMasterSource,initialPhysicalStockCommerceSourceLocks} from '../adapters/initial-physical-stock-count-sources';

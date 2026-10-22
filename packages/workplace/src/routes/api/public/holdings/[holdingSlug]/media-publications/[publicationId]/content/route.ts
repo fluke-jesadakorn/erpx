@@ -1,0 +1,5 @@
+import type { RouteContext } from "@erpx/contracts/next-routes";
+import { errorResponse } from "@erpx/server-runtime/public/http";
+import { holdingBindingBySlug,holdingResources } from "../../../../../../../../../../../packages/server-runtime/src/public/runtime";
+import { publicAttachmentPublication } from "@erpx/server-files/public/attachments/service";
+export async function GET(_request:Request,context:RouteContext<"/api/public/holdings/[holdingSlug]/media-publications/[publicationId]/content">){try{const {holdingSlug,publicationId}=await context.params,binding=await holdingBindingBySlug(holdingSlug),{write,files}=await holdingResources(binding.id),result=await publicAttachmentPublication(write,files,publicationId);return new Response(result.object.body,{headers:{"Content-Type":result.row.derivative_media_type,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff",ETag:result.object.httpEtag,"Content-Security-Policy":"sandbox; default-src 'none'"}});}catch(error){return errorResponse(error);}}

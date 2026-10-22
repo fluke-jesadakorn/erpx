@@ -1,0 +1,41 @@
+import {BusinessRuleError,type Clock} from "@erpx/server-shared/index";
+import {supplierBatchSchema,supplierDecisionSchema,supplierExportSchema,supplierResultSchema,supplierConfirmSchema,assertCompanyTreasury,assertIndependentPayer,assertSupplierBatchUnique,prepareSupplierBatchItems,assertSupplierBank,assertSupplierBatchDecision,assertPendingInstruction,assertPaymentBankEvidence,assertSupplierPaymentEvidence,supplierExportContent,supplierBatchWorkItems,type SupplierPaymentRow as Row,type BatchInput,type BatchDecision,type BatchExport,type InstructionResult,type InstructionConfirmation,type PreparedBatchItem,type PaymentEvidenceSet} from "@erpx/server-procurement/domain/supplier-payments";
+type Command={key:string;operation:string;id:string;now:number};
+export type SupplierPaymentMutation<Evidence,Journal>=Command&(
+ | {kind:'create';input:BatchInput;bank:Row;items:PreparedBatchItem[]}
+ | {kind:'decision';input:BatchDecision;batch:Row;decision:'approve'|'cancel'}
+ | {kind:'export';input:BatchExport;batch:Row;sha256:string}
+ | {kind:'result';input:InstructionResult;item:Row;batch:Row}
+ | {kind:'confirmation';input:InstructionConfirmation;item:Row;batch:Row;invoice:Row;bank:Row;amount:number;evidence:Evidence|null;journal:Journal;journalId:string;paymentId:string}
+);
+export interface SupplierPaymentPorts<Evidence,Journal>{
+ clock:Clock;companyId:string;userId:string;branchId:string|null;departmentId:string|null;canRead:boolean;canWrite:boolean;canApprove:boolean;canPay:boolean;samePerson(id:unknown):boolean;
+ authorizeRead():Promise<void>;authorizeWrite():Promise<void>;authorizeApprove():Promise<void>;authorizePay():Promise<void>;
+ replay(key:string,operation:string,id:string,input:unknown):Promise<Record<string,unknown>|null>;
+ batch(id:string):Promise<Row|null>;item(id:string):Promise<Row|null>;list(forWork:boolean):Promise<Row[]>;
+ workspace(id:string|undefined,batch:Row|null):Promise<{items:Row[];invoices:Row[];accounts:Row[];periods:Row[];bank:Row[]}>;
+ controlledTaxOwner(date:string):Promise<void>;bankAccount(id:string):Promise<Row|null>;
+ exportItems(id:string):Promise<Row[]>;hash(content:string):string;exportReceipt(key:string):Promise<{result_json:string}|null>;
+ invoice(id:string):Promise<Row|null>;bankTransaction(id:string):Promise<Row|null>;evidenceSets(ids:string[]):Promise<PaymentEvidenceSet[]>;
+ prepareEvidence(id:string,batch:Row,input:InstructionConfirmation,key:string):Promise<Evidence>;
+ prepareJournal(invoice:Row,batch:Row,bank:Row,amount:number,input:InstructionConfirmation,id:string,key:string):Promise<{journal:Journal;id:string}>;
+ commit<Result>(mutation:SupplierPaymentMutation<Evidence,Journal>,result:Result):Promise<Result>;
+}
+export function createSupplierPaymentApplication<Evidence,Journal>(ports:SupplierPaymentPorts<Evidence,Journal>){
+ const company=async()=>{await ports.authorizeRead();assertCompanyTreasury(ports.branchId,ports.departmentId);};
+ const payer=async(batch:Row)=>{await company();await ports.authorizePay();assertIndependentPayer(batch,ports.samePerson);};
+ const get=async(id:string)=>{await company();const batch=await ports.batch(id);if(!batch)throw new BusinessRuleError(404,'BATCH_NOT_FOUND','Supplier batch not found.');return batch;};
+ const instruction=async(id:string)=>{await company();const item=await ports.item(id);if(!item)throw new BusinessRuleError(404,'INSTRUCTION_NOT_FOUND','Supplier instruction not found.');return {item,batch:await get(String(item.batch_id))};};
+ const list=async(forWork=false)=>{await company();return ports.list(forWork);};
+ return {
+ get,list,
+ async workspace(id?:string){await company();const batch=id?await get(id):null;return {batch,...await ports.workspace(id,batch),userId:ports.userId,canCreate:ports.canWrite,canApprove:ports.canApprove,canPay:ports.canPay};},
+ async create(raw:unknown,key:string){const input=supplierBatchSchema.parse(raw);await company();await ports.authorizeWrite();const id=`supplier-batch-${key}`,operation='finance.supplier_batch.create',prior=await ports.replay(key,operation,id,input);if(prior)return prior;await ports.controlledTaxOwner(input.plannedDate);assertSupplierBatchUnique(input);const bank=assertSupplierBank(await ports.bankAccount(input.bankAccountId)),now=ports.clock.now(),items=prepareSupplierBatchItems(input);return ports.commit({kind:'create',key,operation,id,input,bank,items,now},{id,status:'draft',version:1});},
+ async decide(id:string,raw:unknown,key:string,decision:'approve'|'cancel'){const input=supplierDecisionSchema.parse(raw);await company();if(decision==='approve')await ports.authorizeApprove();else await ports.authorizeWrite();const operation=`finance.supplier_batch.${decision}`,prior=await ports.replay(key,operation,id,input);if(prior)return prior;const batch=await get(id);assertSupplierBatchDecision(batch,decision,ports.samePerson,ports.canApprove);return ports.commit({kind:'decision',key,operation,id,input,batch,decision,now:ports.clock.now()},{id,status:decision==='approve'?'approved':'cancelled',version:input.expectedVersion+1});},
+ async export(id:string,raw:unknown,key:string){const input=supplierExportSchema.parse(raw);await company();await ports.authorizePay();const operation='finance.supplier_batch.export',prior=await ports.replay(key,operation,id,input);if(prior)return prior;const batch=await get(id);await payer(batch);if(batch.status!=='approved')throw new BusinessRuleError(409,'BATCH_NOT_APPROVED','Export an independently approved batch.');const items=await ports.exportItems(id),content=supplierExportContent(batch,items),sha256=ports.hash(content);return ports.commit({kind:'export',key,operation,id,input,batch,sha256,now:ports.clock.now()},{id,content,sha256,rows:items.length,confirmationRequired:true});},
+ async recoverExport(id:string){const batch=await get(id);await payer(batch);const receipt=await ports.exportReceipt(String(batch.export_command_id));if(!receipt)throw new BusinessRuleError(404,'EXPORT_NOT_FOUND','No exported file exists.');return JSON.parse(receipt.result_json) as {content:string;sha256:string};},
+ async result(id:string,raw:unknown,key:string){const input=supplierResultSchema.parse(raw);await company();const operation='finance.supplier_batch.result',prior=await ports.replay(key,operation,id,input);if(prior)return prior;const {item,batch}=await instruction(id);if(input.outcome==='unknown')await payer(batch);else{await ports.authorizeApprove();if(ports.samePerson(batch.exported_by))throw new BusinessRuleError(403,'INDEPENDENT_REVIEW_REQUIRED','Another Finance approver must verify that the bank did not pay.');}assertPendingInstruction(item,false);return ports.commit({kind:'result',key,operation,id,input,item,batch,now:ports.clock.now()},{id,status:input.outcome,version:input.expectedVersion+1});},
+ async confirm(id:string,raw:unknown,key:string){const input=supplierConfirmSchema.parse(raw);await company();await ports.authorizePay();const operation='finance.supplier_batch.confirm',prior=await ports.replay(key,operation,id,input);if(prior)return prior;const {item,batch}=await instruction(id);await payer(batch);assertPendingInstruction(item,true);const invoice=await ports.invoice(String(item.invoice_id));if(!invoice)throw new BusinessRuleError(404,'INVOICE_NOT_FOUND','Source invoice is unavailable.');const amount=Number(item.amount_minor),bank=assertPaymentBankEvidence(await ports.bankTransaction(input.bankTransactionId),batch,amount);await ports.controlledTaxOwner(String(bank.transaction_date));let evidence:Evidence|null=null;if(input.attachmentSetIds.length){assertSupplierPaymentEvidence(await ports.evidenceSets(input.attachmentSetIds),input.attachmentSetIds,id);evidence=await ports.prepareEvidence(id,batch,input,key);}const prepared=await ports.prepareJournal(invoice,batch,bank,amount,input,id,key),paymentId=`supplier-payment-${key}`;return ports.commit({kind:'confirmation',key,operation,id,input,item,batch,invoice,bank,amount,evidence,journal:prepared.journal,journalId:prepared.id,paymentId,now:ports.clock.now()},{id,status:'confirmed',version:input.expectedVersion+1,paymentId,journalId:prepared.id});},
+ async work(){if(!ports.canRead||ports.branchId||ports.departmentId)return [];return supplierBatchWorkItems(await list(true),ports);},
+ };
+}

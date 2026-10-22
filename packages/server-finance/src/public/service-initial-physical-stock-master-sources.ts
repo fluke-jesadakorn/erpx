@@ -1,0 +1,1 @@
+export {serviceInitialPhysicalStockMasterFinanceLeases,serviceInitialPhysicalStockMasterFinanceSource,serviceInitialPhysicalStockProductMoneySource,serviceInitialPhysicalStockProductMoneyMatches,type ServiceInitialPhysicalStockProductMoney} from '@erpx/server-finance/adapters/service-initial-physical-stock-master-sources';

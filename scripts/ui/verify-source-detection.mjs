@@ -10,7 +10,7 @@ const scratch = resolve(".scratch");
 await mkdir(scratch, { recursive: true });
 const isolated = await mkdtemp(join(scratch, "ui-source-check-"));
 async function compile(directory) {
-  const from = join(directory, "src/app/globals.css");
+  const from = join(directory, "packages/workplace/src/routes/globals.css");
   const result = await postcss([
     tailwind({ base: directory, optimize: { minify: true }, transformAssetUrls: false }),
   ]).process(await readFile(from, "utf8"), { from, map: false });

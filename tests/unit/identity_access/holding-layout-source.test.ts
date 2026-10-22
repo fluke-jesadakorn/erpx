@@ -1,45 +1,45 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {cloneElement,createElement as h,isValidElement,type ComponentProps,type ReactElement,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import type {WorkAssignment,WorkContext} from '@/server/modules/identity_access/public/authorization';
+import type {WorkAssignment,WorkContext} from '@erpx/server-identity_access/public/authorization';
 vi.mock('server-only',()=>({}));
 const state=vi.hoisted(()=>({host:'finance-dev-erpx.jesadakorn.com',path:'/holdings/acme/finance/accounting/records/journal/included/overview',language:'en' as 'en'|'th'}));
 const reads=vi.hoisted(()=>({actor:vi.fn(),access:vi.fn(),restricted:vi.fn(),navigation:vi.fn(),money:vi.fn(),companies:vi.fn(),admin:vi.fn(),executive:vi.fn(),handbook:vi.fn(),catalogue:vi.fn(),identity:vi.fn(),brand:vi.fn(),platform:vi.fn(),workspaceChoices:vi.fn(),manage:vi.fn(),products:vi.fn(),adminProducts:vi.fn(),presentation:vi.fn(),collaboration:vi.fn(),account:vi.fn(),adminAccess:vi.fn()}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:state.host,'x-erpx-page-path':state.path}),cookies:async()=>({get:(key:string)=>key==='erpx_language'?{value:state.language}:undefined})}));
 vi.mock('next/navigation',()=>({usePathname:()=>new URL(state.path,'https://entry.invalid').pathname,useSearchParams:()=>new URL(state.path,'https://entry.invalid').searchParams,useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn(),prefetch:vi.fn()}),redirect:(path:string)=>{throw Error(`REDIRECT:${path}`);},notFound:()=>{throw Error('NOT_FOUND');},unstable_rethrow:()=>{}}));
-vi.mock('@/server/modules/identity_access/public/authorization',()=>({requireWorkContext:reads.actor,publicScope:(actor:WorkContext)=>actor.scope,requirePlatformContext:reads.platform,canEnterManageErpx:reads.manage,requireAccountAccess:reads.account}));
-vi.mock('@/server/modules/identity_access/public/product-workspace',()=>({productPageAccess:reads.access}));
-vi.mock('@/server/modules/identity_access/public/admin-workspace',()=>({adminPageAccess:reads.adminAccess,adminWorkspaceTarget:vi.fn(),adminWorkRolePath:vi.fn()}));
-vi.mock('@/server/modules/work_projection/public/navigation-snapshot',()=>({workspaceNavigation:reads.navigation,restrictedWorkspaceNavigation:reads.restricted}));
-vi.mock('@/server/modules/work_projection/public/presentation-queries',()=>({workProjectionPresentationQueries:reads.presentation}));
-vi.mock('@/server/modules/collaboration/public/presentation-queries',()=>({collaborationPresentationQueries:reads.collaboration}));
-vi.mock('@/server/modules/identity_access/public/workspace-company-presentation',()=>({listWorkspaceCompanyPresentationFacts:reads.companies}));
-vi.mock('@/server/modules/finance/public/company-money',()=>({moneyContext:reads.money}));
-vi.mock('@/server/modules/finance/public/finance-presentation',()=>({financeWorkspaceV2Enabled:()=>true}));
-vi.mock('@/server/modules/runtime/public/administration',()=>({administrationAccess:reads.admin}));
-vi.mock('@/server/modules/pms/public/hospitality-rollout',()=>({companyFeatureCatalogue:reads.catalogue}));
-vi.mock('@/server/modules/organization/public/workspace-choices',()=>({workspaceChoices:reads.workspaceChoices}));
-vi.mock('@/server/modules/work_projection/public/product-launcher',()=>({productLaunchChoices:reads.products}));
-vi.mock('@/server/modules/work_projection/public/admin-launcher',()=>({adminLaunchChoices:reads.adminProducts}));
-vi.mock('@/server/modules/work_projection/public/home-cache',()=>({homeContextKey:()=> 'opaque-render-context'}));
-vi.mock('@/server/modules/work_projection/public/page-error',()=>({pageError:(error:unknown)=>{throw error;}}));
-vi.mock('@/server/modules/runtime/public/runtime/read-metrics',()=>({measureReadPhase:async<Result>(_name:string,read:()=>Promise<Result>)=>read()}));
-vi.mock('@/server/modules/identity_access/public/account-preference-snapshot',()=>({preferredAccountLanguage:async()=>state.language,preferredAccountAppearance:async()=> 'system'}));
-vi.mock('@/lib/runtime/product-hosts',()=>({productHostForHost:(host:string)=>host.startsWith('finance-')?'finance':host.startsWith('work-')?'work':host.startsWith('sales-')?'sales':host.startsWith('admin-')?'admin':null,configuredProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`,configuredProductHandoff:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com/`,configuredDevelopmentProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`}));
+vi.mock("@erpx/server-identity_access/public/authorization",()=>({requireWorkContext:reads.actor,publicScope:(actor:WorkContext)=>actor.scope,requirePlatformContext:reads.platform,canEnterManageErpx:reads.manage,requireAccountAccess:reads.account}));
+vi.mock("@erpx/server-identity_access/public/product-workspace",()=>({productPageAccess:reads.access}));
+vi.mock("@erpx/server-identity_access/public/admin-workspace",()=>({adminPageAccess:reads.adminAccess,adminWorkspaceTarget:vi.fn(),adminWorkRolePath:vi.fn()}));
+vi.mock("@erpx/server-work_projection/public/navigation-snapshot",()=>({workspaceNavigation:reads.navigation,restrictedWorkspaceNavigation:reads.restricted}));
+vi.mock("@erpx/server-work_projection/public/presentation-queries",()=>({workProjectionPresentationQueries:reads.presentation}));
+vi.mock("@erpx/server-collaboration/public/presentation-queries",()=>({collaborationPresentationQueries:reads.collaboration}));
+vi.mock("@erpx/server-identity_access/public/workspace-company-presentation",()=>({listWorkspaceCompanyPresentationFacts:reads.companies}));
+vi.mock("@erpx/server-finance/public/company-money",()=>({moneyContext:reads.money}));
+vi.mock("@erpx/server-finance/public/finance-presentation",()=>({financeWorkspaceV2Enabled:()=>true}));
+vi.mock("@erpx/server-runtime/public/administration",()=>({administrationAccess:reads.admin}));
+vi.mock("@erpx/server-pms/public/hospitality-rollout",()=>({companyFeatureCatalogue:reads.catalogue}));
+vi.mock("@erpx/server-organization/public/workspace-choices",()=>({workspaceChoices:reads.workspaceChoices}));
+vi.mock("@erpx/server-work_projection/public/product-launcher",()=>({productLaunchChoices:reads.products}));
+vi.mock("@erpx/server-work_projection/public/admin-launcher",()=>({adminLaunchChoices:reads.adminProducts}));
+vi.mock("@erpx/server-work_projection/public/home-cache",()=>({homeContextKey:()=> 'opaque-render-context'}));
+vi.mock("@erpx/server-work_projection/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
+vi.mock("@erpx/server-runtime/public/runtime/read-metrics",()=>({measureReadPhase:async<Result>(_name:string,read:()=>Promise<Result>)=>read()}));
+vi.mock("@erpx/server-identity_access/public/account-preference-snapshot",()=>({preferredAccountLanguage:async()=>state.language,preferredAccountAppearance:async()=> 'system'}));
+vi.mock("@erpx/feature-runtime/lib/product-hosts",()=>({productHostForHost:(host:string)=>host.startsWith('finance-')?'finance':host.startsWith('work-')?'work':host.startsWith('sales-')?'sales':host.startsWith('admin-')?'admin':null,configuredProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`,configuredProductHandoff:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com/`,configuredDevelopmentProductOrigin:(key:string)=>`https://${key}-dev-erpx.jesadakorn.com`}));
 
-import WorkplaceLayout from '@/app/holdings/[holdingSlug]/layout';
-import {OfficeProductMenus} from '@/components/workplace/office-product-menus';
-import {FeatureEnvironment} from '@/components/shared/features/feature-environment';
-import {ConsoleAccountSwitcher,ConsoleCommandSearch,ConsoleWorkplaceNavigation} from '@/components/workplace/console-ui-utilities';
-import {NavigationCountsProvider} from '@/components/workplace/navigation-counts';
-import {WorkspaceAssistant} from '@/components/workplace/workspace-assistant';
-import {WorkspaceBreadcrumb} from '@/components/workplace/workspace-breadcrumb';
-import {CurrencyProvider} from '@/components/finance/money/currency-provider';
-import {ContextSwitchContext} from '@/components/workplace/context-switch-context';
-import {FinancePurchaseProvider} from '@/components/finance/purchase-context';
-import {JournalAction} from '@/components/finance/ledger-controls';
-import {workRoleDisplayChoices} from '@/lib/identity_access/work-role-display';
-import WorkspaceLink from '@/components/workplace/workspace-link';
+import WorkplaceLayout from '@erpx/workplace/routes/holdings/[holdingSlug]/layout';
+import {OfficeProductMenus} from '@erpx/workplace/components/office-product-menus';
+import {FeatureEnvironment} from '@erpx/feature-shared/components/features/feature-environment';
+import {ConsoleAccountSwitcher,ConsoleCommandSearch,ConsoleWorkplaceNavigation} from '@erpx/workplace/components/console-ui-utilities';
+import {NavigationCountsProvider} from '@erpx/workplace/components/navigation-counts';
+import {WorkspaceAssistant} from '@erpx/workplace/components/workspace-assistant';
+import {WorkspaceBreadcrumb} from '@erpx/workplace/components/workspace-breadcrumb';
+import {CurrencyProvider} from '@erpx/feature-finance/components/money/currency-provider';
+import {ContextSwitchContext} from '@erpx/workplace/components/context-switch-context';
+import {FinancePurchaseProvider} from '@erpx/feature-finance/components/purchase-context';
+import {JournalAction} from '@erpx/feature-finance/components/ledger-controls';
+import {workRoleDisplayChoices} from '@erpx/feature-identity_access/lib/work-role-display';
+import WorkspaceLink from '@erpx/workplace/components/workspace-link';
 
 const privateChoice:WorkAssignment&{authority:{privateNativeSource:string};grants:string[]}={id:'assigned-role',version:4,label:'Existing source reviewer',role:'holding_owner',companyId:'company',branchId:'private-branch-marker',scopeKind:'holding',scopeNodeId:'private-scope-marker',modules:['private-module-marker'],validUntil:9999999999999,authority:{privateNativeSource:'private-native-source-marker'},grants:['private-grant-marker']};
 function actor():WorkContext{return {holdingId:'h003',holdingSlug:'acme',holdingName:'Actual Holding',userId:'current-user',name:'Source reviewer',email:'reviewer@example.test',companyId:'company',branchId:null,departmentId:null,assignmentId:'assigned-role',role:'holding_owner',assignmentScope:'holding',inherited:false,scope:{kind:'holding',holdingId:'h003',holdingSlug:'acme',holdingName:'Actual Holding',companyId:'company'},modules:['finance','private-module-marker'],assignments:[privateChoice],availableAssignments:[privateChoice],workspaces:[],authority:{sessionId:'private-session-marker',revision:8,assignmentVersion:4},iam:{identityVersion:3,roleRevision:4,permissions:['manage_erpx.access','ai.context.cross','private-permission-marker'],grantablePermissions:['private-grantable-marker'],principalId:'private-principal-marker',personId:null,freshUntil:null}};}
@@ -130,9 +130,9 @@ it('retains the original full-workspace discovery and server seed outside source
 import {readFileSync as breadcrumbRead} from 'node:fs';
 import {createRequire as breadcrumbRequire} from 'node:module';
 import {resolve as breadcrumbResolve} from 'node:path';
-import {Button as BreadcrumbButton} from '@/components/ui/foundation';
+import {Button as BreadcrumbButton} from '@erpx/ui/components/foundation';
 import {ChevronRight as BreadcrumbChevron,MoreHorizontal as BreadcrumbMore} from 'lucide-react';
-import {navigationTrail as breadcrumbTrail,workplaceNavigation as breadcrumbNavigation} from '@/lib/work_projection/workplace-navigation';
+import {navigationTrail as breadcrumbTrail,workplaceNavigation as breadcrumbNavigation} from '@erpx/feature-work_projection/lib/workplace-navigation';
 
 const breadcrumbHolding='/holdings/acme',breadcrumbBranch=breadcrumbHolding+'/branches/north',breadcrumbDepartment=breadcrumbBranch+'/departments/design';
 function breadcrumbContext(allowed:readonly string[]=[breadcrumbHolding,breadcrumbBranch,breadcrumbDepartment]):WorkContext{
@@ -187,7 +187,7 @@ it('uses the ERPX Management root for the actual Admin management layout instead
  * Links, Button and rendered markup remain the real implementations. This is
  * a component interaction test; it does not claim visual browser coverage. */
 function expandableBreadcrumb(props:ComponentProps<typeof WorkspaceBreadcrumb>){
- const require=breadcrumbRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=breadcrumbRead(breadcrumbResolve('src/components/workplace/workspace-breadcrumb.tsx'),'utf8'),tree=ts.createSourceFile('actual-breadcrumb.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),declarations:import('typescript').FunctionDeclaration[]=[];
+ const require=breadcrumbRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=breadcrumbRead(breadcrumbResolve('packages/workplace/src/components/workspace-breadcrumb.tsx'),'utf8'),tree=ts.createSourceFile('actual-breadcrumb.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),declarations:import('typescript').FunctionDeclaration[]=[];
  ts.forEachChild(tree,node=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='WorkspaceBreadcrumb')declarations.push(node);});expect(declarations).toHaveLength(1);const declaration=declarations[0];if(!declaration)throw Error('Actual breadcrumb declaration missing');
  const code=ts.transpileModule(declaration.getText(tree).replace(/^export\s+/,''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,jsxFactory:'breadcrumbElement'}}).outputText;
  let open=false;const evaluate=new Function('ports',`const {breadcrumbElement,Button,Link,usePathname,useSearchParams,ChevronRight,MoreHorizontal,useEffect,useRef,useState,navigationTrail,workplaceNavigation,styles}=ports;\n${code}\nreturn WorkspaceBreadcrumb;`) as (ports:Record<string,unknown>)=>typeof WorkspaceBreadcrumb;
@@ -203,7 +203,7 @@ it('renders the authorized product ancestor as a full navigation anchor in both 
 });
 
 
-import {WorkContextBoundary as InitialContextBoundary} from '@/components/workplace/work-context-boundary';
+import {WorkContextBoundary as InitialContextBoundary} from '@erpx/workplace/components/work-context-boundary';
 it.each([true,false])('passes only the current public SSR identity to the actual layout boundary (source-only=%s)',async sourceOnly=>{
  const started=Date.now(),context=actor();reads.access.mockImplementation(async()=>({sourceRecord:sourceOnly,target:state.path,chooseRole:'/choose-work-role'}));
  if(!sourceOnly)useBreadcrumbWorkspace(context);
@@ -211,7 +211,7 @@ it.each([true,false])('passes only the current public SSR identity to the actual
 });
 
 
-import {AdminWorkspaceMenus as QuerySafeAdminMenus} from '@/components/workplace/admin-workspace-menus';
+import {AdminWorkspaceMenus as QuerySafeAdminMenus} from '@erpx/workplace/components/admin-workspace-menus';
 it('keeps an ordinary Admin ancestor landing when its untouched query contains an ERPX Management return path',async()=>{
  state.host='admin-dev-erpx.jesadakorn.com';state.path=breadcrumbDepartment+'/administration/technology/directory/objects?returnTo=/erpx-management#keep';const context=breadcrumbContext();useBreadcrumbWorkspace(context);
  const page=await layout(),props=layoutBreadcrumb(page);expect(props.ancestors).toEqual([{label:'Actual Holding',href:breadcrumbHolding+'/administration',fullNavigation:true},{label:'North Branch',href:breadcrumbBranch+'/administration',fullNavigation:true},{label:'Design Department',href:breadcrumbDepartment+'/administration',fullNavigation:false}]);

@@ -1,8 +1,8 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createAssetPolicyApplication,type AssetPolicyPorts,type AssetPolicyRepository} from "../../../src/server/modules/finance/application/asset-policies";
-import {assetPolicySchema,type Row} from "../../../src/server/modules/finance/domain/asset-policies";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {BusinessRuleError} from "../../../src/server/modules/shared/index";
+import {createAssetPolicyApplication,type AssetPolicyPorts,type AssetPolicyRepository} from "@erpx/server-finance/application/asset-policies";
+import {assetPolicySchema,type Row} from "@erpx/server-finance/domain/asset-policies";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {BusinessRuleError} from "@erpx/server-shared/index";
 type Effect={kind:string;args:unknown[]};
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'finance_approver',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const definition=assetPolicySchema.parse({assetId:'asset',expectedVersion:2,books:[{chartId:'primary',policy:{method:'straight_line'}}],reason:'Reviewed depreciation for the recognized asset'});

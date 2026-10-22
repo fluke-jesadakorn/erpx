@@ -5,7 +5,7 @@ import {describe,it,expect,vi} from 'vitest';
 /** Execute the actual complete POST controller and its original request helpers.
  * Owner/auth ports are isolated here; their policies require native evidence. */
 function controller(){
- const text=readFileSync('src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts','utf8'),file=ts.createSourceFile('route.ts',text,ts.ScriptTarget.Latest,true),names=['POST','command','needCommand','body','segments'],nodes=file.statements.filter(node=>ts.isFunctionDeclaration(node)&&node.name&&names.includes(node.name.text));
+ const text=readFileSync("packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",'utf8'),file=ts.createSourceFile('route.ts',text,ts.ScriptTarget.Latest,true),names=['POST','command','needCommand','body','segments'],nodes=file.statements.filter(node=>ts.isFunctionDeclaration(node)&&node.name&&names.includes(node.name.text));
  expect(nodes).toHaveLength(names.length);
  const code=ts.transpileModule(nodes.map(node=>node.getText(file)).join('\n').replace('export async function POST','async function POST'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
  class ApiError extends Error{constructor(readonly status:number,readonly code:string,message:string){super(message);}}

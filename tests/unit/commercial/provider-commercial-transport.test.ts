@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const guarded = vi.hoisted(() => ({ session: vi.fn(async () => { throw Error("UNAUTHENTICATED"); }), holding: vi.fn(), page:vi.fn(), host:vi.fn() }));
-vi.mock("@/server/modules/identity_access/public/authorization", () => ({ currentSession: guarded.session, requirePlatformContext: async () => { throw Error("UNAUTHENTICATED"); } }));
-vi.mock("@/server/modules/runtime/public/runtime", () => ({ runtimeEnv: async () => ({ ERPX_ENVIRONMENT: "local" }), activeHoldingBindings: async () => [], holdingResources: guarded.holding }));
-import { providerCommercialApi } from "@/server/modules/commercial/public/provider-commercial";
-vi.mock('@/server/modules/commercial/public/provider-page-context',()=>({providerCommercialPageContext:guarded.page}));
-vi.mock('@/server/modules/identity_access/public/account-preference-snapshot',()=>({preferredAccountLanguage:async()=> 'en'}));
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({ currentSession: guarded.session, requirePlatformContext: async () => { throw Error("UNAUTHENTICATED"); } }));
+vi.mock("@erpx/server-runtime/public/runtime", () => ({ runtimeEnv: async () => ({ ERPX_ENVIRONMENT: "local" }), activeHoldingBindings: async () => [], holdingResources: guarded.holding }));
+import { providerCommercialApi } from "@erpx/server-commercial/public/provider-commercial";
+vi.mock("@erpx/server-commercial/public/provider-page-context",()=>({providerCommercialPageContext:guarded.page}));
+vi.mock("@erpx/server-identity_access/public/account-preference-snapshot",()=>({preferredAccountLanguage:async()=> 'en'}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:guarded.host()}),cookies:async()=>({get:()=>undefined})}));
 vi.mock('next/navigation',()=>({forbidden:()=>{throw Error('FORBIDDEN');},notFound:()=>{throw Error('NOT_FOUND');},redirect:(href:string)=>{throw Error('REDIRECT:'+href);},usePathname:()=>'/provider/commercial',useSearchParams:()=>new URLSearchParams(),useRouter:()=>({refresh:vi.fn(),push:vi.fn(),replace:vi.fn()})}));
 const origin = "https://admin-dev-erpx.jesadakorn.com", prefix = "/api/v1/platform/commercial/";
@@ -53,9 +53,9 @@ it("requires the normal current provider session for both snapshot and Apply", a
   expect(guarded.session).toHaveBeenCalledTimes(2);
 });
 
-import {providerPackageReview,captureProviderPackageCommand,acknowledgeProviderPackageCommand,providerLegacyPackageReview,captureProviderLegacyPackageCommand} from '@/server/modules/commercial/public/rules/provider-package-command';
-import {createProviderCommercialPageContext} from '@/server/modules/commercial/application/provider-page-context';
-import type {PackageGrantBatch} from '@/server/modules/commercial/public/package-grants';
+import {providerPackageReview,captureProviderPackageCommand,acknowledgeProviderPackageCommand,providerLegacyPackageReview,captureProviderLegacyPackageCommand} from '@erpx/server-commercial/public/rules/provider-package-command';
+import {createProviderCommercialPageContext} from '@erpx/server-commercial/application/provider-page-context';
+import type {PackageGrantBatch} from '@erpx/server-commercial/public/package-grants';
 const packageRequest:PackageGrantBatch={companyId:'owned-company',expectedRevision:'a'.repeat(64),idempotencyKey:'captured-request-key',changes:[{expectedVersion:3,grant:{companyId:'owned-company',packageId:'finance',packageVersion:1,state:'draining',startsAt:0,endsAt:null,version:4,reason:'Reviewed outstanding Finance work',evidence:'test:original-reviewed-source'}}]};
 const packageComparison={companyId:packageRequest.companyId,expectedRevision:packageRequest.expectedRevision,before:[],after:[packageRequest.changes[0].grant],changes:packageRequest.changes},packageReview={comparison:packageComparison,request:packageRequest,review:{token:'opaque-reviewed-owner-token',expiresAt:1234}};
 it('provider package acknowledgement validates the exact reviewed Company, revision, versions, periods, reason and source evidence',()=>{
@@ -76,7 +76,7 @@ it('provider Commercial SSR snapshots bind original display flags to the same mi
  const raced=vi.fn().mockResolvedValueOnce(context).mockResolvedValueOnce({...context,contextKey:'d'.repeat(64),revision:2});await expect(createProviderCommercialPageContext({context:raced,overview,changed:()=>Error('PROVIDER_CONTEXT_CHANGED')})()).rejects.toThrow('PROVIDER_CONTEXT_CHANGED');
 });
 
-import {legacyPackagePreview} from '@/server/modules/commercial/public/rules/legacy-packages';
+import {legacyPackagePreview} from '@erpx/server-commercial/public/rules/legacy-packages';
 const legacyFacts={companyId:'owned-company',beta:false,observedAt:100,revision:'legacy-source-revision',witnesses:[{assignmentId:'existing-assignment',assignmentVersion:2,roleId:'existing-finance-role',roleRevision:3,scopeKind:'company',scopeNodeId:null,modules:['finance'],validUntil:10000,identityVersion:2,hrAppointmentVersion:null,compatibility:[]}]};
 function legacyReview(){const input={companyId:legacyFacts.companyId,reason:'Preserve existing Company access',evidence:'test:original-legacy-source'},comparison=legacyPackagePreview(legacyFacts,[],{...input,now:100,startsAt:100}),request={companyId:input.companyId,expectedRevision:'a'.repeat(64),idempotencyKey:'captured-legacy-request',changes:comparison.changes};return {input,value:{comparison,request,review:{token:'original-legacy-source-token',expiresAt:10000}}};}
 it('legacy migration captures the actual multibatch owner comparison and exact response before clearing its original local draft',()=>{
@@ -94,9 +94,9 @@ import {isValidElement,type ReactElement,type ReactNode} from 'react';
 function pageElement(node:ReactNode,name:string):ReactElement<Record<string,unknown>>|undefined{if(Array.isArray(node)){for(const child of node){const found=pageElement(child,name);if(found)return found;}return;}if(!isValidElement<{children?:ReactNode}>(node))return;if(typeof node.type==='function'&&node.type.name===name)return node as ReactElement<Record<string,unknown>>;return pageElement(node.props.children,name);}
 it('actual Commercial pages seed the minimal Provider boundary around their original workflows without a Client authority snapshot',async()=>{
  const seed={accountKey:'a'.repeat(64),contextKey:'b'.repeat(64),selectedId:'assigned-provider',revision:1,choices:[{id:'assigned-provider',label:'Assigned operator',version:'c'.repeat(64)}]},overview={companies:[{id:'company',name:'Company',holdingId:'h001',holding:'Holding'}],canApply:true};guarded.page.mockResolvedValue({context:seed,overview});
- for(const [path,workflow] of [['@/app/provider/commercial/page','LegacyGrantReview'],['@/app/provider/commercial/packages/page','CompanyPackageManager']]){const {default:Page}=await(path.endsWith('packages/page')?import('@/app/provider/commercial/packages/page'):import('@/app/provider/commercial/page')),page=await Page(),boundary=pageElement(page,'ProviderContextBoundary'),manager=pageElement(boundary?.props.children as ReactNode,workflow);expect(boundary?.props.initial).toEqual(seed);expect(pageElement(boundary?.props.children as ReactNode,'ProviderContextSwitcher')).toBeDefined();expect(manager?.props).toEqual({companies:overview.companies,canApply:true,language:'en'});expect(Object.keys(boundary!.props.initial as object).sort()).toEqual(['accountKey','choices','contextKey','revision','selectedId']);}
+ for(const [path,workflow] of [["@erpx/feature-admin/routes/provider/commercial/page",'LegacyGrantReview'],["@erpx/feature-admin/routes/provider/commercial/packages/page",'CompanyPackageManager']]){const {default:Page}=await(path.endsWith('packages/page')?import('@erpx/feature-admin/routes/provider/commercial/packages/page'):import('@erpx/feature-admin/routes/provider/commercial/page')),page=await Page(),boundary=pageElement(page,'ProviderContextBoundary'),manager=pageElement(boundary?.props.children as ReactNode,workflow);expect(boundary?.props.initial).toEqual(seed);expect(pageElement(boundary?.props.children as ReactNode,'ProviderContextSwitcher')).toBeDefined();expect(manager?.props).toEqual({companies:overview.companies,canApply:true,language:'en'});expect(Object.keys(boundary!.props.initial as object).sort()).toEqual(['accountKey','choices','contextKey','revision','selectedId']);}
  expect(guarded.page).toHaveBeenCalledTimes(2);expect(guarded.session).not.toHaveBeenCalled();
 });
 it('actual Commercial pages preserve original host, login and Commercial denial before exposing a workflow',async()=>{
- const {default:Page}=await import('@/app/provider/commercial/packages/page');guarded.host.mockReturnValue('finance-dev-erpx.jesadakorn.com');await expect(Page()).rejects.toThrow('NOT_FOUND');expect(guarded.page).not.toHaveBeenCalled();guarded.host.mockReturnValue('admin-dev-erpx.jesadakorn.com');guarded.page.mockRejectedValueOnce(Error('UNAUTHENTICATED'));await expect(Page()).rejects.toThrow('REDIRECT:/sso/start?next=%2Fprovider%2Fcommercial%2Fpackages');guarded.page.mockRejectedValueOnce(Error('FORBIDDEN'));const denied=await Page();expect(pageElement(denied,'CompanyPackageManager')).toBeUndefined();expect(pageElement(denied,'ProviderContextBoundary')).toBeUndefined();
+ const {default:Page}=await import('@erpx/feature-admin/routes/provider/commercial/packages/page');guarded.host.mockReturnValue('finance-dev-erpx.jesadakorn.com');await expect(Page()).rejects.toThrow('NOT_FOUND');expect(guarded.page).not.toHaveBeenCalled();guarded.host.mockReturnValue('admin-dev-erpx.jesadakorn.com');guarded.page.mockRejectedValueOnce(Error('UNAUTHENTICATED'));await expect(Page()).rejects.toThrow('REDIRECT:/sso/start?next=%2Fprovider%2Fcommercial%2Fpackages');guarded.page.mockRejectedValueOnce(Error('FORBIDDEN'));const denied=await Page();expect(pageElement(denied,'CompanyPackageManager')).toBeUndefined();expect(pageElement(denied,'ProviderContextBoundary')).toBeUndefined();
 });

@@ -1,1 +1,0 @@
-export {posInitialPhysicalStockCommerceSource,posInitialPhysicalStockCommerceLocks,initialPhysicalStockMasterChoices,initialPhysicalStockMasterSource} from '../adapters/pos-initial-physical-stock-sources';

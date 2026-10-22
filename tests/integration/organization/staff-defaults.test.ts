@@ -1,11 +1,11 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture } from "../../support/helpers/expense-fixture";
-import { recommendationStatements, defaultCatalog, savePositionPayDefault, saveLevelLeaveDefault } from "../../../src/server/modules/organization/public/staff-defaults";
-import { transitionCompensation } from "../../../src/server/modules/people_payroll/public/people-payroll";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import { recommendationStatements, defaultCatalog, savePositionPayDefault, saveLevelLeaveDefault } from "@erpx/server-organization/public/staff-defaults";
+import { transitionCompensation } from "@erpx/server-people_payroll/public/people-payroll";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);});
 

@@ -1,0 +1,21 @@
+{
+  "name": "@erpx/server-shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./index": "./src/index.ts",
+    "./application/ports": "./src/application/ports.ts",
+    "./application/command": "./src/application/command.ts",
+    "./domain/consumption-lot": "./src/domain/consumption-lot.ts",
+    "./domain/source-record": "./src/domain/source-record.ts",
+    "./domain/error": "./src/domain/error.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "zod": "4.5.4"
+  }
+}

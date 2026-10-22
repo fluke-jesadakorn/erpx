@@ -1,10 +1,10 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import { iamDb } from "../../../src/server/modules/identity_access/public/iam-db";
-import { accessComparison, accessDetail, accessEntries, peopleAccessData } from "../../../src/server/modules/people_payroll/public/people-access";
-import { emptyDirectoryHierarchy, validateDirectoryHierarchy } from "../../../src/lib/organization/hierarchy";
-import { loadIamAuthority, iamRole, iamRoles } from "../../../src/server/modules/identity_access/public/iam-store";
-import { iamCommand } from "../../../src/server/modules/identity_access/public/iam-transactions";
+import { iamDb } from "@erpx/server-identity_access/public/iam-db";
+import { accessComparison, accessDetail, accessEntries, peopleAccessData } from "@erpx/server-people_payroll/public/people-access";
+import { emptyDirectoryHierarchy, validateDirectoryHierarchy } from "@erpx/feature-organization/lib/hierarchy";
+import { loadIamAuthority, iamRole, iamRoles } from "@erpx/server-identity_access/public/iam-store";
+import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import {
   iamOverview,
   iamAuditHistory,
@@ -17,7 +17,7 @@ import {
   startAccessReviewCampaign,
   decideAccessReviewItem,
   cancelAccessReviewCampaign,
-} from "../../../src/server/modules/identity_access/public/iam-service";
+} from "@erpx/server-identity_access/public/iam-service";
 import {
   connectionInput,
   saveConnection,
@@ -26,36 +26,36 @@ import {
   proposeMapping,
   mappingInput,
   applyDirectoryReview,
-} from "../../../src/server/modules/identity_access/public/iam-directories";
+} from "@erpx/server-identity_access/public/iam-directories";
 import {
   prepareMigration,
   migrationInput,
   applyMigration,
-} from "../../../src/server/modules/identity_access/public/iam-migrations";
-import { sealSecret, totp, verifyMfa } from "../../../src/server/modules/identity_access/public/iam-mfa";
-import { adGuid, escapeLdap, ldapEnabled } from "../../../src/server/modules/identity_access/public/iam-providers";
+} from "@erpx/server-identity_access/public/iam-migrations";
+import { sealSecret, totp, verifyMfa } from "@erpx/server-identity_access/public/iam-mfa";
+import { adGuid, escapeLdap, ldapEnabled } from "@erpx/server-identity_access/public/iam-providers";
 import {
   permissionCatalog,
   hasPermission,
   evaluateAccess,
   builtInPermissions,
-} from "../../../src/lib/identity_access/permissions";
-import { samePerson } from "../../../src/lib/identity_access/iam";
-import { executeCommand } from "../../../src/server/modules/workflow/public/commands";
-import { selectWorkRole } from "../../../src/server/modules/work_projection/public/work-role-store";
-import type { IamActor } from "../../../src/server/modules/identity_access/public/iam-context";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import {workspaceGrantsForAccount,workspaceCompaniesForAccount} from "../../../src/server/modules/identity_access/public/authorization";
-import { escalateAccessReviews } from "../../../src/server/modules/identity_access/public/iam-access-review-alerts";
-import {privateFileDenialAuthoritySourceLocks,privateFileDenialAuthorityWitness} from '../../../src/server/modules/identity_access/public/private-file-denial-authority';
-import {lockQueuedCommandAuthority} from '../../../src/server/modules/identity_access/public/queued-command-authority';
-import { listStaffNotifications } from "../../../src/server/modules/collaboration/public/staff-notifications";
+} from "@erpx/feature-identity_access/lib/permissions";
+import { samePerson } from "@erpx/feature-identity_access/lib/iam";
+import { executeCommand } from "@erpx/server-workflow/public/commands";
+import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
+import type { IamActor } from "@erpx/server-identity_access/public/iam-context";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import {workspaceGrantsForAccount,workspaceCompaniesForAccount} from "@erpx/server-identity_access/public/authorization";
+import { escalateAccessReviews } from "@erpx/server-identity_access/public/iam-access-review-alerts";
+import {privateFileDenialAuthoritySourceLocks,privateFileDenialAuthorityWitness} from '@erpx/server-identity_access/public/private-file-denial-authority';
+import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
+import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";
 import {
   activateEmergency,
   listEmergencyAccess,
   revokeEmergency,
-} from "../../../src/server/modules/identity_access/public/iam-recovery";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-identity_access/public/iam-recovery";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   runtimeEnv: async () => env,
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   holdingBindingBySlug: async (slug: string) => ({
@@ -1250,7 +1250,7 @@ it("rejects a grant reviewed against an obsolete role revision", async () => {
 });
 it("keeps the record inspector read-only and rejects mismatched actions", async () => {
   const f = await fixture();
-  const { inspectIamAccess } = await import("../../../src/server/modules/identity_access/public/iam-inspector");
+  const { inspectIamAccess } = await import("@erpx/server-identity_access/public/iam-inspector");
   const result = await inspectIamAccess(db, f.owner, {
     userId: f.owner.userId,
     assignmentId: f.owner.assignmentId,
@@ -1368,7 +1368,7 @@ it("workspace grant definitions observe published role retirement without keepin
 
 
 it('reads Company-scoped session revocation afresh before any directory refresh',async()=>{
- const {accountDirectoryGate}=await import("../../../src/server/modules/identity_access/public/iam-directory-refresh");
+ const {accountDirectoryGate}=await import("@erpx/server-identity_access/public/iam-directory-refresh");
  const f=await fixture(),other=await fixture(),session=key();
  const initial=await accountDirectoryGate(db,f.companyId,f.employee.userId,session);
  expect(initial.revoked).toBe(false);await initial.refresh();
@@ -1381,8 +1381,8 @@ it('reads Company-scoped session revocation afresh before any directory refresh'
 });
 
 it('refreshes only stale active directory evidence and never contacts it after session revocation',async()=>{
- const {accountDirectoryGate}=await import("../../../src/server/modules/identity_access/public/iam-directory-refresh");
- const directories=await import("../../../src/server/modules/identity_access/public/iam-directories");
+ const {accountDirectoryGate}=await import("@erpx/server-identity_access/public/iam-directory-refresh");
+ const directories=await import("@erpx/server-identity_access/public/iam-directories");
  const synchronize=vi.spyOn(directories,'synchronizeConnection').mockRejectedValue(new Error('mock directory outage'));
  try {
  const f=await fixture(),other=await fixture(),session=key();
@@ -1406,8 +1406,8 @@ it('refreshes only stale active directory evidence and never contacts it after s
 });
 
 it('combines fresh session readiness with current published account grants in one PostgreSQL snapshot',async()=>{
- const {accountDirectoryGate}=await import("../../../src/server/modules/identity_access/public/iam-directory-refresh");
- const {measureReads}=await import("../../../src/server/modules/runtime/adapters/runtime/read-metrics");
+ const {accountDirectoryGate}=await import("@erpx/server-identity_access/public/iam-directory-refresh");
+ const {measureReads}=await import("@erpx/server-runtime/adapters/runtime/read-metrics");
  const f=await fixture(),other=await fixture(),session=key(),clock=now();
  // Reflect lets the RED run exercise the original four-argument adapter before
  // the optional internal projection exists; no fake database or authority.
@@ -1428,7 +1428,7 @@ it('combines fresh session readiness with current published account grants in on
 });
 
 it('combined account authority observes node withdrawal, published role changes and suspended members without retaining prior grants',async()=>{
- const {accountDirectoryGate}=await import("../../../src/server/modules/identity_access/public/iam-directory-refresh");
+ const {accountDirectoryGate}=await import("@erpx/server-identity_access/public/iam-directory-refresh");
  const f=await fixture(),other=await fixture(),session=key(),branch=key(),branchGrant=key();
  const read=()=>accountDirectoryGate(db,f.companyId,f.employee.userId,session,{includeAccountGrants:true});
  await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id) VALUES(?,'branch',?,'Current branch',?,?)").bind(branch,branch,f.companyId,f.companyId).run();
@@ -1451,9 +1451,9 @@ it('combined account authority observes node withdrawal, published role changes 
 });
 
 it('discards stale account grants and rereads after directory refresh while failing closed on outage, unchanged evidence and refresh-time revocation',async()=>{
- const {accountDirectoryGate}=await import("../../../src/server/modules/identity_access/public/iam-directory-refresh");
- const {measureReads}=await import("../../../src/server/modules/runtime/adapters/runtime/read-metrics");
- const directories=await import("../../../src/server/modules/identity_access/public/iam-directories");
+ const {accountDirectoryGate}=await import("@erpx/server-identity_access/public/iam-directory-refresh");
+ const {measureReads}=await import("@erpx/server-runtime/adapters/runtime/read-metrics");
+ const directories=await import("@erpx/server-identity_access/public/iam-directories");
  const f=await fixture(),session=key();
  const saved=await saveConnection(db,f.owner,connectionInput.parse({expectedVersion:0,name:'Combined refresh evidence',provider:'univention',config:{mode:'ldaps',secretProfile:'ucs',authority:'ucs.corp',ldapUrl:'ldaps://ucs.corp',baseDn:'dc=corp'}}),key());
  await db.prepare("UPDATE iam_connections SET status='active' WHERE id=?").bind(saved.id).run();
@@ -1490,7 +1490,7 @@ it('discards stale account grants and rereads after directory refresh while fail
 // economic posting below use their original owner commands. This is a financial
 // entry/read parity fixture, not complete Company/Directory startup evidence.
 async function postFinancialEntryPayrollSource(original:WorkContext,reviewer:WorkContext,employee:IamActor,payrollPreparer:WorkContext,payrollApprover:WorkContext,payGroupId:string,runId:string){
- const people=await import('@/server/modules/people_payroll/public/people-payroll'),finance=await import('@/server/modules/finance/public/finance'),money=await import('@/server/modules/finance/public/company-money'),{resolveFlow,assignFlowPrimary}=await import('@/server/modules/workflow/public/flow-routing'),{submitPayrollReview}=await import('@/server/modules/people_payroll/public/payroll-readiness');
+ const people=await import('@erpx/server-people_payroll/public/people-payroll'),finance=await import('@erpx/server-finance/public/finance'),money=await import('@erpx/server-finance/public/company-money'),{resolveFlow,assignFlowPrimary}=await import('@erpx/server-workflow/public/flow-routing'),{submitPayrollReview}=await import('@erpx/server-people_payroll/public/payroll-readiness');
  const branch=key(),level=key(),engagementId=`eng-${employee.userId}`;
  // Existing imported worker/reference fixture only. Never insert a Payroll
  // item, compensation approval, journal, balance or posted run/status by SQL.
@@ -1531,7 +1531,7 @@ async function postFinancialEntryPayrollSource(original:WorkContext,reviewer:Wor
  expect((await people.getPayrollRun(original,runId)).run.status).toBe('posted');
 }
 async function financialProductEntryFixture(postedPayroll=false){
- const f=await fixture(),grantReviewer=await f.user(),{packageGrantStore,readCompanyPurchaseFacts}=await import('@/server/modules/commercial/public/package-grants'),{ownerPackageObligations,withOwnerPackageObligations}=await import('@/server/modules/commercial/public/owner-package-obligations'),{packageGrantRevision}=await import('@/server/modules/commercial/public/package-grants');
+ const f=await fixture(),grantReviewer=await f.user(),{packageGrantStore,readCompanyPurchaseFacts}=await import('@erpx/server-commercial/public/package-grants'),{ownerPackageObligations,withOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),{packageGrantRevision}=await import('@erpx/server-commercial/public/package-grants');
  const store=packageGrantStore(env.H001_DB,{authorize:async(_database,companyId)=>{if(companyId!==f.companyId)throw Error('FINANCIAL_ENTRY_FIXTURE_COMPANY');return {userId:'fictional-financial-entry-provider'};},obligations:(transaction,companyId,packageId)=>ownerPackageObligations(env.H001_DB,transaction,companyId,packageId)});
  const permissions=['module.finance.read','finance.pay','payroll.payment.read','expense.pay','expense.review.read','expense.audit.read','workflow.treasury','iam.self'];
  const role=await saveIamRole(db,f.owner,roleInput.parse({name:'Native financial settlement only',expectedVersion:0,permissions,scopes:['holding'],reason:'Read and settle original financial owner records without Directory authority'}),key());
@@ -1541,13 +1541,13 @@ async function financialProductEntryFixture(postedPayroll=false){
  f.owner.iam=await loadIamAuthority(db,f.companyId,f.owner.userId,f.owner.role,f.owner.sessionId);
  const roleAssignment=(await workspaceGrantsForAccount(env.H001_DB,f.companyId,f.owner.userId)).rows.find(row=>row.role===role.roleId)!;
  const sourceScope={companyId:f.companyId,branchId:null,departmentId:null,userId:f.owner.userId,assignmentId:roleAssignment.id,assignmentVersion:roleAssignment.version,role:role.roleId,sessionId:f.owner.sessionId};
- const {peopleFinancialProductEntry}=await import('@/server/modules/people_payroll/public/financial-product-entry');
+ const {peopleFinancialProductEntry}=await import('@erpx/server-people_payroll/public/financial-product-entry');
  expect(await peopleFinancialProductEntry(env.H001_DB,sourceScope,{kind:'payroll'})).toBeNull();
  expect(await peopleFinancialProductEntry(env.H001_DB,sourceScope,{kind:'expense'})).toBeNull();
  for(const packageId of ['people','people-payroll','people-expenses'])await store.apply({expectedVersion:0,idempotencyKey:key(),grant:{companyId:f.companyId,packageId,packageVersion:1,state:'active',startsAt:now()-1000,endsAt:null,version:1,reason:'Required People parent and financial add-ons',evidence:'test:actual-native-financial-entry'}});
  const scope={kind:'holding' as const,holdingId:'h001' as const,holdingSlug:'rehearsal',holdingName:'IAM rehearsal',companyId:f.companyId};
  const work=(actor:IamActor):WorkContext=>({...actor,holdingId:'h001',name:'Native financial entry actor',email:`${actor.userId}@example.test`,holdingSlug:'rehearsal',holdingName:'IAM rehearsal',scope,assignmentScope:'holding',inherited:false,modules:[],assignments:[],workspaces:[]});
- const original=work(f.owner),{createPayGroup,payGroupSchema,createPayrollRun,payrollRunSchema,getPayrollRun,listPayrollRuns}=await import('@/server/modules/people_payroll/public/people-payroll'),{saveExpense,expenseUpdateSchema,getExpense,listExpenses}=await import('@/server/modules/people_payroll/public/expenses');
+ const original=work(f.owner),{createPayGroup,payGroupSchema,createPayrollRun,payrollRunSchema,getPayrollRun,listPayrollRuns}=await import('@erpx/server-people_payroll/public/people-payroll'),{saveExpense,expenseUpdateSchema,getExpense,listExpenses}=await import('@erpx/server-people_payroll/public/expenses');
  const group=await createPayGroup(original,payGroupSchema.parse({name:'Native entry-only payroll group',countryCode:'TH',currency:'THB',frequency:'monthly',timezone:'Asia/Bangkok'}),key());
  const run=await createPayrollRun(original,payrollRunSchema.parse({payGroupId:group.id,periodStart:'2026-09-01',periodEnd:'2026-09-30',payDate:'2026-10-01',currency:'THB'}),key());
  if(postedPayroll){
@@ -1559,7 +1559,7 @@ async function financialProductEntryFixture(postedPayroll=false){
    await decideIamReview(db,f.reviewer,proposal.id,{expectedVersion:1,decision:'approve',reason:'Independent original Payroll work assignment review'},key());
    const assignment=(await workspaceGrantsForAccount(env.H001_DB,f.companyId,identity.userId)).rows.find(row=>row.role===role);
    if(!assignment||typeof assignment.version!=='number'||!Number.isSafeInteger(assignment.version)||assignment.version<1)throw Error('CURRENT_NATIVE_PAYROLL_ASSIGNMENT_REQUIRED');
-   const {readWorkSelection}=await import('@/server/modules/work_projection/public/work-role-store'),prior=await readWorkSelection(env.H001_DB,identity.sessionId,identity.userId,f.companyId);
+   const {readWorkSelection}=await import('@erpx/server-work_projection/public/work-role-store'),prior=await readWorkSelection(env.H001_DB,identity.sessionId,identity.userId,f.companyId);
    if(!prior)throw Error('ORIGINAL_PAYROLL_WORK_SELECTION_REQUIRED');
    const selected=await selectWorkRole(env.H001_DB,{sessionId:identity.sessionId,userId:identity.userId,companyId:f.companyId,assignmentId:assignment.id,assignmentVersion:assignment.version,revision:prior.revision,expiresAt:now()+600000});
    if(typeof selected.assignment_version!=='number'||!Number.isSafeInteger(selected.assignment_version)||selected.assignment_version<1)throw Error('SELECTED_NATIVE_PAYROLL_ASSIGNMENT_REQUIRED');
@@ -1573,7 +1573,7 @@ async function financialProductEntryFixture(postedPayroll=false){
  if(typeof expenseResult.id!=='string'||!expenseResult.id)throw Error('NATIVE_EXPENSE_RECEIPT_ID_REQUIRED');const expense={...expenseResult,id:expenseResult.id};
  const hiddenResult=await saveExpense(work(f.employee),null,expenseUpdateSchema.parse({expectedVersion:1,merchant:'Private employee draft',businessPurpose:'Another native claimant source'}),key());
  if(typeof hiddenResult.id!=='string'||!hiddenResult.id)throw Error('NATIVE_PRIVATE_EXPENSE_RECEIPT_ID_REQUIRED');const hidden={...hiddenResult,id:hiddenResult.id};
- const {accountWorkModuleAccess}=await import('@/server/modules/identity_access/public/work-module-access'),{createProductWorkspace}=await import('@/server/modules/identity_access/application/product-workspace'),{productWorkspaceTarget}=await import('@/server/modules/identity_access/domain/product-workspace'),{initializeWorkSelection,readWorkSelection}=await import('@/server/modules/work_projection/public/work-role-store');
+ const {accountWorkModuleAccess}=await import('@erpx/server-identity_access/public/work-module-access'),{createProductWorkspace}=await import('@erpx/server-identity_access/application/product-workspace'),{productWorkspaceTarget}=await import('@erpx/server-identity_access/domain/product-workspace'),{initializeWorkSelection,readWorkSelection}=await import('@erpx/server-work_projection/public/work-role-store');
  const access=async()=>{const {rows,roles}=await workspaceGrantsForAccount(env.H001_DB,f.companyId,f.owner.userId);return {scope,userId:f.owner.userId,sessionId:f.owner.sessionId,expiresAt:now()+600000,name:'Native financial worker',email:'native-financial@example.test',requestHeaders:new Headers(),assignments:rows.filter(row=>roles.get(row.role)?.scopes.includes(row.scope_kind)).map(row=>({id:row.id,role:row.role,companyId:row.company_id,branchId:row.branch_id,scopeKind:row.scope_kind,scopeNodeId:row.scope_node_id,modules:JSON.parse(row.modules_json) as string[],version:row.version}))};};
  const entry=(target:{kind:'expense'|'payroll';id?:string})=>peopleFinancialProductEntry(env.H001_DB,sourceScope,target);
  let selects=0;
@@ -1586,7 +1586,7 @@ async function financialProductEntryFixture(postedPayroll=false){
  return {...f,original,store,role,roleAssignment,scope,access,sourceScope,entry,service,productWorkspaceTarget,run,expense,hidden,financialActor,getPayrollRun,listPayrollRuns,getExpense,listExpenses,selects:()=>selects,readCompanyPurchaseFacts,withOwnerPackageObligations,packageGrantRevision};
 }
 it('preserves actual Company financial-role Apps/SSO entry and original redacted owner readers without People module or base Finance purchase',async()=>{
- const f=await financialProductEntryFixture(true),{accountWorkModuleAccess}=await import('@/server/modules/identity_access/public/work-module-access'),{createProductLauncher}=await import('@/server/modules/work_projection/application/product-launcher'),{buildWorkspaceHoldingChoice}=await import('@/lib/work_projection/workspace-choice'),{peopleFinancialProductEntry}=await import('@/server/modules/people_payroll/public/financial-product-entry');
+ const f=await financialProductEntryFixture(true),{accountWorkModuleAccess}=await import('@erpx/server-identity_access/public/work-module-access'),{createProductLauncher}=await import('@erpx/server-work_projection/application/product-launcher'),{buildWorkspaceHoldingChoice}=await import('@erpx/feature-work_projection/lib/workspace-choice'),{peopleFinancialProductEntry}=await import('@erpx/server-people_payroll/public/financial-product-entry');
  const account=await f.access(),authority=await accountWorkModuleAccess(account),before=(await db.prepare('SELECT id,role,version,modules_json FROM assignments WHERE company_id=? ORDER BY id').bind(f.companyId).all()).results;
  expect(authority.modulesByAssignment.get(f.roleAssignment.id)).toEqual(['finance']);expect(authority.permissionsByAssignment.get(f.roleAssignment.id)).not.toContain('module.people_payroll.read');
  for(const target of [{kind:'expense' as const,id:f.expense.id},{kind:'payroll' as const,id:f.run.id}])expect(await f.entry(target)).toMatchObject({purchasePurpose:'history'});
@@ -1605,7 +1605,7 @@ it('preserves actual Company financial-role Apps/SSO entry and original redacted
  expect((await db.prepare('SELECT id,role,version,modules_json FROM assignments WHERE company_id=? ORDER BY id').bind(f.companyId).all()).results).toEqual(before);
 });
 it('rechecks financial source Company, scope, purchase history, release, IAM version and session without replacing the live assignment',async()=>{
- const f=await financialProductEntryFixture(),{peopleFinancialProductEntry}=await import('@/server/modules/people_payroll/public/financial-product-entry'),{readCompanyPackageGrants}=await import('@/server/modules/commercial/public/package-grants'),{readWorkSelection}=await import('@/server/modules/work_projection/public/work-role-store'),target={kind:'payroll' as const,id:String(f.run.id)};
+ const f=await financialProductEntryFixture(),{peopleFinancialProductEntry}=await import('@erpx/server-people_payroll/public/financial-product-entry'),{readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),{readWorkSelection}=await import('@erpx/server-work_projection/public/work-role-store'),target={kind:'payroll' as const,id:String(f.run.id)};
  for(const patch of [{companyId:'foreign-company'},{branchId:'foreign-branch'},{departmentId:'foreign-department'},{beta:true},{assignmentVersion:f.roleAssignment.version+1},{sessionId:'revoked-financial-entry-session'}]){
   if('sessionId'in patch)await db.prepare('INSERT INTO iam_revoked_sessions(session_id,company_id,user_id,revoked_at) VALUES(?,?,?,?)').bind(patch.sessionId,f.companyId,f.owner.userId,now()).run();
   expect(await peopleFinancialProductEntry(env.H001_DB,{...f.sourceScope,...patch},target)).toBeNull();
@@ -1613,7 +1613,7 @@ it('rechecks financial source Company, scope, purchase history, release, IAM ver
  const image=(await db.prepare('SELECT id,version,role,modules_json FROM assignments WHERE company_id=? ORDER BY id').bind(f.companyId).all()).results,current=await readWorkSelection(env.H001_DB,f.owner.sessionId,f.owner.userId,f.companyId);
  const expiring=await readCompanyPackageGrants(env.H001_DB,f.companyId),endsAt=now()-1,expiryInput={companyId:f.companyId,expectedRevision:f.packageGrantRevision(f.companyId,expiring),idempotencyKey:key(),changes:expiring.filter(grant=>grant.packageId==='people-payroll'||grant.packageId==='people-expenses').map(grant=>({expectedVersion:grant.version,grant:{...grant,endsAt,version:grant.version+1,reason:'Expire the actual addon periods with their active People parent retained',evidence:'test:financial-entry-addon-expiry'}}))};
  const expiryPreview=await f.store.batch.preview(expiryInput);await f.store.batch.apply(expiryInput,async actual=>{expect(actual).toEqual(expiryPreview);});
- const {readPurchasedAccess}=await import('@/server/modules/commercial/public/purchase-command-boundary');expect(await readPurchasedAccess(env.H001_DB,'enforced',{companyId:f.companyId,capability:'people.payroll'})).toMatchObject({newWork:false,history:true});expect(await f.entry(target)).toMatchObject({purchasePurpose:'history'});
+ const {readPurchasedAccess}=await import('@erpx/server-commercial/public/purchase-command-boundary');expect(await readPurchasedAccess(env.H001_DB,'enforced',{companyId:f.companyId,capability:'people.payroll'})).toMatchObject({newWork:false,history:true});expect(await f.entry(target)).toMatchObject({purchasePurpose:'history'});
 
  for(const packageId of ['people','people-payroll']){const prior=(await readCompanyPackageGrants(env.H001_DB,f.companyId)).find(grant=>grant.packageId===packageId)!;await f.store.apply({expectedVersion:prior.version,idempotencyKey:key(),grant:{...prior,version:prior.version+1,state:'draining',reason:'Retain original settlement and owner history',evidence:'test:financial-entry-draining'}});expect(await f.entry(target)).toMatchObject({purchasePurpose:'history'});}
  const child=(await readCompanyPackageGrants(env.H001_DB,f.companyId)).find(grant=>grant.packageId==='people-payroll')!;
@@ -1624,7 +1624,7 @@ it('rechecks financial source Company, scope, purchase history, release, IAM ver
  const restored=await selectWorkRole(env.H001_DB,{sessionId:f.owner.sessionId,userId:f.owner.userId,companyId:f.companyId,assignmentId:f.owner.assignmentId,assignmentVersion:1,revision:originalContext!.revision,expiresAt:now()+600000});
  const restoredVersion=restored.assignment_version;if(typeof restoredVersion!=='number'||!Number.isSafeInteger(restoredVersion)||restoredVersion<1)throw Error('CURRENT_RESTORED_ASSIGNMENT_VERSION_REQUIRED');
  f.original.authority={sessionId:f.owner.sessionId,assignmentVersion:restoredVersion,revision:restored.revision};f.original.iam=await loadIamAuthority(db,f.companyId,f.owner.userId,f.owner.role,f.owner.sessionId);
- const {cancelPayrollRun}=await import('@/server/modules/people_payroll/public/payroll-cancellation');
+ const {cancelPayrollRun}=await import('@erpx/server-people_payroll/public/payroll-cancellation');
  const cancelled=await cancelPayrollRun(f.original,String(f.run.id),{expectedVersion:1,reason:'Cancel unused native entry-only payroll preparation'},key());expect(cancelled.status).toBe('cancelled');
  await f.withOwnerPackageObligations(env.H001_DB,{companyId:f.companyId,packageId:child.packageId,packageVersion:1},async transaction=>f.store.batch.applyIn(transaction,{companyId:f.companyId,expectedRevision:f.packageGrantRevision(f.companyId,await readCompanyPackageGrants(transaction,f.companyId)),idempotencyKey:key(),changes:[{expectedVersion:child.version,grant:{...child,version:child.version+1,state:'inactive',reason:'Withdraw after exact native cancellation',evidence:'test:financial-entry-retained-history'}}]},async()=>{}));
  expect(await f.entry(target)).toMatchObject({purchasePurpose:'history'});
@@ -1632,7 +1632,7 @@ it('rechecks financial source Company, scope, purchase history, release, IAM ver
 });
 
 it('preserves original Expense accounting preparation and independent review through native Finance-only custom roles without Treasury or People discovery',async()=>{
- const {expenseFixture}=await import('../../support/helpers/expense-fixture'),expenses=await import('@/server/modules/people_payroll/public/expenses'),{saveExpenseAccounting}=await import('@/server/modules/people_payroll/public/expense-workflow'),{packageGrantStore,readCompanyPurchaseFacts}=await import('@/server/modules/commercial/public/package-grants'),{ownerPackageObligations}=await import('@/server/modules/commercial/public/owner-package-obligations'),{peopleFinancialProductEntry}=await import('@/server/modules/people_payroll/public/financial-product-entry'),{accountWorkModuleAccess}=await import('@/server/modules/identity_access/public/work-module-access'),{createProductWorkspace}=await import('@/server/modules/identity_access/application/product-workspace'),{productWorkspaceTarget}=await import('@/server/modules/identity_access/domain/product-workspace'),{initializeWorkSelection,readWorkSelection}=await import('@/server/modules/work_projection/public/work-role-store');
+ const {expenseFixture}=await import('../../support/helpers/expense-fixture'),expenses=await import('@erpx/server-people_payroll/public/expenses'),{saveExpenseAccounting}=await import('@erpx/server-people_payroll/public/expense-workflow'),{packageGrantStore,readCompanyPurchaseFacts}=await import('@erpx/server-commercial/public/package-grants'),{ownerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),{peopleFinancialProductEntry}=await import('@erpx/server-people_payroll/public/financial-product-entry'),{accountWorkModuleAccess}=await import('@erpx/server-identity_access/public/work-module-access'),{createProductWorkspace}=await import('@erpx/server-identity_access/application/product-workspace'),{productWorkspaceTarget}=await import('@erpx/server-identity_access/domain/product-workspace'),{initializeWorkSelection,readWorkSelection}=await import('@erpx/server-work_projection/public/work-role-store');
  // Reuse the original Expense imported staff/Finance-reference/evidence fixture.
  // Only normal owner commands below create/change claims, routes or accounting.
  // Account/session/MFA rows are declared native test-authority setup, not a

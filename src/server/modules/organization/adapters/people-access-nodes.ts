@@ -1,1 +1,0 @@
-import 'server-only';import type {SqlDatabase} from '../../runtime/public/runtime/types';export async function peopleAccessNodes(db:SqlDatabase,companyId:string){return (await db.prepare('SELECT id,parent_id,kind,display_name,status FROM organization_nodes WHERE company_id=?').bind(companyId).all()).results;}

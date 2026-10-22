@@ -1,8 +1,8 @@
-import {financeExtraRecord} from "../../../src/server/modules/finance/public/finance-record-details";
+import {financeExtraRecord} from "@erpx/server-finance/public/finance-record-details";
 import {afterEach} from "vitest";
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
+import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
   expenseDb as db,
@@ -16,22 +16,22 @@ import {
   proposeBankMatchGroup,
   decideBankMatchGroup,
   bankAutomationWorkspace,
-} from "../../../src/server/modules/finance/public/finance-bank-automation";
+} from "@erpx/server-finance/public/finance-bank-automation";
 import {
   prepareCollectionCase,
   decideCollectionCase,
   reviseCollectionCase,
   collectionWorkspace,
   cashDueForecast,
-} from "../../../src/server/modules/finance/public/finance-collections";
+} from "@erpx/server-finance/public/finance-collections";
 import {
   createJournal,
   createJournalSchema,
   importBankStatement,
   postJournal,
   reconcileBankTransaction,
-} from "../../../src/server/modules/finance/public/finance";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-finance/public/finance";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

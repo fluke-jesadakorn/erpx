@@ -1,6 +1,6 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceExpansionWork,type FinanceExpansionWorkPorts,type ExpansionWorkRow} from "../../../src/server/modules/finance/application/expansion-work";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createFinanceExpansionWork,type FinanceExpansionWorkPorts,type ExpansionWorkRow} from "@erpx/server-finance/application/expansion-work";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const row:ExpansionWorkRow={id:'contract',kind:'contract',title:'Service contract',chart_id:'chart',status:'draft',prepared_by:'preparer',updated_at:123};
 function context(extra:Partial<FinanceExpansionWorkPorts>={}){const ports:FinanceExpansionWorkPorts={permission:a=>a,ready:vi.fn(async()=>{}),today:()=> '2026-09-30',rows:async()=>[row],due:vi.fn(async()=>[]),periods:vi.fn(async()=>[]),pending:async()=>[],...extra};return {ports,run:createFinanceExpansionWork(ports)}}

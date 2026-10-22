@@ -1,4 +1,4 @@
-import {measureReads} from "../../../src/server/modules/runtime/adapters/runtime/read-metrics";
+import {measureReads} from "@erpx/server-runtime/adapters/runtime/read-metrics";
 import { env } from "../../support/runtime-env";
 import { applyMigrations, type TestMigration } from "../../support/runtime-env";
 import { beforeAll, it, expect, vi } from "vitest";
@@ -6,7 +6,7 @@ import {
   billingLink,
   verifyStripeSignature,
   stripeWebhook,
-} from "../../../src/server/modules/billing/public/beta-billing";
+} from "@erpx/server-billing/public/beta-billing";
 const authRuntime = {
     ...env,
     ERPX_PUBLIC_BETA: "true",
@@ -16,9 +16,9 @@ const authRuntime = {
     RESEND_API_KEY: "mock-key",
     RESEND_FROM: "ERPX <test@example.test>",
 };
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ runtimeEnv: async () => authRuntime }));
-import { createAuth } from "../../../src/server/modules/identity_access/public/auth";
-import { deliverAccountRecovery } from "../../../src/server/modules/identity_access/public/account-recovery";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ runtimeEnv: async () => authRuntime }));
+import { createAuth } from "@erpx/server-identity_access/public/auth";
+import { deliverAccountRecovery } from "@erpx/server-identity_access/public/account-recovery";
 beforeAll(async () => {
   await applyMigrations(
     env.CONTROL_DB,
@@ -240,7 +240,7 @@ it("observes changed signup policy and keeps legal invitation allowlists indepen
 });
 
 it('reevaluates explicitly selected OIDC configuration after the ordinary factory is warm',async()=>{
-  const providers=await import("../../../src/server/modules/identity_access/public/iam-auth");
+  const providers=await import("@erpx/server-identity_access/public/iam-auth");
   const config=vi.spyOn(providers,'directoryOidcConfig'),originalFetch=globalThis.fetch,id=crypto.randomUUID();
   const network=vi.fn(async()=>{throw new Error('UNEXPECTED_FICTIONAL_OIDC_NETWORK_REQUEST');});
   vi.stubGlobal('fetch',network);

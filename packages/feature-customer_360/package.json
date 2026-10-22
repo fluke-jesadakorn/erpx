@@ -1,0 +1,30 @@
+{
+  "name": "@erpx/feature-customer_360",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/customer-notes": "./src/components/customer-notes.tsx",
+    "./components/customer-duplicate-console": "./src/components/customer-duplicate-console.tsx",
+    "./components/customer-identity-console": "./src/components/customer-identity-console.tsx",
+    "./components/customer-followups": "./src/components/customer-followups.tsx",
+    "./components/customer-access-console": "./src/components/customer-access-console.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-crm": "workspace:*",
+    "@erpx/feature-customer_authority": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-sales": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-commerce": "workspace:*",
+    "@erpx/server-customer_authority": "workspace:*",
+    "@erpx/server-sales": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "react": "19.3.0"
+  }
+}

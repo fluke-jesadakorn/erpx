@@ -1,15 +1,15 @@
-import { fulfillmentSchema } from "../../../src/server/modules/commerce/public/commerce";
+import { fulfillmentSchema } from "@erpx/server-commerce/public/commerce";
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "../../../src/server/modules/commerce/public/commerce";
+import {fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {loadIamAuthority} from "../../../src/server/modules/identity_access/public/iam-store";
-import {assignFlowPrimary,resolveFlow} from "../../../src/server/modules/workflow/public/flow-routing";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
+import {assignFlowPrimary,resolveFlow} from "@erpx/server-workflow/public/flow-routing";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,warehouseActor:WorkContext;
 beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{

@@ -28,7 +28,7 @@ await cp(await realpath(join(root,'node_modules')),join(work,'node_modules'),{re
 if(await runtimeSourceFingerprint(work)!==sourceFingerprint||await runtimeSourceFingerprint(root)!==sourceFingerprint)
   throw new Error('RELEASE_SOURCE_CHANGED_DURING_COPY');
 const softwareVersion=`release-${sourceFingerprint}`;
-await writeFile(join(work,'src/data/release-artifact.json'),JSON.stringify({softwareVersion})+'\n');
+await writeFile(join(work,'packages/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion})+'\n');
 // No development .env, database, fixture state or secrets enter the build tree.
 const inheritedNodeOptions=process.env.NODE_OPTIONS??'';
 const nodeOptions=/(?:^|\s)--max-old-space-size(?:=|\s+)\d+/.test(inheritedNodeOptions)

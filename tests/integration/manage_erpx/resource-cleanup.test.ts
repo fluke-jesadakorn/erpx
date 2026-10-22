@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
-import { cleanupBetaResources } from "../../../src/server/modules/manage_erpx/public/beta-maintenance";
+import { cleanupBetaResources } from "@erpx/server-manage_erpx/public/beta-maintenance";
 
 const db = env.H001_DB, files = env.H001_FILES, now = Date.parse("2026-10-05T00:00:00Z"), holding = "h001";
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });

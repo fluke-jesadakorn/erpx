@@ -1,11 +1,11 @@
 import {describe,expect,test} from 'vitest';
-import {createGpoRulesApplication,type GpoRulesPorts,type GpoRulesRepository,type GpoCommands} from "../../../src/server/modules/identity_access/application/gpo-rules";
-import {createPositionGpoApplication,type PositionGpoPorts,type PositionGpoRepository} from "../../../src/server/modules/identity_access/application/position-gpo";
-import {canManageGpoRules,gpoRuleMatchesPosition,gpoRuleSourceId,type GpoRuleRow} from "../../../src/server/modules/identity_access/domain/gpo-rules";
-import type {Connection,Desired,Job} from "../../../src/server/modules/identity_access/domain/position-gpo";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {DirectoryInventory} from "../../../src/lib/identity_access/directory-operations";
-import {BusinessRuleError} from "../../../src/server/modules/shared/index";
+import {createGpoRulesApplication,type GpoRulesPorts,type GpoRulesRepository,type GpoCommands} from "@erpx/server-identity_access/application/gpo-rules";
+import {createPositionGpoApplication,type PositionGpoPorts,type PositionGpoRepository} from "@erpx/server-identity_access/application/position-gpo";
+import {canManageGpoRules,gpoRuleMatchesPosition,gpoRuleSourceId,type GpoRuleRow} from "@erpx/server-identity_access/domain/gpo-rules";
+import type {Connection,Desired,Job} from "@erpx/server-identity_access/domain/position-gpo";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {DirectoryInventory} from "@erpx/feature-identity_access/lib/directory-operations";
+import {BusinessRuleError} from "@erpx/server-shared/index";
 
 const actor:WorkContext={userId:'it',name:'IT',email:'it@example.test',assignmentId:'assignment',role:'it_admin',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['identity_access','organization'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 const input={positionId:'position',expectedVersion:0,connectionId:'connection',gpoId:'gpo',userFilterGroupId:'group',computerTargetOuId:'ou',reason:'Reviewed policy change'},ruleInput={expectedVersion:0,target:{kind:'position' as const,id:'position'},connectionId:'connection',gpoId:'gpo',userFilterGroupId:'group',computerTargetOuId:'ou',reason:'Reviewed direct policy change'};

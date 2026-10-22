@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { convertUnits, convertWithRates, currencyScale, decimalUnits, resolveRate, unitsDecimal, type ManualRate } from "../../../src/lib/finance/company-money";
+import { convertUnits, convertWithRates, currencyScale, decimalUnits, resolveRate, unitsDecimal, type ManualRate } from "@erpx/feature-finance/lib/company-money";
 
 const rate = (id: string, currency: string, effectiveDate: string, currencyPerUsd: string, confirmedAt = 1): ManualRate =>
   ({ id, currency, effectiveDate, currencyPerUsd, confirmedAt });

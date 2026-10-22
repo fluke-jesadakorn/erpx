@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { billingStripe } from "../../../src/server/modules/billing/public/billing-stripe";
+import { billingStripe } from "@erpx/server-billing/public/billing-stripe";
 
 afterEach(() => vi.unstubAllGlobals());
 

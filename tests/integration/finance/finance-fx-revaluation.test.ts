@@ -1,4 +1,4 @@
-import { packageGrantStore } from "../../../src/server/modules/commercial/public/package-grants";
+import { packageGrantStore } from "@erpx/server-commercial/public/package-grants";
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { applyMigrations, env, type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
@@ -10,11 +10,11 @@ import {
   fxRevaluationWorkspace,
   postInvoice,
   prepareFxRevaluation,
-} from "../../../src/server/modules/finance/public/finance";
-import { assignFlowPrimary, resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
+} from "@erpx/server-finance/public/finance";
+import { assignFlowPrimary, resolveFlow } from "@erpx/server-workflow/public/flow-routing";
 
 vi.mock("server-only", () => ({}));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 afterEach(()=>vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof expenseFixture>>;

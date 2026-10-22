@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ session: vi.fn(), read: vi.fn() }));
-vi.mock("@/server/modules/identity_access/adapters/authorization", () => ({ currentSession: mocks.session }));
-vi.mock("@/server/modules/runtime/public/runtime", () => ({ runtimeEnv: async () => ({ CONTROL_DB: {
+vi.mock("@erpx/server-identity_access/adapters/authorization", () => ({ currentSession: mocks.session }));
+vi.mock("@erpx/server-runtime/public/runtime", () => ({ runtimeEnv: async () => ({ CONTROL_DB: {
   prepare: () => ({ bind: (id: string) => ({ first: () => mocks.read(id) }) }),
 } }) }));
-import { accountTimePreferenceSnapshot } from "@/server/modules/identity_access/public/account-time-preference";
+import { accountTimePreferenceSnapshot } from "@erpx/server-identity_access/public/account-time-preference";
 
 beforeEach(() => { mocks.session.mockReset(); mocks.read.mockReset(); });
 it("seeds only the current authenticated account's preference without serializing identity or session facts", async () => {
@@ -43,7 +43,7 @@ it("retains the authenticated account identity during a preference outage withou
 
 import {createElement,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {TimeText} from '../../../src/components/people_payroll/time/time-preference-context';
+import {TimeText} from '@erpx/feature-people_payroll/components/time/time-preference-context';
 const timeContextProbe=vi.hoisted(()=>({wrap:null as null|((ready:boolean,children:ReactNode)=>ReactNode)}));
 vi.mock('react',async importOriginal=>{
  const actual=await importOriginal<typeof import('react')>();

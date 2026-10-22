@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { preparedPostFields, preparedTaskFields } from "../../../src/lib/shared/ai/prepared-work";
+import { preparedPostFields, preparedTaskFields } from "@erpx/feature-shared/lib/ai/prepared-work";
 
 describe("guided intake details in owning forms", () => {
   it("only maps an unambiguous task owner and a real Gregorian date", () => {

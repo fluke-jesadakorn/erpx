@@ -1,0 +1,53 @@
+{
+  "name": "@erpx/feature-inventory",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/transit-console": "./src/components/transit-console.tsx",
+    "./components/count-purchase-context": "./src/components/count-purchase-context.tsx",
+    "./components/use-transfer-command": "./src/components/use-transfer-command.ts",
+    "./components/transfer-purchase-context": "./src/components/transfer-purchase-context.tsx",
+    "./components/transfer-draft-boundary": "./src/components/transfer-draft-boundary.tsx",
+    "./components/stock-count-controls": "./src/components/stock-count-controls.tsx",
+    "./components/use-count-command": "./src/components/use-count-command.ts",
+    "./components/initial-physical-stock-count": "./src/components/initial-physical-stock-count.tsx",
+    "./components/count-draft-boundary": "./src/components/count-draft-boundary.tsx",
+    "./components/stock-transfer-controls": "./src/components/stock-transfer-controls.tsx",
+    "./components/manufacturing-initial-physical-stock-count": "./src/components/manufacturing-initial-physical-stock-count.tsx",
+    "./components/inventory-reorder-console": "./src/components/inventory-reorder-console.tsx",
+    "./lib/landed-cost-command-fetch": "./src/lib/landed-cost-command-fetch.ts",
+    "./lib/landed-cost-purchase-controls": "./src/lib/landed-cost-purchase-controls.ts",
+    "./lib/transfer-editor-draft": "./src/lib/transfer-editor-draft.ts",
+    "./lib/count-purchase-controls": "./src/lib/count-purchase-controls.ts",
+    "./lib/manufacturing-initial-physical-stock-count-command": "./src/lib/manufacturing-initial-physical-stock-count-command.ts",
+    "./lib/count-editor-draft": "./src/lib/count-editor-draft.ts",
+    "./lib/transfer-command-attempt": "./src/lib/transfer-command-attempt.ts",
+    "./lib/transfer-command-fetch": "./src/lib/transfer-command-fetch.ts",
+    "./lib/transfer-purchase-controls": "./src/lib/transfer-purchase-controls.ts",
+    "./lib/count-command-attempt": "./src/lib/count-command-attempt.ts",
+    "./lib/initial-physical-stock-count-command": "./src/lib/initial-physical-stock-count-command.ts",
+    "./lib/count-command-fetch": "./src/lib/count-command-fetch.ts",
+    "./lib/pos-initial-physical-stock-count-command": "./src/lib/pos-initial-physical-stock-count-command.ts",
+    "./lib/landed-cost-command-attempt": "./src/lib/landed-cost-command-attempt.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-finance": "workspace:*",
+    "@erpx/feature-identity_access": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-commerce": "workspace:*",
+    "@erpx/server-inventory": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "zod": "4.5.4"
+  }
+}

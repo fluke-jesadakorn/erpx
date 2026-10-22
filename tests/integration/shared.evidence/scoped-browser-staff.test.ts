@@ -3,10 +3,10 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { mapSpendingOrganization } from "../../support/helpers/spending-organization";
 import { placeScopedBrowserEmployee } from "../../../fixtures/people_payroll/builders/scoped-browser-staff";
-import { companyBusinessAcceptance } from "../../../src/server/modules/organization/public/company-business-acceptance";
-import { directoryPerson } from "../../../src/server/modules/people_payroll/public/people-directory";
+import { companyBusinessAcceptance } from "@erpx/server-organization/public/company-business-acceptance";
+import { directoryPerson } from "@erpx/server-people_payroll/public/people-directory";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 const db = env.H001_DB;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 

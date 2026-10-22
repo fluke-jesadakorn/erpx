@@ -3,7 +3,7 @@ import {
   nextOccurrence,
   zonedTime,
   type RoutineRule,
-} from "../../../src/lib/work_projection/routine-calendar";
+} from "@erpx/feature-work_projection/lib/routine-calendar";
 const rule: RoutineRule = {
   frequency: "monthly",
   timezone: "Asia/Bangkok",

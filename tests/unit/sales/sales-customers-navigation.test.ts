@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
-import { hubHref, salesCustomerAccess, salesCustomerLegacyDestination } from "../../../src/server/modules/sales/public/rules/navigation";
-import { hubResultHref } from "../../../src/lib/shared/hub-result";
-import { workplaceNavigation, navigationTrail, resolveNavigation } from "../../../src/lib/work_projection/workplace-navigation";
-import { navigationLauncher } from "../../../src/lib/work_projection/navigation-catalog";
-import { productionPageCut } from "../../../src/lib/shared/hospitality-page-cut";
+import { hubHref, salesCustomerAccess, salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
+import { hubResultHref } from "@erpx/feature-shared/lib/hub-result";
+import { workplaceNavigation, navigationTrail, resolveNavigation } from "@erpx/feature-work_projection/lib/workplace-navigation";
+import { navigationLauncher } from "@erpx/feature-work_projection/lib/navigation-catalog";
+import { productionPageCut } from "@erpx/feature-shared/lib/hospitality-page-cut";
 const base = "/holdings/acme/branches/main";
 
 it("moves list routes while retaining filters, cursor and creation context", () => {
@@ -60,23 +60,23 @@ it("checks each production view against its source rollout", () => {
 import * as SourceReportReact from 'react';
 import {renderToStaticMarkup as renderSourceReport} from 'react-dom/server';
 import {vi} from 'vitest';
-import {canonicalUiHref} from '../../../src/lib/work_projection/destination-registry';
-import type {WorkContext} from '../../../src/server/modules/identity_access/public/authorization';
-import type {AuthorizedSourceRecord} from '../../../src/server/modules/records/public/source-record-policy';
-import type {CustomerSupportView as ActualCustomerSupportView} from '../../../src/components/sales/customers/customer-views';
-import type {SourceSupportLink as ActualSourceSupportLink} from '../../../src/components/support/source-support-link';
-import {queryValue} from '../../../src/server/modules/sales/public/rules/navigation';
+import {canonicalUiHref} from '@erpx/feature-work_projection/lib/destination-registry';
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import type {AuthorizedSourceRecord} from '@erpx/server-records/public/source-record-policy';
+import type {CustomerSupportView as ActualCustomerSupportView} from '@erpx/feature-sales/components/customers/customer-views';
+import type {SourceSupportLink as ActualSourceSupportLink} from '@erpx/feature-support/components/source-support-link';
+import {queryValue} from '@erpx/server-sales/public/rules/navigation';
 type ReportOrigin=Parameters<typeof ActualSourceSupportLink>[0];
 type ReportViewProps=Parameters<typeof ActualCustomerSupportView>[0];
 function sourceReportActor():WorkContext{return{userId:'reporter',name:'Reporter',email:'reporter@example.test',assignmentId:'current-selected-assignment',role:'employee',companyId:'company',branchId:'branch',departmentId:null,holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',scope:{kind:'branch',holdingId:'H001',holdingSlug:'acme',holdingName:'Acme',companyId:'company',branchId:'branch',branchSlug:'main',branchName:'Main'},assignmentScope:'branch',inherited:false,modules:['support'],assignments:[],workspaces:[]};}
 async function actualSourceReportLink(input:ReportOrigin){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL('../../../src/components/support/source-support-link.tsx',import.meta.url),'utf8'),tree=ts.createSourceFile('actual-source-support-link.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='SourceSupportLink');if(!owner)throw Error('Actual SourceSupportLink required');
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../packages/feature-support/src/components/source-support-link.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-source-support-link.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='SourceSupportLink');if(!owner)throw Error('Actual SourceSupportLink required');
  const emitted=ts.transpileModule(`${owner.getText(tree).replace(/^export\s+/,'')}\nreturn SourceSupportLink;`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText,Component=new Function('React','Link','canonicalUiHref',emitted)(SourceReportReact,'a',canonicalUiHref) as (props:ReportOrigin)=>SourceReportReact.ReactElement<{href:string}>;
  return Component(input);
 }
 function sourceReportNodes(node:SourceReportReact.ReactNode,out:SourceReportReact.ReactElement<Record<string,unknown>>[]=[]){SourceReportReact.Children.forEach(node,child=>{if(!SourceReportReact.isValidElement<Record<string,unknown>>(child))return;out.push(child);sourceReportNodes(child.props.children as SourceReportReact.ReactNode,out);});return out;}
 async function actualSourceReportView(readSource:(actor:WorkContext,input:{kind:string;id:string;version:number})=>Promise<AuthorizedSourceRecord>,canCreate=true){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL('../../../src/components/sales/customers/customer-views.tsx',import.meta.url),'utf8'),tree=ts.createSourceFile('actual-source-report-view.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='CustomerSupportView');if(!owner)throw Error('Actual CustomerSupportView required');
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../packages/feature-sales/src/components/customers/customer-views.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-source-report-view.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='CustomerSupportView');if(!owner)throw Error('Actual CustomerSupportView required');
  const supportWorkspace=vi.fn(async()=>({items:[],sources:[],canCreate,canCreateOrder:false,ownReportsOnly:true})),supportRecipients=vi.fn(async()=>[]),readSourceRecord=vi.fn(readSource),styles={filterRow:'filters',section:'section',actions:'actions'},ports={React:SourceReportReact,supportWorkspace,supportRecipients,queryValue,readSourceRecord,hubPage:(rows:unknown[])=>rows,styles,HubFilters:'Filters',HubCreate:'CreateDrawer',Field:'label',Select:'select',Button:'button',SupportConsole:'SupportConsole',HubTable:'table',Link:'a',StatusBadge:'Status',HubEmpty:'Empty',HubPagination:'Pagination',ActionLink:'a',canonicalUiHref},emitted=ts.transpileModule(`${owner.getText(tree).replace(/^export\s+/,'')}\nreturn CustomerSupportView;`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText,Component=new Function(...Object.keys(ports),emitted)(...Object.values(ports)) as (props:ReportViewProps)=>Promise<SourceReportReact.ReactNode>;
  return{read:Component,supportWorkspace,supportRecipients,readSourceRecord};
 }

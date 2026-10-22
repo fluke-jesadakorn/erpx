@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isValidElement, type ComponentProps, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { HotelCard } from "@/components/pms/booking-flow";
-import type { BookingPaymentReturnStatus } from "@/components/pms/booking-payment-return";
+import type { HotelCard } from "@erpx/feature-pms/components/booking-flow";
+import type { BookingPaymentReturnStatus } from "@erpx/feature-pms/components/booking-payment-return";
 
 // Only the named native owner ports are substituted. The property Server
 // Component, Next notFound, and both Booking presentations execute unchanged.
@@ -15,14 +15,14 @@ const owner = vi.hoisted(() => ({
   catalogQueries: vi.fn<(slug: string) => Promise<{ bookingCatalog: CatalogReader }>>(),
   paymentQueries: vi.fn<(slug: string) => Promise<{ bookingPaymentStatus: PaymentReader }>>(),
 }));
-vi.mock("@/server/modules/pms/public/presentation-context-queries", () => ({
+vi.mock("@erpx/server-pms/public/presentation-context-queries", () => ({
   bookingPresentationQueries: owner.catalogQueries,
   bookingPaymentPresentationQueries: owner.paymentQueries,
 }));
-import PropertyPage from "@/app/book/[holdingSlug]/[propertyId]/page";
-import { BookingPaymentReturn } from "@/components/pms/booking-payment-return";
-import { ProductLinkEnvironment } from "@/components/workplace/product-link-context";
-import { ApiError } from "@/server/modules/runtime/public/http";
+import PropertyPage from "@erpx/feature-booking/routes/book/[holdingSlug]/[propertyId]/page";
+import { BookingPaymentReturn } from "@erpx/feature-pms/components/booking-payment-return";
+import { ProductLinkEnvironment } from "@erpx/workplace/components/product-link-context";
+import { ApiError } from "@erpx/server-runtime/public/http";
 
 const target = { holdingSlug: "original-holding", propertyId: "original-property" };
 const attempt = "original-payment.original-signature";

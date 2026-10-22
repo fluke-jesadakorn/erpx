@@ -1,0 +1,32 @@
+{
+  "name": "@erpx/feature-crm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/crm-console": "./src/components/crm-console.tsx",
+    "./components/use-crm-command": "./src/components/use-crm-command.ts",
+    "./components/crm-activity-console": "./src/components/crm-activity-console.tsx",
+    "./components/crm-identity-console": "./src/components/crm-identity-console.tsx",
+    "./components/draft-boundary": "./src/components/draft-boundary.tsx",
+    "./lib/command-fetch": "./src/lib/command-fetch.ts",
+    "./lib/purchase-controls": "./src/lib/purchase-controls.ts",
+    "./lib/analytics-access": "./src/lib/analytics-access.ts",
+    "./lib/command-attempt": "./src/lib/command-attempt.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-sales": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-crm": "workspace:*",
+    "@erpx/server-sales": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0"
+  }
+}

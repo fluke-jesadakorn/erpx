@@ -127,9 +127,9 @@ describe("case screenshot evidence", () => {
 
 describe("workflow UI observation serialization", () => {
   const observation = () => serializeWorkflowUiObservation({
-    routeSource: "src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
-    targetSource: "src/components/finance/sales-controls.tsx",
-    checks: ["loaded", "surface:src/components/finance/sales-controls.tsx:abc"],
+    routeSource: "packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
+    targetSource: "packages/feature-finance/src/components/sales-controls.tsx",
+    checks: ["loaded", "surface:packages/feature-finance/src/components/sales-controls.tsx:abc"],
     ownerContext: { companyId: "fictional-company", assignment: "owner" },
     authorityBranch: "allowed:actual-native-Company-holding_owner",
     authentication: "normal-native-owner",
@@ -153,8 +153,8 @@ describe("workflow UI observation serialization", () => {
       schema: "erpx-ui-browser-observation/v1",
       result: "passed",
       targetKind: "route",
-      targetSource: "src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
-      routeSource: "src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
+      targetSource: "packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
+      routeSource: "packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
       ownerContext: JSON.stringify({ companyId: "fictional-company", assignment: "owner" }),
       authorityBranch: "allowed:actual-native-Company-holding_owner",
       authentication: "normal-native-owner",

@@ -1,0 +1,1 @@
+export {executiveGenerationQuota} from '@erpx/server-agent/adapters/executive-generation-quota';

@@ -1,8 +1,8 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import {describe,expect,it,vi} from 'vitest';
-import {createBankAutomation,type BankAutomationPorts} from "../../../src/server/modules/finance/application/bank-automation";
-import {bankCsvImportSchema,bankCsvMappingSchema,bankMatchGroupSchema,type BankRow,type LedgerRow} from "../../../src/server/modules/finance/domain/bank-automation";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createBankAutomation,type BankAutomationPorts} from "@erpx/server-finance/application/bank-automation";
+import {bankCsvImportSchema,bankCsvMappingSchema,bankMatchGroupSchema,type BankRow,type LedgerRow} from "@erpx/server-finance/domain/bank-automation";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code}),hash=async(s:string)=>`hash:${s}`;
 const bank:BankRow={id:'bank',version:1,currency:'THB',bank_account:'account',amount_minor:10000,transaction_date:'2026-10-06',match_status:'unmatched'},line:LedgerRow={id:'line',account_id:'account',debit_minor:10000,credit_minor:0,currency:'THB',status:'posted',version:2,entry_date:'2026-10-06',journal_id:'journal'},groupInput=bankMatchGroupSchema.parse({bankTransactionIds:['bank'],journalLineIds:['line'],reason:'Human reviewed bank and journal sources'}),sourceHash=`hash:${JSON.stringify({banks:[bank],lines:[line]})}`,review={expectedVersion:1,reason:'Independent reviewer verified cash sources'};

@@ -1,5 +1,5 @@
-import type { PostgresDatabase } from "../../../src/server/modules/runtime/public/runtime/postgres";
-import { packageGrantStore, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
+import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
+import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
 /** Disposable native fixtures only; never substitutes a withdrawal witness. */
 export async function reviewedFinanceGrant(database: PostgresDatabase, companyId: string, packageId: "finance" | "finance-advanced" | "assets", state: "active" | "draining" = "active") {
   const prior = (await readCompanyPackageGrants(database,companyId)).find(grant=>grant.packageId===packageId);

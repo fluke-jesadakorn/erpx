@@ -17,7 +17,7 @@
     {
       "owner": "front",
       "path": "fixtures/pms/source-baselines/pms-front-workspace-pre-standard.tsx.txt",
-      "source": "src/components/pms/pms-front-workspace.tsx",
+      "source": "packages/feature-pms/src/components/pms-front-workspace.tsx",
       "sha256": "61d78d6df643999f4190f20224ea53261fcbf7d383eb5edc011f0cfc299c752f",
       "bytes": 39689,
       "sourceEpoch": "current active legacy owner after lifetime7; captured before exact original restoration",
@@ -31,7 +31,7 @@
     {
       "owner": "backoffice",
       "path": "fixtures/pms/source-baselines/pms-backoffice-workspace-pre-standard.tsx.txt",
-      "source": "src/components/pms/pms-backoffice-workspace.tsx",
+      "source": "packages/feature-pms/src/components/pms-backoffice-workspace.tsx",
       "sha256": "87f620301e1ec4b955fef5a5c41343e7c938c70d46d58aed1ca548e2542adc58",
       "bytes": 40019,
       "sourceEpoch": "current active legacy owner after lifetime7; captured before exact original restoration",

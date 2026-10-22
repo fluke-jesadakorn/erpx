@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { createBenefitPlanApplication, type BenefitPlanInputPorts } from "../../../src/server/modules/benefits/application/plan";
-import { createLearningCourseApplication, type LearningCourseInputPorts } from "../../../src/server/modules/learning/application/course";
-import { createTalentRequisitionApplication, type TalentRequisitionInputPorts } from "../../../src/server/modules/talent/application/requisition";
-import { createUsagePeriodApplication } from "../../../src/server/modules/commercial/application/usage";
-import { platformUsageItems, type UsageItem } from "../../../src/server/modules/commercial/domain/usage";
-import { agentSourceAllowed } from "../../../src/server/modules/agent/domain/source-policy";
+import { createBenefitPlanApplication, type BenefitPlanInputPorts } from "@erpx/server-benefits/application/plan";
+import { createLearningCourseApplication, type LearningCourseInputPorts } from "@erpx/server-learning/application/course";
+import { createTalentRequisitionApplication, type TalentRequisitionInputPorts } from "@erpx/server-talent/application/requisition";
+import { createUsagePeriodApplication } from "@erpx/server-commercial/application/usage";
+import { platformUsageItems, type UsageItem } from "@erpx/server-commercial/domain/usage";
+import { agentSourceAllowed } from "@erpx/server-agent/domain/source-policy";
 
 const plan = { name: "Family health", provider: "Provider", coverageType: "family", currency: "thb", employeeDeduction: "100.25", employerCost: "200.50", effectiveFrom: "2026-10-01", effectiveTo: "2026-10-31" };
 const course = { title: "Safety course", description: "Workplace safety training", provider: "Provider", durationMinutes: 120 };
@@ -83,8 +83,8 @@ describe("owner time and Agent source policies", () => {
     expect(agentSourceAllowed("/other", ["/"])).toBe(true);
   });
 });
-import { createBenefitsApplication, type BenefitsPorts, type BenefitMutation } from "../../../src/server/modules/benefits/application/benefits";
-import type { BenefitRow } from "../../../src/server/modules/benefits/domain/benefits";
+import { createBenefitsApplication, type BenefitsPorts, type BenefitMutation } from "@erpx/server-benefits/application/benefits";
+import type { BenefitRow } from "@erpx/server-benefits/domain/benefits";
 
 function benefitsFixture(overrides: Partial<BenefitsPorts<string, string>> = {}) {
  const calls:string[]=[],mutations:BenefitMutation<string,string>[]=[];

@@ -1,0 +1,1 @@
+export { prepareCustomerAccessNotice1, prepareCustomerAccessNotice2, prepareCustomerDuplicateNotice1, prepareCustomerDuplicateNotice2, prepareCustomerIdentityNotice1, prepareCustomerIdentityNotice2, prepareCustomerDuplicateRequestNotice1 } from "@erpx/server-collaboration/adapters/customer-authority-notifications";

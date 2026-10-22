@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { accessProblems, assignmentProblem, safeReturnPath, type AccessAssignment } from "../../../src/lib/shared/access-problem";
+import { accessProblems, assignmentProblem, safeReturnPath, type AccessAssignment } from "@erpx/feature-shared/lib/access-problem";
 const now = 1000;
 const valid: AccessAssignment = { applies: true, validRole: true, revoked_at: null, valid_from: 100, valid_until: 2000 };
 it.each([

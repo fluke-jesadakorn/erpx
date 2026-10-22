@@ -2,15 +2,15 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { createElement, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 const ports = vi.hoisted(() => ({ presentation: vi.fn() }));
-vi.mock("@/server/modules/work_projection/public/presentation-context-queries", () => ({ staffPresentationQueries: ports.presentation }));
-vi.mock("@/components/workplace/flow-panel", () => ({ documentFlow: async () => ({ canAct: true }), FlowPanel: () => null }));
-vi.mock('@/server/modules/runtime/public/administration',()=>({administrationAccess:async()=>({sections:[],manageOrganization:false})}));
+vi.mock("@erpx/server-work_projection/public/presentation-context-queries", () => ({ staffPresentationQueries: ports.presentation }));
+vi.mock("@erpx/workplace/components/flow-panel", () => ({ documentFlow: async () => ({ canAct: true }), FlowPanel: () => null }));
+vi.mock("@erpx/server-runtime/public/administration",()=>({administrationAccess:async()=>({sections:[],manageOrganization:false})}));
 vi.mock("next/navigation", () => ({ notFound: () => { throw Error("NOT_FOUND"); }, forbidden: () => { throw Error("FORBIDDEN"); }, redirect: (href: string) => { throw Error("REDIRECT:" + href); }, unstable_rethrow: () => {}, useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/holdings/acme/work", useSearchParams: () => new URLSearchParams() }));
-import NewTask from "@/app/holdings/[holdingSlug]/_presenters/staff-tasks/new/screen";
-import Task from "@/app/holdings/[holdingSlug]/_presenters/staff-tasks/[id]/screen";
-import { StaffPicker } from "@/components/work_projection/staff-work-controls";
-import Routines from '@/app/holdings/[holdingSlug]/_presenters/routine-templates/screen';
-import Routine from '@/app/holdings/[holdingSlug]/_presenters/routine-templates/[id]/screen';
+import NewTask from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/staff-tasks/new/screen";
+import Task from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/staff-tasks/[id]/screen";
+import { StaffPicker } from "@erpx/feature-work_projection/components/staff-work-controls";
+import Routines from '@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/routine-templates/screen';
+import Routine from '@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/routine-templates/[id]/screen';
 
 const source = {
   people: [{ user_id: "worker", legal_name: "Worker", department_id: "engineering", level_id: "engineer", level_name: "Engineer",
@@ -70,16 +70,16 @@ it('retains actual Routine detail edit and clone authority while projecting ever
 
 
 const projectTaskPorts=vi.hoisted(()=>({resources:vi.fn(),actor:vi.fn(),project:vi.fn(),purchases:vi.fn(),staff:vi.fn(),settings:vi.fn(),calls:[] as string[]}));
-vi.mock('@/server/modules/runtime/public/runtime',()=>({holdingResources:projectTaskPorts.resources}));
-vi.mock('@/server/modules/work_projection/public/page-error',()=>({pageError:(error:unknown)=>{throw error;}}));
-vi.mock('@/server/modules/identity_access/public/authorization',()=>({requireWorkContext:projectTaskPorts.actor,publicScope:(actor:{scope:unknown})=>actor.scope}));
-vi.mock('@/server/modules/projects/adapters/staff-projects',()=>({getProject:projectTaskPorts.project}));
-vi.mock('@/server/modules/projects/adapters/purchases',()=>({projectPurchaseControls:projectTaskPorts.purchases}));
-vi.mock('@/server/modules/operations/public/staff-policy',()=>({activeStaff:projectTaskPorts.staff}));
-vi.mock('@/server/modules/operations/public/staff-settings',()=>({staffSettings:projectTaskPorts.settings}));
-import NewProjectTask from '@/app/holdings/[holdingSlug]/projects-routines/projects/[id]/tasks/new/page';
-import {projectTaskCreationWorkspace} from '@/server/modules/projects/public/task-creation';
-import type {WorkContext} from '@/server/modules/identity_access/public/authorization';
+vi.mock("@erpx/server-runtime/public/runtime",()=>({holdingResources:projectTaskPorts.resources}));
+vi.mock("@erpx/server-work_projection/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
+vi.mock("@erpx/server-identity_access/public/authorization",()=>({requireWorkContext:projectTaskPorts.actor,publicScope:(actor:{scope:unknown})=>actor.scope}));
+vi.mock("@erpx/server-projects/adapters/staff-projects",()=>({getProject:projectTaskPorts.project}));
+vi.mock("@erpx/server-projects/adapters/purchases",()=>({projectPurchaseControls:projectTaskPorts.purchases}));
+vi.mock("@erpx/server-operations/public/staff-policy",()=>({activeStaff:projectTaskPorts.staff}));
+vi.mock("@erpx/server-operations/public/staff-settings",()=>({staffSettings:projectTaskPorts.settings}));
+import NewProjectTask from '@erpx/feature-projects/routes/holdings/[holdingSlug]/projects-routines/projects/[id]/tasks/new/page';
+import {projectTaskCreationWorkspace} from '@erpx/server-projects/public/task-creation';
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 const projectTaskActor:WorkContext={holdingId:'holding',holdingSlug:'acme',holdingName:'Actual Holding',companyId:'company',branchId:null,departmentId:null,userId:'worker',name:'Worker',email:'worker@example.test',assignmentId:'assignment',role:'holding_owner',assignmentScope:'holding',inherited:false,modules:['projects'],assignments:[],workspaces:[],scope:{kind:'holding',holdingId:'holding',holdingSlug:'acme',holdingName:'Actual Holding',companyId:'company'}};
 function projectTaskSource(){
  projectTaskPorts.calls.length=0;for(const port of [projectTaskPorts.resources,projectTaskPorts.actor,projectTaskPorts.project,projectTaskPorts.purchases,projectTaskPorts.staff,projectTaskPorts.settings])port.mockReset();projectTaskPorts.actor.mockResolvedValue(projectTaskActor);projectTaskPorts.resources.mockResolvedValue({write:{native:'server-only-database'}});projectTaskPorts.project.mockImplementation(async()=>{projectTaskPorts.calls.push('project-owner');return {id:'project',title:'Actual reviewed Project',lifecycle_status:'active'};});projectTaskPorts.purchases.mockImplementation(async()=>{projectTaskPorts.calls.push('purchase-owner');return {'projects.wbs':{newWork:true,settleExisting:true,history:true,revision:'minimal-owner-revision'},'projects.tasks':{newWork:true,settleExisting:true,history:true,revision:'minimal-owner-revision'}};});projectTaskPorts.staff.mockImplementation(async()=>{projectTaskPorts.calls.push('current-worker');return source.people[0];});projectTaskPorts.settings.mockImplementation(async()=>{projectTaskPorts.calls.push('worker-display-source');return source;});
@@ -99,10 +99,10 @@ it('keeps Project draining creation unavailable without querying private picker 
 
 
 import type { ComponentProps, ReactElement } from "react";
-import { TaskEditor as DetailTaskEditor } from "@/components/records/loaders/modules--staff-work-controls";
-import { createStaffTasksApplication, type StaffTasksPorts, type StaffTasksRepository } from "@/server/modules/operations/application/staff-tasks";
-import type { TaskRow } from "@/server/modules/operations/domain/staff-tasks";
-import type { ProjectEditorScope } from "@/lib/projects/project-editor-command";
+import { TaskEditor as DetailTaskEditor } from "@erpx/feature-records/components/loaders/modules--staff-work-controls";
+import { createStaffTasksApplication, type StaffTasksPorts, type StaffTasksRepository } from "@erpx/server-operations/application/staff-tasks";
+import type { TaskRow } from "@erpx/server-operations/domain/staff-tasks";
+import type { ProjectEditorScope } from "@erpx/feature-projects/lib/project-editor-command";
 
 // Exercise the original native action policy; any unexpected read/write port fails.
 function taskDisplayPolicyPorts<Ports extends object>(facts: Partial<Ports>): Ports {

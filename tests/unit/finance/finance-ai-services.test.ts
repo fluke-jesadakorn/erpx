@@ -1,11 +1,11 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceAi,type FinanceAiPorts} from "../../../src/server/modules/finance/application/ai";
-import {createFinanceAiSource,type FinanceAiSourcePorts} from "../../../src/server/modules/finance/application/ai-source";
-import {financeAiScope,validateFinanceAiResult,type FinanceAiSnapshot} from "../../../src/server/modules/finance/domain/ai-source";
-import type {FinanceAiPolicy,FinanceAiProposal} from "../../../src/server/modules/finance/domain/ai";
-import type {AiProviderSnapshot} from "../../../src/server/modules/agent/domain/providers";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {financeAiDateAt} from "../../../src/server/modules/finance/domain/ai-contracts";
+import {createFinanceAi,type FinanceAiPorts} from "@erpx/server-finance/application/ai";
+import {createFinanceAiSource,type FinanceAiSourcePorts} from "@erpx/server-finance/application/ai-source";
+import {financeAiScope,validateFinanceAiResult,type FinanceAiSnapshot} from "@erpx/server-finance/domain/ai-source";
+import type {FinanceAiPolicy,FinanceAiProposal} from "@erpx/server-finance/domain/ai";
+import type {AiProviderSnapshot} from "@erpx/server-agent/domain/providers";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {financeAiDateAt} from "@erpx/server-finance/domain/ai-contracts";
 it('formats the supplied Finance business date in the selected timezone',()=>{
  const now=new Date('2026-10-06T18:00:00Z');
  expect(financeAiDateAt('Asia/Bangkok',now)).toBe('2026-10-07');

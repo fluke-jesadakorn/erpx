@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { createRequestDraftOnce, createRequestUploader } from "../../../src/lib/work_projection/request-draft-create";
+import { createRequestDraftOnce, createRequestUploader } from "@erpx/feature-work_projection/lib/request-draft-create";
 afterEach(() => vi.unstubAllGlobals());
 it("recovers the exact draft across a lost response and reload before uploading", async () => {
  const stored = new Map<string,string>();

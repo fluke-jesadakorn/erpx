@@ -9,13 +9,13 @@ import {
   resolveDocumentBrand,
   updateBrandProfile,
   updateStorefrontAppBrand,
-} from "../../../src/server/modules/brand/public/branding";
-import { matchesUploadSignature } from "../../../src/server/modules/files/public/upload-validation";
+} from "@erpx/server-brand/public/branding";
+import { matchesUploadSignature } from "@erpx/server-files/public/upload-validation";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import {enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
-import type {FileStore} from "../../../src/server/modules/runtime/public/runtime/types";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import type {FileStore} from "@erpx/server-runtime/public/runtime/types";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 
 let fixture: Awaited<ReturnType<typeof expenseFixture>>;
 
@@ -161,7 +161,7 @@ it("blocks legacy brand file writes only during explicit attachment rollback", a
     else process.env.ERPX_ATTACHMENTS_READ_ONLY = previousReadOnly;
   }
 });
-import type { SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
+import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
 
 async function brandUploadFixture() {
   const token=crypto.randomUUID(),id=`brand-upload-${token}`,now=Date.now();
@@ -190,7 +190,7 @@ it("rolls back every owner write and compensates the stored object after a late 
 });
 
 it.each(['disabled','enforced'] as const)('buffers the original three Brand sources without purchasing a product or granting employee management (%s)',async mode=>{
- const {attachmentContent,bindRecordAttachmentSet}=await import('../../../src/server/modules/files/public/attachments/service');
+ const {attachmentContent,bindRecordAttachmentSet}=await import('@erpx/server-files/public/attachments/service');
  vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT',mode);vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT',mode);vi.stubEnv('ERPX_POS_PACKAGE_ENFORCEMENT',mode);
  for(const source of [{targetType:'holding_brand',targetId:fixture.owner.holdingId,purposeKey:'primary'},{targetType:'branch_brand',targetId:fixture.branch,purposeKey:'primary'},{targetType:'company_storefront_brand',targetId:fixture.company,purposeKey:'logo'}] as const){
   if(source.targetType==='company_storefront_brand')await updateStorefrontAppBrand(db,fixture.owner,{shortName:'Native private Brand',accentColor:'#123456',commandId:key()});else await updateBrandProfile(db,fixture.owner,{scopeKind:source.targetType==='holding_brand'?'holding':'branch',scopeId:source.targetId,documentMode:source.targetType==='holding_brand'?'holding':'branch',commandId:key()});
@@ -208,7 +208,7 @@ it.each(['disabled','enforced'] as const)('buffers the original three Brand sour
  expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=?').bind(fixture.company).all()).results).toEqual([]);
 });
 it('observes a committed normal Brand profile command before its private snapshot and isolates two Company source-writing reads',async()=>{
- const {attachmentContent,bindRecordAttachmentSet}=await import('../../../src/server/modules/files/public/attachments/service'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{companyPurchaseReadLocks}=await import('../../../src/server/modules/commercial/public/purchase-command-boundary'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),first=fixture;
+ const {attachmentContent,bindRecordAttachmentSet}=await import('@erpx/server-files/public/attachments/service'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{companyPurchaseReadLocks}=await import('@erpx/server-commercial/public/purchase-command-boundary'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),first=fixture;
  await updateBrandProfile(db,first.owner,{scopeKind:'branch',scopeId:first.branch,documentMode:'branch',commandId:key()});const file=await seedAttachmentSet(db,first.owner,{targetType:'branch_brand',targetId:first.branch,purposeKey:'primary',componentKind:'publication',mediaType:'image/png',expectedTargetVersion:1});await bindRecordAttachmentSet(db,first.owner,file.setId,1,key());const objectKey=await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first<string>('object_key');if(!objectKey)throw Error('ACTUAL_BRAND_PROFILE_DOCUMENT_REQUIRED');await env.H001_FILES.put(objectKey,'Native retained Branch image');const fault=`brand_visible_${key().replaceAll('-','')}`;
  await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF (SELECT document_mode FROM organization_brand_profiles WHERE scope_kind='branch' AND scope_id='${first.branch}')<>'both' THEN RAISE EXCEPTION 'STALE_NATIVE_BRAND_PROFILE';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${fault}()`);
  try{const observed=await committedSourceVisibility(db,async tx=>{await tx.batch(companyPurchaseReadLocks(tx,first.company));await updateBrandProfile(tx,first.owner,{scopeKind:'branch',scopeId:first.branch,documentMode:'both',commandId:key()});},()=>measureReads(()=>attachmentContent(db,env.H001_FILES,first.claimant,file.linkId,'original')));expect(await observed.result.object.text()).toBe('Native retained Branch image');expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${fault} ON attachment_access_events;DROP FUNCTION ${fault}()`);}

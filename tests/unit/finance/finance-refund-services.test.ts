@@ -1,8 +1,8 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import { describe, expect, it, vi } from 'vitest';
-import { createRefunds, type RefundPorts } from "../../../src/server/modules/finance/application/refunds";
-import { createRefundPolicy, type Row } from "../../../src/server/modules/finance/domain/refunds";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import { createRefunds, type RefundPorts } from "@erpx/server-finance/application/refunds";
+import { createRefundPolicy, type Row } from "@erpx/server-finance/domain/refunds";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 const actor: WorkContext = { userId: 'payer', name: 'Payer', email: 'payer@example.test', assignmentId: 'assignment', role: 'holding_owner', companyId: 'company', branchId: null, departmentId: null, holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', scope: { kind: 'holding', holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', companyId: 'company' }, assignmentScope: 'holding', inherited: false, modules: ['finance'], assignments: [], workspaces: [] };
 const error = (status: number, code: string, message: string) => Object.assign(new Error(message), { status, code });
 function strict<T extends object>(facts: Partial<T>): T { return new Proxy(facts, { get(target, key) { if (!(key in target))
@@ -50,12 +50,12 @@ describe('Refund transactional journal and file plans', () => {
 import {afterEach} from "vitest";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
-import {createRefundCommandFetch,validRefundAcknowledgement} from "../../../src/lib/finance/refund-command-fetch";
-import {refundCommandWithinSource,refundSourceCapabilities} from "../../../src/lib/finance/refund-command-controls";
-import {financeDocumentFormUnchanged} from "../../../src/lib/finance/document-post-control";
-import {RefundConsole} from "../../../src/components/finance/refund-console";
-import {FinancePurchaseProvider} from "../../../src/components/finance/purchase-context";
-import type {FinancePurchaseControls} from "../../../src/server/modules/finance/public/rules/purchase-controls";
+import {createRefundCommandFetch,validRefundAcknowledgement} from "@erpx/feature-finance/lib/refund-command-fetch";
+import {refundCommandWithinSource,refundSourceCapabilities} from "@erpx/feature-finance/lib/refund-command-controls";
+import {financeDocumentFormUnchanged} from "@erpx/feature-finance/lib/document-post-control";
+import {RefundConsole} from "@erpx/feature-finance/components/refund-console";
+import {FinancePurchaseProvider} from "@erpx/feature-finance/components/purchase-context";
+import type {FinancePurchaseControls} from "@erpx/server-finance/public/rules/purchase-controls";
 vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>"/holdings/acme/finance/refunds/obligation",useSearchParams:()=>new URLSearchParams()}));
 afterEach(()=>vi.unstubAllGlobals());
 
@@ -124,9 +124,9 @@ it("Refund source-only navigation returns to the actual Sales or Supply order wi
 
 
 // Exact source-only bank evidence uses the original response, not a clone acknowledgement.
-import {createRefundBankEvidenceCommands,refundBankEvidenceAcknowledged,refundBankEvidenceInput,type RefundBankEvidenceSource} from '../../../src/lib/finance/refund-bank-evidence-command';
-import {RefundBankEvidence} from '../../../src/components/finance/refund-bank-evidence';
-import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
+import {createRefundBankEvidenceCommands,refundBankEvidenceAcknowledged,refundBankEvidenceInput,type RefundBankEvidenceSource} from '@erpx/feature-finance/lib/refund-bank-evidence-command';
+import {RefundBankEvidence} from '@erpx/feature-finance/components/refund-bank-evidence';
+import {setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 const refundBankSource:RefundBankEvidenceSource={base:'/holdings/acme',companyId:'company',obligationId:'obligation',instructionId:'instruction',instructionVersion:2,bankAccount:'actual-source-bank',currency:'USD',amountMinor:1000,direction:'outgoing',plannedDate:'2026-09-02'},refundBankFields={statementNumber:'ACTUAL-STATEMENT',statementDate:'2026-09-05',transactionDate:'2026-09-03',opening:'100',closing:'90',externalId:'ACTUAL-BANK-ROW',sourceHash:'actual-recorded-evidence-hash'};
 function refundBankBrowser(){const node={isConnected:true,dataset:{workUser:'payer',workRevision:'1',workCompany:'company',workAssignment:'treasury',workStale:'false'}},browser=Object.assign(new EventTarget(),{location:{origin:'https://finance-dev-erpx.jesadakorn.com'}}),events:CustomEvent[]=[];for(const name of ['erpx:work-changed','erpx:finance-command-acknowledged','erpx:record-command-saved'])browser.addEventListener(name,event=>events.push(event as CustomEvent));vi.stubGlobal('window',browser);vi.stubGlobal('document',{documentElement:{dataset:{workSwitching:'false'}},querySelector:(selector:string)=>selector==='[data-work-revision]'?node:null});setContextSwitching(false);return {node,events};}
 const bankReceipt=(key:string)=>({id:`statement-${key}`,imported:1 as const,status:'imported' as const,refundInstructionId:'instruction',refundObligationId:'obligation',bankTransactionId:`bankrow-${key}-0`});
@@ -157,7 +157,7 @@ it('Refund known first owner rejection releases only an unapplied attempt while 
 });
 
 async function actualRefundBankSubmit(){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../src/components/finance/refund-bank-evidence.tsx',import.meta.url),'utf8'),file=ts.createSourceFile('actual-refund-bank-evidence.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),found:import('typescript').FunctionDeclaration[]=[];
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-finance/src/components/refund-bank-evidence.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-refund-bank-evidence.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),found:import('typescript').FunctionDeclaration[]=[];
  const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='submit')found.push(node);ts.forEachChild(node,visit);};visit(file);expect(found).toHaveLength(1);return ts.transpileModule(found[0].getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
 }
 it.each([false,true])('Refund original evidence submit retains newer entries=%s and the exact pending request after late original-body refusal',async newer=>{
@@ -173,12 +173,12 @@ it.each([false,true])('Refund original evidence submit retains newer entries=%s 
 
 // Transparent actual component observer: every hook and UI primitive is real.
 const refundBankCaller=vi.hoisted(()=>({calls:[] as {canImport:boolean;instructionId:string}[],drawers:[] as import('react').ReactNode[]}));
-vi.mock('../../../src/components/finance/refund-bank-evidence',async importOriginal=>{
- const actual=await importOriginal<typeof import('../../../src/components/finance/refund-bank-evidence')>();
+vi.mock("@erpx/feature-finance/components/refund-bank-evidence",async importOriginal=>{
+ const actual=await importOriginal<typeof import("@erpx/feature-finance/components/refund-bank-evidence")>();
  return {...actual,RefundBankEvidence:(props:Parameters<typeof actual.RefundBankEvidence>[0])=>{refundBankCaller.calls.push({canImport:props.canImport,instructionId:props.source.instructionId});return createElement(actual.RefundBankEvidence,props);}};
 });
-vi.mock('../../../src/components/ui/form-disclosure',async importOriginal=>{
- const actual=await importOriginal<typeof import('../../../src/components/ui/form-disclosure')>();
+vi.mock("@erpx/ui/components/form-disclosure",async importOriginal=>{
+ const actual=await importOriginal<typeof import("@erpx/ui/components/form-disclosure")>();
  return {...actual,FormDisclosure:(props:Parameters<typeof actual.FormDisclosure>[0])=>{if(props.drawerTitle==='Import exact refund bank evidence')refundBankCaller.drawers.push(props.children);return createElement(actual.FormDisclosure,props);}};
 });
 it('Refund caller retains the actual instruction component when new-import availability becomes false, while a clean unavailable initial form is absent',()=>{
@@ -199,11 +199,11 @@ it('Refund actual submit retries its retained unknown request after the refreshe
 });
 
 // Retained CSV recovery executes the original owner handler and original body.
-import {captureWorkCommandContext} from '../../../src/lib/work_projection/command-context';
-import {workFetch} from '../../../src/lib/work_projection/work-fetch';
-import {Card,ActionAnchor as UiActionAnchor} from '../../../src/components/ui/foundation';
+import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/command-context';
+import {workFetch} from '@erpx/feature-work_projection/lib/work-fetch';
+import {Card,ActionAnchor as UiActionAnchor} from '@erpx/ui/components/foundation';
 async function actualRefundCsvParts(){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL('../../../src/components/finance/refund-console.tsx',import.meta.url),'utf8'),file=ts.createSourceFile('actual-refund-console.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions:import('typescript').FunctionDeclaration[]=[],artifacts:import('typescript').Expression[]=[];
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../packages/feature-finance/src/components/refund-console.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-refund-console.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions:import('typescript').FunctionDeclaration[]=[],artifacts:import('typescript').Expression[]=[];
  const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&['captureExportSource','recover'].includes(node.name?.text??''))functions.push(node);if(ts.isJsxExpression(node)&&node.expression&&node.expression.getText(file).includes('download="refund-instructions.csv"')&&!node.expression.getText(file).includes('No instructions prepared yet'))artifacts.push(node.expression);ts.forEachChild(node,visit);};visit(file);expect(functions.filter(node=>node.name?.text==='recover')).toHaveLength(1);expect(artifacts).toHaveLength(1);
  return {handler:ts.transpileModule(functions.map(node=>node.getText(file)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,artifact:ts.transpileModule(`function artifact(){return (${artifacts[0].getText(file)});}`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText};
 }

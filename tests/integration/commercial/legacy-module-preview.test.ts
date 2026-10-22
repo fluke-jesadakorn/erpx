@@ -1,15 +1,15 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { legacyCompanyModuleAccess } from "@/server/modules/identity_access/public/legacy-module-access";
-import { legacyPackagePreview } from "@/server/modules/commercial/domain/legacy-packages";
-import { createProductWorkspace } from "@/server/modules/identity_access/application/product-workspace";
-import { productWorkspaceTarget } from "@/server/modules/identity_access/domain/product-workspace";
-import { workspaceGrantsForAccount, type AccountAccessContext } from "@/server/modules/identity_access/public/authorization";
-import { accountWorkModuleAccess } from "@/server/modules/identity_access/public/work-module-access";
-import { readCompanyPurchaseFacts } from "@/server/modules/commercial/public/package-grants";
-import { ApiError } from "@/server/modules/runtime/public/http";
-vi.mock("@/server/modules/runtime/public/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
+import { legacyCompanyModuleAccess } from "@erpx/server-identity_access/public/legacy-module-access";
+import { legacyPackagePreview } from "@erpx/server-commercial/domain/legacy-packages";
+import { createProductWorkspace } from "@erpx/server-identity_access/application/product-workspace";
+import { productWorkspaceTarget } from "@erpx/server-identity_access/domain/product-workspace";
+import { workspaceGrantsForAccount, type AccountAccessContext } from "@erpx/server-identity_access/public/authorization";
+import { accountWorkModuleAccess } from "@erpx/server-identity_access/public/work-module-access";
+import { readCompanyPurchaseFacts } from "@erpx/server-commercial/public/package-grants";
+import { ApiError } from "@erpx/server-runtime/public/http";
+vi.mock("@erpx/server-runtime/public/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
 const db=env.H001_DB;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 it("reads actual published module ceilings and HR restrictions without modifying Company grants or assignments", async()=>{
@@ -25,7 +25,7 @@ it("reads actual published module ceilings and HR restrictions without modifying
 });
 
 it('locks original routine sources before the license snapshot and expires employment evidence at its UTC date boundary',async()=>{
- const {withLegacyModuleAccessLease}=await import('@/server/modules/identity_access/public/legacy-module-access'),f=await seedExpenseCompany(db,env.H001_FILES);let now=Date.now();const boundary=(Math.floor(now/86400000)+1)*86400000;
+ const {withLegacyModuleAccessLease}=await import('@erpx/server-identity_access/public/legacy-module-access'),f=await seedExpenseCompany(db,env.H001_FILES);let now=Date.now();const boundary=(Math.floor(now/86400000)+1)*86400000;
  await withLegacyModuleAccessLease(db,f.company,async(_database,read)=>{
   const client=await db.pool.connect();try{await client.query('BEGIN');await client.query("SET LOCAL lock_timeout='50ms'");await expect(client.query('DELETE FROM routine_templates WHERE false')).rejects.toMatchObject({code:'55P03'});await client.query('ROLLBACK');}finally{client.release();}
   const lease=await read();expect(lease.facts.witnesses.some(row=>row.routineAccess?.activeStaff)).toBe(true);now=boundary;await expect(lease.assertCurrent()).rejects.toMatchObject({code:'STALE_LEGACY_PREVIEW'});

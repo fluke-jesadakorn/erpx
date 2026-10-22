@@ -1,0 +1,1 @@
+export {requireSalesGoodsPostingFinanceAuthority,salesGoodsPostingFinanceSourceLocks,salesGoodsPostingFinanceState,validateSalesGoodsPostingFinanceState,salesGoodsPostingEffectiveService} from '@erpx/server-finance/adapters/sales-goods-posting-setup';

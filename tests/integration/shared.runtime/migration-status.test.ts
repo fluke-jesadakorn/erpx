@@ -2,7 +2,7 @@ import {expect,it} from 'vitest';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {env} from '../../support/runtime-env';
-import {inspectMigrations,migrateDatabase} from '../../../src/server/modules/runtime/public/runtime/migrations';
+import {inspectMigrations,migrateDatabase} from '@erpx/server-runtime/public/runtime/migrations';
 
 it.each([
  {track:'control' as const,db:env.CONTROL_DB,addition:'0037_migration_receipts.sql'},
@@ -37,7 +37,7 @@ it.each([
 // app access to erpx_migrations or rewrite a migration receipt to fake absence.
 // This suite's restricted erpx_test_admin is the migration owner, not a runtime
 // app-role login. Native ACL facts below preserve that explicit proof limit.
-import {payrollOtherSchemaAvailable} from '../../../src/server/modules/people_payroll/adapters/payroll-other-remittance-sources';
+import {payrollOtherSchemaAvailable} from '@erpx/server-people_payroll/adapters/payroll-other-remittance-sources';
 it('reads actual Payroll other-liability schema availability through the migration-owned function before and after1066 without opening the receipt table',async()=>{
  const db=env.H001_DB,source=resolve('migrations/postgres'),old=await mkdtemp(resolve('.runtime/tests/payroll-schema-before-'));
  try{

@@ -1,0 +1,20 @@
+{
+  "name": "@erpx/app-service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun ../../scripts/local/app-task.ts dev --app=service",
+    "build": "bun ../../scripts/local/app-task.ts build --app=service",
+    "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=service",
+    "lint": "bun ../../scripts/testing/scoped-lint.ts --app=service"
+  },
+  "dependencies": {
+    "@erpx/feature-service": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@erpx/contracts": "workspace:*"
+  }
+}

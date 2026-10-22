@@ -1,0 +1,35 @@
+{
+  "name": "@erpx/feature-brand",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/brand-administration.module.css": "./src/components/brand-administration.module.css",
+    "./components/brand-identity-console": "./src/components/brand-identity-console.tsx",
+    "./components/product-brand": "./src/components/product-brand.tsx",
+    "./components/appearance-switcher": "./src/components/appearance-switcher.tsx",
+    "./components/appearance-switcher.module.css": "./src/components/appearance-switcher.module.css",
+    "./components/business-document": "./src/components/business-document.tsx",
+    "./components/workspace-brand": "./src/components/workspace-brand.tsx",
+    "./components/brand-administration": "./src/components/brand-administration.tsx",
+    "./components/print-controls": "./src/components/print-controls.tsx",
+    "./components/business-document.module.css": "./src/components/business-document.module.css",
+    "./components/workspace-brand.module.css": "./src/components/workspace-brand.module.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-brand": "workspace:*",
+    "@erpx/server-identity_access": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0"
+  }
+}

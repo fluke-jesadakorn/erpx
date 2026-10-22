@@ -1,16 +1,16 @@
 vi.mock('server-only',()=>({}));
 const menuSources=vi.hoisted(()=>({products:vi.fn(),admin:vi.fn()}));
-vi.mock('@/server/modules/work_projection/public/product-launcher',()=>({productLaunchChoices:menuSources.products}));
-vi.mock('@/server/modules/work_projection/public/admin-launcher',()=>({adminLaunchChoices:menuSources.admin}));
-import {workspaceBase} from "@/lib/work_projection/workspace";
+vi.mock("@erpx/server-work_projection/public/product-launcher",()=>({productLaunchChoices:menuSources.products}));
+vi.mock("@erpx/server-work_projection/public/admin-launcher",()=>({adminLaunchChoices:menuSources.admin}));
+import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
 import { expect, it, vi } from "vitest";
-import { buildWorkspaceHoldingChoice, type WorkspaceChoice } from "@/lib/work_projection/workspace-choice";
-import { createProductLauncher, productWorkspaceCandidates } from "@/server/modules/work_projection/application/product-launcher";
-import type { AccountAccessContext } from "@/server/modules/identity_access/public/authorization";
-import type { CompanyPackageGrant, CompanyPackageHistoryRight } from "@/server/modules/commercial/public/packages";
-import { builtInPermissions } from "@/lib/identity_access/permissions";
-import { productOfficeLanding, productDestinationAvailable } from "@/server/modules/work_projection/domain/product-landings";
-import { commercialPackages } from "@/server/modules/commercial/domain/packages";
+import { buildWorkspaceHoldingChoice, type WorkspaceChoice } from "@erpx/feature-work_projection/lib/workspace-choice";
+import { createProductLauncher, productWorkspaceCandidates } from "@erpx/server-work_projection/application/product-launcher";
+import type { AccountAccessContext } from "@erpx/server-identity_access/public/authorization";
+import type { CompanyPackageGrant, CompanyPackageHistoryRight } from "@erpx/server-commercial/public/packages";
+import { builtInPermissions } from "@erpx/feature-identity_access/lib/permissions";
+import { productOfficeLanding, productDestinationAvailable } from "@erpx/server-work_projection/domain/product-landings";
+import { commercialPackages } from "@erpx/server-commercial/domain/packages";
 
 const choices = (): WorkspaceChoice[] => [buildWorkspaceHoldingChoice("acme", "Acme Holding", [
   { companyId: "c1", companyName: "Company One", scopeKind: "holding", scopeNodeId: null },
@@ -165,15 +165,15 @@ it('keeps the Hotel minibar backoffice behind its existing add-on instead of tre
 });
 
 it('enumerates Company Admin foundation across all authorized Companies and inherited locations without purchases or role selection',async()=>{
- const {createAdminLauncher}=await import('@/server/modules/work_projection/application/admin-launcher'),available=vi.fn(async()=>true),links=await createAdminLauncher({choices:async()=>choices(),available,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:()=>false})();expect(links).toHaveLength(4);expect(links.map(link=>`${link.companyId}/${link.workspace}`)).toEqual(['c1/Company One','c1/Branch One','c1/Branch One / Department One','c2/Branch Two / Department Two']);expect(available).toHaveBeenCalledTimes(4);const entry=new URL(new URL(links[3].href).searchParams.get('next')!,'https://admin-dev-erpx.jesadakorn.com');expect(entry.pathname).toBe('/admin/launch');expect(entry.searchParams.get('companyId')).toBe('c2');expect(entry.searchParams.get('next')).toBe('/holdings/acme/branches/branch-two/departments/department-two/administration');expect(JSON.stringify(links)).not.toMatch(/assignment|permissions|module|purchase|session/);
+ const {createAdminLauncher}=await import('@erpx/server-work_projection/application/admin-launcher'),available=vi.fn(async()=>true),links=await createAdminLauncher({choices:async()=>choices(),available,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:()=>false})();expect(links).toHaveLength(4);expect(links.map(link=>`${link.companyId}/${link.workspace}`)).toEqual(['c1/Company One','c1/Branch One','c1/Branch One / Department One','c2/Branch Two / Department Two']);expect(available).toHaveBeenCalledTimes(4);const entry=new URL(new URL(links[3].href).searchParams.get('next')!,'https://admin-dev-erpx.jesadakorn.com');expect(entry.pathname).toBe('/admin/launch');expect(entry.searchParams.get('companyId')).toBe('c2');expect(entry.searchParams.get('next')).toBe('/holdings/acme/branches/branch-two/departments/department-two/administration');expect(JSON.stringify(links)).not.toMatch(/assignment|permissions|module|purchase|session/);
 });
 it('hides denied Company Admin and ERPX management scopes while surfacing unexpected source failures',async()=>{
- const {createAdminLauncher}=await import('@/server/modules/work_projection/application/admin-launcher'),erpx=buildWorkspaceHoldingChoice('erpx','ERPX',[{companyId:'provider-company',companyName:'ProviderCompany',scopeKind:'holding',scopeNodeId:null}],[],true)!,available=vi.fn(async input=>input.kind==='company');const ports={choices:async()=>[...choices(),erpx],available,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:(error:unknown)=>error instanceof Error&&error.message==='FORBIDDEN'};expect((await createAdminLauncher(ports)()).filter(link=>link.kind==='management')).toEqual([]);available.mockImplementation(async()=>{throw Error('FORBIDDEN');});expect(await createAdminLauncher(ports)()).toEqual([]);available.mockImplementation(async()=>{throw Error('SOURCE_FAILURE');});await expect(createAdminLauncher(ports)()).rejects.toThrow('SOURCE_FAILURE');
+ const {createAdminLauncher}=await import('@erpx/server-work_projection/application/admin-launcher'),erpx=buildWorkspaceHoldingChoice('erpx','ERPX',[{companyId:'provider-company',companyName:'ProviderCompany',scopeKind:'holding',scopeNodeId:null}],[],true)!,available=vi.fn(async input=>input.kind==='company');const ports={choices:async()=>[...choices(),erpx],available,origin:()=> 'https://admin-dev-erpx.jesadakorn.com',denied:(error:unknown)=>error instanceof Error&&error.message==='FORBIDDEN'};expect((await createAdminLauncher(ports)()).filter(link=>link.kind==='management')).toEqual([]);available.mockImplementation(async()=>{throw Error('FORBIDDEN');});expect(await createAdminLauncher(ports)()).toEqual([]);available.mockImplementation(async()=>{throw Error('SOURCE_FAILURE');});await expect(createAdminLauncher(ports)()).rejects.toThrow('SOURCE_FAILURE');
 });
 
 
 it('adds only the same current Company and location Admin foundation to the actual Office product picker',async()=>{
- const {OfficeProductMenus}=await import('@/components/workplace/office-product-menus'),scope={kind:'holding' as const,holdingSlug:'acme'},base='/holdings/acme',link=(companyId:string,target:string)=>'https://admin-dev-erpx.jesadakorn.com/sso/start?'+new URLSearchParams({next:'/admin/launch?'+new URLSearchParams({companyId,next:target})});
+ const {OfficeProductMenus}=await import('@erpx/workplace/components/office-product-menus'),scope={kind:'holding' as const,holdingSlug:'acme'},base='/holdings/acme',link=(companyId:string,target:string)=>'https://admin-dev-erpx.jesadakorn.com/sso/start?'+new URLSearchParams({next:'/admin/launch?'+new URLSearchParams({companyId,next:target})});
  menuSources.products.mockResolvedValue([{holding:'Acme',company:'Current',companyId:'c1',workspace:'Current',scope,productId:'assets',href:'https://assets-dev-erpx.jesadakorn.com/sso/start?next=/',purchasePurpose:'new-work'},{holding:'Acme',company:'Other',companyId:'c2',workspace:'Other',scope,productId:'assets',href:'https://assets-dev-erpx.jesadakorn.com/sso/start?next=/other',purchasePurpose:'history'}]);
  menuSources.admin.mockResolvedValue([{holding:'Acme',company:'Current',companyId:'c1',workspace:'Current',kind:'company',href:link('c1',base+'/administration')},{holding:'Acme',company:'Other',companyId:'c2',workspace:'Other',kind:'company',href:link('c2',base+'/administration')},{holding:'Acme',company:'Current',companyId:'c1',workspace:'Branch',kind:'company',href:link('c1',base+'/branches/b1/administration')},{holding:'ERPX',company:'Current',companyId:'c1',workspace:'Current',kind:'management',href:link('c1','/holdings/erpx/erpx-management')}]);
  const view=await OfficeProductMenus({productId:'assets',companyId:'c1',scopeBase:base,workspaceLabel:'Current',language:'en'});expect(view.props.products).toEqual([{href:'https://assets-dev-erpx.jesadakorn.com/sso/start?next=/',label:'Assets & Maintenance',detail:undefined,current:true},{href:link('c1',base+'/administration'),label:'Company Admin'}]);expect(view.props.workspaces).toHaveLength(2);expect(JSON.stringify(view.props)).not.toMatch(/permissions|assignment|session|grants/);menuSources.admin.mockResolvedValue([]);expect((await OfficeProductMenus({productId:'assets',companyId:'c1',scopeBase:base,workspaceLabel:'Current',language:'th'})).props.products).toHaveLength(1);
@@ -183,7 +183,7 @@ it('discovers only the owner-proven included Stock entry for an existing Invento
  const f=fixture();f.grants.mockImplementation(async access=>[grant(access.scope.companyId,'sales')]);f.moduleAccess.mockResolvedValue({modulesByAssignment:new Map([['role',['inventory']]]),presentationModulesByAssignment:new Map([['role',['inventory']]]),permissionsByAssignment:new Map([['role',['inventory.read','inventory.prepare']]]),beta:false});
  const entry=vi.fn(async()=>null as {capability:string;purchasePurpose:'history'}|null),ports={...f,initialPhysicalStockCountEntry:entry};expect(await createProductLauncher(ports)()).toEqual([]);
  entry.mockResolvedValue({capability:'inventory.stock-core',purchasePurpose:'history'});const links=await createProductLauncher(ports)();expect(links).toHaveLength(2);expect(links.every(link=>link.productId==='sales'&&link.scope.kind!=='department'&&link.purchasePurpose==='history'&&link.sourceRecord===true)).toBe(true);expect(JSON.stringify(links)).not.toMatch(/assignmentId|inventory\.read|source_proof|contextKey/);
- for(const link of links){const launch=new URL(new URL(link.href).searchParams.get('next')!,'https://sales-dev-erpx.jesadakorn.com');expect(launch.searchParams.get('next')).toBe(`${workspaceBase(link.scope)}/${(await import('@/server/modules/commercial/public/rules/product-registry')).product('sales')!.landing}`);}
+ for(const link of links){const launch=new URL(new URL(link.href).searchParams.get('next')!,'https://sales-dev-erpx.jesadakorn.com');expect(launch.searchParams.get('next')).toBe(`${workspaceBase(link.scope)}/${(await import('@erpx/server-commercial/public/rules/product-registry')).product('sales')!.landing}`);}
  entry.mockClear();f.moduleAccess.mockResolvedValue({modulesByAssignment:new Map([['role',['inventory']]]),presentationModulesByAssignment:new Map([['role',['inventory']]]),permissionsByAssignment:new Map([['role',['inventory.read']]]),beta:false});expect(await createProductLauncher(ports)()).toEqual([]);expect(entry).not.toHaveBeenCalled();
  f.moduleAccess.mockResolvedValue({modulesByAssignment:new Map([['role',['inventory']]]),presentationModulesByAssignment:new Map([['role',['inventory']]]),permissionsByAssignment:new Map([['role',['inventory.read','inventory.prepare']]]),beta:false});expect(await createProductLauncher({...ports,ready:async(_access,moduleId)=>moduleId!=='finance'})()).toEqual([]);
 });
@@ -336,4 +336,17 @@ it('keeps Expense setup Apps fallback behind the real owner and both releases fo
 
 it('offers the original Expense collection before setup for actual Finance accounting duties while leaving general Finance and People unavailable',async()=>{
  for(const action of ['expense.prepare','expense.approve']){const f=fixture();f.grants.mockImplementation(async account=>['people','people-expenses'].map(id=>grant(account.scope.companyId,id)));const original=f.access.getMockImplementation()!;f.access.mockImplementation(async(scope,options)=>{const account=await original(scope,options);account.assignments[0]={...account.assignments[0],role:'custom_expense_accounting',version:1,modules:['finance']};return account;});f.moduleAccess.mockImplementation(async()=>({modulesByAssignment:new Map([['role',['finance']]]),presentationModulesByAssignment:new Map([['role',['finance']]]),permissionsByAssignment:new Map([['role',['module.finance.read','finance.read','expense.read',action,action==='expense.prepare'?'finance.write':'finance.approve']]]),beta:false}));const owner=vi.fn(async()=>({revision:'private-original-accounting-source',purchasePurpose:'history' as const})),setup=vi.fn(async()=>({revision:'private-setup-source',purchasePurpose:'history' as const})),links=await createProductLauncher({...f,peopleFinancialEntry:owner,expensePostingPrerequisitesEntry:setup})();expect(links).toHaveLength(1);expect(links[0]).toMatchObject({productId:'finance',purchasePurpose:'history',scope:{kind:'holding'}});const sso=new URL(links[0].href),launch=new URL(sso.searchParams.get('next')!,sso.origin);expect(launch.searchParams.get('next')).toBe('/holdings/acme/finance/documents/expenses');expect(owner).toHaveBeenCalledExactlyOnceWith(expect.anything(),expect.objectContaining({role:'custom_expense_accounting',modules:['finance']}),{kind:'expense'});expect(setup).not.toHaveBeenCalled();expect(JSON.stringify(links)).not.toMatch(/private-original|private-setup|assignment|permission|revision/);}
+});
+
+it("limits a product host to the same authorized links as the complete launcher", async () => {
+  const complete = fixture();
+  complete.grants.mockImplementation(async access => [grant(access.scope.companyId, "finance"), grant(access.scope.companyId, "pos")]);
+  const expected = (await createProductLauncher(complete)()).filter(choice => choice.productId === "finance");
+  const scoped = fixture();
+  scoped.grants.mockImplementation(async access => [grant(access.scope.companyId, "finance"), grant(access.scope.companyId, "pos")]);
+  const actual = await createProductLauncher(scoped)("finance");
+  expect(actual).toEqual(expected);
+  expect(actual.length).toBeGreaterThan(0);
+  expect(scoped.access.mock.calls).toEqual(complete.access.mock.calls);
+  expect(await createProductLauncher(scoped)("learn")).toEqual([]);
 });

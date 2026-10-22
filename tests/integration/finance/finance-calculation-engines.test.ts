@@ -1,13 +1,13 @@
-import {financeExpansionWork} from "../../../src/server/modules/finance/public/finance-expansion-work";
+import {financeExpansionWork} from "@erpx/server-finance/public/finance-expansion-work";
 import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
 import { describe, expect, it } from "vitest";
-import { allocateUnits, decimalToUnits, multiplyBps, unitsToDecimal } from "../../../src/lib/finance/finance-money";
-import { calculateFinance } from "../../../src/server/modules/finance/public/rules/finance-calculations";
+import { allocateUnits, decimalToUnits, multiplyBps, unitsToDecimal } from "@erpx/feature-finance/lib/finance-money";
+import { calculateFinance } from "@erpx/server-finance/public/rules/finance-calculations";
 import { afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { createCalculationRun, decideCalculationRun, calculationRunDetail, financeEngineWorkspace } from "../../../src/server/modules/finance/public/finance-engines";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import { createCalculationRun, decideCalculationRun, calculationRunDetail, financeEngineWorkspace } from "@erpx/server-finance/public/finance-engines";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 describe("exact finance calculation engine",()=>{
   it("supports currencies with zero, two and three decimal places",()=>{

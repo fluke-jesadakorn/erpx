@@ -1,10 +1,10 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import {describe,expect,it,vi} from 'vitest';
-import {createIntercompanyService,type IntercompanyPorts} from "../../../src/server/modules/finance/application/intercompany";
-import {createIntercompanyPairService,type IntercompanyPairPorts,type IntercompanyPairRepository} from "../../../src/server/modules/finance/application/intercompany-pairs";
-import {intercompanyPairSchema,type PairFactRow} from "../../../src/server/modules/finance/domain/intercompany-pairs";
-import type {IntercompanyRow} from "../../../src/server/modules/finance/domain/intercompany";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createIntercompanyService,type IntercompanyPorts} from "@erpx/server-finance/application/intercompany";
+import {createIntercompanyPairService,type IntercompanyPairPorts,type IntercompanyPairRepository} from "@erpx/server-finance/application/intercompany-pairs";
+import {intercompanyPairSchema,type PairFactRow} from "@erpx/server-finance/domain/intercompany-pairs";
+import type {IntercompanyRow} from "@erpx/server-finance/domain/intercompany";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
 const row:IntercompanyRow={id:'item',source_company_id:'company',target_company_id:'target',reference:'IC',currency:'THB',amount_minor:10000,status:'unmatched',version:1,source_journal_id:null,target_journal_id:null,created_by:'preparer',created_at:123};

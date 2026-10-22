@@ -1,0 +1,428 @@
+{
+  "version": 1,
+  "acceptance": false,
+  "cases": [
+    {
+      "suite": "identity_access.auth-smoke.e2e",
+      "file": "tests/e2e/identity_access/auth-smoke.spec.ts",
+      "title": "invalid credentials show an error and allow another attempt",
+      "project": "desktop"
+    },
+    {
+      "suite": "shared.ui.ui-standard-popups.e2e",
+      "file": "tests/e2e/shared.ui/ui-standard-popups.spec.ts",
+      "title": "shared popup keyboard behavior works inside a dirty form drawer",
+      "project": "desktop"
+    },
+    {
+      "suite": "shared.ui.demo-workspace-header.e2e",
+      "file": "tests/e2e/shared.ui/demo-workspace-header.spec.ts",
+      "title": "workspace header keeps context, navigation and role actions usable across widths",
+      "project": "desktop"
+    },
+    {
+      "suite": "finance.demo-finance-reports.e2e",
+      "file": "tests/e2e/finance/demo-finance-reports.spec.ts",
+      "title": "isolated demo traces finance report totals to the selected ledger",
+      "project": "desktop"
+    },
+    {
+      "suite": "people_payroll.self-service.e2e",
+      "file": "tests/e2e/people_payroll/self-service.spec.ts",
+      "title": "Backoffice roster and Purchase request retain their canonical destinations",
+      "project": "desktop"
+    },
+    {
+      "suite": "shared.work.work-cards.e2e",
+      "file": "tests/e2e/shared.work/work-cards.spec.ts",
+      "title": "an expense saved from a card appears once in the matching list and summary",
+      "project": "desktop"
+    },
+    {
+      "suite": "pms.owner-read-workflows.e2e",
+      "file": "tests/e2e/pms/pms-owner-read-workflows.spec.ts",
+      "title": "pms/dashboard renders the selected hotel's live room status through its owner-scoped read",
+      "project": "desktop"
+    },
+    {
+      "suite": "sales.demo-sales-to-collection.journeys",
+      "file": "tests/journeys/sales/demo-sales-to-collection.spec.ts",
+      "title": "isolated demo carries a quotation through sales delivery, customer invoice and collection",
+      "project": "desktop"
+    },
+    {
+      "suite": "support.demo-support-lifecycle.e2e",
+      "file": "tests/e2e/support/demo-support-lifecycle.spec.ts",
+      "title": "isolated demo completes a source-linked support case with independent confirmation",
+      "project": "desktop"
+    },
+    {
+      "suite": "procurement.demo-purchase-rfq.e2e",
+      "file": "tests/e2e/procurement/demo-purchase-rfq.spec.ts",
+      "title": "isolated demo creates, awards and hands off a supplier quotation to a draft PO",
+      "project": "desktop"
+    }
+  ],
+  "deferredSuites": [
+    {
+      "suite": "pms.booking-payment-recovery.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.access-feedback.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "organization.acme-organization-data.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "platform_administration.administration.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.attachments.attachments-v2.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.calendar.calendar-layout.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.company-recovery.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.context-switching.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "finance.currency-selector.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.demo-client-form-hydration.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "collaboration.demo-collaboration-action-card.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "collaboration.demo-collaboration-attachments.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "collaboration.demo-collaboration-record-relations.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "collaboration.demo-collaboration-social.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "organization.demo-company-setup-acceptance.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "finance.demo-controlled-payment.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "crm.demo-crm-activities.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "customer_authority.demo-customer-duplicate-review.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "customer_authority.portal-invitation.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "customer_360.demo-customer-timeline.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.business-journeys.demo-engineering-business.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.money-people-journeys.demo-engineering-money-people.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.money-people-journeys.demo-engineering-thai-payroll.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "finance.demo-finance-aging.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "finance.demo-finance-chart-setup.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "finance.demo-finance-close.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "finance.demo-finance-opening-import.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "pms.demo-hospitality-setup.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.demo-identity-activation-revocation.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "inventory.demo-inventory-lot-serial.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "marketing.demo-marketing-to-crm-lead.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "organization.demo-organization-lifecycle.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.demo-overtime-to-payroll.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.demo-payroll-runs.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "procurement.demo-purchase-request-rfq.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "quality.demo-quality-alerts.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "quality.demo-quality-inspection-release.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "customer_authority.demo-retail-customer-authority.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "inventory.demo-stock-transit.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "operations.demo-task-delegation.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.workplace-journeys.demo-workplace-platform-lifecycle.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.enterprise-ui.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.expense.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.front-quick-access.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "collaboration.home-feed-review.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.home-visual-scenarios.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.iam.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "inventory.lot-serial.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.leave-approval.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.local-review.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.login-no-js.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.member-profile.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "collaboration.messaging.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "organization.access.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "organization.chart.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "organization.draft-panels.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.page-layouts.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.settings-ui.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.team-schedule.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "pms.booking.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "pms.pms.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "organization.position-gpo-ui.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "organization.position-roster-ui.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.preferred-role.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.remembered-workspace.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.shared-workspace.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "collaboration.social-ai-loading.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "collaboration.social-beta.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "procurement.split-requisition-uom.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "operations.staff-work.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "procurement.supplier-invoice-policy.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "pms.thai-hotel-v1-ai.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.thai-hotel-v1-final-pay.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "pms.thai-hotel-v1-hotel.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.thai-hotel-v1-hr-lifecycle.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.thai-hotel-v1-overtime.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "people_payroll.thai-hotel-v1-payroll.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "pos.thai-hotel-v1-pos.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "procurement.thai-hotel-v1-procurement.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.ui-foundation.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.ui-migration-contracts.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.visual-hierarchy.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.work.work-journeys.journeys",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.workplace-design.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.workspace-switching.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "marketing.forms-host.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "finance.sales-workspace.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.ui.section-workspaces.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "identity_access.product-hosts.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "shared.executive.executive-work-mcp.e2e",
+      "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    }
+  ]
+}

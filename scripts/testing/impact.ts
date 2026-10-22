@@ -15,7 +15,7 @@ export function patternMatches(path: string, pattern: string): boolean {
 }
 
 const globalPatterns = [
-  "migrations/**", "src/server/runtime*", "src/server/runtime/**", "src/server/auth*", "src/server/authorization*", "src/server/iam*", "src/server/transaction*", "src/server/modules/workflow/public/commands.ts", "src/server/modules/finance/public/finance-transactions.ts", "src/server/modules/identity_access/**", "src/server/modules/finance/**/finance-transactions.ts", "src/server/modules/shared/**", "src/server/modules/composition-root.ts", "src/server/modules/ownership*", "src/server/modules/shared.*/**", "src/data/module-registry*", "src/lib/permissions*", "src/app/layout.tsx",
+  "migrations/**", "src/server/runtime*", "src/server/runtime/**", "src/server/auth*", "src/server/authorization*", "src/server/iam*", "src/server/transaction*", "packages/server-workflow/src/public/commands.ts", "packages/server-finance/src/public/finance-transactions.ts", "packages/server-identity_access/src/**", "packages/server-finance/src/**/finance-transactions.ts", "packages/server-shared/src/**", "src/server/modules/composition-root.ts", "src/server/modules/ownership*", "packages/server-shared.*/src/**", "src/data/module-registry*", "src/lib/permissions*", "packages/workplace/src/routes/layout.tsx",
   "tests/support/**", "tests/catalogue/**", "tests/config/**", "tests/runtime-*", "docs/testing/**", "fixtures/**", "scripts/**", "ops/**", "public/**", ".github/**", "*.json", "*.mts", "*.mjs", "*.config.ts", "bun.lock", "AGENTS.md",
 ];
 const documentationOnly = (path: string) => /^(?:docs\/|adr\/|\.agents\/|Designed\/)/.test(path) || /\.(?:md|txt)$/.test(path);
@@ -132,7 +132,7 @@ export function impactFromGit(baseReference: string, root = repositoryRoot, head
   }
   const read = <T>(tree: SourceTree, path: string): T | undefined => tree.has(path) ? JSON.parse(tree.get(path)!) as T : undefined;
   const headCatalogue = read<Catalogue>(head, "tests/catalogue/suite-manifest.json") ?? loadCatalogue(root);
-  const baseCatalogue = read<Catalogue>(base, "tests/catalogue/suite-manifest.json"), baseOwnership = read<SourceOwnership>(base, "src/server/modules/ownership.json"), headOwnership = read<SourceOwnership>(head, "src/server/modules/ownership.json");
+  const baseCatalogue = read<Catalogue>(base, "tests/catalogue/suite-manifest.json"), baseOwnership = read<SourceOwnership>(base, "packages/contracts/src/ownership.json"), headOwnership = read<SourceOwnership>(head, "packages/contracts/src/ownership.json");
   // The first adoption PR cannot reconstruct a missing historical mapping safely.
   if (!baseCatalogue || !baseOwnership || !headOwnership) return { mode: "full", reasons: ["BASE_OR_HEAD_MAPPING_MISSING"], modules: headCatalogue.modules, suites: headCatalogue.suites.filter(suite => suite.lane !== "provider"), changed };
   return selectImpact({ changed, base, head, baseCatalogue, headCatalogue, baseOwnership, headOwnership }, profile);

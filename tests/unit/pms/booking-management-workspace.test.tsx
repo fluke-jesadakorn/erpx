@@ -3,10 +3,10 @@ import {createRequire} from "node:module";
 import {readFileSync} from "node:fs";
 import * as React from "react";
 import {renderToStaticMarkup} from "react-dom/server";
-import {createGuestBookingChangeClient, guestBookingCheckoutContinuation, type GuestBookingChangeScope} from "@/lib/pms/guest-booking-change-command";
-import {GuestBookingManagementWorkspace} from "@/components/pms/guest-booking-management-workspace";
-import {GuestBookingShell} from "@/components/pms/guest-booking-shell";
-import {AppearanceSwitcher} from "@/components/brand/appearance-switcher";
+import {createGuestBookingChangeClient, guestBookingCheckoutContinuation, type GuestBookingChangeScope} from "@erpx/feature-pms/lib/guest-booking-change-command";
+import {GuestBookingManagementWorkspace} from "@erpx/feature-pms/components/guest-booking-management-workspace";
+import {GuestBookingShell} from "@erpx/feature-pms/components/guest-booking-shell";
+import {AppearanceSwitcher} from "@erpx/feature-brand/components/appearance-switcher";
 
 const source = (): GuestBookingChangeScope => ({base: "/api/public/booking/original", token: "original.private-token", epoch: 1, id: "original-reservation", number: "BK-001"});
 const receipt = {id: "original-reservation", number: "BK-001", state: "confirmed", checkoutUrl: null};
@@ -111,18 +111,18 @@ function mountedManager(send: typeof fetch) {
   const primitives = new Proxy({}, {get: (_target, name) => (props: Record<string, unknown>) => React.createElement(({Button: "button", Field: "label", Select: "select", TextInput: "input", FormLayout: "form"} as Record<string, string>)[String(name)] ?? "div", props, props.children as React.ReactNode)});
   let forcedDirty = false;
   const context = {registerUnsavedWork: (check: () => boolean) => {dirtyChecks.add(check); return () => {dirtyChecks.delete(check);};}, contextIsSwitching: () => false, hasUnsavedWork: () => forcedDirty || [...dirtyChecks].some(check => check())};
-  const evaluated = {exports: {} as Record<string, unknown>}, path = process.env.ERPX_GUEST_BOOKING_SOURCE ?? "src/components/pms/guest-booking-management-workspace.tsx";
+  const evaluated = {exports: {} as Record<string, unknown>}, path = process.env.ERPX_GUEST_BOOKING_SOURCE ?? "packages/feature-pms/src/components/guest-booking-management-workspace.tsx";
   const localRequire = (name: string) => {
     if (name === "react") return {...React, useState, useRef, useEffect: effect, useLayoutEffect: effect};
     if (name === "react/jsx-runtime") return require(name);
-    if (name.endsWith("/foundation")) return primitives;
-    if (name.endsWith("/destination-registry")) return {canonicalUiHref: (href: string) => href};
-    if (name.endsWith("/draft-form-drawer")) return {DraftFormDrawer: (props: Record<string, unknown>) => props.open ? React.createElement("aside", props, props.children as React.ReactNode) : null};
+    if (name.endsWith("@erpx/ui/components/foundation")) return primitives;
+    if (name.endsWith("@erpx/feature-work_projection/lib/destination-registry")) return {canonicalUiHref: (href: string) => href};
+    if (name.endsWith("@erpx/ui/components/draft-form-drawer")) return {DraftFormDrawer: (props: Record<string, unknown>) => props.open ? React.createElement("aside", props, props.children as React.ReactNode) : null};
     if (name.endsWith("/pms-model")) return {money: (value: number) => String(value), plusDays: (date: string) => date};
-    if (name === "@/lib/shared/front-language") return {frontText: (value: string) => value};
+    if (name === "@erpx/feature-shared/lib/front-language") return {frontText: (value: string) => value};
     if (name.endsWith("/front-language")) return {useFrontLanguage: () => "en", FrontLocalizedTree: ({children}: {children: React.ReactNode}) => children};
-    if (name.endsWith("/guest-booking-change-command")) return {guestBookingCheckoutContinuation, createGuestBookingChangeClient: (current: () => GuestBookingChangeScope | null) => createGuestBookingChangeClient(current, send, () => "mounted-original-key")};
-    if (name.endsWith("/context-switch")) return context;
+    if (name.endsWith("@erpx/feature-pms/lib/guest-booking-change-command")) return {guestBookingCheckoutContinuation, createGuestBookingChangeClient: (current: () => GuestBookingChangeScope | null) => createGuestBookingChangeClient(current, send, () => "mounted-original-key")};
+    if (name.endsWith("@erpx/feature-work_projection/lib/context-switch")) return context;
     if (name.endsWith("booking-policy-summary")) return {BookingPolicySummary: () => null};
     if (name.endsWith("booking-quote-details-standard")) return {BookingQuoteDetailsStandard: () => null};
     if (name.endsWith("booking-flow")) return {QuoteDetails: () => null};
@@ -185,7 +185,7 @@ it("keeps the original token and owner when the user cancels a dirty hash-token 
 });
 
 it("offers native Checkout only while fresh booking history retains that exact pending payment", async () => {
-  const {guestBookingCheckoutContinuation: continuation} = await import("../../../src/lib/pms/guest-booking-change-command");
+  const {guestBookingCheckoutContinuation: continuation} = await import("@erpx/feature-pms/lib/guest-booking-change-command");
   const payment = {checkoutUrl: "https://checkout.example.test/original", attemptToken: "original-payment"};
   expect(continuation(payment, {pendingChange: {attemptToken: "original-payment"}})).toBe(payment.checkoutUrl);
   expect(continuation(payment, {pendingChange: null})).toBeNull();

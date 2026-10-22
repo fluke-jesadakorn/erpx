@@ -1,9 +1,9 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createBusinessContractApplication,type BusinessContractPorts,type BusinessContractRepository} from "../../../src/server/modules/finance/application/business-contracts";
-import {businessContractSchema,contractBillingCalculation} from "../../../src/server/modules/finance/domain/finance-contract-policy";
-import type {Row} from "../../../src/server/modules/finance/domain/business-contracts";
-import {BusinessRuleError} from "../../../src/server/modules/shared/index";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createBusinessContractApplication,type BusinessContractPorts,type BusinessContractRepository} from "@erpx/server-finance/application/business-contracts";
+import {businessContractSchema,contractBillingCalculation} from "@erpx/server-finance/domain/finance-contract-policy";
+import type {Row} from "@erpx/server-finance/domain/business-contracts";
+import {BusinessRuleError} from "@erpx/server-shared/index";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 type Effect={kind:string;args:unknown[]};
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'finance_approver',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const terms=businessContractSchema.parse({chartId:'chart',partyId:'customer',number:'SERVICE-1',name:'Signed monthly service',currency:'THB',startDate:'2026-09-16',endDate:'2026-10-31',reason:'Signed independent service evidence',cycle:'monthly',pricing:{kind:'flat',amount:'100.01'},receivableAccountId:'ar',deferredAccountId:'def',obligations:[{key:'support',name:'Support',standalonePrice:'3.00',revenueAccountId:'rev',mode:'monthly'},{key:'delivery',name:'Delivery',standalonePrice:'1.00',revenueAccountId:'rev',mode:'point'}]});

@@ -1,10 +1,10 @@
 import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from "../../../src/server/modules/commerce/public/commerce";
-import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork} from "../../../src/server/modules/support/public/support";
-import {createSupportPolicy,changeSupportPolicy,attachSupportClock,getSupportPolicy,supportSlaWorkspace,supportClockValue,supportPolicyWork} from "../../../src/server/modules/support/public/support-sla";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
+import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork} from "@erpx/server-support/public/support";
+import {createSupportPolicy,changeSupportPolicy,attachSupportClock,getSupportPolicy,supportSlaWorkspace,supportClockValue,supportPolicyWork} from "@erpx/server-support/public/support-sla";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
 const policy={calendar:{timezone:'Asia/Bangkok',weekdays:[1,2,3,4,5],opensAtMinute:540,closesAtMinute:1020,holidays:[]},targetMinutes:60,pauseWhileWaiting:true};
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -15,7 +15,7 @@ async function action(id:string,action:string,actor=f.head){const row=await getS
 it('requires independent policy approval, snapshots the calendar and preserves consumed time through wait/resume/rework',async()=>{
  const p=await createSupportPolicy(f.owner,{name:'Simulation business hours',policy,reason:'Company proposal for installation support'},key()),id=await ticket();
  expect((await supportPolicyWork(f.manager)).find(x=>x.id===p.id)?.canAct).toBe(true);
- const {listStaffNotifications}=await import("../../../src/server/modules/collaboration/public/staff-notifications");expect((await listStaffNotifications(db,f.manager)).some(x=>x.record_id===p.id)).toBe(true);
+ const {listStaffNotifications}=await import("@erpx/server-collaboration/public/staff-notifications");expect((await listStaffNotifications(db,f.manager)).some(x=>x.record_id===p.id)).toBe(true);
  await expect(changeSupportPolicy(f.owner,String(p.id),{action:'approve',expectedVersion:1,reason:'Creator cannot approve own calendar'},key())).rejects.toMatchObject({code:'INDEPENDENT_APPROVER_REQUIRED'});
  await expect(attachSupportClock(f.owner,id,{expectedVersion:1,policyId:p.id,policyVersion:1,reason:'Draft target cannot be attached'},key())).rejects.toMatchObject({code:'CONFLICT'});
  await changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Independent review of working hours and target'},key());
@@ -23,7 +23,7 @@ it('requires independent policy approval, snapshots the calendar and preserves c
  const now=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-21T02:00:00Z')),attach={expectedVersion:1,policyId:p.id,policyVersion:2,reason:'Explicit target begins now; no historic SLA inferred'},k=key();
  const attached=await attachSupportClock(f.owner,id,attach,k);expect(await attachSupportClock(f.owner,id,attach,k)).toEqual(attached);
  expect((await supportWork(f.head)).find(x=>x.id===id)?.dueAt).toBe(Date.parse('2026-09-21T03:00:00Z'));
- const {calendarData}=await import("../../../src/server/modules/work_projection/public/calendar/index");
+ const {calendarData}=await import("@erpx/server-work_projection/public/calendar/index");
  expect((await calendarData(db,f.head,{date:'2026-09-21',view:'day',layers:'support',mode:'mine'})).items.find(x=>x.sourceId===id)).toMatchObject({allDay:false,startsAt:Date.parse('2026-09-21T03:00:00Z')});
  await action(id,'start');now.mockReturnValue(Date.parse('2026-09-21T02:15:00Z'));await action(id,'wait-customer');
  expect(supportClockValue(await getSupportTicket(f.head,id))).toMatchObject({state:'paused',remainingMs:45*60000,dueAt:null});
@@ -51,7 +51,7 @@ it('scopes target watches and rejects retired, stale and duplicate attachments w
  expect(await getSupportTicket(f.head,id)).toMatchObject({sla_policy_version:2,version:2});
 });
 it('retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket',async()=>{
- const {drainSupportSla,supportAlerts,supportAlertWork,acknowledgeSupportAlert}=await import("../../../src/server/modules/support/public/support-sla-alerts");
+ const {drainSupportSla,supportAlerts,supportAlertWork,acknowledgeSupportAlert}=await import("@erpx/server-support/public/support-sla-alerts");
  const p=await createSupportPolicy(f.owner,{name:'Escalation target',policy,reason:'Independent target with breach follow-up'},key());
  await changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Reviewed working calendar'},key());
  const id=await ticket(),now=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-21T02:00:00Z'));
@@ -85,7 +85,7 @@ it('removes a withdrawn reviewer from policy actions and never approves through 
  expect(await getSupportPolicy(f.owner,String(p.id))).toMatchObject({status:'draft',version:1});
 });
 it('recovers a breach after worker downtime and routes it when manager coverage becomes available',async()=>{
- const {drainSupportSla,supportAlerts,supportAlertWork}=await import("../../../src/server/modules/support/public/support-sla-alerts");
+ const {drainSupportSla,supportAlerts,supportAlertWork}=await import("@erpx/server-support/public/support-sla-alerts");
  const p=await createSupportPolicy(f.owner,{name:'Downtime recovery',policy,reason:'Recover persisted missed targets'},key());
  await changeSupportPolicy(f.manager,String(p.id),{action:'approve',expectedVersion:1,reason:'Independent review'},key());
  const id=await ticket(),now=vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-09-21T02:00:00Z'));

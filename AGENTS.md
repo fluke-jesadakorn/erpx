@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # AGENTS.md
 
-ERPX is a Next.js workspace rooted at this directory (rebuilt from Rust/Dioxus on 2026-09-02).
+ERPX is a Bun workspaces monorepo of Next.js applications rooted at this directory (rebuilt from Rust/Dioxus on 2026-09-02).
 
 ## Tooling
 
@@ -28,8 +28,10 @@ bun run deploy:build
 
 ```bash
 bun install --frozen-lockfile; bun run dev
-bun run lint; bun run build; bun run deploy:build
-bun run db:migrate:local; bun run db:seed:local; bun run test:integration
+bun run test:dev --app=finance
+bun run test:dev --watch
+bun run test:ci --base=<sha> --head=<sha>
+bun run build:affected
 ```
 
 ## Form presentation
@@ -73,7 +75,9 @@ Development browser login credentials are stored locally in ignored `.scratch/de
 
 > Map: `docs/TOC.md` (single hub).
 
-- `src/app/` Next.js App Router, `src/server/` domain/policy services, `src/workers/` queue/scheduled handlers, `public/` assets
+- `apps/<id>/src/app/` owns each Next app's routes/layouts/config/generated types and output. Never import another app's implementation. `apps/compat/` temporarily owns Console/non-product compatibility; product apps must not use it as a backend.
+- `packages/` contains explicit contract, UI, feature and server-owner subpaths; business owner code remains in `packages/server-<owner>/src/{domain,application,adapters,public}`. Keep client/server boundaries and assemble typed owner ports at composition roots. `src/workers/` owns the single jobs runtime; `public/` holds shared static assets.
+- `bun run dev` runs the host gateway on3100 and opens apps on demand; `bun run dev -- --app=finance` prewarms one. Only3200–3299 may be used by owned app processes. Development verification and smoke receipts are never acceptance. Full acceptance is deferred during this migration and is an intentional clean-candidate production preparation command only; never invoke it from daily CI, merge hooks or schedules.
 - `migrations/postgres/` active schema tracks; `ops/macos/` native deployment; remaining Wrangler/D1 fixtures serve the historical E2E adapter. Removed Workers/OpenNext tooling is recoverable through `README.md#recovery`.
 - `docs/production-plan.md` is the sole active delivery plan; `TOC.md` is the entry point. `contracts/next/` owns current behavior, `CONTEXT.md` vocabulary, `adr/` decisions, and `archive/` immutable dated evidence. Superseded plans are recoverable through the verified Git references in `README.md#recovery`. The generated capability inventory is a reference, not additional pilot scope.
 - `public/brand/` runtime brand assets · `fixtures/` `ops/` (runbooks `nextjs-incident/recovery.md`) · `.agents/skills/` 6
@@ -82,8 +86,8 @@ Development browser login credentials are stored locally in ignored `.scratch/de
 
 - Executable tests belong in `tests/<lane>/<suite-owner>/`; use the catalogue lane and owner, not filename guesses. Helpers/setup live in `tests/support/`, registers in `tests/catalogue/`, and runner/typecheck configs in `tests/config/`.
 - Test/engineering tools live in `scripts/testing/`, benchmarks in `scripts/performance/`, seeds in `scripts/seed/`, documentation tooling in `scripts/docs/`, assets tooling in `scripts/assets/`, and runtime operations in `scripts/local/`.
-- Fixture data and factories live in `fixtures/<owner>/`. Components and lib helpers use owner folders; generic primitives remain in `components/ui/`, shell components in `components/workplace/`, and common helpers in `lib/shared/`.
-- Server implementation belongs to `src/server/modules/<owner>/{domain,application,adapters}`. Consumers use named `public/` exports. Do not add legacy forwarding paths; `src/server/runtime/env.ts` is retained only for the unchanged staging bootstrap.
+- Fixture data and factories live in `fixtures/<owner>/`. Components and lib helpers use owner workspaces; primitives live in `packages/ui`, shells in `packages/workplace`/`packages/front`, and owner feature UI in `packages/feature-<owner>`.
+- Server implementation belongs to `packages/server-<owner>/src/{domain,application,adapters}`. Consumers use named `public/` package exports. Do not add legacy forwarding paths; `src/server/runtime/env.ts` is retained only for the unchanged staging bootstrap.
 - Keep dated evidence and checksum-protected files unchanged. Update active registers and regenerate derived inventories after moving files.
 - Run `bun run structure:check` alongside catalogue, architecture, documentation and normal verification checks.
 

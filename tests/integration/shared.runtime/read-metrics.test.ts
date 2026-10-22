@@ -3,8 +3,8 @@ import { Query, type PoolClient } from 'pg';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { env } from "../../support/runtime-env";
-import { PostgresDatabase, refreshPostgresReadInstrumentation } from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import { currentReadMetrics, measureReadPhase, measureReads, type ReadMeasurement } from "../../../src/server/modules/runtime/adapters/runtime/read-metrics";
+import { PostgresDatabase, refreshPostgresReadInstrumentation } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { currentReadMetrics, measureReadPhase, measureReads, type ReadMeasurement } from "@erpx/server-runtime/adapters/runtime/read-metrics";
 
 const temporary: PostgresDatabase[] = [];
 afterEach(async () => {

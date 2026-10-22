@@ -1,7 +1,7 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {createElement,isValidElement,type ComponentProps} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import type {DraftFormDrawer} from '@/components/ui/draft-form-drawer';
+import type {DraftFormDrawer} from '@erpx/ui/components/draft-form-drawer';
 
 const lifecycle=vi.hoisted(()=>({active:false,dirty:false,refIndex:0,refs:[] as {current:unknown}[],effect:undefined as (()=>(()=>void)|void)|undefined,cleanup:undefined as (()=>void)|undefined}));
 vi.mock('react',async original=>{
@@ -10,9 +10,9 @@ vi.mock('react',async original=>{
 });
 // Only the portal primitive is replaced. The actual People wrapper owns the
 // forwarded appearance, form ancestry and original dirty/acknowledgement logic.
-vi.mock('@/components/ui/draft-form-drawer',()=>({DraftFormDrawer:(props:ComponentProps<typeof DraftFormDrawer>)=>createElement('section',{'data-test-drawer-appearance':props.appearance??'standard'},props.children)}));
-import {PeopleFormDrawer} from '@/components/people_payroll/people-form-drawer';
-import {hasUnsavedWork} from '@/lib/work_projection/context-switch';
+vi.mock("@erpx/ui/components/draft-form-drawer",()=>({DraftFormDrawer:(props:ComponentProps<typeof DraftFormDrawer>)=>createElement('section',{'data-test-drawer-appearance':props.appearance??'standard'},props.children)}));
+import {PeopleFormDrawer} from '@erpx/feature-people_payroll/components/people-form-drawer';
+import {hasUnsavedWork} from '@erpx/feature-work_projection/lib/context-switch';
 
 afterEach(()=>{lifecycle.cleanup?.();lifecycle.active=false;lifecycle.dirty=false;lifecycle.refIndex=0;lifecycle.refs=[];lifecycle.effect=undefined;lifecycle.cleanup=undefined;vi.unstubAllGlobals();});
 const close=()=>{};

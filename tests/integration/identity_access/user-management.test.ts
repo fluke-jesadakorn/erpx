@@ -1,26 +1,26 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import { iamDb } from "../../../src/server/modules/identity_access/public/iam-db";
-import { loadIamAuthority, iamRole } from "../../../src/server/modules/identity_access/public/iam-store";
-import { selectWorkRole } from "../../../src/server/modules/work_projection/public/work-role-store";
-import { captureJobAuthority } from "../../../src/server/modules/identity_access/public/iam-jobs";
-import { decideIamReview } from "../../../src/server/modules/identity_access/public/iam-service";
+import { iamDb } from "@erpx/server-identity_access/public/iam-db";
+import { loadIamAuthority, iamRole } from "@erpx/server-identity_access/public/iam-store";
+import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
+import { captureJobAuthority } from "@erpx/server-identity_access/public/iam-jobs";
+import { decideIamReview } from "@erpx/server-identity_access/public/iam-service";
 import {
   applyManagementReview,
   managementCommand,
   readManagement,
   managementWork,
-} from "../../../src/server/modules/identity_access/public/user-management";
+} from "@erpx/server-identity_access/public/user-management";
 import {
   attributeInput,
   validateAttributeValue,
   ruleMatches,
   type ManagementChange,
   type MembershipRule,
-} from "../../../src/lib/identity_access/user-management";
-import type { IamActor } from "../../../src/server/modules/identity_access/public/iam-context";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ runtimeEnv: async () => env }));
-vi.mock("../../../src/server/modules/identity_access/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
+} from "@erpx/feature-identity_access/lib/user-management";
+import type { IamActor } from "@erpx/server-identity_access/public/iam-context";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ runtimeEnv: async () => env }));
+vi.mock("@erpx/server-identity_access/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
 const db = iamDb(env.H001_DB),
   key = () => crypto.randomUUID();
 beforeAll(async () => {

@@ -1,1 +1,0 @@
-export {financeAttachmentCapability,financeAttachmentPurchaseScopes,authorizeFinanceAttachmentPurchase,financeAttachmentCommandBoundary,financeAttachmentSourceReadLocks,type FinanceAttachmentPurchase} from "../adapters/attachment-purchases";

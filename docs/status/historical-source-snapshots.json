@@ -3,6 +3,30 @@
     {
       "document": "docs/journeys/2026-09-26-workplace-journey-inventory.md",
       "commit": "5d21e544ac1621c434b1f58dde941be92f1be45e"
+    },
+    {
+      "document": "docs/research/thai-payroll-rules-2026-10-02.md",
+      "commit": "d2c02d6eb8557b49b0da0a2d844cde86385a831c"
+    },
+    {
+      "document": "docs/testing/executive-canvas-2026-09-18.md",
+      "commit": "d2c02d6eb8557b49b0da0a2d844cde86385a831c"
+    },
+    {
+      "document": "docs/testing/hospitality-feature-rollout-2026-09-23.md",
+      "commit": "d2c02d6eb8557b49b0da0a2d844cde86385a831c"
+    },
+    {
+      "document": "docs/testing/attachment-system-gap-audit-2026-09-27.md",
+      "commit": "d2c02d6eb8557b49b0da0a2d844cde86385a831c"
+    },
+    {
+      "document": "docs/testing/backend-performance-2026-09-30.md",
+      "commit": "d2c02d6eb8557b49b0da0a2d844cde86385a831c"
+    },
+    {
+      "document": "docs/ux-ui/ui-migration-2026-10-02.md",
+      "commit": "d2c02d6eb8557b49b0da0a2d844cde86385a831c"
     }
   ]
 }

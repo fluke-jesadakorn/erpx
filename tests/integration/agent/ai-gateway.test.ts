@@ -1,14 +1,14 @@
 import { afterEach, beforeAll, expect, it, vi } from "vitest";
-import * as https from "../../../src/server/modules/runtime/adapters/runtime/https";
-import { generateProviderJson, providerRequest } from "../../../src/server/modules/agent/public/ai-transport";
+import * as https from "@erpx/server-runtime/adapters/runtime/https";
+import { generateProviderJson, providerRequest } from "@erpx/server-agent/public/ai-transport";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
   recordAiProviderStatement, recordVerifiedAiCost, reconcileAiProviderStatement,
   reserveAiGatewayRequest, finishAiGatewayRequest, safeAiGatewayRows, updateAiGatewayPolicy,
   readAiGatewayPolicy, setAiPlatformKeyEnabled,
   type AiGatewayScope,
-} from "../../../src/server/modules/agent/public/ai-gateway";
-import { billingMonth } from "../../../src/lib/billing/billing";
+} from "@erpx/server-agent/public/ai-gateway";
+import { billingMonth } from "@erpx/feature-billing/lib/billing";
 
 const db=env.H001_DB;
 afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks();});

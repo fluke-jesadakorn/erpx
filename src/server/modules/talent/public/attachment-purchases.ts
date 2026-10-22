@@ -1,1 +1,0 @@
-export {talentAttachmentPurchaseScope,authorizeTalentAttachmentPurchase,talentAttachmentSourceReadLocks,talentAttachmentCommandBoundary,talentAttachmentFailure,type TalentAttachmentPurchase} from "../adapters/attachment-purchases";

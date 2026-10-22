@@ -3,16 +3,16 @@ import {isValidElement,type ReactNode,type ReactElement,type ComponentProps} fro
 import {renderToStaticMarkup} from 'react-dom/server';
 vi.mock('server-only',()=>({}));
 const owner=vi.hoisted(()=>({binding:vi.fn(),queries:vi.fn(),projection:vi.fn(),preferences:vi.fn()}));
-vi.mock('@/server/modules/customer_360/public/presentation-context-queries',()=>({customerPortalPresentationQueries:owner.queries}));
-vi.mock('@/server/modules/runtime/public/runtime',()=>({holdingBindingBySlug:owner.binding}));
-vi.mock('@/server/modules/work_projection/public/quick-access-preferences',()=>({readQuickAccessPreferences:owner.preferences}));
-vi.mock('@/server/modules/work_projection/public/page-error',()=>({pageError:(error:unknown)=>{throw error;}}));
+vi.mock("@erpx/server-customer_360/public/presentation-context-queries",()=>({customerPortalPresentationQueries:owner.queries}));
+vi.mock("@erpx/server-runtime/public/runtime",()=>({holdingBindingBySlug:owner.binding}));
+vi.mock("@erpx/server-work_projection/public/quick-access-preferences",()=>({readQuickAccessPreferences:owner.preferences}));
+vi.mock("@erpx/server-work_projection/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn(),prefetch:vi.fn()}),usePathname:()=>'/customer-portal/tenant',useSearchParams:()=>new URLSearchParams(),redirect:(href:string)=>{throw Error(`REDIRECT:${href}`);}}));
 
-import CustomerPortalPage from '@/app/customer-portal/[holdingSlug]/page';
-import {CustomerPortalActions} from '@/components/customer_authority/customer-portal-actions';
-import {PortalSupportAcknowledgement} from '@/components/customer_authority/portal-support-acknowledgement';
-import {QuickAccessShelf} from '@/components/work_projection/quick-access/shelf';
+import CustomerPortalPage from '@erpx/feature-portal/routes/customer-portal/[holdingSlug]/page';
+import {CustomerPortalActions} from '@erpx/feature-customer_authority/components/customer-portal-actions';
+import {PortalSupportAcknowledgement} from '@erpx/feature-customer_authority/components/portal-support-acknowledgement';
+import {QuickAccessShelf} from '@erpx/feature-work_projection/components/quick-access/shelf';
 
 const privateMarker='PRIVATE_PORTAL_SOURCE_SENTINEL';
 const purchase={settleExisting:true,history:true,revision:'opaque-purchase',identityRevision:'opaque-identity',nativeGrant:{secret:privateMarker}};

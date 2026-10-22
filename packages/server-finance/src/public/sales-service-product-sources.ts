@@ -1,0 +1,1 @@
+export {salesServiceProductFinanceLeases,salesServiceProductFinanceSource,salesServiceProductMoneySource,salesServiceProductMoneyMatches,type SalesServiceProductMoney} from '@erpx/server-finance/adapters/sales-service-product-sources';

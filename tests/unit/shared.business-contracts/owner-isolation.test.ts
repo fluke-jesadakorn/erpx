@@ -1,10 +1,10 @@
 import { expect, it } from "vitest";
-import { createAssetRegistration, type AssetRegistrationRepository } from "../../../src/server/modules/assets/application/registration";
-import { createChannelApplication, type ChannelRepository } from "../../../src/server/modules/ecommerce/application/channel";
-import { createEcommerceApplication, type EcommerceRepository } from "../../../src/server/modules/ecommerce/application/commerce";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { createCustomerTimeline, type CustomerTimelineRepository } from "../../../src/server/modules/customer_360/application/timeline";
-import { materialAllocationViolation, materialLotViolation, outputAllocationViolation } from "../../../src/server/modules/manufacturing/domain/lot-policy";
+import { createAssetRegistration, type AssetRegistrationRepository } from "@erpx/server-assets/application/registration";
+import { createChannelApplication, type ChannelRepository } from "@erpx/server-ecommerce/application/channel";
+import { createEcommerceApplication, type EcommerceRepository } from "@erpx/server-ecommerce/application/commerce";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { createCustomerTimeline, type CustomerTimelineRepository } from "@erpx/server-customer_360/application/timeline";
+import { materialAllocationViolation, materialLotViolation, outputAllocationViolation } from "@erpx/server-manufacturing/domain/lot-policy";
 
 const error = (_status: number, code: string) => new Error(code);
 const ecommerceActor = { userId: "author", companyId: "company", branchId: null, departmentId: null } as WorkContext;

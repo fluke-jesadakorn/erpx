@@ -1,2 +1,0 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { withholdingPackageSchema, withholdingPackageDecisionSchema, withholdingRemittanceSchema, withholdingRemittanceReversalSchema, prepareWithholdingPackage, decideWithholdingPackage, remitWithholdingPackage, reverseWithholdingRemittance, withholdingMonthlyWorkspace, withholdingPackageExport } from "@/server/modules/finance/adapters/finance-withholding-remittance";

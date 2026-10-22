@@ -1,9 +1,9 @@
 import {beforeAll,beforeEach,expect,it} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
-import {legalCommand,detail} from "../../../src/server/modules/legal/public/legal/service";
-import {access} from "../../../src/server/modules/legal/public/legal/access";
-import {featureCommand,featureDetail} from "../../../src/server/modules/legal/public/legal/features";
+import {legalCommand,detail} from "@erpx/server-legal/public/legal/service";
+import {access} from "@erpx/server-legal/public/legal/access";
+import {featureCommand,featureDetail} from "@erpx/server-legal/public/legal/features";
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 let f:Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(()=>applyMigrations(db,env.STAFF_TEST_MIGRATIONS));

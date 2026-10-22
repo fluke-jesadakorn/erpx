@@ -1,1 +1,0 @@
-import type {SqlDatabase} from '../../runtime/public/runtime/types';export function companySource(database:SqlDatabase){return {company(companyId:string){return database.prepare("SELECT display_name FROM organization_nodes WHERE id=? AND kind='company'").bind(companyId).first<{display_name:string}>();}};}

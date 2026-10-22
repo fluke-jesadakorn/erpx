@@ -2,11 +2,11 @@ import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fix
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { consolidationEliminationDecisionSchema, consolidationEliminationSchema, consolidationRunSchema, createConsolidationElimination, createConsolidationRun, decideConsolidationElimination, decideConsolidationRun } from "../../../src/server/modules/finance/public/finance-consolidation";
-import { createIntercompany, decideIntercompany, intercompanyTransactionSchema } from "../../../src/server/modules/finance/public/finance-intercompany";
+import { consolidationEliminationDecisionSchema, consolidationEliminationSchema, consolidationRunSchema, createConsolidationElimination, createConsolidationRun, decideConsolidationElimination, decideConsolidationRun } from "@erpx/server-finance/public/finance-consolidation";
+import { createIntercompany, decideIntercompany, intercompanyTransactionSchema } from "@erpx/server-finance/public/finance-intercompany";
 
 vi.mock("server-only", () => ({}));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 afterEach(()=>vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof expenseFixture>>;

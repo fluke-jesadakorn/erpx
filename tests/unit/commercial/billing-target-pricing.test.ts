@@ -5,7 +5,7 @@ import {
   rateTargetStorage,
   targetServiceWindow,
   type TargetPrice,
-} from "../../../src/lib/billing/billing-target-pricing";
+} from "@erpx/feature-billing/lib/billing-target-pricing";
 
 const price: TargetPrice = {
   id: "holding-usage-2026-10-v1",
@@ -47,7 +47,7 @@ it("marks up only verified satang cost and rounds per request deterministically"
 });
 
 it("charges 499 baht per full active named seat and unions overlapping branch access", async () => {
-  const { rateTargetSeats } = await import("../../../src/lib/billing/billing-target-pricing");
+  const { rateTargetSeats } = await import("@erpx/feature-billing/lib/billing-target-pricing");
   const seatPrice: TargetPrice = { ...price, id: "holding-usage-2026-12-v3",
     effectiveMonth: "2026-12", baseMonthlySatang: 0,
     includedOriginalBytes: 2_000_000_000,

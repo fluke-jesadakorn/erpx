@@ -7,7 +7,7 @@ const matrixFile = "tests/uat/shared.ui/uat-route-matrix.spec.ts";
 export function assertUatRouteSources(inventory: { pageRouteCount: number; entries: readonly { source: string; template: string }[] }, currentSources: readonly string[]): void {
   const expected = new Set(currentSources.map(source => source.replaceAll("\\", "/")));
   const actual = inventory.entries.map(entry => entry.source.replaceAll("\\", "/"));
-  if (!expected.size || expected.size !== currentSources.length || inventory.pageRouteCount !== currentSources.length || actual.length !== currentSources.length || new Set(actual).size !== actual.length || actual.some(source => !expected.has(source)) || inventory.entries.some(entry => entry.template !== (entry.source.replaceAll("\\", "/").replace(/^src\/app/, "").replace(/\/page\.(?:tsx|ts|jsx|js)$/, "") || "/")))
+  if (!expected.size || expected.size !== currentSources.length || inventory.pageRouteCount !== currentSources.length || actual.length !== currentSources.length || new Set(actual).size !== actual.length || actual.some(source => !expected.has(source)) || inventory.entries.some(entry => entry.template !== (entry.source.replaceAll("\\", "/").replace(/^(?:src\/app|apps\/[^/]+\/src\/app|packages\/[^/]+\/src\/routes)/, "").replace(/\/page\.(?:tsx|ts|jsx|js)$/, "") || "/")))
     throw new Error("UAT_ROUTE_SOURCE_INVENTORY_MISMATCH");
 }
 

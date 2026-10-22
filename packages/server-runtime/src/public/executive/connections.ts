@@ -1,0 +1,1 @@
+export {connectionEligible,connectionScopes,findExecutiveToken,resolveExecutivePrincipal,recheckExecutivePrincipal,listExternalConnections,createExternalConnection,revokeExternalConnection,consumeExecutiveRateLimit,type TokenRow,type ExecutiveConnectionGrant,type ExecutivePrincipal} from "@erpx/server-runtime/adapters/executive/connections";

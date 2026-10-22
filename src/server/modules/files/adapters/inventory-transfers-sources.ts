@@ -1,2 +1,0 @@
-import type {SqlDatabase} from '../../runtime/public/runtime/types';
-export function inventoryTransferSources(db:SqlDatabase){return {async attachmentPurposeFacts(companyId:string,attachmentSetIds:string[]){const placeholders=attachmentSetIds.map(()=>'?').join(',');return db.prepare(`SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`).bind(companyId,...attachmentSetIds).all<{id:string;purpose_key:string;component_kind:string;component_ref:string|null}>();}};}

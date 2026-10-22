@@ -1,9 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const owner = vi.hoisted(() => ({ current: vi.fn(), read: vi.fn(), context: vi.fn() }));
-vi.mock("@/server/modules/identity_access/public/authorization", () => ({ requireWorkContext: owner.current }));
-vi.mock("@/server/modules/records/adapters/records", () => ({ getRecord: owner.read, recordContext: owner.context }));
-import { GET } from "@/app/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route";
-import { ApiError } from "@/server/modules/runtime/public/http";
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: owner.current }));
+vi.mock("@erpx/server-records/adapters/records", () => ({ getRecord: owner.read, recordContext: owner.context }));
+import { GET } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route";
+import { ApiError } from "@erpx/server-runtime/public/http";
 
 const actor = { companyId: "current-company", assignmentId: "current-role", authority: { revision: 17 } };
 const record = { title: "Retained title", description: "Retained body", status: "approved", version: 2,

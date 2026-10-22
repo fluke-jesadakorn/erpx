@@ -1,6 +1,7 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadCatalogue, repositoryRoot, validateCatalogue, type Suite } from "./catalogue";
+import { appDefinitions } from "@erpx/contracts/apps";
 import { loadProviderRehearsals } from "./provider-rehearsals";
 
 /** File placement follows the declared lane and owner, including shared owners. */
@@ -24,6 +25,7 @@ export function checkRepositoryLayout(root = repositoryRoot): void {
       throw new Error(`PROVIDER_REHEARSAL_PLACEMENT_MISMATCH:${rehearsal.id}`);
   }
   for (const directory of ["tests", "scripts", "src/lib"]) {
+    if (!existsSync(resolve(root, directory))) continue;
     for (const entry of readdirSync(resolve(root, directory), { withFileTypes: true })) {
       if (entry.isFile() && /\.(?:[cm]?[jt]sx?|json)$/.test(entry.name))
         throw new Error(`UNCATEGORIZED_REPOSITORY_FILE:${directory}/${entry.name}`);
@@ -41,7 +43,30 @@ export function checkRepositoryLayout(root = repositoryRoot): void {
         throw new Error(`LEGACY_SERVER_LOCATION:${file}`);
     }
   }
-  checkServer("src/server");
+  if (existsSync(resolve(root, "src/server"))) checkServer("src/server");
+  if (existsSync(resolve(root, "apps"))) {
+    const registered = new Map([...appDefinitions.map(app => [app.id, app.package] as const), ["compat", "@erpx/app-compat"]]);
+    for (const entry of readdirSync(resolve(root, "apps"), { withFileTypes: true })) {
+      if (!entry.isDirectory()) throw new Error(`UNCATEGORIZED_APP_ROOT:apps/${entry.name}`);
+      if (!registered.has(entry.name)) throw new Error(`UNREGISTERED_APP:apps/${entry.name}`);
+    }
+    for (const [id, name] of registered) {
+      for (const file of ["package.json", "next.config.mjs", "tsconfig.json", "src/app/layout.tsx", "src/app/page.tsx", "src/proxy.ts"])
+        if (!existsSync(resolve(root, "apps", id, file))) throw new Error(`APP_COMPOSITION_FILE_REQUIRED:${id}:${file}`);
+      const manifest = JSON.parse(readFileSync(resolve(root, "apps", id, "package.json"), "utf8"));
+      if (manifest.name !== name || manifest.private !== true) throw new Error(`APP_PACKAGE_IDENTITY_CHANGED:${id}`);
+    }
+    for (const entry of readdirSync(resolve(root, "packages"), { withFileTypes: true }).filter(entry => entry.isDirectory())) {
+      const directory = resolve(root, "packages", entry.name);
+      const manifest = JSON.parse(readFileSync(resolve(directory, "package.json"), "utf8"));
+      if (manifest.name !== `@erpx/${entry.name}` || manifest.private !== true || !manifest.exports)
+        throw new Error(`WORKSPACE_PACKAGE_IDENTITY_CHANGED:${entry.name}`);
+      if (entry.name.startsWith("server-")) for (const folder of readdirSync(resolve(directory, "src"), { withFileTypes: true })) {
+        if (folder.isDirectory() && !["domain", "application", "adapters", "public"].includes(folder.name))
+          throw new Error(`SERVER_OWNER_PLACEMENT:${entry.name}/${folder.name}`);
+      }
+    }
+  }
 }
 
 if (import.meta.main) {

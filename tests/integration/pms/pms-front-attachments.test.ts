@@ -1,16 +1,16 @@
 import {afterAll,afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
-import {packageGrantStore,readCompanyPackageGrants} from '@/server/modules/commercial/public/package-grants';
+import {packageGrantStore,readCompanyPackageGrants} from '@erpx/server-commercial/public/package-grants';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
-import {pmsCommand} from "../../../src/server/modules/pms/public/pms";
-import {frontPmsAttachmentRequest} from "../../../src/server/modules/pms/public/pms/front-attachments";
-import {attachmentContent,scanAttachmentNow} from "../../../src/server/modules/files/public/attachments/service";
+import {pmsCommand} from "../../../packages/server-pms/src/public/pms";
+import {frontPmsAttachmentRequest} from "@erpx/server-pms/public/pms/front-attachments";
+import {attachmentContent,scanAttachmentNow} from "@erpx/server-files/public/attachments/service";
 import {seedAttachmentSet} from '../../support/helpers/attachment-v2';
-import type {FileStore} from '../../../src/server/modules/runtime/public/runtime/types';
-import {attachmentApiBase} from "../../../src/lib/files/attachment-client";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",async()=>{const {env}=await import("../../support/runtime-env");return {holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env};});
+import type {FileStore} from '@erpx/server-runtime/public/runtime/types';
+import {attachmentApiBase} from "@erpx/feature-files/lib/attachment-client";
+vi.mock("@erpx/server-runtime/adapters/runtime",async()=>{const {env}=await import("../../support/runtime-env");return {holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env};});
 // This adapter/security test uses a scanner double; real ClamAV has separate acceptance.
-vi.mock("../../../src/server/modules/files/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Scanner double',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Scanner double',definitionUpdatedAt:Date.now()})}));
+vi.mock("@erpx/server-files/public/attachments/scanner",()=>({attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Scanner double',definitionUpdatedAt:Date.now(),error:null}),scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Scanner double',definitionUpdatedAt:Date.now()})}));
 const db=env.H001_DB;
 let fixture:Awaited<ReturnType<typeof seedExpenseCompany>>,propertyId:string,taskId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);process.env.ERPX_ATTACHMENTS_V2='true';});
@@ -110,7 +110,7 @@ it.each(['disabled','enforced'] as const)('preserves original Hotel quarantine a
 });
 
 it('waits for an actual fenced Hotel source writer before its first snapshot and reads two Companies without hidden transaction retries',async()=>{
- const {measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{companyPurchaseReadLocks}=await import('../../../src/server/modules/commercial/public/purchase-command-boundary');
+ const {measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{companyPurchaseReadLocks}=await import('@erpx/server-commercial/public/purchase-command-boundary');
  const other=await seedExpenseCompany(db,env.H001_FILES),second=await hotelRows(other);await purchase('active');await purchase('active',other.company);vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');
  const sources=[{actor:fixture.owner,propertyId,taskId},{actor:other.owner,...second}],files:{actor:typeof fixture.owner;propertyId:string;taskId:string;linkId:string}[]=[];
  for(const source of sources){const evidence=await seedAttachmentSet(db,source.actor,{targetType:'pms_task',targetId:source.taskId,componentKind:'action',purposeKey:'room_photo',expectedTargetVersion:1,mediaType:'image/png'}),objectKey=await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(evidence.sourceId).first<string>('object_key');if(!objectKey)throw Error('ACTUAL_HOTEL_FILE_REQUIRED');await env.H001_FILES.put(objectKey,'Retained private room evidence');files.push({...source,linkId:evidence.linkId});}

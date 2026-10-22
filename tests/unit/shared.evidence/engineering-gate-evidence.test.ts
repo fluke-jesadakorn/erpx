@@ -1,5 +1,5 @@
 import { expect,it } from "vitest";
-import { attachmentReconciliationEvidenceValid,businessWorkerEvidenceValid,businessWorkerRequiredProofs,financialContinuityEvidenceValid,stockContinuityEvidenceValid } from "../../../src/lib/runtime/engineering-gate-evidence";
+import { attachmentReconciliationEvidenceValid,businessWorkerEvidenceValid,businessWorkerRequiredProofs,financialContinuityEvidenceValid,stockContinuityEvidenceValid } from "@erpx/feature-runtime/lib/engineering-gate-evidence";
 import {reconcileStockSnapshots,type StockSnapshot} from "../../../fixtures/inventory/builders/engineering-stock-continuity";
 
 const release={sourceFingerprint:"a".repeat(64),softwareVersion:`release-${"a".repeat(64)}`,fileManifestSha256:"b".repeat(64)};

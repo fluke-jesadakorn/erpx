@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { attachmentPolicyRegistry } from "../../../src/server/modules/files/public/attachments/policy";
-import { engineeringCaseSchema } from "../../../src/lib/runtime/engineering-completion";
+import { attachmentPolicyRegistry } from "@erpx/server-files/public/attachments/policy";
+import { engineeringCaseSchema } from "@erpx/feature-runtime/lib/engineering-completion";
 
 const path=resolve("tests/catalogue/engineering-attachment-owner-cases.json");
 const policies=attachmentPolicyRegistry.flatMap(policy=>policy.componentKinds.map(componentKind=>({

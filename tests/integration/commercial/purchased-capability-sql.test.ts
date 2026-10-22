@@ -1,7 +1,7 @@
 import { beforeAll, expect, it } from "vitest";
 import { env } from "../../support/runtime-env";
-import { commercialPackages, purchasedCapability, type CompanyPackageGrant, type CompanyPackageHistoryRight, type CapabilityPurpose } from "@/server/modules/commercial/public/packages";
-import { purchasedCapabilityPredicate } from "@/server/modules/commercial/public/purchased-capability-sql";
+import { commercialPackages, purchasedCapability, type CompanyPackageGrant, type CompanyPackageHistoryRight, type CapabilityPurpose } from "@erpx/server-commercial/public/packages";
+import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
 
 const db = env.H001_DB, now = 10000;
 const grant = (packageId: string, changes: Partial<CompanyPackageGrant> = {}): CompanyPackageGrant => ({ companyId: "company-a", packageId,

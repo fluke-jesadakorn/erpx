@@ -1,15 +1,15 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { GET } from "../../../src/app/api/v1/holdings/[holdingSlug]/people/hr-settings/route";
-import { administerLeave } from "../../../src/server/modules/people_payroll/public/leave-self-service";
-import { calendarData } from "../../../src/server/modules/work_projection/public/calendar/index";
-import { addDays, rosterMonday } from "../../../src/lib/people_payroll/people-roster";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { GET } from "@erpx/feature-people/routes/api/v1/holdings/[holdingSlug]/people/hr-settings/route";
+import { administerLeave } from "@erpx/server-people_payroll/public/leave-self-service";
+import { calendarData } from "@erpx/server-work_projection/public/calendar/index";
+import { addDays, rosterMonday } from "@erpx/feature-people_payroll/lib/people-roster";
 
 const state = vi.hoisted(()=>({actor:null as WorkContext|null}));
-vi.mock("../../../src/server/modules/identity_access/public/authorization",()=>({requireWorkContext:async()=>state.actor!}));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-identity_access/public/authorization",()=>({requireWorkContext:async()=>state.actor!}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB, context={params:Promise.resolve({holdingSlug:"test"})}, key=()=>crypto.randomUUID();
 let fixture:Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});

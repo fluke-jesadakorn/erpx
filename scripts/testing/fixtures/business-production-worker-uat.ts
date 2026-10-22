@@ -5,10 +5,10 @@ import {pinnedNodeBinary,attachmentToolEnvironment} from "../runtime-tooling";
 import {browserChildEnvironment} from "../runner-environment";
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {PostgresDatabase} from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import {LocalFileStore} from "../../../src/server/modules/runtime/adapters/runtime/filesystem";
-import {closeRuntime} from "../../../src/server/modules/runtime/adapters/runtime/env";
-import {enrollEngineeringVerification} from "../../../src/server/modules/platform_administration/public/engineering-verification";
+import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
+import {LocalFileStore} from "@erpx/server-runtime/adapters/runtime/filesystem";
+import {closeRuntime} from "@erpx/server-runtime/adapters/runtime/env";
+import {enrollEngineeringVerification} from "@erpx/server-platform_administration/public/engineering-verification";
 import {seedBusinessWorkerSources} from "../../../fixtures/shared/builders/business-worker-sources";
 import {runtimeSourceFingerprint} from "../../local/source-fingerprint";
 

@@ -1,0 +1,38 @@
+{
+  "name": "@erpx/feature-procurement",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/use-supplier-batch-command": "./src/components/use-supplier-batch-command.ts",
+    "./components/supplier-promise-console": "./src/components/supplier-promise-console.tsx",
+    "./components/supplier-promise-console.module.css": "./src/components/supplier-promise-console.module.css",
+    "./components/supplier-batch.module.css": "./src/components/supplier-batch.module.css",
+    "./components/use-supplier-bill-command": "./src/components/use-supplier-bill-command.ts",
+    "./components/procurement-rfq-console": "./src/components/procurement-rfq-console.tsx",
+    "./components/use-procurement-command": "./src/components/use-procurement-command.ts",
+    "./components/procurement-editor": "./src/components/procurement-editor.tsx",
+    "./components/supplier-batch-console": "./src/components/supplier-batch-console.tsx",
+    "./components/supplier-bill-console": "./src/components/supplier-bill-console.tsx",
+    "./lib/supplier-bill-command": "./src/lib/supplier-bill-command.ts",
+    "./lib/supplier-batch-command": "./src/lib/supplier-batch-command.ts",
+    "./lib/supplier-batch-owner-command": "./src/lib/supplier-batch-owner-command.ts",
+    "./lib/command": "./src/lib/command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-finance": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-commerce": "workspace:*",
+    "@erpx/server-procurement": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "react": "19.3.0",
+    "zod": "4.5.4"
+  }
+}

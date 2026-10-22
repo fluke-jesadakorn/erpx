@@ -5,8 +5,8 @@ import { browserChildEnvironment } from "../../../scripts/testing/runner-environ
 import { captureCaseScreenshot } from "../../support/helpers/case-screenshot";
 import { browserProjects } from "../../../scripts/testing/browser-results";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import type { OrganizationAccessData } from "../../../src/lib/organization/organization-access";
-import type { HoldingPeopleDirectory } from "../../../src/server/modules/organization/public/holding-people-directory";
+import type { OrganizationAccessData } from "@erpx/feature-organization/lib/organization-access";
+import type { HoldingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
 import { organizationSession, readOrganization } from "../../support/helpers/organization-access-browser";
 import { mockPeopleDraft } from "../../support/helpers/people-draft-browser";
 

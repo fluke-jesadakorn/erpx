@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { beforeAll, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
-import { iamThrottle } from "../../../src/server/modules/identity_access/public/iam-throttle";
+import { iamThrottle } from "@erpx/server-identity_access/public/iam-throttle";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ runtimeEnv: async () => env }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ runtimeEnv: async () => env }));
 beforeAll(() => applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS));
 
 it("allows exactly the configured number of concurrent attempts across one PostgreSQL counter", async () => {

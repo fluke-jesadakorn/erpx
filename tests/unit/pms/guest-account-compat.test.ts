@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { canonicalGuestAccount, legacyGuestAccount, guestAccountOperation, guestAccountUrl, parseGuestAccountJson } from "../../../src/lib/identity_access/guest-account-compat";
-import { builtInPermissions, hasPermission } from "../../../src/lib/identity_access/permissions";
-import type { PermissionActor } from "../../../src/lib/identity_access/iam";
+import { canonicalGuestAccount, legacyGuestAccount, guestAccountOperation, guestAccountUrl, parseGuestAccountJson } from "@erpx/feature-identity_access/lib/guest-account-compat";
+import { builtInPermissions, hasPermission } from "@erpx/feature-identity_access/lib/permissions";
+import type { PermissionActor } from "@erpx/feature-identity_access/lib/iam";
 
 it("reads historical references without changing IDs, money or the frozen payload",()=>{
   const current={kind:"guest_account",operation:"guest_account.close",input:{guestAccountId:"historical-account-id",toGuestAccountId:"other-account",amount:10700},guestAccount:{due:10700,deposit:3000},guestAccounts:["historical-account-id"]};
@@ -33,7 +33,7 @@ it("separates built-in operational and accounting assignments and preserves appr
 });
 
 it("replays a historical receipt after the migration changes context revision, with current authority still required",async()=>{
-  const {createCommandApplication}=await import("../../../src/server/modules/workflow/application/commands");
+  const {createCommandApplication}=await import("@erpx/server-workflow/application/commands");
   const actor={userId:"operator",assignmentId:"hotel-cashier",role:"pms_cashier",companyId:"company",branchId:null,departmentId:null,authority:{sessionId:"session",revision:2,assignmentVersion:1}};
   const previous={...actor,authority:{...actor.authority,revision:1}},input={guestAccountId:"original-id"},operation="pms.guest_account.close";
   const historical=legacyGuestAccount({operation,input,result:{guestAccountId:"original-id",version:9}});
@@ -55,23 +55,23 @@ it("replays a historical receipt after the migration changes context revision, w
 import {createElement,isValidElement,type ComponentProps,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import NextLink from 'next/link';
-import BookingDirectory from '../../../src/app/book/[holdingSlug]/page';
-import FrontCompanyPicker from '../../../src/app/front-access/page';
-import {FrontError} from '../../../src/components/front/front-error';
-import {MainContent} from '../../../src/components/ui/main';
-import {ProductLinkEnvironment} from '../../../src/components/workplace/product-link-context';
-import {BookingFlow,type HotelCard} from '../../../src/components/pms/booking-flow';
-import type {FrontCompanyChoice} from '../../../src/server/modules/work_projection/public/front-quick-access';
-const localOwners=vi.hoisted(()=>({links:[] as ComponentProps<typeof NextLink>[],booking:vi.fn(),catalog:vi.fn(),session:vi.fn(),choices:vi.fn(),preferences:vi.fn(),workspaces:vi.fn(),remembered:vi.fn(),refresh:vi.fn(),push:vi.fn(),replace:vi.fn(),buttons:[] as ComponentProps<typeof import('../../../src/components/ui/button').Button>[],localizedTrees:[] as ReactNode[]}));
+import BookingDirectory from '@erpx/feature-booking/routes/book/[holdingSlug]/page';
+import FrontCompanyPicker from '@erpx/workplace/routes/front-access/page';
+import {FrontError} from '@erpx/front/components/front-error';
+import {MainContent} from '@erpx/ui/components/main';
+import {ProductLinkEnvironment} from '@erpx/workplace/components/product-link-context';
+import {BookingFlow,type HotelCard} from '@erpx/feature-pms/components/booking-flow';
+import type {FrontCompanyChoice} from '@erpx/server-work_projection/public/front-quick-access';
+const localOwners=vi.hoisted(()=>({links:[] as ComponentProps<typeof NextLink>[],booking:vi.fn(),catalog:vi.fn(),session:vi.fn(),choices:vi.fn(),preferences:vi.fn(),workspaces:vi.fn(),remembered:vi.fn(),refresh:vi.fn(),push:vi.fn(),replace:vi.fn(),buttons:[] as ComponentProps<typeof import("@erpx/ui/components/button").Button>[],localizedTrees:[] as ReactNode[]}));
 vi.mock('next/link',async importOriginal=>{const actual=await importOriginal<typeof import('next/link')>();const {createElement}=await import('react');return {...actual,default:function ObservedNextLink(props:ComponentProps<typeof actual.default>){localOwners.links.push(props);return createElement(actual.default,props);}};});
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'pms-dev-erpx.jesadakorn.com'}),cookies:async()=>({get:()=>undefined})}));
 vi.mock('next/navigation',async importOriginal=>({...await importOriginal<typeof import('next/navigation')>(),useRouter:()=>({push:localOwners.push,replace:localOwners.replace,refresh:localOwners.refresh}),usePathname:()=>'/front-access',useSearchParams:()=>new URLSearchParams()}));
-vi.mock('../../../src/server/modules/pms/public/presentation-context-queries',()=>({bookingPresentationQueries:localOwners.booking}));
-vi.mock('../../../src/server/modules/identity_access/public/authorization',()=>({currentSession:localOwners.session}));
-vi.mock('../../../src/server/modules/work_projection/public/front-app',()=>({frontCompanyApp:localOwners.remembered}));
-vi.mock('../../../src/server/modules/work_projection/public/front-quick-access',async()=>{const {frontCompanyItems}=await import('../../../src/server/modules/work_projection/domain/front-quick-access');return {frontCompanyItems,frontCompanyChoices:localOwners.choices};});
-vi.mock('../../../src/server/modules/work_projection/public/quick-access-preferences',()=>({readQuickAccessPreferences:localOwners.preferences}));
-vi.mock('../../../src/server/modules/organization/public/workspace-choices',()=>({workspaceChoices:localOwners.workspaces}));
+vi.mock("@erpx/server-pms/public/presentation-context-queries",()=>({bookingPresentationQueries:localOwners.booking}));
+vi.mock("@erpx/server-identity_access/public/authorization",()=>({currentSession:localOwners.session}));
+vi.mock("@erpx/server-work_projection/public/front-app",()=>({frontCompanyApp:localOwners.remembered}));
+vi.mock("@erpx/server-work_projection/public/front-quick-access",async()=>{const {frontCompanyItems}=await import('@erpx/server-work_projection/domain/front-quick-access');return {frontCompanyItems,frontCompanyChoices:localOwners.choices};});
+vi.mock("@erpx/server-work_projection/public/quick-access-preferences",()=>({readQuickAccessPreferences:localOwners.preferences}));
+vi.mock("@erpx/server-organization/public/workspace-choices",()=>({workspaceChoices:localOwners.workspaces}));
 const hotels:HotelCard[]=['north','south'].map(id=>({id:`hotel-${id}`,name:`Original ${id} hotel`,description:`Published ${id} description`,address:`${id} address`,contactEmail:`${id}@example.test`,contactPhone:'000',currency:'THB',checkIn:'14:00',checkOut:'12:00',timezone:'Asia/Bangkok',images:[],roomContent:[]}));
 const companies:FrontCompanyChoice[]=[{id:'company:acme:north',label:'Authorized north Company',holding:'acme',slug:'north'},{id:'company:other:south',label:'Authorized south Company',holding:'other',slug:'south'}];
 beforeEach(()=>{
@@ -130,11 +130,11 @@ it('keeps repeated query values and the original fragment on an actual local Nex
 });
 
 
-import {BookingRefunds} from '../../../src/components/pms/booking-refunds';
-import {CounterRefunds} from '../../../src/components/pms/counter-refunds';
-import {PmsPromptPay} from '../../../src/components/pms/promptpay-counter';
-vi.mock('../../../src/components/ui/button',async importOriginal=>{const actual=await importOriginal<typeof import('../../../src/components/ui/button')>();const {createElement}=await import('react');return {...actual,Button:function ObservedButton(props:ComponentProps<typeof actual.Button>){localOwners.buttons.push(props);return createElement(actual.Button,props);}};});
-vi.mock('../../../src/components/front/front-language',async importOriginal=>{const actual=await importOriginal<typeof import('../../../src/components/front/front-language')>();const {createElement}=await import('react');return {...actual,FrontLocalizedTree:function ObservedLocalizedTree(props:ComponentProps<typeof actual.FrontLocalizedTree>){localOwners.localizedTrees.push(props.children);return createElement(actual.FrontLocalizedTree,props);}};});
+import {BookingRefunds} from '@erpx/feature-pms/components/booking-refunds';
+import {CounterRefunds} from '@erpx/feature-pms/components/counter-refunds';
+import {PmsPromptPay} from '@erpx/feature-pms/components/promptpay-counter';
+vi.mock("@erpx/ui/components/button",async importOriginal=>{const actual=await importOriginal<typeof import("@erpx/ui/components/button")>();const {createElement}=await import('react');return {...actual,Button:function ObservedButton(props:ComponentProps<typeof actual.Button>){localOwners.buttons.push(props);return createElement(actual.Button,props);}};});
+vi.mock("@erpx/front/components/front-language",async importOriginal=>{const actual=await importOriginal<typeof import("@erpx/front/components/front-language")>();const {createElement}=await import('react');return {...actual,FrontLocalizedTree:function ObservedLocalizedTree(props:ComponentProps<typeof actual.FrontLocalizedTree>){localOwners.localizedTrees.push(props.children);return createElement(actual.FrontLocalizedTree,props);}};});
 afterEach(()=>vi.unstubAllGlobals());
 it.each(['booking','counter'] as const)('retains the actual %s refund approval body/current refusal and refresh callback without navigating',async kind=>{
  const base='/holdings/acme',booking:ComponentProps<typeof BookingRefunds>={base,rows:[{id:'original-refund',amount_minor:10000,status:'paid',refund_state:'requested',last_error:null,created_at:1}],canApprove:true},counter:ComponentProps<typeof CounterRefunds>={base,rows:[{id:'original-refund',property_id:'original-property',guest_account_id:'original-account',amount_minor:10000,refund_amount_minor:10000,refund_state:'requested',last_error:null,refund_reason:'Original independently reviewed reason',payer_email:null}],canApprove:true};
@@ -163,7 +163,7 @@ it('keeps actual PromptPay SSR/create serialization and waits for original confi
 });
 
 
-import {canonicalUiHref} from '../../../src/lib/work_projection/destination-registry';
+import {canonicalUiHref} from '@erpx/feature-work_projection/lib/destination-registry';
 it.each(['public','staff'] as const)('preserves the actual original %s Booking availability form URL/body and makes no mount request',async channel=>{
  const staff:NonNullable<ComponentProps<typeof BookingFlow>['staff']>={base:'/holdings/acme',propertyId:'hotel-north',guests:[],blocks:[],save:async()=>true};
  const fetcher=vi.fn<(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>>(async()=>Response.json([]));vi.stubGlobal('fetch',fetcher);
@@ -186,10 +186,10 @@ it.each(['availability','quote','reservations','reservations?attempt=fictional%2
  }
 });
 
-import {StandardPmsImport as PmsImport} from '../../../src/components/pms/standard-pms-import';
-import {createPmsImportCommands,type PmsImportSource} from '../../../src/lib/pms/import-command';
-import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
-import {pmsImportSchema,type PmsImportReport} from '../../../src/server/modules/pms/public/rules/pms-import';
+import {StandardPmsImport as PmsImport} from '@erpx/feature-pms/components/standard-pms-import';
+import {createPmsImportCommands,type PmsImportSource} from '@erpx/feature-pms/lib/import-command';
+import {setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
+import {pmsImportSchema,type PmsImportReport} from '@erpx/server-pms/public/rules/pms-import';
 import {createHash as importFixtureHash} from 'node:crypto';
 let importFixtureNonce=0;
 const importFixtureKey=(n:number)=>`10000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -202,7 +202,7 @@ type ImportAction='preview'|'approve'|'apply';
 function importInput(action:ImportAction){return action==='preview'?importDefinition:action==='approve'?{id:importBatch.id,expectedVersion:1,openingJournalId:null}:{id:importBatch.id,expectedVersion:2};}
 function importReceipt(action:ImportAction){return action==='preview'?{id:importBatch.id,version:1,state:'preview',report:importReport}:action==='approve'?{id:importBatch.id,version:2,state:'approved'}:{id:importBatch.id,version:3,state:'applied',propertyId:'hotel-north',propertyVersion:4};}
 async function actualPmsImportController(){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),sourceText=await readFile(new URL('../../../src/components/pms/standard-pms-import.tsx',import.meta.url),'utf8'),file=ts.createSourceFile('actual-pms-import.tsx',sourceText,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions:import('typescript').FunctionDeclaration[]=[];
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),sourceText=await readFile(new URL("../../../packages/feature-pms/src/components/standard-pms-import.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-pms-import.tsx',sourceText,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions:import('typescript').FunctionDeclaration[]=[];
  const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='run')functions.push(node);ts.forEachChild(node,visit);};visit(file);if(functions.length!==1)throw Error('Expected the original PMS Import run controller.');
  const emitted=ts.transpileModule(functions[0].getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const names=['busy','flight','isCurrentOwner','draft','setBusy','setError','attempts','setBatches','router','setUncertain','action','input'],execute=new Function(...names,`${emitted}\nreturn run(action,input);`) as (...ports:unknown[])=>Promise<void>;
@@ -335,10 +335,10 @@ it('PMS Import keeps an originally absent form completion absent when another fo
  expect(events).toEqual([{type:'erpx:record-command-saved',detail:{form:null,formEditVersion:null}},{type:'erpx:work-changed',detail:undefined}]);expect(controller.attempts.current.hasPending()).toBe(false);
 });
 
-import {betaFetch} from '../../../src/lib/shared/beta-client';
-import {capturePmsHomeContext,sendPmsHomeCommand,type PmsHomeAttempt} from '../../../src/lib/pms/home-command';
-import {bangkokToday} from '../../../src/lib/shared/handover';
-import type {HomePost} from '../../../src/server/modules/collaboration/public/social-home';
+import {betaFetch} from '@erpx/feature-shared/lib/beta-client';
+import {capturePmsHomeContext,sendPmsHomeCommand,type PmsHomeAttempt} from '@erpx/feature-pms/lib/home-command';
+import {bangkokToday} from '@erpx/feature-shared/lib/handover';
+import type {HomePost} from '@erpx/server-collaboration/public/social-home';
 const homeApi='/api/v1/front/acme/acme-co/pms/home';
 const homePost:HomePost={id:'original-post',kind:'team',company_id:'company',branch_id:'branch-original',department_id:null,author_id:'operator',author_name:'Original operator',body:'Original native post',mentions_json:'[]',content_json:null,rich_content_json:null,audience_kind:'branch',audience_id:'branch-original',purpose:'update',edited_at:null,retracted_at:null,version:1,state:'published',linked_module:null,created_at:1,audience_name:'Original branch',audience_count:0,audienceLabel:'Original branch',aiName:'Assistant',content:null,richContent:null,mentions:[],linkedSources:[],comments:[],files:[],agentReplies:[],appreciationCount:0,appreciated:0,followed:0,commentCount:0,task:null,trackingState:null,hasTask:false};
 function homeBrowser(){
@@ -347,7 +347,7 @@ function homeBrowser(){
  return {node,front,events};
 }
 async function actualPmsHomeControllers(){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL(process.env.ERPX_PMS_HOME_BASELINE==='1'?'../../../src/components/pms/home.tsx':'../../../src/components/pms/standard-pms-today.tsx',import.meta.url),'utf8'),file=ts.createSourceFile('actual-pms-home.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions=new Map<string,import('typescript').FunctionDeclaration>(),sends:import('typescript').VariableDeclaration[]=[],commentCallbacks:import('typescript').ArrowFunction[]=[],globalRetries:import('typescript').ArrowFunction[]=[];
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL(process.env.ERPX_PMS_HOME_BASELINE==='1'?"../../../packages/feature-pms/src/components/home.tsx":"../../../packages/feature-pms/src/components/standard-pms-today.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-pms-home.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions=new Map<string,import('typescript').FunctionDeclaration>(),sends:import('typescript').VariableDeclaration[]=[],commentCallbacks:import('typescript').ArrowFunction[]=[],globalRetries:import('typescript').ArrowFunction[]=[];
  const visit=(node:import('typescript').Node)=>{
   if(ts.isFunctionDeclaration(node)&&node.name&&['run','publish','publishHandover','act','retrySubmitted'].includes(node.name.text))functions.set(node.name.text,node);
   if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.name.text==='send'&&node.initializer&&ts.isArrowFunction(node.initializer))sends.push(node);
@@ -517,9 +517,9 @@ import * as reservationReact from 'react';
 import {createRequire as reservationRequire} from 'node:module';
 import {readFileSync as reservationRead} from 'node:fs';
 import {resolve as reservationResolve} from 'node:path';
-import {createPublicReservationClient,publicBookingCheckoutUrl,type PublicReservationInput,type PublicReservationScope,type PublicReservationReceipt} from '../../../src/lib/pms/public-booking-reservation-command';
-import {money as reservationMoney,plusDays as reservationPlusDays} from '../../../src/server/modules/pms/public/rules/pms-model';
-import type {BookingQuote as ReservationQuote} from '../../../src/server/modules/pms/public/rules/pms-booking';
+import {createPublicReservationClient,publicBookingCheckoutUrl,type PublicReservationInput,type PublicReservationScope,type PublicReservationReceipt} from '@erpx/feature-pms/lib/public-booking-reservation-command';
+import {money as reservationMoney,plusDays as reservationPlusDays} from '@erpx/server-pms/public/rules/pms-model';
+import type {BookingQuote as ReservationQuote} from '@erpx/server-pms/public/rules/pms-booking';
 const reservationInput=():PublicReservationInput=>({propertyId:'hotel-north',quoteToken:'original-native-quote',guest:{name:'Original guest',email:'guest@example.test',phone:'000'},notes:'Original notes'});
 const reservationReceipt=(online=false):PublicReservationReceipt=>({id:'native-reservation',number:'BK-original',version:1,state:online?'payment_pending':'confirmed',hotel:{id:'hotel-north',name:'Original north hotel',address:'north address',contactEmail:'north@example.test',contactPhone:'000'},guest:{name:'Original guest',email:'guest@example.test'},currency:'THB',total:10000,paymentState:'pay_at_hotel',managementToken:'original-management-token',...(online?{attemptToken:'native-payment.signature',expiresAt:1792296000000,checkoutUrl:'https://checkout.stripe.com/c/pay/original'}:{})});
 const reservationScope=():PublicReservationScope=>({base:'/api/public/booking/acme',propertyId:'hotel-north',owner:'original-page',draft:1});
@@ -552,12 +552,12 @@ it.each(['identity','version','hotel','guest','checkout','state'] as const)('ret
 const reservationQuote=(online=false):ReservationQuote=>({propertyId:'hotel-north',currency:'THB',total:10000,dueNow:online?10000:0,dueAtHotel:online?0:10000,lines:[{typeId:'type-original',rateId:'rate-original',arrival:'2026-11-01',departure:'2026-11-02',adults:2,childAges:[],quantity:1,roomName:'Original room',rateName:'Original public rate',inclusions:'Breakfast',policy:undefined,nights:[{date:'2026-11-01',net:10000,service:0,tax:0,total:10000}],total:10000,dueNow:online?10000:0,dueAtHotel:online?0:10000,collection:{method:online?'full':'pay_at_hotel',depositPercent:30,changesAllowed:true}}]});
 async function reservationFlush(){for(let index=0;index<12;index++)await Promise.resolve();}
 function mountPublicReservation(network:(url:RequestInfo|URL,init?:RequestInit)=>Promise<Response>){
- const require=reservationRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_PUBLIC_RESERVATION_SOURCE_ROOT??'.',baseline=process.env.ERPX_PUBLIC_RESERVATION_BASELINE==='1',file=reservationResolve(baseline?process.env.ERPX_PUBLIC_RESERVATION_BASELINE_ROOT??'.scratch/dev/public-booking-reservation-standard-next/before':root,`src/components/pms/${baseline?'booking-flow':'public-booking-reservation'}.tsx`),source=reservationRead(file,'utf8'),emitted=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const require=reservationRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_PUBLIC_RESERVATION_SOURCE_ROOT??'.',baseline=process.env.ERPX_PUBLIC_RESERVATION_BASELINE==='1',file=reservationResolve(baseline?process.env.ERPX_PUBLIC_RESERVATION_BASELINE_ROOT??'.scratch/dev/public-booking-reservation-standard-next/before':root,`packages/feature-pms/src/components/${baseline?'booking-flow':'public-booking-reservation'}.tsx`),source=reservationRead(file,'utf8'),emitted=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  type Hook={value?:unknown;current?:unknown;deps?:readonly unknown[];cleanup?:()=>void};const hooks:Hook[]=[],effects:(()=>void)[]=[];let cursor=0;
  const state=(initial:unknown)=>{const index=cursor++;if(!hooks[index])hooks[index]={value:typeof initial==='function'?initial():initial};return [hooks[index].value,(next:unknown)=>{hooks[index].value=typeof next==='function'?next(hooks[index].value):next;}];},ref=(initial:unknown)=>{const index=cursor++;return hooks[index]??(hooks[index]={current:initial});},effect=(run:()=>void|(()=>void),deps?:readonly unknown[])=>{const index=cursor++,old=hooks[index];if(!old||!deps||!old.deps||deps.length!==old.deps.length||deps.some((value,part)=>!Object.is(value,old.deps?.[part]))){effects.push(()=>{old?.cleanup?.();const cleanup=run();hooks[index]={deps,cleanup:typeof cleanup==='function'?cleanup:undefined};});}};
  const callback=(value:unknown,deps:readonly unknown[])=>{const index=cursor++,old=hooks[index];if(!old||!old.deps||deps.length!==old.deps.length||deps.some((part,key)=>!Object.is(part,old.deps?.[key])))hooks[index]={value,deps};return hooks[index].value;};
  const location={href:'https://booking-dev-erpx.jesadakorn.com/book/acme/hotel-north',origin:'https://booking-dev-erpx.jesadakorn.com',pathname:'/book/acme/hotel-north',assign:vi.fn()},browser=Object.assign(new EventTarget(),{location,setInterval:vi.fn(),clearInterval:vi.fn()}),document=Object.assign(new EventTarget(),{documentElement:{dataset:{}},querySelector:()=>null});vi.stubGlobal('window',browser);vi.stubGlobal('document',document);vi.stubGlobal('fetch',network);
- const primitives=new Proxy<Record<string,unknown>>({}, {get:(_target,key)=>Object.assign((props:Record<string,unknown>)=>reservationReact.createElement(key==='Button'?'button':key==='FormLayout'?'form':key==='Field'?'label':key==='TextInput'?'input':key==='Select'?'select':key==='TextArea'?'textarea':key==='ActionAnchor'?'a':'section',props,props.children as ReactNode),{displayName:String(key)})}),evaluatedModule={exports:{} as Record<string,unknown>},localRequire=(name:string)=>{if(name==='react')return {...reservationReact,useState:state,useRef:ref,useEffect:effect,useLayoutEffect:effect,useCallback:callback};if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/foundation'))return primitives;if(name.endsWith('/dialog'))return {Dialog:(props:Record<string,unknown>)=>props.open?reservationReact.createElement('aside',props,props.children as ReactNode):null};if(name.endsWith('/front-language'))return {FrontLocalizedTree:(props:{children:ReactNode})=>reservationReact.createElement(reservationReact.Fragment,null,props.children),useFrontLanguage:()=> 'en'};if(name.endsWith('/context-switch'))return {registerUnsavedWork:()=>()=>{}};if(name.endsWith('/pms-model'))return {money:reservationMoney,plusDays:reservationPlusDays};if(name.endsWith('/public-booking-reservation-command'))return {createPublicReservationClient,publicBookingCheckoutUrl};if(name.endsWith('/booking-gallery'))return {BookingGallery:()=>null};if(name.endsWith('/booking-quote-details-standard'))return {BookingQuoteDetailsStandard:()=>null};if(name.endsWith('/booking-payment-return'))return {BookingPaymentReturn:()=>null};if(name.endsWith('/booking-policy-summary'))return {BookingPolicySummary:()=>null};if(name.endsWith('/choice-select'))return {PmsChoiceSelect:()=>null};if(name.endsWith('/work-fetch'))return {workFetch:network};if(name.endsWith('.module.css'))return {default:new Proxy({}, {get:(_target,key)=>String(key)})};throw Error('Unexpected public reservation import '+name);};new Function('require','module','exports',emitted)(localRequire,evaluatedModule,evaluatedModule.exports);
+ const primitives=new Proxy<Record<string,unknown>>({}, {get:(_target,key)=>Object.assign((props:Record<string,unknown>)=>reservationReact.createElement(key==='Button'?'button':key==='FormLayout'?'form':key==='Field'?'label':key==='TextInput'?'input':key==='Select'?'select':key==='TextArea'?'textarea':key==='ActionAnchor'?'a':'section',props,props.children as ReactNode),{displayName:String(key)})}),evaluatedModule={exports:{} as Record<string,unknown>},localRequire=(name:string)=>{if(name==='react')return {...reservationReact,useState:state,useRef:ref,useEffect:effect,useLayoutEffect:effect,useCallback:callback};if(name==='react/jsx-runtime')return require(name);if(name.endsWith("@erpx/ui/components/foundation"))return primitives;if(name.endsWith("@erpx/ui/components/dialog"))return {Dialog:(props:Record<string,unknown>)=>props.open?reservationReact.createElement('aside',props,props.children as ReactNode):null};if(name.endsWith('/front-language'))return {FrontLocalizedTree:(props:{children:ReactNode})=>reservationReact.createElement(reservationReact.Fragment,null,props.children),useFrontLanguage:()=> 'en'};if(name.endsWith("@erpx/feature-work_projection/lib/context-switch"))return {registerUnsavedWork:()=>()=>{}};if(name.endsWith('/pms-model'))return {money:reservationMoney,plusDays:reservationPlusDays};if(name.endsWith("@erpx/feature-pms/lib/public-booking-reservation-command"))return {createPublicReservationClient,publicBookingCheckoutUrl};if(name.endsWith("@erpx/feature-pms/components/booking-gallery"))return {BookingGallery:()=>null};if(name.endsWith("@erpx/feature-pms/components/booking-quote-details-standard"))return {BookingQuoteDetailsStandard:()=>null};if(name.endsWith("@erpx/feature-pms/components/booking-payment-return"))return {BookingPaymentReturn:()=>null};if(name.endsWith("@erpx/feature-pms/components/booking-policy-summary"))return {BookingPolicySummary:()=>null};if(name.endsWith("@erpx/feature-pms/components/choice-select"))return {PmsChoiceSelect:()=>null};if(name.endsWith("@erpx/feature-work_projection/lib/work-fetch"))return {workFetch:network};if(name.endsWith('.module.css'))return {default:new Proxy({}, {get:(_target,key)=>String(key)})};throw Error('Unexpected public reservation import '+name);};new Function('require','module','exports',emitted)(localRequire,evaluatedModule,evaluatedModule.exports);
  type Node=reservationReact.ReactElement<Record<string,unknown>>;const collect=(value:ReactNode,result:Node[]=[]):Node[]=>{reservationReact.Children.forEach(value,child=>{if(!reservationReact.isValidElement<Record<string,unknown>>(child))return;result.push(child);if(typeof child.type==='function')collect((child.type as (props:Record<string,unknown>)=>ReactNode)(child.props),result);else collect(child.props.children as ReactNode,result);});return result;};const Owner=evaluatedModule.exports[baseline?'BookingFlow':'PublicBookingReservation'] as (props:Record<string,unknown>)=>ReactNode;let props:Record<string,unknown>={slug:'acme',hotels,propertyId:'hotel-north',today:'2026-11-01'};
  const version={value:'original'},fields=new Map<string,string>([['arrival','2026-11-01'],['departure','2026-11-02'],['adults','2'],['children',''],['quantity','1']]),form={isConnected:true,getAttribute:()=>version.value,setAttribute:(_name:string,value:string)=>{version.value=value;}} as unknown as HTMLFormElement;
  vi.stubGlobal('FormData',class {get(key:string){return fields.get(key)??null;}getAll(key:string){return fields.has(key)?[fields.get(key)!]:[];}});
@@ -596,8 +596,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 it('server-renders all public reservation step labels in the selected Booking language without a guest fetch', async () => {
-  const {FrontLanguageContext} = await import('../../../src/components/front/front-language');
-  const {PublicBookingReservation} = await import('../../../src/components/pms/public-booking-reservation');
+  const {FrontLanguageContext} = await import('@erpx/front/components/front-language');
+  const {PublicBookingReservation} = await import('@erpx/feature-pms/components/public-booking-reservation');
   const network = vi.fn(); vi.stubGlobal('fetch', network);
   const html = renderToStaticMarkup(createElement(FrontLanguageContext.Provider, {value: 'th'}, createElement(PublicBookingReservation, {slug: 'acme', hotels: hotels.map(hotel => ({...hotel, images: hotel.images ?? [], roomContent: hotel.roomContent.map(room => ({...room, images: room.images ?? []}))})), today: '2026-11-01'})));
   expect(html).toContain('aria-label="ขั้นตอนการจอง"');
@@ -606,21 +606,21 @@ it('server-renders all public reservation step labels in the selected Booking la
 });
 // Standard setting owners retain the native forms and callbacks. Only React
 // hooks, media children and the browser FormData boundary are fixture ports.
-import {newProperty as standardSettingsProperty} from '../../../src/lib/pms/pms-engine';
-import {records as standardSettingsRecords} from '../../../src/server/modules/pms/public/rules/pms-model';
-import {decimalToMinor as standardSettingsMinor,minorToDecimal as standardSettingsDecimal} from '../../../src/lib/finance/finance-money';
-type StandardBookingProps=ComponentProps<typeof import('../../../src/components/pms/standard-booking-settings').StandardBookingSettings>;
+import {newProperty as standardSettingsProperty} from '@erpx/feature-pms/lib/pms-engine';
+import {records as standardSettingsRecords} from '@erpx/server-pms/public/rules/pms-model';
+import {decimalToMinor as standardSettingsMinor,minorToDecimal as standardSettingsDecimal} from '@erpx/feature-finance/lib/finance-money';
+type StandardBookingProps=ComponentProps<typeof import("@erpx/feature-pms/components/standard-booking-settings").StandardBookingSettings>;
 function standardBookingSnapshot(){
  const snapshot=standardSettingsProperty('hotel-north','company','branch','Original north hotel','2026-10-16');snapshot.property.version=3;snapshot.property.state='open';
  snapshot.records.push({id:'type-original',kind:'room_type',version:2,updatedAt:1,data:{name:'Original room',capacity:3,amenities:'Original amenities'}});
  return snapshot;
 }
 async function mountStandardBookingSettings(props:StandardBookingProps){
- const {createRequire}=await import('node:module'),{readFile}=await import('node:fs/promises'),ts=await import('typescript'),require=createRequire(import.meta.url),source=await readFile(new URL('../../../src/components/pms/standard-booking-settings.tsx',import.meta.url),'utf8'),emitted=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+ const {createRequire}=await import('node:module'),{readFile}=await import('node:fs/promises'),ts=await import('typescript'),require=createRequire(import.meta.url),source=await readFile(new URL("../../../packages/feature-pms/src/components/standard-booking-settings.tsx",import.meta.url),'utf8'),emitted=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const react=require('react') as typeof import('react'),slots:{value?:unknown;current?:unknown}[]=[];let cursor=0;
  const state=(initial:unknown)=>{const at=cursor++;if(!slots[at])slots[at]={value:typeof initial==='function'?initial():initial};return [slots[at].value,(value:unknown)=>{slots[at].value=typeof value==='function'?value(slots[at].value):value;}];},ref=(initial:unknown)=>{const at=cursor++;return slots[at]??(slots[at]={current:initial});};
  class SettingsFormData{constructor(private readonly values:Map<string,string[]>){ }get(name:string){return this.values.get(name)?.[0]??null;}getAll(name:string){return this.values.get(name)??[];}}
- const ports=(name:string):unknown=>{if(name==='react')return {...react,useState:state,useRef:ref};if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/workspace-link'))return {default:'WorkspaceLink'};if(name.endsWith('/destination-registry'))return {canonicalUiHref:(value:string)=>value};if(name.endsWith('/front-language'))return {FrontLocalizedTree:'FrontLocalizedTree'};if(name.endsWith('/form-disclosure'))return {FormDisclosure:'FormDisclosure'};if(name.endsWith('/booking-policy-settings'))return {BookingRatePolicy:'BookingRatePolicy',BookingMediaSetup:'BookingMediaSetup',BookingMediaPicker:'BookingMediaPicker'};if(name.endsWith('/foundation'))return {Button:'Button',Field:'Field',TextArea:'TextArea',TextInput:'TextInput'};if(name.endsWith('/booking-gallery'))return {BookingGallery:'BookingGallery'};if(name.endsWith('/pms-model'))return {records:standardSettingsRecords};if(name.endsWith('/finance-money'))return {decimalToMinor:standardSettingsMinor,minorToDecimal:standardSettingsDecimal};if(name.endsWith('.module.css'))return {default:new Proxy({}, {get:(_target,key)=>String(key)})};throw Error('Unexpected standard Booking settings import '+name);};
+ const ports=(name:string):unknown=>{if(name==='react')return {...react,useState:state,useRef:ref};if(name==='react/jsx-runtime')return require(name);if(name.endsWith("@erpx/workplace/components/workspace-link"))return {default:'WorkspaceLink'};if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return {canonicalUiHref:(value:string)=>value};if(name.endsWith('/front-language'))return {FrontLocalizedTree:'FrontLocalizedTree'};if(name.endsWith("@erpx/ui/components/form-disclosure"))return {FormDisclosure:'FormDisclosure'};if(name.endsWith("@erpx/feature-pms/components/booking-policy-settings"))return {BookingRatePolicy:'BookingRatePolicy',BookingMediaSetup:'BookingMediaSetup',BookingMediaPicker:'BookingMediaPicker'};if(name.endsWith("@erpx/ui/components/foundation"))return {Button:'Button',Field:'Field',TextArea:'TextArea',TextInput:'TextInput'};if(name.endsWith("@erpx/feature-pms/components/booking-gallery"))return {BookingGallery:'BookingGallery'};if(name.endsWith('/pms-model'))return {records:standardSettingsRecords};if(name.endsWith("@erpx/feature-finance/lib/finance-money"))return {decimalToMinor:standardSettingsMinor,minorToDecimal:standardSettingsDecimal};if(name.endsWith('.module.css'))return {default:new Proxy({}, {get:(_target,key)=>String(key)})};throw Error('Unexpected standard Booking settings import '+name);};
  const evaluated={exports:{} as Record<string,unknown>};new Function('require','module','exports','FormData',emitted)(ports,evaluated,evaluated.exports,SettingsFormData);
  const Component=evaluated.exports.StandardBookingSettings as (value:StandardBookingProps)=>ReactNode;
  type Node=import('react').ReactElement<Record<string,unknown>>;
@@ -640,9 +640,9 @@ it('actual standard Booking publication requires its current preview and retains
 it.each([true,false])('actual standard Import presents original independent Finance review only when native canApprove=%s',canApprove=>{
  const network=vi.fn();vi.stubGlobal('fetch',network);try{const html=renderToStaticMarkup(createElement(PmsImport,{api:importApi,base:'/holdings/acme',propertyId:'hotel-north',propertyVersion:3,businessDate:'2026-10-16',initial:[importBatch],userId:'finance-reviewer',canPrepare:false,canApprove}));expect(html).toContain('data-slot="card"');expect(html).toContain('data-appearance="standard"');expect(html.includes('Finance: approve this preview')).toBe(canApprove);expect(html).not.toContain('Preview only');expect(html).not.toMatch(/<form[\s>]/);expect(localOwners.buttons.every(button=>button.appearance==='standard')).toBe(true);expect(network).not.toHaveBeenCalled();}finally{vi.unstubAllGlobals();}
 });
-import {createPmsImportDraft} from '../../../src/lib/pms/import-draft';
-import {installPmsPendingNavigation} from '../../../src/lib/pms/pending-navigation';
-import {hasUnsavedWork,confirmContextSwitch} from '../../../src/lib/work_projection/context-switch';
+import {createPmsImportDraft} from '@erpx/feature-pms/lib/import-draft';
+import {installPmsPendingNavigation} from '@erpx/feature-pms/lib/pending-navigation';
+import {hasUnsavedWork,confirmContextSwitch} from '@erpx/feature-work_projection/lib/context-switch';
 
 function importLifetimeBrowser(withNavigation=true){
  const {node,events}=importBrowser(),url=new URL('https://pms-dev-erpx.jesadakorn.com/holdings/acme/pms/import?property=hotel-north'),confirm=vi.fn(()=>false),navigation=new EventTarget(),doc=Object.assign(new EventTarget(),{querySelector:(selector:string)=>selector==='[data-work-revision]'&&node.isConnected?node:null,activeElement:{closest:()=>null},documentElement:{dataset:{}}}),history={pushState:vi.fn(),replaceState:vi.fn(),go:vi.fn()};
@@ -654,10 +654,10 @@ function importLifetimeBrowser(withNavigation=true){
  return {node,events,url,confirm,doc,history,click,traverse};
 }
 async function mountImportLifetime(props:ComponentProps<typeof PmsImport>){
- const {createRequire}=await import('node:module'),{readFile}=await import('node:fs/promises'),ts=await import('typescript'),require=createRequire(import.meta.url),react=require('react') as typeof import('react'),source=await readFile(new URL('../../../src/components/pms/standard-pms-import.tsx',import.meta.url),'utf8'),emitted=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+ const {createRequire}=await import('node:module'),{readFile}=await import('node:fs/promises'),ts=await import('typescript'),require=createRequire(import.meta.url),react=require('react') as typeof import('react'),source=await readFile(new URL("../../../packages/feature-pms/src/components/standard-pms-import.tsx",import.meta.url),'utf8'),emitted=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  type Slot={value?:unknown;current?:unknown;deps?:readonly unknown[];cleanup?:()=>void};const slots:Slot[]=[],effects:(()=>void)[]=[];let cursor=0;
  const state=(initial:unknown)=>{const at=cursor++;if(!slots[at])slots[at]={value:typeof initial==='function'?initial():initial};return [slots[at].value,(value:unknown)=>{slots[at].value=typeof value==='function'?value(slots[at].value):value;}];},ref=(initial:unknown)=>{const at=cursor++;return slots[at]??(slots[at]={current:initial});},callback=(value:unknown,deps:readonly unknown[])=>{const at=cursor++,old=slots[at];if(!old||deps.some((value,index)=>!Object.is(value,old.deps?.[index])))slots[at]={value,deps};return slots[at].value;},effect=(run:()=>void|(()=>void),deps:readonly unknown[])=>{const at=cursor++,old=slots[at];if(!old||deps.some((value,index)=>!Object.is(value,old.deps?.[index])))effects.push(()=>{old?.cleanup?.();const cleanup=run();slots[at]={deps,cleanup:typeof cleanup==='function'?cleanup:undefined};});};
- const router={refresh:vi.fn()},ports=(name:string):unknown=>{if(name==='react')return {...react,useState:state,useRef:ref,useLayoutEffect:effect,useCallback:callback};if(name==='react/jsx-runtime')return require(name);if(name==='next/navigation')return {usePathname:()=>window.location.pathname};if(name.endsWith('/destination-search'))return {useSearchParams:()=>new URL(window.location.href).searchParams};if(name.endsWith('/destination-registry'))return {canonicalUiHref:(value:string)=>value};if(name.endsWith('/front-language'))return {FrontLocalizedTree:'FrontLocalizedTree',useFrontLanguage:()=> 'en'};if(name.endsWith('/foundation'))return {Button:'Button',Card:'Card',Field:'Field',InlineNotice:'InlineNotice',TextArea:'TextArea',TextInput:'TextInput'};if(name.endsWith('/workspace-link'))return {default:'WorkspaceLink'};if(name.endsWith('/destination-router'))return {useRouter:()=>router};if(name.endsWith('/import-command'))return {createPmsImportCommands};if(name.endsWith('/import-draft'))return {createPmsImportDraft};if(name.endsWith('/pending-navigation'))return {installPmsPendingNavigation};if(name.endsWith('.module.css'))return {default:new Proxy({}, {get:(_target,key)=>String(key)})};throw Error('Unexpected actual Import lifetime import '+name);};
+ const router={refresh:vi.fn()},ports=(name:string):unknown=>{if(name==='react')return {...react,useState:state,useRef:ref,useLayoutEffect:effect,useCallback:callback};if(name==='react/jsx-runtime')return require(name);if(name==='next/navigation')return {usePathname:()=>window.location.pathname};if(name.endsWith("@erpx/feature-shared/lib/destination-search"))return {useSearchParams:()=>new URL(window.location.href).searchParams};if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return {canonicalUiHref:(value:string)=>value};if(name.endsWith('/front-language'))return {FrontLocalizedTree:'FrontLocalizedTree',useFrontLanguage:()=> 'en'};if(name.endsWith("@erpx/ui/components/foundation"))return {Button:'Button',Card:'Card',Field:'Field',InlineNotice:'InlineNotice',TextArea:'TextArea',TextInput:'TextInput'};if(name.endsWith("@erpx/workplace/components/workspace-link"))return {default:'WorkspaceLink'};if(name.endsWith("@erpx/feature-shared/lib/destination-router"))return {useRouter:()=>router};if(name.endsWith("@erpx/feature-pms/lib/import-command"))return {createPmsImportCommands};if(name.endsWith("@erpx/feature-pms/lib/import-draft"))return {createPmsImportDraft};if(name.endsWith("@erpx/feature-pms/lib/pending-navigation"))return {installPmsPendingNavigation};if(name.endsWith('.module.css'))return {default:new Proxy({}, {get:(_target,key)=>String(key)})};throw Error('Unexpected actual Import lifetime import '+name);};
  const evaluated={exports:{} as Record<string,unknown>};new Function('require','module','exports',emitted)(ports,evaluated,evaluated.exports);const Component=evaluated.exports.StandardPmsImport as (props:ComponentProps<typeof PmsImport>)=>ReactNode;
  type Node=import('react').ReactElement<Record<string,unknown>>;const collect=(value:ReactNode,out:Node[]=[]):Node[]=>{react.Children.forEach(value,child=>{if(!react.isValidElement<Record<string,unknown>>(child))return;out.push(child);collect(child.props.children as ReactNode,out);});return out;};
  const render=()=>{cursor=0;const nodes=collect(Component(props));while(effects.length)effects.shift()!();return nodes;};
@@ -713,10 +713,10 @@ it('Import does not release even a first proven rollback code when the owner que
 
 // Actual Front entry pages keep native readers and destinations. Presentation
 // opts into the shared standard controls; no auth or preference command is run.
-import FrontLogin from '../../../src/app/front-access/login/page';
-import {LoginForm} from '../../../src/app/login/login-form';
-import {StandardFrontSignIn,StandardFrontCompanyPicker} from '../../../src/components/front/standard-front-access';
-import {QuickAccessShelf} from '../../../src/components/work_projection/quick-access/shelf';
+import FrontLogin from '@erpx/workplace/routes/front-access/login/page';
+import {LoginForm} from '@erpx/workplace/routes/login/login-form';
+import {StandardFrontSignIn,StandardFrontCompanyPicker} from '@erpx/front/components/standard-front-access';
+import {QuickAccessShelf} from '@erpx/feature-work_projection/components/quick-access/shelf';
 import type {ReactElement} from 'react';
 function standardFrontChild<Props>(node:ReactNode,type:unknown):ReactElement<Props>|undefined{
  if(Array.isArray(node)){for(const child of node){const found=standardFrontChild<Props>(child,type);if(found)return found;}return;}

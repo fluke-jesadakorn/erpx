@@ -1,0 +1,32 @@
+{
+  "name": "@erpx/feature-customer_authority",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/customer-portal-enrollment": "./src/components/customer-portal-enrollment.tsx",
+    "./components/customer-portal-actions": "./src/components/customer-portal-actions.tsx",
+    "./components/support-ticket-portal": "./src/components/support-ticket-portal.tsx",
+    "./components/portal-support-response-editor": "./src/components/portal-support-response-editor.tsx",
+    "./components/portal-support-acknowledgement": "./src/components/portal-support-acknowledgement.tsx",
+    "./lib/portal-command-attempt": "./src/lib/portal-command-attempt.ts",
+    "./lib/portal-display": "./src/lib/portal-display.ts",
+    "./lib/support-ticket-portal-command": "./src/lib/support-ticket-portal-command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-crm": "workspace:*",
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-identity_access": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-customer_authority": "workspace:*",
+    "@erpx/server-support": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "react": "19.3.0"
+  }
+}

@@ -1,0 +1,5 @@
+import {collaborationNotificationSnapshotSources as legalSnapshotSources} from '@erpx/server-legal/public/collaboration-notification-snapshot-sources';
+const legalSources=legalSnapshotSources();
+import "server-only";
+import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+export function legalSourceNotification(db:SqlDatabase,facts:{identifier:string;now:number;ruleId:string;unchanged:boolean}){return db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,i.company_id,i.owner_id,'legal',i.id,i.version,'Official law source changed; review original, text, dates and Company applicability before use',? ${legalSources.legal_law_source_notifications_legal_items_i_from} WHERE i.id=? AND ?=false AND EXISTS(SELECT 1 ${legalSources.legal_law_source_notifications_legal_members_m_from} WHERE m.item_id=i.id AND m.user_id=i.owner_id) ON CONFLICT DO NOTHING`).bind(facts.identifier,facts.now,facts.ruleId,facts.unchanged);}

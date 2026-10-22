@@ -1,0 +1,1 @@
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function socialReplyEngineeringLock(db:SqlDatabase,company:string){return db.prepare('SELECT company_id FROM engineering_verification_contexts WHERE company_id=? FOR SHARE').bind(company);}

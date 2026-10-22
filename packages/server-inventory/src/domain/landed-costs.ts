@@ -1,0 +1,5 @@
+import {z} from 'zod';import {scaledAmount} from "@erpx/feature-commerce/lib/commerce-math";import {BusinessRuleError} from '@erpx/server-shared/index';
+export type LandedCostRow=Record<string,string|number|null>;
+export const landedCostCreateSchema=z.object({fulfillmentId:z.string().min(1),costDate:z.iso.date(),description:z.string().trim().min(5).max(500),allocationMethod:z.enum(['quantity','receipt_value']),amount:z.string().regex(/^\d{1,12}(\.\d{1,2})?$/),creditAccountId:z.string().min(1)});
+export const landedCostActionSchema=z.object({expectedVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(1000)});
+export function allocateLandedCost(total:number,weights:number[]){const sum=weights.reduce((a,b)=>a+b,0);if(sum<=0)throw new BusinessRuleError(422,'LANDED_COST_ALLOCATION_UNAVAILABLE','The selected allocation basis has no positive quantity or receipt value.');let prior=0,allocated=0;return weights.map((weight,index)=>{prior+=weight;const cumulative=index===weights.length-1?total:scaledAmount(total,prior,sum),part=cumulative-allocated;allocated=cumulative;return part;});}

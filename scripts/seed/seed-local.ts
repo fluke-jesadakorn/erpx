@@ -1,12 +1,12 @@
-import type { SqlDatabase, SqlStatement } from "../../src/server/modules/runtime/adapters/runtime/types";
-import { businessRoles,type BusinessRole } from "../../src/lib/identity_access/business-roles";
+import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
+import { businessRoles,type BusinessRole } from "@erpx/feature-identity_access/lib/business-roles";
 import { seedWorker } from "./seed-roster";
 import { getLocalProxy } from "../local/fixtures";
-import type { RuntimeEnv } from "../../src/server/modules/runtime/adapters/runtime/env";
+import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
 import { hashPassword } from "better-auth/crypto";
-import { moduleRegistry } from "../../src/data/module-registry";
+import { moduleRegistry } from "@erpx/catalogue/module-registry";
 import { project, type EventMessage, type JobEnv } from "../../src/workers/jobs";
-import { calculatePayrollAmounts } from "../../src/lib/people_payroll/payroll-math";
+import { calculatePayrollAmounts } from "@erpx/feature-people_payroll/lib/payroll-math";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { localSeedLevels } from "../../fixtures/organization/builders/local-seed-levels";

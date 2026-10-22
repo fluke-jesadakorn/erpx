@@ -1,5 +1,5 @@
-import type { SqlDatabase, FileStore } from "../../src/server/modules/runtime/adapters/runtime/types";
-import type { WorkContext } from "../../src/server/modules/identity_access/public/authorization";
+import type { SqlDatabase, FileStore } from "@erpx/server-runtime/adapters/runtime/types";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 const key = () => crypto.randomUUID();
 export async function seedExpenseCompany(db: SqlDatabase, files: FileStore, withMoneyQuote = true, withFinancialReferences = true) {
   await db.prepare("INSERT INTO beta_bootstrap(singleton,holding_id,owner_user_id,created_at) VALUES(1,'h001','fixture',1) ON CONFLICT(singleton) DO NOTHING").run();

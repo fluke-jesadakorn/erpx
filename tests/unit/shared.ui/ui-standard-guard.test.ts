@@ -21,6 +21,7 @@ function fixture({
   roots.push(root);
   for (const directory of ["scripts/ui", "docs/ux-ui", "src", "node_modules"]) mkdirSync(join(root, directory), { recursive: true });
   copyFileSync(resolve("scripts/ui/check-standard.mjs"), join(root, "scripts/ui/check-standard.mjs"));
+  copyFileSync(resolve("scripts/ui/inventory.mjs"),join(root,"scripts/ui/inventory.mjs"));
   symlinkSync(resolve("node_modules/typescript"), join(root, "node_modules/typescript"), "dir");
   writeFileSync(join(root, "src/view.tsx"), content);
   writeFileSync(join(root, "src/specialized.tsx"), frozenChanged ? "changed layout" : "retained layout");
@@ -67,6 +68,11 @@ describe("shared UI migration guard", () => {
     expect(result.output).toContain("Migrated caller presentation guard passed.");
   });
 
+  it.each(["@erpx/ui/components/button","@erpx/ui/components/foundation","@erpx/feature-shared/components/features/feature-page"])("keeps the actual workspace control boundary for %s",specifier=>{
+    const invalid=fixture({content:`import { Button as Action } from "${specifier}"; export const View=()=> <Action>Open</Action>;`});
+    expect(invalid.status).toBe(1);expect(invalid.output).toContain("Action lacks explicit appearance");
+    expect(fixture({content:`import { Button as Action } from "${specifier}"; export const View=()=> <Action appearance="standard">Open</Action>;`}).status).toBe(0);
+  });
   it("rejects missing appearance on an aliased imported control", () => {
     const result = fixture({ content: 'import { Button as Action } from "@/components/ui/button"; export const View = () => <Action>Open</Action>;' });
     expect(result.status).toBe(1);
@@ -130,7 +136,7 @@ describe("shared UI migration guard", () => {
 
 import {vi} from "vitest";
 import {deflateSync} from "node:zlib";
-import {applyUiAcceptance,uiTargetRequirements,validateUiAcceptance} from "../../../scripts/ui/acceptance.mjs";
+import {workspaceSourcePath,applyUiAcceptance,uiTargetRequirements,validateUiAcceptance} from "../../../scripts/ui/acceptance.mjs";
 import {assertBrowserCasePassed,type BrowserCase} from "../../../scripts/testing/browser-results";
 import type {UiBrowserEvidenceWitness} from "../../../scripts/testing/ui-evidence-witness";
 
@@ -289,7 +295,7 @@ describe("lease-bound anonymous Forms UI ingestion",()=>{
 
 import {assertProductHostUiMetadata,productHostUiProjection,type ProductHostUiState} from "../../../scripts/testing/product-host-ui-evidence";
 import type {ProductHostLease,ProductHostPlan} from "../../../scripts/testing/product-host-cohort";
-import {productIds as uiProductIds,developmentProductOrigin as uiProductOrigin} from "../../../src/lib/commercial/product-registry";
+import {productIds as uiProductIds,developmentProductOrigin as uiProductOrigin} from "@erpx/contracts/product-registry";
 /** Controlled metadata ports only. Real loadUiAcceptance additionally reads the
  * original lease/arm, validates native TLS/key/SPKI and hashes actual tools. */
 function uiLeasedProductContract(change?:(lease:ProductHostLease,plan:ProductHostPlan)=>void){
@@ -329,4 +335,10 @@ it("preserves both native Front handoff routes and their original query and hash
   expect(projected.search).toBe(new URL(observed).search);
   expect(projected.hash).toBe("#original-owner");
  }
+});
+
+it("accepts workspace source identities while refusing traversal and generated outputs",()=>{
+ for(const path of ["src/app/page.tsx",'apps/finance/src/app/page.tsx','packages/server-finance/src/public/finance.ts'])expect(workspaceSourcePath(path)).toBe(true);
+ for(const path of ['apps/finance/.build/server.js','node_modules/next/index.js','docs/testing/receipt.json'])expect(workspaceSourcePath(path)).toBe(false);
+ for(const path of ['apps/finance/src/../../.env','packages/ui/src/../private.ts','/apps/finance/src/app/page.tsx'])expect(()=>workspaceSourcePath(path)).toThrow('UI_EVIDENCE_PATH_REQUIRED');
 });

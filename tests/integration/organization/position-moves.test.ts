@@ -1,12 +1,12 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { installStaffLevels, positionSchema, savePosition } from "../../../src/server/modules/organization/public/organization";
-import { previewPositionMove, submitPositionMove, drainPositionMoves, cancelPositionMove, positionMoves } from "../../../src/server/modules/organization/public/position-moves";
-import { positionMoveDate, positionMoveInput, positionMoveSubmitInput, type PositionMoveRecord } from "../../../src/lib/people_payroll/position-moves";
-import { lifecycleInput } from "../../../src/lib/people_payroll/people-lifecycle";
-import { previewLifecycle, saveLifecycle } from "../../../src/server/modules/people_payroll/public/people-lifecycle";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
+import { installStaffLevels, positionSchema, savePosition } from "@erpx/server-organization/public/organization";
+import { previewPositionMove, submitPositionMove, drainPositionMoves, cancelPositionMove, positionMoves } from "@erpx/server-organization/public/position-moves";
+import { positionMoveDate, positionMoveInput, positionMoveSubmitInput, type PositionMoveRecord } from "@erpx/feature-people_payroll/lib/position-moves";
+import { lifecycleInput } from "@erpx/feature-people_payroll/lib/people-lifecycle";
+import { previewLifecycle, saveLifecycle } from "@erpx/server-people_payroll/public/people-lifecycle";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS); });
 
 async function fixture() {

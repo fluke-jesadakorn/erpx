@@ -2,9 +2,9 @@ import {beforeAll,expect,it,vi} from 'vitest';
 import {env,applyMigrations} from "../../support/runtime-env";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
 import {runLegalAiEngineeringFixture} from "../../../fixtures/legal/builders/legal-ai-engineering";
-import {legalCommand,detail} from "../../../src/server/modules/legal/public/legal/service";
-import {readAiGatewayPolicy} from "../../../src/server/modules/agent/public/ai-gateway";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})}));
+import {legalCommand,detail} from "@erpx/server-legal/public/legal/service";
+import {readAiGatewayPolicy} from "@erpx/server-agent/public/ai-gateway";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})}));
 beforeAll(async()=>{await applyMigrations(env.H001_DB,env.STAFF_TEST_MIGRATIONS);});
 it('executes declared provider boundaries with native in-flight ACL and pre-network budget refusal, preserving manual work and limits',async()=>{
  const f=await seedExpenseCompany(env.H001_DB,env.H001_FILES),manager=await f.member('legal-ai-maker','legal_manager'),reviewer=await f.member('legal-ai-reviewer','legal_counsel');

@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
-import type { OrganizationAccessData } from "../../../src/lib/organization/organization-access";
-import { changedPeople, emptyDraft, organizationDraftDiff, personPlacement, projectOrganization, type DraftDefinition, type OrganizationDraft } from "../../../src/lib/organization/organization-draft";
+import type { OrganizationAccessData } from "@erpx/feature-organization/lib/organization-access";
+import { changedPeople, emptyDraft, organizationDraftDiff, personPlacement, projectOrganization, type DraftDefinition, type OrganizationDraft } from "@erpx/feature-organization/lib/organization-draft";
 
 /** The browser exercises durable draft responses without editing a user's private draft. */
 export async function mockPeopleDraft(page: Page, organization: OrganizationAccessData, definition?: DraftDefinition) {

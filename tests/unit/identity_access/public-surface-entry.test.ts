@@ -1,16 +1,16 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 const mocks=vi.hoisted(()=>({session:vi.fn(),host:'legal-portal-dev-erpx.jesadakorn.com',redirect:vi.fn((path:string)=>{throw Error('REDIRECT:'+path);}),portal:vi.fn(),legal:vi.fn()}));
-vi.mock('@/server/modules/identity_access/adapters/authorization',()=>({currentSession:mocks.session}));
+vi.mock("@erpx/server-identity_access/adapters/authorization",()=>({currentSession:mocks.session}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:mocks.host}),cookies:async()=>({get:()=>undefined})}));
 vi.mock('next/navigation',()=>({redirect:mocks.redirect,useRouter:()=>({refresh:vi.fn(),push:vi.fn()}),usePathname:()=>'/legal-portal/h001',useSearchParams:()=>new URLSearchParams()}));
-vi.mock('@/server/modules/customer_360/public/presentation-context-queries',()=>({customerPortalPresentationQueries:mocks.portal}));
-vi.mock('@/server/modules/legal/public/presentation-context-queries',()=>({legalPortalPresentationQueries:mocks.legal,legalPortalPresentationSnapshot:mocks.legal}));
-vi.mock('@/server/modules/runtime/public/runtime',()=>({holdingBindingBySlug:async()=>({id:'h001'})}));
-vi.mock('@/server/modules/work_projection/public/page-error',()=>({pageError:(error:unknown)=>{throw error;}}));
-import {publicSurfaceTarget,publicSurfaceLaunchPath,legalEnrollmentReturnPath,legalEnrollmentEntryTarget} from '@/server/modules/identity_access/public/rules/public-surface-entry';
-import {publicSurfaceOrigin,publicSurfaceLaunchRequest} from '@/server/modules/identity_access/public/public-surface-entry';
-import {productNavigationHref,isProductHandoffHref} from '@/lib/work_projection/product-navigation';
+vi.mock("@erpx/server-customer_360/public/presentation-context-queries",()=>({customerPortalPresentationQueries:mocks.portal}));
+vi.mock("@erpx/server-legal/public/presentation-context-queries",()=>({legalPortalPresentationQueries:mocks.legal,legalPortalPresentationSnapshot:mocks.legal}));
+vi.mock("@erpx/server-runtime/public/runtime",()=>({holdingBindingBySlug:async()=>({id:'h001'})}));
+vi.mock("@erpx/server-work_projection/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
+import {publicSurfaceTarget,publicSurfaceLaunchPath,legalEnrollmentReturnPath,legalEnrollmentEntryTarget} from '@erpx/server-identity_access/public/rules/public-surface-entry';
+import {publicSurfaceOrigin,publicSurfaceLaunchRequest} from '@erpx/server-identity_access/public/public-surface-entry';
+import {productNavigationHref,isProductHandoffHref} from '@erpx/feature-work_projection/lib/product-navigation';
 import {isValidElement,type ReactElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 const origin=(host:string)=>`https://${host}-dev-erpx.jesadakorn.com`;
@@ -38,10 +38,10 @@ it('rejects cross-surface, duplicate, foreign-host and mutation bridge requests 
  expect((await publicSurfaceLaunchRequest(request('forms','/forms/h001/form'))).status).toBe(404);expect((await publicSurfaceLaunchRequest(request('portal','/legal-portal/h001'))).status).toBe(422);const duplicate=new Request(origin('portal')+'/public/launch?next=/customer-portal/h001&next=/customer-portal/h002',{headers:{host:new URL(origin('portal')).host}});expect((await publicSurfaceLaunchRequest(duplicate)).status).toBe(422);expect((await publicSurfaceLaunchRequest(new Request(request(),{method:'POST',body:'{}'}))).status).toBe(405);expect(mocks.session).not.toHaveBeenCalled();
 });
 it('keeps the exact Legal share through unauthenticated tenant login and Customer Portal recovers to its tenant instead of a Platform workspace',async()=>{
- const {default:LegalPage}=await import('@/app/legal-portal/[holdingSlug]/page'),{default:CustomerPage}=await import('@/app/customer-portal/[holdingSlug]/page');await expect(LegalPage({params:Promise.resolve({holdingSlug:'h001'}),searchParams:Promise.resolve({share:'actual-share'})})).rejects.toThrow('REDIRECT:');expect(mocks.redirect).toHaveBeenLastCalledWith('/login?next='+encodeURIComponent('/legal-portal/h001?share=actual-share'));await expect(CustomerPage({params:Promise.resolve({holdingSlug:'h001'})})).rejects.toThrow('REDIRECT:');expect(mocks.redirect).toHaveBeenLastCalledWith('/login?'+new URLSearchParams({next:'/customer-portal/h001'}));
+ const {default:LegalPage}=await import('@erpx/feature-legal-portal/routes/legal-portal/[holdingSlug]/page'),{default:CustomerPage}=await import('@erpx/feature-portal/routes/customer-portal/[holdingSlug]/page');await expect(LegalPage({params:Promise.resolve({holdingSlug:'h001'}),searchParams:Promise.resolve({share:'actual-share'})})).rejects.toThrow('REDIRECT:');expect(mocks.redirect).toHaveBeenLastCalledWith('/login?next='+encodeURIComponent('/legal-portal/h001?share=actual-share'));await expect(CustomerPage({params:Promise.resolve({holdingSlug:'h001'})})).rejects.toThrow('REDIRECT:');expect(mocks.redirect).toHaveBeenLastCalledWith('/login?'+new URLSearchParams({next:'/customer-portal/h001'}));
 });
 it('shows a central-account continuation from the actual legacy enrollment Server page and does not serialize an invitation token or product-origin password form',async()=>{
- mocks.host='legal-portal-dev-erpx.jesadakorn.com';const {default:Page}=await import('@/app/legal-portal/enroll/page'),page=await Page();expect(isValidElement(page)).toBe(true);const props=(page as ReactElement<{centralEnrollmentHref?:string}>).props;expect(props.centralEnrollmentHref).toBe(origin('account')+'/legal-portal/enroll');const html=renderToStaticMarkup(page);expect(html).toContain('Continue on ERPX Account');expect(html).not.toContain('type="password"');expect(html).not.toContain('token=');mocks.host='account-dev-erpx.jesadakorn.com';const central=await Page();expect(central.props.centralEnrollmentHref).toBeUndefined();expect(renderToStaticMarkup(central)).toContain('type="password"');
+ mocks.host='legal-portal-dev-erpx.jesadakorn.com';const {default:Page}=await import('@erpx/workplace/routes/legal-portal/enroll/page'),page=await Page();expect(isValidElement(page)).toBe(true);const props=(page as ReactElement<{centralEnrollmentHref?:string}>).props;expect(props.centralEnrollmentHref).toBe(origin('account')+'/legal-portal/enroll');const html=renderToStaticMarkup(page);expect(html).toContain('Continue on ERPX Account');expect(html).not.toContain('type="password"');expect(html).not.toContain('token=');mocks.host='account-dev-erpx.jesadakorn.com';const central=await Page();expect(central.props.centralEnrollmentHref).toBeUndefined();expect(renderToStaticMarkup(central)).toContain('type="password"');
 });
 it('accepts only the closed actual Legal continuation login return and never an arbitrary callback or token query',()=>{expect(legalEnrollmentReturnPath('/legal-portal/continue?share=share&holding=h001')).toBe('/legal-portal/continue?holding=h001&share=share');for(const path of ['/legal-portal/h001','/legal-portal/continue?holding=h001&share=share&token=secret','/legal-portal/continue?holding=h001&share=a&share=b','/legal-portal/continue?holding=../foreign&share=share','https://evil.test/legal-portal/continue?holding=h001&share=share'])expect(legalEnrollmentReturnPath(path)).toBeNull();});
 

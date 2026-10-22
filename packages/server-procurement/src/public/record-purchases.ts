@@ -1,0 +1,1 @@
+export {procurementSourcePredicate,supplierBillSourcePredicate,procurementSourceReadScope,requireProcurementWorkspaceRecordRead} from "@erpx/server-procurement/adapters/record-purchases";

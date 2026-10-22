@@ -1,21 +1,21 @@
 import {expect,it,vi} from "vitest";
-import {createFrontAppService,type FrontPorts} from "../../../src/server/modules/work_projection/application/front-app";
-import {createFrontQuickAccessService} from "../../../src/server/modules/work_projection/application/front-quick-access";
-import {createListPageReader} from "../../../src/server/modules/work_projection/application/list-page";
-import {createStaffApiService,type StaffApiPorts} from "../../../src/server/modules/work_projection/application/staff-api";
-import {createStaffPageService} from "../../../src/server/modules/work_projection/application/staff-page";
-import {createNavigationContextService} from "../../../src/server/modules/work_projection/application/navigation-context";
-import {createNavigationCountService} from "../../../src/server/modules/work_projection/application/navigation-counts";
-import {createStorefrontIconService} from "../../../src/server/modules/work_projection/application/front-icon";
-import {createPageLayoutService,type PageLayoutUnit} from "../../../src/server/modules/work_projection/application/page-layouts";
-import {createFlowSettingsHubQuery,type FlowSettingsHubPorts} from "../../../src/server/modules/work_projection/application/flow-settings-hub";
-import {createRequestAdministrationQuery,type RequestAdministrationPorts} from "../../../src/server/modules/records/application/request-administration";
-import {createSocialPageQuery,type SocialPagePorts} from "../../../src/server/modules/collaboration/application/social-page";
-import {createBusinessDocumentBrandQuery,type BusinessDocumentBrandPorts} from "../../../src/server/modules/brand/application/business-document";
-import type {WorkContext,AccountAccessContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {ActiveWorkSelection} from "../../../src/server/modules/work_projection/domain/work-role-store";
-import type {WorkspaceHoldingChoice} from "../../../src/lib/work_projection/workspace-choice";
-import {ApiError} from "../../../src/server/modules/runtime/public/http";
+import {createFrontAppService,type FrontPorts} from "@erpx/server-work_projection/application/front-app";
+import {createFrontQuickAccessService} from "@erpx/server-work_projection/application/front-quick-access";
+import {createListPageReader} from "@erpx/server-work_projection/application/list-page";
+import {createStaffApiService,type StaffApiPorts} from "@erpx/server-work_projection/application/staff-api";
+import {createStaffPageService} from "@erpx/server-work_projection/application/staff-page";
+import {createNavigationContextService} from "@erpx/server-work_projection/application/navigation-context";
+import {createNavigationCountService} from "@erpx/server-work_projection/application/navigation-counts";
+import {createStorefrontIconService} from "@erpx/server-work_projection/application/front-icon";
+import {createPageLayoutService,type PageLayoutUnit} from "@erpx/server-work_projection/application/page-layouts";
+import {createFlowSettingsHubQuery,type FlowSettingsHubPorts} from "@erpx/server-work_projection/application/flow-settings-hub";
+import {createRequestAdministrationQuery,type RequestAdministrationPorts} from "@erpx/server-records/application/request-administration";
+import {createSocialPageQuery,type SocialPagePorts} from "@erpx/server-collaboration/application/social-page";
+import {createBusinessDocumentBrandQuery,type BusinessDocumentBrandPorts} from "@erpx/server-brand/application/business-document";
+import type {WorkContext,AccountAccessContext} from "@erpx/server-identity_access/public/authorization";
+import type {ActiveWorkSelection} from "@erpx/server-work_projection/domain/work-role-store";
+import type {WorkspaceHoldingChoice} from "@erpx/feature-work_projection/lib/workspace-choice";
+import {ApiError} from "@erpx/server-runtime/public/http";
 function only<T>(values:Partial<T>):T {return new Proxy(values,{get(target,name){if(name==="then")return undefined;if(name in target)return Reflect.get(target,name);throw Error(`Unexpected port ${String(name)}`);}}) as T;}
 const actor={userId:"user",sessionId:"session",companyId:"company",holdingId:"holding",holdingSlug:"acme",role:"owner",assignmentId:"assignment",scope:{kind:"holding",holdingSlug:"acme"}} as unknown as WorkContext;
 const error=(status:number,code:string,message:string)=>new ApiError(status,code,message);
@@ -193,11 +193,11 @@ it('loads only the exact included conversation and minimal command context witho
 import {readFileSync as frontRoleRead} from 'node:fs';
 import {resolve as frontRoleResolve} from 'node:path';
 import {createRequire as frontRoleRequire} from 'node:module';
-import {errorResponse as frontRoleErrorResponse} from '../../../src/server/modules/runtime/public/http';
-import {canonicalDestinationLinks as frontRoleLinks} from '../../../src/lib/work_projection/destination-links';
+import {errorResponse as frontRoleErrorResponse} from '@erpx/server-runtime/public/http';
+import {canonicalDestinationLinks as frontRoleLinks} from '@erpx/feature-work_projection/lib/destination-links';
 type FrontRoleGet=(request:Request,context:{params:Promise<{holdingSlug:string;companySlug:string;app:string;path:string[]}>})=>Promise<Response>;
 function actualFrontRoleGet(service:ReturnType<typeof front>){
- const require=frontRoleRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=frontRoleRead(frontRoleResolve('src/app/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts'),'utf8'),tree=ts.createSourceFile('actual-front-route.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),declarations:import('typescript').FunctionDeclaration[]=[];ts.forEachChild(tree,node=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='GET')declarations.push(node);});expect(declarations).toHaveLength(1);const declaration=declarations[0];if(!declaration)throw Error('Actual Front GET missing');
+ const require=frontRoleRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=frontRoleRead(frontRoleResolve("packages/workplace/src/routes/api/v1/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/route.ts"),'utf8'),tree=ts.createSourceFile('actual-front-route.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),declarations:import('typescript').FunctionDeclaration[]=[];ts.forEachChild(tree,node=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='GET')declarations.push(node);});expect(declarations).toHaveLength(1);const declaration=declarations[0];if(!declaration)throw Error('Actual Front GET missing');
  const code=ts.transpileModule(declaration.getText(tree).replace(/^export\s+/,''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
  const load=new Function('ports',`const {frontCompanyBrand,ensureFrontRole,ApiError,errorResponse,canonicalDestinationLinks,frontPmsAttachmentPaths}=ports;\n${code}\nreturn GET;`) as (ports:Record<string,unknown>)=>FrontRoleGet;
  // Only the exact roles branch is exercised. Real Front application authority,

@@ -2,18 +2,18 @@ import {afterAll,beforeAll,describe,expect,it,vi} from "vitest";
 import {createHash} from "node:crypto";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {financePeopleAttachmentOwner,type AttachmentOwnerTuple} from "../../support/helpers/engineering-finance-people-attachment-owners";
 import ownerMatrix from "../../catalogue/engineering-attachment-owner-cases.json";
-import {loadIamAuthority} from "../../../src/server/modules/identity_access/public/iam-store";
+import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import {attachmentBindingState} from "../../support/helpers/attachment-v2";
-import {attachmentContent,attachmentLinkStatus,bindRecordAttachmentSet,completeAttachmentUpload,createAttachmentSet,drainAttachmentScans,listAttachmentSets,prepareAttachmentBinding,reserveAttachmentFile} from "../../../src/server/modules/files/public/attachments/service";
+import {attachmentContent,attachmentLinkStatus,bindRecordAttachmentSet,completeAttachmentUpload,createAttachmentSet,drainAttachmentScans,listAttachmentSets,prepareAttachmentBinding,reserveAttachmentFile} from "@erpx/server-files/public/attachments/service";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 // Explicit clean scanner fixture; format detection, preview generation, storage,
 // upload transactions, permissions and owner commands remain production code.
 // The release scanner gate independently proves the real compiled scanner.
-vi.mock("../../../src/server/modules/files/public/attachments/scanner",()=>({
+vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
  attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"Declared clean scanner fixture",definitionUpdatedAt:Date.now(),error:null}),
  scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"Declared clean scanner fixture",definitionUpdatedAt:Date.now()}),
 }));

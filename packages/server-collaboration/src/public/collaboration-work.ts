@@ -1,0 +1,1 @@
+export {collaborationWorkspace,collaborationExport,collaborationActionDetail,createRecordRelation,removeRecordRelation,createActionCard,changeActionCard,collaborationActionWork} from '@erpx/server-collaboration/adapters/collaboration-work';export type {Row,Source,Card} from '@erpx/server-collaboration/domain/collaboration-work';

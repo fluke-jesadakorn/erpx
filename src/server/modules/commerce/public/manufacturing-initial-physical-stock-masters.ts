@@ -1,2 +1,0 @@
-export {createManufacturingInitialPhysicalStockProduct,createManufacturingInitialPhysicalStockWarehouse} from '../adapters/manufacturing-initial-physical-stock-masters';
-export {manufacturingInitialPhysicalStockProductSchema,manufacturingInitialPhysicalStockWarehouseSchema,type ManufacturingInitialPhysicalStockProductInput,type ManufacturingInitialPhysicalStockWarehouseInput,type ManufacturingInitialPhysicalStockMasterResult} from '../domain/manufacturing-initial-physical-stock-masters';

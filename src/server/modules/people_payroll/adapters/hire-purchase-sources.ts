@@ -1,6 +1,0 @@
-import "server-only";
-import type {SqlDatabase} from "../../runtime/public/runtime/types";
-/** Only the actual immutable Recruitment consumption receipt identifies this
- * bounded onboarding result. It grants no People directory or Payroll access. */
-export const talentHirePeopleSources=`SELECT receipt.company_id,receipt.handoff_id,jsonb_build_object('person',to_jsonb(person),'engagement',to_jsonb(engagement),'compensation',to_jsonb(compensation),'payGroup',to_jsonb(pay_group)) image FROM talent_hire_consumption_receipts receipt JOIN hr_people person ON person.id=receipt.person_id AND person.company_id=receipt.company_id JOIN hr_engagements engagement ON engagement.id=receipt.engagement_id AND engagement.person_id=person.id AND engagement.company_id=receipt.company_id JOIN hr_compensation_revisions compensation ON compensation.id=receipt.compensation_id AND compensation.engagement_id=engagement.id JOIN hr_pay_groups pay_group ON pay_group.id=engagement.pay_group_id AND pay_group.company_id=receipt.company_id`;
-export function talentHirePeopleSourceReadLocks(database:SqlDatabase){return [database.prepare("LOCK TABLE hr_people,hr_engagements,hr_compensation_revisions,hr_pay_groups IN SHARE ROW EXCLUSIVE MODE")];}

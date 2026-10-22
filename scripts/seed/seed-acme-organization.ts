@@ -4,12 +4,12 @@ import { localSeedLevels } from "../../fixtures/organization/builders/local-seed
 import { join } from "node:path";
 import { hashPassword } from "better-auth/crypto";
 import { getLocalProxy } from "../local/fixtures";
-import { businessRoles } from "../../src/lib/identity_access/business-roles";
-import { reportingIssues } from "../../src/lib/organization/organization";
-import { organizationRoster } from "../../src/server/modules/organization/public/organization";
-import { expenseRoute, spendingUsers } from "../../src/server/modules/people_payroll/public/expense-routing";
-import { ensureOrganizationChannels, organizationMemberSql } from "../../src/server/modules/organization/public/organization-channels";
-import type { SqlDatabase, SqlStatement } from "../../src/server/modules/runtime/adapters/runtime/types";
+import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
+import { reportingIssues } from "@erpx/feature-organization/lib/organization";
+import { organizationRoster } from "@erpx/server-organization/public/organization";
+import { expenseRoute, spendingUsers } from "@erpx/server-people_payroll/public/expense-routing";
+import { ensureOrganizationChannels, organizationMemberSql } from "@erpx/server-organization/public/organization-channels";
+import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
 import { demoBranches, demoCompany, demoDepartments, demoExpiry, demoInitialPassword, demoPrefix, demoStaffPlan, type DemoStaff } from "../../fixtures/organization/builders/acme-organization";
 
 // The development CLI and the owned browser fixture invoke the same explicit workflow.

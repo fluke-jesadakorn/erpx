@@ -1,16 +1,16 @@
-import {loadIamAuthority} from "../../../src/server/modules/identity_access/public/iam-store";
+import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import { beforeAll,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import { previewPositionGpo,publishPositionGpo as rawPublishPositionGpo,previewUnmapPositionGpo,unmapPositionGpo,positionGpoOverview,reconcilePositionGpo,drainPositionGpo,retryPositionGpo,retryPositionGpoConfig } from "../../../src/server/modules/identity_access/public/position-gpo";
-import type { DirectoryInventory } from "../../../src/lib/identity_access/directory-operations";
-import { effectiveGpoRules, gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, markPositionGpoNotRequired } from "../../../src/server/modules/identity_access/public/gpo-rules";
-import type { GpoRuleInput } from "../../../src/lib/organization/gpo-rules";
+import { previewPositionGpo,publishPositionGpo as rawPublishPositionGpo,previewUnmapPositionGpo,unmapPositionGpo,positionGpoOverview,reconcilePositionGpo,drainPositionGpo,retryPositionGpo,retryPositionGpoConfig } from "@erpx/server-identity_access/public/position-gpo";
+import type { DirectoryInventory } from "@erpx/feature-identity_access/lib/directory-operations";
+import { effectiveGpoRules, gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, markPositionGpoNotRequired } from "@erpx/server-identity_access/public/gpo-rules";
+import type { GpoRuleInput } from "@erpx/feature-organization/lib/gpo-rules";
 
 const provider=vi.hoisted(()=>({read:vi.fn(),apply:vi.fn()}));
 const mfa=vi.hoisted(()=>({check:vi.fn()}));
-vi.mock("../../../src/server/modules/identity_access/public/directory-provider",async importOriginal=>({...(await importOriginal<typeof import("../../../src/server/modules/identity_access/public/directory-provider")>()),readAutomationInventory:provider.read,applyDirectoryAction:provider.apply}));
-vi.mock("../../../src/server/modules/identity_access/public/iam-mfa",async importOriginal=>({...(await importOriginal<typeof import("../../../src/server/modules/identity_access/public/iam-mfa")>()),requireFreshMfa:mfa.check}));
+vi.mock("@erpx/server-identity_access/public/directory-provider",async importOriginal=>({...(await importOriginal<typeof import("@erpx/server-identity_access/public/directory-provider")>()),readAutomationInventory:provider.read,applyDirectoryAction:provider.apply}));
+vi.mock("@erpx/server-identity_access/public/iam-mfa",async importOriginal=>({...(await importOriginal<typeof import("@erpx/server-identity_access/public/iam-mfa")>()),requireFreshMfa:mfa.check}));
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 const inventories=new Map<string,DirectoryInventory>(),failConnections=new Set<string>(),journal=new Set<string>();
 const failAfterMember=new Set<string>(),failAfterFilter=new Set<string>(),failFilterBefore=new Set<string>(),failMemberBefore=new Set<string>();
@@ -515,7 +515,7 @@ it("serializes concurrent drains when the final two direct policy sources are re
 it("drains with a single-connection pool while committing source ownership before read-back",async()=>{
   const s=await setup();await s.link(s.headPerson,"single-pool-account");
   await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition}));
-  const {PostgresDatabase}=await import("../../../src/server/modules/runtime/adapters/runtime/postgres");
+  const {PostgresDatabase}=await import("@erpx/server-runtime/adapters/runtime/postgres");
   const serial=new PostgresDatabase({...db.pool.options,max:1,connectionTimeoutMillis:500});
   try{
     failAfterMember.add(s.connection);

@@ -1,2 +1,0 @@
-import 'server-only';import type {SqlDatabase} from '../../runtime/public/runtime/types';import {raiseInventoryReservationAlerts} from '../../collaboration/public/inventory-reservation-notifications';import {createInventoryReservationAlertsApplication} from '../application/reservation-alerts';
-export async function escalateInventoryReservations(db:SqlDatabase,now=Date.now(),warningWindowMs=86_400_000){return createInventoryReservationAlertsApplication({clock:{now:()=>Date.now()},raise:(...args)=>raiseInventoryReservationAlerts(db,...args)}).escalate(now,warningWindowMs);}

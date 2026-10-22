@@ -1,6 +1,0 @@
-export {supportTicketPortalSelectionSchema,supportTicketPortalPrepareSchema,supportTicketPortalDecisionSchema,supportTicketPortalResponseSchema,supportTicketPortalAcknowledgementSchema} from '../domain/ticket-portal';
-export type {SupportTicketPortalSelection,SupportTicketPortalPrepareInput,SupportTicketPortalDecisionInput,SupportTicketPortalResponseInput,SupportTicketPortalAcknowledgementInput,SupportTicketPortalResponse,SupportTicketPortalBinding,SupportTicketPortalWorkspace,SupportTicketPortalProjection,SupportTicketPortalPrepareResult,SupportTicketPortalDecisionResult,SupportTicketPortalResponseResult,SupportTicketPortalAcknowledgementResult} from '../domain/ticket-portal';
-export {supportTicketPortalWorkspace,prepareSupportTicketPortal,decideSupportTicketPortal,publishSupportTicketPortalResponse} from '../adapters/ticket-portal';
-export {supportTicketPortalProjection,acknowledgeSupportTicketPortalResponse,supportTicketPortalPreview} from '../adapters/ticket-portal-customer';
-export {supportTicketPortalProjectionRequest,supportTicketPortalCommandRequest,supportTicketPortalPreviewRequest} from '../adapters/ticket-portal-request';
-export {supportTicketPortalAvailable} from '../adapters/ticket-portal-availability';

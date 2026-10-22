@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decimalToMinor, minorToDecimal } from "../../../src/lib/finance/finance-money";
+import { decimalToMinor, minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 
 describe("finance money boundaries", () => {
   it("converts decimal strings without floating point drift", () => {

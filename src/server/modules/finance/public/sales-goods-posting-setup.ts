@@ -1,1 +1,0 @@
-export {requireSalesGoodsPostingFinanceAuthority,salesGoodsPostingFinanceSourceLocks,salesGoodsPostingFinanceState,validateSalesGoodsPostingFinanceState,salesGoodsPostingEffectiveService} from '../adapters/sales-goods-posting-setup';

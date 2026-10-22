@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { evaluateEngineeringPerformance, engineeringPerformanceWorkspacePath, type PerformanceSample } from "../../../src/lib/runtime/engineering-performance";
+import { evaluateEngineeringPerformance, engineeringPerformanceWorkspacePath, type PerformanceSample } from "@erpx/feature-runtime/lib/engineering-performance";
 function input() {
   const accountIds=Array.from({length:10},(_,i)=>`account-${i}`),samples:PerformanceSample[]=[];
   for (const actor of accountIds) for(let tick=0;tick<=180;tick++) {

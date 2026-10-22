@@ -1,5 +1,5 @@
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {SqlDatabase} from "../../../src/server/modules/runtime/adapters/runtime/types";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
 
 export async function deliveryEvidence(db:SqlDatabase,actor:WorkContext,orderId:string,note='Signed customer delivery confirmation') {
   const token=crypto.randomUUID(),id=`attachment-${token}`,uploadId=`upload-${token}`,now=Date.now(),objectKey=`test-delivery/${token}`;

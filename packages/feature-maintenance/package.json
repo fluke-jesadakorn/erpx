@@ -1,0 +1,20 @@
+{
+  "name": "@erpx/feature-maintenance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/maintenance-preventive-console": "./src/components/maintenance-preventive-console.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-assets": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/server-maintenance": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "@erpx/workplace": "workspace:*"
+  }
+}

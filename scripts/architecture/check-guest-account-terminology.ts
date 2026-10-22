@@ -1,10 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { legacyGuestAccountOperation } from "../../src/lib/identity_access/guest-account-compat";
+import { legacyGuestAccountOperation } from "@erpx/feature-identity_access/lib/guest-account-compat";
 
 // Applied schema history and dated evidence remain byte-for-byte historical.
 const immutable = [/^migrations\/postgres\/(control|control-read|holding-read)\//,/^docs\/adr\/ADR-00[1-9]-/,/^docs\/adr\/ADR-0[12][0-9]-/,/^docs\/adr\/ADR-03[0-9]-/,/^docs\/archive\//,/^archive\//,/^docs\/testing\/evidence\//];
-const compatibility = new Set(["src/lib/identity_access/guest-account-compat.ts","migrations/postgres/holding-write/1026_guest_accounts_and_hospitality_boundaries.sql"]);
+const compatibility = new Set(["packages/feature-identity_access/src/lib/guest-account-compat.ts","migrations/postgres/holding-write/1026_guest_accounts_and_hospitality_boundaries.sql"]);
 const roots = /^(src|scripts|tests|fixtures|docs|Designed|public|migrations)\/|^CONTEXT\.md$/;
 const textFile = /\.(tsx?|mts|cts|mjs|cjs|js|jsx|json|md|css|html|sql|txt|yaml|yml)$/;
 const old = legacyGuestAccountOperation("guest_account.").slice(0,-1);

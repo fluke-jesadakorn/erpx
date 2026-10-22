@@ -1,13 +1,13 @@
 import {beforeAll,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster} from "../../../src/server/modules/commerce/public/commerce";
-import {saveCount,transitionCount,countSchema} from "../../../src/server/modules/inventory/public/inventory-counts";
-import {assignFlowPrimary,resolveFlow} from "../../../src/server/modules/workflow/public/flow-routing";
+import {saveMaster} from "@erpx/server-commerce/public/commerce";
+import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
+import {assignFlowPrimary,resolveFlow} from "@erpx/server-workflow/public/flow-routing";
 import {readStockSnapshot,reconcileStockSnapshots} from "../../../fixtures/inventory/builders/engineering-stock-continuity";
-import {documentPostingPreview} from "../../../src/server/modules/finance/public/document-posting-preview";
+import {documentPostingPreview} from "@erpx/server-finance/public/document-posting-preview";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 
 it('reads native count movements and posted functional GL from the same holding snapshot',async()=>{

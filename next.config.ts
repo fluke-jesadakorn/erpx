@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 import { realpathSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
-import { developmentProductOrigin, productIds, sharedHostKeys } from "./src/server/modules/commercial/public/product-registry";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { developmentProductOrigin, productIds, sharedHostKeys } from "@erpx/contracts/product-registry";
+const configurationRoot = resolve(import.meta.dirname);
 const cohortDirectory = process.env.ERPX_DATA_DIR;
 // Case apps link dependencies from an immutable sibling fixture template.
 // Turbopack must resolve both inside its filesystem root (see its root guide).
@@ -24,8 +25,8 @@ const nextConfig: NextConfig = {
   // Version asset URLs so browsers and the CDN load the matching UI bundle.
   deploymentId:
     process.env.NEXT_DEPLOYMENT_ID ?? "navigation-more-20260916-v1",
-  turbopack: { root: isolatedTurbopackRoot ?? process.cwd() },
-  outputFileTracingRoot: isolatedTurbopackRoot ?? process.cwd(),
+  turbopack: { root: isolatedTurbopackRoot ?? configurationRoot },
+  outputFileTracingRoot: isolatedTurbopackRoot ?? configurationRoot,
   output: "standalone",
   // Keep the public development console's mobile navigation unobstructed.
   // Compile/runtime errors still appear without the floating dev indicator.

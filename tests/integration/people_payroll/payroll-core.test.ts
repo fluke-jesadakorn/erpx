@@ -1,24 +1,24 @@
 import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { approvePayrollRun,calculatePayrollRun,createPaymentBatch,approvePaymentBatch,preparePaymentRetry,confirmPaymentBatch,exportPaymentBatch,getPaymentFile,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,getPayrollRun,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema,verifyPayrollCostAssignment } from "../../../src/server/modules/people_payroll/public/people-payroll";
-import { submitPayrollReview } from "../../../src/server/modules/people_payroll/public/payroll-readiness";
-import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "../../../src/server/modules/people_payroll/public/payroll-remittance";
-import { listStaffNotifications } from "../../../src/server/modules/collaboration/public/staff-notifications";
-import { resolveFlow,assignFlowPrimary } from "../../../src/server/modules/workflow/public/flow-routing";
+import { approvePayrollRun,calculatePayrollRun,createPaymentBatch,approvePaymentBatch,preparePaymentRetry,confirmPaymentBatch,exportPaymentBatch,getPaymentFile,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,getPayrollRun,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema,verifyPayrollCostAssignment } from "@erpx/server-people_payroll/public/people-payroll";
+import { submitPayrollReview } from "@erpx/server-people_payroll/public/payroll-readiness";
+import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "@erpx/server-people_payroll/public/payroll-remittance";
+import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";
+import { resolveFlow,assignFlowPrimary } from "@erpx/server-workflow/public/flow-routing";
 import { assertOwnedCashCannotMatchAgain } from "../../support/helpers/finance-bank-ownership";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
-import { packageGrantStore, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
-import { payrollSummary, listPayrollRuns, workPayrollRows, listPeople } from "../../../src/server/modules/people_payroll/public/people-payroll";
-import { payrollPurchaseControls } from "../../../src/server/modules/people_payroll/public/payroll-purchases";
+import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
+import { payrollSummary, listPayrollRuns, workPayrollRows, listPeople } from "@erpx/server-people_payroll/public/people-payroll";
+import { payrollPurchaseControls } from "@erpx/server-people_payroll/public/payroll-purchases";
 import {preparePayrollProjection,assertPayrollFinanceHistory} from "../../support/helpers/payroll-finance-history";
-import {createAttachmentSet,attachmentContent,bindRecordAttachmentSet} from "../../../src/server/modules/files/public/attachments/service";
-import {getRecord,listRecords,recordsPage,searchReferences} from "../../../src/server/modules/records/public/records";
-import {payrollSourceReadScope,payrollNotificationTarget} from "../../../src/server/modules/people_payroll/public/record-purchases";
-import {publishInboxEvent,inboxPage} from "../../../src/server/modules/collaboration/public/inbox";
-import {peopleReferenceRows} from "../../../src/server/modules/people_payroll/public/people-purchases";
+import {createAttachmentSet,attachmentContent,bindRecordAttachmentSet} from "@erpx/server-files/public/attachments/service";
+import {getRecord,listRecords,recordsPage,searchReferences} from "@erpx/server-records/public/records";
+import {payrollSourceReadScope,payrollNotificationTarget} from "@erpx/server-people_payroll/public/record-purchases";
+import {publishInboxEvent,inboxPage} from "@erpx/server-collaboration/public/inbox";
+import {peopleReferenceRows} from "@erpx/server-people_payroll/public/people-purchases";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);enableAttachmentV2ForTest();});
@@ -182,7 +182,7 @@ it("posts an approved payroll run into the finance ledger exactly once",async()=
   expect(await db.prepare("SELECT status FROM hr_payroll_items WHERE run_id=?").bind(created.id).first("status")).toBe("posted");
   const journal=await db.prepare("SELECT id,status,source_type FROM finance_journals WHERE id=?").bind(posted.journalId).first();expect(journal).toMatchObject({status:"posted",source_type:"payroll"});
   expect(await db.prepare("SELECT SUM(debit_minor) debit,SUM(credit_minor) credit FROM finance_journal_lines WHERE journal_id=?").bind(posted.journalId).first()).toEqual({debit:100500,credit:100500});
-  const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),peopleObservation=()=>withOwnerPackageObligations(db,{companyId:f.company,packageId:'people',packageVersion:1},tx=>readOwnerPackageObligations(db,tx,{companyId:f.company,packageId:'people',packageVersion:1,now:Date.now()}));expect((await peopleObservation()).observations.find(row=>row.moduleId==='finance')!.outstanding).toBe(4);
+  const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),peopleObservation=()=>withOwnerPackageObligations(db,{companyId:f.company,packageId:'people',packageVersion:1},tx=>readOwnerPackageObligations(db,tx,{companyId:f.company,packageId:'people',packageVersion:1,now:Date.now()}));expect((await peopleObservation()).observations.find(row=>row.moduleId==='finance')!.outstanding).toBe(4);
   const liabilities=await getPayrollLiabilities(f.claimant,String(created.id));
   expect(liabilities.obligations).toEqual(expect.arrayContaining([
     expect.objectContaining({kind:"withholding_tax",accruedMinor:1000,outstandingMinor:1000}),
@@ -374,9 +374,9 @@ async function payrollAddonGrant(packageId:'people'|'people-payroll'|'people-exp
  return store.apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Reviewed disposable addon lifecycle',evidence:'test:payroll-addon-owner'}});
 }
 function payrollAddonScope(){return {companyId:f.company,packageId:'people-payroll',packageVersion:1};}
-async function payrollAddonObservation(){const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations');return withOwnerPackageObligations(db,payrollAddonScope(),tx=>readOwnerPackageObligations(db,tx,{...payrollAddonScope(),now:Date.now()}));}
-async function payrollAddonWithdrawal(){const {packageGrantRevision}=await import('../../../src/server/modules/commercial/public/package-grants'),grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==='people-payroll')!;return {companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Actual Payroll owner duties discharged',evidence:'test:payroll-addon-owner'}}]};}
-async function payrollAddonReview(request:Awaited<ReturnType<typeof payrollAddonWithdrawal>>,apply=false){const {withOwnerPackageObligations,ownerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-payroll-addon-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)});return withOwnerPackageObligations(db,payrollAddonScope(),tx=>apply?store.batch.applyIn(tx,request,async()=>{}):store.batch.previewIn(tx,request));}
+async function payrollAddonObservation(){const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations');return withOwnerPackageObligations(db,payrollAddonScope(),tx=>readOwnerPackageObligations(db,tx,{...payrollAddonScope(),now:Date.now()}));}
+async function payrollAddonWithdrawal(){const {packageGrantRevision}=await import('@erpx/server-commercial/public/package-grants'),grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==='people-payroll')!;return {companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Actual Payroll owner duties discharged',evidence:'test:payroll-addon-owner'}}]};}
+async function payrollAddonReview(request:Awaited<ReturnType<typeof payrollAddonWithdrawal>>,apply=false){const {withOwnerPackageObligations,ownerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-payroll-addon-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)});return withOwnerPackageObligations(db,payrollAddonScope(),tx=>apply?store.batch.applyIn(tx,request,async()=>{}):store.batch.previewIn(tx,request));}
 async function payrollAddonImage(){return db.prepare(`SELECT
  (SELECT COALESCE(jsonb_agg(to_jsonb(g) ORDER BY package_id),'[]') FROM company_package_grants g WHERE company_id=?) grants,
  (SELECT COALESCE(jsonb_agg(to_jsonb(e) ORDER BY id),'[]') FROM company_package_grant_events e WHERE company_id=?) events,
@@ -387,11 +387,11 @@ async function payrollAddonImage(){return db.prepare(`SELECT
  (SELECT COALESCE(jsonb_agg(to_jsonb(a) ORDER BY id),'[]') FROM audit_events a WHERE a.authority_json::jsonb->>'companyId'=?) audit,
  (SELECT COALESCE(jsonb_agg(to_jsonb(o) ORDER BY id),'[]') FROM outbox_events o JOIN command_receipts c ON c.command_id=o.command_id WHERE c.authority_json::jsonb->>'companyId'=?) outbox`).bind(...Array(8).fill(f.company)).first();}
 it('withdraws only the Payroll addon after normal schedule disable and retained run cancellation while base People and Expenses continue',async()=>{
- const {createPayGroup,payGroupSchema,createCompensation,compensationSchema,cancelPayrollRun,payrollCancelSchema}=await import('../../../src/server/modules/people_payroll/public/people-payroll'),{savePayrollSchedule,payrollScheduleSchema}=await import('../../../src/server/modules/people_payroll/public/payroll-readiness');
+ const {createPayGroup,payGroupSchema,createCompensation,compensationSchema,cancelPayrollRun,payrollCancelSchema}=await import('@erpx/server-people_payroll/public/people-payroll'),{savePayrollSchedule,payrollScheduleSchema}=await import('@erpx/server-people_payroll/public/payroll-readiness');
  await payrollAddonGrant('people');await payrollAddonGrant('people-payroll');await payrollAddonGrant('people-expenses');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  const engagement=await db.prepare('SELECT id FROM hr_engagements WHERE company_id=? ORDER BY id LIMIT 1').bind(f.company).first<string>('id');expect(engagement).toBeTruthy();
  await createCompensation(f.owner,compensationSchema.parse({engagementId:engagement!,effectiveFrom:'2026-09-01',payFrequency:'monthly',baseAmount:'100',currency:'THB'}),key());
- const {saveExpense,expenseUpdateSchema}=await import('../../../src/server/modules/people_payroll/public/expenses'),expense=await saveExpense(f.claimant,null,expenseUpdateSchema.parse({expectedVersion:1,merchant:'Independent Expense work'}),key());
+ const {saveExpense,expenseUpdateSchema}=await import('@erpx/server-people_payroll/public/expenses'),expense=await saveExpense(f.claimant,null,expenseUpdateSchema.parse({expectedVersion:1,merchant:'Independent Expense work'}),key());
  expect((await payrollAddonObservation()).observations.map(row=>[row.moduleId,row.outstanding])).toEqual([['people_payroll',0],['finance',0]]);
  f.owner.role='payroll_preparer';f.owner.assignmentId=await f.grant(f.owner,'payroll_preparer');
  const group=await createPayGroup(f.owner,payGroupSchema.parse({name:'Normal addon lifecycle group',countryCode:'TH',currency:'THB',frequency:'monthly',timezone:'Asia/Bangkok'}),key()),input=payrollRunSchema.parse({payGroupId:group.id,periodStart:'2026-09-01',periodEnd:'2026-09-30',payDate:'2026-10-02',currency:'THB'}),createKey=key(),run=await createPayrollRun(f.owner,input,createKey);
@@ -407,7 +407,7 @@ it('withdraws only the Payroll addon after normal schedule disable and retained 
  expect(await db.prepare(`SELECT (SELECT to_jsonb(e) FROM finance_expenses e WHERE id=?) expense,(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM hr_compensation_revisions c JOIN hr_engagements e ON e.id=c.engagement_id WHERE e.company_id=?) compensation`).bind(expense.id,f.company).first()).toEqual(retained);
 });
 it('leases absent Payroll addon rows and rejects a diagnostic deferred schedule duty atomically before withdrawal seal',async()=>{
- const {createPayGroup,payGroupSchema}=await import('../../../src/server/modules/people_payroll/public/people-payroll'),{withOwnerPackageObligations,ownerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),{peopleAddonPackageObligations}=await import('../../../src/server/modules/people_payroll/public/addon-package-obligations');
+ const {createPayGroup,payGroupSchema}=await import('@erpx/server-people_payroll/public/people-payroll'),{withOwnerPackageObligations,ownerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),{peopleAddonPackageObligations}=await import('@erpx/server-people_payroll/public/addon-package-obligations');
  await payrollAddonGrant('people');await payrollAddonGrant('people-payroll');f.owner.role='payroll_preparer';f.owner.assignmentId=await f.grant(f.owner,'payroll_preparer');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  const group=await createPayGroup(f.owner,payGroupSchema.parse({name:'Actual normal group for final-source fault',countryCode:'TH',currency:'THB',frequency:'monthly'}),key());
  await expect(db.transaction(tx=>peopleAddonPackageObligations(db,tx,{...payrollAddonScope(),moduleId:'people_payroll',now:Date.now()}))).rejects.toThrow('PEOPLE_ADDON_PACKAGE_OBLIGATION_SOURCE_REQUIRED');
@@ -546,7 +546,7 @@ it("keeps the Payroll addon blocked through actual bank and statutory settlement
 // below uses its normal owner command. This is not a zero-reference startup or
 // statutory calculation/certification proof, and no business SQL creates money.
 async function payrollOtherNativeFixture(purchased=true){
- const api=await import('../../../src/server/modules/people_payroll/public/payroll-other-remittance'),people=await import('../../../src/server/modules/people_payroll/public/people-payroll'),finance=await import('../../../src/server/modules/finance/public/finance'),administrator={...f.owner};
+ const api=await import('@erpx/server-people_payroll/public/payroll-other-remittance'),people=await import('@erpx/server-people_payroll/public/people-payroll'),finance=await import('@erpx/server-finance/public/finance'),administrator={...f.owner};
  // Commercial retained history uses PostgreSQL wall time; keep the owner clock real.
  vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','disabled');
  const account=async(name:string,category:'asset'|'liability'|'expense',bank=false)=>String((await finance.createAccount(administrator,finance.createAccountSchema.parse({chartId:f.chart,code:key(),name,category,currency:'THB',controlKind:bank?'bank':'none',isControl:bank}),key())).id);
@@ -637,7 +637,7 @@ it('requires actual Payroll purchase and source authority and rolls deferred rem
 });
 
 async function payrollOtherHeldWriter<Result>(writer:(command:string)=>Promise<unknown>,command:(key:string)=>Promise<Result>){
- const writerKey=key(),newKey=key(),fault='payroll_other_writer_'+key().replaceAll('-',''),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics');
+ const writerKey=key(),newKey=key(),fault='payroll_other_writer_'+key().replaceAll('-',''),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
  await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fault}');PERFORM pg_sleep(0.5);RETURN NEW;END $$;CREATE TRIGGER ${fault} AFTER INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='${writerKey}') EXECUTE FUNCTION ${fault}()`);
  try{const observed=await measureReads(async()=>{let done=false;const writing=writer(writerKey).finally(()=>{done=true;}),outcome=Promise.allSettled([writing]);let held=false;for(let attempt=0;attempt<100;attempt++){held=!!await db.prepare(`SELECT is_called FROM ${fault}`).first('is_called');if(held||done)break;await new Promise(resolve=>setTimeout(resolve,10));}if(!held){const [result]=await outcome;if(result.status==='rejected')throw result.reason;throw Error('Actual legacy writer must reach its held native receipt');}expect(done).toBe(false);const [written,current]=await Promise.all([outcome,Promise.allSettled([command(newKey)])]);return {written:written[0],current:current[0]};});expect(observed.result.written.status).toBe('fulfilled');expect({deadlockFailures:observed.metrics.deadlockFailures??0,serializationFailures:observed.metrics.serializationFailures??0,transactionRetries:observed.metrics.transactionRetries??0}).toEqual({deadlockFailures:0,serializationFailures:0,transactionRetries:0});return {...observed.result,newKey,writerKey};}finally{await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}();DROP SEQUENCE ${fault}`);}
 }
@@ -651,15 +651,15 @@ it('orders actual disabled generic bank import and original statutory remittance
 // New final-pay closure uses real original HR/Payroll owners. Shared Company,
 // worker and existing-role assignments are the original disposable fixture;
 // no final-pay/run/task/group/stock/money positive is manufactured with SQL.
-import {getFinalPayCancellation,cancelFinalPayPreparation,finalPayCancellationSchema} from '../../../src/server/modules/people_payroll/public/final-pay-cancellation';
+import {getFinalPayCancellation,cancelFinalPayPreparation,finalPayCancellationSchema} from '@erpx/server-people_payroll/public/final-pay-cancellation';
 async function normalFinalPayClosureSource(calculatedPreview=false){
- const {createPayGroup,payGroupSchema,assignPayGroup,assignPayGroupSchema,cancelPayrollRun}=await import('../../../src/server/modules/people_payroll/public/people-payroll'),{previewLifecycle,saveLifecycle,cancelLifecycle}=await import('../../../src/server/modules/people_payroll/public/people-lifecycle'),{lifecycleInput}=await import('../../../src/lib/people_payroll/people-lifecycle');
+ const {createPayGroup,payGroupSchema,assignPayGroup,assignPayGroupSchema,cancelPayrollRun}=await import('@erpx/server-people_payroll/public/people-payroll'),{previewLifecycle,saveLifecycle,cancelLifecycle}=await import('@erpx/server-people_payroll/public/people-lifecycle'),{lifecycleInput}=await import('@erpx/feature-people_payroll/lib/people-lifecycle');
  await payrollAddonGrant('people');await payrollAddonGrant('people-payroll');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  const hr={...f.owner},payroll={...f.owner,role:'payroll_preparer',assignmentId:await f.grant(f.owner,'payroll_preparer')},engagement=await db.prepare('SELECT id,person_id,version FROM hr_engagements WHERE company_id=? AND person_id=?').bind(f.company,`person-${f.claimant.userId}`).first<{id:string;person_id:string;version:number}>();expect(engagement).not.toBeNull();
  const group=await createPayGroup(payroll,payGroupSchema.parse({name:'Normal final-pay closure group',countryCode:'TH',currency:'THB',frequency:'monthly',timezone:'Asia/Bangkok'}),key());await assignPayGroup(hr,engagement!.id,assignPayGroupSchema.parse({expectedVersion:engagement!.version,payGroupId:String(group.id)}),key());
  const input=lifecycleInput.parse({kind:'offboarding',departureReason:'retirement',expectedVersion:0,personId:engagement!.person_id,engagementId:engagement!.id,positionId:null,lastWorkingDate:'2027-01-31',effectiveAt:Date.parse('2027-02-01T00:00:00+07:00'),reason:'Normal future retirement source before its later HR cancellation',clearanceOwners:{payroll:payroll.userId}}),preview=await previewLifecycle(db,hr,input),parent=await saveLifecycle(db,hr,input,key(),true,preview.token),task=await db.prepare("SELECT id,version,status,assignee_id FROM people_preparation_tasks WHERE case_id=? AND company_id=? AND clearance_type='payroll'").bind(parent.id,f.company).first<{id:string;version:number;status:string;assignee_id:string}>();expect(task).toMatchObject({status:'pending',assignee_id:payroll.userId});
  let compensationId:string|null=null;
- if(calculatedPreview){const people=await import('../../../src/server/modules/people_payroll/public/people-payroll'),reviewer={...f.manager,role:'payroll_approver',assignmentId:await f.grant(f.manager,'payroll_approver')},compensation=await people.createCompensation(hr,people.compensationSchema.parse({engagementId:engagement!.id,effectiveFrom:'2026-09-01',payFrequency:'monthly',baseAmount:'1000',currency:'THB',components:[]}),key());compensationId=String(compensation.id);await people.transitionCompensation(reviewer,compensationId,{status:'approved',expectedVersion:1},key());}
+ if(calculatedPreview){const people=await import('@erpx/server-people_payroll/public/people-payroll'),reviewer={...f.manager,role:'payroll_approver',assignmentId:await f.grant(f.manager,'payroll_approver')},compensation=await people.createCompensation(hr,people.compensationSchema.parse({engagementId:engagement!.id,effectiveFrom:'2026-09-01',payFrequency:'monthly',baseAmount:'1000',currency:'THB',components:[]}),key());compensationId=String(compensation.id);await people.transitionCompensation(reviewer,compensationId,{status:'approved',expectedVersion:1},key());}
  const prepareKey=key(),prepareInput=finalPayPreparationSchema.parse({taskId:task!.id,expectedTaskVersion:task!.version,payGroupId:group.id,periodStart:'2026-09-01',periodEnd:'2026-09-15',payDate:'2026-09-15',currency:'THB',reason:'Prepare assigned final pay before cancellation of the original HR case'}),prepared=await prepareFinalPay(payroll,prepareInput,prepareKey),runId=String(prepared.runId);
  await expect(cancelPayrollRun(payroll,runId,{expectedVersion:1,reason:'The ordinary final-pay cancellation guard stays closed'},key())).rejects.toMatchObject({code:'PAYROLL_CANCELLATION_UNAVAILABLE'});
  if(calculatedPreview){const cost=(await db.prepare("SELECT id,version,evidence_status FROM hr_payroll_cost_assignments WHERE engagement_id=? AND status='active'").bind(engagement!.id).all<{id:string;version:number;evidence_status:string}>()).results;expect(cost).not.toHaveLength(0);for(const assignment of cost)if(assignment.evidence_status!=='verified')await verifyPayrollCostAssignment(hr,assignment.id,{expectedVersion:assignment.version,evidenceRef:'Actual dated native employee placement and roster reviewed before final-pay preview'},key());const flow=await resolveFlow(db,hr,'payroll',runId);await assignFlowPrimary(db,hr,'payroll',runId,{stepKey:'calculate',userId:payroll.userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:'Original Company administrator assigns the actual eligible Payroll preparer',saveDefault:false},key());const calculated=await calculatePayrollRun(payroll,runId,key());expect(calculated).toMatchObject({status:'preview',totals:{headcount:1,gross:50000,net:50000}});}
@@ -713,7 +713,7 @@ it('retains actual independently approved compensation and calculated final-pay 
 // used by commands come from their original closed constructor receipts.
 async function zeroFinancePayrollPrerequisiteFixture(purchased=true){
  const otherCompanyId=f.company;f=await expenseFixture(false,false,false);
- const api=await import('../../../src/server/modules/finance/public/payroll-posting-prerequisites'),people=await import('../../../src/server/modules/people_payroll/public/people-payroll'),finance=await import('../../../src/server/modules/finance/public/finance'),administrator={...f.owner};
+ const api=await import('@erpx/server-finance/public/payroll-posting-prerequisites'),people=await import('@erpx/server-people_payroll/public/people-payroll'),finance=await import('@erpx/server-finance/public/finance'),administrator={...f.owner};
  const payroll={...f.owner,role:'payroll_preparer',assignmentId:await f.grant(f.owner,'payroll_preparer')},reviewer={...f.head,role:'payroll_approver',assignmentId:await f.grant(f.head,'payroll_approver')},financeReviewer={...f.manager};
  vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  if(purchased){await payrollAddonGrant('people');await payrollAddonGrant('people-payroll');}

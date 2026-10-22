@@ -1,6 +1,6 @@
 # Service ownership and isolated verification
 
-The [owner registry](../../../src/server/modules/ownership.json) assigns the 33 modules and shared service owners. Expense belongs to `people_payroll`; Commerce, Billing, Records, Workflow, Files, Work projections and runtime infrastructure have explicit shared ownership. The Holding database boundary remains unchanged.
+The [owner registry](../../../packages/contracts/src/ownership.json) assigns the 33 modules and shared service owners. Expense belongs to `people_payroll`; Commerce, Billing, Records, Workflow, Files, Work projections and runtime infrastructure have explicit shared ownership. The Holding database boundary remains unchanged.
 
 ## Dependency direction
 

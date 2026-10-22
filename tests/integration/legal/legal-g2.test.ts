@@ -1,19 +1,19 @@
-import {calendarQuerySchema} from "../../../src/lib/work_projection/calendar";
+import {calendarQuerySchema} from "@erpx/feature-work_projection/lib/calendar";
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {PDFDocument} from "pdf-lib";
 import {env,applyMigrations} from "../../support/runtime-env";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
-import {legalCommand,detail,legalData} from "../../../src/server/modules/legal/public/legal/service";
-import {access} from "../../../src/server/modules/legal/public/legal/access";
-import {legalPeople} from "../../../src/server/modules/legal/public/legal/assignees";
-import {importExecutedCopy,inspectDocument} from "../../../src/server/modules/legal/public/legal/documents";
-import {executedCopies,reviewExecutedCopy} from "../../../src/server/modules/legal/public/legal/executed-copies";
-import {legalCalendar,legalWork} from "../../../src/server/modules/legal/public/legal/integrations";
-vi.mock("../../../src/server/modules/files/public/attachments/scanner",()=>({
+import {legalCommand,detail,legalData} from "@erpx/server-legal/public/legal/service";
+import {access} from "@erpx/server-legal/public/legal/access";
+import {legalPeople} from "@erpx/server-legal/public/legal/assignees";
+import {importExecutedCopy,inspectDocument} from "@erpx/server-legal/public/legal/documents";
+import {executedCopies,reviewExecutedCopy} from "@erpx/server-legal/public/legal/executed-copies";
+import {legalCalendar,legalWork} from "@erpx/server-legal/public/legal/integrations";
+vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
   attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"simulated scanner",definitionUpdatedAt:Date.now(),error:null}),
   scanAttachmentBytes:async(bytes:Uint8Array)=>({clean:!Buffer.from(bytes).includes(Buffer.from("EICAR")),signature:Buffer.from(bytes).includes(Buffer.from("EICAR"))?"EICAR":null,engine:"simulated scanner",definitionUpdatedAt:Date.now()}),
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/preview",()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
+vi.mock("@erpx/server-files/public/attachments/preview",()=>({attachmentPreviewReadiness:async()=>({ready:true,error:null}),detectedAttachmentMediaType:(_bytes:Uint8Array,type:string)=>type,sanitizedAttachmentPreview:async()=>null}));
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 let f:Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);});
@@ -142,10 +142,10 @@ it("lets requesters submit and reply to their own routed request without legal o
 });
 
 
-import {packageGrantStore,readCompanyPackageGrants} from '../../../src/server/modules/commercial/public/package-grants';
-import {uploadDocument,documentExport} from '../../../src/server/modules/legal/public/legal/documents';
-import {createAttachmentSet,attachmentContent} from '../../../src/server/modules/files/public/attachments/service';
-import {measureReads} from '../../../src/server/modules/runtime/public/runtime/read-metrics';
+import {packageGrantStore,readCompanyPackageGrants} from '@erpx/server-commercial/public/package-grants';
+import {uploadDocument,documentExport} from '@erpx/server-legal/public/legal/documents';
+import {createAttachmentSet,attachmentContent} from '@erpx/server-files/public/attachments/service';
+import {measureReads} from '@erpx/server-runtime/public/runtime/read-metrics';
 async function legalFilesGrant(companyId:string,state:'active'|'draining'='active'){const prior=(await readCompanyPackageGrants(db,companyId)).find(row=>row.packageId==='legal');return packageGrantStore(db,{authorize:async()=>({userId:'isolated-legal-files-provider'}),obligations:async()=>{throw Error('No synthetic Legal Files withdrawal');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId,packageId:'legal',packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Actual private Legal file workflow',evidence:'test:legal-sensitive-files'}});}
 it('keeps actual private Legal document bytes, source finality and Legal holds under purchased current authority',async()=>{
  try{const created=await legalCommand(db,f.manager,{action:'create',item:input()},key()),pdf=await PDFDocument.create();pdf.addPage();const bytes=await pdf.save();vi.stubEnv('ERPX_LEGAL_PACKAGE_ENFORCEMENT','enforced');await expect(uploadDocument(db,env.H001_FILES,f.manager,created.id,1,'Actual private legal original.pdf','application/pdf',bytes,key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});await legalFilesGrant(f.company);const uploadKey=key(),saved=await uploadDocument(db,env.H001_FILES,f.manager,created.id,1,'Actual private legal original.pdf','application/pdf',bytes,uploadKey);expect(await uploadDocument(db,env.H001_FILES,f.manager,created.id,1,'Actual private legal original.pdf','application/pdf',bytes,uploadKey)).toEqual(saved);const actual=(await detail(db,f.manager,created.id)).documents[0];expect(Buffer.from(await (await documentExport(db,env.H001_FILES,f.manager,actual.id,null)).arrayBuffer())).toEqual(Buffer.from(bytes));

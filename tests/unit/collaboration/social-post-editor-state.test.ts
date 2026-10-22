@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { postContentBody, postContentMentions, postEditorBlocksFromStored, postWireContent, postWireRichContent } from "../../../src/lib/collaboration/social-post-editor-state";
-import { validateRichContent } from "../../../src/lib/shared/home-rich-content";
+import { postContentBody, postContentMentions, postEditorBlocksFromStored, postWireContent, postWireRichContent } from "@erpx/feature-collaboration/lib/social-post-editor-state";
+import { validateRichContent } from "@erpx/feature-shared/lib/home-rich-content";
 
 describe("deferred post editor state", () => {
   it("preserves Thai text, mention offsets and image order while the editor is unloaded", () => {

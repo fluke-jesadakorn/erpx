@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { payrollPeriodForDate } from "../../../src/lib/people_payroll/payroll-schedule";
+import { payrollPeriodForDate } from "@erpx/feature-people_payroll/lib/payroll-schedule";
 
 describe("payroll schedule calendar", () => {
   test("monthly pay follows the close, including February in a leap year", () => {

@@ -1,11 +1,12 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "moduleResolution": "bundler",
     "types": [
       "node",
       "bun",
-      "vitest/globals"
+      "vitest/globals",
+      "next"
     ],
     "target": "ES2022",
     "incremental": false
@@ -13,10 +14,7 @@
   "include": [
     "../**/*.ts",
     "../**/*.tsx",
-    "../**/*.mts",
-    "../../next-env.d.ts",
-    "../../.next/types/**/*.ts",
-    "../../.next/dev/types/**/*.ts"
+    "../**/*.mts"
   ],
   "exclude": []
 }

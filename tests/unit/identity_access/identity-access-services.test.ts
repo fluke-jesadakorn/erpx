@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { createIdentitySession, createResolveWorkspaceScope, createValidateNodeLineage, createAccountAccess, createWorkContext, createPlatformContext, createAuthorizedWorkspaces, createRequestedHoldingScope, type WorkspaceResolutionPorts } from "../../../src/server/modules/identity_access/application/authorization";
-import { createBetaAccess } from "../../../src/server/modules/identity_access/application/beta-access";
-import { createRequirePermission } from "../../../src/server/modules/identity_access/application/permissions";
-import { createIamActorFromWork } from "../../../src/server/modules/identity_access/application/iam-context";
-import type { AccountAccessContext, WorkAssignment, WorkspaceGrantFact, OrganizationNode, IdentitySession, WorkContext } from "../../../src/server/modules/identity_access/domain/authorization";
-import type { RoleRevision, PermissionActor } from "../../../src/lib/identity_access/iam";
-import type { ActiveWorkSelection } from "../../../src/server/modules/work_projection/public/work-role-store";
+import { createIdentitySession, createResolveWorkspaceScope, createValidateNodeLineage, createAccountAccess, createWorkContext, createPlatformContext, createAuthorizedWorkspaces, createRequestedHoldingScope, type WorkspaceResolutionPorts } from "@erpx/server-identity_access/application/authorization";
+import { createBetaAccess } from "@erpx/server-identity_access/application/beta-access";
+import { createRequirePermission } from "@erpx/server-identity_access/application/permissions";
+import { createIamActorFromWork } from "@erpx/server-identity_access/application/iam-context";
+import type { AccountAccessContext, WorkAssignment, WorkspaceGrantFact, OrganizationNode, IdentitySession, WorkContext } from "@erpx/server-identity_access/domain/authorization";
+import type { RoleRevision, PermissionActor } from "@erpx/feature-identity_access/lib/iam";
+import type { ActiveWorkSelection } from "@erpx/server-work_projection/public/work-role-store";
 const error = (status: number, code: string, message: string) => Object.assign(new Error(message), { status, code });
 const session: IdentitySession = { session: { id: "session", expiresAt: new Date(5000) }, user: { id: "user", name: "User", email: "user@example.test" } };
 const scope = { kind: "holding" as const, holdingId: "h001" as const, holdingSlug: "acme", holdingName: "Acme", companyId: "company" };
@@ -62,8 +62,8 @@ describe("Identity workspace and principal policies through semantic ports", () 
     it("dispatches page permission failures through the framework port", () => { const forbidden = vi.fn<() => never>(() => { throw new Error("page forbidden"); }); expect(() => createRequirePermission({ error, forbidden })({ role: "employee", pageRequest: true }, "iam.manage")).toThrow("page forbidden"); expect(forbidden).toHaveBeenCalledOnce(); });
     it("requires fresh authority before converting a work role into an IAM actor", () => { expect(() => createIamActorFromWork({ error })({ userId: "user" } as WorkContext)).toThrow(expect.objectContaining({ code: "FRESH_MFA_REQUIRED" })); });
 });
-import { createIamCommand, type IamCommandTransaction } from "../../../src/server/modules/identity_access/application/iam-command";
-import type { IamActor } from "../../../src/server/modules/identity_access/domain/iam-actor";
+import { createIamCommand, type IamCommandTransaction } from "@erpx/server-identity_access/application/iam-command";
+import type { IamActor } from "@erpx/server-identity_access/domain/iam-actor";
 const iamActor: IamActor = { userId: "user", assignmentId: "assignment", role: "holding_owner", companyId: "company", sessionId: "session", holdingId: "h001", scopeKind: "holding", scopeNodeId: null, branchId: null, departmentId: null, platform: false, iam, authority: { revision: 4, assignmentVersion: 1, sessionId: "session" } };
 function command() { const tx: IamCommandTransaction<{
     ok: boolean;
@@ -82,9 +82,9 @@ describe("Identity command policy inside an owned transaction", () => {
     it("checks sensitive-command MFA after business changes and before receipt or audit", async () => { const c = command(); c.tx.freshMfa = vi.fn(async () => { throw error(403, "FRESH_MFA_REQUIRED", "Verify MFA"); }); await expect(c.run(iamActor, "command-key", "role.propose", {}, "iam.manage")).rejects.toMatchObject({ code: "FRESH_MFA_REQUIRED" }); expect(c.tx.perform).toHaveBeenCalledOnce(); expect(c.tx.recordReceipt).not.toHaveBeenCalled(); expect(c.tx.recordAudit).not.toHaveBeenCalled(); });
     it("records receipt and audit after a successful independent change", async () => { const c = command(); expect(await c.run(iamActor, "command-key", "review.decide", { review: "id" }, "iam.manage")).toEqual({ ok: true }); expect(c.tx.freshMfa).toHaveBeenCalledOnce(); expect(c.tx.recordReceipt).toHaveBeenCalledWith(expect.objectContaining({ operation: "review.decide", digest: "digest" }), { ok: true }, 1000); expect(c.tx.recordAudit).toHaveBeenCalledOnce(); });
 });
-import { createBeginMfa, createVerifyMfa, createRequireFreshMfa } from "../../../src/server/modules/identity_access/application/mfa";
-import { createIamAuthority, createCurrentPersonPrincipals, type IamAuthorityPorts } from "../../../src/server/modules/identity_access/application/authority";
-import { createRecoveryCommands, type RecoveryTransaction } from "../../../src/server/modules/identity_access/application/recovery";
+import { createBeginMfa, createVerifyMfa, createRequireFreshMfa } from "@erpx/server-identity_access/application/mfa";
+import { createIamAuthority, createCurrentPersonPrincipals, type IamAuthorityPorts } from "@erpx/server-identity_access/application/authority";
+import { createRecoveryCommands, type RecoveryTransaction } from "@erpx/server-identity_access/application/recovery";
 const mfaActor = { userId: 'user', sessionId: 'session' };
 function authority(): IamAuthorityPorts { return { role: async () => role, member: async () => null, person: async () => null, aliases: async () => [], emergency: async () => null, hrAppointment: async () => null, now: () => 1000, error }; }
 function recovery() { const tx: RecoveryTransaction = { receipt: vi.fn(async () => null), freshMfa: vi.fn(async () => { }), member: async () => true, grant: async () => ({ valid_until: 100000 }), activate: vi.fn(async () => { }), revoke: vi.fn(async () => true), audit: vi.fn(async () => { }), record: vi.fn(async () => { }) }; const ports = { error, scope: vi.fn(async () => ({ companyId: 'company', holdingSlug: 'acme', scopeLabel: 'Acme' })), transaction: vi.fn(async (_scope: unknown, _actor: unknown, _key: string, _operation: string, _input: unknown, run: (tx: RecoveryTransaction, now: number, digest: string) => Promise<Record<string, unknown>>) => run(tx, 1000, 'digest')) }; return { tx, ports, run: createRecoveryCommands(ports) }; }
@@ -104,8 +104,8 @@ describe('Identity MFA, principals and emergency access policies', () => {
     it('propagates a late emergency audit failure before recording a receipt', async () => { const c = recovery(); c.tx.audit = async () => { throw new Error('late audit failure'); }; await expect(c.run('emergency.activate', mfaActor, { companyId: 'company', reason: 'Valid review reason' }, 'command-key')).rejects.toThrow('late audit failure'); expect(c.tx.activate).toHaveBeenCalledOnce(); expect(c.tx.record).not.toHaveBeenCalled(); });
 });
 
-import {createAccountTimePreferenceApplication,type AccountTimePreferencePorts} from "../../../src/server/modules/identity_access/application/account-time-preference";
-import type {TimePreference} from "../../../src/server/modules/identity_access/domain/account-time-preference";
+import {createAccountTimePreferenceApplication,type AccountTimePreferencePorts} from "@erpx/server-identity_access/application/account-time-preference";
+import type {TimePreference} from "@erpx/server-identity_access/domain/account-time-preference";
 function timePreferenceFixture(){const calls:string[]=[],row:TimePreference={mode:'manual',timeZone:'Asia/Bangkok',hourCycle:'h12',version:1};const ports:AccountTimePreferencePorts={clock:{now:()=>42},ready:vi.fn(async()=>{calls.push('ready');}),read:vi.fn(async()=>null),create:vi.fn(async()=>{calls.push('create');return row;}),change:vi.fn(async()=>{calls.push('change');return {...row,version:2};})};return {ports,calls,app:createAccountTimePreferenceApplication(ports)};}
 describe('Account time preferences use an injected atomic repository',()=>{
  it('returns the original system default without creating a preference',async()=>{const f=timePreferenceFixture();expect(await f.app.read('user')).toEqual({mode:'system',timeZone:null,hourCycle:'h23',version:0});expect(f.calls).toEqual(['ready']);expect(f.ports.create).not.toHaveBeenCalled();});

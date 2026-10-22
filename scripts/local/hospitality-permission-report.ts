@@ -1,8 +1,8 @@
 /** Read-only development evidence for the hospitality IAM migration. */
 import { readFile, writeFile } from "node:fs/promises";
-import { PostgresDatabase } from "../../src/server/modules/runtime/adapters/runtime/postgres";
-import { assertHospitalityDevelopmentTarget } from "../../src/lib/shared/hospitality-seed-target";
-import type { DatabaseManifest } from "../../src/server/modules/runtime/adapters/runtime/env";
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { assertHospitalityDevelopmentTarget } from "@erpx/feature-shared/lib/hospitality-seed-target";
+import type { DatabaseManifest } from "@erpx/server-runtime/adapters/runtime/env";
 const path=process.env.ERPX_DATABASE_MANIFEST;
 if(!path)throw new Error("DEVELOPMENT_MANIFEST_REQUIRED");
 const manifest=JSON.parse(await readFile(path,"utf8")) as DatabaseManifest;

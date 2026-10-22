@@ -1,13 +1,13 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { createInvoice, createParty, getInvoice, invoiceSchema, postInvoice, voidDraftInvoice } from "../../../src/server/modules/finance/public/finance";
-import { confirmManualRate } from "../../../src/server/modules/finance/public/company-money";
-import { assignFlowPrimary, resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
-import { documentPostingPreview } from "../../../src/server/modules/finance/public/document-posting-preview";
+import { createInvoice, createParty, getInvoice, invoiceSchema, postInvoice, voidDraftInvoice } from "@erpx/server-finance/public/finance";
+import { confirmManualRate } from "@erpx/server-finance/public/company-money";
+import { assignFlowPrimary, resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import { documentPostingPreview } from "@erpx/server-finance/public/document-posting-preview";
 
 vi.mock("server-only", () => ({}));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);

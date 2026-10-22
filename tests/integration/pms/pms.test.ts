@@ -1,15 +1,15 @@
-import {financeProductDocumentEntry} from "../../../src/server/modules/finance/public/document-purchases";
-import {financeSourceDocumentBackdrop} from "../../../src/server/modules/finance/public/record-presentation";
-import {getInvoice,getPayment} from "../../../src/server/modules/finance/public/finance";
-import {journalDetail} from "../../../src/server/modules/finance/public/ledger";
+import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
+import {financeSourceDocumentBackdrop} from "@erpx/server-finance/public/record-presentation";
+import {getInvoice,getPayment} from "@erpx/server-finance/public/finance";
+import {journalDetail} from "@erpx/server-finance/public/ledger";
 import { reviewedSecondaryBook } from "../../support/helpers/finance-book-fixture";
-import { PostgresDatabase } from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import { prepareRoomCharge } from "../../../src/lib/pms/pms-room-charge";
-import { frontOperationAllowed } from "../../../src/server/modules/work_projection/public/front-app";
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { prepareRoomCharge } from "@erpx/feature-pms/lib/pms-room-charge";
+import { frontOperationAllowed } from "@erpx/server-work_projection/public/front-app";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { pmsCommand, loadPms, drainPms, pmsWorkspace, pmsWork, applyPosRoomCharge, reversePosRoomCharge, persistPmsRecords } from "../../../src/server/modules/pms/public/pms";
+import { pmsCommand, loadPms, drainPms, pmsWorkspace, pmsWork, applyPosRoomCharge, reversePosRoomCharge, persistPmsRecords } from "../../../packages/server-pms/src/public/pms";
 import {
   records,
   record,
@@ -17,26 +17,26 @@ import {
   defaultConfig,
   amounts,
   type Config,
-} from "../../../src/server/modules/pms/public/rules/pms";
-import { availability, dailyRoomReport } from "../../../src/lib/pms/pms-engine";
-import { pmsHome,pmsTaskPage,pmsHotelSources,pmsOperationalWork,pmsHotelOverview } from "../../../src/server/modules/pms/public/pms/home";
-import { pmsFinanceOverview } from "../../../src/server/modules/pms/public/pms/finance";
-import { readablePmsSource } from "../../../src/server/modules/pms/public/pms/source";
-import { previewPmsImport,approvePmsImport,applyPmsImport } from "../../../src/server/modules/pms/public/pms/import";
-import { publishHandover,acknowledgeHandover,handoverView } from "../../../src/server/modules/operations/public/handover";
-import { homePosts,postView } from "../../../src/server/modules/collaboration/public/social-home";
-import { projectPmsSocialEvent } from "../../../src/server/modules/pms/public/pms/social-events";
-import type { EventMessage } from "../../../src/server/modules/workflow/public/job-projector";
-import { createJournal,postJournal,previewOpeningTrialBalance,importOpeningTrialBalance,openingTrialBalanceSchema } from "../../../src/server/modules/finance/public/finance";
-import { assignFlowPrimary,resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
-import { confirmManualRate } from "../../../src/server/modules/finance/public/company-money";
-import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@/server/modules/commercial/public/package-grants";
-import { withOwnerPackageObligations, readOwnerPackageObligations, ownerPackageObligations } from "@/server/modules/commercial/public/owner-package-obligations";
-import { pmsPackageObligations, lockPmsPackageObligationSources } from "@/server/modules/pms/public/package-obligations";
-import { readExecutiveMetricProjection as pmsMetric } from "@/server/modules/pms/public/executive-metric-projections";
-import { executiveMainEvidenceSources as pmsMetricEvidence } from "@/server/modules/pms/public/executive-main-evidence-sources";
-import { metricCatalogFor } from "@/server/modules/runtime/public/executive/metrics";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+} from "@erpx/server-pms/public/rules/pms";
+import { availability, dailyRoomReport } from "@erpx/feature-pms/lib/pms-engine";
+import { pmsHome,pmsTaskPage,pmsHotelSources,pmsOperationalWork,pmsHotelOverview } from "@erpx/server-pms/public/pms/home";
+import { pmsFinanceOverview } from "@erpx/server-pms/public/pms/finance";
+import { readablePmsSource } from "@erpx/server-pms/public/pms/source";
+import { previewPmsImport,approvePmsImport,applyPmsImport } from "@erpx/server-pms/public/pms/import";
+import { publishHandover,acknowledgeHandover,handoverView } from "@erpx/server-operations/public/handover";
+import { homePosts,postView } from "@erpx/server-collaboration/public/social-home";
+import { projectPmsSocialEvent } from "@erpx/server-pms/public/pms/social-events";
+import type { EventMessage } from "@erpx/server-workflow/public/job-projector";
+import { createJournal,postJournal,previewOpeningTrialBalance,importOpeningTrialBalance,openingTrialBalanceSchema } from "@erpx/server-finance/public/finance";
+import { assignFlowPrimary,resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import { confirmManualRate } from "@erpx/server-finance/public/company-money";
+import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
+import { withOwnerPackageObligations, readOwnerPackageObligations, ownerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
+import { pmsPackageObligations, lockPmsPackageObligationSources } from "@erpx/server-pms/public/package-obligations";
+import { readExecutiveMetricProjection as pmsMetric } from "@erpx/server-pms/public/executive-metric-projections";
+import { executiveMainEvidenceSources as pmsMetricEvidence } from "@erpx/server-pms/public/executive-main-evidence-sources";
+import { metricCatalogFor } from "@erpx/server-runtime/public/executive/metrics";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {
   attachmentBindingState,
   enableAttachmentV2ForTest,
@@ -50,7 +50,7 @@ it("allows staff payout of approved PMS refunds while keeping independent decisi
   expect(frontOperationAllowed("pos", "refund.pay")).toBe(false);
 });
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", async () => {
+vi.mock("@erpx/server-runtime/adapters/runtime", async () => {
   const { env } = await import("../../support/runtime-env");
   return { holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env };
 });
@@ -313,7 +313,7 @@ it("batches changed PMS records in input order while retaining row counters, mul
   const observations = async () => (await db.prepare("SELECT record_id FROM pms_booking_observations WHERE record_id IN (?,?) ORDER BY observation_id")
     .bind(stay.id,reservation.id).all<{record_id:string}>()).results.map(row=>row.record_id);
   const before=await revision(), observedBefore=(await observations()).length;
-  const {measureReads}=await import("../../../src/server/modules/runtime/adapters/runtime/read-metrics");
+  const {measureReads}=await import("@erpx/server-runtime/adapters/runtime/read-metrics");
   await db.transaction(async tx => {
     await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
     await tx.prepare("SELECT id FROM pms_properties WHERE id=? FOR UPDATE").bind(propertyId).first();
@@ -349,7 +349,7 @@ it("keeps multi-chunk PMS writes atomic under a real later SQL failure and suppo
   s.records=guests;
   const revision=async()=>Number(await db.prepare("SELECT revision FROM work_cache_revisions WHERE table_name='pms_records'").first("revision"));
   const count=async()=>Number(await db.prepare("SELECT COUNT(*)::int n FROM pms_records WHERE id IN (SELECT jsonb_array_elements_text(?::jsonb))").bind(JSON.stringify(guests.map(row=>row.id))).first("n"));
-  const {measureReads}=await import("../../../src/server/modules/runtime/adapters/runtime/read-metrics");
+  const {measureReads}=await import("@erpx/server-runtime/adapters/runtime/read-metrics");
   const before=await revision();
   await expect(db.transaction(async tx=>{
     await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
@@ -620,7 +620,7 @@ it("does not settle a production hotel transfer from a typed reference alone", a
   const shift = (await cmd("shift.open", { name: "AM", opening: 0 })).id;
   const before = await snapshot();
   const accountBalance = await balance(accounts.bank);
-  const { changeCompanyFeatureRollout } = await import("../../../src/server/modules/pms/public/hospitality-rollout");
+  const { changeCompanyFeatureRollout } = await import("@erpx/server-pms/public/hospitality-rollout");
   await changeCompanyFeatureRollout(owner, { moduleId: "pms", state: "pilot", expectedVersion: 0, reason: "Hotel pilot acceptance rehearsal" }, key());
   vi.stubEnv("NODE_ENV", "production");
   expect((await pmsWorkspace(owner, propertyId)).availablePaymentMethods).toEqual(["cash"]);
@@ -640,7 +640,7 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
   const booking=await book();
   await checkIn(booking.stayId);
   const shift=(await cmd("shift.open",{name:"AM",opening:0})).id;
-  const {changeCompanyFeatureRollout}=await import("../../../src/server/modules/pms/public/hospitality-rollout");
+  const {changeCompanyFeatureRollout}=await import("@erpx/server-pms/public/hospitality-rollout");
   await changeCompanyFeatureRollout(owner,{moduleId:"pms",state:"pilot",expectedVersion:0,reason:"Hotel transfer pilot rehearsal"},key());
   vi.stubEnv("NODE_ENV","production");
   const initial=await snapshot();
@@ -651,7 +651,7 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
   expect(await pmsCommand(db,owner,request,requestKey)).toEqual(pending);
   expect((await snapshot()).property.version).toBe(initial.property.version);
   expect(await balance(accounts.bank)).toBe(0);
-  const {hospitalityDayControls}=await import("../../../src/server/modules/pms/public/hospitality-day-controls");
+  const {hospitalityDayControls}=await import("@erpx/server-pms/public/hospitality-day-controls");
   const controls=await hospitalityDayControls(db,f.company,f.branch,propertyId,initial.property.businessDate);
   expect(controls.pendingHotelTransfers).toBe(1);
   expect(controls.blockers).toContain("1 hotel bank transfer(s) awaiting Finance verification");
@@ -1926,7 +1926,7 @@ it('rejects non-THB hotel charts and selected accounts without creating partial 
 });
 
 it('filters setup details and resumes from owner records without admitting other branches',async()=>{
- const {hospitalitySetup}=await import("../../../src/server/modules/pms/public/hospitality-setup");
+ const {hospitalitySetup}=await import("@erpx/server-pms/public/hospitality-setup");
  const data=await hospitalitySetup(owner,f.branch,propertyId);
  expect(data.hotel?.records.some(r=>r.kind==='room')).toBe(true);
  expect(data.hotel?.records.some(r=>r.kind==='guest')).toBe(false);
@@ -1964,7 +1964,7 @@ it('serializes a damage-deposit refund against applying the same deposit to a ch
 });
 
 it('pages booking queries while retaining related records and honoring guest search and hotel scope',async()=>{
- const {plusDays}=await import("../../../src/server/modules/pms/public/rules/pms-model");const ids:string[]=[];
+ const {plusDays}=await import("@erpx/server-pms/public/rules/pms-model");const ids:string[]=[];
  for(let i=0;i<55;i++)ids.push((await cmd('reservation.create',{guestId,source:'direct',rooms:[{typeId,rateId,arrival:plusDays('2026-09-01',i),departure:plusDays('2026-09-02',i),adults:2,quantity:1}]})).id);
  const first=await pmsWorkspace(owner,propertyId,false,false,{view:'list',section:'reservations',page:0,q:'',status:''});
  expect(first.snapshot!.listMeta).toMatchObject({page:0,hasNext:true});expect(first.snapshot!.listMeta!.ids).toHaveLength(50);
@@ -2481,14 +2481,14 @@ it("serializes concurrent last group pickups and returns quota after cancellatio
 });
 
 it('PMS rendered handover receipt uses native source counts and versioned retry without licensing full Work while native role loss hides the initial content',async()=>{
- const {pmsHomeWrite}=await import('../../../src/server/modules/pms/public/pms/home-api'),{acknowledgeHandoverVersion}=await import('../../../src/server/modules/operations/public/handover'),{postAction}=await import('../../../src/server/modules/collaboration/public/social-home');await pmsPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
+ const {pmsHomeWrite}=await import('@erpx/server-pms/public/pms/home-api'),{acknowledgeHandoverVersion}=await import('@erpx/server-operations/public/handover'),{postAction}=await import('@erpx/server-collaboration/public/social-home');await pmsPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');
  const taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,receiver=await f.member('Actual receipt shift receiver','pms_housekeeping'),source=await readablePmsSource(db,owner,taskId),work={items:await pmsWork(owner),unavailableSources:[]},published=await publishHandover(db,owner,work,{date:new Date(Date.now()+7*3600000).toISOString().slice(0,10),body:'Actual current room handover needs a read receipt',sources:[{kind:'pms_record',id:taskId,sourceVersion:source.version}],recipientIds:[receiver.userId]},key()),initial=(await pmsHome(receiver,{postId:published.id})).posts[0];
  expect(initial.handoverReceipt).toMatchObject({postId:published.id,postVersion:1,recipientCount:1,acknowledgedCount:0,canAcknowledge:true});const original=key();expect(await pmsHomeWrite(receiver,['handover',published.id,'acknowledgement'],{},original,1)).toMatchObject({postVersion:1,acknowledged:true,acknowledgedCount:1});await postAction(db,owner,published.id,{action:'edit',expectedVersion:1,body:'Amended room handover must be read again'},key());expect(await pmsHomeWrite(receiver,['handover',published.id,'acknowledgement'],{},original,1)).toEqual({postId:published.id,postVersion:1,acknowledged:true});await expect(pmsHomeWrite(receiver,['handover',published.id,'acknowledgement'],{},key(),1)).rejects.toMatchObject({code:'HANDOVER_SOURCE_CHANGED'});expect((await pmsHome(receiver,{postId:published.id})).posts[0].handoverReceipt).toMatchObject({postVersion:2,acknowledged:false,acknowledgedCount:0});expect(await pmsHomeWrite(receiver,['handover',published.id,'acknowledgement'],{},key())).toMatchObject({postId:published.id,postVersion:2});expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['pms']);
  await db.prepare('UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?').bind(Date.now(),receiver.assignmentId).run();await expect(pmsHome(receiver,{postId:published.id})).rejects.toMatchObject({code:'PMS_ACCESS_CHANGED'});await expect(acknowledgeHandoverVersion(db,receiver,published.id,original,1)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect(await db.prepare('SELECT count(*) n FROM social_handover_acknowledgements WHERE post_id=?').bind(published.id).first('n')).toBe(2);
 });
 
 it('includedSocial enters the actual Hotel conversation with all enforcement disabled and applies native history new-work settlement and current source once enabled',async()=>{
- const {savePostDraft,publishPost,postAction}=await import('../../../src/server/modules/collaboration/public/social-home'),{socialPostProductSourceEntry,socialPostSourceOnly}=await import('../../../src/server/modules/collaboration/public/product-entry'),{socialPageData}=await import('../../../src/server/modules/collaboration/public/social-page');
+ const {savePostDraft,publishPost,postAction}=await import('@erpx/server-collaboration/public/social-home'),{socialPostProductSourceEntry,socialPostSourceOnly}=await import('@erpx/server-collaboration/public/product-entry'),{socialPageData}=await import('@erpx/server-collaboration/public/social-page');
  const taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,receiver=await f.member('Actual included Hotel reader','pms_housekeeping'),draft=await savePostDraft(db,owner,null,{body:'Exact Hotel handoff text',audience:{kind:'participants',userIds:[receiver.userId]},sources:[{kind:'pms_record',id:taskId}],purpose:'handover',expectedVersion:1},key()),publishKey=key(),published=await publishPost(db,owner,draft.id,draft.version,publishKey),scope={companyId:receiver.companyId,branchId:receiver.branchId,departmentId:receiver.departmentId,userId:receiver.userId,assignmentId:receiver.assignmentId,assignmentVersion:(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(receiver.assignmentId).first<number>('version'))!,role:receiver.role};
  expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:published.id})).toBeNull();await pmsPackage();expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:published.id})).toEqual({purchasePurpose:'history'});expect(await socialPostSourceOnly(receiver,published.id)).toBe(true);expect((await socialPageData(receiver,{postId:published.id,sourceOnly:true})).options).toEqual({branches:[],audiences:[],projects:[]});
  vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');expect((await postView(db,receiver,published.id)).purchase).toMatchObject({newWork:true,settleExisting:true,history:true});vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');expect((await postView(db,receiver,published.id)).body).toBe('Exact Hotel handoff text');expect(await socialPostProductSourceEntry(db,{...scope,assignmentVersion:scope.assignmentVersion+1},{kind:'post',id:published.id})).toBeNull();
@@ -2496,24 +2496,24 @@ it('includedSocial enters the actual Hotel conversation with all enforcement dis
  await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(receiver.assignmentId).run();expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:published.id})).toBeNull();await expect(postView(db,receiver,published.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(['pms']);expect(receiver.modules).not.toContain('collaboration');
 });
 it('includedSocial permits Finance retained guest-account text only and never uses that purchase for room content new work or settlement',async()=>{
- const {savePostDraft,publishPost,postAction}=await import('../../../src/server/modules/collaboration/public/social-home'),{socialPostProductSourceEntry}=await import('../../../src/server/modules/collaboration/public/product-entry'),booking=await book();
+ const {savePostDraft,publishPost,postAction}=await import('@erpx/server-collaboration/public/social-home'),{socialPostProductSourceEntry}=await import('@erpx/server-collaboration/public/product-entry'),booking=await book();
  const make=async(id:string)=>{const draft=await savePostDraft(db,owner,null,{body:'Actual retained financial Hotel source',audience:{kind:'company'},sources:[{kind:'pms_record',id}],expectedVersion:1},key());return publishPost(db,owner,draft.id,draft.version,key());},financial=await make(booking.guestAccountId),room=await make(roomId),scope={companyId:reviewer.companyId,branchId:reviewer.branchId,departmentId:reviewer.departmentId,userId:reviewer.userId,assignmentId:reviewer.assignmentId,assignmentVersion:(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(reviewer.assignmentId).first<number>('version'))!,role:reviewer.role};
  vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');await expect(postView(db,reviewer,financial.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});await pmsPackage('active',null,'finance');expect((await postView(db,reviewer,financial.id)).purchase).toMatchObject({newWork:false,settleExisting:false,history:true,createTask:false});expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:financial.id})).toEqual({purchasePurpose:'history'});await expect(postView(db,reviewer,room.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});expect(await socialPostProductSourceEntry(db,scope,{kind:'post',id:room.id})).toBeNull();await expect(postAction(db,reviewer,financial.id,{action:'comment',body:'Finance history is not a Hotel settlement grant'},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(['finance']);
 });
 it('includedSocial repeats actual PMS source current IAM and purchase after complete deferred effects and rolls back content receipts and grants before exact retry',async()=>{
- const {plainRichContent}=await import('../../../src/lib/shared/home-rich-content');const {savePostDraft,publishPost,postAction}=await import('../../../src/server/modules/collaboration/public/social-home');await pmsPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');const taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,draft=await savePostDraft(db,owner,null,{body:'Original leased Hotel source',audience:{kind:'company'},sources:[{kind:'pms_record',id:taskId}],expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key());
+ const {plainRichContent}=await import('@erpx/feature-shared/lib/home-rich-content');const {savePostDraft,publishPost,postAction}=await import('@erpx/server-collaboration/public/social-home');await pmsPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');const taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,draft=await savePostDraft(db,owner,null,{body:'Original leased Hotel source',audience:{kind:'company'},sources:[{kind:'pms_record',id:taskId}],expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key());
  for(const kind of ['source','iam','purchase'] as const){if(kind==='purchase')await pmsPackage('active',Date.now()+2000);const expectedVersion=(await db.prepare('SELECT version FROM social_posts WHERE id=?').bind(published.id).first<number>('version'))!,command=key(),fn=`social_pms_final_${key().replaceAll('-','')}`,tables=['social_posts','social_comments','social_post_revisions','command_receipts','audit_events','outbox_events','company_package_grants','pms_records','assignments'],snapshot=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT to_jsonb(r)::text image FROM ${table} r ORDER BY image`).all()).results)),before=await snapshot(),effect=kind==='source'?`UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{note}','"Unreviewed deferred Hotel source"'::jsonb)::text WHERE id='${taskId}'`:kind==='iam'?`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${owner.assignmentId}'`:`PERFORM pg_sleep(2.1)`;
  await db.exec(`CREATE SEQUENCE ${fn}_fired;CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fn}_fired');${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER UPDATE ON social_posts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.id='${published.id}') EXECUTE FUNCTION ${fn}()`);
  try{await expect(postAction(db,owner,published.id,{action:'edit',expectedVersion,body:`Actual ${kind} late source guard`,richContent:plainRichContent(`Actual ${kind} late source guard`)},command)).rejects.toMatchObject({code:kind==='source'?'WORK_SOCIAL_SOURCE_CHANGED':kind==='iam'?'WORK_SOCIAL_AUTHORITY_CHANGED':'PACKAGE_DRAINING'});expect(await db.prepare(`SELECT is_called FROM ${fn}_fired`).first('is_called')).toBe(true);}finally{await db.exec(`DROP TRIGGER ${fn} ON social_posts;DROP FUNCTION ${fn}();DROP SEQUENCE ${fn}_fired`);}expect(await snapshot()).toEqual(before);if(kind==='purchase')await pmsPackage();await postAction(db,owner,published.id,{action:'edit',expectedVersion,body:`Actual ${kind} late source guard`,richContent:plainRichContent(`Actual ${kind} late source guard`)},command);expect(await db.prepare('SELECT count(*) n FROM command_receipts WHERE command_id=?').bind(command).first('n')).toBe(1);
  }
 });
 it('includedSocialBytes uses the actual PMS source purchase and full private-file policy before bytes and after deferred source changes without Work purchase',async()=>{
- const {savePostDraft,publishPost}=await import('../../../src/server/modules/collaboration/public/social-home'),{bindRecordAttachmentSet,attachmentContent}=await import('../../../src/server/modules/files/public/attachments/service');await pmsPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');const taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,reader=await f.member('Actual private Hotel handoff reader','pms_housekeeping'),draft=await savePostDraft(db,owner,null,{body:'Actual private Hotel handoff',audience:{kind:'participants',userIds:[reader.userId]},sources:[{kind:'pms_record',id:taskId}],purpose:'handover',expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key()),file=await seedAttachmentSet(db,owner,{targetType:'social_post',targetId:published.id,componentKind:'record',purposeKey:'handover_file',expectedTargetVersion:published.version});await bindRecordAttachmentSet(db,owner,file.setId,published.version,key());const objectKey=(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first<string>('object_key'))!;await env.H001_FILES.put(objectKey,'HOTELDOC',{httpMetadata:{contentType:'application/pdf'}});expect(await (await attachmentContent(db,env.H001_FILES,reader,file.linkId,'original')).object.text()).toBe('HOTELDOC');await pmsPackage('draining');expect(await (await attachmentContent(db,env.H001_FILES,reader,file.linkId,'original')).object.text()).toBe('HOTELDOC');
+ const {savePostDraft,publishPost}=await import('@erpx/server-collaboration/public/social-home'),{bindRecordAttachmentSet,attachmentContent}=await import('@erpx/server-files/public/attachments/service');await pmsPackage();vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');const taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,reader=await f.member('Actual private Hotel handoff reader','pms_housekeeping'),draft=await savePostDraft(db,owner,null,{body:'Actual private Hotel handoff',audience:{kind:'participants',userIds:[reader.userId]},sources:[{kind:'pms_record',id:taskId}],purpose:'handover',expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key()),file=await seedAttachmentSet(db,owner,{targetType:'social_post',targetId:published.id,componentKind:'record',purposeKey:'handover_file',expectedTargetVersion:published.version});await bindRecordAttachmentSet(db,owner,file.setId,published.version,key());const objectKey=(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first<string>('object_key'))!;await env.H001_FILES.put(objectKey,'HOTELDOC',{httpMetadata:{contentType:'application/pdf'}});expect(await (await attachmentContent(db,env.H001_FILES,reader,file.linkId,'original')).object.text()).toBe('HOTELDOC');await pmsPackage('draining');expect(await (await attachmentContent(db,env.H001_FILES,reader,file.linkId,'original')).object.text()).toBe('HOTELDOC');
  const before=await db.prepare('SELECT count(*) n FROM attachment_access_events WHERE link_id=?').bind(file.linkId).first<number>('n'),fn=`social_pms_bytes_${key().replaceAll('-','')}`;await db.exec(`CREATE SEQUENCE ${fn}_fired;CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fn}_fired');UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{note}','"Changed after original bytes"'::jsonb)::text WHERE id='${taskId}';RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fn} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${fn}()`);
  try{await expect(attachmentContent(db,env.H001_FILES,reader,file.linkId,'original')).rejects.toMatchObject({code:'SOCIAL_FILE_READ_CHANGED'});expect(await db.prepare(`SELECT is_called FROM ${fn}_fired`).first('is_called')).toBe(true);}finally{await db.exec(`DROP TRIGGER ${fn} ON attachment_access_events;DROP FUNCTION ${fn}();DROP SEQUENCE ${fn}_fired`);}expect(await db.prepare('SELECT count(*) n FROM attachment_access_events WHERE link_id=?').bind(file.linkId).first('n')).toBe(before);await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(reader.assignmentId).run();let reads=0;const files={put:(...args:Parameters<typeof env.H001_FILES.put>)=>env.H001_FILES.put(...args),head:(...args:Parameters<typeof env.H001_FILES.head>)=>env.H001_FILES.head(...args),delete:(...args:Parameters<typeof env.H001_FILES.delete>)=>env.H001_FILES.delete(...args),list:(...args:Parameters<typeof env.H001_FILES.list>)=>env.H001_FILES.list(...args),get:async(...args:Parameters<typeof env.H001_FILES.get>)=>{reads++;return env.H001_FILES.get(...args);}};await expect(attachmentContent(db,files,reader,file.linkId,'original')).rejects.toMatchObject({status:404});expect(reads).toBe(0);expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(['pms']);
 });
 it('includedSocialQueue filters actual PMS source purchase before provider work with Work enforcement disabled and permits only explicit native retry after recovery',async()=>{
- const {savePostDraft,publishPost}=await import('../../../src/server/modules/collaboration/public/social-home'),{drainSocialAgent,retryAgentReply}=await import('../../../src/server/modules/collaboration/public/social-agent'),taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,draft=await savePostDraft(db,owner,null,{body:'@ERPX assistant Review this real room handoff',mentions:[{kind:'agent',targetId:'erpx-assistant',label:'ERPX assistant',start:0,end:15}],audience:{kind:'company'},sources:[{kind:'pms_record',id:taskId}],expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key()),reply=(await db.prepare('SELECT id FROM social_agent_replies WHERE post_id=?').bind(published.id).first<{id:string}>())!,provider=vi.fn(async()=>({result:{body:'Actual Hotel source reviewed without a full Work purchase'},inputTokens:1,outputTokens:1})),environment={...env,AI_BASE_URL:'https://provider.example/v1',AI_API_KEY:'isolated-fictional-provider',AI_MODEL:'test'};
+ const {savePostDraft,publishPost}=await import('@erpx/server-collaboration/public/social-home'),{drainSocialAgent,retryAgentReply}=await import('@erpx/server-collaboration/public/social-agent'),taskId=(await cmd('task.create',{roomId,type:'arrival',date:'2026-09-01'})).id,draft=await savePostDraft(db,owner,null,{body:'@ERPX assistant Review this real room handoff',mentions:[{kind:'agent',targetId:'erpx-assistant',label:'ERPX assistant',start:0,end:15}],audience:{kind:'company'},sources:[{kind:'pms_record',id:taskId}],expectedVersion:1},key()),published=await publishPost(db,owner,draft.id,draft.version,key()),reply=(await db.prepare('SELECT id FROM social_agent_replies WHERE post_id=?').bind(published.id).first<{id:string}>())!,provider=vi.fn(async()=>({result:{body:'Actual Hotel source reviewed without a full Work purchase'},inputTokens:1,outputTokens:1})),environment={...env,AI_BASE_URL:'https://provider.example/v1',AI_API_KEY:'isolated-fictional-provider',AI_MODEL:'test'};
  vi.stubEnv('ERPX_PMS_PACKAGE_ENFORCEMENT','enforced');expect(await drainSocialAgent(db,environment,published.id,provider)).toBe(false);expect(provider).not.toHaveBeenCalled();expect(await db.prepare('SELECT state,error_code,attempt FROM social_agent_replies WHERE id=?').bind(reply.id).first()).toEqual({state:'failed',error_code:'ACCESS_CHANGED',attempt:0});expect(await db.prepare('SELECT count(*) n FROM social_ai_usage WHERE company_id=?').bind(f.company).first('n')).toBe(0);
  await pmsPackage();await retryAgentReply(db,owner,reply.id,key());await pmsPackage('draining');expect(await drainSocialAgent(db,environment,published.id,provider)).toBe(true);expect(provider).toHaveBeenCalledOnce();expect(await db.prepare('SELECT state,attempt FROM social_agent_replies WHERE id=?').bind(reply.id).first()).toEqual({state:'completed',attempt:1});expect((await readCompanyPackageGrants(db,f.company)).map(grant=>grant.packageId)).toEqual(['pms']);
 });

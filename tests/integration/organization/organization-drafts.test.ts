@@ -1,14 +1,14 @@
 import { afterEach,beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { installStaffLevels, positionSchema, savePosition, decideOrganizationNodeChange } from "../../../src/server/modules/organization/public/organization";
-import { openOrganizationDraft, saveOrganizationDraft, getOrganizationDraft, previewOrganizationDraft, submitOrganizationDraft, drainOrganizationDrafts } from "../../../src/server/modules/organization/public/organization-drafts";
-import { emptyDraft, draftDefinitionSchema, type DraftItem } from "../../../src/lib/organization/organization-draft";
-import { lifecycleInput } from "../../../src/lib/people_payroll/people-lifecycle";
-import { saveLifecycle, previewLifecycle,cancelLifecycle } from "../../../src/server/modules/people_payroll/public/people-lifecycle";
-import {changeAppointment} from "../../../src/server/modules/organization/public/department-authority";
-import {packageGrantStore} from "../../../src/server/modules/commercial/public/package-grants";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env }));
+import { installStaffLevels, positionSchema, savePosition, decideOrganizationNodeChange } from "@erpx/server-organization/public/organization";
+import { openOrganizationDraft, saveOrganizationDraft, getOrganizationDraft, previewOrganizationDraft, submitOrganizationDraft, drainOrganizationDrafts } from "@erpx/server-organization/public/organization-drafts";
+import { emptyDraft, draftDefinitionSchema, type DraftItem } from "@erpx/feature-organization/lib/organization-draft";
+import { lifecycleInput } from "@erpx/feature-people_payroll/lib/people-lifecycle";
+import { saveLifecycle, previewLifecycle,cancelLifecycle } from "@erpx/server-people_payroll/public/people-lifecycle";
+import {changeAppointment} from "@erpx/server-organization/public/department-authority";
+import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env }));
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);});
 afterEach(()=>vi.unstubAllEnvs());
 async function fixture(){

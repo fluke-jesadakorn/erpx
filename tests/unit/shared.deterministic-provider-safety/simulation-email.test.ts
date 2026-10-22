@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { simulationBookingEmailProvider } from "../../../src/server/modules/pms/adapters/simulation-email";
+import { simulationBookingEmailProvider } from "@erpx/server-pms/adapters/simulation-email";
 
 describe("isolated booking email provider", () => {
   const cohort = { ERPX_ENVIRONMENT: "local", ERPX_EMAIL_ADAPTER: "sandbox", ERPX_PUBLIC_ORIGIN: "http://127.0.0.1:3102", ERPX_DATA_DIR: "/repo/.runtime/browser/abcdef123456" };

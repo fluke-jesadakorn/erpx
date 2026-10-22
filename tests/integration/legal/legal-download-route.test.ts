@@ -1,13 +1,13 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { PDFDocument } from "pdf-lib";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import type { PortalActor } from "../../../src/server/modules/legal/public/legal/portal";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { PortalActor } from "@erpx/server-legal/public/legal/portal";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { access } from "../../../src/server/modules/legal/public/legal/access";
-import { detail, legalCommand } from "../../../src/server/modules/legal/public/legal/service";
-import { uploadDocument } from "../../../src/server/modules/legal/public/legal/documents";
+import { access } from "@erpx/server-legal/public/legal/access";
+import { detail, legalCommand } from "@erpx/server-legal/public/legal/service";
+import { uploadDocument } from "@erpx/server-legal/public/legal/documents";
 
 // Only the authenticated request boundary and unavailable external scanner are
 // fixtures. The routes, owner commands, ACLs and canonical private files are real.
@@ -15,39 +15,39 @@ const session = vi.hoisted(() => ({
   actor: null as WorkContext | null,
   portal: null as PortalActor | null,
 }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", async original => ({
-  ...await original<typeof import("../../../src/server/modules/identity_access/public/authorization")>(),
+vi.mock("@erpx/server-identity_access/public/authorization", async original => ({
+  ...await original<typeof import("@erpx/server-identity_access/public/authorization")>(),
   requireWorkContext: async () => session.actor!,
 }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", async original => ({
-  ...await original<typeof import("../../../src/server/modules/runtime/adapters/runtime")>(),
+vi.mock("@erpx/server-runtime/adapters/runtime", async original => ({
+  ...await original<typeof import("@erpx/server-runtime/adapters/runtime")>(),
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
-vi.mock("../../../src/server/modules/legal/public/legal/portal", async original => ({
-  ...await original<typeof import("../../../src/server/modules/legal/public/legal/portal")>(),
+vi.mock("@erpx/server-legal/public/legal/portal", async original => ({
+  ...await original<typeof import("@erpx/server-legal/public/legal/portal")>(),
   portalContext: async () => ({ write: env.H001_DB, files: env.H001_FILES, actor: session.portal! }),
 }));
 // This owner suite keeps authentication explicit as a fixture boundary. The
 // separate legal-portal-download-session suite uses actual credential/SSO APIs.
-vi.mock("../../../src/server/modules/legal/public/portal-download-request", () => ({
+vi.mock("@erpx/server-legal/public/portal-download-request", () => ({
   legalPortalDownloadRequest: async (_slug: string, shareId: string) => {
-    const {portalDownload} = await import("../../../src/server/modules/legal/public/legal/portal");
+    const {portalDownload} = await import("@erpx/server-legal/public/legal/portal");
     return portalDownload(env.H001_DB, env.H001_FILES, session.portal!, shareId);
   },
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/scanner", () => ({
+vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "isolated scanner fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "isolated scanner fixture", definitionUpdatedAt: Date.now() }),
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/preview", () => ({
+vi.mock("@erpx/server-files/public/attachments/preview", () => ({
   attachmentPreviewReadiness: async () => ({ ready: true, error: null }),
   detectedAttachmentMediaType: (bytes: Uint8Array, type: string) => type === "application/pdf" && Buffer.from(bytes.subarray(0, 5)).toString() === "%PDF-" ? type : null,
   sanitizedAttachmentPreview: async () => null,
 }));
 
-import { GET as ownerGet } from "../../../src/app/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route";
-import { GET as portalGet } from "../../../src/app/api/legal-portal/[holdingSlug]/[[...path]]/route";
+import { GET as ownerGet } from "@erpx/feature-legal/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route";
+import { GET as portalGet } from "@erpx/feature-legal-portal/routes/api/legal-portal/[holdingSlug]/[[...path]]/route";
 
 const db = env.H001_DB, key = () => crypto.randomUUID();
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;
@@ -197,7 +197,7 @@ it("legalPortalRead keeps an expired share unavailable and rolls the buffered at
 });
 
 it("legalPortalRead refuses a borrowed snapshot before private storage or audit access", async () => {
-  const {portalDownload: read} = await import("../../../src/server/modules/legal/public/legal/portal");
+  const {portalDownload: read} = await import("@erpx/server-legal/public/legal/portal");
   const actor = {userId:"borrowed-external",email:"borrowed@example.test",sessionId:"normal-authenticated-request-fixture"};
   const spy = vi.spyOn(env.H001_FILES,"get");
   try {
@@ -235,7 +235,7 @@ it("legalPortalDetailRead keeps a normal share withdrawal after the original pri
   await command("share",{documentId,email,expiresAt:Date.now()+86400000});
   const shareId=(await detail(db,f.manager,itemId)).shares[0].id;
   const actor={userId:"external-detail-window",email,sessionId:"normal-authenticated-request-fixture"};
-  const {portalDetail}=await import("../../../src/server/modules/legal/public/legal/portal");
+  const {portalDetail}=await import("@erpx/server-legal/public/legal/portal");
   const fault=`legal_detail_window_${key().replaceAll("-","")}`;
   await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fault}');PERFORM pg_sleep(0.7);RETURN NEW;END $$;CREATE TRIGGER ${fault} BEFORE INSERT ON legal_access_events FOR EACH ROW WHEN(NEW.action='portal.view') EXECUTE FUNCTION ${fault}()`);
   const reading=portalDetail(db,actor,shareId);let withdrawing:Promise<unknown>|undefined;
@@ -255,7 +255,7 @@ it("legalPortalDetailRead keeps a normal share withdrawal after the original pri
 it("legalPortalDetailRead rolls a deferred external comment and original view audit back before private detail escapes",async()=>{
   const email=`detail-comment-${key()}@example.test`;await command("share",{documentId,email,expiresAt:Date.now()+86400000});
   const shareId=(await detail(db,f.manager,itemId)).shares[0].id,actor={userId:"external-detail-comment",email,sessionId:"normal-authenticated-request-fixture"},fault=`legal_detail_comment_${key().replaceAll("-","")}`,commentId=key();
-  const {portalDetail}=await import("../../../src/server/modules/legal/public/legal/portal");
+  const {portalDetail}=await import("@erpx/server-legal/public/legal/portal");
   await db.exec(`CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO legal_comments(id,item_id,document_id,body,visibility,created_by,created_at) VALUES('${commentId}',NEW.item_id,NEW.document_id,'New source after original detail snapshot','external',NEW.actor_id,NEW.created_at);RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${fault} AFTER INSERT ON legal_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.action='portal.view') EXECUTE FUNCTION ${fault}()`);
   try{await expect(portalDetail(db,actor,shareId)).rejects.toMatchObject({status:409,code:"LEGAL_SHARE_CHANGED"});}finally{await db.exec(`DROP TRIGGER ${fault} ON legal_access_events;DROP FUNCTION ${fault}()`);}
   expect(await db.prepare("SELECT 1 FROM legal_comments WHERE id=?").bind(commentId).first()).toBeNull();

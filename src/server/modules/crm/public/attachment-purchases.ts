@@ -1,1 +1,0 @@
-export {crmAttachmentPurchaseScope,authorizeCRMAttachmentPurchase,crmAttachmentSourceReadLocks,crmAttachmentCommandBoundary,crmAttachmentFailure,type CRMAttachmentPurchase} from "../adapters/attachment-purchases";

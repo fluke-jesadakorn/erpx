@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {startSupportClock,advanceSupportClock,type SupportSlaPolicy} from "../../../src/server/modules/support/public/rules/support-clock";
+import {startSupportClock,advanceSupportClock,type SupportSlaPolicy} from "@erpx/server-support/public/rules/support-clock";
 const at=(s:string)=>Date.parse(s),policy:SupportSlaPolicy={calendar:{timezone:'Asia/Bangkok',weekdays:[1,2,3,4,5],opensAtMinute:540,closesAtMinute:1020,holidays:[]},targetMinutes:60,pauseWhileWaiting:true};
 it('pauses only when the snapshot permits and resumes with the unspent working duration',()=>{
  const original=startSupportClock(policy,at('2026-09-18T09:30:00Z'));

@@ -1,5 +1,5 @@
-import type {SqlDatabase} from '../../../src/server/modules/runtime/public/runtime/types';
-import {isTransactionalSqlDatabase} from '../../../src/server/modules/runtime/public/runtime/types';
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {isTransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 /** Hold an actual native writer until the owner reader demonstrably waits for
  * it. The caller observes committed data, not pg_stat's incidental snapshots. */
 export async function committedSourceVisibility<Result>(database:SqlDatabase,write:(transaction:SqlDatabase)=>Promise<unknown>,read:()=>Promise<Result>){

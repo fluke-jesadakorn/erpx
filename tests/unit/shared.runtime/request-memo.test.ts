@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { memoizeInRequest, memoizeSyncInRequest, runWithRequestMemo } from "../../../src/server/modules/runtime/public/runtime/request-memo";
+import { memoizeInRequest, memoizeSyncInRequest, runWithRequestMemo } from "@erpx/server-runtime/public/runtime/request-memo";
 
 it('deduplicates concurrent session reads only within the same request', async () => {
   const key = Symbol('session'); let reads = 0;

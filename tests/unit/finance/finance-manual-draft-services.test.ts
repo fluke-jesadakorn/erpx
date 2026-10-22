@@ -1,8 +1,8 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import {describe,expect,it,vi} from 'vitest';
-import {createManualDrafts,type ManualDraftPorts} from "../../../src/server/modules/finance/application/manual-drafts";
-import type {DraftRow} from "../../../src/server/modules/finance/domain/manual-drafts";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createManualDrafts,type ManualDraftPorts} from "@erpx/server-finance/application/manual-drafts";
+import type {DraftRow} from "@erpx/server-finance/domain/manual-drafts";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'preparer',name:'Preparer',email:'preparer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
 const old:DraftRow={id:'journal',company_id:'company',chart_id:'chart',currency:'THB',status:'draft',source_type:'manual',source_id:null,is_opening:0,version:1,created_by:'original-preparer',memo:'Original draft'};

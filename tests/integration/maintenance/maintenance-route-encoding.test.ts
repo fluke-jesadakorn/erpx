@@ -2,14 +2,14 @@ import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { isValidElement, type ReactElement } from "react";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { createAsset } from "../../../src/server/modules/assets/public/asset-maintenance";
-import { savePreventivePlan, changePreventivePlan } from "../../../src/server/modules/maintenance/public/maintenance-preventive";
-import MaintenancePage from "../../../src/app/holdings/[holdingSlug]/_presenters/maintenance/[id]/screen";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { createAsset } from "@erpx/server-assets/public/asset-maintenance";
+import { savePreventivePlan, changePreventivePlan } from "@erpx/server-maintenance/public/maintenance-preventive";
+import MaintenancePage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/maintenance/[id]/screen";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
-vi.mock("../../../src/server/modules/work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
+vi.mock("@erpx/server-work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
 let actor: WorkContext, f: Awaited<ReturnType<typeof expenseFixture>>, workId: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {

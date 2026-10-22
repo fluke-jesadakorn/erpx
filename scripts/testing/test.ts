@@ -49,9 +49,7 @@ if (options.command === "impact") {
   if (options.list) { if (!options.json && impact.suites.length) console.log(listSelection(impact.suites)); process.exit(0); }
   if (impact.mode === "none") process.exit(0);
   if (impact.mode === "full") {
-    const full = Bun.spawn([process.execPath, resolve(root, "scripts/testing/full.ts"), ...options.forwarded], { cwd: root, env: process.env, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
-    for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => full.kill(signal));
-    process.exit(await full.exited);
+    throw new Error("AUTOMATIC_FULL_ACCEPTANCE_DISABLED:use bun run test:dev or test:ci; production acceptance requires release:acceptance --candidate=<clean-sha>");
   }
   suites = impact.suites;
 } else {
@@ -80,7 +78,7 @@ if (version.exitCode !== 0 || version.stdout.toString().trim() !== "v26.11.1") t
 
 const attachmentMode = process.env.ERPX_TEST_ATTACHMENTS_V2 ?? "false";
 if (!["false", "true"].includes(attachmentMode)) throw new Error("INVALID_TEST_ATTACHMENT_MODE");
-const env: Record<string, string | undefined> = { ...process.env, ERPX_NODE_BIN: node, NODE_ENV: "test", ERPX_ATTACHMENTS_V2: attachmentMode, ERPX_ATTACHMENT_UPLOAD_FREEZE: "false" };
+const env: Record<string, string | undefined> = { ...process.env, ERPX_NODE_BIN: node, ERPX_BUN_BIN:process.execPath, NODE_ENV: "test", ERPX_ATTACHMENTS_V2: attachmentMode, ERPX_ATTACHMENT_UPLOAD_FREEZE: "false" };
 function databaseCredentials(): void {
   if (!env.ERPX_TEST_ADMIN_URL) for (const file of [".env.test.local", ".env.test", ".env.local"]) {
     const path = resolve(root, file);
@@ -114,7 +112,10 @@ for (const kind of ["unit", "integration", "provider"] as const) {
     for (const suite of selected) for (const variable of suite.provider!.required) if (!env[variable]) throw new Error(`PROVIDER_PREREQUISITE_REQUIRED:${suite.id}:${variable}`);
   }
   // Provider specs may mix PostgreSQL billing and non-database LDAP/cache checks.
-  const groups = kind === "provider" ? [selected.filter(suite => !suite.files.some(file => reachesDatabaseFixture(file, root))), selected.filter(suite => suite.files.some(file => reachesDatabaseFixture(file, root)))] : [selected];
+  const parallel = selected.filter(suite => !suite.serial);
+  const groups = kind === "provider"
+    ? [parallel.filter(suite => !suite.files.some(file => reachesDatabaseFixture(file, root))), parallel.filter(suite => suite.files.some(file => reachesDatabaseFixture(file, root))), ...selected.filter(suite => suite.serial).map(suite => [suite])]
+    : [parallel, ...selected.filter(suite => suite.serial).map(suite => [suite])];
   for (const group of groups) {
     if (!group.length) continue;
     const postgres = kind === "integration" || group.some(suite => suite.files.some(file => reachesDatabaseFixture(file, root)));

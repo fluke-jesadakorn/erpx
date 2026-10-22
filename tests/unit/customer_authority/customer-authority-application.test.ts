@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { createCustomerAccessApplication, type AccessRepository } from "../../../src/server/modules/customer_authority/application/access";
-import { createCustomerDuplicateApplication, type DuplicateRepository } from "../../../src/server/modules/customer_authority/application/duplicates";
-import { createCustomerIdentityApplication, type IdentityRepository } from "../../../src/server/modules/customer_authority/application/identity";
+import { createCustomerAccessApplication, type AccessRepository } from "@erpx/server-customer_authority/application/access";
+import { createCustomerDuplicateApplication, type DuplicateRepository } from "@erpx/server-customer_authority/application/duplicates";
+import { createCustomerIdentityApplication, type IdentityRepository } from "@erpx/server-customer_authority/application/identity";
 
 function repository<T extends object>(operations: Partial<T>): T { return new Proxy(operations as T, { get(target, name) { if (name === "then") return undefined; if (name in target) return Reflect.get(target, name); return () => { throw new Error(`unexpected operation: ${String(name)}`); }; } }); }
 const error = (_status: number, code: string) => new Error(code);

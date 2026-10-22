@@ -1,1 +1,0 @@
-import type {SqlDatabase} from '../../runtime/public/runtime/types';export function clearExecutiveGenerationAssertion(database:SqlDatabase,key:string){return database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key);}

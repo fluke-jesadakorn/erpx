@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { engineeringGateIds, evaluateEngineeringCompletion, type EngineeringGate, type EngineeringManifest, type EngineeringObservation } from "../../../src/lib/runtime/engineering-completion";
+import { engineeringGateIds, evaluateEngineeringCompletion, type EngineeringGate, type EngineeringManifest, type EngineeringObservation } from "@erpx/feature-runtime/lib/engineering-completion";
 import {requiredBrowserExecutionsValid} from "../../../scripts/testing/engineering/engineering-test-results";
 
 const source = "a".repeat(64), verification = "b".repeat(64), catalogue = "c".repeat(64);

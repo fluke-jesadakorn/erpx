@@ -1,50 +1,25 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    }
+    "tsBuildInfoFile": ".scratch/dev/types/tools.tsbuildinfo",
+    "types": [
+      "node",
+      "bun"
+    ]
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "scripts/**/*.ts",
+    "scripts/**/*.mts",
+    "src/workers/**/*.ts",
+    "src/server/runtime/env.ts",
+    "next.config.ts"
   ],
   "exclude": [
     "node_modules",
-    "tests",
-    "docs/archive",
-    "docs/testing/evidence",
-    ".runtime",
     ".scratch",
-    ".open-next",
-    ".wrangler",
-    "cloudflare-env.d.ts"
+    ".runtime",
+    "apps",
+    "docs"
   ]
 }

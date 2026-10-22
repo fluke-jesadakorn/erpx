@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import { reviewedCapabilityManifest, moduleGateSummary } from "../../../src/data/capability-gate-reviews";
-import { acceptanceGates, businessAcceptanceManifest } from "../../../src/data/business-acceptance";
+import { reviewedCapabilityManifest, moduleGateSummary } from "@erpx/catalogue/capability-gate-reviews";
+import { acceptanceGates, businessAcceptanceManifest } from "@erpx/catalogue/business-acceptance";
 
 it('retains explicit reviews across generation and reads passed/not_applicable with the same vocabulary', () => {
   const capabilities = businessAcceptanceManifest().filter(row => row.id.startsWith('pos/'));

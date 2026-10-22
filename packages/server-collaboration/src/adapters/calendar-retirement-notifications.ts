@@ -1,0 +1,2 @@
+import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+export function calendarRetirementNotification(db:SqlDatabase,facts:{value1:string;value2:string;value3:string;value4:string;value5:number;value6:string;value7:number}){return db.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,'retirement_clearance',?,?,?,?) ON CONFLICT DO NOTHING").bind(facts.value1,facts.value2,facts.value3,facts.value4,facts.value5,facts.value6,facts.value7).run();}

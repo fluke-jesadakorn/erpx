@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { buildOrganizationGraph, ancestorPath, teamIds, levelGroups, departmentHue, assignedLevel, searchOrganization } from "../../../src/lib/organization/organization-chart";
-import { OrganizationTeamView } from "../../../src/components/organization/organization-team-view";
-import type { OrganizationOverview, OrganizationPerson } from "../../../src/lib/organization/organization";
+import { buildOrganizationGraph, ancestorPath, teamIds, levelGroups, departmentHue, assignedLevel, searchOrganization } from "@erpx/feature-organization/lib/organization-chart";
+import { OrganizationTeamView } from "@erpx/feature-organization/components/organization-team-view";
+import type { OrganizationOverview, OrganizationPerson } from "@erpx/feature-organization/lib/organization";
 
 function person(id: string, manager: string | null, extra: Partial<OrganizationPerson> = {}): OrganizationPerson {
   return { person_id: id, engagement_id: "e-" + id, user_id: null, email: null, legal_name: "Person " + id, engagement_version: 1, person_version: 1, company_id: "company", branch_id: "branch", department_id: "department", position_id: null, manager_person_id: manager, level_id: null, level_number: manager ? 6 : 1, level_name: manager ? "Staff" : "CEO", status: "active", person_status: "active", start_date: "2026-01-01", end_date: null, job_title: "Staff", issues: [], ...extra };

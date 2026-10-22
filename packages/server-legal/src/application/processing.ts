@@ -1,0 +1,17 @@
+import type {Clock,IdentifierSource} from "@erpx/server-shared/application/ports";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {DocumentVersion,LegalItem} from "@erpx/server-legal/domain/model";
+export type LegalProcessingKind="ocr"|"verify";
+export type LegalProcessingJob={id:string;item_id:string;document_id:string;checksum:string;kind:LegalProcessingKind;actor_json:string};
+export type LegalProcessingStatus={id:string;item_id:string;document_id:string;state:string;result_json:string|null;error:string|null;attempts:number};
+export function createLegalProcessingApplication(ports:{
+ repository:{queue(document:DocumentVersion,item:LegalItem,kind:LegalProcessingKind,key:string,rateSince:number,created:number):Promise<{id:string;jobId:string;state:string}>;status(id:string):Promise<LegalProcessingStatus|null>;recover(now:number):Promise<void>;claim(token:string,until:number):Promise<LegalProcessingJob|null>;complete(jobId:string,token:string,result:Record<string,unknown>):Promise<void>;failed(jobId:string,token:string,code:string):Promise<void>};
+ documents:{access(actor:WorkContext,id:string):Promise<DocumentVersion>;inspect(actor:WorkContext,id:string,kind:LegalProcessingKind):Promise<Record<string,unknown>>}; access(actor:WorkContext,id:string):Promise<LegalItem>;
+ actor():WorkContext; companyReady(companyId:string):Promise<boolean>;assignmentCurrent(actor:WorkContext,from:number,until:number):Promise<boolean>;refreshAuthority(actor:WorkContext):Promise<WorkContext["iam"]>;clock:Clock;identifiers:IdentifierSource;error(status:number,code:string,message:string):Error;
+}){
+ const source=ports.repository;function fail(message:string,code="LEGAL_INVALID",status=422):never{throw ports.error(status,code,message);}
+ async function queueInspection(documentId:string,kind:LegalProcessingKind,key:string){const document=await ports.documents.access(ports.actor(),documentId),item=await ports.access(ports.actor(),document.item_id);return source.queue(document,item,kind,key,ports.clock.now()-60000,ports.clock.now());}
+ async function processingStatus(id:string){const row=await source.status(id);if(!row)return fail("Processing job unavailable.","LEGAL_NOT_FOUND",404);await ports.access(ports.actor(),row.item_id);return {...row,jobId:row.id,result:row.result_json?JSON.parse(row.result_json):null,result_json:undefined};}
+ async function drainLegalProcessing(){await source.recover(ports.clock.now());const token=ports.identifiers.next(),job=await source.claim(token,ports.clock.now()+600000);if(!job)return;try{const actor=JSON.parse(job.actor_json) as WorkContext;if(!await ports.companyReady(actor.companyId))fail("Legal document processing is not ready for this Company.");if(!await ports.assignmentCurrent(actor,ports.clock.now(),ports.clock.now()))fail("Access expired.");actor.iam=await ports.refreshAuthority(actor);const document=await ports.documents.access(actor,job.document_id);if(document.checksum!==job.checksum)fail("Source changed.");const result=await ports.documents.inspect(actor,document.id,job.kind);if(!await ports.companyReady(actor.companyId))fail("Legal document processing readiness changed.");await ports.access(actor,job.item_id);await source.complete(job.id,token,result);}catch(error){await source.failed(job.id,token,error instanceof Error&&"code"in error?String(error.code):"DOCUMENT_PROCESSING_FAILED");}}
+ return {queueInspection,processingStatus,drainLegalProcessing};
+}

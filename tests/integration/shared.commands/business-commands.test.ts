@@ -1,6 +1,7 @@
 import { env,applyMigrations } from "../../support/runtime-env";
 import { beforeAll,beforeEach,describe,expect,it } from "vitest";
-import { assertion,executeCommand } from "../../../src/server/modules/workflow/public/commands";
+import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {executeCommand} from "@erpx/server-workflow/public/commands";
 const actor={userId:"operator",assignmentId:"grant",role:"sales_operator",companyId:"company",branchId:null,departmentId:null};
 describe("Business command transactions",()=>{
   beforeAll(async()=>{await applyMigrations(env.H001_DB,env.STAFF_TEST_MIGRATIONS);await env.H001_DB.exec("CREATE TABLE business_fixture(id TEXT PRIMARY KEY,version BIGINT,amount BIGINT)");});

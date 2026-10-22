@@ -1,10 +1,10 @@
 /** Upgrade an already provisioned development workspace with its schema-owner identities. */
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { assertHospitalityDevelopmentTarget } from "../../src/lib/shared/hospitality-seed-target";
-import { PostgresDatabase } from "../../src/server/modules/runtime/adapters/runtime/postgres";
-import { migrateDatabase } from "../../src/server/modules/runtime/adapters/runtime/migrations";
-import type { DatabaseManifest } from "../../src/server/modules/runtime/adapters/runtime/env";
+import { assertHospitalityDevelopmentTarget } from "@erpx/feature-shared/lib/hospitality-seed-target";
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
+import type { DatabaseManifest } from "@erpx/server-runtime/adapters/runtime/env";
 
 const path = process.env.ERPX_DATABASE_MANIFEST;
 if (!path) throw new Error("DEVELOPMENT_MANIFEST_REQUIRED");

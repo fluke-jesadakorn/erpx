@@ -17,30 +17,30 @@ import {
   expenseDetail,
   revokeExpenseAttachment,
   expenseUpdateSchema,
-} from "../../../src/server/modules/people_payroll/public/expenses";
+} from "@erpx/server-people_payroll/public/expenses";
 import {
   expenseRoute,
   expenseAuthoritySnapshot,
-} from "../../../src/server/modules/people_payroll/public/expense-routing";
-import { saveExpenseAccounting } from "../../../src/server/modules/people_payroll/public/expense-workflow";
+} from "@erpx/server-people_payroll/public/expense-routing";
+import { saveExpenseAccounting } from "@erpx/server-people_payroll/public/expense-workflow";
 import {
   approvalView,
   prepareDecision,
   rerouteApproval,
-} from "../../../src/server/modules/workflow/public/approvals";
-import { executeCommand } from "../../../src/server/modules/workflow/public/commands";
+} from "@erpx/server-workflow/public/approvals";
+import { executeCommand } from "@erpx/server-workflow/public/commands";
 import {
   createExpensePayment,
   confirmExpensePayment,
-} from "../../../src/server/modules/people_payroll/public/expense-payments";
-import { settleInvoice } from "../../../src/server/modules/commerce/public/commerce";
-import { bindRecordAttachmentSet } from "../../../src/server/modules/files/public/attachments/service";
-import {nativeExpenseReads} from "../../../src/server/modules/people_payroll/adapters/expenses";
-import {createDomainWork} from "../../../src/server/modules/work_projection/application/domain-work";
-import {measureReads} from "../../../src/server/modules/runtime/adapters/runtime/read-metrics";
-import {withPolicyReadSnapshot} from "../../../src/server/modules/identity_access/public/iam-read-snapshot";
+} from "@erpx/server-people_payroll/public/expense-payments";
+import { settleInvoice } from "@erpx/server-commerce/public/commerce";
+import { bindRecordAttachmentSet } from "@erpx/server-files/public/attachments/service";
+import {nativeExpenseReads} from "@erpx/server-people_payroll/adapters/expenses";
+import {createDomainWork} from "@erpx/server-work_projection/application/domain-work";
+import {measureReads} from "@erpx/server-runtime/adapters/runtime/read-metrics";
+import {withPolicyReadSnapshot} from "@erpx/server-identity_access/public/iam-read-snapshot";
 import { seedAttachmentSet } from "../../support/helpers/attachment-v2";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -565,7 +565,7 @@ it("rolls back the provided Finance reversal and Expense command on a final outb
   const before = await snapshot();
   await db.prepare(`CREATE FUNCTION ${failure}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'EXPENSE_FINANCE_FINAL_OUTBOX'; END $$`).run();
   await db.prepare(`CREATE TRIGGER ${failure} AFTER INSERT ON outbox_events FOR EACH ROW WHEN (NEW.command_id='${command}') EXECUTE FUNCTION ${failure}()`).run();
-  const { reverseExpense } = await import("../../../src/server/modules/people_payroll/public/expenses");
+  const { reverseExpense } = await import("@erpx/server-people_payroll/public/expenses");
   try {
     await expect(reverseExpense(f.manager, id, input, command)).rejects.toThrow("EXPENSE_FINANCE_FINAL_OUTBOX");
     expect(await snapshot()).toBe(before);
@@ -656,13 +656,13 @@ it.each(["batch-first", "original-first"] as const)("preserves mixed legacy/curr
 // The Expense addon owns actual claims and their source payables. This does
 // not withdraw base People or require ending unrelated Payroll/Benefits work.
 async function expenseAddonGrant(packageId:'people'|'people-payroll'|'people-expenses',state:'active'|'draining'='active'){
- const {packageGrantStore,readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants'),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-expense-addon-provider'}),obligations:async()=>{throw Error('Concrete owner withdrawal required');}}),current=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);
+ const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-expense-addon-provider'}),obligations:async()=>{throw Error('Concrete owner withdrawal required');}}),current=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);
  return store.apply({expectedVersion:current?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(current?.version??0)+1,reason:'Reviewed disposable Expense addon lifecycle',evidence:'test:expense-addon-owner'}});
 }
 function expenseAddonScope(){return {companyId:f.company,packageId:'people-expenses',packageVersion:1};}
-async function expenseAddonObservation(){const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations');return withOwnerPackageObligations(db,expenseAddonScope(),tx=>readOwnerPackageObligations(db,tx,{...expenseAddonScope(),now:Date.now()}));}
-async function expenseAddonWithdrawal(){const {readCompanyPackageGrants,packageGrantRevision}=await import('../../../src/server/modules/commercial/public/package-grants'),grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==='people-expenses')!;return {companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Actual Expense claims and original Finance sources settled',evidence:'test:expense-addon-owner'}}]};}
-async function expenseAddonReview(request:Awaited<ReturnType<typeof expenseAddonWithdrawal>>,apply=false){const {packageGrantStore}=await import('../../../src/server/modules/commercial/public/package-grants'),{withOwnerPackageObligations,ownerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-expense-addon-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)});return withOwnerPackageObligations(db,expenseAddonScope(),tx=>apply?store.batch.applyIn(tx,request,async()=>{}):store.batch.previewIn(tx,request));}
+async function expenseAddonObservation(){const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations');return withOwnerPackageObligations(db,expenseAddonScope(),tx=>readOwnerPackageObligations(db,tx,{...expenseAddonScope(),now:Date.now()}));}
+async function expenseAddonWithdrawal(){const {readCompanyPackageGrants,packageGrantRevision}=await import('@erpx/server-commercial/public/package-grants'),grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==='people-expenses')!;return {companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:'inactive' as const,version:current.version+1,reason:'Actual Expense claims and original Finance sources settled',evidence:'test:expense-addon-owner'}}]};}
+async function expenseAddonReview(request:Awaited<ReturnType<typeof expenseAddonWithdrawal>>,apply=false){const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants'),{withOwnerPackageObligations,ownerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-expense-addon-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)});return withOwnerPackageObligations(db,expenseAddonScope(),tx=>apply?store.batch.applyIn(tx,request,async()=>{}):store.batch.previewIn(tx,request));}
 async function expenseAddonImage(){return db.prepare(`SELECT
  (SELECT COALESCE(jsonb_agg(to_jsonb(e) ORDER BY id),'[]') FROM finance_expenses e WHERE company_id=?) expenses,
  (SELECT COALESCE(jsonb_agg(to_jsonb(d) ORDER BY id),'[]') FROM expense_payment_drafts d WHERE company_id=?) drafts,
@@ -680,7 +680,7 @@ async function expenseAddonImage(){return db.prepare(`SELECT
  (SELECT COALESCE(jsonb_agg(to_jsonb(s) ORDER BY id),'[]') FROM company_package_change_sets s WHERE company_id=?) changes`).bind(...Array(14).fill(f.company)).first();}
 async function postExpenseAddonClaim(id:string){await f.action(f.manager,id,'approve');const row=await getExpense(f.manager,id),input={expectedVersion:Number(row.version),periodId:f.period,entryDate:'2026-09-02'},command=key(),posted=await postExpense(f.manager,id,input,command);return {posted,input,command};}
 it('withdraws only Expenses after independent rejection, cancellation, exact partial reimbursements and original unpaid reversal settle',async()=>{
- const {readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants'),{reverseExpense}=await import('../../../src/server/modules/people_payroll/public/expenses');
+ const {readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),{reverseExpense}=await import('@erpx/server-people_payroll/public/expenses');
  await expenseAddonGrant('people');await expenseAddonGrant('people-expenses');await expenseAddonGrant('people-payroll');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  try{
  expect((await expenseAddonObservation()).observations.map(row=>[row.moduleId,row.outstanding])).toEqual([['people_payroll',0],['finance',0]]);
@@ -702,7 +702,7 @@ it('withdraws only Expenses after independent rejection, cancellation, exact par
  }finally{vi.unstubAllEnvs();}
 });
 it('holds absent Expense addon duties and rejects a diagnostic deferred cancelled-claim source change atomically',async()=>{
- const {withOwnerPackageObligations,ownerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),{packageGrantStore}=await import('../../../src/server/modules/commercial/public/package-grants'),{peopleAddonPackageObligations}=await import('../../../src/server/modules/people_payroll/public/addon-package-obligations');
+ const {withOwnerPackageObligations,ownerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),{packageGrantStore}=await import('@erpx/server-commercial/public/package-grants'),{peopleAddonPackageObligations}=await import('@erpx/server-people_payroll/public/addon-package-obligations');
  await expenseAddonGrant('people');await expenseAddonGrant('people-expenses');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  try{
  await expect(db.transaction(tx=>peopleAddonPackageObligations(db,tx,{...expenseAddonScope(),moduleId:'people_payroll',now:Date.now()}))).rejects.toThrow('PEOPLE_ADDON_PACKAGE_OBLIGATION_SOURCE_REQUIRED');
@@ -722,7 +722,7 @@ it('holds absent Expense addon duties and rejects a diagnostic deferred cancelle
 // Expense fixtures, native versions, Money/Files services and original policy
 // remain authoritative; this does not claim zero-ledger startup coverage.
 async function expenseBoundaryGrant(packageId:'people'|'people-expenses',state:'active'|'draining'='active',endsAt:number|null=null,companyId=f.company){
- const {packageGrantStore,readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants');
+ const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants');
  const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-expense-boundary-provider'}),obligations:async()=>{throw Error('Concrete owner withdrawal is required');}}),current=(await readCompanyPackageGrants(db,companyId)).find(row=>row.packageId===packageId);
  return store.apply({expectedVersion:current?.version??0,idempotencyKey:key(),grant:{companyId,packageId,packageVersion:1,state,startsAt:0,endsAt,version:(current?.version??0)+1,reason:'Reviewed Expense purchase boundary fixture',evidence:'test:expense-boundary'}});
 }
@@ -740,7 +740,7 @@ async function expenseBoundaryImage(){return db.prepare(`SELECT jsonb_build_obje
  'assignments',(SELECT COALESCE(jsonb_agg(to_jsonb(a) ORDER BY a.id),'[]') FROM assignments a WHERE a.company_id=?)
  )::text image`).bind(...Array(10).fill(f.company)).first<string>('image');}
 it('requires the actual Expenses addon for native commands reads and Files while disabled and shadow retain original behavior',async()=>{
- const {listExpenses,expenseOptions}=await import('../../../src/server/modules/people_payroll/public/expenses'),{nativeExpenseDrafts}=await import('../../../src/server/modules/people_payroll/adapters/expense-drafts'),{createAttachmentSet}=await import('../../../src/server/modules/files/public/attachments/service');
+ const {listExpenses,expenseOptions}=await import('@erpx/server-people_payroll/public/expenses'),{nativeExpenseDrafts}=await import('@erpx/server-people_payroll/adapters/expense-drafts'),{createAttachmentSet}=await import('@erpx/server-files/public/attachments/service');
  const original=await f.claim(),input=expenseBoundaryInput(),file={targetType:'expense_claim',targetId:original,componentKind:'record' as const,purposeKey:'receipt',expectedTargetVersion:1};
  await expenseBoundaryGrant('people');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_ATTACHMENTS_V2','true');
  try{
@@ -750,7 +750,7 @@ it('requires the actual Expenses addon for native commands reads and Files while
   await expect(listExpenses(f.claimant)).rejects.toMatchObject({status:403,code:'PACKAGE_REQUIRED'});
   await expect(getExpense(f.claimant,original)).rejects.toMatchObject({status:403,code:'PACKAGE_REQUIRED'});
   await expect(expenseOptions(f.claimant)).rejects.toMatchObject({status:403,code:'PACKAGE_REQUIRED'});
-  const {getWorkCapabilities}=await import('../../../src/server/modules/work_projection/public/work-capabilities');const work=await getWorkCapabilities(db,f.claimant);expect(work.creation.some(entry=>entry.kind==='expense')).toBe(false);expect(work.creation.some(entry=>entry.kind==='service_request')).toBe(true);
+  const {getWorkCapabilities}=await import('@erpx/server-work_projection/public/work-capabilities');const work=await getWorkCapabilities(db,f.claimant);expect(work.creation.some(entry=>entry.kind==='expense')).toBe(false);expect(work.creation.some(entry=>entry.kind==='service_request')).toBe(true);
   await expect(createAttachmentSet(db,f.claimant,file,key())).rejects.toMatchObject({status:403,code:'PACKAGE_REQUIRED'});
   expect(await expenseBoundaryImage()).toBe(before);
   vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','shadow');const log=vi.spyOn(console,'info').mockImplementation(()=>{});
@@ -759,12 +759,12 @@ it('requires the actual Expenses addon for native commands reads and Files while
  }finally{vi.unstubAllEnvs();}
 });
 it('keeps exact Expense replay and original cancellation while draining but denies genuinely new draft amendment submission and AI work',async()=>{
- const {expensePurchaseControls}=await import('../../../src/server/modules/people_payroll/public/expense-purchases'),{requestExpenseAi}=await import('../../../src/server/modules/people_payroll/expense');
+ const {expensePurchaseControls}=await import('@erpx/server-people_payroll/public/expense-purchases'),{requestExpenseAi}=await import('@erpx/server-people_payroll/expense');
  await expenseBoundaryGrant('people');await expenseBoundaryGrant('people-expenses');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  try{
   const input=expenseBoundaryInput(),command=key(),created=await saveExpense(f.claimant,null,input,command),id=String(created.id);
   await expenseBoundaryGrant('people-expenses','draining');expect(await expensePurchaseControls(f.claimant)).toMatchObject({newWork:false,settleExisting:true,history:true});
-  const {getWorkCapabilities}=await import('../../../src/server/modules/work_projection/public/work-capabilities');expect((await getWorkCapabilities(db,f.claimant)).creation.some(entry=>entry.kind==='expense')).toBe(false);
+  const {getWorkCapabilities}=await import('@erpx/server-work_projection/public/work-capabilities');expect((await getWorkCapabilities(db,f.claimant)).creation.some(entry=>entry.kind==='expense')).toBe(false);
   const before=await expenseBoundaryImage();expect(await saveExpense(f.claimant,null,input,command)).toEqual(created);
   await expect(saveExpense(f.claimant,null,{...input,merchant:'Different original request'},command)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
   await expect(saveExpense(f.claimant,null,input,key())).rejects.toMatchObject({status:403,code:'PACKAGE_DRAINING'});
@@ -795,7 +795,7 @@ it('rolls back deferred actual Expense assignment revocation and native expiry a
  }finally{vi.unstubAllEnvs();}
 });
 it('serializes actual cross-Company Expense and Commercial writers before their snapshots with no deadlock serialization or retry',async()=>{
- const other=await expenseFixture(),{nativeExpenseDrafts}=await import('../../../src/server/modules/people_payroll/adapters/expense-drafts'),{packageGrantStore,readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants');
+ const other=await expenseFixture(),{nativeExpenseDrafts}=await import('@erpx/server-people_payroll/adapters/expense-drafts'),{packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants');
  for(const company of [f.company,other.company]){await expenseBoundaryGrant('people','active',null,company);await expenseBoundaryGrant('people-expenses','active',null,company);}
  vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  let release:()=>void=()=>{},entered:()=>void=()=>{};const heldGate=new Promise<void>(resolve=>{release=resolve;}),ready=new Promise<void>(resolve=>{entered=resolve;});
@@ -825,7 +825,7 @@ it('serializes actual cross-Company Expense and Commercial writers before their 
  }finally{release();vi.unstubAllEnvs();}
 });
 it('retains the real captured queue author and reaches the original Expense AI readiness guard inside the purchased command unit',async()=>{
- const {queueExpenseAi}=await import('../../../src/server/modules/people_payroll/public/expense-ai'),{ApiError}=await import('../../../src/server/modules/runtime/public/http');
+ const {queueExpenseAi}=await import('@erpx/server-people_payroll/public/expense-ai'),{ApiError}=await import('@erpx/server-runtime/public/http');
  const id=await f.claim(),input={expectedVersion:1,paymentId:null,retry:false};
  // This source has no receipt. The original readiness/receipt guard must
  // refuse before creating a provider job; no provider request is executed.
@@ -836,7 +836,7 @@ it('retains the real captured queue author and reaches the original Expense AI r
 });
 
 it('uses original Expense visibility inside the same before-limit record read and rejects a late native source change',async()=>{
- const {withExpenseWorkspaceRecordRead}=await import('../../../src/server/modules/people_payroll/public/record-purchases'),{payrollSourceReadScope}=await import('../../../src/server/modules/people_payroll/public/record-purchases');
+ const {withExpenseWorkspaceRecordRead}=await import('@erpx/server-people_payroll/public/record-purchases'),{payrollSourceReadScope}=await import('@erpx/server-people_payroll/public/record-purchases');
  await expenseBoundaryGrant('people');await expenseBoundaryGrant('people-expenses');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  try{
   const id=await f.claim();await expect(getExpense(f.it,id)).rejects.toMatchObject({status:404,code:'EXPENSE_NOT_FOUND'});
@@ -855,7 +855,7 @@ it('uses original Expense visibility inside the same before-limit record read an
 });
 
 it('keeps the complete actual Expense preview in its native read unit through a late original staff-authority change',async()=>{
- const {previewExpense}=await import('../../../src/server/modules/people_payroll/expense'),staffOwner=await import('../../../src/server/modules/operations/public/staff-policy');
+ const {previewExpense}=await import('@erpx/server-people_payroll/expense'),staffOwner=await import('@erpx/server-operations/public/staff-policy');
  await expenseBoundaryGrant('people');await expenseBoundaryGrant('people-expenses');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  let intercepted=false;const nativeActiveStaff=staffOwner.activeStaff;
  try{
@@ -876,19 +876,19 @@ it('keeps the complete actual Expense preview in its native read unit through a 
 });
 
 it('closes an actual unconfirmed Expense payment preparation after lawful parent reversal and retains exact Treasury history through addon withdrawal',async()=>{
- const {reverseExpense}=await import('../../../src/server/modules/people_payroll/public/expenses');await expenseAddonGrant('people');await expenseAddonGrant('people-expenses');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
+ const {reverseExpense}=await import('@erpx/server-people_payroll/public/expenses');await expenseAddonGrant('people');await expenseAddonGrant('people-expenses');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  const oldGate=process.env.ERPX_ATTACHMENTS_V2;
  try{
   const id=await f.claim();await f.throughAccounts(id);await postExpenseAddonClaim(id);const posted=await getExpense(f.payer,id),draftId=String((await createExpensePayment(f.payer,id,Number(posted.version),key())).draftId);
   // Original Files record binding advances only the native draft version; no
   // payment, payable or positive Finance source is fabricated by this fixture.
-  process.env.ERPX_ATTACHMENTS_V2='true';const file=await seedAttachmentSet(db,f.payer,{targetType:'expense_payment',targetId:draftId,componentKind:'action',componentRef:'legacy-upload-adapter',purposeKey:'payment_slip',expectedTargetVersion:1});await (await import('../../../src/server/modules/files/public/attachments/service')).bindCompatibilityAttachmentSet(db,f.payer,file.setId,1,key());
+  process.env.ERPX_ATTACHMENTS_V2='true';const file=await seedAttachmentSet(db,f.payer,{targetType:'expense_payment',targetId:draftId,componentKind:'action',componentRef:'legacy-upload-adapter',purposeKey:'payment_slip',expectedTargetVersion:1});await (await import('@erpx/server-files/public/attachments/service')).bindCompatibilityAttachmentSet(db,f.payer,file.setId,1,key());
   const original=await db.prepare('SELECT * FROM expense_payment_drafts WHERE id=?').bind(draftId).first<{version:number;payment_id:string|null;status:string}>();expect(original).toMatchObject({version:2,status:'draft',payment_id:null});
   const reversal=await reverseExpense(f.manager,id,{expectedVersion:Number((await getExpense(f.manager,id)).version),periodId:f.period,entryDate:'2026-09-03',reason:'Original wholly unpaid claim is no longer owed'},key());expect(reversal.status).toBe('cancelled');
   // Genuine old-source recovery gap: original Treasury could no longer open
   // this reversed parent, although its native unconfirmed draft remained due.
   const parent=await getExpense(f.payer,id);expect(parent).toMatchObject({status:'cancelled'});expect((await expenseDetail(f.payer,id)).paymentDrafts.find(draft=>draft.id===draftId)).toMatchObject({can_cancel_payment:1});await expect(getExpense(f.it,id)).rejects.toMatchObject({status:404});
-  const {cancelExpensePayment}=await import('../../../src/server/modules/people_payroll/public/expense-payments'),input={expectedVersion:2,expenseVersion:Number(parent.version),reason:'Independent Treasury verified that this preparation was never paid',paymentNotExecuted:true as const},command=key();
+  const {cancelExpensePayment}=await import('@erpx/server-people_payroll/public/expense-payments'),input={expectedVersion:2,expenseVersion:Number(parent.version),reason:'Independent Treasury verified that this preparation was never paid',paymentNotExecuted:true as const},command=key();
   await expenseAddonGrant('people-expenses','draining');expect((await expenseAddonObservation()).observations.find(row=>row.moduleId==='people_payroll')!.outstanding).toBeGreaterThan(0);const request=await expenseAddonWithdrawal();await expect(expenseAddonReview(request,true)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
   const unchanged=await expenseAddonImage();await expect(cancelExpensePayment(f.manager,id,draftId,input,key())).rejects.toMatchObject({status:403});await expect(cancelExpensePayment(f.payer,'another-claim',draftId,input,key())).rejects.toMatchObject({status:404});await expect(cancelExpensePayment(f.payer,id,draftId,{...input,expectedVersion:1},key())).rejects.toMatchObject({code:'EXPENSE_PAYMENT_CHANGED'});expect(await expenseAddonImage()).toEqual(unchanged);
   const result=await cancelExpensePayment(f.payer,id,draftId,input,command);expect(result).toEqual({id:draftId,expenseId:id,status:'cancelled',version:3,expenseVersion:input.expenseVersion,reason:input.reason,paymentNotExecuted:true});expect(await cancelExpensePayment(f.payer,id,draftId,input,command)).toEqual(result);
@@ -898,14 +898,14 @@ it('closes an actual unconfirmed Expense payment preparation after lawful parent
  }finally{if(oldGate===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=oldGate;vi.unstubAllEnvs();}
 });
 it('cancelling an abandoned payment preparation leaves its genuine payable due and cannot cancel an actual confirmed bank payment',async()=>{
- const {cancelExpensePayment}=await import('../../../src/server/modules/people_payroll/public/expense-payments');await expenseAddonGrant('people');await expenseAddonGrant('people-expenses');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
+ const {cancelExpensePayment}=await import('@erpx/server-people_payroll/public/expense-payments');await expenseAddonGrant('people');await expenseAddonGrant('people-expenses');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
  try{const id=await f.claim();await f.throughAccounts(id);await postExpenseAddonClaim(id);const parent=await getExpense(f.payer,id),abandoned=String((await createExpensePayment(f.payer,id,Number(parent.version),key())).draftId),input={expectedVersion:1,expenseVersion:Number(parent.version),reason:'Independent Treasury verified this unused bank preparation',paymentNotExecuted:true as const};await cancelExpensePayment(f.payer,id,abandoned,input,key());
   expect(await getExpense(f.payer,id)).toMatchObject({status:'posted',outstanding_minor:10700,version:parent.version});await expenseAddonGrant('people-expenses','draining');const withdrawal=await expenseAddonWithdrawal();await expect(expenseAddonReview(withdrawal,true)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
   const actual=String((await createExpensePayment(f.payer,id,Number(parent.version),key())).draftId);await f.attach(actual,'expense_payment');await confirmExpensePayment(f.payer,actual,{expectedVersion:1,date:'2026-09-03',amount:'107',reference:key()},key());const current=await getExpense(f.payer,id),before=await expenseAddonImage();await expect(cancelExpensePayment(f.payer,id,actual,{...input,expenseVersion:Number(current.version),expectedVersion:2},key())).rejects.toMatchObject({code:'EXPENSE_PAYMENT_NOT_CANCELLABLE'});expect(await expenseAddonImage()).toEqual(before);expect((await expenseAddonObservation()).total).toBe(0);await expenseAddonReview(await expenseAddonWithdrawal(),true);
  }finally{vi.unstubAllEnvs();}
 });
 it('payment cancellation checks its exact original parent and child again after deferred effects in enforced and ordinary disabled mode',async()=>{
- const {cancelExpensePayment}=await import('../../../src/server/modules/people_payroll/public/expense-payments');await expenseAddonGrant('people');await expenseAddonGrant('people-expenses');
+ const {cancelExpensePayment}=await import('@erpx/server-people_payroll/public/expense-payments');await expenseAddonGrant('people');await expenseAddonGrant('people-expenses');
  for(const mode of ['disabled','enforced'] as const){vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT',mode);
   try{const id=await f.claim();await f.throughAccounts(id);await postExpenseAddonClaim(id);const parent=await getExpense(f.payer,id),draftId=String((await createExpensePayment(f.payer,id,Number(parent.version),key())).draftId),input={expectedVersion:1,expenseVersion:Number(parent.version),reason:'Verified unexecuted preparation with exact final source',paymentNotExecuted:true as const};
    let retryCommand='';for(const target of ['parent','draft'] as const){const command=key(),name=`expense_cancel_final_${key().replaceAll('-','')}`;retryCommand=command;await db.exec(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${target==='parent'?`UPDATE finance_expenses SET business_purpose='Adverse deferred parent mutation' WHERE id='${id}' AND company_id='${f.company}';`:`UPDATE expense_payment_drafts SET reference='Adverse deferred draft mutation' WHERE id='${draftId}' AND company_id='${f.company}';`} RETURN NEW;END $$; CREATE CONSTRAINT TRIGGER ${name} AFTER INSERT ON command_receipts DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${name}()`);
@@ -942,13 +942,13 @@ async function expenseSetupZero(purchased=true){
  expect(await expenseSetupCounts()).toEqual({charts:0,accounts:0,periods:0,rates:0,mappings:0,journals:0,money:0});
  await expenseBoundaryGrant('people');if(purchased)await expenseBoundaryGrant('people-expenses');
  vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
- const {readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants');
+ const {readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants');
  expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId).sort()).toEqual(purchased?['people','people-expenses']:['people']);
- return {api:await import('../../../src/server/modules/finance/public/expense-posting-prerequisites'),mapping:await import('../../../src/server/modules/commerce/public/expense-posting-setup')};
+ return {api:await import('@erpx/server-finance/public/expense-posting-prerequisites'),mapping:await import('@erpx/server-commerce/public/expense-posting-setup')};
 }
-async function expenseSetupEnvelope(actor=f.reviewer){const {expensePostingPrerequisites}=await import('../../../src/server/modules/finance/public/expense-posting-prerequisites'),view=await expensePostingPrerequisites(actor);if(!view.available||!view.contextKey)throw Error('Actual current Company Expense prerequisite context required');return {expectedVersion:0 as const,contextKey:view.contextKey};}
+async function expenseSetupEnvelope(actor=f.reviewer){const {expensePostingPrerequisites}=await import('@erpx/server-finance/public/expense-posting-prerequisites'),view=await expensePostingPrerequisites(actor);if(!view.available||!view.contextKey)throw Error('Actual current Company Expense prerequisite context required');return {expectedVersion:0 as const,contextKey:view.contextKey};}
 async function expenseSetupReferences(){
- const api=await import('../../../src/server/modules/finance/public/expense-posting-prerequisites'),initial=await api.expensePostingPrerequisites(f.reviewer);expect(initial).toMatchObject({available:true,configured:false,defaultCurrency:'USD',canCreateChart:true,canCreateAccount:true,canCreatePeriod:true,canConfirmRate:false,charts:[],accounts:[],periods:[],rates:[]});
+ const api=await import('@erpx/server-finance/public/expense-posting-prerequisites'),initial=await api.expensePostingPrerequisites(f.reviewer);expect(initial).toMatchObject({available:true,configured:false,defaultCurrency:'USD',canCreateChart:true,canCreateAccount:true,canCreatePeriod:true,canConfirmRate:false,charts:[],accounts:[],periods:[],rates:[]});
  const chartBody={...await expenseSetupEnvelope(),input:{name:'Actual first Expense functional chart',baseCurrency:'THB',accountingBasis:'IFRS'}},chartKey=key(),chart=await api.createExpensePostingChart(f.reviewer,chartBody,chartKey);expect(chart).toMatchObject({companyId:f.company,baseCurrency:'THB',version:1});expect(chart.id).toMatch(/^chart-/);
  const accounts={receivableAccountId:'',payableAccountId:'',revenueAccountId:'',inventoryAccountId:'',clearingAccountId:'',cogsAccountId:'',inputTaxAccountId:'',outputTaxAccountId:'',cashAccountId:''};
  for(const [field,code,category,controlKind] of [['receivableAccountId','1100','asset','receivable'],['payableAccountId','2000','liability','payable'],['revenueAccountId','4000','revenue','none'],['inventoryAccountId','1200','asset','none'],['clearingAccountId','2100','liability','none'],['cogsAccountId','5000','expense','none'],['inputTaxAccountId','1300','asset','none'],['outputTaxAccountId','2200','liability','none'],['cashAccountId','1000','asset','bank']] as const){
@@ -959,7 +959,7 @@ async function expenseSetupReferences(){
  expect(await expenseSetupCounts()).toEqual({charts:1,accounts:9,periods:1,rates:1,mappings:0,journals:0,money:0});
  return {api,chart,chartBody,chartKey,accounts,period,periodBody,periodKey,rate,rateBody,rateKey};
 }
-async function expenseSetupMappingInput(refs:Awaited<ReturnType<typeof expenseSetupReferences>>){const api=await import('../../../src/server/modules/commerce/public/expense-posting-setup'),view=await api.expensePostingSetup(f.reviewer);if(!view.contextKey)throw Error('Actual initial mapping context required');return api.expensePostingSetupSchema.parse({expectedVersion:0,contextKey:view.contextKey,chartId:refs.chart.id,currency:'THB',...refs.accounts,expectedSalesDefaults:view.expectedSalesDefaults,reason:'Current Company Finance prepares all nine original Expense posting roles'});}
+async function expenseSetupMappingInput(refs:Awaited<ReturnType<typeof expenseSetupReferences>>){const api=await import('@erpx/server-commerce/public/expense-posting-setup'),view=await api.expensePostingSetup(f.reviewer);if(!view.contextKey)throw Error('Actual initial mapping context required');return api.expensePostingSetupSchema.parse({expectedVersion:0,contextKey:view.contextKey,chartId:refs.chart.id,currency:'THB',...refs.accounts,expectedSalesDefaults:view.expectedSalesDefaults,reason:'Current Company Finance prepares all nine original Expense posting roles'});}
 
 it('starts with zero Finance references and only People plus Expenses, then uses closed original constructors and independent review before actual claim posting',async()=>{
  try{
@@ -1015,13 +1015,13 @@ it('rolls back deferred Expense prerequisite Finance IAM and purchase source fau
 
 it('preserves independently approved legacy Sales defaults including no VAT while actual Expense initial mapping rejects another valid receivable role and a late edition fault',async()=>{
  try{
-  const source=await expenseSetupZero(),refs=await expenseSetupReferences(),alternate=await source.api.createExpensePostingAccount(f.reviewer,{...await expenseSetupEnvelope(),input:{chartId:refs.chart.id,code:'1110',name:'Other actual valid trade receivable',category:'asset',currency:'THB',controlKind:'receivable',isControl:true}},key()),sales=await import('../../../src/server/modules/finance/public/sales');
+  const source=await expenseSetupZero(),refs=await expenseSetupReferences(),alternate=await source.api.createExpensePostingAccount(f.reviewer,{...await expenseSetupEnvelope(),input:{chartId:refs.chart.id,code:'1110',name:'Other actual valid trade receivable',category:'asset',currency:'THB',controlKind:'receivable',isControl:true}},key()),sales=await import('@erpx/server-finance/public/sales');
   // Explicit legacy parity control: these are ORIGINAL Finance prepare/review
   // services under their original disabled policy, before the strict new Expense
   // initializer. No Sales/full-Finance grant or positive SQL default is minted.
   vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');const draft=await sales.prepareSalesDefaults(f.reviewer,{chartId:refs.chart.id,currency:'THB',receivableAccountId:refs.accounts.receivableAccountId,revenueAccountId:refs.accounts.revenueAccountId,reason:'Original Finance intent predates this Expense mapping and explicitly has no VAT'},key()),approved=await sales.decideSalesDefaults(f.manager,String(draft.id),{expectedVersion:1,action:'approve',reason:'A different original Finance approver reviewed the retained no-VAT edition'},key());vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');expect(approved).toMatchObject({id:draft.id,status:'approved',version:2});
-  const {commerceFinanceJoinedFacts}=await import('../../../src/server/modules/finance/public/commerce-joined-facts'),effective=()=>commerceFinanceJoinedFacts(db).readCommerceSettings1({companyId:f.company}),beforeEffective=await effective(),view=await source.mapping.expensePostingSetup(f.reviewer);expect(view).toMatchObject({expectedSalesDefaults:{id:draft.id,version:2},approvedSalesDefaults:{taxAccountId:null,chartId:refs.chart.id,currency:'THB'}});expect(beforeEffective?.output_tax_account_id).toBeNull();
-  const body=await expenseSetupMappingInput(refs),wrong={...body,receivableAccountId:alternate.id},before=await expenseSetupImage();await (await import('../../../src/server/modules/finance/public/commerce-posting-setup')).validateCommercePostingFinanceReferences(db,f.reviewer,wrong);await expect(source.mapping.initializeExpensePostingSetup(f.reviewer,wrong,key())).rejects.toMatchObject({status:409,code:'EXPENSE_POSTING_DEFAULTS_CHANGED'});expect(await expenseSetupImage()).toEqual(before);
+  const {commerceFinanceJoinedFacts}=await import('@erpx/server-finance/public/commerce-joined-facts'),effective=()=>commerceFinanceJoinedFacts(db).readCommerceSettings1({companyId:f.company}),beforeEffective=await effective(),view=await source.mapping.expensePostingSetup(f.reviewer);expect(view).toMatchObject({expectedSalesDefaults:{id:draft.id,version:2},approvedSalesDefaults:{taxAccountId:null,chartId:refs.chart.id,currency:'THB'}});expect(beforeEffective?.output_tax_account_id).toBeNull();
+  const body=await expenseSetupMappingInput(refs),wrong={...body,receivableAccountId:alternate.id},before=await expenseSetupImage();await (await import('@erpx/server-finance/public/commerce-posting-setup')).validateCommercePostingFinanceReferences(db,f.reviewer,wrong);await expect(source.mapping.initializeExpensePostingSetup(f.reviewer,wrong,key())).rejects.toMatchObject({status:409,code:'EXPENSE_POSTING_DEFAULTS_CHANGED'});expect(await expenseSetupImage()).toEqual(before);
   const command=key();await expenseSetupFault(command,`UPDATE finance_sales_defaults SET review_reason=review_reason||' adverse late edition' WHERE id='${String(draft.id)}'`,()=>source.mapping.initializeExpensePostingSetup(f.reviewer,body,command),{status:409,code:'EXPENSE_POSTING_SOURCE_CHANGED'});
   const configured=await source.mapping.initializeExpensePostingSetup(f.reviewer,body,command);expect(configured).toEqual({id:f.company,status:'configured',version:1});const afterEffective=await effective();for(const field of ['chart_id','currency','receivable_account_id','revenue_account_id','output_tax_account_id'] as const)expect(afterEffective?.[field]).toEqual(beforeEffective?.[field]);expect(afterEffective?.output_tax_account_id).toBeNull();expect(await db.prepare('SELECT output_tax_account_id FROM commerce_settings WHERE company_id=?').bind(f.company).first('output_tax_account_id')).toBe(refs.accounts.outputTaxAccountId);
   const stable=await expenseSetupImage();expect(await source.mapping.initializeExpensePostingSetup(f.reviewer,body,command)).toEqual(configured);expect(await expenseSetupImage()).toEqual(stable);expect((await db.prepare('SELECT created_by,reviewed_by,version,tax_account_id FROM finance_sales_defaults WHERE id=?').bind(draft.id).first())).toEqual({created_by:f.reviewer.userId,reviewed_by:f.manager.userId,version:2,tax_account_id:null});
@@ -1030,7 +1030,7 @@ it('preserves independently approved legacy Sales defaults including no VAT whil
 
 it('waits for an actual disabled ordinary Finance receipt-first writer before reading the closed Expense source and rejects its stale context without transaction retries',async()=>{
  try{
-  const source=await expenseSetupZero(),chart=await source.api.createExpensePostingChart(f.reviewer,{...await expenseSetupEnvelope(),input:{name:'Actual old/new writer overlap chart',baseCurrency:'THB',accountingBasis:'IFRS'}},key()),native=await import('../../../src/server/modules/finance/public/finance'),oldBody={chartId:chart.id,code:'5800',name:'Original disabled owner account',category:'expense' as const,currency:'THB',isControl:false,controlKind:'none' as const},body={...await expenseSetupEnvelope(),input:{...oldBody,code:'5810',name:'New closed Expense account'}},writerKey=key(),newKey=key(),name='expense_setup_writer_'+key().replaceAll('-','');
+  const source=await expenseSetupZero(),chart=await source.api.createExpensePostingChart(f.reviewer,{...await expenseSetupEnvelope(),input:{name:'Actual old/new writer overlap chart',baseCurrency:'THB',accountingBasis:'IFRS'}},key()),native=await import('@erpx/server-finance/public/finance'),oldBody={chartId:chart.id,code:'5800',name:'Original disabled owner account',category:'expense' as const,currency:'THB',isControl:false,controlKind:'none' as const},body={...await expenseSetupEnvelope(),input:{...oldBody,code:'5810',name:'New closed Expense account'}},writerKey=key(),newKey=key(),name='expense_setup_writer_'+key().replaceAll('-','');
   vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');await db.exec(`CREATE SEQUENCE ${name};CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${name}');PERFORM pg_sleep(0.5);RETURN NEW;END $$;CREATE TRIGGER ${name} AFTER INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='${writerKey}') EXECUTE FUNCTION ${name}()`);
   try{
    const observed=await measureReads(async()=>{let done=false;const writing=native.createAccount(f.reviewer,oldBody,writerKey).finally(()=>{done=true;}),oldOutcome=Promise.allSettled([writing]);let atReceipt=false;for(let attempt=0;attempt<100;attempt++){atReceipt=!!await db.prepare(`SELECT is_called FROM ${name}`).first('is_called');if(atReceipt||done)break;await new Promise(resolve=>setTimeout(resolve,5));}if(!atReceipt){const [result]=await oldOutcome;if(result.status==='rejected')throw result.reason;throw Error('Actual original writer did not reach its native receipt barrier');}expect(done).toBe(false);
@@ -1045,7 +1045,7 @@ it('waits for an actual disabled ordinary Finance receipt-first writer before re
 // Additive ADR-038 proof. Starts from the same real ZERO-Finance Company
 // fixture as setup, but intentionally leaves its manual FX quotes empty.
 async function expenseMoneyQuoteFreeReferences() {
-  const api = await import('../../../src/server/modules/finance/public/expense-posting-prerequisites');
+  const api = await import('@erpx/server-finance/public/expense-posting-prerequisites');
   const chart = await api.createExpensePostingChart(f.reviewer, {
     ...await expenseSetupEnvelope(),
     input: { name: 'Expense Money evidence functional chart', baseCurrency: 'THB', accountingBasis: 'IFRS' },
@@ -1134,7 +1134,7 @@ it('captures new Expense journal and invoice Money atomically, retains the origi
     expect(await expenseMoneyImage()).toEqual(afterRevision);
     expect(await expenseCanonicalMoney()).toEqual(originalMoney);
 
-    const { reverseExpense } = await import('../../../src/server/modules/people_payroll/public/expenses');
+    const { reverseExpense } = await import('@erpx/server-people_payroll/public/expenses');
     const reversalBody = { expectedVersion: Number(current.version), periodId: refs.period.id, entryDate: '2026-09-03', reason: 'Original unpaid liability is independently corrected without changing its captured quote' }, reversalKey = key();
     await expenseMoneyAuthorityFault(() => reverseExpense(f.manager, id, reversalBody, reversalKey));
     const reversed = await reverseExpense(f.manager, id, reversalBody, reversalKey);

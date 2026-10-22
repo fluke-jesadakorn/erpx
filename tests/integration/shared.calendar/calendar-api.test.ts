@@ -1,18 +1,18 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {
   GET,
   POST,
-} from "../../../src/app/api/v1/holdings/[holdingSlug]/calendar/route";
-import { GET as hierarchy } from "../../../src/app/api/v1/holdings/[holdingSlug]/calendar/[...path]/route";
+} from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/calendar/route";
+import { GET as hierarchy } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/calendar/[...path]/route";
 let actor: WorkContext;
 const resourcesObserved=vi.hoisted(()=>vi.fn());
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({
   requireWorkContext: async () => actor,
 }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => {resourcesObserved();return { write: env.H001_DB, files: env.H001_FILES };},
   runtimeEnv: async () => env,
 }));

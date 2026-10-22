@@ -1,0 +1,1 @@
+export {default} from '@erpx/workplace/routes/holdings/[holdingSlug]/administration/technology/resources/groups/_entry';

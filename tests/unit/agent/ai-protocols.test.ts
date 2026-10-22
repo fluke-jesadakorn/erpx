@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
-import * as https from "../../../src/server/modules/runtime/adapters/runtime/https";
-import { generateProviderJson, type AiMessage } from "../../../src/server/modules/agent/public/ai-transport";
-import { aiProtocols, modelProtocol, supportedModels } from "../../../src/lib/shared/ai/providers";
+import * as https from "@erpx/server-runtime/adapters/runtime/https";
+import { generateProviderJson, type AiMessage } from "@erpx/server-agent/public/ai-transport";
+import { aiProtocols, modelProtocol, supportedModels } from "@erpx/feature-shared/lib/ai/providers";
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const messages: AiMessage[] = [ { role: "system", content: "Return JSON." }, { role: "user", content: [{ type: "text", text: "Read image" }, { type: "image_url", image_url: { url: "data:image/png;base64,YQ==" } }] } ];
 function mock(response: unknown) {

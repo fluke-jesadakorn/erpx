@@ -2,7 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { Pool } from "pg";
-import { assertHospitalityDevelopmentTarget } from "../../src/lib/shared/hospitality-seed-target";
+import { assertHospitalityDevelopmentTarget } from "@erpx/feature-shared/lib/hospitality-seed-target";
 
 const manifestPath = process.env.ERPX_DATABASE_MANIFEST;
 if (!manifestPath) throw new Error("ERPX_DATABASE_MANIFEST_REQUIRED");

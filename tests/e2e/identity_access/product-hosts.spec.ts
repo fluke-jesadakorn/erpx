@@ -5,7 +5,7 @@ import {prepareProductPurchases,verifyProductHost} from '../../support/browser/p
 import {signIn} from '../../support/helpers/context-switching-browser';
 import {companyAdminOwnerReadsProductHostCase,financeSalesInvoiceProductHostCase,productHostReadOnlyWorkflowForCase,readProductHostLease,workRequestDraftProductHostCase} from '../../../scripts/testing/product-host-cohort';
 import {createHash,randomUUID} from 'node:crypto';
-import {productIds} from '../../../src/lib/commercial/product-registry';
+import {productIds} from '@erpx/contracts/product-registry';
 
 // Missing owned mode is a failure, never an accepted skip/Console fallback.
 for(const product of productIds)test(`isolated ${product} Account Apps SSO reaches its actual owner landing and API`,async({browser},testInfo)=>{

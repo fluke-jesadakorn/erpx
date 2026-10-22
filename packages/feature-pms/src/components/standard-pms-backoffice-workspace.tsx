@@ -1,0 +1,953 @@
+"use client";
+import { pmsPackageCommandAllowed } from "@erpx/feature-pms/lib/package-access";
+import { PmsPackageNotice } from "@erpx/feature-pms/components/package-notice";
+import { PmsCommandRecovery } from "@erpx/feature-pms/components/command-recovery";
+import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
+import { PmsChoiceSelect } from "@erpx/feature-pms/components/choice-select";
+import { changedPmsTaskCompletionAttachments, type Option, type Field, type Send, type ActionAttachment, type PmsTaskCompletionDraft, type PmsTaskCompletionDraftValues, type PmsTaskCompletionDraftAttachment } from "@erpx/feature-pms/components/workspace-types";
+import type { AttachmentPanelChange } from "@erpx/feature-files/components/attachment-panel";
+import { FormDisclosure } from "@erpx/ui/components/form-disclosure";
+import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
+import { Button, Badge as StatusBadge, InlineNotice, Field as UiField, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
+import { PageHeader } from "@erpx/ui/components/primitives";
+import { FeatureWidget, WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
+import { StandardPmsBackofficeReadiness } from "@erpx/feature-pms/components/standard-pms-backoffice-readiness";
+import { decimalToMinor } from "@erpx/feature-finance/lib/finance-money";
+import { visiblePmsSections, operationPermission, plusDays, records, type DataMap, type Kind, type PmsRecord } from "@erpx/server-pms/public/rules/pms-model";
+import { useCurrency, useMoneyFormatter } from "@erpx/feature-finance/components/money/currency-provider";
+import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
+import { captureWorkCommandContext } from "@erpx/feature-work_projection/lib/command-context";
+import {capturePmsWorkspaceCommandContext,sendPmsWorkspaceCommand,pendingPmsWorkspaceCommand,type PmsWorkspaceCommandAttempt,type PmsWorkspaceCommandSource} from "@erpx/feature-pms/lib/workspace-command";
+import { pmsSectionPath } from "@erpx/feature-pms/lib/section-route";
+import { createLatestRead } from "@erpx/feature-shared/lib/latest-read";
+import type { PmsWorkspace } from "../../../../packages/server-pms/src/public/pms";
+import { Hotel, Plus, RefreshCw } from "lucide-react";
+import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";
+import { useRouter } from "@erpx/feature-shared/lib/destination-router";
+import { PmsPendingRouterContext, usePmsPendingNavigation } from "@erpx/feature-pms/components/pending-command-navigation";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type ComponentProps } from "react";
+import { PmsListPagination } from "@erpx/feature-pms/components/list-pagination";
+import dynamic from "next/dynamic";
+import styles from "@erpx/feature-pms/components/standard-pms-backoffice-workspace.module.css";
+import { StandardPmsBackofficeNavigation } from "@erpx/feature-pms/components/standard-pms-backoffice-navigation";
+import { pmsMenu } from "@erpx/feature-shared/components/hospitality/module-menu";
+import { FrontLocalizedTree, useFrontLanguage } from "@erpx/front/components/front-language";
+import { frontText } from "@erpx/feature-shared/lib/front-language";
+
+
+const PmsEntryDetail = dynamic(() => import("@erpx/feature-records/components/pms-entry-detail").then(module => module.PmsEntryDetail));
+
+
+const SourceSupportChooser = dynamic(() => import("@erpx/feature-support/components/source-support-chooser").then(module => module.SourceSupportChooser));
+
+
+const AttachmentPanel = dynamic(() => import("@erpx/feature-files/components/attachment-panel").then(module => module.AttachmentPanel));
+
+
+
+
+
+const pmsFileBase=(base:string)=>base.startsWith('/front/')?`${base.replace(/\/$/,'')}/pms`:base;
+
+
+const field = (
+  name: string,
+  label: string,
+  type: Field["type"] = "text",
+  value?: Field["value"],
+  required = true,
+): Field => ({ name, label, type, value, required });
+
+
+const select = (
+  name: string,
+  label: string,
+  options: Option[],
+  value?: string,
+  required = true,
+): Field => ({ name, label, type: "select", options, value, required });
+
+
+const choices = (items: string[]): Option[] => items.map((id) => ({ id, name: id }));
+
+
+function Form({
+  title,
+  op,
+  fields = [],
+  hidden = {},
+  send,
+  permissions,
+  version,
+  transform,
+  attachments = [],
+  open = false,
+  choiceApi,
+  propertyId,
+  pending = false,
+  recovery,
+  onCompletionDraft,
+  onCompletionAcknowledged,
+  onCompletionAttachmentActivity,
+}: {
+  title: string;
+  choiceApi?:string;
+  propertyId?:string;
+  pending?: boolean;
+  recovery?: ReactNode;
+  op: string;
+  fields?: Field[];
+  hidden?: Record<string, unknown>;
+  send: Send;
+  permissions: string[];
+  version?: number;
+  transform?: (v: Record<string, unknown>) => unknown;
+  attachments?: ActionAttachment[];
+  onCompletionDraft?: (values: PmsTaskCompletionDraftValues) => void;
+  onCompletionAcknowledged?: () => void;
+  onCompletionAttachmentActivity?: (purposeKey: string, active: boolean) => void;
+  open?: boolean;
+}) {
+  const language = useFrontLanguage();
+  const localizedFields = fields.map((item) => ({
+    ...item,
+    label: frontText(item.label, language),
+    options: item.options?.map((option) => ({ ...option, name: frontText(option.name, language) })),
+  }));
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [success, setSuccess] = useState(false);
+  const [completionAttachmentPending, setCompletionAttachmentPending] = useState(false);
+  const completionAttachmentActivities = useRef(new Set<string>());
+  const completionAttachments = useRef(new Map<string, PmsTaskCompletionDraftAttachment>());
+  const [roomSets, setRoomSets] = useState(1);
+  const roomKeys = ["typeId", "rateId", "arrival", "departure", "adults", "quantity"];
+  const roomFields = localizedFields.filter((f) => roomKeys.includes(f.name));
+  const displayFields =
+    op === "reservation.create"
+      ? localizedFields.flatMap((f) =>
+          f.name === "typeId"
+            ? Array.from({ length: roomSets }, (_, i) =>
+                roomFields.map((r) => ({
+                  ...r,
+                  name: i ? `room_${i}_${r.name}` : r.name,
+                  label: `${r.label} · Room set ${i + 1}`,
+                })),
+              ).flat()
+            : roomKeys.includes(f.name)
+              ? []
+              : [f],
+        )
+      : localizedFields;
+  const editingVersion = useRef<number | undefined>(undefined),formEdits=useRef(0);
+  const formSource=useRef<PmsWorkspaceCommandSource|null>(null);
+  useLayoutEffect(()=>{formSource.current={base:choiceApi??"",propertyId};return()=>{formSource.current=null;};},[choiceApi,propertyId]);
+  if (!permissions.includes(operationPermission(op))) return null;
+  return (
+    <FormDisclosure appearance="standard" inline={displayFields.length < 3} dismissDisabled={busy || pending} retainFormContents={pending} className={styles.action} open={open || undefined}>
+      <summary>
+        <Plus size={15} />
+        {frontText(title, language)}
+      </summary>
+      {recovery}
+      <form
+        className={styles.form}
+        onChange={() => {
+          formEdits.current++;
+          editingVersion.current ??= version;
+          setSuccess(false);
+        }}
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (op === "task.complete" && pending) {
+            setError("Resolve the pending command before completing another task.");
+            return;
+          }
+          if (op === "task.complete" && completionAttachmentActivities.current.size > 0) {
+            setError("Wait for attachment setup or upload to finish before completing this task.");
+            return;
+          }
+          const form = event.currentTarget;
+          const values = new FormData(form),submittedEdit=formEdits.current;
+          const submittedAttachments = new Map(completionAttachments.current);
+          setError("");
+          setBusy(true);
+          try {
+            const assertCurrent=capturePmsWorkspaceCommandContext(()=>formSource.current);
+            const v: Record<string, unknown> = { ...hidden };
+            for (const f of displayFields) {
+              const raw = values.get(f.name);
+              v[f.name] =
+                f.type === "checkbox"
+                  ? raw === "on"
+                  : f.type === "money"
+                    ? decimalToMinor(String(raw || "0"))
+                    : f.type === "number"
+                      ? Number(raw)
+                      : String(raw ?? "");
+            }
+            const output = transform ? transform(v) : v;
+            if (op === "reservation.create")
+              (output as Record<string, unknown>).rooms = Array.from({ length: roomSets }, (_, i) =>
+                Object.fromEntries(roomKeys.map((k) => [k, v[i ? `room_${i}_${k}` : k]])),
+              );
+            const originalForm = new WeakRef(form);
+            const ok = await send(
+              op,
+              output,
+              editingVersion.current ?? version,
+              values.getAll("attachmentSetId").map(String).filter(Boolean),
+              () => {
+                const submittedForm = originalForm.deref();
+                if (!submittedForm?.isConnected) return;
+                assertCurrent();
+                if (op === "task.complete") onCompletionAcknowledged?.();
+                // A valid original acknowledgement releases its request version;
+                // newer field values remain a separate, unsent draft.
+                editingVersion.current = undefined;
+                setError("");
+                if(formEdits.current!==submittedEdit){
+                  if(op==="task.complete"&&onCompletionDraft){
+                    const latest=new FormData(submittedForm);
+                    onCompletionDraft({
+                      checklist:displayFields.filter(f=>f.type==="checkbox").map(f=>({label:f.label,checked:latest.get(f.name)==="on"})),
+                      notes:String(latest.get("notes")??""),
+                      attachments:changedPmsTaskCompletionAttachments(submittedAttachments,completionAttachments.current),
+                    });
+                  }
+                  return;
+                }
+                setSuccess(true);
+                submittedForm.reset();
+                setRoomSets(1);
+              },
+              () => {
+                if (!originalForm.deref()?.isConnected) return;
+                assertCurrent();
+                editingVersion.current = undefined;
+              },
+            );
+            if (!ok) setError("Not saved. Check the message above; your form data is preserved.");
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Invalid data.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {displayFields.map((f) => (
+          <UiField appearance="standard"
+            orientation="inline"
+            key={f.name}
+            label={f.type === "checkbox" ? undefined : f.label}
+            required={f.required && f.type !== "checkbox"}
+            className={f.type === "textarea" ? styles.wide : undefined}
+          >
+            {f.type === "checkbox" ? f.label : null}
+            {f.type === "select" && f.name === "guestId" && choiceApi && propertyId ? (
+              <PmsChoiceSelect key={`${choiceApi}:${propertyId}:${f.name}`} api={choiceApi} propertyId={propertyId} kind="guest" label={f.label} name={f.name} options={f.options} defaultValue={String(f.value??"")} required={f.required} autoLoad={false} emptyLabel={`Select ${f.label}`} />
+            ) : f.type === "select" ? (
+              <Select appearance="standard" name={f.name} defaultValue={String(f.value ?? "")} required={f.required}>
+                <option value="">Select {f.label}</option>
+                {f.options?.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </Select>
+            ) : f.type === "textarea" ? (
+              <TextArea appearance="standard"
+                name={f.name}
+                rows={3}
+                defaultValue={String(f.value ?? "")}
+                required={f.required}
+              />
+            ) : f.type === "checkbox" ? (
+              <TextInput appearance="standard" name={f.name} type="checkbox" defaultChecked={Boolean(f.value)} />
+            ) : (
+              <TextInput appearance="standard"
+                name={f.name}
+                type={f.type === "money" ? "number" : (f.type ?? "text")}
+                step={f.type === "money" ? "0.01" : f.type === "number" ? "1" : undefined}
+                min={["number", "money"].includes(f.type ?? "") ? (f.min ?? 0) : undefined}
+                defaultValue={String(f.value ?? "")}
+                required={f.required}
+              />
+            )}
+          </UiField>
+        ))}
+        {attachments.map((attachment) => (
+          <div
+            key={`${attachment.purposeKey}:${attachment.targetId}`}
+            className={styles.wide}
+          >
+            <AttachmentPanel
+              {...attachment}
+              componentKind="action"
+              componentRef={op}
+              fieldName="attachmentSetId"
+              bindMode="action"
+              visibility="Visible only to hotel staff authorized for this property and action."
+              interactionDisabled={op === "task.complete" && (busy || pending)}
+              onActivityChange={op === "task.complete" ? (active: boolean) => {
+                if (active) completionAttachmentActivities.current.add(attachment.purposeKey);
+                else completionAttachmentActivities.current.delete(attachment.purposeKey);
+                setCompletionAttachmentPending(completionAttachmentActivities.current.size > 0);
+                onCompletionAttachmentActivity?.(attachment.purposeKey, active);
+              } : undefined}
+              onChange={op==="task.complete"?(change:AttachmentPanelChange)=>completionAttachments.current.set(attachment.purposeKey,{
+                purposeKey:attachment.purposeKey,
+                setId:change.setId,
+                readyCount:change.readyCount,
+                requiredCount:change.requiredCount,
+                bindable:change.bindable,
+                links:change.links.map(link=>({id:link.id,filename:link.filename,mediaType:link.mediaType,bytes:link.bytes,sourceState:link.sourceState,linkState:link.linkState,caption:link.caption??null,previewAvailable:link.previewAvailable})),
+              }):undefined}
+            />
+          </div>
+        ))}
+        {op === "reservation.create" && (
+          <div className={styles.formFoot}>
+            <Button appearance="standard"
+              variant="secondary"
+
+              type="button"
+              disabled={busy || roomSets >= 20}
+              onClick={() => setRoomSets((n) => n + 1)}
+            >
+              Add another room type / stay segment
+            </Button>
+            {roomSets > 1 && (
+              <Button appearance="standard"
+                variant="secondary"
+                type="button"
+
+                onClick={() => setRoomSets((n) => n - 1)}
+              >
+                Remove last room set
+              </Button>
+            )}
+          </div>
+        )}
+        <div className={styles.formFoot}>
+          <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={busy || completionAttachmentPending || (op === "task.complete" && pending)}>
+            {frontText(busy ? "Saving…" : title, language)}
+          </Button>
+          {error && (
+            <Button appearance="standard"
+              variant="secondary"
+              type="button"
+
+              onClick={() => {
+                editingVersion.current = version;
+                setError("Review the form and save again to use the latest version.");
+              }}
+            >
+              Review and use latest version
+            </Button>
+          )}
+          {success && <span role="status">{frontText("Saved", language)}</span>}
+          {error && <span role="alert">{error}</span>}
+        </div>
+      </form>
+    </FormDisclosure>
+  );
+}
+
+
+const Badge = ({ children, tone = "" }: { children: ReactNode; tone?: string }) => {
+  const language = useFrontLanguage();
+  return (
+    <StatusBadge tone={tone === "good" ? "success" : tone === "warn" ? "warning" : "neutral"}>
+      {typeof children === "string" ? frontText(children, language) : children}
+    </StatusBadge>
+  );
+};
+
+
+const Empty = ({ children }: { children: ReactNode }) => {
+  const language = useFrontLanguage();
+  return (
+    <InlineNotice className={styles.empty}>
+      <Hotel size={24} />
+      <p>{typeof children === "string" ? frontText(children, language) : children}</p>
+    </InlineNotice>
+  );
+};
+
+
+const Panel = ({ title, children }: { title: string; children: ReactNode }) => {
+  const language = useFrontLanguage();
+  return (
+    <FeatureWidget appearance="standard"
+      id={
+        "pms-" +
+        title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+      }
+      title={frontText(title, language)}
+    >
+      {children}
+    </FeatureWidget>
+  );
+};
+
+
+const labelState: Record<string, string> = {
+  arrivals: "Arriving today",
+  departures: "Departing today",
+  setup: "Setup",
+  open: "Open",
+  closing: "Closing day",
+  confirmed: "Confirmed",
+  cancelled: "Cancelled",
+  no_show: "No-show",
+  completed: "Completed",
+  reserved: "Awaiting check-in",
+  in_house: "In house",
+  checked_out: "Checked out",
+  dirty: "Needs cleaning",
+  clean: "Needs inspection",
+  inspected: "Inspected",
+  pending: "Pending",
+  verified: "Verified",
+  working: "In progress",
+  done: "Inspected",
+  superseded: "Replaced by newer work",
+  requested: "Awaiting approval",
+  approved: "Approved",
+  rejected: "Rejected",
+  paid: "Paid",
+  credit: "Credit receivable",
+  closed: "Closed",
+  reviewed: "Reviewed",
+  blocked: "Needs correction",
+  departure: "After check-out",
+  arrival: "Before arrival",
+  stayover: "During stay",
+  maintenance: "Maintenance",
+  discrepancy: "Status mismatch",
+  stored: "Stored",
+  returned: "Returned",
+  disposed: "Disposed",
+};
+const BackofficePmsWorkspaceDashboardScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-dashboard-screen").then(module => module.BackofficePmsWorkspaceDashboardScreen));
+const BackofficePmsWorkspaceReservationsScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-reservations-screen").then(module => module.BackofficePmsWorkspaceReservationsScreen));
+const BackofficePmsWorkspaceFrontDeskScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-front-desk-screen").then(module => module.BackofficePmsWorkspaceFrontDeskScreen));
+const BackofficePmsWorkspaceRoomsHousekeepingScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-rooms-housekeeping-screen").then(module => module.BackofficePmsWorkspaceRoomsHousekeepingScreen));
+const BackofficePmsWorkspaceGuestAccountsScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-guest-accounts-screen").then(module => module.BackofficePmsWorkspaceGuestAccountsScreen));
+const BackofficePmsWorkspaceCashierScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-cashier-screen").then(module => module.BackofficePmsWorkspaceCashierScreen));
+const BackofficePmsWorkspaceInventoryScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-inventory-screen").then(module => module.BackofficePmsWorkspaceInventoryScreen));
+const BackofficePmsWorkspaceGuestsScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-guests-screen").then(module => module.BackofficePmsWorkspaceGuestsScreen));
+const BackofficePmsWorkspaceNightAuditScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-night-audit-screen").then(module => module.BackofficePmsWorkspaceNightAuditScreen));
+const BackofficePmsWorkspaceReportsScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-reports-screen").then(module => module.BackofficePmsWorkspaceReportsScreen));
+const BackofficePmsWorkspaceSettingsScreen = dynamic(() => import("@erpx/feature-pms/components/pms-backoffice-settings-screen").then(module => module.BackofficePmsWorkspaceSettingsScreen));
+function useBackofficePmsWorkspaceState({
+  initial,
+  base,
+  erpBase = base,
+  section,
+  selectedGuestAccount,
+  crossLinks,
+  frontMode = false,
+  frontHref,
+  frontPosHref,
+  initialQueue,
+  selectedRecord,
+}: {
+  initial: PmsWorkspace;
+  base: string;
+  erpBase?: string;
+  section: string;
+  selectedGuestAccount?: string;
+  crossLinks: { inventory: boolean; finance: boolean; pos: boolean };
+  frontMode?: boolean;
+  frontHref?: string;
+  frontPosHref?: string;
+  initialQueue?: string;
+  selectedRecord?: string;
+}) {
+  const language = useFrontLanguage();
+  const formatSelectedMoney = useMoneyFormatter();
+  const { displayCurrency } = useCurrency();
+  const tr = useCallback((value: string) => frontText(value, language), [language]);
+  const nativeRouter = useRouter(),recordSelection=useSearchParams();
+  const [data, setData] = useState(initial),
+    [error, setError] = useState(""),
+    [query, setQuery] = useState((['guests','reservations'].includes(section)?initial.snapshot?.listMeta?.q:initial.snapshot?.listMeta?.status)??initialQueue ?? ""),
+    [guestAccountId, setGuestAccountId] = useState(
+      () =>
+        selectedGuestAccount ??
+        (initial.snapshot
+          ? (records(initial.snapshot, "guest_account").find((row) => row.data.state !== "closed")?.id ??
+            records(initial.snapshot, "guest_account")[0]?.id)
+          : "") ??
+        "",
+    ),
+    [from, setFrom] = useState(initial.snapshot?.property.businessDate ?? initial.defaultDate);
+  const [notice, setNotice] = useState("");
+  const dailyPmsHref = (target: string, params: Record<string, string> = {}) => {
+    const root = frontHref ? frontHref + (target ? target : "") : canonicalUiHref(`${base}/pms/${target}`);
+    const query = new URLSearchParams(params);
+    return query.size ? `${root}?${query}` : root;
+  };
+  const dailyPosHref = (tab: string) =>
+    `${frontPosHref ?? canonicalUiHref(`${base}/pos`)}?tab=${encodeURIComponent(tab)}`;
+  const attempts = useRef(new Map<string, PmsWorkspaceCommandAttempt>());
+  const [commandState,setCommandState]=useState({pending:false,busy:false});
+  const propertyId = data.snapshot?.property.id;
+  const [taskCompletionDrafts,setTaskCompletionDrafts]=useState<Record<string,PmsTaskCompletionDraft>>({});
+  const [acknowledgedTaskCompletions,setAcknowledgedTaskCompletions]=useState<Record<string,true>>({});
+  const taskCompletionAttachmentActivities=useRef(new Set<string>());
+  const visibleTaskCompletionDrafts=Object.values(taskCompletionDrafts).filter(draft=>draft.base===base&&draft.propertyId===propertyId);
+  const taskCompletionDraftCount=useRef(0);
+  useLayoutEffect(()=>{taskCompletionDraftCount.current=visibleTaskCompletionDrafts.length;},[visibleTaskCompletionDrafts.length]);
+  const updateTaskCompletionDraft=(draft:PmsTaskCompletionDraft)=>setTaskCompletionDrafts(current=>current[draft.key]?{...current,[draft.key]:draft}:current);
+  const discardTaskCompletionDraft=(key:string)=>setTaskCompletionDrafts(current=>{if(!current[key])return current;const next={...current};delete next[key];return next;});
+  const commandSource=useRef<PmsWorkspaceCommandSource|null>(null);
+  useLayoutEffect(()=>{commandSource.current={base,propertyId,section,frontMode};return()=>{commandSource.current=null;};},[base,propertyId,section,frontMode]);
+  const [previousInitial, setPreviousInitial] = useState(initial);
+  if (previousInitial !== initial) {
+    setPreviousInitial(initial);
+    setData(initial);
+    if(initial.snapshot?.listMeta)setQuery(['guests','reservations'].includes(section)?initial.snapshot.listMeta.q:initial.snapshot.listMeta.status);
+  }
+  const listMeta=data.snapshot?.listMeta;
+  const selectedListId=selectedRecord??(section==='guest-accounts'?guestAccountId:undefined)??listMeta?.selectedId;
+  const listReadParams=listMeta?{view:'list',section:listMeta.section,from:listMeta.from,to:listMeta.to,page:String(listMeta.page),q:listMeta.q,status:listMeta.status,building:listMeta.building,floor:listMeta.floor,typeId:listMeta.typeId,...(selectedListId?{selectedId:selectedListId}:{})}:section==='settings'?{view:'setup'}:section==='reports'?{view:'report'}:{};
+  const listReadKey=JSON.stringify(listReadParams);
+  const [reads] = useState(()=>createLatestRead<PmsWorkspace>());
+  const pendingWrites = useRef(0), readEpoch = useRef(0);
+  const hasPendingCommand=useCallback(()=>attempts.current.size>0 || pendingWrites.current>0,[]);
+  const hasLocalTaskCompletionDraft=useCallback(()=>taskCompletionDraftCount.current>0||taskCompletionAttachmentActivities.current.size>0,[]);
+  const router=usePmsPendingNavigation(nativeRouter,hasPendingCommand,language,hasLocalTaskCompletionDraft);
+  const invalidateReads=useCallback(()=>{readEpoch.current++;reads.cancel();},[reads]);
+  useEffect(() => {
+    let active = true;
+    async function refresh() {
+      if (document.visibilityState !== "visible" || pendingWrites.current) return;
+      const assertWork=captureWorkCommandContext(),front=document.querySelector<HTMLElement>('[data-front-app]'),frontScope=front?[front.dataset.frontApp,front.dataset.frontLocation].join(':'):null;
+      try {
+        const endpoint=`/api/v1${base}/pms?${new URLSearchParams({ ...(propertyId ? { property: propertyId } : {}), ...(section === "night-audit" ? { dayControls: "1" } : {}), ...(section === "dashboard" ? { view: "dashboard" } : {}),...JSON.parse(listReadKey) })}`;
+        await reads.read(endpoint,async signal=>{
+          const response=await workFetch(endpoint,{signal,cache:"no-store"});
+          if(!response.ok){
+            if(active && [401,403,409].includes(response.status))setError(tr("Your access or role changed. Reload the workspace."));
+            throw new Error("PMS_READ_FAILED");
+          }
+          return (await response.json()).data as PmsWorkspace;
+        },updated=>{if(active){
+          assertWork();
+          if(front&&(front.isConnected===false||document.querySelector('[data-front-app]')!==front||frontScope!==[front.dataset.frontApp,front.dataset.frontLocation].join(':')))throw Object.assign(new Error('Your Front location changed. Reload the workspace.'),{code:'WORK_CONTEXT_CHANGED'});
+          setData(updated);
+        }});
+      } catch (cause) {
+        if (active&&!(cause&&typeof cause==='object'&&'code' in cause&&cause.code==='WORK_CONTEXT_CHANGED')) setNotice(tr("Connection lost · Showing the latest loaded data"));
+      }
+    }
+    const timer = [
+      "dashboard",
+      "reservations",
+      "front-desk",
+      "rooms",
+      "housekeeping",
+      "guest-accounts",
+      "cashier",
+      "inventory",
+      "night-audit",
+    ].includes(section)
+      ? setInterval(refresh, 8000)
+      : undefined;
+    if(timer)document.addEventListener("visibilitychange",refresh);
+    return () => {
+      active = false;
+      invalidateReads();
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange",refresh);
+    };
+  }, [base, language, propertyId, section, tr,listReadKey,reads,initial,invalidateReads]);
+  const runCommand = async (signature:string,body:string,onAcknowledged?:(refreshed:boolean)=>void,onEditableRejected?:()=>void):Promise<boolean> => {
+    const op=(JSON.parse(body) as {operation:string}).operation;
+    const epoch=readEpoch.current;
+    let refreshedData:PmsWorkspace|undefined;
+    pendingWrites.current++;
+    reads.cancel();
+    setError("");
+    setNotice("");
+    setCommandState({pending:attempts.current.size>0,busy:true});
+    try {
+      const result=await sendPmsWorkspaceCommand(attempts.current,()=>commandSource.current,signature,body,async(receipt,assertCurrent)=>{
+        const pid=receipt.propertyId;
+        let refreshed=false;
+        const endpoint=`/api/v1${base}/pms?${new URLSearchParams({ property: pid, ...(section === "night-audit" ? {dayControls:"1"} : {}), ...(section === "dashboard" ? { view: "dashboard" } : {}),...JSON.parse(listReadKey) })}`;
+        await reads.read(endpoint,async signal=>{
+          const fresh=await workFetch(endpoint,{signal,cache:"no-store"});
+          if(!fresh.ok)throw new Error("PMS_READ_FAILED");
+          return (await fresh.json()).data as PmsWorkspace;
+        },updated=>{
+          assertCurrent();
+          if(epoch===readEpoch.current&&updated.snapshot?.property.id===pid){refreshedData=updated;refreshed=true;}
+        });
+        return refreshed;
+      },onAcknowledged,onEditableRejected);
+      if(!result.acknowledge())return false;
+      if(refreshedData)setData(refreshedData);
+      const pid=result.receipt.propertyId,refreshed=result.refreshed;
+      if (op === "property.create") {
+        nativeRouter.push(canonicalUiHref(`${erpBase}/pms/settings?property=${pid}`));
+        nativeRouter.refresh();
+      }
+      setNotice(
+        refreshed
+          ? tr("Saved successfully")
+          : tr("Saved successfully · Reload to see the latest result"),
+      );
+      return true;
+    } catch (e) {
+      if(epoch===readEpoch.current)setError(e instanceof Error ? e.message : tr("Could not connect. Try again."));
+      return false;
+    } finally {
+      pendingWrites.current--;
+      setCommandState({pending:attempts.current.size>0,busy:pendingWrites.current>0});
+    }
+  };
+  const send: Send = async (op, input, version, attachmentSetIds = [], onAcknowledged, onEditableRejected) => {
+    if (op === "reservation.create")
+      input = { ...(input as Record<string, unknown>), currency: displayCurrency };
+    if (frontMode && (op === "property.create" || op.startsWith("settings."))) {
+      setError(tr("Hotel setup is available in ERPX administration."));
+      return false;
+    }
+    const body = JSON.stringify({
+      operation: op,
+      ...(propertyId && op !== "property.create"
+        ? {
+            propertyId,
+            expectedVersion: version ?? data.snapshot?.property.version,
+          }
+        : {}),
+      input,
+      attachmentSetIds,
+    });
+    const signature = JSON.stringify({ propertyId, op, input, attachmentSetIds });
+    if (!attempts.current.has(signature) && !pmsPackageCommandAllowed(data.purchases, op, input)) {
+      setError(language === "th" ? "แพ็กเกจปัจจุบันไม่รองรับคำสั่งนี้ ยังเก็บ draft ไว้ให้ตรวจทานได้" : "The current package does not permit this action. Your draft remains available for review.");
+      return false;
+    }
+    return runCommand(signature,body,onAcknowledged,onEditableRejected);
+  };
+  const retryOriginal = async () => {
+    const pending=pendingPmsWorkspaceCommand(attempts.current);
+    return pending ? runCommand(pending.signature,pending.body) : false;
+  };
+  const recovery=commandState.pending ? <PmsCommandRecovery busy={commandState.busy} retry={retryOriginal}/> : null;
+  const s = data.snapshot,
+    p = s?.property,
+    version = p?.version,
+    permissions = data.permissions;
+  const money = (value: number) =>
+    formatSelectedMoney(value, p?.config.currency ?? "THB", p?.businessDate ?? from, 2);
+  const can = (permission: string) => permissions.some((p) => p === permission);
+  const form = (
+    title: string,
+    op: string,
+    fields: Field[] = [],
+    hidden: Record<string, unknown> = {},
+    transform?: (v: Record<string, unknown>) => unknown,
+    attachments?: ActionAttachment[],
+  ) => {
+    const completionKey=typeof hidden.id==="string"?JSON.stringify([base,propertyId,hidden.id]):"";
+    const choiceApi=`/api/v1${base}/pms`;
+    if(op==="task.complete"&&completionKey&&acknowledgedTaskCompletions[completionKey])return null;
+    return (
+    <Form
+      key={`${op}:${JSON.stringify(hidden)}`}
+      title={title}
+      pending={commandState.pending}
+      recovery={recovery}
+      op={op}
+      fields={fields}
+      choiceApi={choiceApi}
+      propertyId={propertyId}
+      hidden={hidden}
+      send={send}
+      permissions={permissions}
+      version={version}
+      transform={transform}
+      attachments={attachments?.map(item=>({...item,base:pmsFileBase(item.base)}))}
+      onCompletionAcknowledged={op==="task.complete"&&completionKey?()=>setAcknowledgedTaskCompletions(current=>({...current,[completionKey]:true})):undefined}
+      onCompletionDraft={op==="task.complete"&&typeof hidden.id==="string"?values=>{
+        if(!propertyId)return;
+        const key=JSON.stringify([base,propertyId,hidden.id]);
+        setTaskCompletionDrafts(current=>({...current,[key]:{key,base,attachmentBase:pmsFileBase(attachments?.[0]?.base??choiceApi),propertyId,taskId:hidden.id as string,taskLabel:title,...values,editing:false}}));
+      }:undefined}
+      onCompletionAttachmentActivity={op==="task.complete"&&typeof hidden.id==="string"?(purposeKey,active)=>{
+        const activityKey=JSON.stringify([base,propertyId,hidden.id,purposeKey]);
+        if(active)taskCompletionAttachmentActivities.current.add(activityKey);
+        else taskCompletionAttachmentActivities.current.delete(activityKey);
+      }:undefined}
+      open={recordSelection.get("detailKind")!=="pms_record" && !!selectedRecord && (hidden.id === selectedRecord || hidden.roomId === selectedRecord)}
+    />
+    );
+  };
+  const rows = <K extends Kind>(kind: K): PmsRecord<K>[] => (s ? records(s, kind) : []);
+  useEffect(() => {
+    if (!selectedRecord) return;
+    const target = document.querySelector<HTMLElement>(
+      `[data-pms-record="${CSS.escape(selectedRecord)}"]`,
+    );
+    if (!target) return;
+    target.scrollIntoView({ block: "center" });
+    target.focus({ preventScroll: true });
+  }, [selectedRecord, propertyId, section]);
+  const options = <K extends Kind>(
+    kind: K,
+    label: (d: DataMap[K], id: string) => string,
+  ): Option[] => rows(kind).map((r) => ({ id: r.id, name: label(r.data, r.id) }));
+  const roomName = (id: string) =>
+    rows("room").find((r) => r.id === id)?.data.number ?? "Room not assigned";
+  const guestName = (id: string) => rows("guest").find((r) => r.id === id)?.data.name ?? "Guest";
+  const roomTypes = options("room_type", (d) => d.name),
+    rooms = options("room", (d) => `${d.number} · ${labelState[d.cleanliness]}`),
+    guests = options("guest", (d) => d.name),
+    rates = options("rate", (d) => `${d.name} · ${money(d.price)}`),
+    guestAccounts = options(
+      "guest_account",
+      (d) => `${guestName(d.guestId)} · ${d.name} · ${tr("Balance due")} ${money(d.due)}`,
+    ),
+    stays = rows("stay"),
+    today = p?.businessDate ?? from;
+  const currentGuestAccount =
+    rows("guest_account").find((r) => r.id === (guestAccountId || selectedGuestAccount)) ??
+    rows("guest_account").find((r) => r.data.state !== "closed") ??
+    rows("guest_account")[0];
+  const openShifts = rows("shift")
+    .filter((r) => r.data.userId === data.userId && r.data.state === "open")
+    .map((r) => ({ id: r.id, name: r.data.name }));
+  const payments = [
+    select(
+      "method",
+      "Payment / refund method",
+      [
+        { id: "cash", name: "Cash" },
+        { id: "transfer", name: "Bank transfer" },
+        { id: "edc", name: "EDC" },
+      ].filter((option) => data.availablePaymentMethods.includes(option.id)),
+      "cash",
+    ),
+    select("shiftId", "Cashier shift", openShifts, openShifts[0]?.id),
+    field("reference", "Reference / evidence", "text", "", false),
+  ];
+  function rateFields(d?: DataMap["rate"]): Field[] {
+    return [
+      field("name", "Rate plan name", "text", d?.name),
+      select("typeId", "Room type", roomTypes, d?.typeId),
+      field("from", "Sale start", "date", d?.from ?? today),
+      field("to", "Last sale date", "date", d?.to ?? plusDays(today, 365)),
+      field("price", "Price per night", "money", (d?.price ?? 0) / 100),
+      field("extraAdult", "Extra guest price", "money", (d?.extraAdult ?? 0) / 100),
+      field("includedGuests", "Guests included in price", "number", d?.includedGuests ?? 2),
+      field("minNights", "Minimum nights", "number", d?.minNights ?? 1),
+      field("maxNights", "Maximum nights", "number", d?.maxNights ?? 365),
+      select("market", "Market", choices(["public", "company", "agent"]), d?.market ?? "public"),
+      select("partyId", "Company / agent", data.parties, d?.partyId, false),
+      field("package", "Package / inclusions", "textarea", d?.package ?? "", false),
+      field("stopSell", "Stop sell", "checkbox", d?.stopSell),
+      field("closedArrival", "Close to arrival", "checkbox", d?.closedArrival),
+      field("closedDeparture", "Close to departure", "checkbox", d?.closedDeparture),
+      field("active", "Rate plan active", "checkbox", d?.active ?? true),
+    ];
+  }
+  const entryDrawer=<PmsEntryDetail base={base} propertyId={propertyId} recovery={recovery} renderAction={(id,snapshot)=>{
+    const entry=snapshot.snapshot?.records.find(row=>row.kind==='entry'&&row.id===id) as PmsRecord<'entry'>|undefined;
+    if(!entry)return null;
+    const pending=snapshot.chargeCorrections.some(row=>row.entry_id===id&&row.status==='pending');
+    const reversed=snapshot.snapshot?.records.some(row=>row.kind==='entry'&&(row as PmsRecord<'entry'>).data.originalId===id);
+    return pending?<p>Awaiting independent review</p>:entry.data.method!=='opening'&&['charge','transfer'].includes(entry.data.kind)&&entry.data.total>0&&!entry.data.sourceKey?.startsWith('pos')&&!reversed?form('Request reversal','charge.correction.request',[field('reason','Reason')],{id}):null;
+  }}/>;
+  return {initial, base, erpBase, section, selectedGuestAccount, crossLinks, frontMode, frontHref, frontPosHref, initialQueue, selectedRecord, language, formatSelectedMoney, displayCurrency, tr, router, recordSelection, data, setData, error, setError, query, setQuery, guestAccountId, setGuestAccountId, from, setFrom, notice, setNotice, dailyPmsHref, dailyPosHref, attempts, propertyId, taskCompletionDrafts:visibleTaskCompletionDrafts, updateTaskCompletionDraft, discardTaskCompletionDraft, previousInitial, setPreviousInitial, listMeta, selectedListId, listReadParams, listReadKey, reads, pendingWrites, readEpoch, invalidateReads, send, commandState, recovery, s, p, version, permissions, money, can, form, rows, options, roomName, guestName, roomTypes, rooms, guests, rates, guestAccounts, stays, today, currentGuestAccount, openShifts, payments, rateFields, entryDrawer};
+}
+export type BackofficePmsWorkspaceContext = ReturnType<typeof useBackofficePmsWorkspaceState>;
+function StandardPmsBackofficeOwner(props: {
+  initial: PmsWorkspace;
+  base: string;
+  erpBase?: string;
+  section: string;
+  selectedGuestAccount?: string;
+  crossLinks: { inventory: boolean; finance: boolean; pos: boolean };
+  frontMode?: boolean;
+  frontHref?: string;
+  frontPosHref?: string;
+  initialQueue?: string;
+  selectedRecord?: string;
+}) {
+  const context = useBackofficePmsWorkspaceState(props);
+  const {base, erpBase, section, frontMode, selectedRecord, language, tr, router, data, error, notice, setNotice, propertyId, send, s, p, permissions, can, rows, today, entryDrawer, commandState, recovery} = context;
+
+  return (
+    <PmsPendingRouterContext value={router}><FrontLocalizedTree>{entryDrawer}{context.recordSelection.get("detailKind")!=="pms_entry" && recovery}<PmsPackageNotice data={data} />
+      <div className={styles.workspace} data-source="live">
+        <PageHeader appearance="standard" eyebrow={tr("ERPX HOSPITALITY")} title={p?.name ?? tr("Hotel PMS")} description={tr("Rooms, guest services and accounting in one place")} action={
+          <div className={styles.headerTools}>
+            {p && (
+              <>
+                <Badge tone={p.state === "open" ? "good" : "warn"}>{labelState[p.state]}</Badge>
+                <span>
+                  {tr("Business date")} {today} · {p.config.currency}
+                </span>
+              </>
+            )}
+            <Button appearance="standard"
+              type="submit"
+              variant="secondary"
+
+              onClick={() => {
+                router.refresh();
+                setNotice(tr("Loading the latest data"));
+              }}
+              aria-label={tr("Load the latest data")}
+            >
+              <RefreshCw size={16} />
+            </Button>
+          </div>
+        } />
+        <StandardPmsBackofficeNavigation
+          label={tr("Hotel tasks")}
+          current={section}
+          items={pmsMenu(language)
+            .filter((item) =>
+              visiblePmsSections((permission) =>
+                permissions.some((value) => value === permission),
+              ).some(([id]) => id === item.id),
+            )
+            .map((item) => ({
+              ...item,
+              href: canonicalUiHref(`${base}/pms/${pmsSectionPath(item.id)}${propertyId ? `?property=${encodeURIComponent(propertyId)}` : ""}`),
+            }))}
+        />
+        {s?.listMeta&&<PmsListPagination key={JSON.stringify(s.listMeta)} meta={s.listMeta} roomTypes={rows("room_type").map(row=>({id:row.id,name:row.data.name}))}/>}
+        <SourceSupportChooser base={erpBase} selectedId={selectedRecord} records={(s?.records??[]).map(record=>({id:record.id,version:record.version,label:`${record.kind} · ${record.id}`}))}/>
+        <WidgetGrid>
+          {error && (
+            <InlineNotice tone="danger" role="alert">
+              {error}
+            </InlineNotice>
+          )}
+          {notice && (
+            <InlineNotice tone="success" role="status">
+              {notice}
+            </InlineNotice>
+          )}
+          <div className={styles.toolbar}>
+            <UiField appearance="standard">
+              {tr("Hotel")}
+              <Select appearance="standard"
+                aria-label={tr("Hotel")}
+                value={propertyId ?? ""}
+                onChange={(e) => router.push(canonicalUiHref(`${base}/pms/${section}?property=${e.target.value}`))}
+              >
+                <option value="">{tr("Select hotel")}</option>
+                {data.properties.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name}
+                  </option>
+                ))}
+              </Select>
+            </UiField>
+            {p && (
+              <span className={styles.localMode}>
+                {tr("Managed in ERPX · OTA reservations are recorded by staff")}
+              </span>
+            )}
+          </div>
+          {!p ? (
+            <Panel title="Set up your first hotel">
+              {!frontMode && (
+                <UiActionLink appearance="standard" variant="secondary" href={canonicalUiHref(`${erpBase}/hospitality/setup`)}>
+                  Hotel + Restaurant Setup
+                </UiActionLink>
+              )}
+              <Empty>
+                {tr(
+                  "Add a hotel and connect it to a branch, then configure rooms, rates and accounts.",
+                )}
+              </Empty>
+              {frontMode ? (
+                <UiActionLink appearance="standard" variant="secondary" href={canonicalUiHref(`${erpBase}/pms/settings`)}>
+                  {tr("Set up hotel in ERPX")}
+                </UiActionLink>
+              ) : (
+                <Form
+                  open
+                  pending={commandState.pending}
+                  recovery={recovery}
+                  title="Create hotel"
+                  op="property.create"
+                  permissions={permissions}
+                  send={send}
+                  fields={[
+                    field("name", "Hotel name"),
+                    select("branchId", "Branch", data.branches),
+                    field("businessDate", "Starting business date", "date", today),
+                  ]}
+                />
+              )}
+            </Panel>
+          ) : (
+            <>
+              {p.state === "setup" && (
+                <StandardPmsBackofficeReadiness
+                  title={tr("Hotel readiness")}
+                  items={
+                    data.readiness.length
+                      ? data.readiness.map((label, index) => ({
+                          id: String(index),
+                          label: tr(label),
+                          ready: false,
+                          owner: tr(
+                            /finance|account|tax|ledger/i.test(label)
+                              ? "Finance approver"
+                              : "Hotel administrator",
+                          ),
+                          href: canonicalUiHref(`${erpBase}/pms/settings?property=${p.id}`),
+                        }))
+                      : [
+                          {
+                            id: "open",
+                            label: tr("Verify readiness and open hotel"),
+                            ready: false,
+                            owner: tr("Hotel administrator"),
+                            href: canonicalUiHref(`${erpBase}/pms/settings?property=${p.id}`),
+                          },
+                        ]
+                  }
+                />
+              )}
+              {section === "dashboard" && <BackofficePmsWorkspaceDashboardScreen context={{...context, p}}/>}
+              {section === "reservations" && <BackofficePmsWorkspaceReservationsScreen context={{...context, p}}/>}
+              {section === "front-desk" && <BackofficePmsWorkspaceFrontDeskScreen context={{...context, p}}/>}
+              {["rooms", "housekeeping"].includes(section) && <BackofficePmsWorkspaceRoomsHousekeepingScreen context={context}/>}
+              {section === "guest-accounts" &&
+                (can("pms.cashier") || can("pms.reports") || can("pms.approve")) && <BackofficePmsWorkspaceGuestAccountsScreen context={{...context, p}}/>}
+              {section === "cashier" && <BackofficePmsWorkspaceCashierScreen context={context}/>}
+              {section === "inventory" && <BackofficePmsWorkspaceInventoryScreen context={context}/>}
+              {section === "guests" && <BackofficePmsWorkspaceGuestsScreen context={{...context, p}}/>}
+              {section === "night-audit" && (can("pms.audit") || can("pms.reports")) && <BackofficePmsWorkspaceNightAuditScreen context={{...context, p}}/>}
+              {section === "reports" && can("pms.reports") && <BackofficePmsWorkspaceReportsScreen context={{...context, p}}/>}
+              {section === "settings" && <BackofficePmsWorkspaceSettingsScreen context={{...context, p}}/>}
+            </>
+          )}
+        </WidgetGrid>
+      </div>
+    </FrontLocalizedTree></PmsPendingRouterContext>
+  );
+}
+
+/** Preserve the original dispatcher user/Property reset identity while the
+ * server entry retains its Company/branch/assignment/selection key. */
+export function StandardPmsBackofficeWorkspace(props:ComponentProps<typeof StandardPmsBackofficeOwner>){
+  const scopeIdentity=JSON.stringify([props.initial.userId,props.initial.snapshot?.property.id??null]);
+  return <StandardPmsBackofficeOwner key={scopeIdentity} {...props}/>;
+}

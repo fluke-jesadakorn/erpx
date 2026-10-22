@@ -10,13 +10,13 @@ import {
   employeeRequestSchema,
   getEmployeeRequest,
   saveEmployeeRequest,
-} from "../../../src/server/modules/records/public/employee-requests";
+} from "@erpx/server-records/public/employee-requests";
 import {
   queueRequestAi,
   runRequestAi,
   requestAiStatus,
   drainRequestAi,
-} from "../../../src/server/modules/records/public/request-ai";
+} from "@erpx/server-records/public/request-ai";
 import {
   activateAiConnection,
   aiConnectionSchema,
@@ -25,8 +25,8 @@ import {
   testAiConnection,
   aiSelectionSchema,
   disableAiConnection,
-} from "../../../src/server/modules/agent/public/ai-providers";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-agent/public/ai-providers";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

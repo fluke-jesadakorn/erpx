@@ -1,17 +1,17 @@
 import {reviewedSecondaryBook} from "../../support/helpers/finance-book-fixture";
-import {calendarData} from "../../../src/server/modules/work_projection/public/calendar/index";
+import {calendarData} from "@erpx/server-work_projection/public/calendar/index";
 import {afterEach} from "vitest";
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll,beforeEach,expect,it,vi } from 'vitest';
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { settleInvoice } from "../../../src/server/modules/commerce/public/commerce";
-import { listStaffNotifications } from "../../../src/server/modules/collaboration/public/staff-notifications";
-import { createInvoice,invoiceSchema,postInvoice,importBankStatement,beginClose } from "../../../src/server/modules/finance/public/finance";
-import { assignFlowPrimary,resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
-import { createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork } from "../../../src/server/modules/procurement/public/supplier-payments";
+import { settleInvoice } from "@erpx/server-commerce/public/commerce";
+import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";
+import { createInvoice,invoiceSchema,postInvoice,importBankStatement,beginClose } from "@erpx/server-finance/public/finance";
+import { assignFlowPrimary,resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import { createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork } from "@erpx/server-procurement/public/supplier-payments";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{
@@ -52,7 +52,7 @@ it('reserves, independently approves and confirms a partial multi-invoice batch 
  expect(await exportSupplierBatch(f.payer,id,{expectedVersion:2},exportKey)).toEqual(output);
  expect(output.content).toContain("'=Unsafe formula supplier");
  expect(await recoverSupplierExport(f.payer,id)).toMatchObject({content:output.content,sha256:output.sha256});
- const {calendarData}=await import("../../../src/server/modules/work_projection/public/calendar/index");
+ const {calendarData}=await import("@erpx/server-work_projection/public/calendar/index");
  const calendar=await calendarData(db,f.payer,{date:'2026-09-03',view:'day',layers:'supplier_batches',mode:'mine'});
  expect(calendar.items.some(item=>item.sourceId===id)).toBe(true);
  expect((await calendarData(db,{...f.payer,branchId:f.branch},{date:'2026-09-03',view:'day',layers:'supplier_batches',mode:'team'})).items).toEqual([]);
@@ -134,7 +134,7 @@ it('rejects wrong ledgers, closed periods, stale versions and revoked treasury a
  expect(await db.prepare('SELECT match_status FROM finance_bank_transactions WHERE id=?').bind(evidence.id).first('match_status')).toBe('unmatched');
 });
 it('prevents the legacy contractor exporter and supplier batches from reserving the same invoice',async()=>{
- const {createPaymentBatch}=await import("../../../src/server/modules/people_payroll/public/people-payroll");
+ const {createPaymentBatch}=await import("@erpx/server-people_payroll/public/people-payroll");
  const source=await invoice();
  await createSupplierBatch(f.reviewer,input([entry(source)]),key());
  await expect(createPaymentBatch(f.owner,{sourceType:'contractor',sourceId:source,formatCode:'generic-csv'},key())).rejects.toMatchObject({code:'CONFLICT'});

@@ -7,24 +7,24 @@ const state = vi.hoisted(() => ({
   write: { name: "holding-write" },
 }));
 
-vi.mock("../../../src/server/modules/files/public/attachments/service", () => ({
+vi.mock("@erpx/server-files/public/attachments/service", () => ({
   withdrawAttachmentLink: state.withdraw,
   attachmentLinkStatus: state.status,
 }));
 
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({
   requireWorkContext: async () => ({ holdingId: "h001", companyId: "acme-co", userId: "requester" }),
 }));
 
-vi.mock("../../../src/server/modules/manage_erpx/public/public-origin", () => ({
+vi.mock("@erpx/server-manage_erpx/public/public-origin", () => ({
   requestPublicOrigin: () => "https://dev-erpx.example.test",
 }));
 
-vi.mock("../../../src/server/modules/runtime/public/runtime", () => ({
+vi.mock("@erpx/server-runtime/public/runtime", () => ({
   holdingResources: async () => ({ write: state.write }),
 }));
 
-import { POST } from "../../../src/app/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route";
+import { POST } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/attachment-links/[linkId]/withdraw/route";
 
 beforeEach(() => {
   state.calls = [];

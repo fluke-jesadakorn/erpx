@@ -1,0 +1,20 @@
+{
+  "name": "@erpx/app-forms",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun ../../scripts/local/app-task.ts dev --app=forms",
+    "build": "bun ../../scripts/local/app-task.ts build --app=forms",
+    "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=forms",
+    "lint": "bun ../../scripts/testing/scoped-lint.ts --app=forms"
+  },
+  "dependencies": {
+    "@erpx/feature-forms": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@erpx/contracts": "workspace:*"
+  }
+}

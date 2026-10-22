@@ -1,0 +1,3 @@
+export {peopleWorkSourceAccess,filterPeopleLifecycleWork,peopleSourceReadScope,requirePeopleWorkspaceRecordRead,peopleClearanceNotificationTarget,payrollSourceReadScope,payrollNotificationTarget,requirePayrollWorkspaceRecordRead} from "@erpx/server-people_payroll/adapters/record-purchases";
+
+export {withExpenseWorkspaceRecordRead} from '@erpx/server-people_payroll/adapters/expense-record-purchases';

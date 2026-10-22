@@ -1,1 +1,0 @@
-import type {SqlDatabase} from '../../runtime/public/runtime/types';export function executiveGenerationSourceLock(database:SqlDatabase,company:string){return database.prepare('SELECT company_id FROM engineering_verification_contexts WHERE company_id=? FOR SHARE').bind(company);}

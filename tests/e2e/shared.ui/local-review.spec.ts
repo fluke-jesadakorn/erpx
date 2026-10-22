@@ -1,6 +1,6 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import type { AttachmentSetDto, AttachmentStatusDto } from "../../../src/lib/files/attachment-client";
+import type { AttachmentSetDto, AttachmentStatusDto } from "@erpx/feature-files/lib/attachment-client";
 import { prepareLegacyLeaveReviewer } from "../../support/helpers/legacy-leave-reviewer-browser";
 import { selectFixtureAssignment } from "../../support/browser/select-fixture-assignment";
 test.use({ actionTimeout: 10000 });

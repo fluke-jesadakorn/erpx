@@ -1,10 +1,10 @@
-import { packageGrantStore } from "../../../src/server/modules/commercial/public/package-grants";
+import { packageGrantStore } from "@erpx/server-commercial/public/package-grants";
 import { beforeAll, afterEach, describe, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { beginClose, calculateCloseReconciliations, closePeriod,cancelClose } from "../../../src/server/modules/finance/public/finance";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { beginClose, calculateCloseReconciliations, closePeriod,cancelClose } from "@erpx/server-finance/public/finance";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB;
 afterEach(()=>vi.unstubAllEnvs());
 const preparer={userId:"close-preparer",assignmentId:"close-preparer-a",role:"finance_preparer",companyId:"close-company",holdingId:"h001",branchId:null,departmentId:null} as WorkContext;

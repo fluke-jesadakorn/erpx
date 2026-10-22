@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { env, applyMigrations, type TestMigration } from "../../support/runtime-env";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import type { WorkSnapshot } from "../../../src/server/modules/work_projection/public/work-items";
-import { dailyPlanSaveSchema, readDailyPlan, saveDailyPlan } from "../../../src/server/modules/work_projection/public/daily-plan";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkSnapshot } from "@erpx/server-work_projection/public/work-items";
+import { dailyPlanSaveSchema, readDailyPlan, saveDailyPlan } from "@erpx/server-work_projection/public/daily-plan";
 
 const db = env.H001_DB;
 const key = () => crypto.randomUUID();

@@ -1,9 +1,9 @@
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
-import {pmsCommand} from "../../../src/server/modules/pms/public/pms";
-import {pmsRangeReport,pmsReportEntries} from "../../../src/server/modules/pms/public/pms/reports";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",async()=>{const {env}=await import("../../support/runtime-env");return {holdingResources:async()=>({write:env.H001_DB})};});
+import {pmsCommand} from "../../../packages/server-pms/src/public/pms";
+import {pmsRangeReport,pmsReportEntries} from "@erpx/server-pms/public/pms/reports";
+vi.mock("@erpx/server-runtime/adapters/runtime",async()=>{const {env}=await import("../../support/runtime-env");return {holdingResources:async()=>({write:env.H001_DB})};});
 const db=env.H001_DB;let fixture:Awaited<ReturnType<typeof seedExpenseCompany>>,propertyId:string;
 beforeAll(()=>applyMigrations(db,env.STAFF_TEST_MIGRATIONS));beforeEach(async()=>{fixture=await seedExpenseCompany(db,env.H001_FILES);propertyId=(await pmsCommand(db,fixture.owner,{operation:'property.create',input:{name:'Report hotel',branchId:fixture.branch,businessDate:'2026-09-01'}},crypto.randomUUID())).id;});
 async function insert(kind:string,data:object,id=crypto.randomUUID()){await db.prepare('INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,?,?,1,?)').bind(id,propertyId,kind,JSON.stringify(data),Date.parse('2026-09-01T00:00:00Z')).run();return id;}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { parseSyntheticPayrollBankResultCsv } from "../../../src/lib/people_payroll/payroll-bank-result";
+import { parseSyntheticPayrollBankResultCsv } from "@erpx/feature-people_payroll/lib/payroll-bank-result";
 
 const fixture = readFileSync(new URL("../../../fixtures/payroll-thai/synthetic-bank-result-v1.csv", import.meta.url), "utf8");
 

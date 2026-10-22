@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateThaiPayroll } from "../../../src/lib/people_payroll/thai-payroll-rules";
-import { thaiPayroll2026Rules } from "../../../src/lib/people_payroll/thai-payroll-pack";
+import { calculateThaiPayroll } from "@erpx/feature-people_payroll/lib/thai-payroll-rules";
+import { thaiPayroll2026Rules } from "@erpx/feature-people_payroll/lib/thai-payroll-pack";
 import { thai2026Reference } from "../../support/helpers/thai-payroll-reference";
 import {thai2026AdjustmentReference} from "../../support/helpers/thai-payroll-reference";
-import {calculateThaiPayrollAdjustment,type ThaiPayrollAdjustmentInput} from "../../../src/lib/people_payroll/thai-payroll-adjustment";
+import {calculateThaiPayrollAdjustment,type ThaiPayrollAdjustmentInput} from "@erpx/feature-people_payroll/lib/thai-payroll-adjustment";
 
 describe("source-dated Thai 2026 adapter against independent worksheets", () => {
   for (const scenario of [

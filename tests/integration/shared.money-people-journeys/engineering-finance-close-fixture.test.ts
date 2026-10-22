@@ -8,10 +8,10 @@ import {
   createJournal,
   createJournalSchema,
   postJournalBatch,
-} from "../../../src/server/modules/finance/public/finance";
+} from "@erpx/server-finance/public/finance";
 import { applyMigrations, env } from "../../support/runtime-env";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

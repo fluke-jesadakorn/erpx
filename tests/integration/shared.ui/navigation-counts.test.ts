@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, expect, it } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { markHomeRead, unreadHomeCount } from "../../../src/server/modules/work_projection/public/navigation-counts";
+import { markHomeRead, unreadHomeCount } from "@erpx/server-work_projection/public/navigation-counts";
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });

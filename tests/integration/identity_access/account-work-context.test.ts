@@ -1,23 +1,23 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import type { AccountAccessContext, WorkAssignment } from "../../../src/server/modules/identity_access/public/authorization";
-import type { WorkspaceChoice } from "../../../src/lib/work_projection/workspace-choice";
-import { assignmentApplies } from "../../../src/server/modules/identity_access/public/rules/workspace-access";
-import { selectWorkRole, readWorkSelection } from "../../../src/server/modules/work_projection/public/work-role-store";
-import { executeCommand } from "../../../src/server/modules/workflow/public/commands";
-import { ApiError } from "../../../src/server/modules/runtime/public/http";
+import type { AccountAccessContext, WorkAssignment } from "@erpx/server-identity_access/public/authorization";
+import type { WorkspaceChoice } from "@erpx/feature-work_projection/lib/workspace-choice";
+import { assignmentApplies } from "@erpx/server-identity_access/public/rules/workspace-access";
+import { selectWorkRole, readWorkSelection } from "@erpx/server-work_projection/public/work-role-store";
+import { executeCommand } from "@erpx/server-workflow/public/commands";
+import { ApiError } from "@erpx/server-runtime/public/http";
 
 const dependencies = vi.hoisted(() => ({
   session: vi.fn(), access: vi.fn(), choices: vi.fn(), narrowChoices: vi.fn(), manage: vi.fn(), platform: vi.fn(),
 }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({
   currentSession: dependencies.session, requireAccountAccess: dependencies.access,
   canEnterManageErpx: dependencies.manage, requirePlatformContext: dependencies.platform,
   assignmentApplies,
 }));
-vi.mock("../../../src/server/modules/organization/public/workspace-choices", () => ({ workspaceChoices: dependencies.choices, workspaceChoicesForAssignment: dependencies.narrowChoices }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }) }));
-import { accountWorkContext } from "../../../src/server/modules/identity_access/public/account-work-context";
+vi.mock("@erpx/server-organization/public/workspace-choices", () => ({ workspaceChoices: dependencies.choices, workspaceChoicesForAssignment: dependencies.narrowChoices }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }) }));
+import { accountWorkContext } from "@erpx/server-identity_access/public/account-work-context";
 
 beforeAll(() => applyMigrations(env.H001_DB, env.STAFF_TEST_MIGRATIONS));
 beforeEach(() => {

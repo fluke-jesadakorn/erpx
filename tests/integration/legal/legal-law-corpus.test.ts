@@ -2,19 +2,19 @@ import { beforeAll, beforeEach, it, expect, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { legalCommand, detail } from "../../../src/server/modules/legal/public/legal/service";
-import { access } from "../../../src/server/modules/legal/public/legal/access";
-import { inspectDocument, uploadDocument } from "../../../src/server/modules/legal/public/legal/documents";
-import { legalCitation } from "../../../src/server/modules/legal/public/legal/citations";
-import { bangkokSourceCheckDate, drainLegalSourceChecks, lawCorpusCommand, lawCorpusView, officialLawUrl } from "../../../src/server/modules/legal/public/legal/law-corpus";
-import { lawCitation, lawKnowledge, legalKnowledge, retrieveLegalAiEvidence, revalidateLegalAiEvidence, validateLegalAiCitations } from "../../../src/server/modules/legal/public/legal/knowledge";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }) }));
-vi.mock("../../../src/server/modules/files/public/attachments/scanner", () => ({
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { legalCommand, detail } from "@erpx/server-legal/public/legal/service";
+import { access } from "@erpx/server-legal/public/legal/access";
+import { inspectDocument, uploadDocument } from "@erpx/server-legal/public/legal/documents";
+import { legalCitation } from "@erpx/server-legal/public/legal/citations";
+import { bangkokSourceCheckDate, drainLegalSourceChecks, lawCorpusCommand, lawCorpusView, officialLawUrl } from "@erpx/server-legal/public/legal/law-corpus";
+import { lawCitation, lawKnowledge, legalKnowledge, retrieveLegalAiEvidence, revalidateLegalAiEvidence, validateLegalAiCitations } from "@erpx/server-legal/public/legal/knowledge";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }) }));
+vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "simulated scanner", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "simulated scanner", definitionUpdatedAt: Date.now() }),
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/preview", () => ({ attachmentPreviewReadiness: async () => ({ ready: true, error: null }), detectedAttachmentMediaType: (_bytes: Uint8Array, type: string) => type, sanitizedAttachmentPreview: async () => null }));
+vi.mock("@erpx/server-files/public/attachments/preview", () => ({ attachmentPreviewReadiness: async () => ({ ready: true, error: null }), detectedAttachmentMediaType: (_bytes: Uint8Array, type: string) => type, sanitizedAttachmentPreview: async () => null }));
 const db = env.H001_DB, key = () => crypto.randomUUID(), text = "ข้อความสมมติสำหรับการทดสอบ สิทธิขอสำเนาข้อมูลส่วนบุคคล ต้องตรวจฉบับและข้อเท็จจริง ไม่ใช่ข้อสรุปกฎหมายจริง";
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });

@@ -1,1 +1,0 @@
-export {guardExecutiveGenerationWorkspace} from '../adapters/executive-generation-workspace-guard';

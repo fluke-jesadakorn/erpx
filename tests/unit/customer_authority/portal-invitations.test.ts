@@ -3,13 +3,13 @@ import {
   customerPortalInvitationToken,
   customerPortalInvitationTokenHash,
   verifyCustomerPortalInvitationToken,
-} from "../../../src/server/modules/customer_authority/adapters/portal-invitation-crypto";
+} from "@erpx/server-customer_authority/adapters/portal-invitation-crypto";
 import {
   createCustomerPortalInvitationApplication,
   type CustomerPortalInvitationCommand,
   type CustomerPortalInvitationRepository,
-} from "../../../src/server/modules/customer_authority/application/portal-invitations";
-import { createCustomerPortalInvitationDelivery } from "../../../src/server/modules/customer_authority/application/portal-invitation-delivery";
+} from "@erpx/server-customer_authority/application/portal-invitations";
+import { createCustomerPortalInvitationDelivery } from "@erpx/server-customer_authority/application/portal-invitation-delivery";
 
 const secret = "test-only-customer-portal-secret";
 const tokenFacts = {

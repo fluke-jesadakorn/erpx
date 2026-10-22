@@ -1,12 +1,12 @@
 import { beforeAll, expect, it, vi } from "vitest";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { GET } from "../../../src/app/api/v1/holdings/[holdingSlug]/people/explorer-detail/route";
+import { GET } from "@erpx/feature-people/routes/api/v1/holdings/[holdingSlug]/people/explorer-detail/route";
 import { env, applyMigrations } from "../../support/runtime-env";
 
 const state = vi.hoisted(() => ({ actor: null as WorkContext | null }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({ requireWorkContext: async () => state.actor }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: async () => state.actor }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingBindingBySlug: async () => ({ id: "h001", slug: "test", displayName: "Test Holding" }),
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,

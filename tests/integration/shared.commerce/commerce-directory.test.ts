@@ -1,19 +1,19 @@
-import {resolveFlow,assignFlowPrimary} from "../../../src/server/modules/workflow/public/flow-routing";
+import {resolveFlow,assignFlowPrimary} from "@erpx/server-workflow/public/flow-routing";
 import { afterEach,beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import {commerceOwnerTransaction} from "../../../src/server/modules/commerce/public/purchase-boundary";
-import {packageGrantStore,readCompanyPackageGrants} from "../../../src/server/modules/commercial/public/package-grants";
-import { commercePage, saveMaster,saveOrder,getOrder,transitionOrder,orderSchema } from "../../../src/server/modules/commerce/public/commerce";
-import {workOrderRows} from "../../../src/server/modules/commerce/public/commerce";
-import {enrichFlowWork,otherFlowWork} from "../../../src/server/modules/workflow/public/flow-work";
-import {commerceSourceReadScope} from "../../../src/server/modules/commerce/public/record-purchases";
-import {listStaffNotifications} from "../../../src/server/modules/collaboration/public/staff-notifications";
-import {publishInboxEvent,inboxPage,inboxSummary} from "../../../src/server/modules/collaboration/public/inbox";
+import {commerceOwnerTransaction} from "@erpx/server-commerce/public/purchase-boundary";
+import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
+import { commercePage, saveMaster,saveOrder,getOrder,transitionOrder,orderSchema } from "@erpx/server-commerce/public/commerce";
+import {workOrderRows} from "@erpx/server-commerce/public/commerce";
+import {enrichFlowWork,otherFlowWork} from "@erpx/server-workflow/public/flow-work";
+import {commerceSourceReadScope} from "@erpx/server-commerce/public/record-purchases";
+import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
+import {publishInboxEvent,inboxPage,inboxSummary} from "@erpx/server-collaboration/public/inbox";
 import {committedSourceVisibility} from "../../support/helpers/source-writer-visibility";
-import {measureReads} from "../../../src/server/modules/runtime/public/runtime/read-metrics";
+import {measureReads} from "@erpx/server-runtime/public/runtime/read-metrics";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

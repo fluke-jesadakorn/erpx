@@ -1,14 +1,14 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createDocumentDerivativeApplication,type DocumentDerivativePorts,type DocumentDerivativeRepository} from "../../../src/server/modules/files/application/document-derivatives";
-import {createOrphanPreservationApplication,type OrphanPreservationPorts,type OrphanPreservationRepository} from "../../../src/server/modules/files/application/orphan-preservation";
-import {createAttachmentMigrationApplication,type AttachmentMigrationPorts,type AttachmentMigrationRepository} from "../../../src/server/modules/files/application/attachments-migration";
-import {validateDocumentPage,validateDocumentType} from "../../../src/server/modules/files/domain/document-derivatives";
-import {preservationMetadataInput,validateOrphanManifest} from "../../../src/server/modules/files/domain/attachments/orphan-preservation";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {FileMetadata,StoredFile} from "../../../src/server/modules/runtime/public/runtime/types";
-import type {expenseAiSource} from "../../../src/server/modules/people_payroll/public/expense-ai-source";
-import type {LegacySource} from "../../../src/server/modules/files/domain/attachments/migration";
-import type {AttachmentPolicy} from "../../../src/server/modules/files/domain/attachments/types";
+import {createDocumentDerivativeApplication,type DocumentDerivativePorts,type DocumentDerivativeRepository} from "@erpx/server-files/application/document-derivatives";
+import {createOrphanPreservationApplication,type OrphanPreservationPorts,type OrphanPreservationRepository} from "@erpx/server-files/application/orphan-preservation";
+import {createAttachmentMigrationApplication,type AttachmentMigrationPorts,type AttachmentMigrationRepository} from "@erpx/server-files/application/attachments-migration";
+import {validateDocumentPage,validateDocumentType} from "@erpx/server-files/domain/document-derivatives";
+import {preservationMetadataInput,validateOrphanManifest} from "@erpx/server-files/domain/attachments/orphan-preservation";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {FileMetadata,StoredFile} from "@erpx/server-runtime/public/runtime/types";
+import type {expenseAiSource} from "@erpx/server-people_payroll/public/expense-ai-source";
+import type {LegacySource} from "@erpx/server-files/domain/attachments/migration";
+import type {AttachmentPolicy} from "@erpx/server-files/domain/attachments/types";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[]};
 function strict<T extends object>(facts:Partial<T>):T{return new Proxy(facts,{get(target,name){if(name==='then')return undefined;if(name in target)return target[name as keyof T];return ()=>{throw Error('Unexpected port: '+String(name));};}}) as T;}
 const input={page:1,pageCount:1,originalChecksum:'original',bytes:new Uint8Array([0xff,0xd8,1]).buffer};

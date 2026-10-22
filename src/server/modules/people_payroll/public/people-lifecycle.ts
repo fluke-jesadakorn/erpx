@@ -1,2 +1,0 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { peopleLifecycleData, previewPackage, savePackage, bindPositionPackage, previewLifecycle, saveLifecycle, cancelLifecycle, requestLifecycleAccess, applyLifecycleReview, peopleLifecycleWork, lifecycleSettingsInput, rehireInput, createRehireEngagement, saveLifecycleSettings, completePreparationTask } from "@/server/modules/people_payroll/adapters/people-lifecycle";

@@ -1,0 +1,1 @@
+export {financeAttachmentCapability,financeAttachmentPurchaseScopes,authorizeFinanceAttachmentPurchase,financeAttachmentCommandBoundary,financeAttachmentSourceReadLocks,type FinanceAttachmentPurchase} from "@erpx/server-finance/adapters/attachment-purchases";

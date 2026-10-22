@@ -1,8 +1,8 @@
 /** Run only the PMS worker in one verified disposable browser demo database. */
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { PostgresDatabase } from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import { drainPms } from "../../../src/server/modules/pms/public/pms";
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { drainPms } from "../../../packages/server-pms/src/public/pms";
 
 const run = process.argv[2];
 if (!run || !/^[a-f0-9]{12}$/.test(run)) throw new Error("DEMO_RUN_REQUIRED");

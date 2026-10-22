@@ -1,7 +1,7 @@
 import { captureCaseScreenshot } from "../../support/helpers/case-screenshot";
 import { browserProjects } from "../../../scripts/testing/browser-results";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { emptyDraft } from "../../../src/lib/organization/organization-draft";
+import { emptyDraft } from "@erpx/feature-organization/lib/organization-draft";
 import { organizationSession, readOrganization } from "../../support/helpers/organization-access-browser";
 import { mockPeopleDraft } from "../../support/helpers/people-draft-browser";
 

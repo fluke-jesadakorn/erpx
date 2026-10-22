@@ -1,0 +1,43 @@
+{
+  "name": "@erpx/feature-commerce",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/commerce-controls": "./src/components/commerce-controls.tsx",
+    "./components/landed-cost-controls": "./src/components/landed-cost-controls.tsx",
+    "./components/commerce-draft-boundary": "./src/components/commerce-draft-boundary.tsx",
+    "./components/use-commerce-command": "./src/components/use-commerce-command.ts",
+    "./components/use-landed-cost-command": "./src/components/use-landed-cost-command.ts",
+    "./components/landed-cost-draft-boundary": "./src/components/landed-cost-draft-boundary.tsx",
+    "./components/posting-setup-prerequisites": "./src/components/posting-setup-prerequisites.tsx",
+    "./components/purchase-context": "./src/components/purchase-context.tsx",
+    "./components/commerce-posting-setup": "./src/components/commerce-posting-setup.tsx",
+    "./lib/commerce-command-fetch": "./src/lib/commerce-command-fetch.ts",
+    "./lib/commerce-math": "./src/lib/commerce-math.ts",
+    "./lib/posting-setup-command": "./src/lib/posting-setup-command.ts",
+    "./lib/purchase-controls": "./src/lib/purchase-controls.ts",
+    "./lib/posting-setup-prerequisite-command": "./src/lib/posting-setup-prerequisite-command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-finance": "workspace:*",
+    "@erpx/feature-identity_access": "workspace:*",
+    "@erpx/feature-inventory": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-commerce": "workspace:*",
+    "@erpx/server-finance": "workspace:*",
+    "@erpx/server-pos": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0"
+  }
+}

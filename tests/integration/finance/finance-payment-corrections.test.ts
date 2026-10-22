@@ -1,11 +1,11 @@
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { createAccount,createAccountSchema,createPeriod,createPeriodSchema,createInvoice,invoiceSchema,postInvoice,reversePayment } from "../../../src/server/modules/finance/public/finance";
-import { settleInvoice } from "../../../src/server/modules/commerce/public/commerce";
-import { assignFlowPrimary,resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
+import { createAccount,createAccountSchema,createPeriod,createPeriodSchema,createInvoice,invoiceSchema,postInvoice,reversePayment } from "@erpx/server-finance/public/finance";
+import { settleInvoice } from "@erpx/server-commerce/public/commerce";
+import { assignFlowPrimary,resolveFlow } from "@erpx/server-workflow/public/flow-routing";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});

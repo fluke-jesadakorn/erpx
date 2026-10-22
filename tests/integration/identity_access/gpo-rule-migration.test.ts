@@ -3,12 +3,12 @@ import { mkdtemp, readdir, copyFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env } from "../../support/runtime-env";
-import { migrateDatabase } from "../../../src/server/modules/runtime/adapters/runtime/migrations";
+import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { mapSpendingOrganization } from "../../support/helpers/spending-organization";
 
 const provider=vi.hoisted(()=>({apply:vi.fn()}));
-vi.mock("../../../src/server/modules/identity_access/public/directory-provider",()=>({applyDirectoryAction:provider.apply,readAutomationInventory:vi.fn()}));
+vi.mock("@erpx/server-identity_access/public/directory-provider",()=>({applyDirectoryAction:provider.apply,readAutomationInventory:vi.fn()}));
 
 it("bridges direct mappings and every owned legacy claim without issuing Directory writes",async()=>{
   const root=await mkdtemp(join(tmpdir(),"erpx-gpo-migration-")),track=join(root,"holding-write"),db=env.H002_DB;

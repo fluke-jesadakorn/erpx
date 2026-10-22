@@ -1,4 +1,4 @@
-import type { BusinessRole } from "../../../src/lib/identity_access/business-roles";
+import type { BusinessRole } from "@erpx/feature-identity_access/lib/business-roles";
 
 /** Explicit fictional staffing plan. Roles are assigned here, never inferred at runtime. */
 export const demoCompany = "acme-co";

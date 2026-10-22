@@ -1,0 +1,3 @@
+/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
+export { vatEntrySchema, taxReviewSchema, vatCorrectionSchema, vatPackageSchema, vatFilingSchema, pendingVatReviewSql, prepareVatEntry, reviewVatEntry, prepareVatCorrection, reviewVatCorrection, calculateVatCloseEvidence, vatCloseGuards, prepareVatPackage, approveVatPackage, exportVatWorkpaper, recordVatFiling, supersedeVatPackage, vatWorkspace, vatCorrectionDetail, taxEntryDetail, vatPackageDetail, vatPackageExport } from "@erpx/server-finance/adapters/finance-tax-register";
+export type { TaxRow, VatCloseEvidence, VatCorrectionDetail } from "@erpx/server-finance/adapters/finance-tax-register";

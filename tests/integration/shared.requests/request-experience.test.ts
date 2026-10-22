@@ -1,12 +1,12 @@
-import { previewServiceTeam,serviceTeamSchema } from "../../../src/server/modules/support/public/service-teams";
+import { previewServiceTeam,serviceTeamSchema } from "@erpx/server-support/public/service-teams";
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import { employeeRequestSchema,previewEmployeeRequest,saveEmployeeRequest } from "../../../src/server/modules/records/public/employee-requests";
-import { resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
-import { workReports,workReportCsv } from "../../../src/server/modules/work_projection/public/work-reports";
-import { operationFromFlow } from "../../../src/lib/shared/operation-presentation";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import { employeeRequestSchema,previewEmployeeRequest,saveEmployeeRequest } from "@erpx/server-records/public/employee-requests";
+import { resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import { workReports,workReportCsv } from "@erpx/server-work_projection/public/work-reports";
+import { operationFromFlow } from "@erpx/feature-shared/lib/operation-presentation";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});

@@ -1,14 +1,14 @@
 import { describe, expect, it,vi } from "vitest";
 vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>"/holdings/acme/people-organization/people",useSearchParams:()=>new URLSearchParams()}));
-import { peopleContextHref, peopleSettingsHref } from "../../../src/lib/people_payroll/people-route-context";
+import { peopleContextHref, peopleSettingsHref } from "@erpx/feature-people_payroll/lib/people-route-context";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RosterOwnerWorkspace as RosterWorkspace } from "../../../src/components/people_payroll/roster-owner-workspace";
-import type { RosterData } from "../../../src/lib/people_payroll/people-roster";
-import { createRosterEditorDraft, currentRosterSnapshot, rosterCommandAcknowledgement } from "../../../src/lib/people_payroll/roster-editor-draft";
-import { workFetch } from "../../../src/lib/work_projection/work-fetch";
-import {captureWorkCommandContext} from '../../../src/lib/work_projection/command-context';
-import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
+import { RosterOwnerWorkspace as RosterWorkspace } from "@erpx/feature-people_payroll/components/roster-owner-workspace";
+import type { RosterData } from "@erpx/feature-people_payroll/lib/people-roster";
+import { createRosterEditorDraft, currentRosterSnapshot, rosterCommandAcknowledgement } from "@erpx/feature-people_payroll/lib/roster-editor-draft";
+import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
+import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/command-context';
+import {setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 
 describe("People route context", () => {
   it("retains repeated filters, roster request, and week through canonical navigation", () => {
@@ -77,10 +77,10 @@ it('Roster keeps its original uncertain command and newer dirty draft when autho
 });
 
 it.each(['stale boundary','replaced boundary','switch generation'] as const)('the actual Roster handler retains its original uncertain command and newer edit after a late %s',async changed=>{
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../src/components/people_payroll/roster-owner-workspace.tsx',import.meta.url),'utf8'),file=ts.createSourceFile('actual-roster-owner.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions:import('typescript').FunctionDeclaration[]=[];
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-people_payroll/src/components/roster-owner-workspace.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-roster-owner.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions:import('typescript').FunctionDeclaration[]=[];
  const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&['send','apply'].includes(node.name?.text??''))functions.push(node);ts.forEachChild(node,visit);};visit(file);if(functions.length!==2)throw Error('Expected the actual Roster owner send and apply handlers.');
  const emitted=ts.transpileModule(functions.map(fn=>fn.getText(file)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
- const {announceWorkChange}=await import('../../../src/lib/work_projection/work-refresh');
+ const {announceWorkChange}=await import('@erpx/feature-work_projection/lib/work-refresh');
  const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment',workStale:'false'}};let currentNode=node,edit='submitted-edit',calls=0;
  const form={isConnected:true,getAttribute:()=>edit},browser=Object.assign(new EventTarget(),{location:{origin:'https://people-dev-erpx.jesadakorn.com'}}),events:string[]=[];
  browser.addEventListener('erpx:work-changed',()=>events.push('saved'));vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?currentNode:null,activeElement:{closest:()=>form},documentElement:{dataset:{}}});
@@ -182,9 +182,9 @@ describe("Roster editor acknowledgements and recovery", () => {
   });
 });
 
-import {LifecyclePanel} from '../../../src/components/people_payroll/lifecycle-workspace';
-import type {PeopleLifecycleData} from '../../../src/lib/people_payroll/people-lifecycle';
-import type {PeoplePurchaseControls} from '../../../src/lib/people_payroll/purchase-controls';
+import {LifecyclePanel} from '@erpx/feature-people_payroll/components/lifecycle-workspace';
+import type {PeopleLifecycleData} from '@erpx/feature-people_payroll/lib/people-lifecycle';
+import type {PeoplePurchaseControls} from '@erpx/feature-people_payroll/lib/purchase-controls';
 function lifecycleControls(newWork:boolean,settleExisting:boolean):PeoplePurchaseControls{const access={newWork,settleExisting,history:true,revision:'public-observation'};return {directory:access,lifecycle:access,identity:access};}
 function renderLifecycle(purchases?:PeoplePurchaseControls,status='active'){
  const data:PeopleLifecycleData={purchases,roster:[],managers:[],nodes:[],packages:[],positions:[],cases:[],tasks:[],settings:{version:0,itAssigneeId:null,onboardingTasks:[],offboardingTasks:[]},canManage:true,canPrepare:false,canReview:true};return renderToStaticMarkup(createElement(LifecyclePanel,{base:'/holdings/acme',data,person:{id:'person',engagementId:'engagement',positionId:null,managerPersonId:null,name:'Original employee',status}}));
@@ -200,12 +200,12 @@ import {readFileSync as directoryRead} from "node:fs";
 import {createRequire as directoryRequire} from "node:module";
 import {runInNewContext as directoryEvaluate} from "node:vm";
 import * as directoryReact from "react";
-import * as directoryContext from "../../../src/lib/work_projection/context-switch";
-import * as directoryRetirement from "../../../src/lib/people_payroll/retirement";
-import * as directoryPurchase from "../../../src/lib/people_payroll/purchase-controls";
-import {lifecycleInput as directoryLifecycleInput, hasLifecycleCaseDetail as directoryHasDetail} from "../../../src/lib/people_payroll/people-lifecycle";
-import {createDirectoryOwnerCommand, type DirectoryCommandCurrent} from "../../../src/lib/people_payroll/directory-owner-command";
-import type {workFetch as directoryFetch} from "../../../src/lib/work_projection/work-fetch";
+import * as directoryContext from "@erpx/feature-work_projection/lib/context-switch";
+import * as directoryRetirement from "@erpx/feature-people_payroll/lib/retirement";
+import * as directoryPurchase from "@erpx/feature-people_payroll/lib/purchase-controls";
+import {lifecycleInput as directoryLifecycleInput, hasLifecycleCaseDetail as directoryHasDetail} from "@erpx/feature-people_payroll/lib/people-lifecycle";
+import {createDirectoryOwnerCommand, type DirectoryCommandCurrent} from "@erpx/feature-people_payroll/lib/directory-owner-command";
+import type {workFetch as directoryFetch} from "@erpx/feature-work_projection/lib/work-fetch";
 const directoryPreview = {token: "native-preview", ready: true, blockers: [], definition: null, removed: [], added: [], accounts: [], affectedPositions: [], affectedPeople: ["Employee"], affectedComputers: []};
 function directoryDeferred<Value>() {let resolve!: (value: Value) => void; const promise = new Promise<Value>(done => {resolve = done;}); return {promise, resolve};}
 const directoryTick = async () => {for (let index = 0; index < 15; index++) await Promise.resolve();};
@@ -309,7 +309,7 @@ it("does not consume an unrelated employee draft when a native status action suc
 });
 
 // Mounted native owner handlers use controlled hooks/transport; this is not browser acceptance.
-import {canonicalUiHref as directoryCanonical} from "../../../src/lib/work_projection/destination-registry";
+import {canonicalUiHref as directoryCanonical} from "@erpx/feature-work_projection/lib/destination-registry";
 type DirectoryElement = directoryReact.ReactElement<Record<string, unknown>>;
 function mountDirectoryOwner(kind: "directory" | "editor" | "lifecycle", initial: Record<string, unknown>, send: typeof directoryFetch, query = new URLSearchParams()) {
   const require = directoryRequire(import.meta.url), ts = require("typescript") as typeof import("typescript"), values: unknown[] = [], effects = new Map<number, {dependencies?: unknown[]; cleanup?: () => void}>(), cache = new Map<string, Record<string, unknown>>();
@@ -322,7 +322,7 @@ function mountDirectoryOwner(kind: "directory" | "editor" | "lifecycle", initial
   const controls = new Proxy<Record<string, unknown>>({}, {get: (_target, name) => primitive(String(name))});
   const drawer = (props: Record<string, unknown>) => props.open || props.inline || props.retainFormContents ? directoryReact.createElement("aside", props, props.children as directoryReact.ReactNode) : null;
   const original = process.env.ERPX_DIRECTORY_BASELINE === "1";
-  const sourcePath = kind === "directory" ? original ? "src/components/people_payroll/people-directory.tsx" : "src/components/people_payroll/people-directory-workspace.tsx" : kind === "editor" ? "src/components/people_payroll/people-editor.tsx" : original ? "src/components/people_payroll/lifecycle-workspace.tsx" : "src/components/people_payroll/directory-lifecycle-panel.tsx";
+  const sourcePath = kind === "directory" ? original ? "packages/feature-people_payroll/src/components/people-directory.tsx" : "packages/feature-people_payroll/src/components/people-directory-workspace.tsx" : kind === "editor" ? "packages/feature-people_payroll/src/components/people-editor.tsx" : original ? "packages/feature-people_payroll/src/components/lifecycle-workspace.tsx" : "packages/feature-people_payroll/src/components/directory-lifecycle-panel.tsx";
   const load = (path: string, baseline = false): Record<string, unknown> => {
     if (cache.has(path)) return cache.get(path)!;
     const root = baseline ? process.env.ERPX_DIRECTORY_BASELINE_SOURCE_ROOT : process.env.ERPX_DIRECTORY_SOURCE_ROOT;
@@ -331,28 +331,28 @@ function mountDirectoryOwner(kind: "directory" | "editor" | "lifecycle", initial
     const localRequire = (name: string): unknown => {
       if (name === "react") return {...directoryReact, useState, useRef, useEffect: effect, useLayoutEffect: effect};
       if (name === "react/jsx-runtime") return require(name);
-      if (name.endsWith("/foundation")) return controls;
-      if (name.endsWith("/directory-owner-command")) return {createDirectoryOwnerCommand: (family: "directory" | "lifecycle") => createDirectoryOwnerCommand(family, send)};
-      if (name.endsWith("/use-directory-owner-command")) return load("src/lib/people_payroll/use-directory-owner-command.ts");
-      if (name.endsWith("/work-fetch")) return {workFetch: send};
-      if (name.endsWith("/context-switch")) return directoryContext;
-      if (name.endsWith("/destination-router")) return {useRouter: () => router};
-      if (name.endsWith("/destination-search")) return {useSearchParams: () => query};
-      if (name.endsWith("/destination-registry")) return {canonicalUiHref: directoryCanonical};
+      if (name.endsWith("@erpx/ui/components/foundation")) return controls;
+      if (name.endsWith("@erpx/feature-people_payroll/lib/directory-owner-command")) return {createDirectoryOwnerCommand: (family: "directory" | "lifecycle") => createDirectoryOwnerCommand(family, send)};
+      if (name.endsWith("@erpx/feature-people_payroll/lib/use-directory-owner-command")) return load("packages/feature-people_payroll/src/lib/use-directory-owner-command.ts");
+      if (name.endsWith("@erpx/feature-work_projection/lib/work-fetch")) return {workFetch: send};
+      if (name.endsWith("@erpx/feature-work_projection/lib/context-switch")) return directoryContext;
+      if (name.endsWith("@erpx/feature-shared/lib/destination-router")) return {useRouter: () => router};
+      if (name.endsWith("@erpx/feature-shared/lib/destination-search")) return {useSearchParams: () => query};
+      if (name.endsWith("@erpx/feature-work_projection/lib/destination-registry")) return {canonicalUiHref: directoryCanonical};
       if (name.endsWith("/purchase-controls")) return directoryPurchase;
       if (name.endsWith("/people-lifecycle")) return {hasLifecycleCaseDetail: directoryHasDetail};
-      if (name.endsWith("/retirement")) return directoryRetirement;
-      if (name.endsWith("/use-hydrated")) return {useHydrated: () => true};
-      if (name.endsWith("/people-form-drawer")) return {PeopleFormDrawer: drawer};
-      if (name.endsWith("/dialog")) return {Dialog: (props: Record<string, unknown>) => {
+      if (name.endsWith("@erpx/feature-people_payroll/lib/retirement")) return directoryRetirement;
+      if (name.endsWith("@erpx/ui/components/use-hydrated")) return {useHydrated: () => true};
+      if (name.endsWith("@erpx/feature-people_payroll/components/people-form-drawer")) return {PeopleFormDrawer: drawer};
+      if (name.endsWith("@erpx/ui/components/dialog")) return {Dialog: (props: Record<string, unknown>) => {
         const visited = useRef(false) as {current: boolean}; if (props.open) visited.current = true;
         return props.open || props.retainFormContents && props.presentation === "form-drawer" && visited.current ? drawer(props) : null;
       }};
-      if (name.endsWith("/gpo-status")) return {positionGpoStatus: () => "No access package", personGpoStatus: () => "No access package"};
+      if (name.endsWith("@erpx/feature-people_payroll/components/gpo-status")) return {positionGpoStatus: () => "No access package", personGpoStatus: () => "No access package"};
       if (name.endsWith(".module.css")) return {default: new Proxy({}, {get: (_target, name) => String(name)})};
       if (name === "next/dynamic") return {default: () => primitive("LegacyLifecycle")};
       if (name === "lucide-react") return new Proxy({}, {get: () => () => null});
-      if (name.endsWith("/workspace-link")) return {default: primitive("DestinationLink")};
+      if (name.endsWith("@erpx/workplace/components/workspace-link")) return {default: primitive("DestinationLink")};
       return new Proxy({}, {get: () => primitive("Child")});
     };
     directoryEvaluate(code, {require: localRequire, exports: evaluated.exports, module: evaluated, crypto, window, document, FormData, CustomEvent, URL, URLSearchParams, WeakRef, setTimeout, clearTimeout});
@@ -534,16 +534,16 @@ it.each(["rehire", "placement"] as const)("keeps pending %s recovery inside its 
 });
 
 // The actual record loader chooses the owner; existing legacy consumers retain their original panel.
-import {DirectoryLifecyclePanel as standardRecordLifecyclePanel} from "../../../src/components/people_payroll/directory-lifecycle-panel";
+import {DirectoryLifecyclePanel as standardRecordLifecyclePanel} from "@erpx/feature-people_payroll/components/directory-lifecycle-panel";
 async function actualPersonRecordLifecyclePanel() {
   const require = directoryRequire(import.meta.url), ts = require("typescript") as typeof import("typescript"), captured: {load?: () => Promise<typeof standardRecordLifecyclePanel>} = {};
-  const path = "src/components/records/loaders/people--lifecycle-workspace.tsx", root = process.env.ERPX_DIRECTORY_SOURCE_ROOT;
+  const path = "packages/feature-records/src/components/loaders/people--lifecycle-workspace.tsx", root = process.env.ERPX_DIRECTORY_SOURCE_ROOT;
   const source = directoryRead(root ? `${root}/${path}` : path, "utf8"), code = ts.transpileModule(source, {compilerOptions: {jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
   const evaluated = {exports: {} as Record<string, unknown>};
   directoryEvaluate(code, {exports: evaluated.exports, module: evaluated, require(name: string) {
     if (name === "next/dynamic") return {default: (load: () => Promise<typeof standardRecordLifecyclePanel>) => {captured.load = load; return () => null;}};
-    if (name === "@/components/people_payroll/directory-lifecycle-panel") return {DirectoryLifecyclePanel: standardRecordLifecyclePanel};
-    if (name === "@/components/people_payroll/lifecycle-workspace") return {LifecyclePanel};
+    if (name === "@erpx/feature-people_payroll/components/directory-lifecycle-panel") return {DirectoryLifecyclePanel: standardRecordLifecyclePanel};
+    if (name === "@erpx/feature-people_payroll/components/lifecycle-workspace") return {LifecyclePanel};
     throw Error(`Unexpected Person record loader dependency: ${name}`);
   }});
   if (!captured.load || !evaluated.exports.LifecyclePanel) throw Error("The actual Person record lifecycle loader is incomplete.");
@@ -672,10 +672,10 @@ it('the actual outer People details drawer retains its selected owner and nested
 
 
 it.each(['people','disclosure'] as const)('the actual %s drawer wrapper refuses a previously opened discard confirmation once its owner becomes pending',kind=>{
- const browser=directoryBrowser(),require=directoryRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_DIRECTORY_SOURCE_ROOT??'.',path=kind==='people'?'src/components/people_payroll/people-form-drawer.tsx':'src/components/ui/form-disclosure.tsx',source=directoryRead(`${root}/${path}`,'utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,evaluated={exports:{} as Record<string,unknown>},discard=vi.fn(),close=vi.fn(),Draft=(props:Record<string,unknown>)=>directoryReact.createElement('aside',props,props.children as directoryReact.ReactNode),values:unknown[]=[];let cursor=0;
+ const browser=directoryBrowser(),require=directoryRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),root=process.env.ERPX_DIRECTORY_SOURCE_ROOT??'.',path=kind==='people'?'packages/feature-people_payroll/src/components/people-form-drawer.tsx':'packages/ui/src/components/form-disclosure.tsx',source=directoryRead(`${root}/${path}`,'utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,evaluated={exports:{} as Record<string,unknown>},discard=vi.fn(),close=vi.fn(),Draft=(props:Record<string,unknown>)=>directoryReact.createElement('aside',props,props.children as directoryReact.ReactNode),values:unknown[]=[];let cursor=0;
  const useState=(initial:unknown)=>{const at=cursor++;if(!(at in values))values[at]=typeof initial==='function'?initial():initial;return [values[at],(next:unknown)=>{values[at]=typeof next==='function'?next(values[at]):next;}];};
  try{
-  const localRequire=(name:string):unknown=>{if(name==='react')return {...directoryReact,useState,useRef:(value:unknown)=>({current:value}),useEffect:()=>{},useSyncExternalStore:(_subscribe:unknown,read:()=>unknown)=>read()};if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/draft-form-drawer'))return {DraftFormDrawer:Draft};if(name.endsWith('/dialog'))return {Dialog:Draft};if(name.endsWith('/context-switch'))return directoryContext;if(name.endsWith('/shared/ui'))return {cn:(...items:unknown[])=>items.filter(Boolean).join(' ')};if(name.endsWith('/foundation'))return {InlineNotice:Draft};throw Error('Unexpected actual retained drawer import '+name);};
+  const localRequire=(name:string):unknown=>{if(name==='react')return {...directoryReact,useState,useRef:(value:unknown)=>({current:value}),useEffect:()=>{},useSyncExternalStore:(_subscribe:unknown,read:()=>unknown)=>read()};if(name==='react/jsx-runtime')return require(name);if(name.endsWith("@erpx/ui/components/draft-form-drawer"))return {DraftFormDrawer:Draft};if(name.endsWith("@erpx/ui/components/dialog"))return {Dialog:Draft};if(name.endsWith("@erpx/feature-work_projection/lib/context-switch"))return directoryContext;if(name.endsWith("@erpx/ui/lib/cn"))return {cn:(...items:unknown[])=>items.filter(Boolean).join(' ')};if(name.endsWith("@erpx/ui/components/foundation"))return {InlineNotice:Draft};throw Error('Unexpected actual retained drawer import '+name);};
   directoryEvaluate(code,{require:localRequire,exports:evaluated.exports,module:evaluated,window,document,crypto,CustomEvent,Set});const Component=evaluated.exports[kind==='people'?'PeopleFormDrawer':'FormDisclosure'] as (props:Record<string,unknown>)=>directoryReact.ReactNode,props={appearance:'standard',open:true,title:'Actual owner draft',drawerTitle:'Actual owner draft',retainFormContents:true,dismissDisabled:true,onDiscard:discard,onClose:close,children:directoryReact.createElement('form')};
   const collect=(value:directoryReact.ReactNode,result:DirectoryElement[]=[]):DirectoryElement[]=>{directoryReact.Children.forEach(value,child=>{if(!directoryReact.isValidElement<Record<string,unknown>>(child))return;result.push(child);collect(child.props.children as directoryReact.ReactNode,result);});return result;};
   cursor=0;let drawer=collect(Component(props)).find(node=>node.type===Draft)!;expect(drawer.props.retainFormContents).toBe(true);(drawer.props.onDiscard as ()=>void)();expect(discard).not.toHaveBeenCalled();expect(close).not.toHaveBeenCalled();expect(browser.events.filter(event=>event.type==='erpx:record-saved')).toEqual([]);
@@ -726,7 +726,7 @@ it('only a matching lifecycle mutation clears its owner-local dirty revision; re
 });
 
 
-import {RosterOwnerWorkspace} from '../../../src/components/people_payroll/roster-owner-workspace';
+import {RosterOwnerWorkspace} from '@erpx/feature-people_payroll/components/roster-owner-workspace';
 const renderRosterOwner=(initial:RosterData,appearance:'legacy'|'standard',initialView='team')=>renderToStaticMarkup(createElement(RosterOwnerWorkspace,{initial,appearance,base:'/holdings/acme/people-organization/people',embedded:true,initialView}));
 describe('actual Roster owner presentation seam',()=>{
  it.each(['team','mine','templates','requests'])('preserves the complete original legacy %s markup and native controls',view=>{
@@ -759,10 +759,10 @@ describe('actual Roster owner presentation seam',()=>{
 });
 
 it('the actual new Roster owner retains its original key/body and newer draft when Work changes during original JSON',async()=>{
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL('../../../src/components/people_payroll/roster-owner-workspace.tsx',import.meta.url),'utf8'),file=ts.createSourceFile('actual-roster-owner-successor.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions:import('typescript').FunctionDeclaration[]=[];
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/feature-people_payroll/src/components/roster-owner-workspace.tsx",import.meta.url),'utf8'),file=ts.createSourceFile('actual-roster-owner-successor.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),functions:import('typescript').FunctionDeclaration[]=[];
  const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&['send','apply'].includes(node.name?.text??''))functions.push(node);ts.forEachChild(node,visit);};visit(file);if(functions.length!==2)throw Error('Expected the actual Roster owner send and apply handlers.');
  const emitted=ts.transpileModule(functions.map(fn=>fn.getText(file)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
- const {announceWorkChange}=await import('../../../src/lib/work_projection/work-refresh');
+ const {announceWorkChange}=await import('@erpx/feature-work_projection/lib/work-refresh');
  const node={isConnected:true,dataset:{workUser:'operator',workRevision:'7',workCompany:'company',workAssignment:'assignment',workStale:'false'}},form={isConnected:true,getAttribute:()=> 'original-form-edit'},events:string[]=[];
  const browser=Object.assign(new EventTarget(),{location:{origin:'https://people-dev-erpx.jesadakorn.com'}});browser.addEventListener('erpx:work-changed',()=>events.push('saved'));
  vi.stubGlobal('window',browser);vi.stubGlobal('document',{querySelector:(selector:string)=>selector==='[data-work-revision]'?node:null,activeElement:{closest:()=>form},documentElement:{dataset:{}}});
@@ -785,7 +785,7 @@ it('the actual new Roster owner retains its original key/body and newer draft wh
 });
 
 
-import {RosterShiftForm} from '../../../src/components/people_payroll/roster-shift-form';
+import {RosterShiftForm} from '@erpx/feature-people_payroll/components/roster-shift-form';
 it.each(['legacy','standard'] as const)('keeps the actual %s ShiftForm dates, selected source and native form fields in its owned appearance',appearance=>{
  const data=roster(),submit=vi.fn(async()=>{}),cancelShift=vi.fn();
  const html=renderToStaticMarkup(createElement(RosterShiftForm,{appearance,editor:{kind:'shift',shift:data.shifts[0]},data,busy:false,submit,cancelShift}));
@@ -796,12 +796,12 @@ it.each(['legacy','standard'] as const)('keeps the actual %s ShiftForm dates, se
 });
 
 
-import {createRosterOwnerCommands,currentRosterOwnerDraft,rosterOwnerDraftHeld,rosterOwnerReadVersion,type RosterOwnerSource,type RosterOwnerDraftState} from '../../../src/lib/people_payroll/roster-owner-command';
-import * as rosterNativeRules from '../../../src/lib/people_payroll/people-roster';
-import * as rosterCalendarRules from '../../../src/lib/work_projection/calendar';
-import * as rosterCalendarTimeline from '../../../src/lib/work_projection/calendar-timeline';
-import * as rosterCalendarCommands from '../../../src/lib/work_projection/calendar-command';
-import * as rosterUiFormat from '../../../src/lib/shared/ui-format';
+import {createRosterOwnerCommands,currentRosterOwnerDraft,rosterOwnerDraftHeld,rosterOwnerReadVersion,type RosterOwnerSource,type RosterOwnerDraftState} from '@erpx/feature-people_payroll/lib/roster-owner-command';
+import * as rosterNativeRules from '@erpx/feature-people_payroll/lib/people-roster';
+import * as rosterCalendarRules from '@erpx/feature-work_projection/lib/calendar';
+import * as rosterCalendarTimeline from '@erpx/feature-work_projection/lib/calendar-timeline';
+import * as rosterCalendarCommands from '@erpx/feature-work_projection/lib/calendar-command';
+import * as rosterUiFormat from '@erpx/feature-shared/lib/ui-format';
 function rosterOwnerBrowser(){const browser=directoryBrowser(),target=new EventTarget();Object.assign(document,{addEventListener:target.addEventListener.bind(target),removeEventListener:target.removeEventListener.bind(target),querySelectorAll:()=>[],documentElement:{dataset:{}},visibilityState:'hidden'});Object.assign(window,{history:{pushState:vi.fn(),replaceState:vi.fn()}});return browser;}
 function rosterOwnerFixture(){const browser=rosterOwnerBrowser();let key=0,current:RosterOwnerSource={base:'/holdings/acme',data:roster(),initial:roster(),view:'templates'};const send=vi.fn<typeof directoryFetch>(),commands=createRosterOwnerCommands(send,()=>`owner-key-${++key}`);commands.bind(()=>current);commands.open();return {browser,send,commands,get current(){return current;},set current(next:RosterOwnerSource){current=next;},cleanup:()=>browser.cleanup()};}
 const rosterTemplateInput={action:'template.save',departmentId:'department',name:'Original template',startTime:'06:00',endTime:'14:00',capacity:2,active:true};
@@ -856,41 +856,41 @@ function mountRosterOwner(kind:'owner'|'team'|'calendar',initial:Record<string,u
  const effect=(run:()=>void|(()=>void),dependencies?:unknown[])=>{const index=cursor++,old=effects.get(index);if(!old||!dependencies||dependencies.some((value,at)=>value!==old.dependencies?.[at])){old?.cleanup?.();effects.set(index,{dependencies,cleanup:run()||undefined});}};
  const primitive=(name:string)=>Object.assign((props:Record<string,unknown>)=>directoryReact.createElement(({Button:'button',Field:'label',TextInput:'input',Select:'select',TextArea:'textarea',FormLayout:'form'} as Record<string,string>)[name]??'div',props,props.children as directoryReact.ReactNode),{displayName:name});
  const controls=new Proxy<Record<string,unknown>>({},{get:(_target,name)=>primitive(String(name))}),drawer=(props:Record<string,unknown>)=>props.open||props.retainFormContents?directoryReact.createElement('aside',props,props.children as directoryReact.ReactNode):null;
- const path=kind==='owner'?'src/components/people_payroll/roster-owner-workspace.tsx':kind==='team'?'src/components/people_payroll/people-team-schedule.tsx':'src/components/work_projection/calendar/standard-calendar-workspace.tsx',root=process.env.ERPX_ROSTER_SOURCE_ROOT??'.',source=directoryRead(`${root}/${path}`,'utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loadedModule={exports:{} as Record<string,unknown>};
+ const path=kind==='owner'?'packages/feature-people_payroll/src/components/roster-owner-workspace.tsx':kind==='team'?'packages/feature-people_payroll/src/components/people-team-schedule.tsx':'packages/feature-work_projection/src/components/calendar/standard-calendar-workspace.tsx',root=process.env.ERPX_ROSTER_SOURCE_ROOT??'.',source=directoryRead(`${root}/${path}`,'utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loadedModule={exports:{} as Record<string,unknown>};
  let integrationRoster:RosterData|null=roster();const calendar={query:rosterCalendarRules.calendarQuerySchema.parse({date:'2026-10-19',view:'week'}),from:'2026-10-19',to:'2026-10-26',items:[],nextCursor:null,sources:[],coverage:{shifts:0,assigned:0,open:0,warnings:0,partial:false},selfPersonId:null,canManageRoster:true,canSchedule:false,canAnnounce:false,teamDefault:true},hierarchy={nodes:[],people:[],nextCursor:null,selfPersonId:null};
  const localRequire=(name:string):unknown=>{
   if(name==='react')return {...directoryReact,useState,useRef,useEffect:effect,useLayoutEffect:effect,useId:()=>{const [id]=useState(()=>`mounted-roster-${++key}`);return id;},useCallback:(fn:unknown,deps?:unknown[])=>memo(()=>fn,deps),useMemo:memo};
   if(name==='react/jsx-runtime')return require(name);
-  if(name.endsWith('/foundation'))return controls;
-  if(name.endsWith('/roster-owner-command'))return {createRosterOwnerCommands:()=>createRosterOwnerCommands(send,()=>`mounted-key-${++key}`),currentRosterOwnerDraft,rosterOwnerDraftHeld,rosterOwnerReadVersion};
+  if(name.endsWith("@erpx/ui/components/foundation"))return controls;
+  if(name.endsWith("@erpx/feature-people_payroll/lib/roster-owner-command"))return {createRosterOwnerCommands:()=>createRosterOwnerCommands(send,()=>`mounted-key-${++key}`),currentRosterOwnerDraft,rosterOwnerDraftHeld,rosterOwnerReadVersion};
   if(name.endsWith('/people-roster'))return rosterNativeRules;
-  if(name.endsWith('/roster-editor-draft'))return {currentRosterSnapshot};
-  if(name.endsWith('/work-fetch'))return {workFetch:send};
-  if(name.endsWith('/command-context'))return {captureWorkCommandContext};
-  if(name.endsWith('/context-switch'))return directoryContext;
-  if(name.endsWith('/work-refresh'))return {announceWorkChange:()=>window.dispatchEvent(new Event('erpx:work-changed'))};
-  if(name.endsWith('/destination-registry'))return {canonicalUiHref:directoryCanonical};
-  if(name.endsWith('/roster-owner-workspace'))return {RosterOwnerWorkspace:primitive('RosterChild')};
-  if(name.endsWith('/people-integration-data'))return {usePeopleIntegrationData:(endpoint:string)=>({data:endpoint.includes('/people/roster')?integrationRoster:endpoint.includes('/hierarchy')?hierarchy:calendar,loading:false,error:'',reload:async()=>{await reloadIntegration?.(endpoint);}}),usePeopleIntegrationCommand:()=>({busy:false,error:'',message:'',send:async()=>null})};
-  if(name.endsWith('/calendar-command'))return {...rosterCalendarCommands,createCalendarCommands:()=>rosterCalendarCommands.createCalendarCommands(send)};
-  if(name.endsWith('/calendar-timeline'))return rosterCalendarTimeline;
-  if(name.endsWith('/shared/ui-format'))return rosterUiFormat;
-  if(name.endsWith('/calendar'))return rosterCalendarRules;
-  if(name.endsWith('/feature-page'))return {WidgetGrid:primitive('WidgetGrid'),FeatureWidget:primitive('FeatureWidget')};
-  if(name.endsWith('/dialog'))return {Dialog:drawer};
-  if(name.endsWith('/draft-form-drawer'))return {DraftFormDrawer:drawer};
-  if(name.endsWith('/calendar-draft-boundary'))return {CalendarDraftBoundary:primitive('CalendarDraftBoundary')};
-  if(name.endsWith('/time-preference-context'))return {TimeText:primitive('TimeText')};
-  if(name.endsWith('/primitives'))return {StatusBadge:primitive('StatusBadge'),PageHeader:(props:Record<string,unknown>)=>directoryReact.createElement('header',props,props.action as directoryReact.ReactNode)};
-  if(name.endsWith('/calendar-event'))return {CalendarEvent:primitive('CalendarEvent'),eventTime:()=>'',eventStyle:()=>({}),layerNames:{}};
-  if(name.endsWith('/form-disclosure'))return {FormDisclosure:drawer};
-  if(name.endsWith('/standard-calendar-forms'))return {StandardCalendarForm:primitive('CalendarForm')};
-  if(name.endsWith('/calendar-day-timeline'))return {CalendarDayTimeline:primitive('CalendarDayTimeline')};
-  if(name.endsWith('/personal-time-grid'))return {PersonalTimeGrid:primitive('PersonalTimeGrid')};
-  if(name.endsWith('/month-grid'))return {MonthGrid:primitive('MonthGrid')};
-  if(name.endsWith('/month-navigation'))return {MonthNavigation:primitive('MonthNavigation')};
-  if(name.endsWith('/roster-shift-form'))return {RosterShiftForm:primitive('RosterShiftForm')};
-  if(name.endsWith('/workspace-link'))return {default:primitive('WorkspaceLink')};
+  if(name.endsWith("@erpx/feature-people_payroll/lib/roster-editor-draft"))return {currentRosterSnapshot};
+  if(name.endsWith("@erpx/feature-work_projection/lib/work-fetch"))return {workFetch:send};
+  if(name.endsWith("@erpx/feature-work_projection/lib/command-context"))return {captureWorkCommandContext};
+  if(name.endsWith("@erpx/feature-work_projection/lib/context-switch"))return directoryContext;
+  if(name.endsWith("@erpx/feature-work_projection/lib/work-refresh"))return {announceWorkChange:()=>window.dispatchEvent(new Event('erpx:work-changed'))};
+  if(name.endsWith("@erpx/feature-work_projection/lib/destination-registry"))return {canonicalUiHref:directoryCanonical};
+  if(name.endsWith("@erpx/feature-people_payroll/components/roster-owner-workspace"))return {RosterOwnerWorkspace:primitive('RosterChild')};
+  if(name.endsWith("@erpx/feature-people_payroll/components/people-integration-data"))return {usePeopleIntegrationData:(endpoint:string)=>({data:endpoint.includes('/people/roster')?integrationRoster:endpoint.includes('/hierarchy')?hierarchy:calendar,loading:false,error:'',reload:async()=>{await reloadIntegration?.(endpoint);}}),usePeopleIntegrationCommand:()=>({busy:false,error:'',message:'',send:async()=>null})};
+  if(name.endsWith("@erpx/feature-work_projection/lib/calendar-command"))return {...rosterCalendarCommands,createCalendarCommands:()=>rosterCalendarCommands.createCalendarCommands(send)};
+  if(name.endsWith("@erpx/feature-work_projection/lib/calendar-timeline"))return rosterCalendarTimeline;
+  if(name.endsWith("@erpx/feature-shared/lib/ui-format"))return rosterUiFormat;
+  if(name.endsWith("@erpx/feature-work_projection/lib/calendar"))return rosterCalendarRules;
+  if(name.endsWith("@erpx/feature-shared/components/features/feature-page"))return {WidgetGrid:primitive('WidgetGrid'),FeatureWidget:primitive('FeatureWidget')};
+  if(name.endsWith("@erpx/ui/components/dialog"))return {Dialog:drawer};
+  if(name.endsWith("@erpx/ui/components/draft-form-drawer"))return {DraftFormDrawer:drawer};
+  if(name.endsWith("@erpx/feature-work_projection/components/calendar/calendar-draft-boundary"))return {CalendarDraftBoundary:primitive('CalendarDraftBoundary')};
+  if(name.endsWith("@erpx/feature-people_payroll/components/time/time-preference-context"))return {TimeText:primitive('TimeText')};
+  if(name.endsWith("@erpx/ui/components/primitives"))return {StatusBadge:primitive('StatusBadge'),PageHeader:(props:Record<string,unknown>)=>directoryReact.createElement('header',props,props.action as directoryReact.ReactNode)};
+  if(name.endsWith("@erpx/feature-work_projection/components/calendar/calendar-event"))return {CalendarEvent:primitive('CalendarEvent'),eventTime:()=>'',eventStyle:()=>({}),layerNames:{}};
+  if(name.endsWith("@erpx/ui/components/form-disclosure"))return {FormDisclosure:drawer};
+  if(name.endsWith("@erpx/feature-work_projection/components/calendar/standard-calendar-forms"))return {StandardCalendarForm:primitive('CalendarForm')};
+  if(name.endsWith("@erpx/feature-work_projection/components/calendar/calendar-day-timeline"))return {CalendarDayTimeline:primitive('CalendarDayTimeline')};
+  if(name.endsWith("@erpx/feature-work_projection/components/calendar/personal-time-grid"))return {PersonalTimeGrid:primitive('PersonalTimeGrid')};
+  if(name.endsWith("@erpx/feature-work_projection/components/calendar/month-grid"))return {MonthGrid:primitive('MonthGrid')};
+  if(name.endsWith("@erpx/feature-work_projection/components/calendar/month-navigation"))return {MonthNavigation:primitive('MonthNavigation')};
+  if(name.endsWith("@erpx/feature-people_payroll/components/roster-shift-form"))return {RosterShiftForm:primitive('RosterShiftForm')};
+  if(name.endsWith("@erpx/workplace/components/workspace-link"))return {default:primitive('WorkspaceLink')};
   if(name.endsWith('.module.css'))return {default:new Proxy({},{get:(_target,name)=>String(name)})};
   if(name==='lucide-react')return new Proxy({},{get:()=>()=>null});
   throw Error('Unexpected actual Roster import '+name);
@@ -945,11 +945,11 @@ it('keeps a retained Roster attempt when its current parent source is unavailabl
  const f=rosterOwnerFixture();try{f.send.mockRejectedValueOnce(Error('Original result unknown')).mockResolvedValueOnce(directoryReply({id:'roster-owner-key-1',version:1}));await expect(f.commands.send(rosterTemplateInput,'2026-10-19')).rejects.toThrow('unknown');f.current={...f.current,available:false};await expect(f.commands.retry()).rejects.toThrow('Roster source');expect(f.commands.hasPending()).toBe(true);expect(f.send).toHaveBeenCalledTimes(1);f.current={...f.current,available:true,data:{...f.current.data,asOf:7}};const result=await f.commands.retry();result.acknowledge();expect(f.send.mock.calls[1][1]?.body).toBe(f.send.mock.calls[0][1]?.body);expect(f.commands.hasPending()).toBe(false);}finally{f.cleanup();}
 });
 it.each(['form-drawer','fullscreen'] as const)('the actual opt-in %s Dialog keeps its visited Roster form mounted after close and reopens it without replacing the child',presentation=>{
- const require=directoryRequire(import.meta.url),source=directoryRead(`${process.env.ERPX_ROSTER_SOURCE_ROOT??'.'}/src/components/ui/dialog.tsx`,'utf8'),ts=require('typescript') as typeof import('typescript'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loadedModule={exports:{} as Record<string,unknown>},values:unknown[]=[];let cursor=0;
+ const require=directoryRequire(import.meta.url),source=directoryRead(`${process.env.ERPX_ROSTER_SOURCE_ROOT??'.'}/packages/ui/src/components/dialog.tsx`,'utf8'),ts=require('typescript') as typeof import('typescript'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loadedModule={exports:{} as Record<string,unknown>},values:unknown[]=[];let cursor=0;
  const useState=(initial:unknown)=>{const index=cursor++;if(!(index in values))values[index]=typeof initial==='function'?initial():initial;return [values[index],(value:unknown)=>{values[index]=typeof value==='function'?value(values[index]):value;}];},primitive=(name:string)=>(props:Record<string,unknown>)=>directoryReact.createElement(name,props,props.children as directoryReact.ReactNode),parts=new Proxy({},{get:(_target,name)=>primitive(`dialog-${String(name).toLowerCase()}`)});
  directoryEvaluate(code,{module:loadedModule,exports:loadedModule.exports,require:(name:string)=>{
   if(name==='react')return {...directoryReact,useState,useRef:(initial:unknown)=>{const [ref]=useState(()=>({current:initial}));return ref;},useEffect:()=>{}};
-  if(name==='react/jsx-runtime')return require(name);if(name==='@base-ui/react/dialog')return {Dialog:parts};if(name==='lucide-react')return {X:()=>null};if(name.endsWith('/shared/ui'))return {cn:(...names:unknown[])=>names.filter(value=>typeof value==='string').join(' ')};if(name.endsWith('/button-variants'))return {buttonVariants:()=>''};if(name.endsWith('/record-context'))return {useEmbeddedRecord:()=>false};if(name.endsWith('/workspace-overlay'))return {useWorkspaceOverlay:()=>({active:false}),useWorkspaceEditor:()=>{}};if(name==='./button')return {Button:primitive('button')};if(name==='./dialog.css')return {};throw Error('Unexpected actual Dialog import '+name);
+  if(name==='react/jsx-runtime')return require(name);if(name==='@base-ui/react/dialog')return {Dialog:parts};if(name==='lucide-react')return {X:()=>null};if(name.endsWith("@erpx/ui/lib/cn"))return {cn:(...names:unknown[])=>names.filter(value=>typeof value==='string').join(' ')};if(name.endsWith("@erpx/ui/components/button-variants"))return {buttonVariants:()=>''};if(name.endsWith("@erpx/ui/components/record-context"))return {useEmbeddedRecord:()=>false};if(name.endsWith("@erpx/ui/components/workspace-overlay"))return {useWorkspaceOverlay:()=>({active:false}),useWorkspaceEditor:()=>{}};if(name==='@erpx/ui/components/button')return {Button:primitive('button')};if(name==='@erpx/ui/components/dialog.css')return {};throw Error('Unexpected actual Dialog import '+name);
  }});
  const Dialog=loadedModule.exports.Dialog as (props:Record<string,unknown>)=>directoryReact.ReactNode,child=directoryReact.createElement('form',{'data-native-roster-form':'same-original-form'}),render=(open:boolean,retainFormContents=true)=>{cursor=0;const nodes:DirectoryElement[]=[],visit=(value:directoryReact.ReactNode)=>directoryReact.Children.forEach(value,node=>{if(!directoryReact.isValidElement<Record<string,unknown>>(node))return;nodes.push(node);if(typeof node.type==='function')visit((node.type as (props:Record<string,unknown>)=>directoryReact.ReactNode)(node.props));else visit(node.props.children as directoryReact.ReactNode);});visit(Dialog({open,retainFormContents,presentation,title:'Roster planning',onClose:()=>{},children:child}));return nodes;};
  expect(render(false).some(node=>node.props['data-native-roster-form'])).toBe(false);expect(render(true).some(node=>node===child)).toBe(true);const closed=render(false);expect(closed.find(node=>node.type==='dialog-portal')?.props.keepMounted).toBe(true);expect(closed.some(node=>node===child)).toBe(true);expect(closed.find(node=>node.type==='dialog-viewport')?.props.hidden).toBe(true);expect(render(true).some(node=>node===child)).toBe(true);expect(render(false,false).some(node=>node===child)).toBe(false);

@@ -1,2 +1,0 @@
-import type { SqlDatabase } from '../../runtime/public/runtime/types';
-export function collaborationAgentSources(db: SqlDatabase) { return { clearReserveAssertions(usageId: string) { return db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(usageId); }, clearFinishAssertions(usageId: string) { return db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(usageId); }, clearFailureAssertions(usageId: string) { return db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(usageId); } }; }

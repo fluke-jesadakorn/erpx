@@ -4,9 +4,9 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import {
   deliverAccountInvitation,
   promoteAccountInvitationDeliveries,
-} from "../../../src/server/modules/identity_access/public/account-invitation-delivery";
-import { sendBetaEmail } from "../../../src/server/modules/manage_erpx/public/beta-email";
-import { accountInvitationList } from "../../../src/server/modules/identity_access/public/account-invitation-list";
+} from "@erpx/server-identity_access/public/account-invitation-delivery";
+import { sendBetaEmail } from "@erpx/server-manage_erpx/public/beta-email";
+import { accountInvitationList } from "@erpx/server-identity_access/public/account-invitation-list";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 
 const control = env.CONTROL_DB;

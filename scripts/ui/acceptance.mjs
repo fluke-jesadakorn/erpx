@@ -1,3 +1,4 @@
+import {routeDependsOn,routeClosureIds} from "./inventory.mjs";
 import {createHash} from 'node:crypto';
 import {existsSync,lstatSync,readFileSync,realpathSync} from 'node:fs';
 import {createReadStream} from 'node:fs';
@@ -25,6 +26,10 @@ const unique=(values,code)=>{if(new Set(values).size!==values.length)fail(code);
 const crcTable=Uint32Array.from({length:256},(_,value)=>{for(let bit=0;bit<8;bit++)value=value&1?0xedb88320^(value>>>1):value>>>1;return value>>>0;});
 function crc32(bytes){let crc=0xffffffff;for(const value of bytes)crc=crcTable[(crc^value)&255]^(crc>>>8);return(crc^0xffffffff)>>>0;}
 function pathName(value){if(!text(value)||isAbsolute(value)||value.includes('\\')||value.split('/').some(part=>!part||part==='.'||part==='..'))fail('UI_EVIDENCE_PATH_REQUIRED');return value;}
+export function workspaceSourcePath(value){
+ pathName(value);
+ return /^(?:src\/|apps\/[a-z0-9_-]+\/src\/|packages\/[a-z0-9_-]+\/src\/)/.test(value);
+}
 function currentTarget(inventory,target){
  if(!object(target)||!['route','source','style'].includes(target.kind)||!text(target.source)||!sha(target.fingerprint))fail('UI_TARGET_BINDING_REQUIRED');
  const rows=target.kind==='route'?inventory.routes:target.kind==='style'?inventory.styleSources??[]:inventory.sources,found=rows.filter(row=>row.source===target.source);
@@ -32,7 +37,7 @@ function currentTarget(inventory,target){
 }
 /** Requirements come from the current inventory, never from a receipt's claimed omissions. */
 export function uiTargetRequirements(inventory,target,protectedSources=[]){
- const row=currentTarget(inventory,target),sources=target.kind==='route'?inventory.sources.filter(source=>(row.dependencies??[]).includes(source.source)):target.kind==='style'?inventory.sources.filter(source=>(source.styles??[]).includes(target.source)):[row];
+ const row=currentTarget(inventory,target),sources=target.kind==='route'?inventory.sources.filter(source=>routeDependsOn(inventory,row,source.source)):target.kind==='style'?inventory.sources.filter(source=>(source.styles??[]).includes(target.source)):[row];
  const checks=new Set(basicChecks);
  for(const state of row.stateChecklist??[])checks.add(state);
  for(const query of [...(row.queryViews??[]),...sources.flatMap(source=>source.queryViews??[])])checks.add(`query:${query}`);
@@ -45,7 +50,7 @@ export function uiTargetRequirements(inventory,target,protectedSources=[]){
 }
 function routeCallers(inventory,target){
  if(target.kind==='route')return[target.source];
- const callers=inventory.routes.filter(route=>route.source===target.source||(route.dependencies??[]).includes(target.source)||(target.kind==='style'&&(route.styles??[]).includes(target.source))).map(route=>route.source);
+ const callers=inventory.routes.filter(route=>route.source===target.source||routeDependsOn(inventory,route,target.source)||(target.kind==='style'&&(route.styles??[]).includes(target.source))).map(route=>route.source);
  if(!callers.length)fail('UI_SOURCE_HAS_NO_BROWSER_CALLER');return sorted(unique(callers,'UI_DUPLICATE_ROUTE_SOURCE'));
 }
 function routeMatches(route,url){
@@ -122,7 +127,7 @@ export async function validateUiAcceptance({index,inventory,frozen,retirements,c
    const row=currentTarget(inventory,target),claims=target.kind==='route'?routes:sources;
    if(claims.has(target.source)||!Array.isArray(target.observations)||!target.observations.length)fail('UI_DUPLICATE_OR_EMPTY_TARGET');
    if(target.kind==='route'){
-    const closureIds=row.closureIds,closure=closurePathsValid&&Array.isArray(closureIds)&&closureIds.every(id=>Number.isSafeInteger(id)&&id>=0&&id<closurePaths.length)&&same(closureIds,[...new Set(closureIds)].sort((a,b)=>a-b))?closureIds.map(id=>closurePaths[id]):null;
+    const closureIds=routeClosureIds(inventory,row),closure=closurePathsValid&&Array.isArray(closureIds)&&closureIds.every(id=>Number.isSafeInteger(id)&&id>=0&&id<closurePaths.length)&&same(closureIds,[...new Set(closureIds)].sort((a,b)=>a-b))?closureIds.map(id=>closurePaths[id]):null;
     if(!Array.isArray(closure)||!closure.includes(row.source)||!same(closure,sorted(new Set(closure))))fail('UI_ROUTE_CLOSURE_REQUIRED');
     if(!same(row.styles??[],closure.filter(path=>path.endsWith('.css'))))fail('UI_ROUTE_STYLE_CLOSURE_REQUIRED');
     // Preserve the existing inventory fingerprint algorithm, including its style entries.
@@ -171,10 +176,10 @@ export async function validateUiAcceptance({index,inventory,frozen,retirements,c
    if(transition.current.binding?.path!==transition.source||!sources.has(transition.source)||sources.get(transition.source).fingerprint!==transition.current.binding.sha256)fail('UI_TRANSITION_CURRENT_SOURCE_UNACCEPTED');ports.bytes(transition.current.binding);
   }else if(ports.exists(transition.source))fail('UI_RETIRED_ENTRYPOINT_REAPPEARED');
   const successorHashes=new Map();for(const successor of transition.successors){
-   if(!successor.path?.startsWith('src/')||successorHashes.has(successor.path)||!sources.has(successor.path)||sources.get(successor.path).fingerprint!==successor.sha256)fail('UI_TRANSITION_SUCCESSOR_UNACCEPTED');ports.bytes(successor);successorHashes.set(successor.path,successor.sha256);
+   if(!workspaceSourcePath(successor.path)||successorHashes.has(successor.path)||!sources.has(successor.path)||sources.get(successor.path).fingerprint!==successor.sha256)fail('UI_TRANSITION_SUCCESSOR_UNACCEPTED');ports.bytes(successor);successorHashes.set(successor.path,successor.sha256);
   }
   if(retired&&retired.successors.some(successor=>!successorHashes.has(successor.source)))fail('UI_TRANSITION_RETIRED_SUCCESSOR_OMITTED');
-  const callers=sorted(new Set([...successorHashes.keys(),...(transition.current.state==='present'?[transition.source]:[])].flatMap(source=>inventory.routes.filter(route=>route.source===source||(route.dependencies??[]).includes(source)||(route.styles??[]).includes(source)).map(route=>route.source))));
+  const callers=sorted(new Set([...successorHashes.keys(),...(transition.current.state==='present'?[transition.source]:[])].flatMap(source=>inventory.routes.filter(route=>route.source===source||routeDependsOn(inventory,route,source)||(route.styles??[]).includes(source)).map(route=>route.source))));
   if(!callers.length||!same(transition.routeSources,callers)||callers.some(source=>!routes.has(source)))fail('UI_TRANSITION_CALLER_CLOSURE_UNACCEPTED');
   transitions.set(transition.source,{receipt:entry,current:transition.current,successors:successorHashes});
  }
@@ -195,7 +200,7 @@ export async function loadUiAcceptance(root,inventory){
  const current={runtimeFingerprint,verificationFingerprint,candidate:git.stdout.trim()},frozen=JSON.parse(readFileSync(localFile(root,'scripts/ui/frozen-boundaries.json'))),retirements=existsSync(resolve(root,'scripts/ui/frozen-retirements.json'))?JSON.parse(readFileSync(localFile(root,'scripts/ui/frozen-retirements.json'))):[];
  const [{aggregateCiRegression},{verifyBrowserEvidenceArtifacts},{internalRequiredCases,loadRequiredCases},{assertBrowserCasePassed}]=await Promise.all([import('../testing/browser-sharding.ts'),import('../testing/browser-evidence-artifacts.ts'),import('../testing/required-case-inventory.ts'),import('../testing/browser-results.ts')]);
  const catalogue=JSON.parse(readFileSync(localFile(root,'tests/catalogue/suite-manifest.json'))),required=internalRequiredCases(loadRequiredCases(root),catalogue.suites),used=new Map(),artifacts=new Map(),productTransports=new Map(),formsTransports=new Map(),bytes=binding=>{const raw=readBinding(root,binding);used.set(binding.path,{...binding,sha256:digest(raw)});return raw;},json=binding=>JSON.parse(bytes(binding));
- const accepted=await validateUiAcceptance({index,inventory,frozen,retirements,current},{bytes,json,source:path=>readFileSync(localFile(root,path)),exists:path=>existsSync(resolve(root,path)),git(commit,path){if(!path.startsWith('src/'))fail('UI_ORIGINAL_SOURCE_PATH_REQUIRED');pathName(path);const result=spawnSync('git',['show',`${commit}:${path}`],{cwd:root});if(result.status!==0)fail('UI_ORIGINAL_GIT_SOURCE_UNAVAILABLE');return result.stdout;},
+ const accepted=await validateUiAcceptance({index,inventory,frozen,retirements,current},{bytes,json,source:path=>readFileSync(localFile(root,path)),exists:path=>existsSync(resolve(root,path)),git(commit,path){if(!workspaceSourcePath(path))fail('UI_ORIGINAL_SOURCE_PATH_REQUIRED');pathName(path);const result=spawnSync('git',['show',`${commit}:${path}`],{cwd:root});if(result.status!==0)fail('UI_ORIGINAL_GIT_SOURCE_UNAVAILABLE');return result.stdout;},
   caseWitness(nativeCase,observation){if(!text(nativeCase.report)||resolve(root,nativeCase.report)!==resolve(root,observation.report.path)||resolve(root,observation.state.path)!==resolve(dirname(nativeCase.report),'state.json'))fail('UI_EXACT_CASE_RETAINED_STATE_REQUIRED');},
   async productHost(nativeCase,state,observation){
    const lease=nativeCase.uiEvidence.productHostLease;if(resolve(root,lease.path)!==resolve(dirname(nativeCase.report),'product-host-lease.json'))fail('UI_EXACT_CASE_PRODUCT_HOST_LEASE_REQUIRED');bytes(lease);

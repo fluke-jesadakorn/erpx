@@ -1,0 +1,21 @@
+{
+  "name": "@erpx/feature-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/agent-governance-console": "./src/components/agent-governance-console.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-agent": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "react": "19.3.0"
+  }
+}

@@ -3,12 +3,12 @@ import {build} from 'esbuild';
 import {chromium,expect as browserExpect} from '@playwright/test';
 import {existsSync,readFileSync} from 'node:fs';
 import {createServer} from 'node:http';
-import {recordTarget,recordDrawerHref,recordCanonicalHref,withoutRecordDrawer} from '../../../src/lib/records/record-drawer';
-import {canonicalUiHref,destinations,destinationTrail} from '../../../src/lib/work_projection/destination-registry';
-import {canonicalDestinationLinks} from '../../../src/lib/work_projection/destination-links';
-import {destinationProduct} from '../../../src/lib/commercial/product-registry';
-import {productPageAllowed} from '../../../src/lib/runtime/product-route-policy';
-import {productEntryCapability} from '../../../src/server/modules/commercial/public/rules/product-entry-capability';
+import {recordTarget,recordDrawerHref,recordCanonicalHref,withoutRecordDrawer} from '@erpx/feature-records/lib/record-drawer';
+import {canonicalUiHref,destinations,destinationTrail} from '@erpx/feature-work_projection/lib/destination-registry';
+import {canonicalDestinationLinks} from '@erpx/feature-work_projection/lib/destination-links';
+import {destinationProduct} from '@erpx/contracts/product-registry';
+import {productPageAllowed} from '@erpx/feature-runtime/lib/product-route-policy';
+import {productEntryCapability} from '@erpx/server-commercial/public/rules/product-entry-capability';
 const recordDrawerHarness=vi.hoisted(()=>({active:false,states:[] as unknown[],stateCursor:0,refs:[] as {current:unknown}[],refCursor:0,effects:[] as (()=>void|(()=>void))[],contentNode:undefined as unknown}));
 vi.mock('react',async importOriginal=>{
  const actual=await importOriginal<typeof import('react')>();
@@ -31,16 +31,16 @@ vi.mock('react',async importOriginal=>{
  };
 });
 vi.mock('react-dom',()=>({createPortal:(children:unknown)=>children}));
-vi.mock('@/components/ui/workspace',()=>({WorkspaceDetail:(props:{children?:unknown})=>props.children}));
-vi.mock('@/components/ui/workspace-overlay',()=>({useWorkspaceOverlay:()=>({editors:0})}));
-vi.mock('../../../src/components/records/record-workspace',()=>({useRecordWorkspace:()=>({host:null})}));
-vi.mock('@/lib/shared/destination-search',()=>({useSearchParams:()=>({get:()=>null})}));
-vi.mock('@/lib/shared/destination-router',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn(),back:vi.fn()})}));
-vi.mock('@/components/ui/dialog',()=>({Dialog:(props:{children?:unknown})=>props.children}));
-vi.mock('@/components/ui/button',()=>({Button:(props:{children?:unknown})=>props.children}));
-vi.mock('../../../src/components/records/record-context',()=>({EmbeddedRecord:(props:{children?:unknown})=>props.children}));
-vi.mock('@/lib/work_projection/context-switch',()=>({registerUnsavedWork:()=>()=>{}}));
-import {RecordDrawer} from '../../../src/components/records/record-drawer';
+vi.mock("@erpx/ui/components/workspace",()=>({WorkspaceDetail:(props:{children?:unknown})=>props.children}));
+vi.mock("@erpx/ui/components/workspace-overlay",()=>({useWorkspaceOverlay:()=>({editors:0})}));
+vi.mock("@erpx/feature-records/components/record-workspace",()=>({useRecordWorkspace:()=>({host:null})}));
+vi.mock("@erpx/feature-shared/lib/destination-search",()=>({useSearchParams:()=>({get:()=>null})}));
+vi.mock("@erpx/feature-shared/lib/destination-router",()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn(),back:vi.fn()})}));
+vi.mock("@erpx/ui/components/dialog",()=>({Dialog:(props:{children?:unknown})=>props.children}));
+vi.mock("@erpx/ui/components/button",()=>({Button:(props:{children?:unknown})=>props.children}));
+vi.mock("@erpx/ui/components/record-context",()=>({EmbeddedRecord:(props:{children?:unknown})=>props.children}));
+vi.mock("@erpx/feature-work_projection/lib/context-switch",()=>({registerUnsavedWork:()=>()=>{}}));
+import {RecordDrawer} from '@erpx/feature-records/components/record-drawer';
 const base='/holdings/acme';
 it('keeps repeated collection filters, pagination and focus fragment when closing a path drawer',()=>{
  const current=`${base}/projects-routines/projects?q=desk&filter=a&filter=b&cursor=page2#projects`;
@@ -85,7 +85,7 @@ it('keeps legacy organization settings navigation on the organization workspace'
 it('provides distinct Server Component pages and clickable breadcrumb parents for every destination',()=>{
  const paths=destinations.map(destination=>destination.path);
  expect(new Set(paths).size).toBe(paths.length);
- for(const path of paths){const file=`src/app/holdings/[holdingSlug]/${path}/page.tsx`;expect(existsSync(file),path).toBe(true);expect(readFileSync(file,'utf8')).not.toMatch(/^['"]use client['"]/);for(const crumb of destinationTrail(base,path).slice(0,-1))expect(existsSync(`src/app/holdings/[holdingSlug]/${crumb.href!.slice(base.length+1)}/page.tsx`),crumb.href).toBe(true);}
+ for(const path of paths){const file=`apps/compat/src/app/holdings/[holdingSlug]/${path}/page.tsx`;expect(existsSync(file),path).toBe(true);expect(readFileSync(file,'utf8')).not.toMatch(/^['"]use client['"]/);for(const crumb of destinationTrail(base,path).slice(0,-1))expect(existsSync(`apps/compat/src/app/holdings/[holdingSlug]/${crumb.href!.slice(base.length+1)}/page.tsx`),crumb.href).toBe(true);}
  expect(existsSync('src/app/holdings/[holdingSlug]/technology/page.tsx')).toBe(false);
  expect(existsSync('src/app/platform/billing/page.tsx')).toBe(false);
 });
@@ -125,7 +125,7 @@ it('keeps the exact candidate privacy page and its query separate from ordinary 
 });
 it('keeps original price-list identity and drawer return filters on Sales instead of requiring the Finance product',()=>{
  for(const scope of [base,base+'/branches/main']){const current=`${scope}/customers-sales/sales/pricing?tag=one&tag=two#prices`,target={kind:'price_list' as const,id:'list:original /version'},href=recordDrawerHref(current,target),url=new URL(href,'https://test.invalid');expect(url.pathname).toBe(`${scope}/customers-sales/sales/pricing/records/price_list/list%3Aoriginal%20%2Fversion/overview`);expect(destinationProduct(url.pathname.slice(scope.length+1))).toBe('sales');expect(canonicalUiHref(href)).toBe(href);expect(canonicalUiHref(canonicalUiHref(href))).toBe(href);expect(recordTarget(href,scope)).toEqual({...target,args:{returnTo:current,section:'overview'}});expect(withoutRecordDrawer(href)).toBe(current);expect(canonicalUiHref(`${scope}/record-details/price_list/original?tag=one&tag=two`)).toBe(`${scope}/customers-sales/sales/pricing/records/price_list/original/overview?tag=one&tag=two`);}
- for(const suffix of ['[id]','[id]/[recordSection]'])for(const slot of ['', '@record/'])expect(existsSync(`src/app/holdings/[holdingSlug]/${slot}customers-sales/sales/pricing/records/price_list/${suffix}/page.tsx`)).toBe(true);
+ for(const suffix of ['[id]','[id]/[recordSection]'])for(const slot of ['', '@record/'])expect(existsSync(`apps/compat/src/app/holdings/[holdingSlug]/${slot}customers-sales/sales/pricing/records/price_list/${suffix}/page.tsx`)).toBe(true);
  const path='customers-sales/sales/pricing/records/price_list/original/overview';expect(productPageAllowed('sales',base+'/'+path)).toBe(true);expect(productPageAllowed('finance',base+'/'+path)).toBe(false);expect(productEntryCapability('sales',path)).toBe('sales.orders');
 });
 
@@ -169,22 +169,22 @@ it('keeps a newer RecordDrawer edit dirty when the original command acknowledgem
 
 it('keeps a newer edit dirty after a late acknowledgement in a mounted React RecordDrawer',async()=>{
  const stubs:Record<string,string>={
-  '@/components/ui/workspace':'export function WorkspaceDetail({children}){return children;}',
-  '@/components/ui/workspace-overlay':'export function useWorkspaceOverlay(){return {editors:0};}',
-  './record-workspace':'export function useRecordWorkspace(){return {host:null};}',
-  '@/lib/shared/destination-search':'export function useSearchParams(){return {get:()=>null};}',
-  '@/lib/shared/destination-router':'export function useRouter(){return {push(){},pushPreservingQuery(){},replace(){},refresh(){},back(){}};}',
-  '@/components/ui/dialog':'export function Dialog({children,title}){return <div role="dialog" aria-label={title}>{children}</div>;}',
-  '@/components/ui/button':'export function Button({children,onClick,type="button"}){return <button type={type} onClick={onClick}>{children}</button>;}',
-  './record-context':'export function EmbeddedRecord({children}){return children;}',
-  '@/lib/work_projection/context-switch':'export function registerUnsavedWork(){return ()=>{};}',
-  '@/lib/records/record-drawer':'export function recordDrawerHref(){return "/record";} export function withoutRecordDrawer(){return "/list";}',
+  "@erpx/ui/components/workspace":'export function WorkspaceDetail({children}){return children;}',
+  "@erpx/ui/components/workspace-overlay":'export function useWorkspaceOverlay(){return {editors:0};}',
+  '@erpx/feature-records/components/record-workspace':'export function useRecordWorkspace(){return {host:null};}',
+  "@erpx/feature-shared/lib/destination-search":'export function useSearchParams(){return {get:()=>null};}',
+  "@erpx/feature-shared/lib/destination-router":'export function useRouter(){return {push(){},pushPreservingQuery(){},replace(){},refresh(){},back(){}};}',
+  "@erpx/ui/components/dialog":'export function Dialog({children,title}){return <div role="dialog" aria-label={title}>{children}</div>;}',
+  "@erpx/ui/components/button":'export function Button({children,onClick,type="button"}){return <button type={type} onClick={onClick}>{children}</button>;}',
+  '@erpx/ui/components/record-context':'export function EmbeddedRecord({children}){return children;}',
+  "@erpx/feature-work_projection/lib/context-switch":'export function registerUnsavedWork(){return ()=>{};}',
+  "@erpx/feature-records/lib/record-drawer":'export function recordDrawerHref(){return "/record";} export function withoutRecordDrawer(){return "/list";}',
  };
  const bundle=await build({
   stdin:{sourcefile:'record-drawer-mounted-harness.tsx',loader:'tsx',resolveDir:process.cwd(),contents:`
    import {createElement as h,useEffect,useState} from 'react';
    import {createRoot} from 'react-dom/client';
-   import {RecordDrawer} from './src/components/records/record-drawer';
+   import {RecordDrawer} from './packages/feature-records/src/components/record-drawer';
    function RecordDrawerHarness(){
     const [generation,setGeneration]=useState(0);
     useEffect(()=>{const replace=()=>setGeneration(value=>value+1);window.addEventListener('test:replace-record-form',replace);return()=>window.removeEventListener('test:replace-record-form',replace);},[]);
@@ -198,8 +198,8 @@ it('keeps a newer edit dirty after a late acknowledgement in a mounted React Rec
   `},
   bundle:true,write:false,platform:'browser',format:'iife',globalName:'RecordDrawerMountedHarness',target:'es2022',jsx:'automatic',loader:{'.css':'empty'},
   plugins:[{name:'record-drawer-mounted-boundary-stubs',setup(builder){
-   builder.onResolve({filter:/^@\//},args=>{if(!Object.hasOwn(stubs,args.path))throw new Error(`Missing RecordDrawer test boundary stub: ${args.path}`);return {path:args.path,namespace:'record-drawer-stub'};});
-   builder.onResolve({filter:/^\.\//},args=>args.importer.endsWith('/src/components/records/record-drawer.tsx')&&Object.hasOwn(stubs,args.path)?{path:args.path,namespace:'record-drawer-stub'}:undefined);
+   builder.onResolve({filter:/^@(?:\/|erpx\/)/},args=>{if(args.path.endsWith('.css'))return undefined;if(!Object.hasOwn(stubs,args.path))throw new Error(`Missing RecordDrawer test boundary stub: ${args.path}`);return {path:args.path,namespace:'record-drawer-stub'};});
+   builder.onResolve({filter:/^\.\//},args=>args.importer.endsWith('/packages/feature-records/src/components/record-drawer.tsx')&&Object.hasOwn(stubs,args.path)?{path:args.path,namespace:'record-drawer-stub'}:undefined);
    builder.onLoad({filter:/.*/,namespace:'record-drawer-stub'},args=>({contents:stubs[args.path]!,loader:'tsx',resolveDir:process.cwd()}));
   }}]
  });

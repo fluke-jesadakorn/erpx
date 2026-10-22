@@ -12,12 +12,13 @@ import {createHash,randomBytes} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
 import {Pool} from 'pg';
-import {PostgresDatabase} from "../../src/server/modules/runtime/adapters/runtime/postgres";
-import {migrateDatabase} from "../../src/server/modules/runtime/adapters/runtime/migrations";
+import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
+import {migrateDatabase} from "@erpx/server-runtime/adapters/runtime/migrations";
 import {generalCompanyDemoGuide} from "../../fixtures/shared/builders/general-company-demo";
 import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders/scoped-browser-staff";
 import {runtimeSourceFingerprint} from './source-fingerprint';
 import {copyReleaseArtifact} from './copy-release-artifact';
+import {workspaceCopyInput} from './workspace-copy-input';
 import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence,moduleBrowserReleaseVerificationCompanyIds} from '../testing/browser-fixture-metadata';
 import {browserChildEnvironment} from '../testing/runner-environment';
 const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=Number(process.env.ERPX_BROWSER_SIMULATION_PORT??'3102');
@@ -150,7 +151,7 @@ if(mode==='prepare'||diagnostic){
     const url=new URL(adminUrl);url.pathname=name;databases[binding]=url.href;
    }
   }finally{await admin.end();}
-  await cp(templateDirectory,directory,{recursive:true,mode:constants.COPYFILE_FICLONE,filter:path=>{
+  await cp(templateDirectory,directory,{recursive:true,verbatimSymlinks:true,mode:constants.COPYFILE_FICLONE,filter:path=>{
    const relative=path.slice(templateDirectory.length+1);
    return !['state.json','databases.json','databases-jobs.json','databases-migrations.json','server.log','jobs.log','uat-auth','release','provider-fixture.json','provider-fixture.lock'].some(name=>relative===name||relative.startsWith(name+'/'))&&relative!=='app/node_modules'&&!isCaseExecutionEvidence(relative);
   }});
@@ -189,7 +190,7 @@ if(mode==='prepare'||diagnostic){
  if(formsHosts)for(const name of Object.keys(nativeEnvironment))if(/^ERPX_(?:PRODUCT_(?:ROUTING|SSO|ENVIRONMENT)|CONSOLE_RETIRED|[A-Z_]+_PACKAGE_ENFORCEMENT)$/.test(name))delete nativeEnvironment[name];
  for(const name of Object.keys(process.env))if(!(name in nativeEnvironment))delete process.env[name];
  Object.assign(process.env,nativeEnvironment);
- const {getRuntime,closeRuntime}=await import("../../src/server/modules/runtime/adapters/runtime/env"),env=getRuntime();
+ const {getRuntime,closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env"),env=getRuntime();
  try{
   if(['local-seed','staff-work','expense','work-cards','messaging','services','executive-work','booking'].includes(profile)){
    const {prepareModuleBrowser}=await import("../../fixtures/shared/builders/module-browser");
@@ -200,7 +201,7 @@ if(mode==='prepare'||diagnostic){
   const {seedExpenseCompany}=await import('../../fixtures/expenses/company'),{mapSpendingOrganization}=await import("../../tests/support/helpers/spending-organization");
   const f=await seedExpenseCompany(env.H001_DB,env.H001_FILES);await mapSpendingOrganization(f);
   await env.H001_DB.prepare("UPDATE organization_nodes SET display_name='Isolated browser simulation' WHERE id=?").bind(f.company).run();
-  const {hashPassword}=await import('better-auth/crypto'),{businessRoles}=await import("../../src/lib/identity_access/business-roles"),{moduleRegistry}=await import('../../src/data/module-registry');
+  const {hashPassword}=await import('better-auth/crypto'),{businessRoles}=await import("@erpx/feature-identity_access/lib/business-roles"),{moduleRegistry}=await import('@erpx/catalogue/module-registry');
  const password=`Simulation-${randomBytes(15).toString('hex')}`,hash=await hashPassword(password),now=Date.now(),users:Array<{label:string;email:string;role:string;userId:string;roles:string[];scope?:string;scopeNode?:string;scopeParentNode?:string}> = [];
   for(const [actor,role,label,email] of [[f.owner,'holding_owner','Source operator','source@simulation.test'],[f.head,'warehouse_manager','Receiving operator','receiver@simulation.test'],[f.manager,'finance_approver','Finance reviewer','finance@simulation.test'],[f.reviewer,'finance_preparer','Finance preparer','preparer@simulation.test'],[f.payer,'quality_manager','Quality release manager','quality-manager@simulation.test'],[f.it,'purchasing_manager','Purchasing manager','buyer@simulation.test'],[f.claimant,'support_agent','Support agent','support-agent@simulation.test'],[f.tie,'support_manager','Support manager','support-manager@simulation.test']] as const){
    actor.role=role;actor.branchId=null;actor.departmentId=null;actor.holdingSlug='simulation';actor.assignmentId=await f.grant(actor,role);
@@ -214,7 +215,7 @@ if(mode==='prepare'||diagnostic){
   const employeeActor={...f.claimant,role:'employee',assignmentId:await extraGrant(f.claimant,'employee')};
   await extraGrant(f.head,'people_manager');
   await extraGrant(f.payer,'hr_admin');users.find(user=>user.userId===f.payer.userId)!.roles.push('hr_admin');
-  const {changeAppointment}=await import("../../src/server/modules/organization/public/department-authority");
+  const {changeAppointment}=await import("@erpx/server-organization/public/department-authority");
   const hrSeat=await env.H001_DB.prepare("SELECT version FROM authority_seats WHERE company_id=? AND kind='hr' AND scope_id=?").bind(f.company,f.company).first<{version:number}>();
   await changeAppointment(env.H001_DB,f.owner,{kind:'hr',positionId:null,personId:`person-${f.payer.userId}`,expectedVersion:Number(hrSeat?.version??0),reason:'Fictional Company owner appoints the independent HR reviewer for organization changes.'},crypto.randomUUID());
   await extraGrant(f.payer,'holding_owner');users.find(user=>user.userId===f.payer.userId)!.roles.push('holding_owner');
@@ -236,7 +237,7 @@ if(mode==='prepare'||diagnostic){
   await extraGrant(f.tie,'sales_manager');
   await extraGrant(f.reviewer,'quality_inspector');
   await extraGrant(f.reviewer,'finance_approver');users.find(user=>user.userId===f.reviewer.userId)!.roles.push('finance_approver');
-  const {setFinanceCompanyTool}=await import('../../src/server/modules/finance/public/finance-company-tools');
+  const {setFinanceCompanyTool}=await import('@erpx/server-finance/public/finance-company-tools');
   await setFinanceCompanyTool(f.reviewer,{tool:'bank_automation',enabled:true,expectedVersion:0,reason:'Fictional isolated BankImport lost-response recovery browser checkpoint'},crypto.randomUUID());
   await extraGrant(f.payer,'treasury');users.find(user=>user.userId===f.payer.userId)!.roles.push('treasury');
   await extraGrant(f.owner,'payroll_preparer');users.find(user=>user.userId===f.owner.userId)!.roles.push('payroll_preparer');
@@ -291,11 +292,11 @@ if(mode==='prepare'||diagnostic){
     ['payment_settled',f.payer.userId,'Simulation payroll settlement owner'],
   ] as const)
     await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll',?,?,?,?,?)").bind(f.company,stepKey,userId,f.owner.userId,reason,now).run();
-  const {saveServiceTeam,serviceTeamSchema}=await import("../../src/server/modules/support/public/service-teams");
+  const {saveServiceTeam,serviceTeamSchema}=await import("@erpx/server-support/public/service-teams");
   await saveServiceTeam(env.H001_DB,f.owner,null,serviceTeamSchema.parse({name:'Demo purchasing team',members:[{userId:f.it.userId,responsibility:'lead'},{userId:f.tie.userId,responsibility:'member'}],coverage:[{category:'purchasing',scopeKind:'holding',scopeNodeId:f.company}]}),crypto.randomUUID());
-  const {saveSupplierInvoicePolicy}=await import("../../src/server/modules/procurement/public/supplier-bill-matching");
+  const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/public/supplier-bill-matching");
   await saveSupplierInvoicePolicy(f.owner,{matchingMode:'required',expectedVersion:0,reason:'Demo Company requires independent receipt and supplier invoice matching before AP'},crypto.randomUUID());
-  const {saveEmployeeRequest,employeeRequestSchema}=await import("../../src/server/modules/records/public/employee-requests");
+  const {saveEmployeeRequest,employeeRequestSchema}=await import("@erpx/server-records/public/employee-requests");
   const purchaseRequest=await saveEmployeeRequest(env.H001_DB,employeeActor,null,employeeRequestSchema.parse({kind:'purchase',title:'Laptop 10 เครื่องสำหรับทีมบริการลูกค้า',description:'เปลี่ยนเครื่องที่หมดอายุและเพิ่มเครื่องสำหรับพนักงานใหม่ ใช้ข้อมูลจำลองเท่านั้น',location:'สำนักงานใหญ่ ชั้น 4',impact:'normal',branchId:f.branch,departmentId:f.department,neededDate:'2026-10-15',currency:'THB',items:[{description:'Business laptop พร้อมประกัน 3 ปี',quantity:'10',unit:'each',estimatedCost:'25000'}]}),crypto.randomUUID());
   await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'transfer','submitted',?,?,'Simulation receiving responsibility',?)").bind(f.company,f.head.userId,f.owner.userId,now).run();
   for(const [stepKey,userId,reason] of [['submitted',f.tie.userId,'Simulation independent purchasing approval'],['confirmed',f.head.userId,'Simulation warehouse receiving responsibility'],['stock_gl',f.manager.userId,'Simulation independent goods GL review'],['invoicing',f.reviewer.userId,'Simulation Finance invoice preparation']] as const)
@@ -303,7 +304,7 @@ if(mode==='prepare'||diagnostic){
   await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'invoice','draft',?,?,'Simulation independent Finance invoice review',?)").bind(f.company,f.manager.userId,f.owner.userId,now).run();
   const inventoryAccountId=`${f.company}-inventory`,clearingAccountId=`${f.company}-clearing`,receivableAccountId=`${f.company}-receivable`,openingEquityAccountId=`${f.company}-opening-equity`;
   await env.H001_DB.batch([env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'INV','Simulation inventory','asset','THB',?,?)").bind(inventoryAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'GRNI','Simulation goods received clearing','liability','THB',?,?)").bind(clearingAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'AR','Simulation receivables','asset','THB',?,?)").bind(receivableAccountId,f.chart,f.company,now,now),env.H001_DB.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'OPEN','Simulation opening equity','equity','THB',?,?)").bind(openingEquityAccountId,f.chart,f.company,now,now),env.H001_DB.prepare('UPDATE commerce_settings SET inventory_account_id=?,clearing_account_id=?,receivable_account_id=? WHERE company_id=?').bind(inventoryAccountId,clearingAccountId,receivableAccountId,f.company)]);
-  const {createJournal,createJournalSchema,postJournal}=await import("../../src/server/modules/finance/public/finance"),{resolveFlow,assignFlowPrimary}=await import("../../src/server/modules/workflow/public/flow-routing");
+  const {createJournal,createJournalSchema,postJournal}=await import("@erpx/server-finance/public/finance"),{resolveFlow,assignFlowPrimary}=await import("@erpx/server-workflow/public/flow-routing");
   // Declared imported quantities below carry THB 10 + 500 + 1000 + 10.
   // The independently reviewed opening GL covers every initial stock row.
   const opening=await createJournal(f.owner,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:'2026-01-01',currency:'THB',memo:'Fictional imported opening stock: sales item, single laptops, laptop cases and dedicated transport item',sourceType:'manual',isOpening:true,lines:[{accountId:inventoryAccountId,debit:'1520',credit:'0'},{accountId:openingEquityAccountId,debit:'0',credit:'1520'}]}),crypto.randomUUID());
@@ -321,7 +322,7 @@ if(mode==='prepare'||diagnostic){
   const refundEvidenceDate=new Date(Date.now()+86_400_000).toISOString().slice(0,10);
   // Exercise the new account defaults through independent Finance owner review in this disposable cohort.
   await env.H001_DB.prepare("UPDATE finance_accounts SET is_control=1,control_kind='receivable' WHERE id=?").bind(receivableAccountId).run();
-  const {prepareSalesDefaults,decideSalesDefaults}=await import('../../src/server/modules/finance/public/sales');
+  const {prepareSalesDefaults,decideSalesDefaults}=await import('@erpx/server-finance/public/sales');
   const salesDefaults=await prepareSalesDefaults(f.reviewer,{chartId:f.chart,currency:'THB',receivableAccountId,revenueAccountId:f.accounts.revenue,taxAccountId:f.accounts.payable,reason:'Fictional independently reviewed sales account defaults for browser simulation'},crypto.randomUUID());
   await decideSalesDefaults(f.manager,String(salesDefaults.id),{expectedVersion:1,action:'approve',reason:'Independent fixture Finance approver verified active sales accounts'},crypto.randomUUID());
   const closePeriods:[string,string]=[`${f.company}-close-2027-01`,`${f.company}-close-2027-02`],closeBank=`${f.company}-close-bank`,closeAr=`${f.company}-close-ar`,closeAp=`${f.company}-close-ap`,closeEquity=`${f.company}-close-equity`,closeCustomer=`${f.company}-close-customer`,closeSupplier=`${f.company}-close-supplier`,closeJournal=`${f.company}-close-opening`,paymentPeriod=`${f.company}-payment-2027-03`,paymentSupplier=`${f.company}-payment-supplier`,paymentInvoice=`${f.company}-payment-invoice`,paymentInvoiceJournal=`${f.company}-payment-invoice-journal`,bankMatchPayment=`${f.company}-bank-match-payment`,bankMatchJournal=`${f.company}-bank-match-journal`,bankMatchClearing=`${f.company}-bank-match-clearing`,paymentStatement=`${f.company}-payment-bank-statement`,paymentBankTransaction=`${f.company}-payment-bank-row`,refundStatement=`${f.company}-refund-bank-statement`,refundBankTransaction=`${f.company}-refund-bank-row`;
@@ -369,7 +370,7 @@ if(mode==='prepare'||diagnostic){
       ('${paymentBankTransaction}','${paymentStatement}','${f.company}','2027-03-15','DEMO-BANK-PAY-125','Controlled supplier transfer',-12500,'THB','unmatched',1),
       ('${refundBankTransaction}','${refundStatement}','${f.company}','${refundEvidenceDate}','DEMO-BANK-REFUND-10','Customer return refund',-1000,'THB','unmatched',1);
   `);
-  const {saveMaster,saveOrder,orderSchema}=await import("../../src/server/modules/commerce/public/commerce");
+  const {saveMaster,saveOrder,orderSchema}=await import("@erpx/server-commerce/public/commerce");
   const source=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-SOURCE',name:'Simulation source warehouse'},crypto.randomUUID())).id),target=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-TARGET',name:'Simulation receiving warehouse'},crypto.randomUUID())).id),product=String((await saveMaster(f.owner,'products',null,{sku:'SIM-ITEM',name:'Simulation stock only',price:'10'},crypto.randomUUID())).id),laptopEach=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-EACH',name:'Demo laptop single unit',unit:'each',price:'25000'},crypto.randomUUID())).id),laptopCase=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-CASE',name:'Demo laptop case of two',unit:'case',price:'50000'},crypto.randomUUID())).id),demoSuppliers=[String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-A',name:'Demo supplier A'},crypto.randomUUID())).id),String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-B',name:'Demo supplier B'},crypto.randomUUID())).id)];
   const lotProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LOT-MED',name:'Demo lot-tracked medical supplies',unit:'box',trackingMode:'lot',price:'1200'},crypto.randomUUID())).id),serialProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-SERIAL-DEVICE',name:'Demo serial-tracked service device',unit:'each',trackingMode:'serial',price:'35000'},crypto.randomUUID())).id);
   const transitProduct=String((await saveMaster(f.owner,'products',null,{sku:'SIM-TRANSIT-ITEM',name:'Fictional transport stock only',price:'10'},crypto.randomUUID())).id);
@@ -382,8 +383,8 @@ if(mode==='prepare'||diagnostic){
   const initialStock=await env.H001_DB.prepare('SELECT COALESCE(SUM(s.value_minor),0)::bigint value FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=?').bind(f.company).first<{value:number}>();
   const initialInventoryGl=await env.H001_DB.prepare("SELECT COALESCE(SUM(l.base_debit_minor-l.base_credit_minor),0)::bigint value FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted' AND l.account_id=?").bind(f.company,inventoryAccountId).first<{value:number}>();
   if(Number(initialStock?.value)!==152000||Number(initialInventoryGl?.value)!==152000)throw new Error('FICTIONAL_INITIAL_STOCK_GL_NOT_RECONCILED');
-  const {createQualityHold}=await import("../../src/server/modules/quality/public/quality");
-  const {drainQualityAlerts}=await import("../../src/server/modules/quality/public/quality-alerts");
+  const {createQualityHold}=await import("@erpx/server-quality/public/quality");
+  const {drainQualityAlerts}=await import("@erpx/server-quality/public/quality-alerts");
   const demoDate=(offset:number)=>new Date(Date.now()+offset*86_400_000).toISOString().slice(0,10);
   const qualityDueSoon=await createQualityHold(f.head,{warehouseId:source,productId:laptopEach,expectedStockVersion:1,dueDate:demoDate(0),reason:'Demo laptop intake requires inspection before service deployment'},'demo-quality-due-soon');
   const qualityOverdue=await createQualityHold(f.head,{warehouseId:source,productId:laptopCase,expectedStockVersion:1,dueDate:demoDate(-1),reason:'Demo laptop case packaging review missed its target date'},'demo-quality-overdue');
@@ -396,7 +397,7 @@ if(mode==='prepare'||diagnostic){
   const quotation=await saveOrder(salesOperatorActor,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:source,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:product,quantity:'1',price:'10',taxBps:0}]}),crypto.randomUUID());
   const quotationFlow=await resolveFlow(env.H001_DB,f.owner,'order',String(quotation.id));
   await assignFlowPrimary(env.H001_DB,f.owner,'order',String(quotation.id),{stepKey:'confirmed',userId:f.claimant.userId,expectedVersion:quotationFlow.version,recordVersion:quotationFlow.recordVersion,reason:'Demo sales operator owns quotation conversion',saveDefault:false},crypto.randomUUID());
-  const {createCRMLead}=await import("../../src/server/modules/crm/public/crm");
+  const {createCRMLead}=await import("@erpx/server-crm/public/crm");
   const crmLead=await createCRMLead(salesOperatorActor,{branchId:f.branch,title:'Demo installation scheduling inquiry',contactName:'Demo customer contact',contactDetail:'Email channel is approved for this fictional customer',source:'Demo Customer 360 scenario',brief:'Customer needs a confirmed installation window before quotation follow-up.',dueDate:'2026-09-26'},crypto.randomUUID());
   const actor=(userId:string,role:string)=>{const user=users.find(item=>item.userId===userId)!;return {label:user.label,email:user.email,userId,role};};
   const guide=generalCompanyDemoGuide({run,origin,holdingSlug:'simulation',organizationReviewer:actor(f.payer.userId,'hr_admin'),customerId:String(customer.id),customerDuplicateIds:[String(duplicateCustomerLeft.id),String(duplicateCustomerRight.id)],customerOperator:actor(f.claimant.userId,'sales_operator'),crmLeadId:String(crmLead.id),qualityDueSoonHoldId:String(qualityDueSoon.id),qualityOverdueHoldId:String(qualityOverdue.id),qualityInspector:actor(f.reviewer.userId,'quality_inspector'),qualityManager:actor(f.payer.userId,'quality_manager'),requestId:String(purchaseRequest.id),quotationId:String(quotation.id),sourceWarehouseId:source,targetWarehouseId:target,movementProductId:transitProduct,lotProductId:lotProduct,serialProductId:serialProduct,closePeriodIds:closePeriods,controlledPaymentInvoiceId:paymentInvoice,actors:{employee:actor(f.claimant.userId,'employee'),manager:actor(f.head.userId,'people_manager'),hrApprover:actor(f.payer.userId,'hr_admin'),payrollPreparer:actor(f.owner.userId,'payroll_preparer'),buyer:actor(f.it.userId,'purchasing_operator'),purchasingManager:actor(f.tie.userId,'purchasing_manager'),salesOperator:actor(f.claimant.userId,'sales_operator'),salesManager:actor(f.tie.userId,'sales_manager'),warehouse:actor(f.head.userId,'warehouse_manager'),sourceWarehouse:actor(f.it.userId,'warehouse_manager'),financePreparer:actor(f.reviewer.userId,'finance_preparer'),financeApprover:actor(f.manager.userId,'finance_approver'),treasury:actor(f.payer.userId,'treasury'),administrator:actor(f.owner.userId,'holding_owner')}});
@@ -446,10 +447,10 @@ if(mode==='prepare'||diagnostic){
   const receipt=JSON.parse(await readFile(join(directory,'attachment-baseline.json'),'utf8'));
   if(receipt.gateReady!==true||receipt.sourceFingerprint!==sourceFingerprint)throw new Error('BROWSER_BASELINE_ATTACHMENT_GATE_NOT_READY');
  }
- await mkdir(app,{recursive:true});for(const name of ['src','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
+ await mkdir(app,{recursive:true});for(const name of ['src','apps','packages','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,verbatimSymlinks:true,mode:constants.COPYFILE_FICLONE,filter:path=>workspaceCopyInput(root,path)});
  if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
  state.softwareVersion=`release-${sourceFingerprint}`;
- await writeFile(join(app,'src/data/release-artifact.json'),JSON.stringify({softwareVersion:state.softwareVersion})+'\n');
+ await writeFile(join(app,'packages/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:state.softwareVersion})+'\n');
  if(pmsProviderFixtureEnabled){
   state.providerFixture=true;
   await writePrivate(join(directory,'provider-fixture.json'),{schemaVersion:1,keys:{},resources:{},requests:[]});
@@ -457,7 +458,7 @@ if(mode==='prepare'||diagnostic){
  state.ready=true;await writePrivate(statePath,state);
  console.log(JSON.stringify({run,origin,statePath,credentialsPath:join(directory,'credentials.json'),guidePath:join(directory,'demo-guide.json'),hospitalityGuidePath:join(directory,'hospitality-guide.json'),ready:true}));
 }else if(mode==='start'){
- const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(state.diagnostic||!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const environment=safeEnv(secret);
+ const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(state.diagnostic||!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const environment={...safeEnv(secret),ERPX_REPOSITORY_ROOT:app};
  if(Boolean(state.productHosts)!==productHosts)throw Error('PRODUCT_HOST_MODE_CHANGED');
  if(Boolean(state.executiveWorkHosts)!==executiveWorkHosts)throw Error('EXECUTIVE_WORK_HOST_MODE_CHANGED');
  if(Boolean(state.formsHosts)!==formsHosts)throw Error('FORMS_HOST_MODE_CHANGED');
@@ -478,12 +479,12 @@ if(mode==='prepare'||diagnostic){
  if(localAttachmentMode){
   const required=[environment.ERPX_CLAMD_SOCKET,environment.ERPX_CLAMAV_DATABASE_DIR,environment.ERPX_HEIF_CONVERT,environment.ERPX_PDFTOPPM_BIN];
   if(required.some(value=>typeof value!=='string'||!existsSync(value)))throw new Error('LOCAL_ATTACHMENT_RUNTIME_FILES_MISSING');
-  const {attachmentRuntimeReadiness}=await import("../../src/server/modules/files/public/attachments/readiness");
+  const {attachmentRuntimeReadiness}=await import("@erpx/server-files/public/attachments/readiness");
   const readiness=await attachmentRuntimeReadiness(environment);
   if(!readiness.ready)throw new Error(`LOCAL_ATTACHMENT_RUNTIME_NOT_READY:${readiness.scanner.error??readiness.preview.error??'UNKNOWN'}`);
  }
  let webEntrypoint=join(app,'node_modules/next/dist/bin/next'),jobsBundle=join(app,'.runtime/jobs/jobs.mjs');
- let webArgs=[webEntrypoint,'dev',...(useWebpack?['--webpack']:[]),'--hostname','127.0.0.1','-p',String(port)],workingDirectory=app;
+ let webArgs=[webEntrypoint,'dev',join(app,'apps/compat'),...(useWebpack?['--webpack']:[]),'--hostname','127.0.0.1','-p',String(port)],workingDirectory=app;
  const suppliedRelease=process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR;
  if(Boolean(state.providerFixture)!==pmsProviderFixtureEnabled||pmsProviderFixtureEnabled&&!suppliedRelease)throw new Error('PMS_PROVIDER_FIXTURE_COMPILED_RELEASE_REQUIRED');
  if(suppliedRelease){
@@ -504,7 +505,7 @@ if(mode==='prepare'||diagnostic){
   Object.assign(environment,{NODE_ENV:'production',PORT:String(port),HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId});
   Object.assign(environment,{ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint});
   state.release={id:release.id,fileManifestSha256:release.fileManifestSha256};
-  const {enrollEngineeringVerification}=await import("../../src/server/modules/platform_administration/public/engineering-verification");
+  const {enrollEngineeringVerification}=await import("@erpx/server-platform_administration/public/engineering-verification");
   const urls=JSON.parse(await readFile(manifestPath,'utf8')).databases as Record<string,string>;
   const legal=state.fixture?.legal as {companies?:Record<string,{id:string}>}|undefined;
   const company=state.fixture?.companyId as string,hospitality=state.fixture?.hospitality as {companyId:string};

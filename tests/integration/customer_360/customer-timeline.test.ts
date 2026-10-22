@@ -1,14 +1,14 @@
 import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from "../../../src/server/modules/commerce/public/commerce";
-import {createCRMLead,changeCRMLead,getCRMLead} from "../../../src/server/modules/crm/public/crm";
-import {changeCRMIdentity} from "../../../src/server/modules/crm/public/crm-identities";
-import {createCustomerNote,changeCustomerNote} from "../../../src/server/modules/sales/public/customer-notes";
-import {createCustomerFollowup,changeCustomerFollowup} from "../../../src/server/modules/sales/public/customer-followups";
-import {customerDirectory,customerTimeline,customerTimelineEvents} from "../../../src/server/modules/customer_360/public/customer-timeline";
-import {createAgreement,changeAgreement} from "../../../src/server/modules/field_service/public/field-service";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
+import {createCRMLead,changeCRMLead,getCRMLead} from "@erpx/server-crm/public/crm";
+import {changeCRMIdentity} from "@erpx/server-crm/public/crm-identities";
+import {createCustomerNote,changeCustomerNote} from "@erpx/server-sales/public/customer-notes";
+import {createCustomerFollowup,changeCustomerFollowup} from "@erpx/server-sales/public/customer-followups";
+import {customerDirectory,customerTimeline,customerTimelineEvents} from "@erpx/server-customer_360/public/customer-timeline";
+import {createAgreement,changeAgreement} from "@erpx/server-field_service/public/field-service";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,customer:string,order:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Timeline customer'},key())).id);const w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Timeline warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'Timeline product',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
@@ -45,7 +45,7 @@ it('paginates source events deterministically without duplicates and rejects mal
  await expect(customerTimeline(f.owner,customer,{cursor:'bad-cursor'})).rejects.toMatchObject({code:'TIMELINE_CURSOR_INVALID'});
 });
 it('includes Support lifecycle only when the viewer also has the Support owner permission',async()=>{
- const {createSupportTicket,changeSupportTicket}=await import("../../../src/server/modules/support/public/support");
+ const {createSupportTicket,changeSupportTicket}=await import("@erpx/server-support/public/support");
  const ticket=await createSupportTicket(f.owner,{orderId:order,sourceVersion:1,title:'Help installing the item',issue:'PRIVATE_SUPPORT_ISSUE',ownerId:f.owner.userId,dueDate:'2026-09-24'},key());
  await changeSupportTicket(f.owner,String(ticket.id),{action:'start',expectedVersion:1,reason:'PRIVATE_SUPPORT_REASON'},key());
  const visible=await customerTimeline(f.owner,customer);

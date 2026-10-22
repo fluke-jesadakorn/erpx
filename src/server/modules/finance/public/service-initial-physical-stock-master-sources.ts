@@ -1,1 +1,0 @@
-export {serviceInitialPhysicalStockMasterFinanceLeases,serviceInitialPhysicalStockMasterFinanceSource,serviceInitialPhysicalStockProductMoneySource,serviceInitialPhysicalStockProductMoneyMatches,type ServiceInitialPhysicalStockProductMoney} from '../adapters/service-initial-physical-stock-master-sources';

@@ -324,7 +324,7 @@ async function request(origin: string, path: string, requestTimeoutMs = timeoutM
   }
 }
 async function hotEdit(config: Variant) {
-  const healthSource = join(benchmarkRoot, 'src/app/api/health/route.ts');
+  const healthSource = join(benchmarkRoot, "packages/workplace/src/routes/api/health/route.ts");
   const original = await readFile(healthSource, 'utf8');
   const needle = 'headers: { "Cache-Control": "no-store" }';
   if (!original.includes(needle)) throw new Error('HMR_PROBE_SOURCE_SHAPE_CHANGED');

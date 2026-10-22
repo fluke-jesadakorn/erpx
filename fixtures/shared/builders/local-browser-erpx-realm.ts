@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type { RuntimeEnv } from "../../../src/server/modules/runtime/adapters/runtime/env";
-import { PostgresDatabase } from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import type { SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
-import { loadIamAuthority } from "../../../src/server/modules/identity_access/public/iam-store";
+import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
 import { assertAcmeBrowserSeedTarget } from "./acme-browser-seed-target";
-import registry from "../../../src/data/module-registry.json";
+import registry from "@erpx/catalogue/module-registry.json";
 
 type Manifest = { databases: Record<string, string> };
 type State = Parameters<typeof assertAcmeBrowserSeedTarget>[1];

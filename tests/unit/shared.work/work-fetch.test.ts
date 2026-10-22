@@ -1,6 +1,6 @@
-import { createFinanceCommandFetch } from "../../../src/lib/finance/finance-command-fetch";
+import { createFinanceCommandFetch } from "@erpx/feature-finance/lib/finance-command-fetch";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { workFetch } from "../../../src/lib/work_projection/work-fetch";
+import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import {
   announceContextSwitch,
   confirmContextSwitch,
@@ -10,7 +10,7 @@ import {
   hasUnsavedWork,
   registerUnsavedWork,
   setContextSwitching,
-} from "../../../src/lib/work_projection/context-switch";
+} from "@erpx/feature-work_projection/lib/context-switch";
 
 type ContextNode = { isConnected: boolean; dataset: Record<string, string> };
 let context: ContextNode;

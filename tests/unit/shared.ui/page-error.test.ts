@@ -10,9 +10,9 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", () => mocks);
 vi.mock("next/headers", () => ({ headers: async () => mocks.requestHeaders }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({ requestedHoldingScope: async (holdingSlug: string) => ({ kind: "department", holdingSlug, branchSlug: "bangkok", departmentSlug: "operations" }) }));
-import { accessPage, pageError } from "../../../src/server/modules/work_projection/public/page-error";
-import { ApiError } from "../../../src/server/modules/runtime/adapters/http";
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requestedHoldingScope: async (holdingSlug: string) => ({ kind: "department", holdingSlug, branchSlug: "bangkok", departmentSlug: "operations" }) }));
+import { accessPage, pageError } from "@erpx/server-work_projection/public/page-error";
+import { ApiError } from "@erpx/server-runtime/adapters/http";
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requestHeaders = new Headers({ "x-erpx-destination": "people/organization" });

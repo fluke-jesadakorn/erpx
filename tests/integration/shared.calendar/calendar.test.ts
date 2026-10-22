@@ -1,25 +1,25 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import {mkdtemp,mkdir,readdir,cp,rm} from "node:fs/promises";
 import {resolve,join} from "node:path";
-import {migrateDatabase} from "../../../src/server/modules/runtime/public/runtime/migrations";
+import {migrateDatabase} from "@erpx/server-runtime/public/runtime/migrations";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import {
   calendarData,
   calendarHierarchy,
   calendarCommand,
-} from "../../../src/server/modules/work_projection/public/calendar/index";
-import { publishedAnnouncements } from "../../../src/server/modules/work_projection/public/calendar/announcements";
-import { rosterCommand, rosterData } from "../../../src/server/modules/people_payroll/public/people-roster";
-import { localInterval } from "../../../src/server/modules/work_projection/public/calendar/commands";
-import {drainCalendarReminders} from "../../../src/server/modules/work_projection/public/calendar/reminders";
-import {calendarAvailability} from "../../../src/server/modules/work_projection/public/calendar/availability";
-import { rosterMonday, addDays } from "../../../src/lib/people_payroll/people-roster";
-import { packageGrantStore } from "../../../src/server/modules/commercial/public/package-grants";
-import { calendarRosterPeoplePayrollFacts } from "../../../src/server/modules/people_payroll/public/calendar-roster-facts";
-import { calendarQuerySchema, itemOnDate } from "../../../src/lib/work_projection/calendar";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-work_projection/public/calendar/index";
+import { publishedAnnouncements } from "@erpx/server-work_projection/public/calendar/announcements";
+import { rosterCommand, rosterData } from "@erpx/server-people_payroll/public/people-roster";
+import { localInterval } from "@erpx/server-work_projection/public/calendar/commands";
+import {drainCalendarReminders} from "@erpx/server-work_projection/public/calendar/reminders";
+import {calendarAvailability} from "@erpx/server-work_projection/public/calendar/availability";
+import { rosterMonday, addDays } from "@erpx/feature-people_payroll/lib/people-roster";
+import { packageGrantStore } from "@erpx/server-commercial/public/package-grants";
+import { calendarRosterPeoplePayrollFacts } from "@erpx/server-people_payroll/public/calendar-roster-facts";
+import { calendarQuerySchema, itemOnDate } from "@erpx/feature-work_projection/lib/calendar";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -751,7 +751,7 @@ it("keeps unpurchased Roster rows and occupants out of Calendar while retaining 
 });
 
 async function workCalendarGrant(state:'active'|'draining'='active'){
- const {readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants'),old=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='work');
+ const {readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),old=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId==='work');
  return packageGrantStore(db,{authorize:async()=>({userId:'isolated-calendar-provider'}),obligations:async()=>{throw Error('CALENDAR_TEST_CANNOT_FABRICATE_ALL_WORK_CLOSURE');}}).apply({expectedVersion:old?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId:'work',packageVersion:1,state,startsAt:0,endsAt:null,version:(old?.version??0)+1,reason:'Actual original Calendar owner fixture',evidence:'test:work-calendar-owner'}});
 }
 it('purchasedCalendar keeps manual records and commands on Work while actual existing settlement and exact replay remain available during draining',async()=>{

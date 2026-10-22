@@ -1,7 +1,7 @@
 import { expect,it } from "vitest";
-import { flowWorkActionKind } from "../../../src/server/modules/workflow/public/flow-work";
-import type { FlowView } from "../../../src/lib/shared/flow";
-import { workInView, type WorkItem } from "../../../src/lib/work_projection/work-item";
+import { flowWorkActionKind } from "@erpx/server-workflow/public/flow-work";
+import type { FlowView } from "@erpx/feature-shared/lib/flow";
+import { workInView, type WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 
 it("uses the owner's flow step for order and payroll approvals, keeping posting and payment separate",()=>{
  const flow=(kind:FlowView["kind"],key:string)=>({kind,current:{key}} as FlowView);

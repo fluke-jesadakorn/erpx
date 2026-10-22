@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "bun scripts/assets/prepare-pdf-assets.ts && bun scripts/local/dev.ts",
-    "build": "bun scripts/assets/prepare-pdf-assets.ts && next build",
+    "build": "bun scripts/testing/scoped.ts build",
     "start": "node .next/standalone/server.js",
     "lint": "eslint",
     "db:migrate:local": "bun scripts/local/migrate-development.ts",
@@ -71,9 +71,9 @@
     "test:journeys": "bun scripts/testing/test.ts journeys",
     "test:uat": "bun scripts/testing/test.ts uat",
     "test:provider": "bun scripts/testing/test.ts provider",
-    "test:dev": "bun scripts/testing/test.ts dev",
-    "test:impact": "bun scripts/testing/test.ts impact",
-    "test:ci": "bun scripts/testing/pr-regression.ts",
+    "test:dev": "bun scripts/testing/scoped.ts dev",
+    "test:impact": "bun scripts/testing/scoped.ts dev",
+    "test:ci": "bun scripts/testing/scoped.ts ci",
     "test:full": "bun scripts/testing/full.ts",
     "test:catalogue": "bun scripts/testing/test.ts --check",
     "architecture:check": "bun scripts/architecture/check.ts && bun scripts/architecture/check-guest-account-terminology.ts && bun run structure:check",
@@ -84,7 +84,12 @@
     "products:check": "bun scripts/docs/generate-product-manifest.ts --check && bun scripts/docs/generate-product-acceptance.ts --check",
     "products:acceptance": "bun scripts/docs/generate-product-acceptance.ts --acceptance",
     "products:receipts:import": "bun scripts/docs/import-product-migration-receipt.ts",
-    "console:retirement:check": "bun scripts/local/check-console-retirement.ts"
+    "console:retirement:check": "bun scripts/local/check-console-retirement.ts",
+    "build:affected": "bun scripts/testing/scoped.ts build",
+    "release:acceptance": "bun scripts/testing/release-acceptance.ts",
+    "workspaces:catalogue": "bun scripts/testing/workspace-catalogue.ts",
+    "workspaces:tasks": "bun scripts/testing/workspace-tasks.ts",
+    "workspaces:styles": "bun scripts/assets/workspace-styles.ts"
   },
   "packageManager": "bun@1.4.3",
   "dependencies": {
@@ -123,7 +128,8 @@
     "sharp": "0.35.4",
     "tailwind-merge": "3.7.0",
     "web-push": "3.6.7",
-    "zod": "4.5.4"
+    "zod": "4.5.4",
+    "@erpx/contracts": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.1.4",
@@ -145,10 +151,15 @@
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vitest": "4.1.11",
-    "wrangler": "4.129.0"
+    "wrangler": "4.129.0",
+    "turbo": "2.8.19"
   },
   "engines": {
     "node": "26.11.1",
     "bun": "1.4.3"
-  }
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }

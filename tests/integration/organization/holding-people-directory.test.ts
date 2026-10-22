@@ -1,9 +1,9 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { archivedPeopleDirectory, holdingPeopleDirectory } from "../../../src/server/modules/organization/public/holding-people-directory";
+import { archivedPeopleDirectory, holdingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingBindingBySlug: async (slug: string) => {
     if (slug === "test") return { id: "h001", slug, displayName: "Test Holding" };
     if (slug === "other") return { id: "h002", slug, displayName: "Other Holding" };

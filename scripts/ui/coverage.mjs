@@ -5,15 +5,17 @@ import ts from 'typescript';
 import { scopeFor } from './standard-scope.mjs';
 import { appPageContext, appPageBoundaries } from './route-topology.mjs';
 const root = resolve(import.meta.dirname, '../..');
-const walk = dir => readdirSync(dir, {withFileTypes:true}).flatMap(x => x.isDirectory() ? walk(resolve(dir,x.name)) : [resolve(dir,x.name)]);
+const walk = dir => readdirSync(dir, {withFileTypes:true}).flatMap(x => x.isDirectory() ? ['node_modules','.next','.build','.cache','.turbo'].includes(x.name)?[]:walk(resolve(dir,x.name)) : x.isFile()?[resolve(dir,x.name)]:[]);
 const rel = x => relative(root,x).replaceAll('\\','/');
-const files = walk(resolve(root,'src')).filter(x=>/\.(tsx?|css)$/.test(x)).sort((a,b)=>{
+const files = ['src','apps','packages'].filter(name=>existsSync(resolve(root,name))).flatMap(name=>walk(resolve(root,name))).filter(x=>/\.(tsx?|css)$/.test(x)).sort((a,b)=>{
  const left=rel(a),right=rel(b);return left<right?-1:left>right?1:0;
 });
 const hash = text => createHash('sha256').update(text).digest('hex');
+const sourceHashes=new Map(files.map(file=>[rel(file),hash(readFileSync(file))]));
 const resolveImport = (owner, name) => {
-  if (!name.startsWith('.') && !name.startsWith('@/')) return null;
-  const base = name.startsWith('@/') ? resolve(root,'src',name.slice(2)) : resolve(dirname(owner),name);
+  const workspace=/^@erpx\/([^/]+)\/(.+)$/.exec(name);
+  if (!workspace && !name.startsWith('.') && !name.startsWith('@/')) return null;
+  const base = workspace ? resolve(root,'packages',workspace[1],'src',workspace[2]) : name.startsWith('@/') ? resolve(root,'src',name.slice(2)) : resolve(dirname(owner),name);
   return ['', '.tsx', '.ts', '/index.tsx', '/index.ts', '.css'].map(s=>base+s).find(candidate=>existsSync(candidate)&&statSync(candidate).isFile()) ?? null;
 };
 // These explicit type edges are erased under this workspace's TypeScript
@@ -90,7 +92,8 @@ for(const file of files.filter(x=>x.endsWith('.css'))) {
 const map = new Map(sources.map(x=>[x.source,x]));
 const closure = (path,seen=new Set()) => { if(seen.has(path))return seen; seen.add(path); for(const edge of graph.get(path)?.imports??[]) if(graph.has(edge))closure(edge,seen); return seen; };
 const availableSources=new Set(files.map(rel));
-const routes = sources.filter(x=>appPageContext(x.source)!==null).map(x=> {
+const hasWorkspaceRoutes=sources.some(source=>/^apps\/[^/]+\/src\/app\//.test(source.source));
+const routes = sources.filter(x=>appPageContext(x.source)!==null && (!hasWorkspaceRoutes || x.source.startsWith('apps/'))).map(x=> {
  const text=readFileSync(resolve(root,x.source),'utf8');
  const reachable = closure(x.source);
  // Framework convention files are loader-tree edges, not source imports.
@@ -98,7 +101,7 @@ const routes = sources.filter(x=>appPageContext(x.source)!==null).map(x=> {
  for(const file of boundaries)closure(file,reachable);
  const dependencies=[...reachable].filter(file=>map.has(file)).sort();
  const styles=[...new Set([...reachable].filter(file=>file.endsWith('.css')))].sort();
- const fingerprints=[...reachable,...styles].filter(file=>existsSync(resolve(root,file))).map(file=>`${file}:${hash(readFileSync(resolve(root,file)))}`);
+ const fingerprints=[...reachable,...styles].filter(file=>existsSync(resolve(root,file))).map(file=>`${file}:${sourceHashes.get(file)??hash(readFileSync(resolve(root,file)))}`);
  const fingerprint=hash(fingerprints.sort().join('\n'));
  const authorization=[...text.matchAll(/\b(?:require|assert|can|authorize)[A-Z]\w*\([^;\n]*/g)].map(x=>x[0]);
  const {route,routeContext}=appPageContext(x.source);
@@ -115,8 +118,10 @@ const styleSources=files.filter(file=>file.endsWith('.css')).map(file=>({source:
 const closurePathSet=new Set();
 for(const route of routes)for(const path of route.closure)closurePathSet.add(path);
 const closurePaths=[...closurePathSet].sort(),closurePathIds=new Map(closurePaths.map((path,index)=>[path,index]));
-for(const route of routes){route.closureIds=route.closure.map(path=>closurePathIds.get(path));delete route.closure;}
-const output={schemaVersion:3,boundaryConsumers,closurePaths,styleSources,notes:['Source inventory is not browser acceptance.','Pending states include conditional permissions, data, pagination, portals and print.','Excluded subtrees keep legacy defaults; shared owners require caller-specific evidence.'],summary:{routes:routes.length,components:sources.filter(x=>x.source.startsWith('src/components/')).length,pendingRoutes:routes.filter(x=>x.verification==='pending').length,pendingSources:sources.filter(x=>x.verification==='pending').length},routes,sources};
+const sourceEdges=closurePaths.map(file=>[...(graph.get(file)?.imports??[])].filter(file=>closurePathIds.has(file)).map(file=>closurePathIds.get(file)).sort((a,b)=>a-b));
+for(const route of routes){route.entryIds=[route.source,...route.boundaries].map(path=>closurePathIds.get(path)).sort((a,b)=>a-b);delete route.closure;delete route.dependencies;}
+
+const output={schemaVersion:5,boundaryConsumers,closurePaths,sourceEdges,styleSources,notes:['Source inventory is not browser acceptance.','Pending states include conditional permissions, data, pagination, portals and print.','Excluded subtrees keep legacy defaults; shared owners require caller-specific evidence.'],summary:{routes:routes.length,components:sources.filter(x=>/^(?:src\/components\/|packages\/[^/]+\/src\/components\/)/.test(x.source)).length,pendingRoutes:routes.filter(x=>x.verification==='pending').length,pendingSources:sources.filter(x=>x.verification==='pending').length},routes,sources};
 if(existsSync(resolve(root,'docs/ux-ui/acceptance-receipts.json'))) {
  const receipts=await import('./acceptance.mjs');
  receipts.applyUiAcceptance(output,await receipts.loadUiAcceptance(root,output));

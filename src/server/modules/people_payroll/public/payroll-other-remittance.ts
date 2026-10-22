@@ -1,3 +1,0 @@
-export {getPayrollOtherLiabilities,remitPayrollOtherLiability,importPayrollOtherLiabilityBankEvidence,ignorePayrollOtherLiabilityBankEvidence} from '../adapters/payroll-other-remittance';
-export {payrollOtherRemittanceSchema,payrollOtherBankEvidenceSchema,payrollOtherBankEvidenceIgnoreSchema} from '../domain/payroll-other-remittance';
-export type {PayrollOtherLiabilitiesView,PayrollOtherLiabilityKind,PayrollOtherLiability,PayrollOtherBankEvidence,PayrollOtherRemittanceInput,PayrollOtherBankEvidenceInput,PayrollOtherRemittanceResult,PayrollOtherBankEvidenceResult,PayrollOtherBankEvidenceIgnoreInput,PayrollOtherBankEvidenceIgnoreResult} from '../domain/payroll-other-remittance';

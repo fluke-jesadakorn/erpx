@@ -1,0 +1,9 @@
+import {z} from 'zod';
+import {requireWorkContext} from '@erpx/server-identity_access/public/authorization';
+import {assetsFinancialWorkspace,createAssetsFinancialAsset,assetsFinancialCreateSchema} from '@erpx/server-finance/public/assets-financial-workflow';
+import {assetsPostingPrerequisites} from '@erpx/server-finance/public/assets-posting-prerequisites';
+import {requestPublicOrigin} from '@erpx/server-manage_erpx/public/public-origin';
+import {ApiError,errorResponse} from '@erpx/server-runtime/public/http';
+type Context={params:Promise<{holdingSlug:string}>};
+export async function GET(_request:Request,{params}:Context){try{const actor=await requireWorkContext((await params).holdingSlug),[workspace,prerequisites]=await Promise.all([assetsFinancialWorkspace(actor),assetsPostingPrerequisites(actor)]);return Response.json({data:{workspace,prerequisites}},{headers:{'Cache-Control':'private, no-store'}});}catch(error){return errorResponse(error);}}
+export async function POST(request:Request,{params}:Context){try{if(request.headers.get('origin')!==requestPublicOrigin(request))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');const actor=await requireWorkContext((await params).holdingSlug),key=request.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');return Response.json({data:await createAssetsFinancialAsset(actor,assetsFinancialCreateSchema.parse(await request.json()),key)},{status:201,headers:{'Cache-Control':'private, no-store'}});}catch(error){if(error instanceof z.ZodError)return errorResponse(new ApiError(422,'VALIDATION_FAILED',error.issues[0]?.message??'Invalid input.'));if(error instanceof SyntaxError)return errorResponse(new ApiError(422,'INVALID_JSON','Invalid JSON.'));return errorResponse(error);}}

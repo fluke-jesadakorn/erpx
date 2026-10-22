@@ -1,0 +1,20 @@
+{
+  "name": "@erpx/app-people",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun ../../scripts/local/app-task.ts dev --app=people",
+    "build": "bun ../../scripts/local/app-task.ts build --app=people",
+    "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=people",
+    "lint": "bun ../../scripts/testing/scoped-lint.ts --app=people"
+  },
+  "dependencies": {
+    "@erpx/feature-people": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@erpx/contracts": "workspace:*"
+  }
+}

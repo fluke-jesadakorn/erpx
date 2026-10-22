@@ -1,2 +1,0 @@
-import type {SqlDatabase} from '../../runtime/public/runtime/types';
-export function peopleLifecycleNotificationEffects(database:SqlDatabase){return {stageSaveLifecycleEffect11(value: string, companyId: string, owner: string, taskId: string, value2: string, now: number) { return database.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,'retirement_clearance',?,1,?,?) ON CONFLICT DO NOTHING").bind(value, companyId, owner, taskId, value2, now); }};}

@@ -3,12 +3,12 @@ import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseFixture,expenseDb as db} from "../../support/helpers/expense-fixture";
-import {businessReadiness} from "../../../src/server/modules/runtime/public/business-readiness";
-import {businessAcceptanceManifest} from "../../../src/data/business-acceptance";
-import {validateAcceptanceEvidence} from "../../../src/data/acceptance-evidence";
-import moduleRegistry from "../../../src/data/module-registry.json";
-import snapshot from "../../../src/data/business-readiness.generated.json";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB}),runtimeEnv:async()=>env}));
+import {businessReadiness} from "@erpx/server-runtime/public/business-readiness";
+import {businessAcceptanceManifest} from "@erpx/catalogue/business-acceptance";
+import {validateAcceptanceEvidence} from "@erpx/catalogue/acceptance-evidence";
+import moduleRegistry from "@erpx/catalogue/module-registry.json";
+import snapshot from "@erpx/catalogue/business-readiness.generated.json";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB}),runtimeEnv:async()=>env}));
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 it('bundles current validated evidence without promoting observations into capability sign-offs',async()=>{
  const ledgerText=readFileSync('docs/status/business-acceptance-evidence.json','utf8');

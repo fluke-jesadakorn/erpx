@@ -1,15 +1,15 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env, type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { financeWorkbench, paymentObligationsWorkspace, paymentRecordsWorkspace } from "../../../src/server/modules/finance/public/finance-workspace";
-import { beginClose, closePeriod, createInvoice, createParty, getInvoice, voidDraftInvoice } from "../../../src/server/modules/finance/public/finance";
-import { financePackageObligations } from "../../../src/server/modules/finance/public/package-obligations";
-import { ownerPackageObligations, readOwnerPackageObligations, withOwnerPackageObligations } from "../../../src/server/modules/commercial/public/owner-package-obligations";
-import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
-import type { CompanyPackageGrant } from "../../../src/server/modules/commercial/public/packages";
+import { financeWorkbench, paymentObligationsWorkspace, paymentRecordsWorkspace } from "@erpx/server-finance/public/finance-workspace";
+import { beginClose, closePeriod, createInvoice, createParty, getInvoice, voidDraftInvoice } from "@erpx/server-finance/public/finance";
+import { financePackageObligations } from "@erpx/server-finance/public/package-obligations";
+import { ownerPackageObligations, readOwnerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
+import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
+import type { CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
 
 vi.mock("server-only", () => ({}));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 
@@ -164,7 +164,7 @@ it("keeps overdue queue amounts in their transaction currencies across Company b
 });
 
 it('Finance lifecycle retains a real unmatched statement row, then accepts independently settled and closed bank history without inventing a statement status',async()=>{
- const {createAccount,postInvoice,createPayment,approvePayment,releasePayment,confirmPayment,importBankStatement,calculateCloseReconciliations}=await import('../../../src/server/modules/finance/public/finance'),{assignFlowPrimary,resolveFlow}=await import('../../../src/server/modules/workflow/public/flow-routing');
+ const {createAccount,postInvoice,createPayment,approvePayment,releasePayment,confirmPayment,importBankStatement,calculateCloseReconciliations}=await import('@erpx/server-finance/public/finance'),{assignFlowPrimary,resolveFlow}=await import('@erpx/server-workflow/public/flow-routing');
  await commercial().apply(change('active',1));vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
  const bank=await createAccount(f.reviewer,{chartId:f.chart,code:`BNK-${key().slice(0,8)}`,name:'Original native lifecycle bank account',category:'asset',currency:'THB',isControl:true,controlKind:'bank'},key()),bankId=String(bank.id),supplier=await createParty(f.reviewer,{kind:'supplier',code:key(),name:'Original bank lifecycle supplier',currency:'THB',paymentTermsDays:30,creditLimit:'0'},key()),invoice=await createInvoice(f.reviewer,{partyId:String(supplier.id),kind:'payable',invoiceNumber:key(),invoiceDate:'2026-09-10',dueDate:'2026-09-30',currency:'THB',subtotal:'15',tax:'0',debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable},key()),invoiceId=String(invoice.id),flow=await resolveFlow(db,f.owner,'invoice',invoiceId);
  await assignFlowPrimary(db,f.owner,'invoice',invoiceId,{stepKey:'draft',userId:f.manager.userId,reason:'Independent normal review of the original supplier liability',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await postInvoice(f.manager,invoiceId,{periodId:f.period,entryDate:'2026-09-10',expectedVersion:1},key());
@@ -183,7 +183,7 @@ it('Finance lifecycle retains a real unmatched statement row, then accepts indep
 });
 
 it('Finance lifecycle retains unresolved supplier instructions and accepts their normal independent bank confirmations as statement history',async()=>{
- const {importAccounts,postInvoice,importBankStatement,calculateCloseReconciliations}=await import('../../../src/server/modules/finance/public/finance'),{assignFlowPrimary,resolveFlow}=await import('../../../src/server/modules/workflow/public/flow-routing'),{createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,confirmSupplierInstruction,supplierBatchWorkspace}=await import('../../../src/server/modules/procurement/public/supplier-payments');
+ const {importAccounts,postInvoice,importBankStatement,calculateCloseReconciliations}=await import('@erpx/server-finance/public/finance'),{assignFlowPrimary,resolveFlow}=await import('@erpx/server-workflow/public/flow-routing'),{createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,confirmSupplierInstruction,supplierBatchWorkspace}=await import('@erpx/server-procurement/public/supplier-payments');
  await commercial().apply(change('active',1));vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
  const bankId=f.accounts.cash,configured=await db.prepare('SELECT code,name FROM finance_accounts WHERE id=? AND company_id=?').bind(bankId,f.company).first<{code:string;name:string}>();if(!configured)throw Error('Original configured bank ledger missing');await importAccounts(f.reviewer,f.chart,[{code:configured.code,name:configured.name,category:'asset',currency:'THB',controlKind:'bank'}],key());const supplier=await createParty(f.reviewer,{kind:'supplier',code:key(),name:'Original independently paid supplier',currency:'THB',paymentTermsDays:30,creditLimit:'0'},key());
  const payable=async(amount:string)=>{const invoice=await createInvoice(f.reviewer,{partyId:String(supplier.id),kind:'payable',invoiceNumber:key(),invoiceDate:'2026-09-10',dueDate:'2026-09-30',currency:'THB',subtotal:amount,tax:'0',debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable},key()),id=String(invoice.id),flow=await resolveFlow(db,f.owner,'invoice',id);await assignFlowPrimary(db,f.owner,'invoice',id,{stepKey:'draft',userId:f.manager.userId,reason:'Independent review of the original supplier liability',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await postInvoice(f.manager,id,{periodId:f.period,entryDate:'2026-09-10',expectedVersion:1},key());return id;};
@@ -202,7 +202,7 @@ it('Finance lifecycle retains unresolved supplier instructions and accepts their
 });
 
 it('Finance lifecycle retains uncertain supplier cash, then preserves an independently verified unpaid instruction after its replacement settles the original invoice',async()=>{
- const {importAccounts,postInvoice,importBankStatement,calculateCloseReconciliations}=await import('../../../src/server/modules/finance/public/finance'),{assignFlowPrimary,resolveFlow}=await import('../../../src/server/modules/workflow/public/flow-routing'),{createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork}=await import('../../../src/server/modules/procurement/public/supplier-payments');
+ const {importAccounts,postInvoice,importBankStatement,calculateCloseReconciliations}=await import('@erpx/server-finance/public/finance'),{assignFlowPrimary,resolveFlow}=await import('@erpx/server-workflow/public/flow-routing'),{createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork}=await import('@erpx/server-procurement/public/supplier-payments');
  await commercial().apply(change('active',1));vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
  const bankId=f.accounts.cash,configured=await db.prepare('SELECT code,name FROM finance_accounts WHERE id=? AND company_id=?').bind(bankId,f.company).first<{code:string;name:string}>();if(!configured)throw Error('Original configured supplier bank missing');await importAccounts(f.reviewer,f.chart,[{code:configured.code,name:configured.name,category:'asset',currency:'THB',controlKind:'bank'}],key());
  const supplier=await createParty(f.reviewer,{kind:'supplier',code:key(),name:'Original independently reviewed retry supplier',currency:'THB',paymentTermsDays:30,creditLimit:'0'},key()),invoice=await createInvoice(f.reviewer,{partyId:String(supplier.id),kind:'payable',invoiceNumber:key(),invoiceDate:'2026-09-10',dueDate:'2026-09-30',currency:'THB',subtotal:'10',tax:'0',debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable},key()),invoiceId=String(invoice.id),flow=await resolveFlow(db,f.owner,'invoice',invoiceId);await assignFlowPrimary(db,f.owner,'invoice',invoiceId,{stepKey:'draft',userId:f.manager.userId,reason:'Independent original supplier liability review',saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());await postInvoice(f.manager,invoiceId,{periodId:f.period,entryDate:'2026-09-10',expectedVersion:1},key());
@@ -223,9 +223,9 @@ it('Finance lifecycle retains uncertain supplier cash, then preserves an indepen
 });
 
 it('Finance lifecycle retains a failed supplier source until two independently confirmed partial replacements fully settle it',async()=>{
- const {importAccounts,postInvoice,importBankStatement,calculateCloseReconciliations}=await import('../../../src/server/modules/finance/public/finance');
- const {assignFlowPrimary,resolveFlow}=await import('../../../src/server/modules/workflow/public/flow-routing');
- const {createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork}=await import('../../../src/server/modules/procurement/public/supplier-payments');
+ const {importAccounts,postInvoice,importBankStatement,calculateCloseReconciliations}=await import('@erpx/server-finance/public/finance');
+ const {assignFlowPrimary,resolveFlow}=await import('@erpx/server-workflow/public/flow-routing');
+ const {createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork}=await import('@erpx/server-procurement/public/supplier-payments');
  await commercial().apply(change('active',1));vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
  const bankId=f.accounts.cash,configured=await db.prepare('SELECT code,name FROM finance_accounts WHERE id=? AND company_id=?').bind(bankId,f.company).first<{code:string;name:string}>();
  if(!configured)throw Error('Original configured bank ledger missing');
@@ -282,9 +282,9 @@ it('Finance lifecycle retains a failed supplier source until two independently c
 });
 
 it('Finance lifecycle retains a failed supplier source until mixed supplier and controlled replacements from two authorized bank accounts fully settle it',async()=>{
- const {importAccounts,postInvoice,importBankStatement,calculateCloseReconciliations,createPayment,approvePayment,releasePayment,confirmPayment}=await import('../../../src/server/modules/finance/public/finance');
- const {assignFlowPrimary,resolveFlow}=await import('../../../src/server/modules/workflow/public/flow-routing');
- const {createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork}=await import('../../../src/server/modules/procurement/public/supplier-payments');
+ const {importAccounts,postInvoice,importBankStatement,calculateCloseReconciliations,createPayment,approvePayment,releasePayment,confirmPayment}=await import('@erpx/server-finance/public/finance');
+ const {assignFlowPrimary,resolveFlow}=await import('@erpx/server-workflow/public/flow-routing');
+ const {createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork}=await import('@erpx/server-procurement/public/supplier-payments');
  await commercial().apply(change('active',1));vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
  const bankId=f.accounts.cash,configured=await db.prepare('SELECT code,name FROM finance_accounts WHERE id=? AND company_id=?').bind(bankId,f.company).first<{code:string;name:string}>();
  if(!configured)throw Error('Original configured bank ledger missing');
@@ -355,9 +355,9 @@ it('Finance lifecycle retains a failed supplier source until mixed supplier and 
 });
 
 it('Finance lifecycle retains a failed supplier source until its originally unbound controlled payment is confirmed against the actual invoice',async()=>{
- const {importAccounts,postInvoice,importBankStatement,createPayment,approvePayment,releasePayment,confirmPayment,calculateCloseReconciliations}=await import('../../../src/server/modules/finance/public/finance');
- const {assignFlowPrimary,resolveFlow}=await import('../../../src/server/modules/workflow/public/flow-routing');
- const {createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recordSupplierResult,supplierBatchWorkspace,supplierBatchWork}=await import('../../../src/server/modules/procurement/public/supplier-payments');
+ const {importAccounts,postInvoice,importBankStatement,createPayment,approvePayment,releasePayment,confirmPayment,calculateCloseReconciliations}=await import('@erpx/server-finance/public/finance');
+ const {assignFlowPrimary,resolveFlow}=await import('@erpx/server-workflow/public/flow-routing');
+ const {createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recordSupplierResult,supplierBatchWorkspace,supplierBatchWork}=await import('@erpx/server-procurement/public/supplier-payments');
  const foreign=await expenseFixture(),foreignSupplier=await createParty(foreign.reviewer,{kind:'supplier',code:key(),name:'Foreign Company supplier',currency:'THB',paymentTermsDays:30,creditLimit:'0'},key());
  const foreignInvoice=await createInvoice(foreign.reviewer,{partyId:String(foreignSupplier.id),kind:'payable',invoiceNumber:key(),invoiceDate:'2026-09-10',dueDate:'2026-09-30',currency:'THB',subtotal:'10',tax:'0',debitAccountId:foreign.accounts.expense,creditAccountId:foreign.accounts.payable},key());
  await commercial().apply(change('active',1));vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');

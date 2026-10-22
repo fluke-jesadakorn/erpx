@@ -1,0 +1,25 @@
+{
+  "name": "@erpx/feature-workflow",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/approval-history": "./src/components/approval-history.tsx",
+    "./components/approval-administration": "./src/components/approval-administration.tsx",
+    "./components/approval-admin-link": "./src/components/approval-admin-link.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-identity_access": "workspace:*",
+    "@erpx/server-workflow": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "next": "16.4.0"
+  }
+}

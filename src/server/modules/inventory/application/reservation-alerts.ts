@@ -1,3 +1,0 @@
-import {reservationAlertMessage,type ReservationAlertPhase,type AlertResult} from '../domain/reservation-alerts';import type {Clock} from '../../shared';
-export interface InventoryReservationAlertsPorts{clock:Clock;raise(phase:ReservationAlertPhase,now:number,horizon:number,message:string):Promise<number>;}
-export function createInventoryReservationAlertsApplication(ports:InventoryReservationAlertsPorts){return {async escalate(now=ports.clock.now(),warningWindowMs=86_400_000):Promise<AlertResult>{const expiring=await ports.raise('expiring',now,now+warningWindowMs,reservationAlertMessage('expiring'));const expired=await ports.raise('expired',now,now,reservationAlertMessage('expired'));return {expiring,expired};}};}

@@ -1,0 +1,30 @@
+{
+  "name": "@erpx/feature-operations",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/routine-editor": "./src/components/routine-editor.tsx",
+    "./components/routine-schedule-controls": "./src/components/routine-schedule-controls.tsx",
+    "./components/operations-console": "./src/components/operations-console.tsx",
+    "./components/routine-command-feedback": "./src/components/routine-command-feedback.tsx",
+    "./components/routine-template-editor": "./src/components/routine-template-editor.tsx",
+    "./components/use-routine-command": "./src/components/use-routine-command.ts",
+    "./lib/routine-purchase-controls": "./src/lib/routine-purchase-controls.ts",
+    "./lib/routine-command": "./src/lib/routine-command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-procurement": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-operations": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "react": "19.3.0"
+  }
+}

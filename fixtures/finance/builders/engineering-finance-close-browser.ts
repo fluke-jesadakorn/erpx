@@ -4,7 +4,7 @@ import { chmod, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { hashPassword } from "better-auth/crypto";
 import { seedExpenseCompany } from "../../expenses/company";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {
   calculateCloseReconciliations,
   createAccount,
@@ -17,10 +17,10 @@ import {
   openingTrialBalanceSchema,
   postJournalBatch,
   previewOpeningTrialBalance,
-} from "../../../src/server/modules/finance/public/finance";
-import { loadIamAuthority } from "../../../src/server/modules/identity_access/public/iam-store";
-import { PostgresDatabase } from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import type { FileStore, SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
+} from "@erpx/server-finance/public/finance";
+import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import type { FileStore, SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
 
 const key = () => randomUUID();
 type FinanceRow = Record<string, string | number | null>;

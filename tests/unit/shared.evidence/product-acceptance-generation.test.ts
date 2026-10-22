@@ -23,19 +23,19 @@ describe("product acceptance generation", () => {
     };
     const expenses = workflow("people_payroll", "people_payroll/feature-expenses");
     expect(expenses.pages).toEqual(expect.arrayContaining([
-      "src/app/holdings/[holdingSlug]/_presenters/people/screen.tsx",
-      "src/app/holdings/[holdingSlug]/finance/documents/expenses/page.tsx",
-      "src/app/holdings/[holdingSlug]/finance/documents/expenses/[id]/page.tsx",
-      "src/app/holdings/[holdingSlug]/finance/documents/expenses/new/page.tsx",
-      "src/app/holdings/[holdingSlug]/_presenters/expenses/screen.tsx",
-      "src/app/holdings/[holdingSlug]/_presenters/expenses/[id]/screen.tsx",
-      "src/app/holdings/[holdingSlug]/_presenters/expenses/new/screen.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/people/screen.tsx",
+      "packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/expenses/page.tsx",
+      "packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/expenses/[id]/page.tsx",
+      "packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/expenses/new/page.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/expenses/screen.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/expenses/[id]/screen.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/expenses/new/screen.tsx",
     ]));
     expect(expenses.tests).toContain("tests/e2e/people_payroll/expense-v2.spec.ts");
 
     const payments = workflow("finance", "finance/feature-payments");
-    expect(payments.pages).toContain("src/app/holdings/[holdingSlug]/finance/cash/payments/[id]/page.tsx");
-    expect(payments.pages).not.toContain("src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx");
+    expect(payments.pages).toContain("packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/cash/payments/[id]/page.tsx");
+    expect(payments.pages).not.toContain("packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx");
     expect(payments.tests).not.toContain("tests/e2e/finance/finance-sales-workspace.spec.ts");
 
     const assets = workflow("assets", "assets/asset-register");
@@ -44,10 +44,10 @@ describe("product acceptance generation", () => {
     const sales = productAcceptanceRegister.productWorkflows.find(candidate => candidate.id === "finance:sales-invoice-workspace");
     expect(sales).toBeDefined();
     expect(sales!.pages).toEqual(expect.arrayContaining([
-      "src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
-      "src/app/holdings/[holdingSlug]/_presenters/finance/sales/screen.tsx",
-      "src/app/holdings/[holdingSlug]/finance/documents/sales/new/page.tsx",
-      "src/app/holdings/[holdingSlug]/_presenters/finance/sales/new/screen.tsx",
+      "packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/sales/screen.tsx",
+      "packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/sales/new/page.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/sales/new/screen.tsx",
     ]));
     expect(sales!.tests).toEqual(expect.arrayContaining([
       "tests/integration/finance/finance-sales-workspace.test.ts",
@@ -66,10 +66,10 @@ describe("product acceptance generation", () => {
       return result!;
     };
     const detailPages = [
-      "src/app/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
-      "src/app/holdings/[holdingSlug]/_presenters/talent/[id]/screen.tsx",
-      "src/components/records/loaders/modules--talent-console.tsx",
-      "src/components/talent/talent-console.tsx",
+      "packages/feature-recruit/src/routes/holdings/[holdingSlug]/people-organization/talent/[id]/page.tsx",
+      "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/talent/[id]/screen.tsx",
+      "packages/feature-records/src/components/loaders/modules--talent-console.tsx",
+      "packages/feature-talent/src/components/talent-console.tsx",
     ];
 
     for (const id of ["talent/applications", "talent/offers", "talent/feature-proposals"])
@@ -77,21 +77,21 @@ describe("product acceptance generation", () => {
 
     const privacy = workflow("talent/feature-candidates-privacy");
     expect(privacy.pages).toEqual(expect.arrayContaining([
-      "src/app/holdings/[holdingSlug]/people-organization/talent/candidates/[id]/privacy/page.tsx",
-      "src/components/talent/candidate-privacy-page.tsx",
-      "src/components/talent/candidate-privacy-editor.tsx",
+      "packages/feature-recruit/src/routes/holdings/[holdingSlug]/people-organization/talent/candidates/[id]/privacy/page.tsx",
+      "packages/feature-talent/src/components/candidate-privacy-page.tsx",
+      "packages/feature-talent/src/components/candidate-privacy-editor.tsx",
     ]));
-    expect(privacy.apis).toContain("src/app/api/v1/holdings/[holdingSlug]/talent/route.ts");
+    expect(privacy.apis).toContain("packages/feature-recruit/src/routes/api/v1/holdings/[holdingSlug]/talent/route.ts");
     expect(privacy.services).toEqual(expect.arrayContaining([
-      "src/server/modules/talent/public/candidate-privacy-workspace.ts",
-      "src/server/modules/talent/adapters/candidate-privacy-workspace.ts",
-      "src/server/modules/talent/public/people-hire-handoff-facts.ts",
-      "src/server/modules/talent/adapters/people-hire-handoff-facts.ts",
-      "src/server/modules/people_payroll/public/people-handoffs.ts",
-      "src/server/modules/people_payroll/adapters/people-handoffs.ts",
-      "src/server/modules/people_payroll/application/people-handoffs.ts",
+      "packages/server-talent/src/public/candidate-privacy-workspace.ts",
+      "packages/server-talent/src/adapters/candidate-privacy-workspace.ts",
+      "packages/server-talent/src/public/people-hire-handoff-facts.ts",
+      "packages/server-talent/src/adapters/people-hire-handoff-facts.ts",
+      "packages/server-people_payroll/src/public/people-handoffs.ts",
+      "packages/server-people_payroll/src/adapters/people-handoffs.ts",
+      "packages/server-people_payroll/src/application/people-handoffs.ts",
     ]));
-    expect(privacy.schema).toContain("src/server/modules/people_payroll/domain/people-handoffs.ts");
+    expect(privacy.schema).toContain("packages/server-people_payroll/src/domain/people-handoffs.ts");
     expect(privacy.tests).toContain("tests/unit/learning/learning-talent-services.test.ts");
   });
 

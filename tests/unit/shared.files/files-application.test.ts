@@ -1,9 +1,9 @@
 import {expect,it,vi} from "vitest";
-import {createAttachmentFeatures} from "../../../src/server/modules/files/domain/attachments/feature";
-import {legacyAttachmentPolicy} from "../../../src/server/modules/files/domain/attachments/legacy-policy";
-import {detectedAttachmentMediaType} from "../../../src/server/modules/files/domain/attachments/media-signature";
-import {createAttachmentReadiness} from "../../../src/server/modules/files/application/attachments/readiness";
-import {createBoundedAttachmentUpload} from "../../../src/server/modules/files/application/attachments/upload";
+import {createAttachmentFeatures} from "@erpx/server-files/domain/attachments/feature";
+import {legacyAttachmentPolicy} from "@erpx/server-files/domain/attachments/legacy-policy";
+import {detectedAttachmentMediaType} from "@erpx/server-files/domain/attachments/media-signature";
+import {createAttachmentReadiness} from "@erpx/server-files/application/attachments/readiness";
+import {createBoundedAttachmentUpload} from "@erpx/server-files/application/attachments/upload";
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
 const features=createAttachmentFeatures(error);
 it("Files feature policy accepts an explicit enabled configuration",()=>{expect(features.attachmentsV2Enabled({ERPX_ATTACHMENTS_V2:"true"})).toBe(true);expect(features.attachmentsV2Readable({ERPX_ATTACHMENTS_V2:"true"})).toBe(true);});
@@ -20,10 +20,10 @@ it("Files bounded upload concatenates the exact reserved bytes and releases its 
 it("Files bounded upload rejects a mismatched reservation before consuming bytes",async()=>{const request=body(new Uint8Array([1,2,3]),3);await expect(upload.readBoundedUploadBody(request,2)).rejects.toMatchObject({code:"UPLOAD_SIZE"});expect(request.body.locked).toBe(false);});
 it("Files short upload releases the reader while rejecting incomplete evidence",async()=>{const request=body(new Uint8Array([1]),2);await expect(upload.readBoundedUploadBody(request,2)).rejects.toMatchObject({code:"UPLOAD_SIZE"});expect(request.body.locked).toBe(false);});
 it("Files overflow upload cancels and releases its reader before rejecting evidence",async()=>{const request=body(new Uint8Array([1,2,3]),2);await expect(upload.readBoundedUploadBody(request,2)).rejects.toMatchObject({code:"UPLOAD_SIZE"});expect(request.body.locked).toBe(false);});
-import {createSensitiveAttachmentPolicy,type SensitiveAttachmentUnit} from "../../../src/server/modules/files/application/attachments/sensitive-policy";
-import {createPortalAttachmentPolicy,type PortalAttachmentUnit} from "../../../src/server/modules/files/application/attachments/portal-collaboration-policy";
-import type {AttachmentPolicy} from "../../../src/server/modules/files/domain/attachments/types";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createSensitiveAttachmentPolicy,type SensitiveAttachmentUnit} from "@erpx/server-files/application/attachments/sensitive-policy";
+import {createPortalAttachmentPolicy,type PortalAttachmentUnit} from "@erpx/server-files/application/attachments/portal-collaboration-policy";
+import type {AttachmentPolicy} from "@erpx/server-files/domain/attachments/types";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:"reviewer",name:"Reviewer",email:"reviewer@example.test",assignmentId:"assignment",role:"holding_owner",companyId:"company",branchId:null,departmentId:null,holdingId:"H001",holdingSlug:"test",holdingName:"Test",scope:{kind:"holding",holdingId:"H001",holdingSlug:"test",holdingName:"Test",companyId:"company"},assignmentScope:"holding",inherited:false,modules:["people_payroll","collaboration","support"],assignments:[],workspaces:[]};
 function repository<T extends object>(operations:Partial<T>):T{return new Proxy(operations as T,{get(target,name){if(name==="then")return undefined;if(name in target)return Reflect.get(target,name);return ()=>{throw new Error(`unexpected operation: ${String(name)}`);};}});}
 const sensitive=createSensitiveAttachmentPolicy<string>({clock:{now:()=>123456},error,canCompleteClearance:()=>false,canReadClearanceEvidence:()=>false});
@@ -38,8 +38,8 @@ const portal=createPortalAttachmentPolicy<string>({clock:{now:()=>123456},error,
 it("Files portal registry leaves unsupported owners to their own policy adapter",async()=>{expect(await portal.authorizePortalCollaborationAttachmentTarget(repository<PortalAttachmentUnit<string>>({}),actor,{targetType:"unknown"} as AttachmentPolicy,"record","write")).toBeNull();});
 it("Files Incident evidence requires its current owner or eligible manager",async()=>{const policy=portal.portalCollaborationAttachmentPolicies.find(p=>p.targetType==="support_incident")!;await expect(portal.authorizePortalCollaborationAttachmentTarget(repository<PortalAttachmentUnit<string>>({}),actor,policy,"incident","write")).rejects.toMatchObject({code:"INCIDENT_ATTACHMENT_FORBIDDEN"});});
 it("Files Social revision retains the exact source owner version and injected time",()=>{const step=vi.fn(()=>"effect"),unit=repository<PortalAttachmentUnit<string>>({versionStep:step});expect(portal.portalCollaborationAttachmentRecordVersionStep(unit,"social_post","post",3)).toBe("effect");expect(step).toHaveBeenCalledWith("social_post","post",3,123456);});
-import {createAttachmentPolicy,type AttachmentPolicyUnit} from "../../../src/server/modules/files/application/attachments/policy";
-import {createAttachmentService,type AttachmentServicePorts,type AttachmentServiceUnit} from "../../../src/server/modules/files/application/attachments/service";
+import {createAttachmentPolicy,type AttachmentPolicyUnit} from "@erpx/server-files/application/attachments/policy";
+import {createAttachmentService,type AttachmentServicePorts,type AttachmentServiceUnit} from "@erpx/server-files/application/attachments/service";
 const policyService=createAttachmentPolicy({clock:{now:()=>123456},error});
 const emptyOwners={authorizePortalCollaborationAttachmentTarget:async()=>null,authorizeSensitiveAttachmentTarget:async()=>null,authorizeFinanceOperationsAttachmentTarget:async()=>null,authorizeRemainingOperationalAttachmentTarget:async()=>null};
 it("Files current assignment revocation denies access before reading an owner",async()=>{const unit=repository<AttachmentPolicyUnit>({readCurrentAssignment:async()=>null});await expect(policyService.authorizeAttachmentTarget(unit,actor,policyService.attachmentPolicy("project","project_document","record"),"project","read")).rejects.toMatchObject({code:"ATTACHMENT_TARGET_NOT_FOUND"});});
@@ -73,7 +73,7 @@ it("Files authorized fresh intake still fails closed on scanner readiness before
  expect(order).toEqual(["current-owner","scanner","preview"]);expect(scanner).toHaveBeenCalledExactlyOnceWith({ERPX_ATTACHMENTS_V2:"true"});expect(preview).toHaveBeenCalledExactlyOnceWith({ERPX_ATTACHMENTS_V2:"true"});
 });
 
-import type {SetRow as IntakeSetRow} from "../../../src/server/modules/files/domain/attachments/service-models";
+import type {SetRow as IntakeSetRow} from "@erpx/server-files/domain/attachments/service-models";
 function recordedIntakeFixture(kind:"direct"|"alias",options:{denied?:Error;expectedVersion?:number}={}){
  const {ports}=serviceEnvironment(),id="attachment-set-"+"a".repeat(32),stored:IntakeSetRow={id,company_id:actor.companyId,branch_id:null,department_id:null,target_type:"project",target_id:"project",component_kind:"record",component_ref:null,purpose_key:"project_document",expected_target_version:3,policy_version:1,classification:"internal",audience_json:"{}",required_count:0,max_files:20,state:"bound",created_by:actor.userId,created_at:100,updated_at:200},scanner=vi.fn(async()=>({enabled:true,ready:false,engine:null,definitionUpdatedAt:null,error:"unavailable"})),preview=vi.fn(async()=>({ready:false,error:"unavailable"})),operations:string[]=[],service=createAttachmentService<string>({...ports,providers:{...ports.providers,attachmentScannerReadiness:scanner,attachmentPreviewReadiness:preview}});
  const unit:AttachmentServiceUnit<string>=repository<AttachmentServiceUnit<string>>({

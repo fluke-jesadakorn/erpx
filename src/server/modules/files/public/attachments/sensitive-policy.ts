@@ -1,1 +1,0 @@
-export {sensitiveAttachmentPolicies,isSensitiveAttachmentTarget,authorizeSensitiveAttachmentTarget,sensitiveAttachmentTargetVersionGuard,sensitiveAttachmentRecordVersionStep} from "../../adapters/attachments/sensitive-policy";

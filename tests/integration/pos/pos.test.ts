@@ -1,34 +1,34 @@
-import {financeProductDocumentEntry} from "../../../src/server/modules/finance/public/document-purchases";
-import {financeSourceDocumentBackdrop} from "../../../src/server/modules/finance/public/record-presentation";
-import {getInvoice,getPayment} from "../../../src/server/modules/finance/public/finance";
-import {journalDetail} from "../../../src/server/modules/finance/public/ledger";
+import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
+import {financeSourceDocumentBackdrop} from "@erpx/server-finance/public/record-presentation";
+import {getInvoice,getPayment} from "@erpx/server-finance/public/finance";
+import {journalDetail} from "@erpx/server-finance/public/ledger";
 import { reviewedSecondaryBook } from "../../support/helpers/finance-book-fixture";
-import { canonicalGuestAccount, legacyGuestAccount } from "../../../src/lib/identity_access/guest-account-compat";
+import { canonicalGuestAccount, legacyGuestAccount } from "@erpx/feature-identity_access/lib/guest-account-compat";
 import { beforeAll,beforeEach,afterEach,describe,it,expect,vi } from 'vitest';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
-import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@/server/modules/commercial/public/package-grants";
-import { withOwnerPackageObligations, readOwnerPackageObligations, ownerPackageObligations } from "@/server/modules/commercial/public/owner-package-obligations";
-import { posPackageObligations, lockPosPackageObligationSources } from "@/server/modules/pos/public/package-obligations";
-import { importBankStatement } from "../../../src/server/modules/finance/public/finance";
-import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
-import { bankAutomationWorkspace,proposeBankMatchGroup,decideBankMatchGroup } from "../../../src/server/modules/finance/public/finance-bank-automation";
+import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
+import { withOwnerPackageObligations, readOwnerPackageObligations, ownerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
+import { posPackageObligations, lockPosPackageObligationSources } from "@erpx/server-pos/public/package-obligations";
+import { importBankStatement } from "@erpx/server-finance/public/finance";
+import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
+import { bankAutomationWorkspace,proposeBankMatchGroup,decideBankMatchGroup } from "@erpx/server-finance/public/finance-bank-automation";
 import { env,applyMigrations } from "../../support/runtime-env";
-import {posWorkspace,posReportReceipts,posWork} from "../../../src/server/modules/pos/public/pos";
-import {posProductImage,uploadPosProductImage} from "../../../src/server/modules/pos/public/pos-images";
-import {readableRecordSourceIds} from "@/server/modules/pos/public/records-source-facts";
-import {visibleSourceRecord} from "@/server/modules/records/public/source-record-policy";
-import {readExecutiveMetricProjection as posMetric} from "@/server/modules/pos/public/executive-metric-projections";
-import {executiveEvidenceSources as posMetricEvidence} from "@/server/modules/pos/public/executive-evidence-sources";
-import {metricCatalogFor} from "@/server/modules/runtime/public/executive/metrics";
-import { posCommand,one,all,run } from "../../../src/server/modules/pos/public/pos-core";
-import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney,businessDate } from "../../../src/server/modules/pos/public/rules/pos";
-import { defaultConfig,pmsAccountKeys } from "../../../src/server/modules/pms/public/rules/pms";
-import { drainPos,posStripeWebhook,verifyPosStripeSignature } from "../../../src/server/modules/pos/public/pos-stripe";
-import type { PermissionActor } from "../../../src/lib/identity_access/iam";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import {posCustomers,posDayReport} from "../../../src/server/modules/pos/public/pos-daily";
+import {posWorkspace,posReportReceipts,posWork} from "@erpx/server-pos/public/pos";
+import {posProductImage,uploadPosProductImage} from "@erpx/server-pos/public/pos-images";
+import {readableRecordSourceIds} from "@erpx/server-pos/public/records-source-facts";
+import {visibleSourceRecord} from "@erpx/server-records/public/source-record-policy";
+import {readExecutiveMetricProjection as posMetric} from "@erpx/server-pos/public/executive-metric-projections";
+import {executiveEvidenceSources as posMetricEvidence} from "@erpx/server-pos/public/executive-evidence-sources";
+import {metricCatalogFor} from "@erpx/server-runtime/public/executive/metrics";
+import { posCommand,one,all,run } from "@erpx/server-pos/public/pos-core";
+import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney,businessDate } from "@erpx/server-pos/public/rules/pos";
+import { defaultConfig,pmsAccountKeys } from "@erpx/server-pms/public/rules/pms";
+import { drainPos,posStripeWebhook,verifyPosStripeSignature } from "@erpx/server-pos/public/pos-stripe";
+import type { PermissionActor } from "@erpx/feature-identity_access/lib/iam";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import {posCustomers,posDayReport} from "@erpx/server-pos/public/pos-daily";
 import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from "../../support/helpers/attachment-v2";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",async()=>{const {env}=await import("../../support/runtime-env");return {runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB})};});
+vi.mock("@erpx/server-runtime/adapters/runtime",async()=>{const {env}=await import("../../support/runtime-env");return {runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB})};});
 const db=env.H001_DB;
 afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();vi.unstubAllEnvs();});
 const actor={userId:'cashier',assignmentId:'pos-cashier',role:'holding_owner',companyId:'pos-company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'pos-test',name:'Cashier',email:'cashier@example.test',assignmentScope:'holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'pos-test',holdingName:'POS',companyId:'pos-company'},modules:['pos'],assignments:[],workspaces:[],inherited:false,holdingName:'POS'} as WorkContext;
@@ -413,10 +413,10 @@ describe('POS committed business flows',()=>{
   await expect(command('shift.open',{registerId:'restaurant',openingMinor:0})).resolves.toHaveProperty('id');
  });
  it('links an external tax reference to one posted sale with independent Finance review and correction history',async()=>{
-  const {taxDocumentCommand,taxDocumentView,frontTaxDocumentCommand,frontTaxDocumentView}=await import("../../../src/server/modules/finance/public/hospitality-tax-documents");
+  const {taxDocumentCommand,taxDocumentView,frontTaxDocumentCommand,frontTaxDocumentView}=await import("@erpx/server-finance/public/hospitality-tax-documents");
   const sale=await createSale();await add(sale);await pay(sale);await change('sale.complete',sale);
   const invoiceId=String((await one(db,'SELECT invoice_id FROM pos_sales WHERE id=?',sale))!.invoice_id);
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");
   const front=await posWorkspace(actor,sale,'','sale',undefined,true);
   expect(front.taxDocumentInvoiceId).toBe(invoiceId);
   expect(front.sale).not.toHaveProperty('invoice_id');
@@ -461,13 +461,13 @@ describe('POS committed business flows',()=>{
   expect((await taxDocumentView(actor,invoiceId)).documents).toEqual(expect.arrayContaining([expect.objectContaining({id:corrected.id,state:'recorded'}),expect.objectContaining({id:replacement.id,state:'voided'}),expect.objectContaining({id:saved.id,state:'voided'})]));
  });
  it('keeps company pilot rollout separate from setup, access, and production evidence',async()=>{
-  const {companyFeatureCatalogue,changeCompanyFeatureRollout,assertProductionFeatureRoute}=await import("../../../src/server/modules/pms/public/hospitality-rollout");
+  const {companyFeatureCatalogue,changeCompanyFeatureRollout,assertProductionFeatureRoute}=await import("@erpx/server-pms/public/hospitality-rollout");
   vi.stubEnv('NODE_ENV','production');
   const initial=await companyFeatureCatalogue(actor);
   expect(initial.find(entry=>entry.id==='pos')).toMatchObject({state:'Coming Soon',rollout:'off',setupReady:true,productionAccepted:false,permitted:true});
   expect(initial.find(entry=>entry.id==='pms')).toMatchObject({state:'Coming Soon',setupReady:false,permitted:false});
   expect(initial.find(entry=>entry.id==='sales')).toMatchObject({state:'Coming Soon',rollout:'off'});
-  const {readWorkSnapshot}=await import("../../../src/server/modules/work_projection/public/work-items");
+  const {readWorkSnapshot}=await import("@erpx/server-work_projection/public/work-items");
   expect(await readWorkSnapshot(actor)).toEqual({items:[],unavailableSources:[]});
   await expect(assertProductionFeatureRoute(db,actor.companyId,'pos/sale/create','POST')).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
   const change={moduleId:'pos',state:'pilot',expectedVersion:0,reason:'Approve isolated hotel trial'};
@@ -498,10 +498,10 @@ describe('POS committed business flows',()=>{
  });
  it('limits production POS tenders to cash and verified bank transfer',async()=>{
   const sale=await createSale();await add(sale);
-  const {changeCompanyFeatureRollout}=await import("../../../src/server/modules/pms/public/hospitality-rollout");
+  const {changeCompanyFeatureRollout}=await import("@erpx/server-pms/public/hospitality-rollout");
   await changeCompanyFeatureRollout(actor,{moduleId:'pos',state:'pilot',expectedVersion:0,reason:'Accept POS tender trial'},`pilot-pos-tender-${++serial}`);
   vi.stubEnv('NODE_ENV','production');
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");
   const workspace=await posWorkspace(actor,sale,'','sale');
   expect(workspace.availableTenderMethods).toEqual(['cash','transfer']);
   expect(workspace.roomChargeEnabled).toBe(false);
@@ -557,7 +557,7 @@ describe('POS committed business flows',()=>{
   });
   await run(db,"UPDATE pos_registers SET property_id='hotel' WHERE id='restaurant'");
   const input={id:sale,expectedVersion:saleRow!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:1};
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");
   expect((await posWorkspace(actor,sale,'','sale')).roomChargeEnabled).toBe(false);
   await expect(command('sale.charge_to_room',input,actor,'room-charge-unpurchased-addon')).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
   await packageGrant('pos-hotel-charge');
@@ -591,7 +591,7 @@ describe('POS committed business flows',()=>{
   expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',other))?.state).toBe('open');
   await run(db,'UPDATE assignments SET revoked_at=? WHERE id=?',Date.now(),'pos-cashier');
   await expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'POS_ACCESS_CHANGED'});
-  const {pmsCommand}=await import("../../../src/server/modules/pms/public/pms");
+  const {pmsCommand}=await import("../../../packages/server-pms/src/public/pms");
   await expect(pmsCommand(db,manager,{operation:'charge.reverse',propertyId:'hotel',expectedVersion:2,input:{id:charged.guestAccountEntryId,reason:'Wrong room'}},'direct-pos-charge-reversal')).rejects.toMatchObject({code:'PMS_POS_REVERSAL_REQUIRED'});
   const current=(await one(db,'SELECT version FROM pos_sales WHERE id=?',sale))!;
   const line=(await one(db,'SELECT id FROM pos_lines WHERE sale_id=?',sale))!;
@@ -645,7 +645,7 @@ describe('POS committed business flows',()=>{
   expect(await one(db,"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'room-reversal:%'")).toEqual({n:2});
  });
  it('reports hotel blockers and actual product availability on every daily tab',async()=>{
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");
   await run(db,"INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES('hotel','pos-company','pos-branch','Hotel',?,'setup',?,'system',0)",businessDate(),JSON.stringify(defaultConfig));
   await run(db,"UPDATE pos_registers SET mode='restaurant',property_id='hotel'");
   for(const tab of ['sale','kitchen','shifts','history']) {
@@ -664,7 +664,7 @@ describe('POS committed business flows',()=>{
   expect((await posWorkspace(actor,undefined,'','history',undefined,true)).frontSetup?.hasProducts).toBe(false);
  });
  it('exposes company currency without exposing accounting configuration',async()=>{
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");
   const cashier={...actor,role:'pos_cashier'};
   await run(db,'DELETE FROM pos_settings WHERE company_id=?',actor.companyId);
   await run(db,"UPDATE commerce_settings SET currency='USD' WHERE company_id=?",actor.companyId);
@@ -676,7 +676,7 @@ describe('POS committed business flows',()=>{
   expect(formatPosMoney(10700,null)).toBe('—');
  });
  it('keeps historical document currencies separate in sales and tender reports',async()=>{
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");
   const first=await createSale();await add(first);await pay(first);await change('sale.complete',first);
   const second=await createSale();await add(second);await pay(second);await change('sale.complete',second);
   // Simulate imported historical documents; this is not a currency-conversion command.
@@ -688,7 +688,7 @@ describe('POS committed business flows',()=>{
   expect((await posWorkspace(actor,second,'','sale')).sale?.currency).toBe('USD');
  });
  it('pages history without loading other tabs and keeps every sale reachable',async()=>{
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");
   await db.exec(`INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,created_by,created_at,updated_at,accounts_json)
    SELECT 'page-'||n,'pos-company','pos-branch','retail','shift-retail','PAGE-'||n,'THB','2026-09-01','cashier',1720000000000+n,1720000000000+n,'{}' FROM generate_series(1,65) n`);
   const first=await posWorkspace(actor,undefined,'PAGE-','history');
@@ -702,10 +702,10 @@ describe('POS committed business flows',()=>{
   const kitchen=await posWorkspace(actor,undefined,'','kitchen');expect(kitchen.sales).toEqual([]);expect(kitchen.products).toEqual([]);
  });
  it('executes scoped commerce, finance and inventory page queries',async()=>{
-  const {commercePage}=await import("../../../src/server/modules/commerce/public/commerce");
-  const {invoicesPage,bankWorkspace}=await import("../../../src/server/modules/finance/public/finance");
-  const {countsPage}=await import("../../../src/server/modules/inventory/public/inventory-counts");
-  const {transfersPage}=await import("../../../src/server/modules/inventory/public/inventory-transfers");
+  const {commercePage}=await import("@erpx/server-commerce/public/commerce");
+  const {invoicesPage,bankWorkspace}=await import("@erpx/server-finance/public/finance");
+  const {countsPage}=await import("@erpx/server-inventory/public/inventory-counts");
+  const {transfersPage}=await import("@erpx/server-inventory/public/inventory-transfers");
   const reader={...actor,modules:['pos','commerce','finance','inventory']};
   for(const view of ['sales','purchase','quote','products','parties','warehouses','stock']){
    const page=await commercePage(reader,{view});expect(page.page.items.length).toBeLessThanOrEqual(30);
@@ -758,8 +758,8 @@ describe('POS committed business flows',()=>{
   expect(await one(db,"SELECT SUM(quantity_milli) qty FROM pos_reservations WHERE product_id='tea'")).toEqual({qty:1000});
  });
  it('serializes Sales and POS competing for the final unit through the same availability owner',async()=>{
-  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,changeOrderReservation}=await import("../../../src/server/modules/commerce/public/commerce");
-  const {assignFlowPrimary,resolveFlow}=await import("../../../src/server/modules/workflow/public/flow-routing");
+  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,changeOrderReservation}=await import("@erpx/server-commerce/public/commerce");
+  const {assignFlowPrimary,resolveFlow}=await import("@erpx/server-workflow/public/flow-routing");
   const next=()=>`cross-stock-${++serial}`;
   for(const who of [actor,manager]){
    await run(db,"INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,'TH','fixture',1,1)",`person-${who.userId}`,who.userId,who.companyId,who.userId);
@@ -909,7 +909,7 @@ describe('POS provider recovery and reporting',()=>{
   expect(await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'")).toEqual(returnsBefore);
  });
  it('shows provider-confirmed accounting-pending payments to cashiers without revealing internal payment references',async()=>{
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");
   const {sale,payment}=await stripePending();
   const pending=await posWorkspace(actor,sale,'','sale',undefined,true);
   expect(pending.payments[0]).toMatchObject({id:payment,provider_payment_confirmed:false});
@@ -936,7 +936,7 @@ describe('POS provider recovery and reporting',()=>{
   await expect(command('exception.retry',input,{...manager,branchId:'pos-branch'})).rejects.toMatchObject({code:'POS_COMPANY_SETTINGS'});
   await expect(command('exception.retry',{...input,expectedRefundVersion:1},manager)).rejects.toMatchObject({code:'POS_VERSION_CONFLICT'});
   await expect(command('exception.retry',{...input,refundInstructionsEmail:'payer@example.test'},manager)).rejects.toMatchObject({code:'POS_REFUND_EMAIL_UNCHANGED'});
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");expect((await posWorkspace(manager,undefined,'','reports')).jobs.find(j=>j.id===job.id)?.refund_version).toBe(2);
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");expect((await posWorkspace(manager,undefined,'','reports')).jobs.find(j=>j.id===job.id)?.refund_version).toBe(2);
   await command('exception.retry',input,manager,'instruction-email-first');expect(await command('exception.retry',input,manager,'instruction-email-first')).toEqual({id:job.id});
   expect((await one(db,'SELECT version FROM pos_refunds WHERE id=?',refund.id))?.version).toBe(3);
   await drainPos(db,'h001');expect((await one(db,'SELECT state,last_error FROM pos_jobs WHERE id=?',job.id))).toEqual({state:'exception',last_error:'POS_PROVIDER_REFUND_EMAIL_RESTRICTED'});
@@ -1241,7 +1241,7 @@ describe('POS provider recovery and reporting',()=>{
  it('full manual advance refund releases the reservation and lets the original bill be edited',async()=>{
   const sale=await createSale();await add(sale);await pay(sale);
   const r=await change('refund.request',sale,{amountMinor:10700,reason:'customer changed mind',payoutShiftId:'shift-retail'});
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");
   expect((await posWorkspace(actor,sale,'','sale',undefined,true)).refunds).toMatchObject([{id:r.id,sale_id:sale,state:'requested',amount_minor:10700}]);
   const otherSale=await createSale();
   expect((await posWorkspace(actor,otherSale,'','sale',undefined,true)).refunds).toEqual([]);
@@ -1254,7 +1254,7 @@ describe('POS provider recovery and reporting',()=>{
   const sale=await createSale();await change('sale.add',sale,{productId:'tea',quantityMilli:1000,discountMinor:1000},manager);
   await expect(change('sale.approve_discount',sale,{reason:'approve my discount'},manager)).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
   await change('sale.approve_discount',sale,{reason:'independent review'});await pay(sale,9630);await change('sale.complete',sale);
-  const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");const data=await posWorkspace(actor,sale);
+  const {posWorkspace}=await import("@erpx/server-pos/public/pos");const data=await posWorkspace(actor,sale);
   expect(data.reports[0].cost_minor).toBe(3000);expect(data.reports[0].gross_profit_minor).toBe(6000);expect(data.paymentMix[0].received_minor).toBe(9630);
  });
 });
@@ -1264,7 +1264,7 @@ describe('POS monetary and webhook boundaries',()=>{
 });
 
 it('quality quarantine blocks a reserved retail payment without consuming stock or cash',async()=>{
- const {createQualityHold}=await import("../../../src/server/modules/quality/public/quality");
+ const {createQualityHold}=await import("@erpx/server-quality/public/quality");
  const sale=await createSale();await add(sale);
  const stock=await one(db,'SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?','warehouse','tea');
  await createQualityHold(manager,{warehouseId:'warehouse',productId:'tea',expectedStockVersion:Number(stock!.version),dueDate:'2026-09-22',reason:'Packaging damage requires inspection'},'quality-pos-hold-command');
@@ -1273,7 +1273,7 @@ it('quality quarantine blocks a reserved retail payment without consuming stock 
  expect((await one(db,'SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?','warehouse','tea'))).toMatchObject({quantity_milli:10000,value_minor:30000});
  expect(await one(db,'SELECT count(*) n FROM pos_payments WHERE sale_id=?',sale)).toEqual({n:0});
  expect(await one(db,'SELECT count(*) n FROM pos_receipts')).toEqual(receiptsBefore);
- const {posWorkspace}=await import("../../../src/server/modules/pos/public/pos");const workspace=await posWorkspace(actor,undefined,'','sale');
+ const {posWorkspace}=await import("@erpx/server-pos/public/pos");const workspace=await posWorkspace(actor,undefined,'','sale');
  expect(workspace.stock.find(s=>s.product_id==='tea')?.quality_held).toBe(1);
 });
 
@@ -1405,7 +1405,7 @@ it('drills a POS report group into exactly its completed source receipts with Co
 
 describe('POS presentation movement query',()=>{
  it('resolves the original sale only within its Company and optional Branch without mutating owner records',async()=>{
-  const {findPosMovementSale}=await import("../../../src/server/modules/pos/public/movement-presentation-query");
+  const {findPosMovementSale}=await import("@erpx/server-pos/public/movement-presentation-query");
   const sale=await createSale();await add(sale);await pay(sale);await change('sale.complete',sale);
   const movement=await one(db,'SELECT m.id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id WHERE l.sale_id=? ORDER BY m.created_at LIMIT 1',sale);
   expect(movement).not.toBeNull();
@@ -1443,7 +1443,7 @@ it('allows independent shops to sell while a hotel closes and locks only its lin
  await run(db,"UPDATE pos_registers SET property_id='closing-hotel' WHERE id='restaurant'");
  await expect(createSale('retail')).resolves.toEqual(expect.any(String));
  await expect(createSale('dine_in')).rejects.toMatchObject({code:'POS_HOTEL_DAY_CLOSED'});
- const {hospitalityDayControls}=await import("../../../src/server/modules/pms/public/hospitality-day-controls");
+ const {hospitalityDayControls}=await import("@erpx/server-pms/public/hospitality-day-controls");
  const controls=await hospitalityDayControls(db,'pos-company','pos-branch','closing-hotel',businessDate());
  expect(controls.openShifts).toBe(1);expect(controls.openBills).toBe(0);
 });
@@ -1480,12 +1480,12 @@ async function zeroLedgerPosCompany() {
     ]);
     const scope:WorkContext['scope']=scopeKind==='department'?{kind:'department',holdingId:'h001',holdingSlug:'pos-test',holdingName:'Test',companyId:company,branchId:branch,departmentId:department,departmentSlug:department,departmentName:'Native POS team'}:scopeKind==='branch'?{kind:'branch',holdingId:'h001',holdingSlug:'pos-test',holdingName:'Test',companyId:company,branchId:branch,branchSlug:branch,branchName:'Native service branch'}:{kind:'holding',holdingId:'h001',holdingSlug:'pos-test',holdingName:'Test',companyId:company};
     const context:WorkContext={userId,assignmentId,role,companyId:company,branchId:scopeKind==='holding'?null:branch,departmentId:scopeKind==='department'?department:null,holdingId:'h001',holdingSlug:'pos-test',holdingName:'Test',name,email:`${name}@example.test`,assignmentScope:scopeKind,inherited:false,modules:['pos'],assignments:[],workspaces:[],scope};
-    const {loadIamAuthority}=await import('../../../src/server/modules/identity_access/public/iam-store');
+    const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');
     context.iam=await loadIamAuthority(db,company,userId,role);
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),salesManager=await actor('sales-manager','sales_manager'),treasury=await actor('treasury','treasury');
-  const {installStaffLevels,savePosition,positionSchema}=await import('../../../src/server/modules/organization/public/organization');
+  const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');
   await installStaffLevels(db,owner,randomUUID());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),randomUUID())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[salesManager,3],[treasury,4]] as const){
@@ -1495,7 +1495,7 @@ async function zeroLedgerPosCompany() {
   await db.prepare("INSERT INTO authority_seats(company_id,kind,scope_id,version,position_id,person_id,effective_at) VALUES(?,'ceo',?,1,?,?,1) ON CONFLICT(company_id,kind,scope_id) DO UPDATE SET version=1,position_id=excluded.position_id,person_id=excluded.person_id,effective_at=1").bind(company,company,ceo,`person-${owner.userId}`).run();
   const counts=()=>Promise.all(['finance_charts','finance_accounts','finance_periods','company_fx_rates','commerce_settings','commerce_orders','finance_journals','finance_invoices','pos_settings','pos_registers','commerce_warehouses','commerce_products'].map(table=>db.prepare(`SELECT count(*) n FROM ${table} WHERE company_id=?`).bind(company).first<number>('n')));
   expect(await counts()).toEqual([0,0,0,0,0,0,0,0,0,0,0,0]);
-  const {packageGrantStore}=await import('../../../src/server/modules/commercial/public/package-grants');
+  const {packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');
   const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-zero-ledger-POS-provider'}),obligations:async()=>{throw Error('ZERO_POS_FIXTURE_CANNOT_WITHDRAW');}}),grant={companyId:company,packageId:'pos',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Reviewed isolated POS-only foundation',evidence:'test:zero-ledger-POS'};
   async function purchase(){await store.apply({expectedVersion:0,idempotencyKey:randomUUID(),grant});}
   vi.stubEnv('ERPX_POS_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
@@ -1507,7 +1507,7 @@ it('retains original POS first-time bootstrap missing-mapping guard without effe
  const z=await zeroLedgerPosCompany();await z.purchase();expect((await db.prepare("SELECT package_id,state FROM company_package_grants WHERE company_id=? AND state='active' ORDER BY package_id").bind(z.company).all()).results).toEqual([{package_id:'pos',state:'active'}]);const before=await z.counts();await expect(posCommand(db,z.owner,'settings.bootstrap',{},randomUUID())).rejects.toMatchObject({status:409,code:'POS_COMMERCE_SETUP_REQUIRED'});expect(await z.counts()).toEqual(before);
 });
 it('POS-only zero ledger uses actual startup references, nine accounts, masters and independent accounting before its first service cash sale',async()=>{
- const z=await zeroLedgerPosCompany(),finance=await import('../../../src/server/modules/finance/public/pos-startup-prerequisites'),commerce=await import('../../../src/server/modules/commerce/public/pos-posting-setup'),masters=await import('../../../src/server/modules/commerce/public/pos-startup-masters'),startup=await import('../../../src/server/modules/pos/public/startup');
+ const z=await zeroLedgerPosCompany(),finance=await import('@erpx/server-finance/public/pos-startup-prerequisites'),commerce=await import('@erpx/server-commerce/public/pos-posting-setup'),masters=await import('@erpx/server-commerce/public/pos-startup-masters'),startup=await import('@erpx/server-pos/public/startup');
  vi.stubEnv('ERPX_POS_PACKAGE_ENFORCEMENT','disabled');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','disabled');vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','disabled');const denied=await finance.posStartupPrerequisites(z.reviewer);expect(denied).toMatchObject({available:false,unavailableReason:'purchase-required',charts:[],accounts:[]});const empty=await z.counts();await expect(finance.createPosStartupChart(z.reviewer,{expectedVersion:0,contextKey:'a'.repeat(64),input:{name:'Unauthorized chart',baseCurrency:'THB',accountingBasis:'TFRS'}},randomUUID())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});expect(await z.counts()).toEqual(empty);await z.purchase();
  const request=async()=>{const value=await finance.posStartupPrerequisites(z.reviewer);expect(value.available).toBe(true);return {expectedVersion:0 as const,contextKey:value.contextKey!};};
  const chartInput={...await request(),input:{name:'Actual POS Company chart',baseCurrency:'THB',accountingBasis:'TFRS'}},chartKey=randomUUID(),chart=await finance.createPosStartupChart(z.reviewer,chartInput,chartKey);expect(await finance.createPosStartupChart(z.reviewer,chartInput,chartKey)).toEqual(chart);
@@ -1522,7 +1522,7 @@ it('POS-only zero ledger uses actual startup references, nine accounts, masters 
 },120000);
 
 async function zeroLedgerPosInitialStockCompany(){
- const z=await zeroLedgerPosCompany(),finance=await import('../../../src/server/modules/finance/public/pos-startup-prerequisites'),commerce=await import('../../../src/server/modules/commerce/public/pos-posting-setup'),masters=await import('../../../src/server/modules/commerce/public/pos-startup-masters');await z.purchase();
+ const z=await zeroLedgerPosCompany(),finance=await import('@erpx/server-finance/public/pos-startup-prerequisites'),commerce=await import('@erpx/server-commerce/public/pos-posting-setup'),masters=await import('@erpx/server-commerce/public/pos-startup-masters');await z.purchase();
  const request=async()=>{const seed=await finance.posStartupPrerequisites(z.reviewer);if(!seed.contextKey)throw Error('Actual POS Finance prerequisite context required');return {expectedVersion:0 as const,contextKey:seed.contextKey};};
  const chart=await finance.createPosStartupChart(z.reviewer,{...await request(),input:{name:'Physical POS chart',baseCurrency:'THB',accountingBasis:'TFRS'}},randomUUID()),accounts:Record<string,string>={};
  for(const [name,code,category,controlKind] of [['ar','1100','asset','receivable'],['ap','2100','liability','payable'],['revenue','4100','revenue','none'],['inventory','1300','asset','none'],['clearing','2150','liability','none'],['cogs','5100','expense','none'],['inputTax','1150','asset','none'],['outputTax','2151','liability','none'],['cash','1001','asset','bank'],['variance','5400','expense','none']] as const){const account=await finance.createPosStartupAccount(z.reviewer,{...await request(),input:{chartId:chart.id,code,name:`Physical POS ${name}`,category,currency:'THB',isControl:controlKind!=='none',controlKind}},randomUUID());accounts[name]=account.id;}
@@ -1535,7 +1535,7 @@ async function zeroLedgerPosInitialStockCompany(){
 }
 
 it('POS-only first physical Count retains original Supply refusal then binds evidence, independently posts variance and funds its first stocked cash sale',async()=>{
- const s=await zeroLedgerPosInitialStockCompany(),counts=await import('../../../src/server/modules/inventory/public/inventory-counts'),initial=await import('../../../src/server/modules/inventory/public/pos-initial-physical-stock-count'),startup=await import('../../../src/server/modules/pos/public/startup'),before=await s.snapshot();
+ const s=await zeroLedgerPosInitialStockCompany(),counts=await import('@erpx/server-inventory/public/inventory-counts'),initial=await import('@erpx/server-inventory/public/pos-initial-physical-stock-count'),startup=await import('@erpx/server-pos/public/startup'),before=await s.snapshot();
  expect(s.z.manager.role).toBe('finance_approver');expect(counts.canPrepareCounts(s.z.manager)).toBe(false);expect(counts.canPrepareCounts(s.z.owner)).toBe(true);expect(counts.canApproveCounts(s.z.manager)).toBe(true);expect(s.z.owner.userId).not.toBe(s.z.manager.userId);
  await expect(counts.saveCount(s.z.owner,null,s.input,randomUUID())).rejects.toMatchObject({status:403,code:'PACKAGE_REQUIRED'});expect(await s.snapshot()).toEqual(before);
  const selected={warehouseId:s.warehouse.id,productId:s.product.id,countDate:s.input.countDate},seed=await initial.posInitialPhysicalStockCountWorkspace(s.z.owner,selected);expect(seed).toMatchObject({available:true,canPrepare:true,canCreateWarehouse:false,canCreateProduct:false,readiness:{schemaAvailable:true,postingConfigured:true,accountingApproved:true,varianceAccountAvailable:true,postingPeriodAvailable:true}});expect(await startup.posStartupWorkspace(s.z.manager)).toMatchObject({available:true,canPrepareInitialStock:false});expect(await startup.posStartupWorkspace(s.z.owner)).toMatchObject({available:true,canPrepareInitialStock:true});if(!seed.contextKey)throw Error('Actual selected POS Count context required');
@@ -1546,14 +1546,14 @@ it('POS-only first physical Count retains original Supply refusal then binds evi
  const postKey=randomUUID(),postBody={expectedVersion:3,attachmentSetIds:[],reason:'Original Count current-period physical variance, never an opening balance or acquisition'},posted=await initial.transitionPosInitialPhysicalStockCount(s.z.manager,id,'post',postBody,postKey);expect(posted).toMatchObject({id,status:'posted',version:4});expect(await initial.transitionPosInitialPhysicalStockCount(s.z.manager,id,'post',postBody,postKey)).toEqual(posted);
  const record=await initial.posInitialPhysicalStockCountWorkspace(s.z.manager,{countId:id});expect(record.record).toMatchObject({sourceKind:'pos-initial-physical-stock-count',id,status:'posted',version:4});expect(Number(record.record?.countedQuantity)).toBe(2);expect(Number(record.record?.countedValue)).toBe(12);const journalId=record.record?.journalId;if(!journalId)throw Error('Actual independently posted Count journal required');
  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(s.warehouse.id,s.product.id).first()).toEqual({quantity_milli:2000,value_minor:1200});expect(await db.prepare('SELECT source_type,source_id,status,is_opening FROM finance_journals WHERE id=? AND company_id=?').bind(journalId,s.z.company).first()).toMatchObject({source_type:'stock_count',source_id:id,status:'posted',is_opening:0});expect((await db.prepare('SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY account_id').bind(journalId).all()).results).toEqual(expect.arrayContaining([{account_id:s.accounts.inventory,debit_minor:1200,credit_minor:0},{account_id:s.accounts.variance,debit_minor:0,credit_minor:1200}]));
- const {journalDetail}=await import('../../../src/server/modules/finance/public/ledger');expect((await journalDetail(s.z.reviewer,journalId)).journal).toMatchObject({id:journalId,source_type:'stock_count',source_id:id,status:'posted'});
+ const {journalDetail}=await import('@erpx/server-finance/public/ledger');expect((await journalDetail(s.z.reviewer,journalId)).journal).toMatchObject({id:journalId,source_type:'stock_count',source_id:id,status:'posted'});
  await posCommand(db,s.z.owner,'catalog.save',{productId:s.product.id,barcode:'',category:'Physical stock',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:[s.setup.registerId],expectedVersion:0},randomUUID());const shift=await posCommand(db,s.z.owner,'shift.open',{registerId:s.setup.registerId,openingMinor:0},randomUUID()),sale=await posCommand(db,s.z.owner,'sale.create',{shiftId:shift.id,serviceMode:'retail'},randomUUID()),saleId=String(sale.id),mutate=async(operation:string,extra:Record<string,unknown>={})=>{const row=await db.prepare('SELECT version FROM pos_sales WHERE id=? AND company_id=?').bind(saleId,s.z.company).first<{version:number}>();if(!row)throw Error('Actual current POS sale required');return posCommand(db,s.z.owner,operation,{id:saleId,expectedVersion:row.version,...extra},randomUUID());};await mutate('sale.add',{productId:s.product.id,quantityMilli:1000,modifierIds:[],discountMinor:0,note:'The first actual physically counted unit'});await mutate('payment.create',{method:'cash',amountMinor:10000,tenderedMinor:10000,reference:''});await mutate('sale.complete');
  expect(await db.prepare('SELECT state,currency,total_minor FROM pos_sales WHERE id=? AND company_id=?').bind(saleId,s.z.company).first()).toEqual({state:'completed',currency:'THB',total_minor:10000});expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(s.warehouse.id,s.product.id).first()).toEqual({quantity_milli:1000,value_minor:600});expect(await db.prepare('SELECT count(*)::int n FROM finance_journals WHERE company_id=? AND source_type=\'pos\' AND source_id=? AND status=\'posted\'').bind(s.z.company,saleId).first('n')).toBeGreaterThan(0);
  const consumed=await s.snapshot();expect(await initial.preparePosInitialPhysicalStockCount(s.z.owner,createBody,createKey)).toEqual(created);expect(await initial.transitionPosInitialPhysicalStockCount(s.z.manager,id,'post',postBody,postKey)).toEqual(posted);expect(await s.snapshot()).toEqual(consumed);expect((await initial.posInitialPhysicalStockCountWorkspace(s.z.owner,selected)).unavailableReason).toBe('prior-stock-history');expect((await db.prepare("SELECT package_id FROM company_package_grants WHERE company_id=? AND state='active' ORDER BY package_id").bind(s.z.company).all()).results).toEqual([{package_id:'pos'}]);
 },120000);
 
 it('POS-only retained first physical Counts survive normal unused variance-account reclassification while original posting still refuses unavailable 5400',async()=>{
- const s=await zeroLedgerPosInitialStockCompany(),initial=await import('../../../src/server/modules/inventory/public/pos-initial-physical-stock-count'),counts=await import('../../../src/server/modules/inventory/public/inventory-counts'),finance=await import('../../../src/server/modules/finance/public/finance'),masters=await import('../../../src/server/modules/commerce/public/pos-startup-masters');
+ const s=await zeroLedgerPosInitialStockCompany(),initial=await import('@erpx/server-inventory/public/pos-initial-physical-stock-count'),counts=await import('@erpx/server-inventory/public/inventory-counts'),finance=await import('@erpx/server-finance/public/finance'),masters=await import('@erpx/server-commerce/public/pos-startup-masters');
  const second=await masters.createPosStartupProduct(s.z.owner,{sku:'RETAINED-SECOND',name:'Second actual observed POS stock item',itemType:'stock',trackingMode:'none',unit:'piece',price:'100',taxBps:0,status:'active'},randomUUID());
  const prepare=async(productId:string)=>{const input={...s.input,lines:[{...s.input.lines[0],productId}]},seed=await initial.posInitialPhysicalStockCountWorkspace(s.z.owner,{warehouseId:s.warehouse.id,productId,countDate:input.countDate});expect(seed.canPrepare).toBe(true);if(!seed.contextKey)throw Error('Actual selected POS Count context required');const key=randomUUID(),body={expectedVersion:0 as const,contextKey:seed.contextKey,input},result=await initial.preparePosInitialPhysicalStockCount(s.z.owner,body,key);expect(result).toEqual({id:`count-${key}`,status:'draft',version:1});return {id:String(result.id),key,body,result};};
  const draft=await prepare(s.product.id),reviewable=await prepare(second.id),sourceImage=async(id:string)=>db.prepare('SELECT proof_json::text proof FROM inventory_pos_initial_physical_sources WHERE count_id=? AND company_id=?').bind(id,s.z.company).first<string>('proof'),draftProof=await sourceImage(draft.id),reviewableProof=await sourceImage(reviewable.id);
@@ -1654,7 +1654,7 @@ it('room-charge addon withdrawal requires its real Hotel receivable and independ
  const current=(await one(db,'SELECT version FROM pos_sales WHERE id=?',sale))!,chargeBody={id:sale,expectedVersion:current.version,propertyId:'addon-hotel',stayId:'addon-stay',expectedPropertyVersion:1},chargeKey=randomUUID(),charged=await command('sale.charge_to_room',chargeBody,actor,chargeKey);
  const pending=await posAddonObservation('pos-hotel-charge');expect(pending.observations.map(row=>row.moduleId)).toEqual(['pos','pms','finance','inventory']);expect(pending.observations.find(row=>row.moduleId==='pms')!.outstanding).toBeGreaterThan(0);
  await packageGrant('pos-hotel-charge','draining');const withdrawal=await posAddonWithdrawal('pos-hotel-charge');await expect(posAddonReview('pos-hotel-charge',withdrawal)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
- const other=await createSale('restaurant');await add(other);const {posWorkspace}=await import('../../../src/server/modules/pos/public/pos'),drainingView=await posWorkspace(actor,other,'','sale');expect(drainingView.roomChargeEnabled).toBe(false);expect(drainingView.roomChargeStays).toEqual([]);const deniedHistory=await posAddonHistory();await expect(change('sale.charge_to_room',other,{propertyId:'addon-hotel',stayId:'addon-stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'PACKAGE_DRAINING'});expect(await posAddonHistory()).toEqual(deniedHistory);
+ const other=await createSale('restaurant');await add(other);const {posWorkspace}=await import('@erpx/server-pos/public/pos'),drainingView=await posWorkspace(actor,other,'','sale');expect(drainingView.roomChargeEnabled).toBe(false);expect(drainingView.roomChargeStays).toEqual([]);const deniedHistory=await posAddonHistory();await expect(change('sale.charge_to_room',other,{propertyId:'addon-hotel',stayId:'addon-stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'PACKAGE_DRAINING'});expect(await posAddonHistory()).toEqual(deniedHistory);
  const line=(await one(db,'SELECT id FROM pos_lines WHERE sale_id=?',sale))!,requested=await change('room_charge_reversal.request',sale,{propertyId:'addon-hotel',expectedPropertyVersion:2,reason:'Wrong guest account independently corrected',restockLineIds:[line.id]},manager);
  await run(db,"INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('addon-restaurant-reviewer','addon-restaurant-reviewer','holding_owner','[\"pos\"]','pos-company','holding',0,9999999999999)");
  const restaurantReviewer={...manager,userId:'addon-restaurant-reviewer',assignmentId:'addon-restaurant-reviewer'};await command('room_charge_reversal.approve_pos',{id:requested.id,expectedVersion:1,reason:'Independent restaurant source review'},restaurantReviewer);await expect(posAddonReview('pos-hotel-charge',withdrawal,true)).rejects.toThrow('PACKAGE_OBLIGATIONS_REMAIN');
@@ -1672,7 +1672,7 @@ it('restaurant addon final review rolls back a deferred actual-sale job and the 
  finally{await db.exec(`DROP TRIGGER ${trigger} ON company_package_change_sets;DROP FUNCTION ${trigger}()`);}
 });
 it('addon owner readers refuse forged or wrong-Company leases and fence absent POS Hotel Finance and Stock writes',async()=>{
- const {posAddonPackageObligations}=await import('../../../src/server/modules/pos/public/addon-package-obligations'),{hospitalityAddonFinancePackageObligations}=await import('../../../src/server/modules/finance/public/hospitality-addon-package-obligations');
+ const {posAddonPackageObligations}=await import('@erpx/server-pos/public/addon-package-obligations'),{hospitalityAddonFinancePackageObligations}=await import('@erpx/server-finance/public/hospitality-addon-package-obligations');
  const input={...posAddonInput('pos-hotel-charge'),moduleId:'pos',now:Date.now()};await expect(posAddonPackageObligations(db,db,input)).rejects.toThrow('TRANSACTION_NOT_ACTIVE_OR_OWNED');await db.transaction(async tx=>{await expect(posAddonPackageObligations(db,tx,input)).rejects.toThrow('POS_PACKAGE_OBLIGATION_SOURCE_REQUIRED');});
  await withOwnerPackageObligations(db,posAddonInput('pos-hotel-charge'),async tx=>{await expect(posAddonPackageObligations(db,tx,{...input,companyId:'foreign-company'})).rejects.toThrow('POS_PACKAGE_OBLIGATION_SOURCE_REQUIRED');await expect(hospitalityAddonFinancePackageObligations(db,tx,{...input,moduleId:'finance',companyId:'foreign-company'})).rejects.toThrow('HOSPITALITY_ADDON_FINANCE_SOURCE_REQUIRED');
   for(const [table,column] of [['company_package_grants','version'],['pos_sales','version'],['pos_registers','version'],['pos_jobs','attempts'],['pos_stripe_events','received_at'],['pos_room_charge_reversal_requests','version'],['pms_properties','version'],['pms_records','version'],['pms_postings','business_date'],['pms_charge_corrections','version'],['finance_invoices','version'],['finance_payments','version'],['finance_journals','version'],['finance_journal_lines','ordinal'],['commerce_stock','version'],['commerce_warehouses','version'],['commerce_products','version']])await expect(db.transaction(async competing=>{await competing.prepare("SET LOCAL lock_timeout='100ms'").run();await competing.prepare(`UPDATE ${table} SET ${column}=${column} WHERE false`).run();})).rejects.toMatchObject({code:'55P03'});

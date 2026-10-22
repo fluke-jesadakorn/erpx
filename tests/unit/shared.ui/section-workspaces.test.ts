@@ -1,7 +1,7 @@
 import {describe,it,expect} from "vitest";
-import {sectionWorkspaceTopics,legacyWorkspaceDestination,workspaceTopicLinks,workspaceSearchContext,assetTopicsFor,knowledgeTopicsFor} from "../../../src/lib/work_projection/section-workspaces";
-import {workplaceNavigation} from "../../../src/lib/work_projection/workplace-navigation";
-import {productionPageCut} from "../../../src/lib/shared/hospitality-page-cut";
+import {sectionWorkspaceTopics,legacyWorkspaceDestination,workspaceTopicLinks,workspaceSearchContext,assetTopicsFor,knowledgeTopicsFor} from "@erpx/feature-work_projection/lib/section-workspaces";
+import {workplaceNavigation} from "@erpx/feature-work_projection/lib/workplace-navigation";
+import {productionPageCut} from "@erpx/feature-shared/lib/hospitality-page-cut";
 const base='/holdings/acme';
 describe('combined workspace navigation',()=>{
  it.each([['maintenance','/services/assets/maintenance'],['handbook','/knowledge/handbook/published'],['learning','/knowledge/learning/courses'],['brand','/administration/brand/identity']])('normalizes %s owner inputs while retaining repeated scope filters',(path,target)=>{const result=new URL(legacyWorkspaceDestination(base,path,{company:'acme-co',filter:['a','b']})!,'https://example.test');expect(result.pathname).toBe(base+target);expect(result.searchParams.getAll('filter')).toEqual(['a','b']);expect(result.searchParams.get('company')).toBe('acme-co');});

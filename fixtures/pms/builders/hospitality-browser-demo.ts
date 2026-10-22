@@ -1,12 +1,12 @@
 /** Real PMS/POS setup inside the disposable browser simulation databases only. */
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { PostgresDatabase } from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import type { SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { businessRoles } from "../../../src/lib/identity_access/business-roles";
-import { accountKeys } from "../../../src/server/modules/pos/public/rules/pos";
-import { pmsAccountKeys, plusDays, record, records, type Config } from "../../../src/server/modules/pms/public/rules/pms";
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
+import { accountKeys } from "@erpx/server-pos/public/rules/pos";
+import { pmsAccountKeys, plusDays, record, records, type Config } from "@erpx/server-pms/public/rules/pms";
 
 type Fixture = {
   name:string;legalEntity:string;property:{rooms:{number:string;type:string;state:string}[];roomTypes:{code:string;name:string;capacity:number;rateMinor:number}[];taxAndService:{vatBpsExampleOnly:number;serviceBpsExampleOnly:number;taxInclusiveExampleOnly:boolean}};
@@ -20,11 +20,11 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   const db=input.db;
   const fixture=JSON.parse(await readFile(resolve(import.meta.dir,"../../hospitality/pilot-example.json"),"utf8")) as Fixture;
   const {seedExpenseCompany}=await import("../../expenses/company");
-  const {pmsCommand,loadPms}=await import("../../../src/server/modules/pms/public/pms");
-  const {posCommand}=await import("../../../src/server/modules/pos/public/pos-core");
-  const {saveMaster}=await import("../../../src/server/modules/commerce/public/commerce");
-  const {saveServiceTeam,serviceTeamSchema}=await import("../../../src/server/modules/support/public/service-teams");
-  const {saveSupplierInvoicePolicy}=await import("../../../src/server/modules/procurement/public/supplier-bill-matching");
+  const {pmsCommand,loadPms}=await import("../../../packages/server-pms/src/public/pms");
+  const {posCommand}=await import("@erpx/server-pos/public/pos-core");
+  const {saveMaster}=await import("@erpx/server-commerce/public/commerce");
+  const {saveServiceTeam,serviceTeamSchema}=await import("@erpx/server-support/public/service-teams");
+  const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/public/supplier-bill-matching");
   const f=await seedExpenseCompany(input.db,input.files);
   await input.db.prepare("UPDATE organization_nodes SET display_name=? WHERE id=?").bind(fixture.legalEntity,f.company).run();
   await input.db.prepare("UPDATE organization_nodes SET display_name=? WHERE id=?").bind("Riverside Lantern Bangkok",f.branch).run();
@@ -77,7 +77,7 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   // Give the isolated hotel company explicit independent department and HR
   // authority so request, overtime, and leave scenarios exercise a usable
   // review route instead of the real setup-blocker path.
-  const {changeAppointment}=await import("../../../src/server/modules/organization/public/department-authority");
+  const {changeAppointment}=await import("@erpx/server-organization/public/department-authority");
   const appointmentVersion=async(kind:"head"|"hr",scopeId:string)=>Number((await db.prepare("SELECT version FROM authority_seats WHERE company_id=? AND kind=? AND scope_id=?")
     .bind(f.company,kind,scopeId).first<{version:number}>())?.version??0);
   await changeAppointment(db,admin,{kind:"head",departmentId:f.department,positionId:null,personId:managerPersonId,expectedVersion:await appointmentVersion("head",f.department),reason:"Synthetic department approval route for H002 browser acceptance."},crypto.randomUUID());
@@ -94,7 +94,7 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   await saveSupplierInvoicePolicy(admin,{matchingMode:"required",expectedVersion:0,reason:"Fictional Riverside scenario requires independent matching of supplier invoices to receipts."},crypto.randomUUID());
   const supplierOne=await saveMaster(admin,"parties",null,{kind:"supplier",code:"RIVERSIDE-FOOD-01",name:"Fictional Riverside Food Supply",paymentTermsDays:30},crypto.randomUUID());
   const supplierTwo=await saveMaster(admin,"parties",null,{kind:"supplier",code:"RIVERSIDE-FOOD-02",name:"Fictional Lantern Produce Co",paymentTermsDays:30},crypto.randomUUID());
-  const {saveEmployeeRequest,employeeRequestSchema}=await import("../../../src/server/modules/records/public/employee-requests");
+  const {saveEmployeeRequest,employeeRequestSchema}=await import("@erpx/server-records/public/employee-requests");
   const purchaseRequest=await saveEmployeeRequest(db,actors.employee,null,employeeRequestSchema.parse({
     kind:"purchase",title:"Riverside kitchen rice restock",description:"Fictional dry stock for the restaurant kitchen.",
     location:"Riverside Lantern kitchen",impact:"normal",branchId:f.branch,departmentId:f.department,
@@ -247,8 +247,8 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   const openingEquityId=`${f.company}-hospitality-opening-equity`;
   await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,'HOTEL-OPEN','Demo opening inventory equity','equity','THB',?,?)").bind(openingEquityId,f.chart,f.company,now,now).run();
   const openingValue=fixture.restaurant.openingStock.reduce((sum,item)=>sum+item.valueMinor,0);
-  const {createJournal,createJournalSchema,postJournal}=await import("../../../src/server/modules/finance/public/finance");
-  const {resolveFlow,assignFlowPrimary}=await import("../../../src/server/modules/workflow/public/flow-routing");
+  const {createJournal,createJournalSchema,postJournal}=await import("@erpx/server-finance/public/finance");
+  const {resolveFlow,assignFlowPrimary}=await import("@erpx/server-workflow/public/flow-routing");
   const opening=await createJournal(admin,createJournalSchema.parse({chartId:f.chart,periodId:f.period,entryDate:date,currency:"THB",memo:"Fictional Riverside kitchen opening inventory",sourceType:"manual",isOpening:true,lines:[{accountId:pmsAccounts.inventory,debit:String(openingValue/100),credit:"0"},{accountId:openingEquityId,debit:"0",credit:String(openingValue/100)}]}),crypto.randomUUID());
   const flow=await resolveFlow(db,admin,"journal",String(opening.id));
   await assignFlowPrimary(db,admin,"journal",String(opening.id),{stepKey:"draft",userId:finance.userId,expectedVersion:flow.version,recordVersion:1,reason:"Independent review of fictional opening kitchen inventory",saveDefault:false},crypto.randomUUID());
@@ -260,7 +260,7 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   for(const table of fixture.restaurant.tables)await pos("table.create",{registerId,name:table,seats:4});
   for(const item of fixture.restaurant.menu)await pos("catalog.save",{productId:products[item.sku],barcode:"",category:"Restaurant",kind:item.recipe?"recipe":"stock",station:item.sku==="TEA"||item.sku==="COFFEE"?"Bar":"Kitchen",recipe:item.recipe?.map(part=>({productId:products[part.sku],quantityMilli:part.quantityMilli}))??[],modifiers:[],taxInclusive:false,expectedVersion:0});
   if(input.menuImages) {
-    const {savePosProductImage}=await import("../../../src/server/modules/pos/public/pos-images");
+    const {savePosProductImage}=await import("@erpx/server-pos/public/pos-images");
     const images:Record<string,string>={"RICE-CHICKEN":"menu-basil-chicken","RICE-VEG":"menu-fried-rice",NOODLES:"menu-noodles",TEA:"menu-thai-tea",COFFEE:"menu-latte",WATER:"menu-water"};
     for(const item of fixture.restaurant.menu) {
       const image=images[item.sku];

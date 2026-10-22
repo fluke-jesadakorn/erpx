@@ -1,7 +1,7 @@
 import { hashPassword } from "better-auth/crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { getRuntime, closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
+import { getRuntime, closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
 import { seedExpenseCompany } from "../../fixtures/expenses/company";
 
 // Deliberately restricted to this task's isolated local verification databases.

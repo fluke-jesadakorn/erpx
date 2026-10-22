@@ -1,0 +1,1 @@
+export {talentAttachmentPurchaseScope,authorizeTalentAttachmentPurchase,talentAttachmentSourceReadLocks,talentAttachmentCommandBoundary,talentAttachmentFailure,type TalentAttachmentPurchase} from "@erpx/server-talent/adapters/attachment-purchases";

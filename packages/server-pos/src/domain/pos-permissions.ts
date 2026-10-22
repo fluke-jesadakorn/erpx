@@ -1,0 +1,3 @@
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
+export const posPermissions = (actor: WorkContext) => Object.fromEntries(['pos.read', 'pos.sell', 'pos.kitchen', 'pos.approve', 'pos.configure', 'pos.accounting.prepare', 'pos.accounting.approve', 'pos.payments.configure', 'pos.reports', 'finance.read', 'finance.write', 'finance.approve', 'pms.approve'].map(p => [p, hasPermission(actor, p)]));

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { organizationMoveDenial } from "../../../src/components/people_payroll/organization-explorer";
-import type { HoldingPeopleDirectory } from "../../../src/server/modules/organization/public/holding-people-directory";
+import { organizationMoveDenial } from "@erpx/feature-people_payroll/components/organization-explorer";
+import type { HoldingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
 
 const directory: HoldingPeopleDirectory = {
   companies: [

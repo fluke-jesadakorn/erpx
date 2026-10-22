@@ -1,7 +1,7 @@
 import {beforeAll,expect,it} from 'vitest';
 import {env,applyMigrations} from "../../support/runtime-env";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
-import {defaultConfig} from "../../../src/server/modules/pms/public/rules/pms";
+import {defaultConfig} from "@erpx/server-pms/public/rules/pms";
 const db=env.H001_DB,ids=[crypto.randomUUID(),crypto.randomUUID()];
 let company:string;
 beforeAll(async()=>{

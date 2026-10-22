@@ -5,12 +5,12 @@ import {mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {Pool} from 'pg';
-import {PostgresDatabase} from "../../../src/server/modules/runtime/adapters/runtime/postgres";
+import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,changeOrderReservation,fulfillOrder} from "../../../src/server/modules/commerce/public/commerce";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,changeOrderReservation,fulfillOrder} from "@erpx/server-commerce/public/commerce";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const run=promisify(execFile),hash=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 async function tableDigests(database:PostgresDatabase){

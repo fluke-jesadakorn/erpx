@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { previewDeadline } from "../../../src/server/modules/legal/public/rules/deadlines";
+import { previewDeadline } from "@erpx/server-legal/public/rules/deadlines";
 it("uses explicit calendar rules across month ends, leap years and weekends", () => {
   expect(
     previewDeadline({ start: "2028-01-31", amount: 1, unit: "months" }).date,

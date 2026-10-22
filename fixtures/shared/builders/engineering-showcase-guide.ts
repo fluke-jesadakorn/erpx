@@ -2,8 +2,8 @@
 import {readFile,realpath} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import type {PoolClient} from 'pg';
-import {moduleRegistry} from "../../../src/data/module-registry";
-import type {PostgresDatabase} from "../../../src/server/modules/runtime/adapters/runtime/postgres";
+import {moduleRegistry} from "@erpx/catalogue/module-registry";
+import type {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 
 const bindings=['CONTROL_DB','H001_DB','H002_DB','H003_DB'] as const;
 type Binding=typeof bindings[number];

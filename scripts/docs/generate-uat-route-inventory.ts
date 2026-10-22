@@ -3,7 +3,9 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "../..");
-const appRoot = resolve(root, "src/app");
+const appRoot = resolve(root, "apps/compat/src/app");
+// This retains the pre-existing Console matrix identity. Product host evidence
+// is separately bound to each workspace and never inferred from this matrix.
 const outputRoot = resolve(root, "docs/testing");
 const catalogueRoot = resolve(root, "tests/catalogue");
 const check = process.argv.includes("--check");
@@ -137,7 +139,7 @@ const rows = entries.map((entry) => {
 const markdown = [
   "# ERPX UAT route inventory",
   "",
-  `Generated from \`src/app\` page files on ${inventory.generatedDate}. The route source fingerprint is \`${sourceFingerprint}\`. This inventories implemented page files and is not a capability-catalog acceptance claim.`,
+  `Generated from \`apps/compat/src/app\` compatibility page files on ${inventory.generatedDate}. The route source fingerprint is \`${sourceFingerprint}\`. This inventories implemented page files and is not a capability-catalog acceptance claim.`,
   "",
   `- ${entries.length} page routes in source (current source count)`,
   "- Desktop Chrome and Pixel 7 emulation",

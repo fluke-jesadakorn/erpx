@@ -1,5 +1,5 @@
-import type { SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
-import { staffLevelTitles } from "../../../src/server/modules/organization/public/rules/organization-domain";
+import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import { staffLevelTitles } from "@erpx/server-organization/public/rules/organization-domain";
 
 /** Install only missing numbered prerequisites; existing custom IDs and values remain authoritative. */
 export async function localSeedLevels(db: SqlDatabase, companyId: string, now: number): Promise<Map<number, string>> {

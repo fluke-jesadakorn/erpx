@@ -1,4 +1,4 @@
-import type { SqlDatabase, SqlStatement } from "../../../src/server/modules/runtime/adapters/runtime/types";
+import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
 
 type JournalFixture = {
   id: string; companyId: string; chartId: string; periodId: string; number: string;

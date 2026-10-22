@@ -6,15 +6,15 @@ import {
   AttachmentFeatureProvider,
   canMutateAttachments,
   useAttachmentFeatureMode,
-} from "../../../src/components/files/attachment-feature-context";
-import { RecordDocumentDrawer } from "../../../src/components/files/record-document-drawer";
+} from "@erpx/feature-files/components/attachment-feature-context";
+import { RecordDocumentDrawer } from "@erpx/feature-files/components/record-document-drawer";
 
 function ModeProbe() {
   return <span>{useAttachmentFeatureMode()}</span>;
 }
 
 it("provides one server-derived attachment mode at the application root", () => {
-  const source = readFileSync("src/app/layout.tsx", "utf8");
+  const source = readFileSync("packages/workplace/src/routes/layout.tsx", "utf8");
   expect(source).toContain("attachmentsV2Enabled()");
   expect(source).toContain("attachmentsV2ReadOnly()");
   expect(source.match(/<AttachmentFeatureProvider\b[^>]*mode=\{attachmentFeatureMode\}/g)).toHaveLength(1);
@@ -71,10 +71,10 @@ it("allows attachment mutations only in enabled mode with domain authorization",
 
 it("wraps attachment-only cards and consoles in the global feature surface", () => {
   for (const path of [
-    "src/app/holdings/[holdingSlug]/_presenters/planning/screen.tsx",
-    "src/app/holdings/[holdingSlug]/_presenters/quality/screen.tsx",
-    "src/app/holdings/[holdingSlug]/_presenters/ecommerce/screen.tsx",
-    "src/components/support/support-incident-console.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/planning/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/quality/screen.tsx",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/ecommerce/screen.tsx",
+    "packages/feature-support/src/components/support-incident-console.tsx",
   ]) {
     expect(readFileSync(path, "utf8"), path).toContain(
       "AttachmentFeatureSurface",
@@ -84,11 +84,11 @@ it("wraps attachment-only cards and consoles in the global feature surface", () 
 
 it("keeps external legacy file mutations behind enabled-mode guards", () => {
   const branding = readFileSync(
-    "src/components/brand/brand-administration.tsx",
+    "packages/feature-brand/src/components/brand-administration.tsx",
     "utf8",
   );
   const support = readFileSync(
-    "src/components/support/support-evidence-console.tsx",
+    "packages/feature-support/src/components/support-evidence-console.tsx",
     "utf8",
   );
   expect(branding).toContain('if (attachmentMode !== "enabled") return;');
@@ -105,11 +105,11 @@ it("keeps external legacy file mutations behind enabled-mode guards", () => {
 
 it("suppresses staged attachment IDs as soon as the global mode stops allowing mutations", () => {
   const panel = readFileSync(
-    "src/components/files/attachment-panel.tsx",
+    "packages/feature-files/src/components/attachment-panel.tsx",
     "utf8",
   );
   const incident = readFileSync(
-    "src/components/support/support-incident-console.tsx",
+    "packages/feature-support/src/components/support-incident-console.tsx",
     "utf8",
   );
   expect(panel).toContain("onChange={mutationsEnabled ? onChange : undefined}");

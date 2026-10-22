@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { boundedBody } from "../../../src/server/modules/legal/public/legal/body";
+import { boundedBody } from "@erpx/server-legal/public/legal/body";
 
 function streamed(chunks: Uint8Array[], declared?: string) {
   const state = { reads: 0, cancelled: false };

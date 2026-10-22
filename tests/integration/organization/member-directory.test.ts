@@ -1,10 +1,10 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { companyMembers } from "../../../src/server/modules/organization/public/member-directory";
-import { memberProfileDetails } from "../../../src/server/modules/organization/public/member-profile-view";
+import { companyMembers } from "@erpx/server-organization/public/member-directory";
+import { memberProfileDetails } from "@erpx/server-organization/public/member-profile-view";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }) }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }) }));
 beforeAll(async () => { await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS); await applyMigrations(env.H001_DB, env.STAFF_TEST_MIGRATIONS); });
 let fixture: Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeEach(async () => {

@@ -19,6 +19,10 @@ export type Suite = {
   fixture: FixtureProfile;
   requires: { jobs: boolean; scanner: boolean };
   ci?: { critical: boolean; reason: string };
+  apps?: string[];
+  packages?: string[];
+  postgres?: { mode: "template" | "raw"; slots: string[]; migratedSlots: string[] };
+  serial?: { reason: string };
   fictionalProvider?: "pms-stripe";
   provider?: { environment: Record<string, string>; required: string[] };
   uatAuth?: { mode: "case-annotations" | "self-authenticated" };
@@ -80,8 +84,9 @@ export function importSpecifiers(source: string, filename = "source.ts"): string
 }
 
 export function resolveImport(from: string, specifier: string, files: ReadonlySet<string>): string | undefined {
-  if (!specifier.startsWith(".") && !specifier.startsWith("@/")) return undefined;
-  const path = specifier.startsWith("@/") ? `src/${specifier.slice(2)}` : relative("/", resolve("/", dirname(from), specifier)).replaceAll("\\", "/");
+  const workspace = /^@erpx\/([^/]+)\/(.+)$/.exec(specifier);
+  if (!workspace && !specifier.startsWith(".") && !specifier.startsWith("@/")) return undefined;
+  const path = workspace ? `packages/${workspace[1]}/src/${workspace[2]}` : specifier.startsWith("@/") ? `src/${specifier.slice(2)}` : relative("/", resolve("/", dirname(from), specifier)).replaceAll("\\", "/");
   const stem = /\.[cm]?js$/.test(path) ? path.replace(/\.[cm]?js$/, "") : path;
   return [path, ...[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".json"].map(extension => stem + extension), ...[".ts", ".tsx", ".js", ".mjs"].map(extension => `${path}/index${extension}`)].find(candidate => files.has(candidate));
 }
@@ -161,7 +166,7 @@ export function validateBrowserFixtureContract(suite: Suite, root = repositoryRo
 
 export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): void {
   if (catalogue.version !== 1 || !Array.isArray(catalogue.modules) || !Array.isArray(catalogue.suites)) throw new Error("INVALID_TEST_MANIFEST");
-  const registered = (JSON.parse(readFileSync(resolve(root, "src/data/module-registry.json"), "utf8")) as { id: string }[]).map(module => module.id).sort();
+  const registered = (JSON.parse(readFileSync(resolve(root, "packages/catalogue/src/module-registry.json"), "utf8")) as { id: string }[]).map(module => module.id).sort();
   if (JSON.stringify([...catalogue.modules].sort()) !== JSON.stringify(registered)) throw new Error("TEST_MODULE_REGISTRY_MISMATCH");
   const ids = new Set<string>(), files = new Set<string>();
   for (const suite of catalogue.suites) {
@@ -170,7 +175,7 @@ export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): 
     if (!testLanes.includes(suite.lane) || !suite.owner || !Array.isArray(suite.modules) || !suite.modules.length || !Array.isArray(suite.files) || !suite.files.length || !fixtureProfiles.has(suite.fixture) || typeof suite.requires?.jobs !== "boolean" || typeof suite.requires?.scanner !== "boolean") throw new Error(`INVALID_TEST_SUITE:${suite.id}`);
     if (!suite.modules.every(module => catalogue.modules.includes(module))) throw new Error(`UNKNOWN_SUITE_MODULE:${suite.id}`);
     if (suite.lane === "unit" || suite.lane === "integration") {
-      if (!suite.ci || typeof suite.ci.critical !== "boolean" || typeof suite.ci.reason !== "string" || !suite.ci.reason.trim()) throw new Error(`NATIVE_CI_CLASSIFICATION_REQUIRED:${suite.id}`);
+      if (suite.ci && (typeof suite.ci.critical !== "boolean" || typeof suite.ci.reason !== "string" || !suite.ci.reason.trim())) throw new Error(`NATIVE_CI_CLASSIFICATION_REQUIRED:${suite.id}`);
     } else if (suite.ci !== undefined) throw new Error(`NON_NATIVE_CI_CLASSIFICATION_FORBIDDEN:${suite.id}`);
     if (suite.fictionalProvider !== undefined && (suite.fictionalProvider !== 'pms-stripe' || suite.fixture !== 'booking' || suite.lane !== 'e2e' || !suite.requires.jobs || !suite.requires.scanner)) throw new Error(`INVALID_FICTIONAL_PROVIDER_SUITE:${suite.id}`);
     for (const file of suite.files) {

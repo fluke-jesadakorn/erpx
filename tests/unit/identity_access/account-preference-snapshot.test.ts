@@ -1,9 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ session: vi.fn(), profile: vi.fn() }));
-vi.mock("@/server/modules/identity_access/adapters/authorization", () => ({ currentSession: mocks.session }));
-vi.mock("@/server/modules/identity_access/adapters/account-profile", () => ({ currentAccountProfile: mocks.profile }));
-import { accountPreferenceSnapshot, preferredAccountAppearance, preferredAccountLanguage } from "@/server/modules/identity_access/public/account-preference-snapshot";
+vi.mock("@erpx/server-identity_access/adapters/authorization", () => ({ currentSession: mocks.session }));
+vi.mock("@erpx/server-identity_access/adapters/account-profile", () => ({ currentAccountProfile: mocks.profile }));
+import { accountPreferenceSnapshot, preferredAccountAppearance, preferredAccountLanguage } from "@erpx/server-identity_access/public/account-preference-snapshot";
 
 beforeEach(() => { mocks.session.mockReset(); mocks.profile.mockReset(); });
 it("projects only the current account's opaque preference seed, without identity, session, roles or private profile fields", async () => {

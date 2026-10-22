@@ -7,10 +7,10 @@ import { createServer } from "node:net";
 import { promisify } from "node:util";
 import sharp from "sharp";
 import { describe,expect,it } from "vitest";
-import { attachmentScannerReadiness,scanAttachmentBytes } from "../../../src/server/modules/files/public/attachments/scanner";
-import { detectedAttachmentMediaType,sanitizedAttachmentPreview } from "../../../src/server/modules/files/public/attachments/preview";
-import { ATTACHMENT_UPLOAD_MAX_BYTES,readBoundedUploadBody } from "../../../src/server/modules/files/public/attachments/upload";
-import { validMessagingSignature } from "../../../src/server/modules/collaboration/public/messaging-files";
+import { attachmentScannerReadiness,scanAttachmentBytes } from "@erpx/server-files/public/attachments/scanner";
+import { detectedAttachmentMediaType,sanitizedAttachmentPreview } from "@erpx/server-files/public/attachments/preview";
+import { ATTACHMENT_UPLOAD_MAX_BYTES,readBoundedUploadBody } from "@erpx/server-files/public/attachments/upload";
+import { validMessagingSignature } from "@erpx/server-collaboration/public/messaging-files";
 
 const execute=promisify(execFile);
 const repository=process.cwd();

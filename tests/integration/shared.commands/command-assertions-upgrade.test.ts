@@ -2,7 +2,7 @@ import {expect,it} from 'vitest';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {env} from "../../support/runtime-env";
-import {migrateDatabase} from "../../../src/server/modules/runtime/adapters/runtime/migrations";
+import {migrateDatabase} from "@erpx/server-runtime/adapters/runtime/migrations";
 it('preserves populated original assertions and cache facts across the additive transaction-local guard upgrade and replay',async()=>{
  const root=await mkdtemp(resolve('.runtime/tests/command-assertions-upgrade-'));const db=env.H001_DB;
  try{

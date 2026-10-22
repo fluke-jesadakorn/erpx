@@ -1,19 +1,19 @@
-import {createQualityScrapCountPreparation} from "../../../src/server/modules/inventory/application/quality-scrap-preparation";
+import {createQualityScrapCountPreparation} from "@erpx/server-inventory/application/quality-scrap-preparation";
 import {describe,expect,test} from 'vitest';
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {createInventoryConsumptionApplication,type InventoryConsumptionPorts,type InventoryConsumptionRepository} from "../../../src/server/modules/inventory/application/consumption";
-import {createInventoryReorderApplication,type InventoryReorderPorts,type InventoryReorderRepository} from "../../../src/server/modules/inventory/application/reorder-policies";
-import {createInventoryCountApplication,type InventoryCountPorts,type InventoryCountRepository} from "../../../src/server/modules/inventory/application/counts";
-import {createInventoryTransferApplication,type InventoryTransferPorts,type InventoryTransferRepository} from "../../../src/server/modules/inventory/application/transfers";
-import {createInventoryTransitApplication,type InventoryTransitPorts,type InventoryTransitRepository} from "../../../src/server/modules/inventory/application/transit";
-import {createInventoryReservationAlertsApplication} from "../../../src/server/modules/inventory/application/reservation-alerts";
-import {createInventoryLandedCostApplication,type InventoryLandedCostPorts,type InventoryLandedCostRepository} from "../../../src/server/modules/inventory/application/landed-costs";
-import {allocateLandedCost} from "../../../src/server/modules/inventory/domain/landed-costs";
-import {dateAfterDispatch,quantityAndValue} from "../../../src/server/modules/inventory/domain/transit";
-import {canEditCount,canReviewCount,type CountRow} from "../../../src/server/modules/inventory/domain/counts";
-import {transferSchema,type TransferRow} from "../../../src/server/modules/inventory/domain/transfers";
-import type {InventoryReorderPolicyRow} from "../../../src/server/modules/inventory/domain/reorder-policies";
-import type {ConsumptionInput} from "../../../src/server/modules/inventory/domain/consumption-input";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {createInventoryConsumptionApplication,type InventoryConsumptionPorts,type InventoryConsumptionRepository} from "@erpx/server-inventory/application/consumption";
+import {createInventoryReorderApplication,type InventoryReorderPorts,type InventoryReorderRepository} from "@erpx/server-inventory/application/reorder-policies";
+import {createInventoryCountApplication,type InventoryCountPorts,type InventoryCountRepository} from "@erpx/server-inventory/application/counts";
+import {createInventoryTransferApplication,type InventoryTransferPorts,type InventoryTransferRepository} from "@erpx/server-inventory/application/transfers";
+import {createInventoryTransitApplication,type InventoryTransitPorts,type InventoryTransitRepository} from "@erpx/server-inventory/application/transit";
+import {createInventoryReservationAlertsApplication} from "@erpx/server-inventory/application/reservation-alerts";
+import {createInventoryLandedCostApplication,type InventoryLandedCostPorts,type InventoryLandedCostRepository} from "@erpx/server-inventory/application/landed-costs";
+import {allocateLandedCost} from "@erpx/server-inventory/domain/landed-costs";
+import {dateAfterDispatch,quantityAndValue} from "@erpx/server-inventory/domain/transit";
+import {canEditCount,canReviewCount,type CountRow} from "@erpx/server-inventory/domain/counts";
+import {transferSchema,type TransferRow} from "@erpx/server-inventory/domain/transfers";
+import type {InventoryReorderPolicyRow} from "@erpx/server-inventory/domain/reorder-policies";
+import type {ConsumptionInput} from "@erpx/server-inventory/domain/consumption-input";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['inventory','finance'],assignments:[],workspaces:[]};
 function repository<Repository extends object>(facts:Partial<Repository>,calls:string[]):Repository{return new Proxy(facts,{get(target,name){if(name==='then')return undefined;if(name in target)return target[name as keyof Repository];if(typeof name==='string'&&/^(prepare|guard|clear|lock)/.test(name))return ()=>{calls.push(name);return name;};return ()=>{throw new Error('Unexpected operation: '+String(name));};}})as Repository;}
 function commands(calls:string[]){return {async replay<Result=Record<string,unknown>>():Promise<Result|null>{calls.push('replay');return null;},async commit<Result>(_actor:WorkContext,_key:string,operation:string,_input:unknown,_id:string,_version:number,result:Result,effects:string[]){calls.push(operation+':'+effects.join(','));return result;}};}
@@ -95,16 +95,16 @@ describe('Inventory quality scrap count preparation',()=>{
 });
 
 import {afterEach,vi} from "vitest";
-import {workFetch} from '../../../src/lib/work_projection/work-fetch';
-import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
+import {workFetch} from '@erpx/feature-work_projection/lib/work-fetch';
+import {setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 import {createElement,type ComponentType} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
-import {countCommandAllowed,countCommandPurpose,type CountPurchaseControls} from "../../../src/lib/inventory/count-purchase-controls";
-import {countEditorDraft,acknowledgedCountDraft,currentCountDraft} from "../../../src/lib/inventory/count-editor-draft";
-import {createCountCommandAttempt,type CountCommandAttempt} from "../../../src/lib/inventory/count-command-attempt";
-import {createCountCommandFetch,countFormUnchanged,validCountAcknowledgement} from "../../../src/lib/inventory/count-command-fetch";
-import {CountPurchaseProvider} from "../../../src/components/inventory/count-purchase-context";
-import {CountEditor,CountActions} from "../../../src/components/inventory/stock-count-controls";
+import {countCommandAllowed,countCommandPurpose,type CountPurchaseControls} from "@erpx/feature-inventory/lib/count-purchase-controls";
+import {countEditorDraft,acknowledgedCountDraft,currentCountDraft} from "@erpx/feature-inventory/lib/count-editor-draft";
+import {createCountCommandAttempt,type CountCommandAttempt} from "@erpx/feature-inventory/lib/count-command-attempt";
+import {createCountCommandFetch,countFormUnchanged,validCountAcknowledgement} from "@erpx/feature-inventory/lib/count-command-fetch";
+import {CountPurchaseProvider} from "@erpx/feature-inventory/components/count-purchase-context";
+import {CountEditor,CountActions} from "@erpx/feature-inventory/components/stock-count-controls";
 vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>"/holdings/acme/stock-counts",useSearchParams:()=>new URLSearchParams()}));
 afterEach(()=>vi.unstubAllGlobals());
 const activeCount:CountPurchaseControls={newWork:true,settleExisting:true,history:true,revision:"opaque"};
@@ -143,14 +143,14 @@ test("Count history suppresses mutation drawers while original independent/stale
 });
 
 
-import {transferCommandAllowed,type TransferPurchaseControls} from "../../../src/lib/inventory/transfer-purchase-controls";
-import {transferEditorDraft,acknowledgedTransferDraft,currentTransferDraft} from "../../../src/lib/inventory/transfer-editor-draft";
-import {createTransferCommandAttempt,type TransferCommandAttempt} from "../../../src/lib/inventory/transfer-command-attempt";
-import {createTransferCommandFetch,transferFormUnchanged,validTransferAcknowledgement} from "../../../src/lib/inventory/transfer-command-fetch";
-import {TransferPurchaseProvider} from "../../../src/components/inventory/transfer-purchase-context";
-import {TransferEditor,TransferActions} from "../../../src/components/inventory/stock-transfer-controls";
-import {TransitConsole} from "../../../src/components/inventory/transit-console";
-import {transitWorkItem} from "../../../src/server/modules/inventory/domain/transit";
+import {transferCommandAllowed,type TransferPurchaseControls} from "@erpx/feature-inventory/lib/transfer-purchase-controls";
+import {transferEditorDraft,acknowledgedTransferDraft,currentTransferDraft} from "@erpx/feature-inventory/lib/transfer-editor-draft";
+import {createTransferCommandAttempt,type TransferCommandAttempt} from "@erpx/feature-inventory/lib/transfer-command-attempt";
+import {createTransferCommandFetch,transferFormUnchanged,validTransferAcknowledgement} from "@erpx/feature-inventory/lib/transfer-command-fetch";
+import {TransferPurchaseProvider} from "@erpx/feature-inventory/components/transfer-purchase-context";
+import {TransferEditor,TransferActions} from "@erpx/feature-inventory/components/stock-transfer-controls";
+import {TransitConsole} from "@erpx/feature-inventory/components/transit-console";
+import {transitWorkItem} from "@erpx/server-inventory/domain/transit";
 const activeTransfer:TransferPurchaseControls={newWork:true,settleExisting:true,lossSettleExisting:true,history:true,revision:"opaque"},drainingTransfer={...activeTransfer,newWork:false},historyTransfer={...drainingTransfer,settleExisting:false,lossSettleExisting:false};
 const transferEditorOptions={warehouses:[{id:"source",name:"Source"},{id:"target",name:"Target"}],sources:[{id:"source",name:"Source"}],stock:[],lots:[]};
 function renderTransfer<Props extends object>(Component:ComponentType<Props>,props:Props,purchase?:TransferPurchaseControls){return renderToStaticMarkup(createElement(TransferPurchaseProvider,{purchase},createElement(Component,props)));}
@@ -192,10 +192,10 @@ test("Transit long receiving editor is disclosed and retained history does not e
  const data={userId:actor.userId,transit:transitRow,lines:[transitLine],lots:[],events:[],periods:[],accounts:[],canDispatch:false,canReceive:true,canReviewLoss:false};const props={base:"/holdings/acme",data};const html=renderTransfer(TransitConsole,props,drainingTransfer);expect(html).toContain("Record actual receiving outcome");expect(html).not.toContain('name="quantity"');expect(renderTransfer(TransitConsole,props,historyTransfer)).not.toContain("Record actual receiving outcome");
 });
 
-import {landedCostCommandAllowed,type LandedCostPurchaseControls} from "../../../src/lib/inventory/landed-cost-purchase-controls";
-import {createLandedCostCommandAttempt,type LandedCostCommandAttempt} from "../../../src/lib/inventory/landed-cost-command-attempt";
-import {createLandedCostCommandFetch,landedCostFormUnchanged,validLandedCostAcknowledgement} from "../../../src/lib/inventory/landed-cost-command-fetch";
-import {LandedCostCreateForm,LandedCostActions} from "../../../src/components/commerce/landed-cost-controls";
+import {landedCostCommandAllowed,type LandedCostPurchaseControls} from "@erpx/feature-inventory/lib/landed-cost-purchase-controls";
+import {createLandedCostCommandAttempt,type LandedCostCommandAttempt} from "@erpx/feature-inventory/lib/landed-cost-command-attempt";
+import {createLandedCostCommandFetch,landedCostFormUnchanged,validLandedCostAcknowledgement} from "@erpx/feature-inventory/lib/landed-cost-command-fetch";
+import {LandedCostCreateForm,LandedCostActions} from "@erpx/feature-commerce/components/landed-cost-controls";
 const activeLanded:LandedCostPurchaseControls={newWork:true,settleExisting:true,history:true,revision:'opaque'},drainingLanded={...activeLanded,newWork:false},historyLanded={...drainingLanded,settleExisting:false};
 test('Landed allocation requires active purchase while retained approve/reject/cancel/post keep their original purpose',()=>{
  expect(landedCostCommandAllowed(drainingLanded,'')).toBe(false);for(const action of ['approve','reject','cancel','post']){expect(landedCostCommandAllowed(drainingLanded,`/cost/${action}`)).toBe(true);expect(landedCostCommandAllowed(historyLanded,`/cost/${action}`)).toBe(false);}expect(landedCostCommandAllowed(undefined,'')).toBe(true);expect(landedCostCommandAllowed(activeLanded,'/cost/foreign-action')).toBe(false);
@@ -247,21 +247,21 @@ for(const [label,create,path] of [['Count',createCountCommandFetch,'stock-counts
  });
 }
 
-import {captureCountForm,countCommandContext} from '../../../src/lib/inventory/count-command-fetch';
-import {captureTransferForm,transferCommandContext} from '../../../src/lib/inventory/transfer-command-fetch';
-import {captureLandedCostForm,landedCostCommandContext} from '../../../src/lib/inventory/landed-cost-command-fetch';
-import {captureWorkCommandContext} from '../../../src/lib/work_projection/command-context';
-import {canonicalUiHref} from '../../../src/lib/work_projection/destination-registry';
-import {countSchema} from '../../../src/server/modules/inventory/domain/counts';
-import {landedCostCreateSchema} from '../../../src/server/modules/inventory/domain/landed-costs';
+import {captureCountForm,countCommandContext} from '@erpx/feature-inventory/lib/count-command-fetch';
+import {captureTransferForm,transferCommandContext} from '@erpx/feature-inventory/lib/transfer-command-fetch';
+import {captureLandedCostForm,landedCostCommandContext} from '@erpx/feature-inventory/lib/landed-cost-command-fetch';
+import {captureWorkCommandContext} from '@erpx/feature-work_projection/lib/command-context';
+import {canonicalUiHref} from '@erpx/feature-work_projection/lib/destination-registry';
+import {countSchema} from '@erpx/server-inventory/domain/counts';
+import {landedCostCreateSchema} from '@erpx/server-inventory/domain/landed-costs';
 const stockCallerOwners=[
- {label:'Count',prefix:'count',capital:'Count',source:'inventory/use-count-command.ts',path:'',url:'/api/v1/holdings/acme/stock-counts',input:countSchema.parse(countInput),create:createCountCommandFetch,attempts:createCountCommandAttempt,context:countCommandContext,capture:captureCountForm,valid:validCountAcknowledgement,unchanged:countFormUnchanged,allowed:countCommandAllowed},
- {label:'Transfer',prefix:'transfer',capital:'Transfer',source:'inventory/use-transfer-command.ts',path:'/stock-transfers',url:'/api/v1/holdings/acme/stock-transfers',input:transferInput,create:createTransferCommandFetch,attempts:createTransferCommandAttempt,context:transferCommandContext,capture:captureTransferForm,valid:validTransferAcknowledgement,unchanged:transferFormUnchanged,allowed:transferCommandAllowed},
- {label:'Landed',prefix:'landedCost',capital:'LandedCost',source:'commerce/use-landed-cost-command.ts',path:'',url:'/api/v1/holdings/acme/landed-costs',input:landedCostCreateSchema.parse({fulfillmentId:'receipt',costDate:'2026-10-16',description:'Original captured freight',allocationMethod:'quantity',amount:'10.00',creditAccountId:'freight'}),create:createLandedCostCommandFetch,attempts:createLandedCostCommandAttempt,context:landedCostCommandContext,capture:captureLandedCostForm,valid:validLandedCostAcknowledgement,unchanged:landedCostFormUnchanged,allowed:landedCostCommandAllowed},
+ {label:'Count',prefix:'count',capital:'Count',source:'packages/feature-inventory/src/components/use-count-command.ts',path:'',url:'/api/v1/holdings/acme/stock-counts',input:countSchema.parse(countInput),create:createCountCommandFetch,attempts:createCountCommandAttempt,context:countCommandContext,capture:captureCountForm,valid:validCountAcknowledgement,unchanged:countFormUnchanged,allowed:countCommandAllowed},
+ {label:'Transfer',prefix:'transfer',capital:'Transfer',source:'packages/feature-inventory/src/components/use-transfer-command.ts',path:'/stock-transfers',url:'/api/v1/holdings/acme/stock-transfers',input:transferInput,create:createTransferCommandFetch,attempts:createTransferCommandAttempt,context:transferCommandContext,capture:captureTransferForm,valid:validTransferAcknowledgement,unchanged:transferFormUnchanged,allowed:transferCommandAllowed},
+ {label:'Landed',prefix:'landedCost',capital:'LandedCost',source:'packages/feature-commerce/src/components/use-landed-cost-command.ts',path:'',url:'/api/v1/holdings/acme/landed-costs',input:landedCostCreateSchema.parse({fulfillmentId:'receipt',costDate:'2026-10-16',description:'Original captured freight',allocationMethod:'quantity',amount:'10.00',creditAccountId:'freight'}),create:createLandedCostCommandFetch,attempts:createLandedCostCommandAttempt,context:landedCostCommandContext,capture:captureLandedCostForm,valid:validLandedCostAcknowledgement,unchanged:landedCostFormUnchanged,allowed:landedCostCommandAllowed},
 ] as const;
 type StockCallerOwner=typeof stockCallerOwners[number];
 async function actualStockCaller(owner:StockCallerOwner,request:ReturnType<typeof createCountCommandFetch>) {
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL(`../../../src/components/${owner.source}`,import.meta.url),'utf8'),file=ts.createSourceFile('actual-stock-owner.ts',source,ts.ScriptTarget.Latest,true),functions:import('typescript').FunctionDeclaration[]=[];
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL(`../../../${owner.source}`,import.meta.url),'utf8'),file=ts.createSourceFile('actual-stock-owner.ts',source,ts.ScriptTarget.Latest,true),functions:import('typescript').FunctionDeclaration[]=[];
  const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='execute')functions.push(node);ts.forEachChild(node,visit);};visit(file);if(functions.length!==1)throw Error('Expected the actual Stock execute handler.');
  const emitted=ts.transpileModule(functions[0].getText(file),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const names=['pendingRef','commands',`${owner.prefix}CommandContext`,'base',`${owner.prefix}CommandAllowed`,'purchase',`${owner.prefix}CommandFetch`,'setError','setPending','setNotice',`capture${owner.capital}Form`,'setUncertain',`valid${owner.capital}Acknowledgement`,`${owner.prefix}FormUnchanged`,'router','canonicalUiHref','captureWorkCommandContext','attempt','retry'],run=new Function(...names,`${emitted}\nreturn execute(attempt,retry);`) as (...ports:unknown[])=>Promise<boolean>;

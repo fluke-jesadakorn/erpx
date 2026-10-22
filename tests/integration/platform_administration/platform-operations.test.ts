@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, expect, it } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
-import { recoverDeadLetterJob, runHoldingMigrations, summarizePlatformOperations, platformProvisioningSnapshot, provisionHolding } from "../../../src/server/modules/platform_administration/public/platform-operations";
-import { platformExecutiveSnapshot } from "../../../src/server/modules/platform_administration/public/platform-executive";
+import { recoverDeadLetterJob, runHoldingMigrations, summarizePlatformOperations, platformProvisioningSnapshot, provisionHolding } from "@erpx/server-platform_administration/public/platform-operations";
+import { platformExecutiveSnapshot } from "@erpx/server-platform_administration/public/platform-executive";
 
 const now = 1_800_000_000_000;
 

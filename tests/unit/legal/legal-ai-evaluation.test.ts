@@ -1,6 +1,6 @@
 import { it, expect } from "vitest";
 import dataset from "../../../fixtures/legal/ai-evaluation.v1.json";
-import { validateLegalAiCitations, type LegalEvidenceSource } from "../../../src/server/modules/legal/public/legal/knowledge";
+import { validateLegalAiCitations, type LegalEvidenceSource } from "@erpx/server-legal/public/legal/knowledge";
 
 const text = "Synthetic reviewed provision: retain the immutable original and independently review each legal conclusion.";
 const source: LegalEvidenceSource = { id: "synthetic-chunk", sourceId: "law:synthetic-chunk", kind: "law", item_id: "synthetic-rule", title: "Engineering fixture only", document_id: "synthetic-original", version: 1, checksum: "synthetic-checksum", text, excerpt: text, page: 2, section: "Synthetic section", revision_id: "synthetic-v1", effective_from: "2026-01-01" };

@@ -1,0 +1,3 @@
+// App-owned entry; shared payloads do not import another application.
+export { default } from "@erpx/feature-people/routes/holdings/[holdingSlug]/@record/people-organization/benefits/records/benefit_plan/[id]/[recordSection]/page";
+

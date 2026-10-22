@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { aiMarkdownRichContent, plainRichContent, validateRichContent } from "../../../src/lib/shared/home-rich-content";
-import type { Mention } from "../../../src/server/modules/collaboration/public/rules/social-text";
+import { aiMarkdownRichContent, plainRichContent, validateRichContent } from "@erpx/feature-shared/lib/home-rich-content";
+import type { Mention } from "@erpx/server-collaboration/public/rules/social-text";
 
 describe("Home rich documents",()=>{
   it("keeps Thai text and the stable AI mention target through a document round trip",()=>{

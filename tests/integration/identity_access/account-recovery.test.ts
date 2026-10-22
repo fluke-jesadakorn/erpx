@@ -5,8 +5,8 @@ import {
   deliverAccountRecovery,
   queueAccountRecovery,
   recordAccountRecoveryCompleted,
-} from "../../../src/server/modules/identity_access/public/account-recovery";
-import { sendBetaEmail } from "../../../src/server/modules/manage_erpx/public/beta-email";
+} from "@erpx/server-identity_access/public/account-recovery";
+import { sendBetaEmail } from "@erpx/server-manage_erpx/public/beta-email";
 
 const db = env.CONTROL_DB;
 const secret = "account-recovery-test-secret-at-least-32-chars";

@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {assertProductHostPlanWorkflow,companyAdminOwnerReadsProductHostCase,financeSalesInvoiceProductHostCase,fullAcceptanceProductHostPlanPathsFromEnvironment,permitsProductHostBusinessWrite,permitsProductHostFinanceInvoice,permitsProductHostReadOnlyPost,permitsProductHostRequestPreview,permitsProductHostUiWrite,permitsProductHostRequestOrigin,productHostBusinessWorkflowForCase,productHostPlanPathForWorkflow,productHostPlanPathsFromEnvironment,productHostReadOnlyWorkflowForCase,productHostPlan,productHostProducts,productHostBrowserFile,productHostWorkflowIsArmed,waitForProductHostEdgeMessage,workRequestDraftProductHostCase} from '../../../scripts/testing/product-host-cohort';
 import {executiveWorkGetKind,executiveWorkPostKind,executiveWorkBackgroundTrafficIsCurrent,isKnownExecutiveWorkChromiumBackgroundHost} from '../../../scripts/testing/executive-work-host-cohort';
-import {productIds} from '../../../src/lib/commercial/product-registry';
+import {productIds} from '@erpx/contracts/product-registry';
 import {formsHostOrigin,formsHostWorkflow,formsHostRequestKind,permitsFormsHostRequest,formsHostRedirectAllowed,assertFormsHostHistoricalBindings,type FormsHostPolicyInput,type FormsHostFixture} from '../../../scripts/testing/forms-host-cohort';
 
 const roots:string[]=[];

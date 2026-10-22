@@ -1,9 +1,9 @@
-import { getRuntime,closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
-import { resourceSlots,registeredResources } from "../../src/lib/runtime/holding-registry";
-import { maintenance } from "../../src/server/modules/runtime/adapters/runtime/jobs";
-import { attachmentsV2Enabled } from "../../src/server/modules/files/public/attachments/feature";
-import { attachmentRuntimeReadiness } from "../../src/server/modules/files/public/attachments/readiness";
-import { billingEvidenceReadiness } from "../../src/server/modules/billing/public/billing-attachments";
+import { getRuntime,closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
+import { resourceSlots,registeredResources } from "@erpx/feature-runtime/lib/holding-registry";
+import { maintenance } from "@erpx/server-runtime/adapters/runtime/jobs";
+import { attachmentsV2Enabled } from "@erpx/server-files/public/attachments/feature";
+import { attachmentRuntimeReadiness } from "@erpx/server-files/public/attachments/readiness";
+import { billingEvidenceReadiness } from "@erpx/server-billing/public/billing-attachments";
 try{
   const env=getRuntime(),holdings=[],attachmentsEnabled=attachmentsV2Enabled(),attachments=await attachmentRuntimeReadiness(),billing=await billingEvidenceReadiness(env);
   for(const slot of resourceSlots(env)){

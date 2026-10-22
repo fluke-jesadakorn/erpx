@@ -5,11 +5,11 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
+import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
 import {
   prepareBudgetEdition,
   decideFinancePlan,
-} from "../../../src/server/modules/finance/public/finance-planning";
+} from "@erpx/server-finance/public/finance-planning";
 import {
   createAttachmentSet,
   reserveAttachmentFile,
@@ -18,24 +18,24 @@ import {
   bindRecordAttachmentSet,
   listAttachmentSets,
   attachmentContent,
-} from "../../../src/server/modules/files/public/attachments/service";
-import { sha256 } from "../../../src/server/modules/runtime/adapters/crypto";
+} from "@erpx/server-files/public/attachments/service";
+import { sha256 } from "@erpx/server-runtime/adapters/crypto";
 import {
   prepareBookRule,
   decideBookRule,
   bookRuleSchema,
-} from "../../../src/server/modules/finance/public/finance-books";
+} from "@erpx/server-finance/public/finance-books";
 import {
   prepareBusinessContract,
   decideBusinessContract,
   businessContractSchema,
-} from "../../../src/server/modules/finance/public/finance-business-contracts";
+} from "@erpx/server-finance/public/finance-business-contracts";
 import {
   prepareInstrument,
   decideInstrument,
   instrumentEditionSchema,
-} from "../../../src/server/modules/finance/public/finance-instruments";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-finance/public/finance-instruments";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

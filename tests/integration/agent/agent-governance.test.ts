@@ -17,11 +17,11 @@ import {
   agentSourceAllowed,
   changeAgentPool,
   changePrivateSession,
-} from "../../../src/server/modules/agent/public/agent-governance";
-import { askAssistant,assistantView } from "../../../src/server/modules/agent/public/workspace-assistant";
-import { assistantAskSchema } from "../../../src/lib/work_projection/ai/workspace-assistant";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-agent/public/agent-governance";
+import { askAssistant,assistantView } from "@erpx/server-agent/public/workspace-assistant";
+import { assistantAskSchema } from "@erpx/feature-work_projection/lib/ai/workspace-assistant";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

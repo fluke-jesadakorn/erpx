@@ -7,7 +7,7 @@ import {dirname,relative,resolve} from 'node:path';
 import {runtimeSourceFingerprint,verificationSourceFingerprint} from '../../../scripts/local/source-fingerprint';
 import {readProductHostLease} from '../../../scripts/testing/product-host-cohort';
 
-const root=resolve(process.cwd()),routeSource='src/app/holdings/[holdingSlug]/services/assets/register/page.tsx',targetSource='src/components/assets/asset-editor.tsx';
+const root=resolve(process.cwd()),routeSource="packages/feature-assets/src/routes/holdings/[holdingSlug]/services/assets/register/page.tsx",targetSource='packages/feature-assets/src/components/asset-editor.tsx';
 export const assetRegisterPath='/holdings/simulation/services/assets/register';
 const endpoint='/api/v1/holdings/simulation/assets',roles='/api/v1/holdings/simulation/assignments/active';
 const hash=(bytes:Uint8Array|string)=>createHash('sha256').update(bytes).digest('hex');
@@ -34,42 +34,42 @@ const assetRegisterNonDocumentSources = [
   "bytes": 28133
  },
  {
-  "path": "src/app/holdings/[holdingSlug]/services/assets/register/page.tsx",
+  "path": "packages/feature-assets/src/routes/holdings/[holdingSlug]/services/assets/register/page.tsx",
   "sha256": "8e4f05c0ac99d45585690ef5b60f0b2f08f8efb96c31188d53b317f5d79cb8f9",
   "bytes": 427
  },
  {
-  "path": "src/app/holdings/[holdingSlug]/services/assets/register/_screen.tsx",
+  "path": "packages/workplace/src/routes/holdings/[holdingSlug]/services/assets/register/_screen.tsx",
   "sha256": "7ff26ee185dd44887d166e6a10369a16bf31633bb0f366e5c21a27896e537ea6",
   "bytes": 5620
  },
  {
-  "path": "src/components/assets/asset-maintenance-console.tsx",
+  "path": "packages/feature-assets/src/components/asset-maintenance-console.tsx",
   "sha256": "88f734f9cc8daf5047f4793499cdb3079599eef66873ff905e879c496b1edd68",
   "bytes": 17004
  },
  {
-  "path": "src/components/assets/asset-editor.tsx",
+  "path": "packages/feature-assets/src/components/asset-editor.tsx",
   "sha256": "9d8c6f068ddd08e0deb92041f8da16552ae367049a2271a3c331ad9c2e18748e",
   "bytes": 5606
  },
  {
-  "path": "src/lib/work_projection/destination-registry.ts",
+  "path": "packages/feature-work_projection/src/lib/destination-registry.ts",
   "sha256": "ad9915913d55392a6d416f65591c1765e470efcfea7a9100d2876cb5768724b5",
   "bytes": 33536
  },
  {
-  "path": "src/lib/work_projection/section-workspaces.ts",
+  "path": "packages/feature-work_projection/src/lib/section-workspaces.ts",
   "sha256": "a266f26a4e2c6f64d6bf8f8ed7c6b8445cc56cb2e1ba74f3fb504fb11213aba9",
   "bytes": 4726
  },
  {
-  "path": "src/components/workplace/section-workspace.tsx",
+  "path": "packages/workplace/src/components/section-workspace.tsx",
   "sha256": "8503d384e8eeb72166c4ab120de2917f74f2ac1386fd78d3cb90677dcbd99bb2",
   "bytes": 2237
  },
  {
-  "path": "src/components/ui/table.tsx",
+  "path": "packages/ui/src/components/table.tsx",
   "sha256": "6537f8dcd7c7601bafd062e47ffa50ed80f03c0632e8bd3ebad474070f4675ed",
   "bytes": 4546
  }

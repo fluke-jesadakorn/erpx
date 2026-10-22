@@ -7,11 +7,11 @@ const pending=vi.hoisted(()=>new Map<unknown,()=>Promise<unknown>>());
 vi.mock('next/dynamic',()=>({default:<Props extends object>(load:()=>Promise<ComponentType<Props>>)=>{
  let Owner:ComponentType<Props>|undefined;function Lazy(props:Props){if(!Owner)throw Error('Expected deferred owner load before SSR');return createElement(Owner,props);}pending.set(Lazy,async()=>{Owner=await load();return Owner;});return Lazy;
 }}));
-vi.mock('@/components/people_payroll/payroll-controls',()=>{throw Error('Unrelated Payroll controls must stay deferred while loading Time entry');});
+vi.mock("@erpx/feature-people_payroll/components/payroll-controls",()=>{throw Error('Unrelated Payroll controls must stay deferred while loading Time entry');});
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/test/people-organization/people/person',useSearchParams:()=>new URLSearchParams('tab=pay')}));
-import {TimeEntryEditor as LoadedTimeEntryEditor} from '@/components/records/loaders/modules--payroll-controls';
-import {TimeEntryEditor} from '@/components/people_payroll/self-service/time-entry-editor';
-import type {WorkforcePurchase} from '@/lib/people_payroll/workforce-controls';
+import {TimeEntryEditor as LoadedTimeEntryEditor} from '@erpx/feature-records/components/loaders/modules--payroll-controls';
+import {TimeEntryEditor} from '@erpx/feature-people_payroll/components/self-service/time-entry-editor';
+import type {WorkforcePurchase} from '@erpx/feature-people_payroll/lib/workforce-controls';
 
 it('loads only the actual Time owner from its existing lazy entry and preserves its props defaults markup and review controls',async()=>{
  const load=pending.get(LoadedTimeEntryEditor);if(!load)throw Error('Actual deferred Time entry loader required');expect(await load()).toBe(TimeEntryEditor);

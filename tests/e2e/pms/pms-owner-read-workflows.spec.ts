@@ -11,7 +11,7 @@ import {
   signInFrontRole,
   type SimulatedFrontCredentials,
 } from "../../support/helpers/front-simulation-session";
-import { money, records, type Snapshot } from "../../../src/server/modules/pms/public/rules/pms-model";
+import { money, records, type Snapshot } from "@erpx/server-pms/public/rules/pms-model";
 
 type HospitalityRunState = {
   run: string;

@@ -1,0 +1,1 @@
+export {expenseFinancialLanding,payrollFinancialLanding,peopleFinancialEntry,peopleFinancialPresentationAllowed,type PeopleFinancialEntry} from '@erpx/server-people_payroll/domain/financial-product-entry';

@@ -1,6 +1,0 @@
-import {workflowFinalOwnerProjections as identityaccessFinalOwnerProjections} from "../../identity_access/public/workflow-final-owner-projections";
-const identityaccessFinalSources=identityaccessFinalOwnerProjections();
-import "server-only";
-import type {SqlDatabase} from "../../runtime/public/runtime/types";
-import type {SelectWorkRole} from "../../work_projection/public/work-role-store";
-export function workRoleAuditEffect(db:SqlDatabase,input:SelectWorkRole,now:number,key:string,auditId:string){const {userId,companyId,assignmentId,revision}=input;return db.prepare(`INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) SELECT ?,?,?,?,'work.role.select','work_context',?,?,?, ?,jsonb_build_object('role',role,'assignmentId',id,'assignmentVersion',version,'companyId',company_id,'scopeKind',scope_kind,'scopeNodeId',scope_node_id,'revision',?::bigint)::text ${identityaccessFinalSources.work_role_audit_assignments_from} WHERE id=?`).bind(auditId,key,userId,assignmentId,companyId,revision+1,input.restoring ? "Restored saved work assignment for a new session" : "User selected their active work assignment",now,revision+1,assignmentId);}

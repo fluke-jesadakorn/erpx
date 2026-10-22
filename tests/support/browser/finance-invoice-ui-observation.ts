@@ -7,7 +7,7 @@ import {dirname,relative,resolve} from 'node:path';
 import {runtimeSourceFingerprint,verificationSourceFingerprint} from '../../../scripts/local/source-fingerprint';
 import {readProductHostLease} from '../../../scripts/testing/product-host-cohort';
 
-const root=resolve(process.cwd()),routeSource='src/app/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx',targetSource='src/components/finance/sales-controls.tsx';
+const root=resolve(process.cwd()),routeSource="packages/feature-finance/src/routes/holdings/[holdingSlug]/finance/documents/sales/invoices/page.tsx",targetSource='packages/feature-finance/src/components/sales-controls.tsx';
 export const financeInvoiceUiPath='/holdings/simulation/finance/documents/sales/invoices';
 const api='/api/v1/holdings/simulation',hash=(value:Uint8Array|string)=>createHash('sha256').update(value).digest('hex');
 type Work={valid:boolean;companyId:string;userId:string;assignmentId:string;revision:number;options:{id:string;role:string}[]};

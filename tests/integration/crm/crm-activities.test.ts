@@ -1,9 +1,9 @@
 import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createCRMLead} from "../../../src/server/modules/crm/public/crm";
-import {createCRMActivity,changeCRMActivity,crmActivityWorkspace,crmActivityWork} from "../../../src/server/modules/crm/public/crm-activities";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {createCRMLead} from "@erpx/server-crm/public/crm";
+import {createCRMActivity,changeCRMActivity,crmActivityWorkspace,crmActivityWork} from "@erpx/server-crm/public/crm-activities";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,leadId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();f.head.role='sales_manager';f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,'sales_manager');leadId=String((await createCRMLead(f.owner,{branchId:f.branch,title:'Activity test lead',contactName:'Activity customer',contactDetail:'A real follow-up channel',source:'Inbound email',brief:'Needs a confirmed installation date.',dueDate:'2026-09-24'},key())).id);});

@@ -8,20 +8,20 @@ import {
 import {
   readWorkCardPreferences,
   saveWorkCardPreferences,
-} from "../../../src/server/modules/work_projection/public/work-card-preferences";
+} from "@erpx/server-work_projection/public/work-card-preferences";
 import {
   getWorkCapabilities,
   hasCoveredTeam,
-} from "../../../src/server/modules/work_projection/public/work-capabilities";
+} from "@erpx/server-work_projection/public/work-capabilities";
 import {
   saveServiceTeam,
   serviceTeamSchema,
-} from "../../../src/server/modules/support/public/service-teams";
-import type { WorkCardId } from "../../../src/lib/work_projection/work-cards";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import type { SqlDatabase, SqlStatement } from "../../../src/server/modules/runtime/adapters/runtime/types";
+} from "@erpx/server-support/public/service-teams";
+import type { WorkCardId } from "@erpx/feature-work_projection/lib/work-cards";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

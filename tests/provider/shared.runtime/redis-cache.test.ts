@@ -1,6 +1,6 @@
 import { createServer, connect, type Socket } from 'node:net';
 import { afterEach, expect, it, vi } from 'vitest';
-import { cacheGet, cacheSet, closeRedisCache, redisCacheEnabled } from "../../../src/server/modules/runtime/adapters/runtime/redis-cache";
+import { cacheGet, cacheSet, closeRedisCache, redisCacheEnabled } from "@erpx/server-runtime/adapters/runtime/redis-cache";
 const redisUrl = process.env.ERPX_REDIS_URL;
 afterEach(async () => { await closeRedisCache(); vi.unstubAllEnvs(); });
 it('never enables persistent cache outside development', () => {

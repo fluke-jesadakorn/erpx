@@ -1,0 +1,20 @@
+{
+  "name": "@erpx/app-legal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun ../../scripts/local/app-task.ts dev --app=legal",
+    "build": "bun ../../scripts/local/app-task.ts build --app=legal",
+    "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=legal",
+    "lint": "bun ../../scripts/testing/scoped-lint.ts --app=legal"
+  },
+  "dependencies": {
+    "@erpx/feature-legal": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@erpx/contracts": "workspace:*"
+  }
+}

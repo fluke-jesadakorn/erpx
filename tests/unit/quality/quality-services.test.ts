@@ -1,8 +1,8 @@
 import {describe,expect,test} from 'vitest';
-import {createQualityApplication,type QualityMutation,type QualityRepository} from "../../../src/server/modules/quality/application/quality";
-import {createQualityAlertApplication,sweepQualityAlerts,type QualityAlertRepository,type QualityAlertSweepRepository} from "../../../src/server/modules/quality/application/alerts";
-import type {QualityRow} from "../../../src/server/modules/quality/domain/quality";
-import type {QualityAlert} from "../../../src/server/modules/quality/domain/alerts";
+import {createQualityApplication,type QualityMutation,type QualityRepository} from "@erpx/server-quality/application/quality";
+import {createQualityAlertApplication,sweepQualityAlerts,type QualityAlertRepository,type QualityAlertSweepRepository} from "@erpx/server-quality/application/alerts";
+import type {QualityRow} from "@erpx/server-quality/domain/quality";
+import type {QualityAlert} from "@erpx/server-quality/domain/alerts";
 
 const baseHold:QualityRow={id:'hold',status:'held',created_by:'creator',last_inspector:'inspector',last_result:null,held_quantity_milli:2000,warehouse_id:'warehouse',product_id:'product',branch_id:'branch',version:1,spec_id:null,updated_at:42,due_date:'2026-10-06',eligible_count:1};
 const specInput={productId:'product',name:'Approved package limits',metrics:[{code:'weight',label:'Package weight',unit:'kg',minimum:'9.9',maximum:'10.1'}]};
@@ -44,11 +44,11 @@ describe('Quality alert recovery',()=>{
 import {afterEach,vi} from 'vitest';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {qualityCommandAllowed,type QualityPurchaseControls} from '../../../src/lib/quality/quality-purchase-controls';
-import {createQualityCommandFetch,qualityFormUnchanged,validQualityAcknowledgement} from '../../../src/lib/quality/quality-command-fetch';
-import {createQualityCommandAttempt,type QualityCommandAttempt} from '../../../src/lib/quality/quality-command-attempt';
-import {QualityPurchaseProvider} from '../../../src/components/quality/quality-purchase-context';
-import {QualityConsole} from '../../../src/components/quality/quality-console';
+import {qualityCommandAllowed,type QualityPurchaseControls} from '@erpx/feature-quality/lib/quality-purchase-controls';
+import {createQualityCommandFetch,qualityFormUnchanged,validQualityAcknowledgement} from '@erpx/feature-quality/lib/quality-command-fetch';
+import {createQualityCommandAttempt,type QualityCommandAttempt} from '@erpx/feature-quality/lib/quality-command-attempt';
+import {QualityPurchaseProvider} from '@erpx/feature-quality/components/quality-purchase-context';
+import {QualityConsole} from '@erpx/feature-quality/components/quality-console';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/acme/quality',useSearchParams:()=>new URLSearchParams()}));
 afterEach(()=>vi.unstubAllGlobals());
 const activeQuality:QualityPurchaseControls={newWork:true,settleExisting:true,history:true,revision:'opaque'},drainingQuality={...activeQuality,newWork:false},historyQuality={...drainingQuality,settleExisting:false};
@@ -81,7 +81,7 @@ test('Quality retained history suppresses mutation tools while original independ
  expect(renderQuality({base:'/holdings/acme',data:uiWorkspace},drainingQuality)).not.toContain('Quarantine stock');const history=renderQuality({base:'/holdings/acme',detail:uiDetail},historyQuality);expect(history).not.toContain('Record inspection');expect(history).not.toContain('Request cancellation');expect(renderQuality({base:'/holdings/acme',detail:{...uiDetail,canInspect:false,canCancel:false}},activeQuality)).not.toContain('Record inspection');for(const secret of ['company_package_grants','assignment_permissions','source_witness'])expect(history).not.toContain(secret);
 });
 
-import {qualitySourceEntry} from "../../../src/server/modules/quality/public/rules/product-entry";
+import {qualitySourceEntry} from "@erpx/server-quality/public/rules/product-entry";
 describe('existing Quality/Count product source destinations',()=>{
  test('parses only canonical exact source detail identities',()=>{
   expect(qualitySourceEntry('inventory-quality/quality/quality-return-123-0')).toEqual({kind:'hold',id:'quality-return-123-0'});

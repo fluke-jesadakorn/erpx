@@ -1,0 +1,31 @@
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import {mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
+import {join,resolve}from'node:path';import{platform,arch,cpus,totalmem}from'node:os';
+import{loadCatalogue,repositoryRoot as root}from'../testing/catalogue';
+const files=['tests/integration/procurement/purchase-to-payment.test.ts','tests/integration/people_payroll/people-hr-settings.test.ts','tests/integration/operations/work-projections.test.ts'];
+const financeCases=['runs an approved ten-laptop request through RFQ, 6+4 receipts, one consolidated AP invoice, bank evidence and payment','runs Supply-only RFQ and 6+4 receipts through drained consolidated AP, independent posting, exact bank-batch source fences and retained receipt history','retains actual normal supplier payment reversal and replacement history without inventing a perpetual Supply Finance obligation'];
+const escape=(text:string)=>text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const pattern=financeCases.map(title=>'^'+escape(title)+'$').join('|')+'|^(?:loads only authorized settings|returns current policy|shows assigned holidays|summarizes move impacts|applies actual ordinary Task|keeps actual routine addon|keeps Projects-only Task|clamps ordinary Work|rechecks a captured Work|counts only actual licensed|intersects the actual release|reuses the current included Social|filters actual Handbook)';
+const suites=loadCatalogue().suites.filter(suite=>suite.files.some(file=>files.includes(file)));
+if(suites.length!==3||suites.some(suite=>suite.lane!=='integration'))throw new Error('REPRESENTATIVE_FIXTURE_BATCH_CHANGED');
+const checkpoint=execFileSync('git',['rev-parse','d2c02d6eb8557b49b0da0a2d844cde86385a831c^{commit}'],{cwd:root,encoding:'utf8'}).trim();
+const historicalConfig=execFileSync('git',['show',`${checkpoint}:scripts/testing/vitest-config.ts`],{cwd:root,encoding:'utf8'});
+if(!historicalConfig.includes('fileParallelism: false'))throw new Error('ORIGINAL_SERIAL_BASELINE_REQUIRED');
+const baseline={checkpoint,configSha256:createHash('sha256').update(historicalConfig).digest('hex'),fileParallelism:false,workers:1,slotsPerSuite:8,mode:'empty-databases-and-real-migrations'};
+const directory=resolve(root,'.scratch/dev/performance/workspace-fixtures',new Date().toISOString().replace(/[:.]/g,'-'));await mkdir(directory,{recursive:true,mode:0o700});
+const samples:{mode:string;iteration:number;durationMs:number;setupMs:number;migrationMs:number;preparationMs:number;passed:boolean}[]=[];
+for(const mode of ['template','legacy-raw','template','legacy-raw','template','legacy-raw','template'] as const){
+ const iteration=samples.filter(sample=>sample.mode===mode).length,output=join(directory,`${mode}-${iteration}`);await mkdir(output,{mode:0o700});const started=performance.now();
+ console.log(`FIXTURE_BENCHMARK:${mode}:${iteration}:registered Finance/People/Work batch; acceptance=false`);
+ const child=Bun.spawn([process.execPath,'scripts/testing/test.ts','integration',...suites.map(suite=>`--suite=${suite.id}`),"--testNamePattern",pattern],{cwd:root,env:{...process.env,ERPX_PERFORMANCE_BENCHMARK:'workspace-fixtures-v1',ERPX_FIXTURE_BENCHMARK_MODE:mode,ERPX_FIXTURE_BENCHMARK_OUTPUT:output},stdin:'ignore',stdout:Bun.file(join(output,'run.log')),stderr:Bun.file(join(output,'errors.log'))});
+ const code=await child.exited,measurements=await Promise.all((await readdir(output)).filter(name=>name.endsWith('.json')).map(async name=>JSON.parse(await readFile(join(output,name),'utf8'))));
+ const setupMs=measurements.reduce((sum,item)=>sum+item.setupMs,0),migrationMs=measurements.reduce((sum,item)=>sum+item.migrationMs,0);
+ samples.push({mode,iteration,durationMs:performance.now()-started,setupMs,migrationMs,preparationMs:setupMs+migrationMs,passed:code===0});
+ await writeFile(join(directory,'samples.json'),JSON.stringify({acceptance:false,baseline,files,financeCases,pattern,samples},null,2)+'\n',{mode:0o600});
+ if(code!==0)throw new Error(`REPRESENTATIVE_BENCHMARK_FAILED:${output}`);
+}
+const median=(values:number[])=>values.sort((a,b)=>a-b)[Math.floor(values.length/2)];const raw=samples.filter(sample=>sample.mode==='legacy-raw'),warm=samples.filter(sample=>sample.mode==='template'&&sample.iteration>0);
+const preparationReduction=1-median(warm.map(x=>x.preparationMs))/median(raw.map(x=>x.preparationMs)),batchReduction=1-median(warm.map(x=>x.durationMs))/median(raw.map(x=>x.durationMs));
+const report={scope:'development-performance',acceptance:false,host:{platform:platform(),arch:arch(),cpus:cpus().length,memoryBytes:totalmem()},baseline,files,financeCases,pattern,samples,preparationReduction,batchReduction,targets:{preparation:preparationReduction>=.5,integration:batchReduction>=.4}};
+await writeFile(join(directory,'receipt.json'),JSON.stringify(report,null,2)+'\n',{mode:0o600});console.log(JSON.stringify({receipt:join(directory,'receipt.json'),preparationReduction,batchReduction,targets:report.targets}));

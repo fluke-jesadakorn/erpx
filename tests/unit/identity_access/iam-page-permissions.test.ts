@@ -1,13 +1,13 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import type { PermissionActor } from "../../../src/lib/identity_access/iam";
+import type { PermissionActor } from "@erpx/feature-identity_access/lib/iam";
 
 const mocks = vi.hoisted(() => ({
   forbidden: vi.fn((): never => { throw new Error("page-forbidden"); }),
 }));
 vi.mock("next/navigation", () => mocks);
 
-import { requirePermission } from "../../../src/server/modules/identity_access/public/iam-permissions";
-import { ApiError, errorResponse } from "../../../src/server/modules/runtime/adapters/http";
+import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
+import { ApiError, errorResponse } from "@erpx/server-runtime/adapters/http";
 
 beforeEach(() => vi.clearAllMocks());
 

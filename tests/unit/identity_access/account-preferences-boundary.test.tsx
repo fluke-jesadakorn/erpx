@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => {
 });
 
 it("lets the existing Front preference hook load without the unrelated Account controller or navigation", async () => {
-  const { useAccountPreferences } = await import("@/components/identity_access/account-preferences-context");
+  const { useAccountPreferences } = await import("@erpx/feature-identity_access/components/account-preferences-context");
   expect(navigation.loaded).not.toHaveBeenCalled();
   function ExistingConsumer() {
     return createElement("span", null, useAccountPreferences() === null ? "no-account-context" : "unexpected");
@@ -19,7 +19,7 @@ it("lets the existing Front preference hook load without the unrelated Account c
 
 
 it("transports existing absent, saved, pending and failed preference state without adding DOM", async () => {
-  const { AccountPreferencesContext, useAccountPreferences } = await import("@/components/identity_access/account-preferences-context");
+  const { AccountPreferencesContext, useAccountPreferences } = await import("@erpx/feature-identity_access/components/account-preferences-context");
   const child = createElement("section", { className: "calendar-widget", "data-width": "640" }, "Existing calendar");
   const expected = renderToStaticMarkup(child);
   for (const preference of [undefined, { language: "th" as const, appearance: "dark" as const, version: 7 }]) {
@@ -35,8 +35,8 @@ it("transports existing absent, saved, pending and failed preference state witho
 });
 
 it("keeps the actual Account controller's initial content and shared context without an SSR read or refresh", async () => {
-  const { AccountPreferencesProvider } = await import("@/components/identity_access/account-preferences-provider");
-  const { useAccountPreferences } = await import("@/components/identity_access/account-preferences-context");
+  const { AccountPreferencesProvider } = await import("@erpx/feature-identity_access/components/account-preferences-provider");
+  const { useAccountPreferences } = await import("@erpx/feature-identity_access/components/account-preferences-context");
   const fetch = vi.fn(() => { throw new Error("Initial Account preferences must not read on construction"); });
   vi.stubGlobal("fetch", fetch);
   try {

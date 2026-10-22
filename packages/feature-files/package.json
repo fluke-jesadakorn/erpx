@@ -1,0 +1,32 @@
+{
+  "name": "@erpx/feature-files",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/media-publication-panel.module.css": "./src/components/media-publication-panel.module.css",
+    "./components/attachment-panel": "./src/components/attachment-panel.tsx",
+    "./components/attachment-panel.module.css": "./src/components/attachment-panel.module.css",
+    "./components/record-document-panel": "./src/components/record-document-panel.tsx",
+    "./components/media-publication-panel": "./src/components/media-publication-panel.tsx",
+    "./components/attachment-feature-context": "./src/components/attachment-feature-context.tsx",
+    "./components/record-document-drawer": "./src/components/record-document-drawer.tsx",
+    "./lib/attachment-state": "./src/lib/attachment-state.ts",
+    "./lib/attachment-client": "./src/lib/attachment-client.ts",
+    "./lib/document-pages": "./src/lib/document-pages.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "lucide-react": "1.41.0",
+    "next": "16.4.0",
+    "pdfjs-dist": "6.3.289",
+    "react": "19.3.0"
+  }
+}

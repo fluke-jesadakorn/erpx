@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const request = vi.hoisted(() => ({ host: "work-dev-erpx.jesadakorn.com", actor: { companyId: "company", assignmentId: "assignment" }, project: vi.fn(), quality: vi.fn() }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: request.host }) }));
-vi.mock("@/server/modules/identity_access/public/authorization", () => ({ requireWorkContext: async () => request.actor }));
-vi.mock("@/server/modules/projects/public/product-entry", () => ({ projectTaskSourceRecordBackdrop: request.project }));
-vi.mock("@/server/modules/quality/public/product-entry", () => ({ qualitySourceRecordBackdrop: request.quality }));
-import { projectTaskProductPresentationOptions } from "@/server/modules/projects/public/product-presentation-request";
-import { sourceRecordPresentation } from "@/components/records/source-record-presentation";
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: async () => request.actor }));
+vi.mock("@erpx/server-projects/public/product-entry", () => ({ projectTaskSourceRecordBackdrop: request.project }));
+vi.mock("@erpx/server-quality/public/product-entry", () => ({ qualitySourceRecordBackdrop: request.quality }));
+import { projectTaskProductPresentationOptions } from "@erpx/server-projects/public/product-presentation-request";
+import { sourceRecordPresentation } from "@erpx/feature-records/components/source-record-presentation";
 
 beforeEach(() => {
   vi.stubEnv("ERPX_ENVIRONMENT", "local"); vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT", "development"); vi.stubEnv("ERPX_PRODUCT_ROUTING", "enabled"); vi.stubEnv("ERPX_PRODUCT_SSO", "enabled");

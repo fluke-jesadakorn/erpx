@@ -7,7 +7,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { Pool } from "pg";
-import { evaluateEngineeringPerformance, engineeringPerformanceWorkspacePath, type PerformanceSample } from "../../../src/lib/runtime/engineering-performance";
+import { evaluateEngineeringPerformance, engineeringPerformanceWorkspacePath, type PerformanceSample } from "@erpx/feature-runtime/lib/engineering-performance";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../../local/source-fingerprint";
 import { frontWorkspacePath, signInFrontRole } from "../../../tests/support/helpers/front-simulation-session";
 

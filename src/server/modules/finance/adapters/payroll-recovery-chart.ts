@@ -1,1 +1,0 @@
-import type {SqlDatabase} from '../../runtime/public/runtime/types';export function payrollRecoveryChart(database:SqlDatabase){return {readRecognizePayrollRecoveryChart(chart_id:string,companyId:string){return database.prepare("SELECT base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'").bind(chart_id,companyId).first<{base_currency:string}>();}};}

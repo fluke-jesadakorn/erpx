@@ -1481,7 +1481,7 @@ describe("current-source product migration receipt v2", () => {
   it("binds all 187 reviewed owner workflows to exact native suites and only verifies workflows with browser witnesses", () => {
     expect(engineeringScenarios.capabilities).toHaveLength(187);
     expect(engineeringScenarios.registrySha256).toBe(createHash("sha256")
-      .update(readFileSync(resolve(process.cwd(), "src/data/module-registry.json"))).digest("hex"));
+      .update(readFileSync(resolve(process.cwd(), "packages/catalogue/src/module-registry.json"))).digest("hex"));
     const ids = new Set<string>();
     let nativeOnly = 0;
     for (const scenario of engineeringScenarios.capabilities) {

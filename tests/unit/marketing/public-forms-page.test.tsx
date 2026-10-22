@@ -1,8 +1,8 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {Children,isValidElement,type ComponentProps} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import type {holdingBindingBySlug} from '@/server/modules/runtime/public/runtime';
-import type {marketingPresentationQueries} from '@/server/modules/marketing/public/presentation-queries';
+import type {holdingBindingBySlug} from '@erpx/server-runtime/public/runtime';
+import type {marketingPresentationQueries} from '@erpx/server-marketing/public/presentation-queries';
 
 type Queries=Pick<Awaited<ReturnType<typeof marketingPresentationQueries>>,'loadPublicMarketingForm'>;
 type Reader=Queries['loadPublicMarketingForm'];
@@ -13,11 +13,11 @@ const owner=vi.hoisted(()=>({
 }));
 // Only the named owner ports are substituted. The real Page, Next notFound,
 // ApiError, standard presentation and actual public consent form execute.
-vi.mock('@/server/modules/runtime/public/runtime',()=>({holdingBindingBySlug:owner.binding}));
-vi.mock('@/server/modules/marketing/public/presentation-queries',()=>({marketingPresentationQueries:owner.queries}));
-import Page from '@/app/forms/[holdingSlug]/[formId]/page';
-import {PublicMarketingForm} from '@/components/marketing/public-marketing-form';
-import {ApiError} from '@/server/modules/runtime/public/http';
+vi.mock("@erpx/server-runtime/public/runtime",()=>({holdingBindingBySlug:owner.binding}));
+vi.mock("@erpx/server-marketing/public/presentation-queries",()=>({marketingPresentationQueries:owner.queries}));
+import Page from '@erpx/feature-forms/routes/forms/[holdingSlug]/[formId]/page';
+import {PublicMarketingForm} from '@erpx/feature-marketing/components/public-marketing-form';
+import {ApiError} from '@erpx/server-runtime/public/http';
 
 const target={holdingSlug:'original-holding',formId:'original-reviewed-form'};
 const form:Awaited<ReturnType<Reader>>={

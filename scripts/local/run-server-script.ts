@@ -38,7 +38,7 @@ if (await runtimeSourceFingerprint(root) !== sourceFingerprint)
 // Parent configuration is already resolved. Reloading workspace dotenv here
 // would restore omitted live credentials inside an isolated child environment.
 const child = Bun.spawn([process.execPath, "--env-file=/dev/null", resolve(directory, "script.mjs"), ...process.argv.slice(3)], {
-  cwd: root, env: { ...process.env, ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT: sourceFingerprint }, stdin: "inherit", stdout: "inherit", stderr: "inherit",
+  cwd: root, env: { ...process.env, ERPX_REPOSITORY_ROOT: process.env.ERPX_REPOSITORY_ROOT ?? root, ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT: sourceFingerprint }, stdin: "inherit", stdout: "inherit", stderr: "inherit",
 });
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => child.kill(signal));
 process.exitCode = await child.exited;

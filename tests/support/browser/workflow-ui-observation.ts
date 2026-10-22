@@ -63,7 +63,7 @@ export type WorkflowUiObserver={
 
 function assert(condition:unknown,code:string):asserts condition{if(!condition)throw new Error(code);}
 function safeRepoPath(value:string){
- assert(isText(value)&&value.startsWith('src/')&&!value.includes('\\')&&!value.split('/').some(part=>!part||part==='.'||part==='..'),'UI_WORKFLOW_SOURCE_PATH_REQUIRED');
+ assert(isText(value)&&/^(?:src\/|apps\/[a-z][a-z0-9-]*\/src\/|packages\/[a-z][a-z0-9_-]*\/src\/)/.test(value)&&!value.includes('\\')&&!value.split('/').some(part=>!part||part==='.'||part==='..'),'UI_WORKFLOW_SOURCE_PATH_REQUIRED');
  return value;
 }
 function safeRelativePath(value:string){

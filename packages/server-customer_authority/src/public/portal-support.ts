@@ -1,0 +1,3 @@
+export {publishPortalSupportResponse,closePortalSupportRequest,acknowledgePortalSupportResponse,portalSupportThreadsForStaff,portalSupportThreadsForCustomer,portalSupportThreadsForCustomerProjection} from '@erpx/server-customer_authority/adapters/portal-support';
+export {portalSupportResponseSchema,portalSupportClosureSchema,portalSupportAcknowledgementSchema} from '@erpx/server-customer_authority/domain/portal-support';
+export type {PortalSupportThread,PortalSupportResponseInput,PortalSupportAcknowledgementInput} from '@erpx/server-customer_authority/domain/portal-support';

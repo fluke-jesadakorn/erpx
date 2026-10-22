@@ -1,23 +1,23 @@
-import {InboxUpdates} from "../../../src/components/collaboration/messaging/inbox-updates";
-import {RecordLink} from "../../../src/components/records/record-link";
-import {RecordScopeProvider} from "../../../src/components/records/record-context";
+import {InboxUpdates} from "@erpx/feature-collaboration/components/messaging/inbox-updates";
+import {RecordLink} from "@erpx/feature-records/components/record-link";
+import {RecordScopeProvider} from "@erpx/ui/components/record-context";
 import {createElement as h,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {productNavigationHref,productHrefString,frontProductLaunchTarget,isProductHandoffHref,type ProductNavigationScope} from '../../../src/lib/work_projection/product-navigation';
-import {ProductLinkEnvironment,ProductWorkLinks,useProductNavigationScope} from '../../../src/components/workplace/product-link-context';
-import WorkspaceLink from '../../../src/components/workplace/workspace-link';
-import {useRouter as useDestinationRouter} from '../../../src/lib/shared/destination-router';
+import {productNavigationHref,productHrefString,frontProductLaunchTarget,isProductHandoffHref,type ProductNavigationScope} from '@erpx/feature-work_projection/lib/product-navigation';
+import {ProductLinkEnvironment,ProductWorkLinks,useProductNavigationScope} from '@erpx/workplace/components/product-link-context';
+import WorkspaceLink from '@erpx/workplace/components/workspace-link';
+import {useRouter as useDestinationRouter} from '@erpx/feature-shared/lib/destination-router';
 const linkMocks=vi.hoisted(()=>({push:vi.fn(),replace:vi.fn(),dirty:vi.fn(()=>false),dispatch:vi.fn()}));
 vi.mock('next/navigation',()=>({useRouter:()=>({push:linkMocks.push,replace:linkMocks.replace}),usePathname:()=>'/holdings/acme/services/assets/register',useSearchParams:()=>new URLSearchParams()}));
-vi.mock('../../../src/lib/work_projection/context-switch',()=>({hasUnsavedWork:linkMocks.dirty}));
+vi.mock("@erpx/feature-work_projection/lib/context-switch",()=>({hasUnsavedWork:linkMocks.dirty}));
 vi.mock('next/link',async()=>{const {createElement}=await import('react');return {default:({href,children,prefetch,...props}:{href:string;children:ReactNode;prefetch?:boolean})=>createElement('a',{...props,href,'data-prefetch':String(prefetch)},children)};});
 afterEach(()=>{vi.unstubAllGlobals();linkMocks.dirty.mockReturnValue(false);linkMocks.push.mockClear();linkMocks.replace.mockClear();linkMocks.dispatch.mockClear();});
 import {describe,it,expect,vi,afterEach} from "vitest";
-import {workplaceNavigation,navigationTrail,resolveNavigation,navigationCategory,navigationCollapsedValue,pmsSidebarHref} from "../../../src/lib/work_projection/workplace-navigation";
-import {navigationLauncher} from "../../../src/lib/work_projection/navigation-catalog";
-import {builtInPermissions} from "../../../src/lib/identity_access/permissions";
-import {workViews,filterWork,workTypes,type WorkItem} from "../../../src/lib/work_projection/work-item";
-import {pmsCrossLinks} from "../../../src/lib/pms/pms-cross-links";
+import {workplaceNavigation,navigationTrail,resolveNavigation,navigationCategory,navigationCollapsedValue,pmsSidebarHref} from "@erpx/feature-work_projection/lib/workplace-navigation";
+import {navigationLauncher} from "@erpx/feature-work_projection/lib/navigation-catalog";
+import {builtInPermissions} from "@erpx/feature-identity_access/lib/permissions";
+import {workViews,filterWork,workTypes,type WorkItem} from "@erpx/feature-work_projection/lib/work-item";
+import {pmsCrossLinks} from "@erpx/feature-pms/lib/pms-cross-links";
 const base="/holdings/acme";
 const owner=workplaceNavigation({workspaceBase:base,role:"holding_owner",canManageApprovals:true,adminSections:["people","organization","approvals","usage","ai","feedback"]});
 describe("Side menu destination coverage",()=>{
@@ -223,7 +223,7 @@ describe('Shared Company Admin owner navigation',()=>{
   const tree=h(ProductLinkEnvironment,{audience:'assets',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:h(Capture)})});linkMocks.push.mockClear();linkMocks.dispatch.mockClear();linkMocks.dirty.mockReturnValue(true);vi.stubGlobal('window',{location:{href:'https://assets-dev-erpx.jesadakorn.com'+base+'/services/assets/register',origin:'https://assets-dev-erpx.jesadakorn.com'},dispatchEvent:linkMocks.dispatch});try{renderToStaticMarkup(tree);router!.push(base+'/administration/technology/settings/roles?tag=one&tag=two#review');expect(linkMocks.push).not.toHaveBeenCalled();expect(linkMocks.dispatch).toHaveBeenCalledTimes(1);const event=linkMocks.dispatch.mock.calls[0][0];expect(event.type).toBe('erpx:product-navigate');expect(unwrapAdmin(event.detail.href)).toBe(base+'/administration/technology/settings/roles?tag=one&tag=two#review');}finally{linkMocks.dirty.mockReturnValue(false);vi.unstubAllGlobals();}
  });
  it('renders WorkspaceLink, action-link account notification and RecordLink Admin handoffs before hydration with the existing dirty marker',async()=>{
-  const {ActionLink}=await import('../../../src/components/ui/foundation'),tree=(child:ReactNode)=>h(ProductLinkEnvironment,{audience:'assets',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:child})});
+  const {ActionLink}=await import('@erpx/ui/components/foundation'),tree=(child:ReactNode)=>h(ProductLinkEnvironment,{audience:'assets',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:child})});
   for(const child of [h(WorkspaceLink,{href:base+'/administration/technology/settings/roles?tag=one&tag=two#roles',prefetch:true},'Roles'),h(ActionLink,{appearance:'standard',href:base+'/settings/notifications'},'Notification settings'),h(RecordLink,{href:base+'/administration/technology/organization/department/d1/policies#owner'},'Department')]){const html=renderToStaticMarkup(tree(child));expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');const href=/href="([^"]+)"/.exec(html)![1].replaceAll('&amp;','&');expect(unwrapAdmin(href)).toContain('/administration/');expect(new URL(unwrapAdmin(href),'https://target.invalid').searchParams.has('returnTo')).toBe(false);}
  });
 });
@@ -248,7 +248,7 @@ describe('Account self link transport without a Company role',()=>{
   linkMocks.dirty.mockReturnValue(true);vi.stubGlobal('window',{location:{href:'https://admin-dev-erpx.jesadakorn.com/provider',origin:'https://admin-dev-erpx.jesadakorn.com'},dispatchEvent:linkMocks.dispatch});renderToStaticMarkup(h(ProductLinkEnvironment,{audience:'admin',children:h(Capture)}));router!.push('/security?tag=one&tag=two#sessions');expect(linkMocks.push).not.toHaveBeenCalled();expect(linkMocks.dispatch).toHaveBeenCalledTimes(1);const event=linkMocks.dispatch.mock.calls[0][0];expect(event.type).toBe('erpx:product-navigate');expect(unwrap(event.detail.href)).toBe('/security?tag=one&tag=two#sessions');
  });
  it('renders actual Account WorkspaceLink and action links with the existing switch marker and no SSO prefetch before hydration',async()=>{
-  const {ActionLink}=await import('../../../src/components/ui/foundation');
+  const {ActionLink}=await import('@erpx/ui/components/foundation');
   for(const child of [h(WorkspaceLink,{href:'/my-access?tag=one&tag=two#roles',prefetch:true},'My access'),h(ActionLink,{appearance:'standard',href:'/my-profile#profile'},'My profile')]){const html=renderToStaticMarkup(h(ProductLinkEnvironment,{audience:'admin',children:child}));expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');const href=/href="([^"]+)"/.exec(html)![1].replaceAll('&amp;','&');expect(unwrap(href)).toMatch(/^\/(?:my-access|my-profile)/);expect(href).not.toContain('companyId');}
  });
 });
@@ -256,12 +256,12 @@ describe('Account self link transport without a Company role',()=>{
 describe('actual owner cross-product links',()=>{
  const tree=(child:ReactNode)=>h(ProductLinkEnvironment,{audience:'pms',children:h(ProductWorkLinks,{companyId:'company-two',companySlug:'acme-co',workspaceBase:base,children:child})});
  it('renders the actual collaboration inbox handoff from Hotel while keeping CSV on its original API',async()=>{
-  const {CollaborationWorkConsole}=await import('../../../src/components/collaboration/collaboration-work-console');
+  const {CollaborationWorkConsole}=await import('@erpx/feature-collaboration/components/collaboration-work-console');
   const data:Parameters<typeof CollaborationWorkConsole>[0]['data']={relations:[],cards:[{id:'card',version:1,status:'open',owner_id:'owner',created_by:'author',updated_at:1,due_at:1,owner_eligible:1,source_type:'commerce_order',source_id:'order',source_href:'/finance/invoices/invoice?tag=one&tag=two#review',source_title:'Current invoice',title:'Review actual invoice'}],people:[],sourceTypes:[],canWrite:false,canReview:false};
   const html=renderToStaticMarkup(tree(h(CollaborationWorkConsole,{base,data})));expect(html).toContain('href="/api/v1/holdings/acme/collaboration?format=csv"');expect(html).toContain('data-product-switch="true"');const hrefs=[...html.matchAll(/href="([^\"]+)"/g)].map(match=>match[1].replaceAll('&amp;','&'));const source=hrefs.find(href=>href.startsWith('https://work-dev-erpx.jesadakorn.com/'))!;expect(source).toBeTruthy();const next=new URL(source).searchParams.get('next')!;const target=new URL(next,'https://target.invalid').searchParams.get('next')!;expect(target).toBe(base+'/inbox');expect(html).toContain('data-prefetch="false"');
  });
  it('renders actual assistant settings recovery on Admin before hydration without prefetching SSO',async()=>{
-  const {SocialAgentStatus}=await import('../../../src/components/collaboration/social-agent-status');const html=renderToStaticMarkup(tree(h(SocialAgentStatus,{reply:{id:'reply',state:'failed',error:'Configuration needs review',actor_id:'other',requester_name:'Other colleague',attempt:1},api:'/api/v1'+base,userId:'current',onChanged:async()=>{},aiName:'Assistant',settingsUrl:base+'/settings?section=ai#provider'})));expect(html).toContain('https://admin-dev-erpx.jesadakorn.com/sso/start?');expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');expect(html).not.toContain('href="'+base+'/administration/');
+  const {SocialAgentStatus}=await import('@erpx/feature-collaboration/components/social-agent-status');const html=renderToStaticMarkup(tree(h(SocialAgentStatus,{reply:{id:'reply',state:'failed',error:'Configuration needs review',actor_id:'other',requester_name:'Other colleague',attempt:1},api:'/api/v1'+base,userId:'current',onChanged:async()=>{},aiName:'Assistant',settingsUrl:base+'/settings?section=ai#provider'})));expect(html).toContain('https://admin-dev-erpx.jesadakorn.com/sso/start?');expect(html).toContain('data-product-switch="true"');expect(html).toContain('data-prefetch="false"');expect(html).not.toContain('href="'+base+'/administration/');
  });
 });
 it('hands off only registered personal Leave and Overtime owner pages through Work without interpreting generic People records',()=>{
@@ -281,14 +281,14 @@ it('keeps product link context free of presentation wrappers and preserves the d
  const html=renderToStaticMarkup(h(DefaultLink));expect(html).toContain('href="'+base+'/calendar?view=week#today"');expect(html).not.toContain('data-product-switch="true"');
 });
 
-import {StandardPmsBackofficeNavigation} from '../../../src/components/pms/standard-pms-backoffice-navigation';
-import {StandardPosBackofficeNavigation} from '../../../src/components/pos/standard-pos-backoffice-navigation';
-import {pmsMenu,posMenu} from '../../../src/components/shared/hospitality/module-menu';
-import {canonicalUiHref} from '../../../src/lib/work_projection/destination-registry';
+import {StandardPmsBackofficeNavigation} from '@erpx/feature-pms/components/standard-pms-backoffice-navigation';
+import {StandardPosBackofficeNavigation} from '@erpx/feature-pos/components/standard-pos-backoffice-navigation';
+import {pmsMenu,posMenu} from '@erpx/feature-shared/components/hospitality/module-menu';
+import {canonicalUiHref} from '@erpx/feature-work_projection/lib/destination-registry';
 import type {ComponentProps} from 'react';
-const tileButtons=vi.hoisted(()=>({props:[] as ComponentProps<typeof import('../../../src/components/ui/button').Button>[]}));
-vi.mock('../../../src/components/ui/button',async importOriginal=>{
- const actual=await importOriginal<typeof import('../../../src/components/ui/button')>();
+const tileButtons=vi.hoisted(()=>({props:[] as ComponentProps<typeof import("@erpx/ui/components/button").Button>[]}));
+vi.mock("@erpx/ui/components/button",async importOriginal=>{
+ const actual=await importOriginal<typeof import("@erpx/ui/components/button")>();
  return {...actual,Button:(props:ComponentProps<typeof actual.Button>)=>{tileButtons.props.push(props);return h(actual.Button,props);}};
 });
 function tileLinks(html:string){return [...html.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>/g)].map(match=>match[1].replaceAll('&amp;','&'));}

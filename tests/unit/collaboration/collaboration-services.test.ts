@@ -1,14 +1,14 @@
 import {describe,expect,test,vi} from 'vitest';
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {BusinessRuleError} from "../../../src/server/modules/shared/index";
-import {createSocialSourceApplication,type SocialSourcePorts,type SocialSourceRepository} from "../../../src/server/modules/collaboration/application/social-source";
-import {createSocialTextApplication,type SocialTextPorts,type SocialTextRepository} from "../../../src/server/modules/collaboration/application/social-text";
-import {createCollaborationWorkApplication,type CollaborationWorkPorts,type CollaborationWorkRepository} from "../../../src/server/modules/collaboration/application/collaboration-work";
-import {createStaffNotificationApplication,type StaffNotificationPorts} from "../../../src/server/modules/collaboration/application/staff-notifications";
-import type {PostRow} from "../../../src/server/modules/collaboration/domain/social-source";
-import type {Source} from "../../../src/server/modules/collaboration/domain/collaboration-work";
-import type {Mention} from "../../../src/server/modules/collaboration/domain/social-text";
-import type {StaffNotification} from "../../../src/server/modules/collaboration/domain/staff-notifications";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {BusinessRuleError} from "@erpx/server-shared/index";
+import {createSocialSourceApplication,type SocialSourcePorts,type SocialSourceRepository} from "@erpx/server-collaboration/application/social-source";
+import {createSocialTextApplication,type SocialTextPorts,type SocialTextRepository} from "@erpx/server-collaboration/application/social-text";
+import {createCollaborationWorkApplication,type CollaborationWorkPorts,type CollaborationWorkRepository} from "@erpx/server-collaboration/application/collaboration-work";
+import {createStaffNotificationApplication,type StaffNotificationPorts} from "@erpx/server-collaboration/application/staff-notifications";
+import type {PostRow} from "@erpx/server-collaboration/domain/social-source";
+import type {Source} from "@erpx/server-collaboration/domain/collaboration-work";
+import type {Mention} from "@erpx/server-collaboration/domain/social-text";
+import type {StaffNotification} from "@erpx/server-collaboration/domain/staff-notifications";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['collaboration'],assignments:[],workspaces:[]};
 function repository<R extends object>(facts:Partial<R>,calls:string[]):R{return new Proxy(facts,{get(target,key){if(key==='then')return undefined;if(key in target)return target[key as keyof R];if(typeof key==='string'&&/^(prepare|guard)/.test(key))return (...args:unknown[])=>{calls.push(key+':'+JSON.stringify(args));return key;};return ()=>{throw Error('Unexpected fact '+String(key));};}})as R;}
 const post:PostRow={id:'post',kind:'team',company_id:'company',branch_id:null,department_id:null,author_id:'owner',author_name:'Owner',body:'Reviewed source',mentions_json:'[]',content_json:null,rich_content_json:null,audience_kind:'company',audience_id:null,purpose:'update',edited_at:null,retracted_at:null,version:3,state:'published',linked_module:null,created_at:1};
@@ -52,13 +52,13 @@ describe('Notification projections recheck current source authorization',()=>{
  test('unexpected authentication or persistence failures remain failures',async()=>{const f=notifications({readablePost:async()=>{throw new BusinessRuleError(401,'LOGIN_REQUIRED','Sign in');}});await expect(f.app.visibleNotifications(actor,[notice])).rejects.toMatchObject({status:401});});
 });
 
-import {createSocialHomeApplication,type SocialHomePorts,type SocialHomeRepository} from "../../../src/server/modules/collaboration/application/social-home";
-import {audienceScope,selectedAudience,type PostDraft,postDraftSchema} from "../../../src/server/modules/collaboration/domain/social-home";
-import {createSocialAiApplication,type SocialAiPorts,type SocialAiRepository} from "../../../src/server/modules/collaboration/application/social-ai";
-import {createMessagingFileApplication,type MessagingFilePorts} from "../../../src/server/modules/collaboration/application/messaging-files";
-import {createInboxApplication,type InboxPorts,type InboxRepository} from "../../../src/server/modules/collaboration/application/inbox";
-import type {Candidate} from "../../../src/server/modules/collaboration/domain/inbox";
-import {pushOriginAllowed,quietDelayMs,validatePushSubscription,preferenceInput} from "../../../src/server/modules/collaboration/domain/web-push";
+import {createSocialHomeApplication,type SocialHomePorts,type SocialHomeRepository} from "@erpx/server-collaboration/application/social-home";
+import {audienceScope,selectedAudience,type PostDraft,postDraftSchema} from "@erpx/server-collaboration/domain/social-home";
+import {createSocialAiApplication,type SocialAiPorts,type SocialAiRepository} from "@erpx/server-collaboration/application/social-ai";
+import {createMessagingFileApplication,type MessagingFilePorts} from "@erpx/server-collaboration/application/messaging-files";
+import {createInboxApplication,type InboxPorts,type InboxRepository} from "@erpx/server-collaboration/application/inbox";
+import type {Candidate} from "@erpx/server-collaboration/domain/inbox";
+import {pushOriginAllowed,quietDelayMs,validatePushSubscription,preferenceInput} from "@erpx/server-collaboration/domain/web-push";
 const draft:PostDraft={id:'draft',author_id:actor.userId,company_id:actor.companyId,branch_id:null,audience_kind:'company',audience_id:null,participants_json:'[]',sources_json:'[]',purpose:'update',body:'Draft text',department_id:null,version:1,published_post_id:null,mentions_json:'[]',content_json:null,rich_content_json:null,comment_parent_post_id:null,published_comment_id:null,cancelled_at:null,edit_post_id:null,edit_post_version:null,edit_saved_version:null};
 function home(facts:Partial<SocialHomeRepository<string>>={}){const calls:string[]=[],ports=repository<SocialHomePorts<string>>({repository:repository<SocialHomeRepository<string>>({draft:async()=>({...draft}),commentDraftExists:async()=>null,richDraftExists:async()=>null,publishDraft:async()=>({...draft}),...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'id'},readablePost:async()=>({...post}),sourceGuard:()=> 'source',validateMentions:async()=>[],commands:{async replay<Result>():Promise<Result|null>{calls.push('replay');return null;},async commit<Result>(_actor:Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"iam"|"authority">,_key:string,operation:string,_input:unknown,_id:string,_version:number,result:Result,effects:string[]){calls.push('commit:'+operation+':'+effects.join(','));return result;}}},calls);return {calls,ports,app:createSocialHomeApplication<string>(ports)};}
 const aiResult={summary:'Reviewed source',title:null,description:null,assigneeUserId:null,reviewerUserId:null,dueAt:null,missing:[],citations:['post']};
@@ -100,12 +100,12 @@ describe('Private message intake guards precede owner file creation',()=>{
  test('lost response replay returns the original receipt before creating any new file set',async()=>{const f=messageFile();f.ports.commands.replay=async<Result>()=>({id:'original'} as Result);expect(await f.app.uploadMessagingFile(actor,'room',{id:'10000000-0000-4000-8000-000000000001',name:'image.png',type:'image/png'})).toEqual({id:'original'});expect(f.calls).toEqual([]);});
 });
 
-import {createSocialApplication,type SocialPorts,type SocialRepository} from "../../../src/server/modules/collaboration/application/social";
-import {createPostSchema,createStorySchema} from "../../../src/server/modules/collaboration/domain/social";
-import {createSocialTaskApplication,type SocialTaskPorts} from "../../../src/server/modules/collaboration/application/social-task";
-import {createSocialAgentApplication,type SocialAgentPorts} from "../../../src/server/modules/collaboration/application/social-agent";
-import {createCurrentPushSessionCleanup,createWebPushApplication,type CurrentPushSessionCleanupPorts,type WebPushPorts} from "../../../src/server/modules/collaboration/application/web-push";
-import {createMessagingApplication,type MessagingPorts,type MessagingRepository} from "../../../src/server/modules/collaboration/application/messaging";
+import {createSocialApplication,type SocialPorts,type SocialRepository} from "@erpx/server-collaboration/application/social";
+import {createPostSchema,createStorySchema} from "@erpx/server-collaboration/domain/social";
+import {createSocialTaskApplication,type SocialTaskPorts} from "@erpx/server-collaboration/application/social-task";
+import {createSocialAgentApplication,type SocialAgentPorts} from "@erpx/server-collaboration/application/social-agent";
+import {createCurrentPushSessionCleanup,createWebPushApplication,type CurrentPushSessionCleanupPorts,type WebPushPorts} from "@erpx/server-collaboration/application/web-push";
+import {createMessagingApplication,type MessagingPorts,type MessagingRepository} from "@erpx/server-collaboration/application/messaging";
 const emptyCalls:string[]=[];
 function basicSocial(facts:Partial<SocialRepository<string>>={}){const calls:string[]=[],ports=repository<SocialPorts<string>>({repository:repository<SocialRepository<string>>({priorReceipt:async()=>null,...facts},calls),clock:{now:()=>42},identifiers:{next:()=> 'post'},sha256:async()=> 'digest',visiblePost:async()=>null,commit:async()=>{calls.push('commit');}},calls);return {calls,ports,app:createSocialApplication<string>(ports)};}
 describe('Legacy public conversation and story APIs have real injected business decisions',()=>{
@@ -182,11 +182,11 @@ describe('Social AI owner phase callbacks',()=>{
  test('a refused final owner phase invokes only original failure cleanup after the provider has been billed',async()=>{const f=ai(),phases:string[]=[];f.ports.writePhase=async(_a,phase,prepare)=>{phases.push(phase.phase);if(phase.phase==='finish')throw new BusinessRuleError(403,'CURRENT_AUTHORITY_CHANGED','Original authority changed');return f.ports.batch(await prepare());};await expect(f.app.createAiDraft(actor,'post',{kind:'summary',commentIds:[]},{},async()=>({result:aiResult,inputTokens:1,outputTokens:1}))).rejects.toMatchObject({code:'AI_UNAVAILABLE'});expect(phases).toEqual(['reserve','finish','failure']);expect(f.calls.at(-1)).toBe('batch:fail-draft,fail-usage');});
 });
 
-import {createMessagingCommands,validMessagingReceipt,validMessagingUpload} from '../../../src/lib/collaboration/messaging-command';
+import {createMessagingCommands,validMessagingReceipt,validMessagingUpload} from '@erpx/feature-collaboration/lib/messaging-command';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {MessagingInbox} from '../../../src/components/collaboration/messaging/inbox';
-vi.mock('../../../src/lib/shared/destination-router',()=>({useRouter:()=>({push:vi.fn()})}));
+import {MessagingInbox} from '@erpx/feature-collaboration/components/messaging/inbox';
+vi.mock("@erpx/feature-shared/lib/destination-router",()=>({useRouter:()=>({push:vi.fn()})}));
 vi.mock('next/navigation',()=>({usePathname:()=>'/holdings/test/inbox/messages',useSearchParams:()=>new URLSearchParams(),useRouter:()=>({push:vi.fn(),replace:vi.fn()})}));
 describe('Messages captured command and initial owner content',()=>{
  test('does not acknowledge another message and retries the exact original body/key before a newer draft',async()=>{
@@ -218,10 +218,10 @@ describe('Messages captured command and initial owner content',()=>{
  });
 });
 
-import {createSocialCommands,createSocialImageCommands,validSocialReceipt,validSocialImageReceipt,type SocialAttempt} from '../../../src/lib/collaboration/social-command';
-import {SocialHome} from '../../../src/components/collaboration/social-home';
-import {SocialCommandProvider,useSocialRenderedContext} from '../../../src/components/collaboration/social-command-context';
-import type {HomePost} from '../../../src/server/modules/collaboration/public/social-home';
+import {createSocialCommands,createSocialImageCommands,validSocialReceipt,validSocialImageReceipt,type SocialAttempt} from '@erpx/feature-collaboration/lib/social-command';
+import {SocialHome} from '@erpx/feature-collaboration/components/social-home';
+import {SocialCommandProvider,useSocialRenderedContext} from '@erpx/feature-collaboration/components/social-command-context';
+import type {HomePost} from '@erpx/server-collaboration/public/social-home';
 const socialUrl='/api/v1/holdings/test/posts/post';
 function submittedSocial(url=socialUrl,input:unknown={action:'edit',expectedVersion:3,body:'Original'}):SocialAttempt{return {url,body:JSON.stringify(input),key:'key',context:'original'};}
 describe('Social captured acknowledgement and current initial content',()=>{
@@ -262,7 +262,7 @@ test('keeps the shared Social command context free of DOM and preserves each act
 // the original visibility application and named owner destination read as ports.
 // This is a projection/wiring test, not a native authorization assertion.
 async function initialCountProjectionEntry(surface:'list'|'notifications'|'inbox',items:object[],destinations:(db:unknown,actor:WorkContext,ids:readonly string[])=>Promise<Record<string,string>>){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),name=surface==='list'?'listStaffNotifications':surface==='notifications'?'notificationsPage':'inboxPage',helper=surface==='inbox'?'projectInitialCountInbox':'projectInitialCountNotifications',file=surface==='inbox'?'inbox':'staff-notifications',source=await readFile(new URL(`../../../src/server/modules/collaboration/adapters/${file}.ts`,import.meta.url),'utf8'),tree=ts.createSourceFile(file+'.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),functions=tree.statements.filter((node):node is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(node)&&[name,helper].includes(node.name?.text??''));
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),name=surface==='list'?'listStaffNotifications':surface==='notifications'?'notificationsPage':'inboxPage',helper=surface==='inbox'?'projectInitialCountInbox':'projectInitialCountNotifications',file=surface==='inbox'?'inbox':'staff-notifications',source=await readFile(new URL(`../../../packages/server-collaboration/src/adapters/${file}.ts`,import.meta.url),'utf8'),tree=ts.createSourceFile(file+'.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),functions=tree.statements.filter((node):node is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(node)&&[name,helper].includes(node.name?.text??''));
  expect(functions.some(node=>node.name?.text===name)).toBe(true);const code=ts.transpileModule(functions.map(node=>node.getText(tree)).join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,page={items,nextCursor:'retained-cursor',hasMore:true},application=()=>({listStaffNotifications:async()=>items,notificationsPage:async()=>page,inboxPage:async()=>page}),exposed=async(run:()=>Promise<unknown>)=>run();
  return new Function('exports','initialPhysicalStockCountDestinations','application','exposed',`${code}\nreturn ${name};`)({},destinations,application,exposed) as (db:unknown,actor:WorkContext,query?:object)=>Promise<unknown>;
 }

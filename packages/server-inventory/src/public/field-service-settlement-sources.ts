@@ -1,0 +1,1 @@
+export {fieldServiceSettlementConsumptions,fieldServiceSettlementLotAllocations,fieldServiceSettlementStock,fieldServiceSettlementInventoryReadLocks} from "@erpx/server-inventory/adapters/field-service-settlement-sources";

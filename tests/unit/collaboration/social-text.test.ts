@@ -1,5 +1,5 @@
 import { describe,it,expect } from "vitest";
-import { activeToken,editMentions,hashtags,type Mention } from "../../../src/server/modules/collaboration/public/rules/social-text";
+import { activeToken,editMentions,hashtags,type Mention } from "@erpx/server-collaboration/public/rules/social-text";
 const m:Mention={kind:"person",targetId:"a",label:"Ann",start:3,end:7};
 describe("social inline text",()=>{
  it("recognizes a token at the caret, not email addresses",()=>{

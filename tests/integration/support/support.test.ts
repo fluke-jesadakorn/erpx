@@ -1,14 +1,14 @@
 import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from "../../../src/server/modules/commerce/public/commerce";
-import {createCustomerNote} from "../../../src/server/modules/sales/public/customer-notes";
-import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork,supportWorkspace,supportDetail} from "../../../src/server/modules/support/public/support";
-import {changeSupportIncident,createSupportIncident,incidentWorkspace} from "../../../src/server/modules/support/public/support-incidents";
-import {supportSessionWorkspace} from "../../../src/server/modules/support/public/support-sessions";
-import {createAsset,changeAsset} from "../../../src/server/modules/assets/public/asset-maintenance";
+import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
+import {createCustomerNote} from "@erpx/server-sales/public/customer-notes";
+import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork,supportWorkspace,supportDetail} from "@erpx/server-support/public/support";
+import {changeSupportIncident,createSupportIncident,incidentWorkspace} from "@erpx/server-support/public/support-incidents";
+import {supportSessionWorkspace} from "@erpx/server-support/public/support-sessions";
+import {createAsset,changeAsset} from "@erpx/server-assets/public/asset-maintenance";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
 beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();for(const [a,role] of [[f.head,'support_agent'],[f.manager,'support_manager']] as const){a.role=role;a.branchId=null;a.departmentId=null;a.assignmentId=await f.grant(a,role);}const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Support customer'},key()),w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Support warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'Support item',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
@@ -18,7 +18,7 @@ async function act(id:string,action:string,actor=f.head){const r=await getSuppor
 it('hands off to Support and separates proposed resolution from independently reviewed customer confirmation',async()=>{
  const k=key(),body=input(),created=await createSupportTicket(f.owner,body,k),id=String(created.id);expect(await createSupportTicket(f.owner,body,k)).toEqual(created);
  expect((await supportWork(f.head)).find(x=>x.id===id)).toMatchObject({canAct:true,queue:'todo'});
- const {listStaffNotifications}=await import("../../../src/server/modules/collaboration/public/staff-notifications"),{calendarData}=await import("../../../src/server/modules/work_projection/public/calendar/index");
+ const {listStaffNotifications}=await import("@erpx/server-collaboration/public/staff-notifications"),{calendarData}=await import("@erpx/server-work_projection/public/calendar/index");
  expect((await listStaffNotifications(db,f.head)).some(x=>x.record_id===id)).toBe(true);
  expect((await calendarData(db,f.head,{date:body.dueDate,view:'day',layers:'support',mode:'mine'})).items.some(x=>x.sourceId===id)).toBe(true);
  const oldNote=await createCustomerNote(f.owner,{orderId:order,expectedVersion:1,channel:'phone',occurredAt:Date.now(),body:'Old customer contact before any resolution'},key());
@@ -120,7 +120,7 @@ it('pins a real asset source, follows its current authority and hides unreadable
  await changeAsset(f.owner,assetId,{action:'condition',expectedVersion:1,condition:'degraded',reason:'Inspection records the evolving source condition'},key());
  expect(JSON.parse(String((await getSupportTicket(f.claimant,id)).source_record_json)).version).toBe(1);
  await changeSupportTicket(f.manager,id,{action:'triage',expectedVersion:1,ownerId:f.head.userId,dueDate:'2026-10-05',reason:'Assign the linked asset issue for investigation'},key());
- const {calendarData}=await import("../../../src/server/modules/work_projection/public/calendar/index"),calendarQuery={date:'2026-10-05',view:'day',layers:'support',mode:'mine'};
+ const {calendarData}=await import("@erpx/server-work_projection/public/calendar/index"),calendarQuery={date:'2026-10-05',view:'day',layers:'support',mode:'mine'};
  expect((await calendarData(db,f.claimant,calendarQuery)).items.some(item=>item.sourceId===id)).toBe(true);
  f.claimant.modules=['support'];
  expect((await calendarData(db,f.claimant,calendarQuery)).items.some(item=>item.sourceId===id)).toBe(false);

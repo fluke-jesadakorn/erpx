@@ -1,0 +1,5 @@
+import {technologyContext} from '@erpx/workplace/routes/holdings/[holdingSlug]/administration/technology/_context';
+import {TechnologySectionWorkspace} from '@erpx/feature-identity_access/components/technology/section-workspace';
+import {PageHeader} from '@erpx/ui/components/primitives';
+import {IamConsole} from '@erpx/feature-iam/components/sections/roles';
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}){const {local,actor,queries,base}=await technologyContext((await params).holdingSlug,'settings'),query=await searchParams;const data=await queries.iamOverview(actor,false);return <div className="content-stack" data-source="live"><PageHeader appearance="standard" eyebrow="Technology" title="Access settings" description="Choose a section, inspect records and review changes."/><TechnologySectionWorkspace base={base} view="settings" section="roles" title="Access settings"><IamConsole embedded presentation="workspace" data={data} base={base} api={`/api/v1${base}/iam`} section="roles"/></TechnologySectionWorkspace></div>;}

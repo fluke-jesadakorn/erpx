@@ -1,0 +1,35 @@
+{
+  "name": "@erpx/feature-billing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/target-billing-panel.module.css": "./src/components/target-billing-panel.module.css",
+    "./components/next-month-forecast": "./src/components/next-month-forecast.tsx",
+    "./components/usage/usage-console.module.css": "./src/components/usage/usage-console.module.css",
+    "./components/usage/usage-console": "./src/components/usage/usage-console.tsx",
+    "./components/billing-console.module.css": "./src/components/billing-console.module.css",
+    "./components/next-month-forecast.module.css": "./src/components/next-month-forecast.module.css",
+    "./components/target-billing-panel": "./src/components/target-billing-panel.tsx",
+    "./components/billing-console": "./src/components/billing-console.tsx",
+    "./lib/billing-target-pricing": "./src/lib/billing-target-pricing.ts",
+    "./lib/company-stripe": "./src/lib/company-stripe.ts",
+    "./lib/billing-forecast": "./src/lib/billing-forecast.ts",
+    "./lib/billing": "./src/lib/billing.ts",
+    "./lib/billing-pricing": "./src/lib/billing-pricing.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-billing": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "react": "19.3.0"
+  }
+}

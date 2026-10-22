@@ -1,8 +1,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { moduleRegistry } from "../../src/data/module-registry";
-import { developmentProductOrigin, futureProductOrigin, modulePlacement, productIds, products, sharedHostKeys, validateProductRegistry } from "../../src/lib/commercial/product-registry";
-import { commercialPackages } from "../../src/server/modules/commercial/domain/packages";
+import { moduleRegistry } from "@erpx/catalogue/module-registry";
+import { developmentProductOrigin, futureProductOrigin, modulePlacement, productIds, products, sharedHostKeys, validateProductRegistry } from "@erpx/contracts/product-registry";
+import { commercialPackages } from "@erpx/server-commercial/domain/packages";
 
 const root = resolve(import.meta.dirname, "../..");
 const errors = validateProductRegistry(moduleRegistry.map(module => module.id));

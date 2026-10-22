@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createHash,createHmac} from 'node:crypto';
 import {readProductHostLease,type ProductHostBusinessWorkflow} from '../../../scripts/testing/product-host-cohort';
-import {productIds,type ProductId} from '../../../src/lib/commercial/product-registry';
+import {productIds,type ProductId} from '@erpx/contracts/product-registry';
 
 const root=process.cwd(),account='https://account-dev-erpx.jesadakorn.com',apps='https://apps-dev-erpx.jesadakorn.com',admin='https://admin-dev-erpx.jesadakorn.com';
 type User={key?:string;email:string;userId:string;role:string;roles?:string[];companyId?:string;platformAssignmentId?:string;platformRole?:string};

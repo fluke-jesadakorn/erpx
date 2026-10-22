@@ -1,15 +1,15 @@
-import {financeExpansionWork} from "../../../src/server/modules/finance/public/finance-expansion-work";
-import {attachmentPolicy,authorizeAttachmentTarget} from "../../../src/server/modules/files/public/attachments/policy";
+import {financeExpansionWork} from "@erpx/server-finance/public/finance-expansion-work";
+import {attachmentPolicy,authorizeAttachmentTarget} from "@erpx/server-files/public/attachments/policy";
 import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import {
   prepareAccountingProfile,
   decideAccountingProfile,
-} from "../../../src/server/modules/finance/public/accounting-profiles";
+} from "@erpx/server-finance/public/accounting-profiles";
 import {
   prepareYearClosing,
   decideYearClosing,
-} from "../../../src/server/modules/finance/public/finance-reporting";
+} from "@erpx/server-finance/public/finance-reporting";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
   expenseDb as db,
@@ -24,7 +24,7 @@ import {
   createPeriod,
   beginClose,
   closePeriod,
-} from "../../../src/server/modules/finance/public/finance";
+} from "@erpx/server-finance/public/finance";
 import {
   prepareGroupReportEdition,
   groupReportEditionWorkspace,
@@ -33,23 +33,23 @@ import {
   groupExpansionRecord,
   groupEditionAccountSources,
   groupEditionSourceJournal,
-} from "../../../src/server/modules/finance/public/finance-group-editions";
+} from "@erpx/server-finance/public/finance-group-editions";
 import {
   prepareOwnershipEdition,
   decideOwnershipEdition,
   prepareAcquisitionEdition,
   decideAcquisitionEdition,
-} from "../../../src/server/modules/finance/public/finance-group-ownership";
+} from "@erpx/server-finance/public/finance-group-ownership";
 import {
   prepareIntercompanyPair,
   decideIntercompanyPair,
-} from "../../../src/server/modules/finance/public/finance-intercompany-pairs";
+} from "@erpx/server-finance/public/finance-intercompany-pairs";
 import {
   createCalculationRun,
   decideCalculationRun,
-} from "../../../src/server/modules/finance/public/finance-engines";
+} from "@erpx/server-finance/public/finance-engines";
 vi.mock("server-only", () => ({}));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

@@ -1,25 +1,25 @@
 import {verifySupplierBillProjections,verifySupplierBankProjections,verifySupplierBillFiles} from "../../support/helpers/procurement-sources";
-import {packageGrantStore,readCompanyPackageGrants} from "../../../src/server/modules/commercial/public/package-grants";
+import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 import {reviewedSecondaryBook} from "../../support/helpers/finance-book-fixture";
 import {enableAttachmentV2ForTest,seedAttachmentSet,attachmentBindingState} from "../../support/helpers/attachment-v2";
-import {attachmentContent,createAttachmentSet} from "../../../src/server/modules/files/public/attachments/service";
-import {getPayment,createInvoice,invoiceSchema,getInvoice} from "../../../src/server/modules/finance/public/finance";
-import {financePurchaseControls} from "../../../src/server/modules/finance/public/purchases";
-import {financeProductDocumentEntry} from "../../../src/server/modules/finance/public/document-purchases";
+import {attachmentContent,createAttachmentSet} from "@erpx/server-files/public/attachments/service";
+import {getPayment,createInvoice,invoiceSchema,getInvoice} from "@erpx/server-finance/public/finance";
+import {financePurchaseControls} from "@erpx/server-finance/public/purchases";
+import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 
 import { applyMigrations, env, type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {
   actOnEmployeeRequest,
   employeeRequestSchema,
   getEmployeeRequest,
   requestActionSchema,
   saveEmployeeRequest,
-} from "../../../src/server/modules/records/public/employee-requests";
-import { saveServiceTeam, serviceTeamSchema } from "../../../src/server/modules/support/public/service-teams";
-import { actRfq, createRfq, rfqDetail } from "../../../src/server/modules/procurement/public/procurement-rfqs";
+} from "@erpx/server-records/public/employee-requests";
+import { saveServiceTeam, serviceTeamSchema } from "@erpx/server-support/public/service-teams";
+import { actRfq, createRfq, rfqDetail } from "@erpx/server-procurement/public/procurement-rfqs";
 import {
   fulfillOrder,
   getOrder,
@@ -28,10 +28,10 @@ import {
   saveMaster,
   saveOrder,
   transitionOrder,
-} from "../../../src/server/modules/commerce/public/commerce";
-import { assignFlowPrimary, resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
-import { importBankStatement, postInvoice, postJournal } from "../../../src/server/modules/finance/public/finance";
-import { captureSupplierBill, decideSupplierBill } from "../../../src/server/modules/procurement/public/supplier-bill-matching";
+} from "@erpx/server-commerce/public/commerce";
+import { assignFlowPrimary, resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import { importBankStatement, postInvoice, postJournal } from "@erpx/server-finance/public/finance";
+import { captureSupplierBill, decideSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
 import {
   confirmSupplierInstruction,
   createSupplierBatch,
@@ -41,11 +41,11 @@ import {
   supplierInvoiceBatchWorkspace,
   getSupplierBatch,
   listSupplierBatches,
-} from "../../../src/server/modules/procurement/public/supplier-payments";
-import { purchaseRequestProgress } from "../../../src/server/modules/procurement/public/purchase-request-progress";
+} from "@erpx/server-procurement/public/supplier-payments";
+import { purchaseRequestProgress } from "@erpx/server-procurement/public/purchase-request-progress";
 
 vi.mock("server-only", () => ({}));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -99,7 +99,7 @@ async function assign(kind: "order" | "journal" | "invoice", id: string, stepKey
   }, key());
 }
 
-async function rawSupplyFinance(){const {withPackageSettlementSources}=await import("../../../src/server/modules/commercial/public/package-settlement-sources"),{lockSupplyProcurementPackageObligationSources}=await import("../../../src/server/modules/procurement/public/package-obligations"),{lockSupplyInventoryPackageObligationSources}=await import("../../../src/server/modules/inventory/public/supply-package-obligations"),{lockSupplyFinancePackageObligationSources,supplyFinancePackageObligations}=await import("../../../src/server/modules/finance/public/supply-package-obligations");return withPackageSettlementSources(db,f.company,[lock=>lockSupplyProcurementPackageObligationSources(db,lock),lock=>lockSupplyInventoryPackageObligationSources(db,lock),lock=>lockSupplyFinancePackageObligationSources(db,lock)],database=>supplyFinancePackageObligations(db,database,{companyId:f.company,packageId:"supply",packageVersion:1,moduleId:"finance",now:Date.now()}));}
+async function rawSupplyFinance(){const {withPackageSettlementSources}=await import("@erpx/server-commercial/public/package-settlement-sources"),{lockSupplyProcurementPackageObligationSources}=await import("@erpx/server-procurement/public/package-obligations"),{lockSupplyInventoryPackageObligationSources}=await import("@erpx/server-inventory/public/supply-package-obligations"),{lockSupplyFinancePackageObligationSources,supplyFinancePackageObligations}=await import("@erpx/server-finance/public/supply-package-obligations");return withPackageSettlementSources(db,f.company,[lock=>lockSupplyProcurementPackageObligationSources(db,lock),lock=>lockSupplyInventoryPackageObligationSources(db,lock),lock=>lockSupplyFinancePackageObligationSources(db,lock)],database=>supplyFinancePackageObligations(db,database,{companyId:f.company,packageId:"supply",packageVersion:1,moduleId:"finance",now:Date.now()}));}
 async function purchaseToPayment(enforced=false,withdraw=false,reversal=false,returnAudit=false,multipleCorrections=false){
  expect((await rawSupplyFinance()).outstanding).toBe(0);
  let unrelatedInvoice:string|null=null;
@@ -288,9 +288,9 @@ async function purchaseToPayment(enforced=false,withdraw=false,reversal=false,re
   expect(await db.prepare("SELECT amount_minor,base_invoice_minor,base_payment_minor,realized_fx_minor FROM finance_allocations WHERE payment_id=?").bind(confirmed.paymentId).first()).toEqual({amount_minor:25000000,base_invoice_minor:25000000,base_payment_minor:25000000,realized_fx_minor:0});
   expect((await rawSupplyFinance()).outstanding).toBe(0);
   if(returnAudit){
-   const {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import("../../../src/server/modules/commercial/public/owner-package-obligations"),{packageGrantRevision}=await import("../../../src/server/modules/commercial/public/package-grants"),scope={companyId:f.company,packageId:"supply",packageVersion:1},observe=()=>withOwnerPackageObligations(db,scope,database=>readOwnerPackageObligations(db,database,{...scope,now:Date.now()}));
+   const {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import("@erpx/server-commercial/public/owner-package-obligations"),{packageGrantRevision}=await import("@erpx/server-commercial/public/package-grants"),scope={companyId:f.company,packageId:"supply",packageVersion:1},observe=()=>withOwnerPackageObligations(db,scope,database=>readOwnerPackageObligations(db,database,{...scope,now:Date.now()}));
    expect((await observe()).observations.map(row=>[row.moduleId,row.outstanding])).toEqual([["procurement",0],["inventory",0],["quality",0],["finance",0]]);
-   const {requestCommerceReturn,decideCommerceReturn}=await import("../../../src/server/modules/commerce/public/commerce"),fulfillmentId=String(receipts[0].fulfillmentId),line=await db.prepare("SELECT id FROM commerce_fulfillment_lines WHERE fulfillment_id=? ORDER BY id LIMIT 1").bind(fulfillmentId).first<{id:string}>(),version=Number(await db.prepare("SELECT version FROM commerce_fulfillments WHERE id=?").bind(fulfillmentId).first("version")),returnKey=key(),returnInput={expectedVersion:version,date:"2026-11-16",reason:"Supplier asks independent review of an actual received laptop after original AP settlement",lines:[{lineId:line!.id,quantity:"1"}]};
+   const {requestCommerceReturn,decideCommerceReturn}=await import("@erpx/server-commerce/public/commerce"),fulfillmentId=String(receipts[0].fulfillmentId),line=await db.prepare("SELECT id FROM commerce_fulfillment_lines WHERE fulfillment_id=? ORDER BY id LIMIT 1").bind(fulfillmentId).first<{id:string}>(),version=Number(await db.prepare("SELECT version FROM commerce_fulfillments WHERE id=?").bind(fulfillmentId).first("version")),returnKey=key(),returnInput={expectedVersion:version,date:"2026-11-16",reason:"Supplier asks independent review of an actual received laptop after original AP settlement",lines:[{lineId:line!.id,quantity:"1"}]};
    const pending=await requestCommerceReturn(buyer,fulfillmentId,returnInput,returnKey);expect(await requestCommerceReturn(buyer,fulfillmentId,returnInput,returnKey)).toEqual(pending);expect(await db.prepare("SELECT status FROM commerce_returns WHERE id=?").bind(pending.id).first("status")).toBe("requested");
    const grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==="supply")!,request={companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:"inactive" as const,version:current.version+1,reason:"Pending SupplierReturn must be reviewed before software withdrawal",evidence:"test:supply-pending-return"}}]},normal=packageGrantStore(db,{authorize:async()=>({userId:"isolated-original-Supply-provider"}),obligations:(database,companyId,packageId)=>ownerPackageObligations(db,database,companyId,packageId)}),review=(apply=false)=>withOwnerPackageObligations(db,scope,database=>apply?normal.batch.applyIn(database,request,async()=>{}):normal.batch.previewIn(database,request));
    expect((await observe()).observations.find(row=>row.moduleId==="procurement")!.outstanding).toBeGreaterThan(0);await expect(review()).rejects.toThrow("PACKAGE_OBLIGATIONS_REMAIN");await expect(review(true)).rejects.toThrow("PACKAGE_OBLIGATIONS_REMAIN");
@@ -298,8 +298,8 @@ async function purchaseToPayment(enforced=false,withdraw=false,reversal=false,re
    expect((await observe()).observations.map(row=>[row.moduleId,row.outstanding])).toEqual([["procurement",0],["inventory",0],["quality",0],["finance",0]]);const preview=await review();expect(await review(true)).toEqual(preview);return;
   }
   if(reversal){
-   const {reversePayment,createPayment,approvePayment,releasePayment,confirmPayment}=await import("../../../src/server/modules/finance/public/finance");
-   const {supplierInvoiceCorrectionControls}=await import("../../../src/server/modules/finance/public/supplier-payment-corrections");
+   const {reversePayment,createPayment,approvePayment,releasePayment,confirmPayment}=await import("@erpx/server-finance/public/finance");
+   const {supplierInvoiceCorrectionControls}=await import("@erpx/server-finance/public/supplier-payment-corrections");
    const originalPaymentId=String(confirmed.paymentId),reverseKey=key(),reverseInput={expectedVersion:1,periodId:f.period,entryDate:"2026-11-16",reason:"Independently correct the actual original supplier payment allocation"};
    const tables=["commerce_fulfillments","finance_payments","finance_payment_reversals","finance_invoices","finance_allocations","finance_journals","finance_journal_lines","finance_book_postings","finance_financial_events","finance_bank_transactions","assignments","command_receipts","audit_events","outbox_events"],snapshot=()=>Promise.all(tables.map(async table=>(await db.prepare(`SELECT row_to_json(t)::text row FROM ${table} t ORDER BY row_to_json(t)::text`).all()).results));
    const revocation=`supplier_correction_iam_${key().replaceAll('-','')}`,beforeReverse=await snapshot();
@@ -333,9 +333,9 @@ async function purchaseToPayment(enforced=false,withdraw=false,reversal=false,re
    expect(await attachmentBindingState(db,replacementProof.setId)).toMatchObject({set_state:"bound",link_state:"bound"});
    const entryActor={companyId:f.company,branchId:null,departmentId:null,userId:f.reviewer.userId,assignmentId:f.reviewer.assignmentId,assignmentVersion:Number(await db.prepare("SELECT version FROM assignments WHERE id=?").bind(f.reviewer.assignmentId).first("version")),role:f.reviewer.role};
    for(const target of [{kind:"payment" as const,id:originalPaymentId},{kind:"payment" as const,id:replacementId},{kind:"journal" as const,id:String(reversed.reversalJournalId)}])expect(await financeProductDocumentEntry(db,entryActor,target)).toEqual({capability:"finance.inventory-valuation",purchasePurpose:"history"});
-   const {withholdingWorkspace}=await import("../../../src/server/modules/finance/public/finance-withholding");await expect(withholdingWorkspace(f.reviewer,replacementId)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
+   const {withholdingWorkspace}=await import("@erpx/server-finance/public/finance-withholding");await expect(withholdingWorkspace(f.reviewer,replacementId)).rejects.toMatchObject({code:"PACKAGE_REQUIRED"});
    expect(await db.prepare("SELECT status,outstanding_minor,base_outstanding_minor FROM finance_invoices WHERE id=?").bind(invoiceId).first()).toEqual({status:"paid",outstanding_minor:0,base_outstanding_minor:0});expect((await rawSupplyFinance()).outstanding).toBe(0);
-   const {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import("../../../src/server/modules/commercial/public/owner-package-obligations"),{packageGrantRevision}=await import("../../../src/server/modules/commercial/public/package-grants"),scope={companyId:f.company,packageId:"supply",packageVersion:1};
+   const {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import("@erpx/server-commercial/public/owner-package-obligations"),{packageGrantRevision}=await import("@erpx/server-commercial/public/package-grants"),scope={companyId:f.company,packageId:"supply",packageVersion:1};
    const raw=await withOwnerPackageObligations(db,scope,database=>readOwnerPackageObligations(db,database,{...scope,now:Date.now()}));expect(raw.observations.map(row=>[row.moduleId,row.outstanding])).toEqual([["procurement",0],["inventory",0],["quality",0],["finance",0]]);
    const grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==="supply")!,request={companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:"inactive" as const,version:current.version+1,reason:"Actual independent correction settled the retained supplier bank observation",evidence:"test:supply-normal-correction-withdrawal"}}]},normal=packageGrantStore(db,{authorize:async()=>({userId:"isolated-original-Supply-provider"}),obligations:(database,companyId,packageId)=>ownerPackageObligations(db,database,companyId,packageId)}),review=(apply=false)=>withOwnerPackageObligations(db,scope,database=>apply?normal.batch.applyIn(database,request,async()=>{}):normal.batch.previewIn(database,request));
    const objectKey=String(await db.prepare("SELECT object_key FROM attachments WHERE id=?").bind(replacementProof.sourceId).first("object_key")),bytes="%PDF-1.7 actual corrected Supplier payment evidence";await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:"application/pdf"}});await db.prepare("UPDATE attachments SET legal_hold=1 WHERE id=?").bind(replacementProof.sourceId).run();
@@ -366,7 +366,7 @@ async function purchaseToPayment(enforced=false,withdraw=false,reversal=false,re
   expect(await financeProductDocumentEntry(db,{companyId:f.company,branchId:f.branch,departmentId:null,userId:f.reviewer.userId,assignmentId:f.reviewer.assignmentId,assignmentVersion,role:f.reviewer.role},{kind:"supplier-batch",id:batchId})).toBeNull();
   await verifySupplierBillFiles(f,String(bill.id));await verifySupplierBankProjections(f,String(bill.id),batchId);
   if(withdraw){
-   const {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import("../../../src/server/modules/commercial/public/owner-package-obligations"),{packageGrantRevision}=await import("../../../src/server/modules/commercial/public/package-grants"),scope={companyId:f.company,packageId:"supply",packageVersion:1};
+   const {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import("@erpx/server-commercial/public/owner-package-obligations"),{packageGrantRevision}=await import("@erpx/server-commercial/public/package-grants"),scope={companyId:f.company,packageId:"supply",packageVersion:1};
    const raw=await withOwnerPackageObligations(db,scope,database=>readOwnerPackageObligations(db,database,{...scope,now:Date.now()}));expect(raw.observations.map(row=>[row.moduleId,row.outstanding])).toEqual([["procurement",0],["inventory",0],["quality",0],["finance",0]]);
    const grants=await readCompanyPackageGrants(db,f.company),current=grants.find(row=>row.packageId==="supply")!,request={companyId:f.company,expectedRevision:packageGrantRevision(f.company,grants),idempotencyKey:key(),changes:[{expectedVersion:current.version,grant:{...current,state:"inactive" as const,version:current.version+1,reason:"Actual independent consolidated AP and supplier bank duties are settled",evidence:"test:supply-complete-ap-withdrawal"}}]},normal=packageGrantStore(db,{authorize:async()=>({userId:"isolated-original-Supply-provider"}),obligations:(database,companyId,packageId)=>ownerPackageObligations(db,database,companyId,packageId)});
    const review=(apply=false)=>withOwnerPackageObligations(db,scope,database=>apply?normal.batch.applyIn(database,request,async()=>{}):normal.batch.previewIn(database,request));
@@ -397,7 +397,7 @@ it("retains actual normal supplier payment reversal and replacement history with
 it("blocks Supply withdrawal for an actual pending SupplierReturn after fully paid AP until independent normal rejection",()=>purchaseToPayment(true,false,false,true));
 
 async function verifyMultiplePartialCorrections(invoiceId:string,unrelatedInvoiceId:string){
- const {reversePayment,createPayment,approvePayment,releasePayment,confirmPayment}=await import("../../../src/server/modules/finance/public/finance"),{supplierInvoiceCorrections}=await import("../../../src/server/modules/finance/public/supplier-payment-corrections"),{supplierCorrectionInput}=await import("../../../src/lib/finance/supplier-payment-correction"),{withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import("../../../src/server/modules/commercial/public/owner-package-obligations"),{packageGrantRevision}=await import("../../../src/server/modules/commercial/public/package-grants");
+ const {reversePayment,createPayment,approvePayment,releasePayment,confirmPayment}=await import("@erpx/server-finance/public/finance"),{supplierInvoiceCorrections}=await import("@erpx/server-finance/public/supplier-payment-corrections"),{supplierCorrectionInput}=await import("@erpx/feature-finance/lib/supplier-payment-correction"),{withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import("@erpx/server-commercial/public/owner-package-obligations"),{packageGrantRevision}=await import("@erpx/server-commercial/public/package-grants");
  const scope={companyId:f.company,packageId:"supply",packageVersion:1},observe=()=>withOwnerPackageObligations(db,scope,database=>readOwnerPackageObligations(db,database,{...scope,now:Date.now()})),originals:{paymentId:string;amount:string;amountMinor:number;bankId:string;bankReference:string;reverseKey:string;reverseInput:{expectedVersion:number;periodId:string;entryDate:string;reason:string};reversed?:unknown}[]=[];
  for(const amount of ["150000","100000"]){
   const invoice=await db.prepare("SELECT version FROM finance_invoices WHERE id=?").bind(invoiceId).first<{version:number}>(),batch=await createSupplierBatch(f.reviewer,{bankAccountId:f.accounts.cash,plannedDate:"2026-11-15",items:[{invoiceId,expectedVersion:Number(invoice!.version),amount,beneficiaryName:"Actual original partial supplier payment",beneficiaryAccount:"SANDBOX-PARTIAL-SUPPLIER"}]},key()),batchId=String(batch.id);
@@ -440,9 +440,9 @@ async function privateBillFixture(){
  const lineId=String(await db.prepare('SELECT id FROM commerce_fulfillment_lines WHERE fulfillment_id=?').bind(fulfillmentId).first('id')),bill=await captureSupplierBill(f.reviewer,{fulfillmentId,expectedVersion:1,reference:key(),invoiceDate:'2026-09-02',dueDate:'2026-09-03',evidence:'Original actual supplier document agrees to received physical quantity',lines:[{fulfillmentLineId:lineId,quantity:'1',price:'10',taxBps:0}]},key());await decideSupplierBill(f.manager,String(bill.id),{action:'approve',expectedVersion:1,reason:'Original independent receiving and supplier price review'},key());const invoice=await invoiceFulfillment(f.reviewer,fulfillmentId,{expectedVersion:2,date:'2026-09-02',dueDate:'2026-09-03',matchId:String(bill.id),matchVersion:2},key()),id=String(invoice.invoiceId);await assign('invoice',id,'draft',f.manager);await postInvoice(f.manager,id,{expectedVersion:1,periodId:f.period,entryDate:'2026-09-02'},key());return {id,orderId,partyId:String(party.id)};
 }
 it('fresh supplier bill alias private bytes retain actual independently posted Purchase AP and held evidence under Supply-only draining',async()=>{
- const source=await privateBillFixture(),{bindRecordAttachmentSet}=await import('../../../src/server/modules/files/public/attachments/service'),file=await seedAttachmentSet(db,f.reviewer,{targetType:'supplier_bill',targetId:source.id,purposeKey:'invoice_document',componentKind:'record',expectedTargetVersion:2});await bindRecordAttachmentSet(db,f.reviewer,file.setId,2,key());const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key')),bytes='Retained exact independently posted source payable document';await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:'application/pdf'}});await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(file.sourceId).run();
+ const source=await privateBillFixture(),{bindRecordAttachmentSet}=await import('@erpx/server-files/public/attachments/service'),file=await seedAttachmentSet(db,f.reviewer,{targetType:'supplier_bill',targetId:source.id,purposeKey:'invoice_document',componentKind:'record',expectedTargetVersion:2});await bindRecordAttachmentSet(db,f.reviewer,file.setId,2,key());const objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key')),bytes='Retained exact independently posted source payable document';await env.H001_FILES.put(objectKey,bytes,{httpMetadata:{contentType:'application/pdf'}});await db.prepare('UPDATE attachments SET legal_hold=1 WHERE id=?').bind(file.sourceId).run();
  vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');await expect(attachmentContent(db,env.H001_FILES,f.reviewer,file.linkId,'original')).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});const grant={companyId:f.company,packageId:'supply',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Exact original payable source history only',evidence:'test:supplier-bill-private-alias'},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-payable-files-provider'}),obligations:async()=>{throw Error('PAYABLE_FILE_FIXTURE_CANNOT_INACTIVATE');}});await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:'draining',version:2}});
- let consumed=0;const files:import('../../../src/server/modules/runtime/public/runtime/types').FileStore={get:async(...args)=>{const object=await env.H001_FILES.get(...args);return object?{...object,arrayBuffer:async()=>{consumed++;return object.arrayBuffer();}}:null;},put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args)};expect(await(await attachmentContent(db,files,f.reviewer,file.linkId,'original')).object.text()).toBe(bytes);await expect(db.transaction(tx=>attachmentContent(tx,files,f.reviewer,file.linkId,'original'))).rejects.toMatchObject({code:'SUPPLIER_BILL_FILE_READ_TRANSACTION_REQUIRED'});
+ let consumed=0;const files:import("@erpx/server-runtime/public/runtime/types").FileStore={get:async(...args)=>{const object=await env.H001_FILES.get(...args);return object?{...object,arrayBuffer:async()=>{consumed++;return object.arrayBuffer();}}:null;},put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args)};expect(await(await attachmentContent(db,files,f.reviewer,file.linkId,'original')).object.text()).toBe(bytes);await expect(db.transaction(tx=>attachmentContent(tx,files,f.reviewer,file.linkId,'original'))).rejects.toMatchObject({code:'SUPPLIER_BILL_FILE_READ_TRANSACTION_REQUIRED'});
  for(const fault of ['invoice','receipt','party','iam'] as const){const trigger=`payable_byte_${key().replaceAll('-','')}`,effect=fault==='invoice'?`UPDATE finance_invoices SET version=version+1 WHERE id='${source.id}'`:fault==='receipt'?`UPDATE commerce_orders SET due_date='2026-12-31' WHERE id='${source.orderId}'`:fault==='party'?`UPDATE finance_parties SET name=name||' unexpected source edit' WHERE id='${source.partyId}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.reviewer.assignmentId}'`;await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${effect};RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${trigger}()`);try{await expect(attachmentContent(db,files,f.reviewer,file.linkId,'original')).rejects.toMatchObject({code:fault==='iam'?'ATTACHMENT_FILE_READ_CHANGED':'SUPPLIER_BILL_FILE_READ_CHANGED'});}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_access_events;DROP FUNCTION ${trigger}()`);}expect(await db.prepare('SELECT version FROM finance_invoices WHERE id=?').bind(source.id).first('version')).toBe(3);expect(await db.prepare('SELECT due_date FROM commerce_orders WHERE id=?').bind(source.orderId).first('due_date')).toBe('2026-09-03');expect(await db.prepare('SELECT name FROM finance_parties WHERE id=?').bind(source.partyId).first('name')).toBe('Private payable original supplier');expect(await db.prepare('SELECT revoked_at,version FROM assignments WHERE id=?').bind(f.reviewer.assignmentId).first()).toEqual({revoked_at:null,version:1});}
  expect(consumed).toBe(5);expect(Number(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='allowed'").bind(file.linkId).first('n'))).toBe(1);expect(await(await attachmentContent(db,files,f.reviewer,file.linkId,'original')).object.text()).toBe(bytes);expect(await db.prepare('SELECT legal_hold,revoked_at FROM attachments WHERE id=?').bind(file.sourceId).first()).toEqual({legal_hold:1,revoked_at:null});expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['supply']);await db.prepare('UPDATE assignments SET revoked_at=1,version=version+1 WHERE id=?').bind(f.reviewer.assignmentId).run();await expect(attachmentContent(db,files,f.reviewer,file.linkId,'original')).rejects.toMatchObject({status:404,code:'ATTACHMENT_TARGET_NOT_FOUND'});expect(consumed).toBe(6);expect(await db.prepare("SELECT reason FROM attachment_access_events WHERE link_id=? AND outcome='denied' ORDER BY created_at DESC LIMIT 1").bind(file.linkId).first('reason')).toBe('ATTACHMENT_TARGET_NOT_FOUND');
 });
@@ -450,13 +450,13 @@ async function standalonePrivateBill(){
  enableAttachmentV2ForTest();const party=await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:'Standalone real Finance supplier'},key()),invoice=await createInvoice(f.reviewer,invoiceSchema.parse({partyId:String(party.id),kind:'payable',invoiceNumber:key(),invoiceDate:'2026-09-02',dueDate:'2026-09-03',currency:'THB',subtotal:'1',tax:'0',debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key()),id=String(invoice.id),file=await seedAttachmentSet(db,f.reviewer,{targetType:'supplier_bill',targetId:id,purposeKey:'tax_document',componentKind:'record',expectedTargetVersion:1}),objectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(file.sourceId).first('object_key'));await env.H001_FILES.put(objectKey,'Retained ordinary Finance payable tax evidence',{httpMetadata:{contentType:'application/pdf'}});return {id,file};
 }
 it('fresh supplier bill alias preserves ordinary full Finance history without a Commerce source or any Supply purchase',async()=>{
- const {id,file}=await standalonePrivateBill(),{bindRecordAttachmentSet}=await import('../../../src/server/modules/files/public/attachments/service');await bindRecordAttachmentSet(db,f.reviewer,file.setId,1,key());vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');const grant={companyId:f.company,packageId:'finance',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Original ordinary standalone Finance payable history',evidence:'test:standalone-finance-private-payable'},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-ordinary-payable-provider'}),obligations:async()=>{throw Error('ORDINARY_PAYABLE_FIXTURE_CANNOT_INACTIVATE');}});await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:'draining',version:2}});expect(await(await attachmentContent(db,env.H001_FILES,f.reviewer,file.linkId,'original')).object.text()).toBe('Retained ordinary Finance payable tax evidence');expect(await db.prepare('SELECT source_type FROM finance_invoices WHERE id=?').bind(id).first('source_type')).toBe('standalone');expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['finance']);
+ const {id,file}=await standalonePrivateBill(),{bindRecordAttachmentSet}=await import('@erpx/server-files/public/attachments/service');await bindRecordAttachmentSet(db,f.reviewer,file.setId,1,key());vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');const grant={companyId:f.company,packageId:'finance',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Original ordinary standalone Finance payable history',evidence:'test:standalone-finance-private-payable'},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-ordinary-payable-provider'}),obligations:async()=>{throw Error('ORDINARY_PAYABLE_FIXTURE_CANNOT_INACTIVATE');}});await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:'draining',version:2}});expect(await(await attachmentContent(db,env.H001_FILES,f.reviewer,file.linkId,'original')).object.text()).toBe('Retained ordinary Finance payable tax evidence');expect(await db.prepare('SELECT source_type FROM finance_invoices WHERE id=?').bind(id).first('source_type')).toBe('standalone');expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['finance']);
 });
 it('fresh supplier bill alias sees an actual normal disabled File bind before its first payable source snapshot without deadlocks or retries',async()=>{
- const {id,file}=await standalonePrivateBill(),{bindRecordAttachmentSet}=await import('../../../src/server/modules/files/public/attachments/service'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),trigger=`payable_snapshot_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF(SELECT version FROM finance_invoices WHERE id='${id}')<>2 THEN RAISE EXCEPTION 'SUPPLIER_BILL_FILE_STALE_FIRST_SNAPSHOT';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${trigger}()`);try{const observed=await measureReads(()=>committedSourceVisibility(db,tx=>bindRecordAttachmentSet(tx,f.reviewer,file.setId,1,key()),()=>attachmentContent(db,env.H001_FILES,f.reviewer,file.linkId,'original')));expect(await observed.result.object.text()).toBe('Retained ordinary Finance payable tax evidence');expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_access_events;DROP FUNCTION ${trigger}()`);}
+ const {id,file}=await standalonePrivateBill(),{bindRecordAttachmentSet}=await import('@erpx/server-files/public/attachments/service'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),trigger=`payable_snapshot_${key().replaceAll('-','')}`;await db.exec(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF(SELECT version FROM finance_invoices WHERE id='${id}')<>2 THEN RAISE EXCEPTION 'SUPPLIER_BILL_FILE_STALE_FIRST_SNAPSHOT';END IF;RETURN NEW;END $$;CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT ON attachment_access_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN(NEW.link_id='${file.linkId}' AND NEW.outcome='allowed') EXECUTE FUNCTION ${trigger}()`);try{const observed=await measureReads(()=>committedSourceVisibility(db,tx=>bindRecordAttachmentSet(tx,f.reviewer,file.setId,1,key()),()=>attachmentContent(db,env.H001_FILES,f.reviewer,file.linkId,'original')));expect(await observed.result.object.text()).toBe('Retained ordinary Finance payable tax evidence');expect(observed.metrics.deadlockFailures??0).toBe(0);expect(observed.metrics.serializationFailures??0).toBe(0);expect(observed.metrics.transactionRetries??0).toBe(0);}finally{await db.exec(`DROP TRIGGER ${trigger} ON attachment_access_events;DROP FUNCTION ${trigger}()`);}
 });
 
-type PostingSetupInput = import('../../../src/server/modules/commerce/public/posting-setup').CommercePostingSetupInput;
+type PostingSetupInput = import("@erpx/server-commerce/public/posting-setup").CommercePostingSetupInput;
 const postingFields = ['receivableAccountId','payableAccountId','revenueAccountId','inventoryAccountId','clearingAccountId','cogsAccountId','inputTaxAccountId','outputTaxAccountId','cashAccountId'] as const;
 
 async function supplyInitialPostingFixture(currency = 'THB') {
@@ -474,9 +474,9 @@ async function supplyInitialPostingFixture(currency = 'THB') {
   vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');
   vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
   vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');
-  const {loadIamAuthority} = await import('../../../src/server/modules/identity_access/public/iam-store');
+  const {loadIamAuthority} = await import('@erpx/server-identity_access/public/iam-store');
   for (const actor of [f.owner,f.reviewer,f.manager,buyer,purchasingManager,warehouse]) actor.iam = await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);
-  const {createAccount} = await import('../../../src/server/modules/finance/public/finance');
+  const {createAccount} = await import('@erpx/server-finance/public/finance');
   const definitions = [
     ['receivableAccountId','asset','receivable',currency],
     ['payableAccountId','liability','payable',currency],
@@ -493,7 +493,7 @@ async function supplyInitialPostingFixture(currency = 'THB') {
     const account = await createAccount(f.reviewer,{chartId:f.chart,code:key(),name:`Initial Supply ${field}`,category,currency:accountCurrency,isControl:controlKind!=='none',controlKind},key());
     mapping[field] = String(account.id);
   }
-  const api = await import('../../../src/server/modules/commerce/public/posting-setup');
+  const api = await import('@erpx/server-commerce/public/posting-setup');
   const view = await api.commercePostingSetup(f.reviewer);
   expect(view).toMatchObject({available:true,configured:false,version:0,canConfigure:true,configuration:null});
   expect(view.contextKey).toMatch(/^[a-f0-9]{64}$/);
@@ -535,7 +535,7 @@ it('initial Supply posting setup creates all nine normal accounts then receives,
   expect((await financePurchaseControls(f.reviewer))?.['finance.accounting']).toMatchObject({newWork:false,history:false});
   expect((await readCompanyPackageGrants(db,f.company)).map(row=>row.packageId)).toEqual(['supply']);
   // A later normal catalogue addition cannot invalidate the committed command.
-  const {createAccount}=await import('../../../src/server/modules/finance/public/finance');
+  const {createAccount}=await import('@erpx/server-finance/public/finance');
   await createAccount(f.reviewer,{chartId:f.chart,code:key(),name:'Later unused normal Supply asset',category:'asset',currency:'THB',isControl:false,controlKind:'none'},key());
   await setup.store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...setup.grant,state:'draining',version:2}});
   expect(await setup.initializeCommercePostingSetup(f.reviewer,setup.input,command)).toEqual(result);
@@ -556,14 +556,14 @@ it('initial Supply posting setup preserves mixed document and functional account
   await expect(privateBillFixture()).rejects.toMatchObject({code:'FX_GAIN_ACCOUNT_REQUIRED'});
   const source=await db.prepare('SELECT i.id,ff.order_id FROM finance_invoices i JOIN commerce_fulfillments ff ON ff.invoice_id=i.id WHERE i.company_id=?').bind(f.company).first<{id:string;order_id:string}>();
   if(!source)throw Error('Original independently reviewed foreign supplier invoice required');
-  const {createAccount}=await import('../../../src/server/modules/finance/public/finance'),gain=await createAccount(f.reviewer,{chartId:f.chart,code:key(),name:'Original functional FX gain',category:'other_income',currency:'THB',isControl:false,controlKind:'none'},key()),loss=await createAccount(f.reviewer,{chartId:f.chart,code:key(),name:'Original functional FX loss',category:'other_expense',currency:'THB',isControl:false,controlKind:'none'},key());
+  const {createAccount}=await import('@erpx/server-finance/public/finance'),gain=await createAccount(f.reviewer,{chartId:f.chart,code:key(),name:'Original functional FX gain',category:'other_income',currency:'THB',isControl:false,controlKind:'none'},key()),loss=await createAccount(f.reviewer,{chartId:f.chart,code:key(),name:'Original functional FX loss',category:'other_expense',currency:'THB',isControl:false,controlKind:'none'},key());
   await postInvoice(f.manager,source.id,{expectedVersion:1,periodId:f.period,entryDate:'2026-09-02',fxGainAccountId:gain.id,fxLossAccountId:loss.id},key());
   expect(await db.prepare('SELECT currency,status,outstanding_minor FROM finance_invoices WHERE id=?').bind(source.id).first()).toEqual({currency:'USD',status:'posted',outstanding_minor:1000});
   expect(await db.prepare('SELECT v.document_currency,v.stock_currency,v.stock_value_minor FROM commerce_goods_valuations v JOIN commerce_fulfillments ff ON ff.id=v.fulfillment_id WHERE ff.order_id=?').bind(source.order_id).first()).toEqual({document_currency:'USD',stock_currency:'THB',stock_value_minor:36000});
 });
 
 it('initial Supply posting setup rejects every wrong native account meaning plus inactive, foreign-chart, foreign-Company and unrelated-currency references',async()=>{
-  const setup=await supplyInitialPostingFixture(),{createAccount,createChart,changeAccountStatus}=await import('../../../src/server/modules/finance/public/finance');
+  const setup=await supplyInitialPostingFixture(),{createAccount,createChart,changeAccountStatus}=await import('@erpx/server-finance/public/finance');
   const invalid=await createAccount(f.reviewer,{chartId:f.chart,code:key(),name:'Normal equity cannot stand in for any posting role',category:'equity',currency:'THB',isControl:false,controlKind:'none'},key());
   let context=(await setup.commercePostingSetup(f.reviewer)).contextKey!;
   for(const field of postingFields){const command=key();await expect(setup.initializeCommercePostingSetup(f.reviewer,{...setup.input,contextKey:context,[field]:invalid.id},command)).rejects.toMatchObject({code:'COMMERCE_POSTING_ACCOUNTS_INVALID'});expect(await postingCommandImage(command)).toEqual([[],[],[]]);}
@@ -580,11 +580,11 @@ it('initial Supply posting setup rejects every wrong native account meaning plus
 });
 
 it('initial Supply posting setup binds fresh references, current Company Finance IAM and actual purchased authority',async()=>{
-  const {commercePostingSetup,initializeCommercePostingSetup}=await import('../../../src/server/modules/commerce/public/posting-setup');
+  const {commercePostingSetup,initializeCommercePostingSetup}=await import('@erpx/server-commerce/public/posting-setup');
   const unavailable=await commercePostingSetup(f.reviewer);
   expect(unavailable).toMatchObject({available:false,configured:null,version:null,configuration:null,charts:[],accounts:[],contextKey:null,unavailableReason:'purchase-required'});
   await expect(initializeCommercePostingSetup(f.reviewer,{},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
-  const setup=await supplyInitialPostingFixture(),{createAccount}=await import('../../../src/server/modules/finance/public/finance');
+  const setup=await supplyInitialPostingFixture(),{createAccount}=await import('@erpx/server-finance/public/finance');
   await createAccount(f.reviewer,{chartId:f.chart,code:key(),name:'Normal new source invalidates the captured reference context',category:'asset',currency:'THB',isControl:false,controlKind:'none'},key());
   await expect(setup.initializeCommercePostingSetup(f.reviewer,setup.input,key())).rejects.toMatchObject({code:'COMMERCE_POSTING_CONTEXT_CHANGED'});
   for(const actor of [{...f.reviewer,branchId:f.branch},buyer]){
@@ -603,7 +603,7 @@ it('initial Supply posting setup binds fresh references, current Company Finance
 });
 
 it('initial Supply posting setup serializes duplicate and competing normal initializers without retry-masked conflicts',async()=>{
-  const setup=await supplyInitialPostingFixture(),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),commands=[key(),key()];
+  const setup=await supplyInitialPostingFixture(),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),commands=[key(),key()];
   const observed=await measureReads(()=>Promise.allSettled(commands.map(command=>setup.initializeCommercePostingSetup(f.reviewer,setup.input,command))));
   expect(observed.result.filter(result=>result.status==='fulfilled')).toHaveLength(1);
   expect(observed.result.filter(result=>result.status==='rejected')).toHaveLength(1);
@@ -621,7 +621,7 @@ it('initial Supply posting setup serializes duplicate and competing normal initi
 });
 
 it('initial Supply posting setup exact product entry uses original module-free Finance authority and current source readiness without selecting a role',async()=>{
-  const {commercePostingSetupProductEntry}=await import('../../../src/server/modules/commerce/public/posting-setup'),scope={companyId:f.company,branchId:null,departmentId:null,userId:f.reviewer.userId,assignmentId:f.reviewer.assignmentId,assignmentVersion:Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(f.reviewer.assignmentId).first('version')),role:f.reviewer.role,sessionId:key()};
+  const {commercePostingSetupProductEntry}=await import('@erpx/server-commerce/public/posting-setup'),scope={companyId:f.company,branchId:null,departmentId:null,userId:f.reviewer.userId,assignmentId:f.reviewer.assignmentId,assignmentVersion:Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(f.reviewer.assignmentId).first('version')),role:f.reviewer.role,sessionId:key()};
   expect(await commercePostingSetupProductEntry(db,scope)).toBeNull();
   await supplyInitialPostingFixture();
   expect(await db.prepare('SELECT modules_json FROM assignments WHERE id=?').bind(scope.assignmentId).first('modules_json')).toBe('[]');
@@ -641,7 +641,7 @@ it('initial Supply posting setup exact product entry uses original module-free F
 });
 
 it('initial Supply posting setup waits for an actual normal account writer before its first snapshot without deadlocks or retries',async()=>{
-  const setup=await supplyInitialPostingFixture(),{changeAccountStatus}=await import('../../../src/server/modules/finance/public/finance'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),command=key(),fault=`posting_writer_${key().replaceAll('-','')}`;
+  const setup=await supplyInitialPostingFixture(),{changeAccountStatus}=await import('@erpx/server-finance/public/finance'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),command=key(),fault=`posting_writer_${key().replaceAll('-','')}`;
   await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fault}');PERFORM pg_sleep(0.5);RETURN NEW;END $$;CREATE TRIGGER ${fault} AFTER INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
   try{
     const observed=await measureReads(async()=>{
@@ -709,12 +709,12 @@ async function zeroLedgerSupplyCompany() {
       db.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'employee','salaried','active','2020-01-01','Native worker','THB','fixture',1,1)").bind(`eng-${userId}`,`person-${userId}`,company,branch,department),
     ]);
     const context:WorkContext={userId,assignmentId,role,companyId:company,branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'test',holdingName:'Test',name,email:`${name}@example.test`,assignmentScope:'holding',inherited:false,modules:[],assignments:[],workspaces:[],scope:{kind:'holding',holdingId:'h001',holdingSlug:'test',holdingName:'Test',companyId:company}};
-    const {loadIamAuthority}=await import('../../../src/server/modules/identity_access/public/iam-store');
+    const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');
     context.iam=await loadIamAuthority(db,company,userId,role);
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),buyer=await actor('buyer','purchasing_operator'),purchasingManager=await actor('purchasing-manager','purchasing_manager'),warehouse=await actor('warehouse','warehouse_manager');
-  const {installStaffLevels,savePosition,positionSchema}=await import('../../../src/server/modules/organization/public/organization');
+  const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');
   await installStaffLevels(db,owner,key());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),key())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[buyer,4],[purchasingManager,3],[warehouse,4]] as const){
@@ -731,7 +731,7 @@ async function zeroLedgerSupplyCompany() {
 }
 
 async function zeroSupplyEnvelope(actor:WorkContext) {
-  const {supplyPostingPrerequisites}=await import('../../../src/server/modules/finance/public/supply-posting-prerequisites');
+  const {supplyPostingPrerequisites}=await import('@erpx/server-finance/public/supply-posting-prerequisites');
   const view=await supplyPostingPrerequisites(actor);
   expect(view.available).toBe(true);expect(view.contextKey).toMatch(/^[a-f0-9]{64}$/);
   if(!view.contextKey)throw Error('Current original Supply prerequisite context required');
@@ -761,7 +761,7 @@ async function zeroSupplyReceipt(z:Awaited<ReturnType<typeof zeroLedgerSupplyCom
 
 it('zero-ledger Supply creates chart nine accounts period and actual approved quote through normal owners before its first receiving and AP posting',async()=>{
   const z=await zeroLedgerSupplyCompany();await z.purchase();
-  const api=await import('../../../src/server/modules/finance/public/supply-posting-prerequisites'),initial=await api.supplyPostingPrerequisites(z.reviewer);
+  const api=await import('@erpx/server-finance/public/supply-posting-prerequisites'),initial=await api.supplyPostingPrerequisites(z.reviewer);
   expect(initial).toMatchObject({available:true,configured:false,canCreateChart:true,canCreateAccount:true,canCreatePeriod:true,canConfirmRate:false,charts:[],accounts:[],periods:[],rates:[]});
   const chartBody={...await zeroSupplyEnvelope(z.reviewer),input:{name:'Actual first Supply chart',baseCurrency:'THB',accountingBasis:'IFRS'}},chartKey=key(),chart=await api.createSupplyPostingChart(z.reviewer,chartBody,chartKey);
   expect(await api.createSupplyPostingChart(z.reviewer,chartBody,chartKey)).toEqual(chart);
@@ -779,7 +779,7 @@ it('zero-ledger Supply creates chart nine accounts period and actual approved qu
   const rateBody={...await zeroSupplyEnvelope(z.manager),input:rateInput},rate=await api.confirmSupplyPostingRate(z.manager,rateBody,key());
   expect(rate).toMatchObject({currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'36'});
   expect(await db.prepare('SELECT confirmed_by FROM company_fx_rates WHERE id=?').bind(rate.id).first('confirmed_by')).toBe(z.manager.userId);
-  const {commercePostingSetup,initializeCommercePostingSetup}=await import('../../../src/server/modules/commerce/public/posting-setup'),setup=await commercePostingSetup(z.reviewer);
+  const {commercePostingSetup,initializeCommercePostingSetup}=await import('@erpx/server-commerce/public/posting-setup'),setup=await commercePostingSetup(z.reviewer);
   if(!setup.contextKey)throw Error('Actual nine-account setup context required');
   const input:PostingSetupInput={expectedVersion:0,contextKey:setup.contextKey,chartId:chart.id,currency:'THB',reason:'Original Company preparer deliberately selects all nine actual initial accounts',...mapping};
   vi.stubEnv('NODE_ENV','production');
@@ -812,7 +812,7 @@ it('zero-ledger Supply creates chart nine accounts period and actual approved qu
 });
 
 it('zero-ledger Supply prerequisite commands retain current Company authority purchase gates reference context and exact command bodies',async()=>{
-  const z=await zeroLedgerSupplyCompany(),api=await import('../../../src/server/modules/finance/public/supply-posting-prerequisites'),chartInput={name:'Initial guarded Supply chart',baseCurrency:'THB',accountingBasis:'IFRS'},emptyEnvelope={expectedVersion:0 as const,contextKey:'0'.repeat(64)};
+  const z=await zeroLedgerSupplyCompany(),api=await import('@erpx/server-finance/public/supply-posting-prerequisites'),chartInput={name:'Initial guarded Supply chart',baseCurrency:'THB',accountingBasis:'IFRS'},emptyEnvelope={expectedVersion:0 as const,contextKey:'0'.repeat(64)};
   expect(await api.supplyPostingPrerequisites(z.reviewer)).toMatchObject({available:false,contextKey:null,charts:[],accounts:[],periods:[],rates:[]});
   await expect(api.createSupplyPostingChart(z.reviewer,{...emptyEnvelope,input:chartInput},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
   expect(await z.counts()).toEqual([0,0,0,0,0,0,0,0]);await z.purchase();
@@ -853,7 +853,7 @@ it('zero-ledger Supply prerequisite commands retain current Company authority pu
 
 it('zero-ledger Supply prerequisites roll back original chart account period and rate effects on deferred source authority or purchase loss',async()=>{
   const z=await zeroLedgerSupplyCompany();await z.purchase();
-  const api=await import('../../../src/server/modules/finance/public/supply-posting-prerequisites');
+  const api=await import('@erpx/server-finance/public/supply-posting-prerequisites');
   const chart=await api.createSupplyPostingChart(z.reviewer,{...await zeroSupplyEnvelope(z.reviewer),input:{name:'Original selected prerequisite chart',baseCurrency:'THB',accountingBasis:'IFRS'}},key());
   const image=()=>Promise.all(['finance_charts','finance_accounts','finance_periods','company_fx_rates','commerce_settings','assignments'].map(async table=>(await db.prepare(`SELECT to_jsonb(r)::text image FROM ${table} r WHERE company_id=? ORDER BY image`).bind(z.company).all()).results));
   for(const kind of ['chart','account','rate','period'] as const){
@@ -873,7 +873,7 @@ it('zero-ledger Supply prerequisites roll back original chart account period and
 
 it('zero-ledger Supply sees normal period and quote writers before prerequisite snapshots without masked retries',async()=>{
   const z=await zeroLedgerSupplyCompany();await z.purchase();
-  const api=await import('../../../src/server/modules/finance/public/supply-posting-prerequisites'),{createPeriod}=await import('../../../src/server/modules/finance/public/finance'),{confirmManualRate}=await import('../../../src/server/modules/finance/public/company-money'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics');
+  const api=await import('@erpx/server-finance/public/supply-posting-prerequisites'),{createPeriod}=await import('@erpx/server-finance/public/finance'),{confirmManualRate}=await import('@erpx/server-finance/public/company-money'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
   for(const kind of ['period','rate'] as const){
     const context=await zeroSupplyEnvelope(z.reviewer),command=key(),fault=`zero_source_writer_${key().replaceAll('-','')}`;
     await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fault}');PERFORM pg_sleep(0.5);RETURN NEW;END $$;CREATE TRIGGER ${fault} AFTER INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
@@ -909,7 +909,7 @@ async function supplierMoneyImage(){
 }
 async function supplierMoneyRows(){return (await db.prepare("SELECT source_type,source_id,amount_kind,transaction_date::text,currency,currency_scale,amount_units::text,usd_units::text,fx_rate_id,used_latest_fallback,original_source_type,original_source_id,original_amount_kind FROM money_transaction_snapshots WHERE company_id=? ORDER BY source_type,source_id,amount_kind").bind(f.company).all<Record<string,unknown>>()).results;}
 async function supplierMoneySource(mode:'disabled'|'shadow'|'enforced'='enforced',purchased=true){
- const native=await import('../../../src/server/modules/finance/public/finance'),money=await import('../../../src/server/modules/finance/public/company-money');
+ const native=await import('@erpx/server-finance/public/finance'),money=await import('@erpx/server-finance/public/company-money');
  const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-supplier-money-provider'}),obligations:async()=>{throw Error('SUPPLIER_MONEY_FIXTURE_CANNOT_INACTIVATE');}}),grant={companyId:f.company,packageId:'finance',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Actual normal Supplier Money owner',evidence:'test:supplier-money-owner'};
  if(purchased)await store.apply({expectedVersion:0,idempotencyKey:key(),grant});vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT',mode);
  const rate=await money.confirmManualRate(f.manager,{currency:'THB',effectiveDate:'2026-09-01',currencyPerUsd:'36',note:'Actual independently confirmed fictional Supplier payment quote'},key());
@@ -965,7 +965,7 @@ it('preserves lawful Supplier settlement after audited expiry while current purc
 
 });
 it('waits for the actual disabled invoice-planning payment receipt before Supplier Money reads and completes both normal owners without hidden retries',async()=>{
- const s=await supplierMoneySource('disabled'),{measureReads}=await import('../../../src/server/modules/runtime/adapters/runtime/read-metrics'),bank=await s.native.createAccount(f.reviewer,{chartId:f.chart,code:key(),name:'Actual original controlled payment bank',category:'asset',currency:'THB',isControl:true,controlKind:'bank'},key()),body={partyId:String(s.party.id),kind:'payment' as const,paymentNumber:key(),paymentDate:'2026-09-03',currency:'THB',amount:'100.01',bankAccount:String(bank.id),settlementInvoiceId:s.invoiceId},oldKey=key(),name=`supplier_money_old_writer_${key().replaceAll('-','')}`;
+ const s=await supplierMoneySource('disabled'),{measureReads}=await import('@erpx/server-runtime/adapters/runtime/read-metrics'),bank=await s.native.createAccount(f.reviewer,{chartId:f.chart,code:key(),name:'Actual original controlled payment bank',category:'asset',currency:'THB',isControl:true,controlKind:'bank'},key()),body={partyId:String(s.party.id),kind:'payment' as const,paymentNumber:key(),paymentDate:'2026-09-03',currency:'THB',amount:'100.01',bankAccount:String(bank.id),settlementInvoiceId:s.invoiceId},oldKey=key(),name=`supplier_money_old_writer_${key().replaceAll('-','')}`;
  await db.exec(`CREATE SEQUENCE ${name};CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${name}');PERFORM pg_sleep(0.5);RETURN NEW;END $$;CREATE TRIGGER ${name} AFTER INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='${oldKey}') EXECUTE FUNCTION ${name}()`);
  try{
   const observed=await measureReads(async()=>{let done=false;const old=Promise.allSettled([s.native.createPayment(f.reviewer,body,oldKey).finally(()=>{done=true;})]);let atReceipt=false;for(let attempt=0;attempt<100;attempt++){atReceipt=!!await db.prepare(`SELECT is_called FROM ${name}`).first('is_called');if(atReceipt||done)break;await new Promise(resolve=>setTimeout(resolve,5));}if(!atReceipt){const [result]=await old;if(result.status==='rejected')throw result.reason;throw Error('Actual disabled invoice-planning payment did not reach its native receipt');}expect(done).toBe(false);const current=Promise.allSettled([confirmSupplierInstruction(f.payer,s.instructionId,s.body,s.command)]);let waiting=false;for(let attempt=0;attempt<100&&!waiting&&!done;attempt++){waiting=!!await db.prepare("SELECT 1 FROM pg_locks WHERE database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND relation='command_receipts'::regclass AND mode='ShareRowExclusiveLock' AND NOT granted LIMIT 1").first();if(!waiting)await new Promise(resolve=>setTimeout(resolve,5));}const [[ordinary],[supplier]]=await Promise.all([old,current]);return {waiting,ordinary,supplier};});

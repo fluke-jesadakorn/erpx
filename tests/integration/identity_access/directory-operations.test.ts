@@ -6,26 +6,26 @@ import {
   expenseDb as raw,
   key,
 } from "../../support/helpers/expense-fixture";
-import { iamDb } from "../../../src/server/modules/identity_access/public/iam-db";
-import { changeAppointment } from "../../../src/server/modules/organization/public/department-authority";
-import { iamActorFromWork, type IamActor } from "../../../src/server/modules/identity_access/public/iam-context";
-import { selectWorkRole } from "../../../src/server/modules/work_projection/public/work-role-store";
-import { loadIamAuthority } from "../../../src/server/modules/identity_access/public/iam-store";
+import { iamDb } from "@erpx/server-identity_access/public/iam-db";
+import { changeAppointment } from "@erpx/server-organization/public/department-authority";
+import { iamActorFromWork, type IamActor } from "@erpx/server-identity_access/public/iam-context";
+import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
+import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
 import { prepareLocalBrowserDirectoryInventory } from "../../../fixtures/people_payroll/builders/local-browser-roster-directory";
-import { previewGpoRule } from "../../../src/server/modules/identity_access/public/gpo-rules";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { decideIamReview } from "../../../src/server/modules/identity_access/public/iam-service";
+import { previewGpoRule } from "@erpx/server-identity_access/public/gpo-rules";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { decideIamReview } from "@erpx/server-identity_access/public/iam-service";
 import {
   readManagement,
   managementCommand,
-} from "../../../src/server/modules/identity_access/public/user-management";
-import { attributeInput } from "../../../src/lib/identity_access/user-management";
+} from "@erpx/server-identity_access/public/user-management";
+import { attributeInput } from "@erpx/feature-identity_access/lib/user-management";
 import {
   saveHoldingTemplate,
   adoptHoldingTemplate,
   peopleTemplatesData,
-} from "../../../src/server/modules/people_payroll/public/people-templates";
-import { mappedFields } from "../../../src/server/modules/identity_access/public/directory-field-mapping";
+} from "@erpx/server-people_payroll/public/people-templates";
+import { mappedFields } from "@erpx/server-identity_access/public/directory-field-mapping";
 import {
   configureDirectoryAutomation,
   refreshDirectoryInventory,
@@ -36,31 +36,31 @@ import {
   drainDirectoryOperations,
   directoryAutomationData,
   affectedObjects,
-} from "../../../src/server/modules/identity_access/public/directory-operations";
+} from "@erpx/server-identity_access/public/directory-operations";
 import {
   directoryChangeInput,
   windowsPolicyDefinition,
   compileAdministrativePolicies,
   type DirectoryInventory,
-} from "../../../src/lib/identity_access/directory-operations";
-import { compilePreferences } from "../../../src/lib/shared/windows-preferences";
+} from "@erpx/feature-identity_access/lib/directory-operations";
+import { compilePreferences } from "@erpx/feature-shared/lib/windows-preferences";
 import {
   canonicalInventory,
   validateObjectTarget,
-} from "../../../src/server/modules/identity_access/public/directory-provider";
+} from "@erpx/server-identity_access/public/directory-provider";
 const provider = vi.hoisted(() => ({ read: vi.fn(), apply: vi.fn() }));
-vi.mock("../../../src/server/modules/identity_access/public/directory-provider", async (importOriginal) => ({
+vi.mock("@erpx/server-identity_access/public/directory-provider", async (importOriginal) => ({
   ...(await importOriginal<
-    typeof import("../../../src/server/modules/identity_access/public/directory-provider")
+    typeof import("@erpx/server-identity_access/public/directory-provider")
   >()),
   readAutomationInventory: provider.read,
   applyDirectoryAction: provider.apply,
 }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: raw, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
-vi.mock("../../../src/server/modules/identity_access/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
+vi.mock("@erpx/server-identity_access/public/iam-mfa", () => ({ requireFreshMfa: async () => {} }));
 const db = iamDb(raw);
 beforeAll(async () => {
   await applyMigrations(raw, env.STAFF_TEST_MIGRATIONS);
@@ -873,9 +873,9 @@ it("retains a new organization source when a previously reviewed package removal
 });
 
 it("schedules package-source cleanup for a shared GPO membership and retires it before finalization",async()=>{
-  const {previewProvisioning,applyProvisioning,drainProvisioning}=await import("../../../src/server/modules/identity_access/public/technology");
-  const {provisioningInput}=await import("../../../src/server/modules/identity_access/public/rules/technology");
-  const {packageDefinition}=await import("../../../src/lib/people_payroll/people-lifecycle");
+  const {previewProvisioning,applyProvisioning,drainProvisioning}=await import("@erpx/server-identity_access/public/technology");
+  const {provisioningInput}=await import("@erpx/server-identity_access/public/rules/technology");
+  const {packageDefinition}=await import("@erpx/feature-people_payroll/lib/people-lifecycle");
   const liveInventory=structuredClone(inventory);
   liveInventory.objects.find(object=>object.id==="group")!.memberIds=["user"];
   provider.read.mockImplementation(async()=>structuredClone(liveInventory));

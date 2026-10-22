@@ -1,15 +1,15 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { getWorkReview } from "../../../src/server/modules/work_projection/public/work-review";
-import { workReviewCommand } from "../../../src/lib/work_projection/work-review";
-import { expenseDecisionSchema, transitionExpense } from "../../../src/server/modules/people_payroll/public/expenses";
-import { employeeRequestSchema, requestActionSchema, saveEmployeeRequest, actOnEmployeeRequest, getEmployeeRequest } from "../../../src/server/modules/records/public/employee-requests";
-import { saveTask, taskSchema, transitionTask, taskActionSchema } from "../../../src/server/modules/operations/public/staff-tasks";
-import { createLeave, submitLeave, leaveDraftSchema } from "../../../src/server/modules/people_payroll/public/leave";
-import * as flowRouting from "../../../src/server/modules/workflow/public/flow-routing";
+import { getWorkReview } from "@erpx/server-work_projection/public/work-review";
+import { workReviewCommand } from "@erpx/feature-work_projection/lib/work-review";
+import { expenseDecisionSchema, transitionExpense } from "@erpx/server-people_payroll/public/expenses";
+import { employeeRequestSchema, requestActionSchema, saveEmployeeRequest, actOnEmployeeRequest, getEmployeeRequest } from "@erpx/server-records/public/employee-requests";
+import { saveTask, taskSchema, transitionTask, taskActionSchema } from "@erpx/server-operations/public/staff-tasks";
+import { createLeave, submitLeave, leaveDraftSchema } from "@erpx/server-people_payroll/public/leave";
+import * as flowRouting from "@erpx/server-workflow/public/flow-routing";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});

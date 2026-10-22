@@ -1,0 +1,50 @@
+{
+  "name": "@erpx/feature-organization",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/department-override-decision": "./src/components/department-override-decision.tsx",
+    "./components/organization-structure-surface": "./src/components/organization-structure-surface.tsx",
+    "./components/organization.module.css": "./src/components/organization.module.css",
+    "./components/organization-chart": "./src/components/organization-chart.tsx",
+    "./components/organization-structure.module.css": "./src/components/organization-structure.module.css",
+    "./components/organization-chart.module.css": "./src/components/organization-chart.module.css",
+    "./components/organization-scope-tree": "./src/components/organization-scope-tree.tsx",
+    "./components/organization-team-view": "./src/components/organization-team-view.tsx",
+    "./components/organization-person-details": "./src/components/organization-person-details.tsx",
+    "./components/organization-structure": "./src/components/organization-structure.tsx",
+    "./components/department-authority-workspace": "./src/components/department-authority-workspace.tsx",
+    "./components/organization-person-card": "./src/components/organization-person-card.tsx",
+    "./components/organization-workspace": "./src/components/organization-workspace.tsx",
+    "./lib/organization-draft": "./src/lib/organization-draft.ts",
+    "./lib/organization-draft-domain": "./src/lib/organization-draft-domain.ts",
+    "./lib/responsibilities": "./src/lib/responsibilities.ts",
+    "./lib/hierarchy": "./src/lib/hierarchy.ts",
+    "./lib/organization-chart": "./src/lib/organization-chart.ts",
+    "./lib/organization-domain": "./src/lib/organization-domain.ts",
+    "./lib/organization": "./src/lib/organization.ts",
+    "./lib/gpo-rules": "./src/lib/gpo-rules.ts",
+    "./lib/organization-presentation": "./src/lib/organization-presentation.ts",
+    "./lib/organization-access": "./src/lib/organization-access.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-identity_access": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-identity_access": "workspace:*",
+    "@erpx/server-organization": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "lucide-react": "1.41.0",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "zod": "4.5.4"
+  }
+}

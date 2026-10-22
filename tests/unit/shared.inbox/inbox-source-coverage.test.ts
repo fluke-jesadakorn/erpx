@@ -1,7 +1,7 @@
 import {expect,it} from "vitest";
 import {readFileSync,readdirSync} from "node:fs";
 import {join} from "node:path";
-import {hasStaffNotificationResolver} from "../../../src/server/modules/collaboration/public/staff-notifications";
+import {hasStaffNotificationResolver} from "@erpx/server-collaboration/public/staff-notifications";
 
 function files(root:string):string[]{return readdirSync(root,{withFileTypes:true}).flatMap(entry=>entry.isDirectory()?files(join(root,entry.name)):entry.name.endsWith(".ts")?[join(root,entry.name)]:[])}
 it("has a current-access resolver for literal staff notification producer types",()=>{

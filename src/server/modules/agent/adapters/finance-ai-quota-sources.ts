@@ -1,2 +1,0 @@
-import { finalRootOwnerProjectionSources as runtimeProjectionSources } from "../../runtime/public/final-root-owner-projection-sources";
-export const financeAiAgentUsageSql=`SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') FROM ai_workspace_turns UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') FROM (${runtimeProjectionSources.executive_generation_jobs}) executive_generation_jobs`;

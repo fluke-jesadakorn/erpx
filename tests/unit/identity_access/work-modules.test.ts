@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { effectiveWorkModules } from "@/server/modules/identity_access/domain/work-modules";
-import { effectiveAuthorityPermissions } from "@/server/modules/identity_access/application/authority";
-import { legacyModuleCompatibility } from "@/server/modules/identity_access/domain/legacy-module-compatibility";
+import { effectiveWorkModules } from "@erpx/server-identity_access/domain/work-modules";
+import { effectiveAuthorityPermissions } from "@erpx/server-identity_access/application/authority";
+import { legacyModuleCompatibility } from "@erpx/server-identity_access/domain/legacy-module-compatibility";
 it("takes custom-role modules from the published policy instead of the assignment's old module list", () => {
   expect(effectiveWorkModules("custom_finance", ["finance","people_payroll","pos"], ["module.finance.read"], false)).toEqual(["finance"]);
 });

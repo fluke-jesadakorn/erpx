@@ -1,6 +1,6 @@
 import {describe,expect,it} from "vitest";
-import {expandCalendarSeries} from "../../../src/lib/work_projection/calendar-recurrence";
-import {localMinuteAt} from "../../../src/lib/work_projection/calendar-timeline";
+import {expandCalendarSeries} from "@erpx/feature-work_projection/lib/calendar-recurrence";
+import {localMinuteAt} from "@erpx/feature-work_projection/lib/calendar-timeline";
 
 const from=(date:string)=>Date.parse(`${date}T00:00:00Z`);
 describe("calendar recurrence",()=>{

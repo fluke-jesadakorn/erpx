@@ -4,12 +4,12 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createHmac} from 'node:crypto';
 import type {WorkplacePlatformUatUser} from "../../../fixtures/shared/builders/engineering-workplace-platform-browser";
-import type {operationsWorkspace,operationsExceptionDetail} from "../../../src/server/modules/operations/public/operations-exceptions";
-import type {agentWorkspace} from "../../../src/server/modules/agent/public/agent-governance";
-import type {brandIdentityWorkspace} from "../../../src/server/modules/brand/public/brand-identity";
-import type {GuidedIntakeResult} from "../../../src/lib/shared/ai/guided-intake";
-import type {TargetBillingPeriodView} from "../../../src/server/modules/billing/public/billing-target";
-import type {connectionInput} from "../../../src/server/modules/identity_access/public/iam-directories";
+import type {operationsWorkspace,operationsExceptionDetail} from "@erpx/server-operations/public/operations-exceptions";
+import type {agentWorkspace} from "@erpx/server-agent/public/agent-governance";
+import type {brandIdentityWorkspace} from "@erpx/server-brand/public/brand-identity";
+import type {GuidedIntakeResult} from "@erpx/feature-shared/lib/ai/guided-intake";
+import type {TargetBillingPeriodView} from "@erpx/server-billing/public/billing-target";
+import type {connectionInput} from "@erpx/server-identity_access/public/iam-directories";
 import type {z} from 'zod';
 
 type Credentials={run:string;password:string;users:WorkplacePlatformUatUser[]};

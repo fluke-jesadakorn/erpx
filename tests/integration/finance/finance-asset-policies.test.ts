@@ -1,6 +1,6 @@
 import {afterEach} from "vitest";
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
-import { financeExpansionRecord } from "../../../src/server/modules/finance/public/finance-expansion-records";
+import { financeExpansionRecord } from "@erpx/server-finance/public/finance-expansion-records";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
@@ -18,28 +18,28 @@ import {
   prepareAssetDisposal,
   decideAssetDisposal,
   assetOptions,
-} from "../../../src/server/modules/finance/public/finance-assets";
+} from "@erpx/server-finance/public/finance-assets";
 import {
   prepareAssetPolicy,
   decideAssetPolicy,
   prepareAssetPolicyRun,
   decideAssetPolicyRun,
   reverseAssetPolicyRun,
-} from "../../../src/server/modules/finance/public/finance-asset-policies";
+} from "@erpx/server-finance/public/finance-asset-policies";
 import {
   prepareBookRule,
   decideBookRule,
   bookRuleSchema,
   createFinanceDimension,
-} from "../../../src/server/modules/finance/public/finance-books";
-import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
+} from "@erpx/server-finance/public/finance-books";
+import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
 import {
   scheduleFinanceDraft,
   drainFinanceDueDrafts,
-} from "../../../src/server/modules/finance/public/finance-due-drafts";
-import { trialBalance } from "../../../src/server/modules/finance/public/finance";
-import { financeExpansionClosePending } from "../../../src/server/modules/finance/public/finance-expansion-close";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-finance/public/finance-due-drafts";
+import { trialBalance } from "@erpx/server-finance/public/finance";
+import { financeExpansionClosePending } from "@erpx/server-finance/public/finance-expansion-close";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

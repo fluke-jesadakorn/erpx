@@ -7,7 +7,7 @@ import {
   publicMediaPublicationUrl,
   uploadAttachmentBytes,
   validateGenericAttachment,
-} from "../../../src/lib/files/attachment-client";
+} from "@erpx/feature-files/lib/attachment-client";
 
 afterEach(()=>vi.unstubAllGlobals());
 

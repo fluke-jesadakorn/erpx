@@ -1,0 +1,1 @@
+export {marketingEvidenceMetrics,providerId,candidateFields,eventFields,inputSchema,fieldsFor,safeRevision,safeTimestamp,notFound,scopeKey,parseCursor,timeRange} from '@erpx/server-runtime/domain/executive/marketing-evidence';export type {MarketingEvidenceMetric,CandidateCursor,EventCursor,MarketingEvidenceRow} from '@erpx/server-runtime/domain/executive/marketing-evidence';

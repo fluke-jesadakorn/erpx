@@ -1,9 +1,9 @@
-import {financeExpansionWork} from "../../../src/server/modules/finance/public/finance-expansion-work";
-import {attachmentPolicy,authorizeAttachmentTarget} from "../../../src/server/modules/files/public/attachments/policy";
-import {bindRecordAttachmentSet,listAttachmentSets,attachmentContent} from "../../../src/server/modules/files/public/attachments/service";
+import {financeExpansionWork} from "@erpx/server-finance/public/finance-expansion-work";
+import {attachmentPolicy,authorizeAttachmentTarget} from "@erpx/server-files/public/attachments/policy";
+import {bindRecordAttachmentSet,listAttachmentSets,attachmentContent} from "@erpx/server-files/public/attachments/service";
 import {enableAttachmentV2ForTest,seedAttachmentSet,attachmentBindingState} from "../../support/helpers/attachment-v2";
 import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
-import {financeExpansionRecord} from "../../../src/server/modules/finance/public/finance-expansion-records";
+import {financeExpansionRecord} from "@erpx/server-finance/public/finance-expansion-records";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
@@ -15,7 +15,7 @@ import {
   instrumentSchedule,
   monthlyDate,
   depreciationAmount,
-} from "../../../src/server/modules/finance/public/rules/finance-instrument-policy";
+} from "@erpx/server-finance/public/rules/finance-instrument-policy";
 import {
   prepareInstrument,
   decideInstrument,
@@ -24,14 +24,14 @@ import {
   reverseInstrumentRun,
   instrumentEditionSchema,
   instrumentWorkspace,
-} from "../../../src/server/modules/finance/public/finance-instruments";
-import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
-import {scheduleFinanceDraft,drainFinanceDueDrafts,decideFinanceDueDraft} from "../../../src/server/modules/finance/public/finance-due-drafts";
-import { trialBalance } from "../../../src/server/modules/finance/public/finance";
-import { financePackageObligations } from "../../../src/server/modules/finance/public/package-obligations";
-import { ownerPackageObligations, withOwnerPackageObligations } from "../../../src/server/modules/commercial/public/owner-package-obligations";
-import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-finance/public/finance-instruments";
+import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
+import {scheduleFinanceDraft,drainFinanceDueDrafts,decideFinanceDueDraft} from "@erpx/server-finance/public/finance-due-drafts";
+import { trialBalance } from "@erpx/server-finance/public/finance";
+import { financePackageObligations } from "@erpx/server-finance/public/package-obligations";
+import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
+import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

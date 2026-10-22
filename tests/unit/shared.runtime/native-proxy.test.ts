@@ -1,9 +1,9 @@
 import { afterEach,beforeEach,it,expect,vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { proxy } from "../../../src/proxy";
-import { marketingConsoleUrl } from "../../../src/lib/runtime/erpx-hosts";
-import { productIds, sharedHostKeys } from "@/server/modules/commercial/public/product-registry";
-import { applicationUrl, applicationOrigin, adminCompanyHandoff, accountRecoveryDeliveryUrl } from "@/lib/runtime/application-origins";
+import { proxy } from "@erpx/workplace/proxy";
+import { marketingConsoleUrl } from "@erpx/feature-runtime/lib/erpx-hosts";
+import { productIds, sharedHostKeys } from "@erpx/server-commercial/public/product-registry";
+import { applicationUrl, applicationOrigin, adminCompanyHandoff, accountRecoveryDeliveryUrl } from "@erpx/feature-runtime/lib/application-origins";
 afterEach(()=>vi.unstubAllEnvs());
 beforeEach(()=>{
  vi.stubEnv('ERPX_MARKETING_ORIGIN','');

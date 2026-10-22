@@ -1,12 +1,12 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { requestCommerceReturn, decideCommerceReturn, completeCommerceReturn, returnRequestSchema, saveMaster, saveOrder, orderSchema, transitionOrder, fulfillOrder, fulfillmentSchema, invoiceFulfillment, getOrder, settleInvoice } from "../../../src/server/modules/commerce/public/commerce";
-import { postInvoice, postJournal, reversePayment, getInvoice } from "../../../src/server/modules/finance/public/finance";
+import { requestCommerceReturn, decideCommerceReturn, completeCommerceReturn, returnRequestSchema, saveMaster, saveOrder, orderSchema, transitionOrder, fulfillOrder, fulfillmentSchema, invoiceFulfillment, getOrder, settleInvoice } from "@erpx/server-commerce/public/commerce";
+import { postInvoice, postJournal, reversePayment, getInvoice } from "@erpx/server-finance/public/finance";
 import { deliveryEvidence } from "../../support/helpers/delivery-evidence";
-import { assignFlowPrimary, resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
-import { invoiceSalesCompletion, prepareSalesDefaults, decideSalesDefaults, salesWorkspace, customerReceiptDetail, customerReceiptExport, createSalesInvoiceDraft } from "../../../src/server/modules/finance/public/sales";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+import { assignFlowPrimary, resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import { invoiceSalesCompletion, prepareSalesDefaults, decideSalesDefaults, salesWorkspace, customerReceiptDetail, customerReceiptExport, createSalesInvoiceDraft } from "@erpx/server-finance/public/sales";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {
@@ -173,9 +173,9 @@ it("combines equipment and installation, preserving stock cost and itemized sour
 
 // Sales-only initial service startup: original four cases above remain byte-exact.
 import { afterEach } from "vitest";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { packageGrantStore, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
-import { salesDefaultsWorkspace } from "../../../src/server/modules/finance/public/sales";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
+import { salesDefaultsWorkspace } from "@erpx/server-finance/public/sales";
 afterEach(() => vi.unstubAllEnvs());
 
 async function zeroLedgerSalesCompany() {
@@ -197,12 +197,12 @@ async function zeroLedgerSalesCompany() {
     ]);
     const scope:WorkContext['scope']=scopeKind==='department'?{kind:'department',holdingId:'h001',holdingSlug:'test',holdingName:'Test',companyId:company,branchId:branch,departmentId:department,departmentSlug:department,departmentName:'Native Sales team'}:scopeKind==='branch'?{kind:'branch',holdingId:'h001',holdingSlug:'test',holdingName:'Test',companyId:company,branchId:branch,branchSlug:branch,branchName:'Native service branch'}:{kind:'holding',holdingId:'h001',holdingSlug:'test',holdingName:'Test',companyId:company};
     const context:WorkContext={userId,assignmentId,role,companyId:company,branchId:scopeKind==='holding'?null:branch,departmentId:scopeKind==='department'?department:null,holdingId:'h001',holdingSlug:'test',holdingName:'Test',name,email:`${name}@example.test`,assignmentScope:scopeKind,inherited:false,modules:[],assignments:[],workspaces:[],scope};
-    const {loadIamAuthority}=await import('../../../src/server/modules/identity_access/public/iam-store');
+    const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');
     context.iam=await loadIamAuthority(db,company,userId,role);
     return context;
   }
   const owner=await actor('owner','holding_owner'),reviewer=await actor('reviewer','finance_preparer'),manager=await actor('manager','finance_approver'),salesManager=await actor('sales-manager','sales_manager'),treasury=await actor('treasury','treasury');
-  const {installStaffLevels,savePosition,positionSchema}=await import('../../../src/server/modules/organization/public/organization');
+  const {installStaffLevels,savePosition,positionSchema}=await import('@erpx/server-organization/public/organization');
   await installStaffLevels(db,owner,key());
   const ceo=String((await savePosition(db,owner,null,positionSchema.parse({title:'Fixture accountable owner',levelId:`org-level-${company}-1`,branchId:null,departmentId:null,isCeo:true,reportsToPositionId:null,expectedVersion:0,reason:'Native organizational authority fixture'}),key())).id);
   for(const [member,rank] of [[owner,1],[reviewer,5],[manager,4],[salesManager,3],[treasury,4]] as const){
@@ -221,7 +221,7 @@ async function zeroLedgerSalesCompany() {
 
 
 async function zeroSalesEnvelope(actor:WorkContext){
-  const {salesPostingSetup}=await import('../../../src/server/modules/finance/public/sales-posting-setup');
+  const {salesPostingSetup}=await import('@erpx/server-finance/public/sales-posting-setup');
   const view=await salesPostingSetup(actor);
   expect(view.available).toBe(true);expect(view.contextKey).toMatch(/^[a-f0-9]{64}$/);
   if(!view.contextKey)throw Error('Actual current Sales posting context required');
@@ -229,7 +229,7 @@ async function zeroSalesEnvelope(actor:WorkContext){
 }
 
 async function zeroSalesReferences(z:Awaited<ReturnType<typeof zeroLedgerSalesCompany>>){
-  const api=await import('../../../src/server/modules/finance/public/sales-posting-setup'),chartBody={...await zeroSalesEnvelope(z.reviewer),input:{name:'Original first Sales service chart',baseCurrency:'THB',accountingBasis:'IFRS'}},chartKey=key(),chart=await api.createSalesPostingChart(z.reviewer,chartBody,chartKey);
+  const api=await import('@erpx/server-finance/public/sales-posting-setup'),chartBody={...await zeroSalesEnvelope(z.reviewer),input:{name:'Original first Sales service chart',baseCurrency:'THB',accountingBasis:'IFRS'}},chartKey=key(),chart=await api.createSalesPostingChart(z.reviewer,chartBody,chartKey);
   expect(await api.createSalesPostingChart(z.reviewer,chartBody,chartKey)).toEqual(chart);
   const accounts={receivableAccountId:'',revenueAccountId:'',taxAccountId:'',cashAccountId:''};
   for(const [field,category,controlKind] of [['receivableAccountId','asset','receivable'],['revenueAccountId','revenue','none'],['taxAccountId','liability','none'],['cashAccountId','asset','bank']] as const){
@@ -259,7 +259,7 @@ it('Sales-only service startup creates its empty ledger and independently review
   const z=await zeroLedgerSalesCompany();await z.purchase();
   const originalView=await salesDefaultsWorkspace(z.reviewer);
   expect(originalView).toMatchObject({editions:[],usableDefaults:[],issues:[],options:{charts:[],accounts:[]}});
-  const api=await import('../../../src/server/modules/finance/public/sales-posting-setup');
+  const api=await import('@erpx/server-finance/public/sales-posting-setup');
   expect(await api.salesPostingSetup(z.reviewer)).toMatchObject({available:true,charts:[],accounts:[],periods:[],rates:[],defaults:[],canCreateChart:true,canCreateAccount:true,canCreatePeriod:true,canPrepareDefaults:true,canConfirmRate:false});
   expect(await api.salesPostingDocumentReadiness(z.salesManager,'quote')).toEqual({ready:false,reason:'sales-defaults-required'});
   const refs=await zeroSalesReferences(z);
@@ -278,7 +278,7 @@ it('Sales-only service startup creates its empty ledger and independently review
   expect(await api.salesPostingDocumentReadiness(z.salesManager,'quote')).toEqual({ready:true,reason:null});
   expect(await db.prepare('SELECT 1 FROM commerce_settings WHERE company_id=?').bind(z.company).first()).toBeNull();
   const customer=await saveMaster(z.owner,'parties',null,{kind:'customer',code:key(),name:'Actual Sales-only service customer'},key()),service=await saveMaster(z.owner,'products',null,{sku:key(),name:'Actual Sales-only installation',price:'100',itemType:'service',taxBps:700},key()),quoteBody=orderSchema.parse({kind:'quote',partyId:customer.id,orderDate:'2026-09-02',dueDate:'2026-09-10',lines:[{productId:service.id,quantity:'1',price:'100',taxBps:700}]}),quoteKey=key(),quote=await saveOrder(z.owner,null,quoteBody,quoteKey);
-  const {salesEditorOptions}=await import('../../../src/server/modules/commerce/public/sales-editor'),editor=await salesEditorOptions(z.salesManager,'quote');
+  const {salesEditorOptions}=await import('@erpx/server-commerce/public/sales-editor'),editor=await salesEditorOptions(z.salesManager,'quote');
   expect(Object.keys(editor).sort()).toEqual(['currency','nodes','parties','priceListItems','priceLists','products','warehouses']);
   expect(editor).toMatchObject({currency:'THB',nodes:[],warehouses:[],products:[expect.objectContaining({id:service.id,item_type:'service'})],parties:[expect.objectContaining({id:customer.id,kind:'customer'})]});
   expect(Object.keys(editor.products[0]).sort()).toEqual(['id','item_type','name','price_minor','sku','status','tax_bps']);
@@ -296,7 +296,7 @@ it('Sales-only service startup creates its empty ledger and independently review
   expect(await invoiceFulfillment(z.owner,String(completion.fulfillmentId),invoiceBody,invoiceKey)).toEqual(invoiced);
   await assignZeroSales(z,'invoice',invoiceId,'draft',z.manager);await postInvoice(z.manager,invoiceId,{expectedVersion:1,periodId:refs.period.id,entryDate:'2026-09-04'},key());
   expect((await getInvoice(z.reviewer,invoiceId)).invoice).toMatchObject({status:'posted',total_minor:10700,outstanding_minor:10700});
-  const {financeProductDocumentEntry}=await import('../../../src/server/modules/finance/public/document-purchases');
+  const {financeProductDocumentEntry}=await import('@erpx/server-finance/public/document-purchases');
   expect(await financeProductDocumentEntry(db,{companyId:z.company,branchId:null,departmentId:null,userId:z.reviewer.userId,assignmentId:z.reviewer.assignmentId,assignmentVersion:Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(z.reviewer.assignmentId).first('version')),role:z.reviewer.role},{kind:'invoice',id:invoiceId})).toEqual({capability:'finance.sales-posting',purchasePurpose:'history'});
   await assignZeroSales(z,'invoice',invoiceId,'posted',z.treasury);
   const receiptBody={expectedVersion:2,date:'2026-09-05',amount:'50',bankAccountId:refs.accounts.cashAccountId,reference:'Actual original Treasury service customer receipt'},receiptKey=key(),payment=await settleInvoice(z.treasury,invoiceId,receiptBody,receiptKey);
@@ -304,7 +304,7 @@ it('Sales-only service startup creates its empty ledger and independently review
   const receiptId=String(await db.prepare('SELECT id FROM finance_customer_receipts WHERE payment_id=?').bind(payment.paymentId).first('id')),receipt=await customerReceiptDetail(z.reviewer,receiptId),exported=await customerReceiptExport(z.reviewer,receiptId);
   expect(receipt.snapshot).toMatchObject({documentNumber:'RC-2026-000001',amountMinor:'5000',allocations:[{invoiceId,invoiceNumber:'INV-2026-000001',amountMinor:'5000'}]});
   expect((await getInvoice(z.reviewer,invoiceId)).invoice.outstanding_minor).toBe(5700);
-  const {getPayment}=await import('../../../src/server/modules/finance/public/finance'),{salesCustomerReceiptProductEntry}=await import('../../../src/server/modules/finance/public/sales-receipt-sources'),receiptScope={companyId:z.company,branchId:null,departmentId:null,userId:z.manager.userId,assignmentId:z.manager.assignmentId,assignmentVersion:1,role:z.manager.role,sessionId:key()};
+  const {getPayment}=await import('@erpx/server-finance/public/finance'),{salesCustomerReceiptProductEntry}=await import('@erpx/server-finance/public/sales-receipt-sources'),receiptScope={companyId:z.company,branchId:null,departmentId:null,userId:z.manager.userId,assignmentId:z.manager.assignmentId,assignmentVersion:1,role:z.manager.role,sessionId:key()};
   expect(await salesCustomerReceiptProductEntry(db,receiptScope,receiptId)).toEqual({capability:'finance.sales-posting',purchasePurpose:'history'});
   expect(await getPayment(z.manager,String(payment.paymentId))).toMatchObject({payment:{status:'settled'},sourcePurchase:{capability:'finance.sales-posting',settleExisting:true},invoices:[],bankTransactions:[],fxAccounts:[]});
   const reversalBody={expectedVersion:1,periodId:refs.period.id,entryDate:'2026-09-06',reason:'Actual independent original reviewer corrects the misidentified customer bank receipt'};
@@ -314,7 +314,7 @@ it('Sales-only service startup creates its empty ledger and independently review
   // The deferred faults are source-invalid diagnostics, not fabricated valid
   // reversal history. A genuine normal reversal proves retained Files below.
   vi.stubEnv('ERPX_ATTACHMENTS_V2','true');
-  const fileApi=await import('../../../src/server/modules/files/public/attachments/service'),fileFixtures=await import('../../support/helpers/attachment-v2'),settledJournalId=String(await db.prepare('SELECT journal_id FROM finance_payments WHERE id=?').bind(payment.paymentId).first('journal_id')),settledJournalVersion=Number(await db.prepare('SELECT version FROM finance_journals WHERE id=?').bind(settledJournalId).first('version')),ordinaryFile=await fileFixtures.seedAttachmentSet(db,z.reviewer,{targetType:'finance_journal',targetId:settledJournalId,componentKind:'record',purposeKey:'journal_support',expectedTargetVersion:settledJournalVersion});
+  const fileApi=await import('@erpx/server-files/public/attachments/service'),fileFixtures=await import('../../support/helpers/attachment-v2'),settledJournalId=String(await db.prepare('SELECT journal_id FROM finance_payments WHERE id=?').bind(payment.paymentId).first('journal_id')),settledJournalVersion=Number(await db.prepare('SELECT version FROM finance_journals WHERE id=?').bind(settledJournalId).first('version')),ordinaryFile=await fileFixtures.seedAttachmentSet(db,z.reviewer,{targetType:'finance_journal',targetId:settledJournalId,componentKind:'record',purposeKey:'journal_support',expectedTargetVersion:settledJournalVersion});
   const ordinaryObjectKey=String(await db.prepare('SELECT object_key FROM attachments WHERE id=?').bind(ordinaryFile.sourceId).first('object_key'));await env.H001_FILES.put(ordinaryObjectKey,'%PDF-1.7',{httpMetadata:{contentType:'application/pdf'}});
   const fileTables=['commerce_fulfillments','finance_payments','finance_journals','finance_payment_reversals','finance_allocations','finance_customer_receipts','money_transaction_snapshots','upload_intents','attachments','attachment_sets','attachment_links','attachment_events','attachment_access_events','command_receipts','audit_events','outbox_events'],fileImage=()=>Promise.all(fileTables.map(async table=>(await db.prepare(`SELECT row_to_json(r)::text image FROM ${table} r ORDER BY row_to_json(r)::text`).all()).results));
   for(const kind of ['settled-status','source-link'] as const){
@@ -382,7 +382,7 @@ it('Sales-only grants can create and replay standalone service invoices while dr
   const input={partyId:String(customer.id),invoiceDate:'2026-09-02',dueDate:'2026-09-10',currency:'THB',completionConfirmed:true as const,completionNote:'Customer confirmed the Sales service was completed',lines:[{description:'Completed installation',quantity:'1',unitPrice:'100',taxBps:700}]};
   const command=key(),draft=await createSalesInvoiceDraft(z.owner,input,command);
   expect(await createSalesInvoiceDraft(z.owner,input,command)).toEqual(draft);
-  const {financeProductDocumentEntry,financeDocumentPostAccess}=await import('../../../src/server/modules/finance/public/document-purchases'),{postInvoice:postStandaloneInvoice,createInvoice:makeFinanceInvoice}=await import('../../../src/server/modules/finance/public/finance'),scope={companyId:z.company,branchId:null,departmentId:null,userId:z.reviewer.userId,assignmentId:z.reviewer.assignmentId,assignmentVersion:Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(z.reviewer.assignmentId).first('version')),role:z.reviewer.role};
+  const {financeProductDocumentEntry,financeDocumentPostAccess}=await import('@erpx/server-finance/public/document-purchases'),{postInvoice:postStandaloneInvoice,createInvoice:makeFinanceInvoice}=await import('@erpx/server-finance/public/finance'),scope={companyId:z.company,branchId:null,departmentId:null,userId:z.reviewer.userId,assignmentId:z.reviewer.assignmentId,assignmentVersion:Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(z.reviewer.assignmentId).first('version')),role:z.reviewer.role};
   expect(await financeProductDocumentEntry(db,scope,{kind:'invoice',id:String(draft.id)})).toEqual({capability:'finance.sales-posting',purchasePurpose:'history'});
   expect(await financeDocumentPostAccess(z.manager,'invoice',String(draft.id))).toEqual({canPost:true});
   // Finance edits may replace both the current creator and invoice number.
@@ -416,7 +416,7 @@ it('Sales-only grants can create and replay standalone service invoices while dr
 it('Sales-only standalone invoice posting fails closed when completion outbox evidence is missing',async()=>{
   const {z,refs}=await readySalesServiceCatalogue(),customer=await saveMaster(z.owner,'parties',null,{kind:'customer',code:key(),name:'Evidence-bound standalone invoice customer'},key());
   const input={partyId:String(customer.id),invoiceDate:'2026-09-02',dueDate:'2026-09-10',currency:'THB',completionConfirmed:true as const,completionNote:'Customer confirmed the original installation was completed',lines:[{description:'Completed installation',quantity:'1',unitPrice:'100',taxBps:700}]};
-  const {financeProductDocumentEntry,financeDocumentPostAccess}=await import('../../../src/server/modules/finance/public/document-purchases');
+  const {financeProductDocumentEntry,financeDocumentPostAccess}=await import('@erpx/server-finance/public/document-purchases');
   const command=key(),draft=await createSalesInvoiceDraft(z.owner,input,command),invoiceId=String(draft.id),scope={companyId:z.company,branchId:null,departmentId:null,userId:z.reviewer.userId,assignmentId:z.reviewer.assignmentId,assignmentVersion:1,role:z.reviewer.role,sessionId:key()};
   await assignZeroSales(z,'invoice',invoiceId,'draft',z.manager);
   expect(await invoiceSalesCompletion(z.owner,invoiceId)).toMatchObject({note:input.completionNote,confirmedBy:z.owner.userId,invoiceRevision:1});
@@ -457,10 +457,10 @@ async function legacyServiceReceiptWithoutPurchase(){
 }
 
 it('Sales-only service startup retains Company authority exact bodies current references release and draining history',async()=>{
-  const z=await zeroLedgerSalesCompany(),api=await import('../../../src/server/modules/finance/public/sales-posting-setup'),chartInput={name:'Original guarded Sales chart',baseCurrency:'THB',accountingBasis:'IFRS'},empty={expectedVersion:0 as const,contextKey:'0'.repeat(64)},scope={companyId:z.company,branchId:null,departmentId:null,userId:z.reviewer.userId,assignmentId:z.reviewer.assignmentId,assignmentVersion:1,role:z.reviewer.role,sessionId:key()};
+  const z=await zeroLedgerSalesCompany(),api=await import('@erpx/server-finance/public/sales-posting-setup'),chartInput={name:'Original guarded Sales chart',baseCurrency:'THB',accountingBasis:'IFRS'},empty={expectedVersion:0 as const,contextKey:'0'.repeat(64)},scope={companyId:z.company,branchId:null,departmentId:null,userId:z.reviewer.userId,assignmentId:z.reviewer.assignmentId,assignmentVersion:1,role:z.reviewer.role,sessionId:key()};
   expect(await api.salesPostingSetup(z.reviewer)).toMatchObject({available:false,contextKey:null,charts:[],accounts:[],defaults:[]});
   expect(await api.salesPostingSetupProductEntry(db,scope)).toBeNull();
-  const {salesEditorOptions}=await import('../../../src/server/modules/commerce/public/sales-editor');
+  const {salesEditorOptions}=await import('@erpx/server-commerce/public/sales-editor');
   expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);
   vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','disabled');
   try{expect(await salesEditorOptions(f.head,'quote')).toMatchObject({currency:'THB',nodes:[]});}finally{vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');}
@@ -469,7 +469,7 @@ it('Sales-only service startup retains Company authority exact bodies current re
   expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);
   await expect(customerReceiptDetail(f.owner,legacyReceipt)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
   await expect(customerReceiptExport(f.owner,legacyReceipt)).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
-  const {salesCustomerReceiptProductEntry}=await import('../../../src/server/modules/finance/public/sales-receipt-sources');
+  const {salesCustomerReceiptProductEntry}=await import('@erpx/server-finance/public/sales-receipt-sources');
   expect(await salesCustomerReceiptProductEntry(db,{companyId:f.company,branchId:null,departmentId:null,userId:f.owner.userId,assignmentId:f.owner.assignmentId,assignmentVersion:Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(f.owner.assignmentId).first('version')),role:f.owner.role,sessionId:key()},legacyReceipt)).toBeNull();
   await expect(api.createSalesPostingChart(z.reviewer,{...empty,input:chartInput},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
   await expect(prepareSalesDefaults(f.owner,{chartId:f.chart,currency:'THB',receivableAccountId:`${f.company}-ar`,revenueAccountId:f.accounts.revenue,taxAccountId:f.accounts.tax,reason:'Original default route must retain actual package authority'},key())).rejects.toMatchObject({code:'PACKAGE_REQUIRED'});
@@ -529,7 +529,7 @@ it('Sales-only service startup rolls back original prerequisite and reviewed-def
 });
 
 it('Sales-only service startup sees actual normal period and rate writers before snapshots with no masked retries',async()=>{
-  const z=await zeroLedgerSalesCompany();await z.purchase();const api=await import('../../../src/server/modules/finance/public/sales-posting-setup'),{createPeriod}=await import('../../../src/server/modules/finance/public/finance'),{confirmManualRate}=await import('../../../src/server/modules/finance/public/company-money'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics');
+  const z=await zeroLedgerSalesCompany();await z.purchase();const api=await import('@erpx/server-finance/public/sales-posting-setup'),{createPeriod}=await import('@erpx/server-finance/public/finance'),{confirmManualRate}=await import('@erpx/server-finance/public/company-money'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
   for(const kind of ['period','rate'] as const){
     const context=await zeroSalesEnvelope(z.reviewer),command=key(),fault=`sales_setup_writer_${key().replaceAll('-','')}`;
     await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fault}');PERFORM pg_sleep(0.5);RETURN NEW;END $$;CREATE TRIGGER ${fault} AFTER INSERT ON command_receipts FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
@@ -551,7 +551,7 @@ async function readySalesServiceCatalogue(){
  await refs.api.decideSalesPostingDefaults(z.manager,String(edition.id),{contextKey:(await zeroSalesEnvelope(z.manager)).contextKey,input:{expectedVersion:1,action:'approve',reason:'Independent original approver enables the actual service-only catalogue'}},key());return {z,refs};
 }
 it('Sales-only service catalogue native reader and original product writer enable the first quotation without Supply stock balances or Commerce9 setup',async()=>{
- const {z}=await readySalesServiceCatalogue(),api=await import('../../../src/server/modules/commerce/public/sales-service-products');
+ const {z}=await readySalesServiceCatalogue(),api=await import('@erpx/server-commerce/public/sales-service-products');
  expect(await db.prepare('SELECT 1 FROM commerce_settings WHERE company_id=?').bind(z.company).first()).toBeNull();expect((await api.salesServiceProducts(z.owner))).toMatchObject({available:true,currency:'THB',canCreate:true,products:[],unavailableReason:null});expect((await api.salesServiceProducts(z.salesManager))).toMatchObject({available:true,canCreate:false,products:[]});
  const input=api.salesServiceProductSchema.parse({itemType:'service',sku:key(),name:'Actual first Sales-host service',unit:'visit',price:'100',taxBps:700}),command=key();await expect(api.createSalesServiceProduct(z.salesManager,input,key())).rejects.toMatchObject({status:403});const saved=await api.createSalesServiceProduct(z.owner,input,command);expect(saved).toEqual({id:`products-${command}`,version:1});expect(await api.createSalesServiceProduct(z.owner,input,command)).toEqual(saved);
  const view=await api.salesServiceProducts(z.owner);expect(view.products).toEqual([{id:saved.id,sku:input.sku,name:input.name,unit:'visit',priceMinor:10000,taxBps:700,status:'active',version:1}]);expect(Object.keys(view).sort()).toEqual(['available','canCreate','companyId','contextKey','currency','products','unavailableReason']);expect(await db.prepare('SELECT operation FROM command_receipts WHERE command_id=?').bind(command).first('operation')).toBe('commerce.products.create');expect(await db.prepare("SELECT currency,amount_units::text FROM money_transaction_snapshots WHERE company_id=? AND source_type='commerce_product_revision' AND source_id=? AND amount_kind='unit_price'").bind(z.company,`${saved.id}:1`).first()).toEqual({currency:'THB',amount_units:'10000'});
@@ -559,7 +559,7 @@ it('Sales-only service catalogue native reader and original product writer enabl
  expect(await db.prepare('SELECT count(*) n FROM commerce_stock WHERE product_id=?').bind(saved.id).first('n')).toBe(0);expect(await db.prepare('SELECT count(*) n FROM inventory_ledger WHERE product_id=?').bind(saved.id).first('n')).toBe(0);expect(await db.prepare('SELECT count(*) n FROM commerce_warehouses WHERE company_id=?').bind(z.company).first('n')).toBe(0);
 });
 it('Sales service catalogue preserves strict source schema original permissions exact replay and draining history',async()=>{
- const {z}=await readySalesServiceCatalogue(),api=await import('../../../src/server/modules/commerce/public/sales-service-products'),input=api.salesServiceProductSchema.parse({itemType:'service',sku:key(),name:'Retained original service',price:'10'});
+ const {z}=await readySalesServiceCatalogue(),api=await import('@erpx/server-commerce/public/sales-service-products'),input=api.salesServiceProductSchema.parse({itemType:'service',sku:key(),name:'Retained original service',price:'10'});
  const absent=await zeroLedgerSalesCompany(),absentCommand=key();expect(await api.salesServiceProducts(absent.owner)).toMatchObject({available:false,canCreate:false,products:[],unavailableReason:'purchase-required'});await expect(api.createSalesServiceProduct(absent.owner,input,absentCommand)).rejects.toMatchObject({status:403});expect(await zeroSalesCommandImage(absentCommand)).toEqual([[],[],[]]);expect(await absent.counts()).toEqual([0,0,0,0,0,0,0,0]);
  for(const raw of [{...input,itemType:'stock'},{...input,trackingMode:'serial'},{...input,expectedVersion:1},{...input,companyId:'foreign'}])await expect(api.createSalesServiceProduct(z.owner,raw,key())).rejects.toBeInstanceOf(Error);
  const command=key(),saved=await api.createSalesServiceProduct(z.owner,input,command),before=await zeroSalesCommandImage(command);await expect(api.createSalesServiceProduct(z.owner,{...input,name:'Changed body'},command)).rejects.toMatchObject({status:409});
@@ -570,7 +570,7 @@ it('Sales service catalogue preserves strict source schema original permissions 
 });
 it('Sales service catalogue rolls back born-receipt corruption and deferred source mutation with original Money audit and master effects',async()=>{
  for(const born of [true,false]){
-  const {z,refs}=await readySalesServiceCatalogue(),api=await import('../../../src/server/modules/commerce/public/sales-service-products'),command=key(),fault=`sales_catalogue_${key().replaceAll('-','')}`,input=api.salesServiceProductSchema.parse({itemType:'service',sku:key(),name:'Never committed corrupted service',price:'25'}),image=async()=>Promise.all([db.prepare('SELECT to_jsonb(p)::text image FROM commerce_products p WHERE company_id=? ORDER BY id').bind(z.company).all().then(result=>result.results),db.prepare("SELECT to_jsonb(m)::text image FROM money_transaction_snapshots m WHERE company_id=? AND source_type='commerce_product_revision' ORDER BY source_id").bind(z.company).all().then(result=>result.results),zeroSalesCommandImage(command),db.prepare('SELECT to_jsonb(a)::text image FROM finance_accounts a WHERE id=?').bind(refs.accounts.revenueAccountId).all().then(result=>result.results)]),before=await image();
+  const {z,refs}=await readySalesServiceCatalogue(),api=await import('@erpx/server-commerce/public/sales-service-products'),command=key(),fault=`sales_catalogue_${key().replaceAll('-','')}`,input=api.salesServiceProductSchema.parse({itemType:'service',sku:key(),name:'Never committed corrupted service',price:'25'}),image=async()=>Promise.all([db.prepare('SELECT to_jsonb(p)::text image FROM commerce_products p WHERE company_id=? ORDER BY id').bind(z.company).all().then(result=>result.results),db.prepare("SELECT to_jsonb(m)::text image FROM money_transaction_snapshots m WHERE company_id=? AND source_type='commerce_product_revision' ORDER BY source_id").bind(z.company).all().then(result=>result.results),zeroSalesCommandImage(command),db.prepare('SELECT to_jsonb(a)::text image FROM finance_accounts a WHERE id=?').bind(refs.accounts.revenueAccountId).all().then(result=>result.results)]),before=await image();
   const effect=born?`NEW.request_hash:='wrong-but-nonempty';RETURN NEW`:`UPDATE finance_accounts SET status='inactive',version=version+1 WHERE id='${refs.accounts.revenueAccountId}';RETURN NEW`;
   await db.exec(`CREATE SEQUENCE ${fault};CREATE FUNCTION ${fault}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM nextval('${fault}');${effect};END $$;CREATE ${born?'TRIGGER':'CONSTRAINT TRIGGER'} ${fault} ${born?'BEFORE':'AFTER'} INSERT ON command_receipts ${born?'':'DEFERRABLE INITIALLY DEFERRED'} FOR EACH ROW WHEN(NEW.command_id='${command}') EXECUTE FUNCTION ${fault}()`);
   try{await expect(api.createSalesServiceProduct(z.owner,input,command)).rejects.toMatchObject({code:born?'IDEMPOTENCY_CONFLICT':'SALES_SERVICE_PRODUCT_SOURCE_CHANGED'});expect(await db.prepare(`SELECT is_called FROM ${fault}`).first('is_called')).toBe(true);expect(await image()).toEqual(before);}finally{await db.exec(`DROP TRIGGER ${fault} ON command_receipts;DROP FUNCTION ${fault}();DROP SEQUENCE ${fault}`);}
@@ -578,12 +578,12 @@ it('Sales service catalogue rolls back born-receipt corruption and deferred sour
 });
 
 it('Sales service catalogue Department original history remains readable while product preparation stays Company or Branch only',async()=>{
- const {z}=await readySalesServiceCatalogue(),api=await import('../../../src/server/modules/commerce/public/sales-service-products'),department=await z.actor('department-catalogue-sales','sales_manager','department'),input=api.salesServiceProductSchema.parse({itemType:'service',sku:key(),name:'Native Company service visible to Department Sales',price:'12.50'}),created=await api.createSalesServiceProduct(z.owner,input,key()),before=await api.salesServiceProducts(z.owner),read=await api.salesServiceProducts(department);
+ const {z}=await readySalesServiceCatalogue(),api=await import('@erpx/server-commerce/public/sales-service-products'),department=await z.actor('department-catalogue-sales','sales_manager','department'),input=api.salesServiceProductSchema.parse({itemType:'service',sku:key(),name:'Native Company service visible to Department Sales',price:'12.50'}),created=await api.createSalesServiceProduct(z.owner,input,key()),before=await api.salesServiceProducts(z.owner),read=await api.salesServiceProducts(department);
  expect(read).toMatchObject({companyId:z.company,available:true,canCreate:false,currency:'THB',products:[{id:created.id,name:input.name}],unavailableReason:null});expect(read.products).toEqual(before.products);expect(read.contextKey).toMatch(/^[a-f0-9]{64}$/);const denied=key();await expect(api.createSalesServiceProduct(department,{...input,sku:key()},denied)).rejects.toMatchObject({status:403,code:'SALES_SERVICE_SCOPE_REQUIRED'});expect(await zeroSalesCommandImage(denied)).toEqual([[],[],[]]);expect((await api.salesServiceProducts(z.owner)).products).toEqual(before.products);
 });
 
 it('Sales service catalogue concurrent actual read and original creation retain coherent native history with no hidden retries',async()=>{
- const {z}=await readySalesServiceCatalogue(),api=await import('../../../src/server/modules/commerce/public/sales-service-products'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),input=api.salesServiceProductSchema.parse({itemType:'service',sku:key(),name:'Actual concurrently prepared service catalogue item',price:'12.50'}),command=key(),measured=await measureReads(()=>Promise.all([api.salesServiceProducts(z.owner),api.createSalesServiceProduct(z.owner,input,command)])),[read,created]=measured.result;
+ const {z}=await readySalesServiceCatalogue(),api=await import('@erpx/server-commerce/public/sales-service-products'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),input=api.salesServiceProductSchema.parse({itemType:'service',sku:key(),name:'Actual concurrently prepared service catalogue item',price:'12.50'}),command=key(),measured=await measureReads(()=>Promise.all([api.salesServiceProducts(z.owner),api.createSalesServiceProduct(z.owner,input,command)])),[read,created]=measured.result;
  expect(read).toMatchObject({available:true,currency:'THB',canCreate:true,unavailableReason:null});expect(created).toEqual({id:`products-${command}`,version:1});expect([[],[created.id]]).toContainEqual(read.products.map(product=>product.id));
  expect({deadlockFailures:measured.metrics.deadlockFailures??0,serializationFailures:measured.metrics.serializationFailures??0,transactionRetries:measured.metrics.transactionRetries??0}).toEqual({deadlockFailures:0,serializationFailures:0,transactionRetries:0});
  const before=await zeroSalesCommandImage(command);expect(await api.createSalesServiceProduct(z.owner,input,command)).toEqual(created);expect(await zeroSalesCommandImage(command)).toEqual(before);expect((await api.salesServiceProducts(z.owner)).products).toEqual([{id:created.id,sku:input.sku,name:input.name,unit:'each',priceMinor:1250,taxBps:0,status:'active',version:1}]);expect(await db.prepare("SELECT count(*) n FROM money_transaction_snapshots WHERE company_id=? AND source_type='commerce_product_revision' AND source_id=? AND amount_kind='unit_price'").bind(z.company,`${created.id}:1`).first('n')).toBe(1);

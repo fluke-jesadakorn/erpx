@@ -1,0 +1,1 @@
+export {manufacturingPostingCommerceReadLocks,manufacturingPostingMappingState,manufacturingPostingDocumentState} from '@erpx/server-commerce/adapters/manufacturing-posting-setup-sources';

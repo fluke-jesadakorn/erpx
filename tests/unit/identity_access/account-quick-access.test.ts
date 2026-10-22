@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { ApiError } from "../../../src/server/modules/runtime/adapters/http";
-import { GET, POST } from "../../../src/app/api/v1/account/quick-access/[area]/route";
-import type { SqlDatabase } from "../../../src/server/modules/runtime/public/runtime/types";
+import { ApiError } from "@erpx/server-runtime/adapters/http";
+import { GET, POST } from "@erpx/feature-account/routes/api/v1/account/quick-access/[area]/route";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 
 const state = vi.hoisted(() => ({
   userId: "account-user",
@@ -18,24 +18,24 @@ const state = vi.hoisted(() => ({
   } satisfies SqlDatabase,
 }));
 
-vi.mock("../../../src/server/modules/identity_access/adapters/authorization", () => ({
+vi.mock("@erpx/server-identity_access/adapters/authorization", () => ({
   currentSession: async () => {
     if (state.rejectSession) throw new Error("UNAUTHENTICATED");
     return { session: { user: { id: state.userId }, session: { id: "account-session" } },
       requestHeaders: new Headers({ host: "localhost:3100" }) };
   },
 }));
-vi.mock("../../../src/server/modules/identity_access/adapters/private-session-preferences", () => ({
+vi.mock("@erpx/server-identity_access/adapters/private-session-preferences", () => ({
   withCurrentSelfAccountPreferences: state.preferenceUnit,
 }));
-vi.mock("../../../src/server/modules/organization/public/workspace-choices", () => ({ workspaceChoices: async () => state.choices }));
-vi.mock("../../../src/server/modules/work_projection/public/work-role-options", () => ({
+vi.mock("@erpx/server-organization/public/workspace-choices", () => ({ workspaceChoices: async () => state.choices }));
+vi.mock("@erpx/server-work_projection/public/work-role-options", () => ({
   workRoleOptions: async () => {
     if (state.rejectRole) throw new ApiError(403, "FORBIDDEN", "Work role unavailable.");
     return { access: { userId: state.userId }, options: [{ id: "assignment" }] };
   },
 }));
-vi.mock("../../../src/server/modules/work_projection/public/quick-access-session-preferences", () => ({
+vi.mock("@erpx/server-work_projection/public/quick-access-session-preferences", () => ({
   readSessionQuickAccessPreferences: (database: SqlDatabase, ...args: [string, string, string]) => {
     expect(database).toBe(state.database);
     return state.read(...args);

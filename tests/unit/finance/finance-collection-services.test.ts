@@ -1,8 +1,8 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceCollections,type FinanceCollectionPorts} from "../../../src/server/modules/finance/application/collections";
-import {stage,collectionCaseSchema,reviseCollectionCaseSchema,type CollectionInvoice,type CollectionExposure} from "../../../src/server/modules/finance/domain/collections";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createFinanceCollections,type FinanceCollectionPorts} from "@erpx/server-finance/application/collections";
+import {stage,collectionCaseSchema,reviseCollectionCaseSchema,type CollectionInvoice,type CollectionExposure} from "@erpx/server-finance/domain/collections";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code}),hash=async(s:string)=>`hash:${s}`;
 const invoice:CollectionInvoice={id:'invoice',version:2,kind:'receivable',status:'posted',outstanding_minor:10000,currency:'THB',due_date:'2026-09-01',invoice_number:'INV-001',party_id:'party',party_name:'Original customer',party_version:3};

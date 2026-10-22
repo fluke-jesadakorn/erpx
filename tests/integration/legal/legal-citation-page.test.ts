@@ -1,27 +1,27 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { isValidElement, type ReactNode } from "react";
 import { getDynamicParam } from "next/dist/shared/lib/router/utils/get-dynamic-param";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { access } from "../../../src/server/modules/legal/public/legal/access";
-import { detail, legalCommand } from "../../../src/server/modules/legal/public/legal/service";
-import { lawCorpusCommand } from "../../../src/server/modules/legal/public/legal/law-corpus";
-import { legalKnowledge } from "../../../src/server/modules/legal/public/legal/knowledge";
+import { access } from "@erpx/server-legal/public/legal/access";
+import { detail, legalCommand } from "@erpx/server-legal/public/legal/service";
+import { lawCorpusCommand } from "@erpx/server-legal/public/legal/law-corpus";
+import { legalKnowledge } from "@erpx/server-legal/public/legal/knowledge";
 
 const boundary = vi.hoisted(() => ({ actor: null as WorkContext | null }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", async original => ({
-  ...await original<typeof import("../../../src/server/modules/identity_access/public/authorization")>(),
+vi.mock("@erpx/server-identity_access/public/authorization", async original => ({
+  ...await original<typeof import("@erpx/server-identity_access/public/authorization")>(),
   requireWorkContext: async () => boundary.actor!,
 }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", async original => ({
-  ...await original<typeof import("../../../src/server/modules/runtime/adapters/runtime")>(),
+vi.mock("@erpx/server-runtime/adapters/runtime", async original => ({
+  ...await original<typeof import("@erpx/server-runtime/adapters/runtime")>(),
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env,
 }));
 // The request boundary is the isolated fixture. Native page loading and all
 // Legal source revision/date/member/Company guards remain real.
-vi.mock("../../../src/server/modules/work_projection/public/page-error", () => ({ pageError: async (error: unknown) => { throw error; } }));
-import CitationPage from "../../../src/app/holdings/[holdingSlug]/_presenters/legal/citations/[id]/screen";
+vi.mock("@erpx/server-work_projection/public/page-error", () => ({ pageError: async (error: unknown) => { throw error; } }));
+import CitationPage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/legal/citations/[id]/screen";
 
 const db = env.H001_DB, key = () => crypto.randomUUID(), text = "ข้อความอ้างอิงสมมติสำหรับการทดสอบ ไม่ใช่กฎหมายหรือคำแนะนำจริง";
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;

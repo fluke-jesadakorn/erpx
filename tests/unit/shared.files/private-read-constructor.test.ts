@@ -1,9 +1,9 @@
 import {expect,it,vi} from 'vitest';
-import {attachmentPolicyRegistry} from '../../../src/server/modules/files/domain/attachments/policy';
-import {attachmentContent} from '../../../src/server/modules/files/public/attachments/service';
-import type {SqlDatabase,SqlStatement,FileStore} from '../../../src/server/modules/runtime/public/runtime/types';
-import type {WorkContext} from '../../../src/server/modules/identity_access/public/authorization';
-import {bufferedAttachmentRead} from '../../../src/server/modules/files/adapters/private-attachment-reads';
+import {attachmentPolicyRegistry} from '@erpx/server-files/domain/attachments/policy';
+import {attachmentContent} from '@erpx/server-files/public/attachments/service';
+import type {SqlDatabase,SqlStatement,FileStore} from '@erpx/server-runtime/public/runtime/types';
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
+import {bufferedAttachmentRead} from '@erpx/server-files/adapters/private-attachment-reads';
 
 const actor:WorkContext={userId:'reader',name:'Reader',email:'reader@example.test',assignmentId:'assignment',role:'employee',companyId:'company',branchId:null,departmentId:null,holdingId:'H001',holdingSlug:'example',holdingName:'Example',scope:{kind:'holding',holdingId:'H001',holdingSlug:'example',holdingName:'Example',companyId:'company'},assignmentScope:'holding',inherited:false,modules:[],assignments:[],workspaces:[]};
 const targets=[...new Map(attachmentPolicyRegistry.map(policy=>[policy.targetType,policy])).values()];

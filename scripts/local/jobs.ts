@@ -1,6 +1,6 @@
-import { getRuntime, closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
-import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, supportWork,customerNotificationWork,attachmentWork } from "../../src/server/modules/runtime/adapters/runtime/jobs";
-import { attachmentRuntimeReadiness } from "../../src/server/modules/files/public/attachments/readiness";
+import { getRuntime, closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
+import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, supportWork,customerNotificationWork,attachmentWork } from "@erpx/server-runtime/adapters/runtime/jobs";
+import { attachmentRuntimeReadiness } from "@erpx/server-files/public/attachments/readiness";
 
 let stopping=false;
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>{stopping=true;});

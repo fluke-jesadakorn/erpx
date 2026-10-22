@@ -1,11 +1,11 @@
-import type {BrandIdentity} from "../../../src/server/modules/brand/public/brand-identity";
+import type {BrandIdentity} from "@erpx/server-brand/public/brand-identity";
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {brandIdentityWorkspace,saveBrandIdentityDraft,publishBrandIdentity,rollbackBrandIdentity,changeBrandCategoryLock,cancelBrandDraft,publishedBrandIdentity} from "../../../src/server/modules/brand/public/brand-identity";
-import {readStorefrontAppBrand,updateStorefrontAppBrand} from "../../../src/server/modules/brand/public/branding";
-import {frontCompanyBrand} from "../../../src/server/modules/work_projection/public/front-app";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env,holdingBindingBySlug:async(holdingSlug:string)=>({id:"h001",slug:holdingSlug})}));
+import {brandIdentityWorkspace,saveBrandIdentityDraft,publishBrandIdentity,rollbackBrandIdentity,changeBrandCategoryLock,cancelBrandDraft,publishedBrandIdentity} from "@erpx/server-brand/public/brand-identity";
+import {readStorefrontAppBrand,updateStorefrontAppBrand} from "@erpx/server-brand/public/branding";
+import {frontCompanyBrand} from "@erpx/server-work_projection/public/front-app";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env,holdingBindingBySlug:async(holdingSlug:string)=>({id:"h001",slug:holdingSlug})}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 const identity=(shortName="Engineering demo"):BrandIdentity=>({identity:{shortName,tagline:"Approved company identity"},visual:{accentColor:"#224488",logoPublicationId:null}});
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});

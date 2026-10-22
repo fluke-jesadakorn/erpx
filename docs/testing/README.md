@@ -18,7 +18,7 @@ Other reports in this directory retain their recorded findings. Their implementa
 
 ## Owner isolation and selection
 
-The [service boundary contract](../contracts/next/service-boundaries.md) describes semantic ports and shared transactions. The [service registry](../../src/server/modules/ownership.json) maps production source owners; the [suite manifest](../../tests/catalogue/suite-manifest.json) maps every executable test to its lane, affected modules, fixture profile, jobs/scanner prerequisites, and required criticality reason for every unit/integration suite. Discovery rejects an unregistered, duplicate or missing test. The module list must match all 33 registry entries. An explicit selection with an unknown name, wrong lane or excluded file fails before execution.
+The [service boundary contract](../contracts/next/service-boundaries.md) describes semantic ports and shared transactions. The [service registry](../../packages/contracts/src/ownership.json) maps production source owners; the [suite manifest](../../tests/catalogue/suite-manifest.json) maps every executable test to its lane, affected modules, fixture profile, jobs/scanner prerequisites, and required criticality reason for every unit/integration suite. Discovery rejects an unregistered, duplicate or missing test. The module list must match all 33 registry entries. An explicit selection with an unknown name, wrong lane or excluded file fails before execution.
 
 ```bash
 bun run test                              # unit only

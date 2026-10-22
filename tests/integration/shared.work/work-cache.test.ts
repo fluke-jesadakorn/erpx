@@ -1,12 +1,12 @@
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { env, applyMigrations } from "../../support/runtime-env";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import type { WorkSnapshot } from "../../../src/server/modules/work_projection/public/work-items";
-import { cachedWorkSnapshot, workCacheFence, workCacheKey } from "../../../src/server/modules/work_projection/public/work-cache";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkSnapshot } from "@erpx/server-work_projection/public/work-items";
+import { cachedWorkSnapshot, workCacheFence, workCacheKey } from "@erpx/server-work_projection/public/work-cache";
 const cache = vi.hoisted(() => new Map<string, string>());
 const redis = vi.hoisted(() => ({ available: true }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime/redis-cache", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime/redis-cache", () => ({
   redisCacheEnabled: () => redis.available,
   cacheGet: async (key: string) => redis.available ? cache.get(key) ?? null : null,
   cacheSet: async (key: string, value: string, ttl: number) => { if (redis.available && ttl > 0) cache.set(key, value); },
@@ -343,8 +343,8 @@ it('bounds local serialized bytes and never retains an oversized snapshot', asyn
 
 it('keeps Work warm through Legal scheduler health writes while health and Legal business changes stay current', async () => {
   redis.available = false;
-  const { legalWork } = await import("../../../src/server/modules/legal/public/legal/integrations");
-  const { legalRuntimeHealth } = await import("../../../src/server/modules/legal/public/legal/runtime-gate");
+  const { legalWork } = await import("@erpx/server-legal/public/legal/integrations");
+  const { legalRuntimeHealth } = await import("@erpx/server-legal/public/legal/runtime-gate");
   const legalActor = { ...actor, iam: { permissions: ['legal.read', 'legal.edit', 'legal.manage'] } } as WorkContext;
   const load = vi.fn(async () => ({ items: await legalWork(db, legalActor), unavailableSources: [] }));
   expect((await cachedWorkSnapshot(legalActor, db, load)).items).toEqual([]);
@@ -393,7 +393,7 @@ it('Home cache uses the same transactional fence: rollback stays warm and commit
   // independent minute expiry covered by the authority deadline cases above.
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(Math.floor(Date.now() / 60_000) * 60_000 + 30_000);
-  const { cachedHomeRead } = await import("../../../src/server/modules/work_projection/public/home-cache");
+  const { cachedHomeRead } = await import("@erpx/server-work_projection/public/home-cache");
   redis.available = false;
   const load = vi.fn(async () => ({ posts: [{ id: '2' }, { id: '1' }], count: 2 }));
   const read = () => cachedHomeRead(actor, db, 'integration-feed', { limit: 8 }, load, { complete: () => true });

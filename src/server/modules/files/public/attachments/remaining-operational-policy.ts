@@ -1,1 +1,0 @@
-export {remainingOperationalAttachmentPolicies,authorizeRemainingOperationalAttachmentTarget,remainingOperationalAttachmentTargetVersionGuard,remainingOperationalAttachmentRecordVersionStep} from "../../adapters/attachments/remaining-operational-policy";

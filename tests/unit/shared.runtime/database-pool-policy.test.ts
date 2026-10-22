@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {databasePoolLimits,databasePoolSize} from "../../../src/lib/runtime/database-pool-policy";
+import {databasePoolLimits,databasePoolSize} from "@erpx/feature-runtime/lib/database-pool-policy";
 it('retains conservative compiled defaults and independent Control/jobs budgets',()=>{
  const limits=databasePoolLimits({});
  expect(databasePoolSize('H001_DB','app','production',limits)).toBe(1);

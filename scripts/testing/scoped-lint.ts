@@ -1,0 +1,10 @@
+import { ESLint } from 'eslint';
+import { appDefinition } from '@erpx/contracts/apps';
+import { repositoryRoot } from './catalogue';
+import { loadWorkspaceGraph } from './workspace-graph';
+const id=process.argv.find(arg=>arg.startsWith('--app='))?.slice(6);
+if(!id)throw new Error('APP_LINT_SELECTION_REQUIRED');appDefinition(id);
+const graph=loadWorkspaceGraph(),files=[...graph.apps.get(id)!].filter(file=>!file.startsWith('resource-input:')&&/\.[cm]?[jt]sx?$/.test(file)&&!file.endsWith('.d.ts'));
+const eslint=new ESLint({cwd:repositoryRoot}),results=await eslint.lintFiles(files),formatter=await eslint.loadFormatter('stylish');
+const output=formatter.format(results);if(output)console.log(output);
+if(results.some(result=>result.errorCount))process.exitCode=1;

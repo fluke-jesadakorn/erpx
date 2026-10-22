@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { workAttention } from "../../../src/lib/work_projection/work-attention";
-import { notificationDays } from "../../../src/lib/shared/notification-days";
-import type { WorkItem } from "../../../src/lib/work_projection/work-item";
+import { workAttention } from "@erpx/feature-work_projection/lib/work-attention";
+import { notificationDays } from "@erpx/feature-shared/lib/notification-days";
+import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 
 const item = (id: string, changes: Partial<WorkItem> = {}): WorkItem => ({
   id, type: "expense", title: id, detail: "Review", href: `/expenses/${id}`,

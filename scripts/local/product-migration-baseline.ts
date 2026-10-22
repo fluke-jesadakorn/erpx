@@ -2,8 +2,8 @@
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
-import { activeHoldingBindings, holdingResources, runtimeEnv } from "../../src/server/modules/runtime/public/runtime";
-import { isTransactionalSqlDatabase, type SqlDatabase } from "../../src/server/modules/runtime/public/runtime/types";
+import { activeHoldingBindings, holdingResources, runtimeEnv } from "../../packages/server-runtime/src/public/runtime";
+import { isTransactionalSqlDatabase, type SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "./source-fingerprint";
 
 const root = process.cwd(), directory = resolve(root, ".scratch/dev/product-migration-baseline-2026-10-14");

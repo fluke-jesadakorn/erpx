@@ -1,9 +1,9 @@
 import { describe,it,expect,beforeAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { env,applyMigrations } from "../../support/runtime-env";
-import { claimJob,runOne } from "../../../src/server/modules/runtime/adapters/runtime/jobs";
-import { project } from "../../../src/server/modules/workflow/public/job-projector";
-import { PostgresDatabase } from "../../../src/server/modules/runtime/adapters/runtime/postgres";
+import { claimJob,runOne } from "@erpx/server-runtime/adapters/runtime/jobs";
+import { project } from "@erpx/server-workflow/public/job-projector";
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 
 describe('Native PostgreSQL and private file runtime',()=>{
  beforeAll(async()=>{

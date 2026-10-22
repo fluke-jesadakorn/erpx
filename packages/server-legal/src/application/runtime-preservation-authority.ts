@@ -1,0 +1,6 @@
+import type {LegalDestructionManifest} from "@erpx/server-legal/public/legal/destruction-sources";
+export type RuntimePreservationUnit={lock():Promise<unknown>;pendingOwner(key:string):Promise<boolean>;held(key:string):Promise<boolean>;destruction(id:string):Promise<{manifest:string|LegalDestructionManifest;item_id:string;company_id:string}|null>;validate(itemId:string,companyId:string,manifest:LegalDestructionManifest):Promise<unknown>};
+export function createRuntimePreservationAuthority(repository:RuntimePreservationUnit){return {
+ async assertMutation(keys:string[]){await repository.lock();for(const key of keys)if(await repository.pendingOwner(key))throw new Error("FILE_PRESERVED_PENDING_OWNER");for(const key of keys)if(await repository.held(key))throw new Error("LEGAL_HOLD_BLOCKS_FILE_MUTATION");},
+ async assertDestruction(keys:string[],destructionId:string){const row=await repository.destruction(destructionId);if(!row)throw new Error("LEGAL_DESTRUCTION_NOT_AUTHORIZED");const manifest=(typeof row.manifest==="string"?JSON.parse(row.manifest):row.manifest) as LegalDestructionManifest;if(keys.some(key=>!manifest.keys.includes(key)))throw new Error("LEGAL_DESTRUCTION_SCOPE");await repository.validate(row.item_id,row.company_id,manifest);}
+};}

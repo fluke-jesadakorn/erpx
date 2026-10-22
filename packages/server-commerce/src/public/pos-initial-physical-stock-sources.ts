@@ -1,0 +1,1 @@
+export {posInitialPhysicalStockCommerceSource,posInitialPhysicalStockCommerceLocks,initialPhysicalStockMasterChoices,initialPhysicalStockMasterSource} from '@erpx/server-commerce/adapters/pos-initial-physical-stock-sources';

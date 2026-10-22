@@ -1,8 +1,8 @@
 import { afterEach,beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { projectSchema, saveProject } from "../../../src/server/modules/operations/public/staff-tasks";
-import { listProjectMilestones, projectMilestoneSchema, saveProjectMilestone, transitionProjectMilestone } from "../../../src/server/modules/projects/public/project-milestones";
+import { projectSchema, saveProject } from "@erpx/server-operations/public/staff-tasks";
+import { listProjectMilestones, projectMilestoneSchema, saveProjectMilestone, transitionProjectMilestone } from "@erpx/server-projects/public/project-milestones";
 import {
   createProjectCostAllocation,
   decideProjectCostAllocation,
@@ -15,18 +15,18 @@ import {
   projectWorkLogDecisionSchema,
   projectWorkLogSchema,
   saveProjectWorkLog,
-} from "../../../src/server/modules/projects/public/project-actuals";
-import { queryMetric } from "../../../src/server/modules/runtime/public/executive/metrics";
-import { readExecutiveEvidence, searchExecutiveEvidence } from "../../../src/server/modules/runtime/public/executive/evidence";
-import { createReport, saveReport, saveShare, saveSchema } from "../../../src/server/modules/runtime/public/executive/reports";
-import { defaultFilters, definitionSchema, emptyDefinition, shareSchema } from "../../../src/lib/shared/executive/canvas";
-import { listAttachmentSets,prepareAttachmentBinding,bindRecordAttachmentSet,attachmentContent } from "../../../src/server/modules/files/public/attachments/service";
-import { attachmentPolicy,authorizeAttachmentTarget } from "../../../src/server/modules/files/public/attachments/policy";
+} from "@erpx/server-projects/public/project-actuals";
+import { queryMetric } from "@erpx/server-runtime/public/executive/metrics";
+import { readExecutiveEvidence, searchExecutiveEvidence } from "@erpx/server-runtime/public/executive/evidence";
+import { createReport, saveReport, saveShare, saveSchema } from "@erpx/server-runtime/public/executive/reports";
+import { defaultFilters, definitionSchema, emptyDefinition, shareSchema } from "@erpx/feature-shared/lib/executive/canvas";
+import { listAttachmentSets,prepareAttachmentBinding,bindRecordAttachmentSet,attachmentContent } from "@erpx/server-files/public/attachments/service";
+import { attachmentPolicy,authorizeAttachmentTarget } from "@erpx/server-files/public/attachments/policy";
 import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from "../../support/helpers/attachment-v2";
-import {packageGrantStore,readCompanyPackageGrants} from "../../../src/server/modules/commercial/public/package-grants";
-import {saveTask,taskSchema,transitionTask,taskActionSchema} from "../../../src/server/modules/operations/public/staff-tasks";
+import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
+import {saveTask,taskSchema,transitionTask,taskActionSchema} from "@erpx/server-operations/public/staff-tasks";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => { enableAttachmentV2ForTest();await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });

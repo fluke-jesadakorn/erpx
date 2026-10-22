@@ -1,19 +1,19 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
-import {createFinancePrior,createFinanceResourcePolicy} from "../../../src/server/modules/finance/application/access";
+import {createFinancePrior,createFinanceResourcePolicy} from "@erpx/server-finance/application/access";
 import { describe, expect, it, vi } from "vitest";
-import { createJournalPreparation, type JournalPorts } from "../../../src/server/modules/finance/application/journal";
-import { createEnsurePeriod } from "../../../src/server/modules/finance/application/period-policy";
-import { createFunctionalFx } from "../../../src/server/modules/finance/application/functional-fx";
-import { createFinancePolicy } from "../../../src/server/modules/finance/domain/finance-policy";
-import { createJournalSchema } from "../../../src/server/modules/finance/domain/finance";
-import { createInvoiceLineRevision, type InvoiceLineRepository } from "../../../src/server/modules/finance/application/invoice-line-revision";
-import type { InvoiceHeader, InvoiceAccount, PersistedInvoiceLine } from "../../../src/server/modules/finance/domain/invoice-line-revision";
-import { createOwnedJournalReversal } from "../../../src/server/modules/finance/application/owned-reversal";
-import { createRequireFinanceMoneyScale } from "../../../src/server/modules/finance/application/money-policy";
-import { createFinanceEngines, type FinanceEnginePorts } from "../../../src/server/modules/finance/application/engines";
-import { createLedgerService, type LedgerPorts } from "../../../src/server/modules/finance/application/ledger";
-import type { CalculationRaw } from "../../../src/server/modules/finance/domain/engines";
-import type { WorkContext } from "../../../src/server/modules/identity_access/domain/authorization";
+import { createJournalPreparation, type JournalPorts } from "@erpx/server-finance/application/journal";
+import { createEnsurePeriod } from "@erpx/server-finance/application/period-policy";
+import { createFunctionalFx } from "@erpx/server-finance/application/functional-fx";
+import { createFinancePolicy } from "@erpx/server-finance/domain/finance-policy";
+import { createJournalSchema } from "@erpx/server-finance/domain/finance";
+import { createInvoiceLineRevision, type InvoiceLineRepository } from "@erpx/server-finance/application/invoice-line-revision";
+import type { InvoiceHeader, InvoiceAccount, PersistedInvoiceLine } from "@erpx/server-finance/domain/invoice-line-revision";
+import { createOwnedJournalReversal } from "@erpx/server-finance/application/owned-reversal";
+import { createRequireFinanceMoneyScale } from "@erpx/server-finance/application/money-policy";
+import { createFinanceEngines, type FinanceEnginePorts } from "@erpx/server-finance/application/engines";
+import { createLedgerService, type LedgerPorts } from "@erpx/server-finance/application/ledger";
+import type { CalculationRaw } from "@erpx/server-finance/domain/engines";
+import type { WorkContext } from "@erpx/server-identity_access/domain/authorization";
 const error = (status: number, code: string, message: string) => Object.assign(new Error(message), { status, code });
 function strict<T extends object>(facts: Partial<T>): T { return new Proxy(facts, { get(target, key) { if (!(key in target))
         throw new Error(`Unexpected port ${String(key)}`); return Reflect.get(target, key); } }) as T; }
@@ -71,12 +71,12 @@ describe("Finance read and deterministic engine orchestration", () => {
     it("forbids the preparer reviewing their own deterministic result", async () => { const ports = strict<FinanceEnginePorts>({ ...base(), run: async () => ({ explanation_json: "{}", status: "prepared", version: 1, prepared_by: actor.userId }) }); await expect(createFinanceEngines(ports).decideCalculationRun(actor, "run", { expectedVersion: 1, reason: "Independent review" }, "review", "key")).rejects.toMatchObject({ code: "SELF_REVIEW_FORBIDDEN" }); });
     it("derives close readiness from every current semantic count", async () => { const commit = vi.fn(async (facts: Parameters<FinanceEnginePorts["commitCloseSnapshot"]>[0]) => facts.output); const ports = strict<FinanceEnginePorts>({ ...base(), now: () => 1234, digest: async () => "hash", period: async () => ({ id: "period", close_version: 2 }), closeCounts: async () => [{ key: "journals", count: 0 }, { key: "matching", count: 1 }], commitCloseSnapshot: commit }); const result = await createFinanceEngines(ports).snapshotCloseChecks(actor, "period", "key"); expect(result).toMatchObject({ ready: false, sourceVersion: "hash", checks: [{ key: "journals", count: 0, status: "pass" }, { key: "matching", count: 1, status: "block" }] }); expect(commit).toHaveBeenCalledOnce(); });
 });
-import { createFinanceConfiguration, type FinanceConfigurationPorts } from "../../../src/server/modules/finance/application/configuration";
-import { createAccountImport, type AccountImportPorts } from "../../../src/server/modules/finance/application/account-import";
-import { createOpeningService, type OpeningPorts } from "../../../src/server/modules/finance/application/opening";
-import { createJournalReview, type JournalReviewPorts } from "../../../src/server/modules/finance/application/journal-review";
-import { createFinanceReads, type FinanceReadPorts } from "../../../src/server/modules/finance/application/finance-reads";
-import { openingTrialBalanceSchema } from "../../../src/server/modules/finance/domain/finance";
+import { createFinanceConfiguration, type FinanceConfigurationPorts } from "@erpx/server-finance/application/configuration";
+import { createAccountImport, type AccountImportPorts } from "@erpx/server-finance/application/account-import";
+import { createOpeningService, type OpeningPorts } from "@erpx/server-finance/application/opening";
+import { createJournalReview, type JournalReviewPorts } from "@erpx/server-finance/application/journal-review";
+import { createFinanceReads, type FinanceReadPorts } from "@erpx/server-finance/application/finance-reads";
+import { openingTrialBalanceSchema } from "@erpx/server-finance/domain/finance";
 const preparedBase = () => ({ error, authorize: (a: WorkContext) => a, ready: async () => { }, prior: async () => null });
 describe("Finance configuration and import command boundaries", () => {
     it("returns an authorized configuration replay before chart reads", async () => { const ports = strict<FinanceConfigurationPorts>({ ...preparedBase(), prior: storedCommandReceipt({ id: "account", version: 1 }) }); expect(await createFinanceConfiguration(ports).createAccount(actor, { chartId: "chart", code: "1000", name: "Cash", category: "asset", isControl: false, controlKind: "none" }, "key")).toEqual({ id: "account", version: 1 }); });
@@ -100,10 +100,10 @@ describe("Opening, posting, reversal and read scope orchestration", () => {
     it("validates historical aging cutoff before any data read", async () => { const ports = strict<FinanceReadPorts>({ error, authorize: a => a }); await expect(createFinanceReads(ports).aging(actor, "receivable", "bad-date")).rejects.toMatchObject({ code: "INVALID_AS_OF" }); });
     it("computes aging buckets from retained historical outstanding facts", async () => { const ports = strict<FinanceReadPorts>({ error, authorize: a => a, ready: async () => { }, agingBalances: async () => [{ id: "invoice", source_id: null, due_date: "2026-01-01", historical_outstanding_minor: 125, historical_base_outstanding_minor: 4500, legacy_date_evidence: false }] }); expect(await createFinanceReads(ports).aging(actor, "receivable", "2026-02-01")).toMatchObject([{ outstanding: "1.25", baseOutstanding: "45.00", bucket: "31-60", asOf: "2026-02-01" }]); });
 });
-import { createInvoiceService, type InvoicePorts } from "../../../src/server/modules/finance/application/invoices";
-import { createFinancePayments, type FinancePaymentPorts } from "../../../src/server/modules/finance/application/payments";
-import { createFinanceBank, type FinanceBankPorts } from "../../../src/server/modules/finance/application/bank";
-import { invoiceSchema, confirmPaymentSchema } from "../../../src/server/modules/finance/domain/finance";
+import { createInvoiceService, type InvoicePorts } from "@erpx/server-finance/application/invoices";
+import { createFinancePayments, type FinancePaymentPorts } from "@erpx/server-finance/application/payments";
+import { createFinanceBank, type FinanceBankPorts } from "@erpx/server-finance/application/bank";
+import { invoiceSchema, confirmPaymentSchema } from "@erpx/server-finance/domain/finance";
 describe("Finance invoices and controlled payments through owned semantic ports", () => {
     const invoiceInput = () => invoiceSchema.parse({ ...invoice, dueDate: "2026-02-01", subtotal: "1.00", tax: "0" });
     const base = () => ({ error, authorize: (a: WorkContext) => a, ready: async () => { }, replay: async () => null });
@@ -132,9 +132,9 @@ describe("Bank import and reconciliation policies", () => {
     it("requires row currency and date match bank statement", async () => { const ports = strict<FinanceBankPorts>(base()); await expect(createFinanceBank(ports).importBankStatement(actor, { ...input, rows: [{ ...input.rows[0], transactionDate: "2026-02-01" }] }, "key")).rejects.toMatchObject({ code: "STATEMENT_ROW_INVALID" }); });
     it("validates reconciliation evidence before accepting any prior receipt", async () => { const ports = strict<FinanceBankPorts>({ error, authorize: a => a, ready: async () => { } }); await expect(createFinanceBank(ports).reconcileBankTransaction({ ...actor, role: "finance_approver" }, "row", { expectedVersion: 1, matchedType: "invoice", matchedId: "invoice", proof: "Reviewed evidence", attachmentSetIds: [] }, "key")).rejects.toMatchObject({ code: "MATCH_INPUT_INVALID" }); });
 });
-import { createFxRevaluation, type FxRevaluationPorts } from "../../../src/server/modules/finance/application/fx-revaluation";
-import { createFinanceClose, type FinanceClosePorts } from "../../../src/server/modules/finance/application/close";
-import { createJournalBatch, type JournalBatchPorts } from "../../../src/server/modules/finance/application/journal-batch";
+import { createFxRevaluation, type FxRevaluationPorts } from "@erpx/server-finance/application/fx-revaluation";
+import { createFinanceClose, type FinanceClosePorts } from "@erpx/server-finance/application/close";
+import { createJournalBatch, type JournalBatchPorts } from "@erpx/server-finance/application/journal-batch";
 describe("FX, close and batch review policies", () => {
     const base = () => ({ error, authorize: (a: WorkContext) => a, ready: async () => { }, replay: async () => null });
     const fxInput = { chartId: "chart", periodId: "period", entryDate: "2026-01-31", gainAccountId: "gain", lossAccountId: "loss", proof: "Reviewed closing quotes", rates: [{ currency: "USD", rate: "36" }] };

@@ -1,16 +1,16 @@
 import {beforeEach,expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 const mocks=vi.hoisted(()=>({session:vi.fn(),enabled:true,host:'account-dev-erpx.jesadakorn.com'}));
-vi.mock('@/server/modules/identity_access/adapters/authorization',()=>({currentSession:mocks.session}));
-vi.mock('@/lib/runtime/product-hosts',()=>({configuredProductOrigin:()=>mocks.enabled?'https://account-dev-erpx.jesadakorn.com':null,productHostForHost:(host:string|null)=>mocks.enabled&&host==='account-dev-erpx.jesadakorn.com'?'account':null}));
+vi.mock("@erpx/server-identity_access/adapters/authorization",()=>({currentSession:mocks.session}));
+vi.mock("@erpx/feature-runtime/lib/product-hosts",()=>({configuredProductOrigin:()=>mocks.enabled?'https://account-dev-erpx.jesadakorn.com':null,productHostForHost:(host:string|null)=>mocks.enabled&&host==='account-dev-erpx.jesadakorn.com'?'account':null}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:mocks.host})}));
-vi.mock('@/server/modules/identity_access/public/iam-directories',()=>({routedConnection:vi.fn()}));
-vi.mock('@/server/modules/runtime/public/presentation-configuration',()=>({publicBetaEnabled:async()=>false}));
-vi.mock('@/lib/identity_access/auth-client',()=>({authClient:{signIn:{email:vi.fn()}}}));
+vi.mock("@erpx/server-identity_access/public/iam-directories",()=>({routedConnection:vi.fn()}));
+vi.mock("@erpx/server-runtime/public/presentation-configuration",()=>({publicBetaEnabled:async()=>false}));
+vi.mock("@erpx/feature-identity_access/lib/auth-client",()=>({authClient:{signIn:{email:vi.fn()}}}));
 import {isValidElement,type ReactNode,type ReactElement} from 'react';
-import {accountWorkspaceTarget,accountWorkspaceLoginReturn} from '@/server/modules/identity_access/public/rules/account-workspace';
-import {accountWorkspaceRequest} from '@/server/modules/identity_access/public/account-workspace';
-import {ApiError} from '@/server/modules/runtime/public/http';
+import {accountWorkspaceTarget,accountWorkspaceLoginReturn} from '@erpx/server-identity_access/public/rules/account-workspace';
+import {accountWorkspaceRequest} from '@erpx/server-identity_access/public/account-workspace';
+import {ApiError} from '@erpx/server-runtime/public/http';
 const origin='https://account-dev-erpx.jesadakorn.com';
 const request=(next='/my-access?tag=one&tag=two#roles',host='account-dev-erpx.jesadakorn.com')=>new Request('https://'+host+'/account/launch?'+new URLSearchParams({next}),{headers:{host}});
 beforeEach(()=>{vi.clearAllMocks();mocks.enabled=true;mocks.host='account-dev-erpx.jesadakorn.com';mocks.session.mockResolvedValue({session:{user:{id:'platform-only'},session:{id:'current-central-session'}}});});
@@ -35,7 +35,7 @@ it('admits only a closed sanitized bridge to Account login and preserves its fra
  for(const value of ['/holdings/acme/work','/platform/users','https://evil.test/security','/account/launch?next=/security&next=/my-access','/account/launch?next=/api/v1/account/profile','/account/launch?next=/security#override','/account/launch?next=/security&code=private'])expect(accountWorkspaceLoginReturn(value)).toBeNull();
 });
 it('passes the exact Account bridge through the actual login Server page while preserving opaque SSO and Console legacy returns',async()=>{
- const {default:LoginPage}=await import('@/app/login/page');
+ const {default:LoginPage}=await import('@erpx/workplace/routes/login/page');
  function find(node:ReactNode):ReactElement<{next?:string}>|undefined{if(Array.isArray(node)){for(const child of node){const result=find(child);if(result)return result;}return;}if(!isValidElement<{children?:ReactNode}>(node))return;if(typeof node.type==='function'&&node.type.name==='LoginForm')return node as ReactElement<{next?:string}>;return find(node.props.children);}
  const target='/my-profile?tag=one&tag=two#profile',bridge=accountWorkspaceLoginReturn(target)!;expect(find(await LoginPage({searchParams:Promise.resolve({next:bridge})}))!.props.next).toBe(bridge);
  const transaction={sso:'a'.repeat(8)+'-'+ 'b'.repeat(4)+'-'+ 'c'.repeat(4)+'-'+ 'd'.repeat(4)+'-'+ 'e'.repeat(12),state:'s'.repeat(43),challenge:'c'.repeat(43)};expect(find(await LoginPage({searchParams:Promise.resolve({...transaction,next:bridge})}))!.props.next).toBe('/sso/authorize?'+new URLSearchParams({transaction:transaction.sso,state:transaction.state,challenge:transaction.challenge}));

@@ -1,6 +1,6 @@
 # ERPX documentation index
 
-Reviewed 2026-10-15. This is the single entry point. [Production plan](production-plan.md) owns delivery scope; contracts own current behavior; recorded evidence identifies the source, environment and date it actually verified.
+Reviewed 2026-10-23. This is the single entry point. [Production plan](production-plan.md) owns delivery scope; contracts own current behavior; recorded evidence identifies the source, environment and date it actually verified.
 
 ## Current system
 
@@ -31,6 +31,7 @@ Reviewed 2026-10-15. This is the single entry point. [Production plan](productio
 - [Service no-charge confirmation](adr/ADR-046-service-no-charge-confirmation.md)
 - [Source-bound worker preparation foundation](adr/ADR-047-source-bound-worker-preparation-foundation.md)
 - [Ticket-bound Support Portal](adr/ADR-048-ticket-bound-support-portal.md)
+- [Product app workspaces and development verification](adr/ADR-049-product-app-workspaces-and-development-verification.md)
 - [Business glossary](../CONTEXT.md), [architecture decisions](adr/README.md), [contract compatibility policy](../CONTRACT_POLICY.md)
 - [Operations](../ops/README.md), [private production runtime](../ops/macos/README.md), [incident](../ops/runbooks/nextjs-incident.md), [recovery](../ops/runbooks/nextjs-recovery.md)
 - [Workplace routes and handoffs](journeys/2026-09-26-workplace-journey-inventory.md), [UI components](ux-ui/component-inventory.md), [UI migration evidence](ux-ui/ui-migration-2026-10-02.md), [UI standardization status and coverage](ux-ui/ui-standardization.md)

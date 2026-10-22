@@ -1,8 +1,8 @@
 import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
-import { packageGrantStore, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
+import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
-import {prepareBookAdjustment,decideBookAdjustment,reverseBookAdjustment} from "../../../src/server/modules/finance/public/finance-book-adjustments";
+import {prepareBookAdjustment,decideBookAdjustment,reverseBookAdjustment} from "@erpx/server-finance/public/finance-book-adjustments";
 import {
   expenseDb as db,
   expenseFixture,
@@ -13,7 +13,7 @@ import {
   prepareBookRule,
   decideBookRule,
   createFinanceDimension,
-} from "../../../src/server/modules/finance/public/finance-books";
+} from "@erpx/server-finance/public/finance-books";
 import {
   createJournal,
   createJournalSchema,
@@ -26,8 +26,8 @@ import {
   closePeriod,
   bankWorkspace,
   importBankStatement,
-} from "../../../src/server/modules/finance/public/finance";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-finance/public/finance";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

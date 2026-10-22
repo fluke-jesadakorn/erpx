@@ -13,11 +13,11 @@ const attachmentRuntime = vi.hoisted(() => ({
   scannerReady: true,
   previewReady: true,
 }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/scanner", () => ({
+vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({
     enabled: true,
     ready: attachmentRuntime.scannerReady,
@@ -32,10 +32,10 @@ vi.mock("../../../src/server/modules/files/public/attachments/scanner", () => ({
     definitionUpdatedAt: Date.now(),
   }),
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/preview", async () => {
+vi.mock("@erpx/server-files/public/attachments/preview", async () => {
   const actual = await vi.importActual<
-    typeof import("../../../src/server/modules/files/public/attachments/preview")
-  >("../../../src/server/modules/files/public/attachments/preview");
+    typeof import("@erpx/server-files/public/attachments/preview")
+  >("@erpx/server-files/public/attachments/preview");
   return {
     ...actual,
     attachmentPreviewReadiness: async () => ({
@@ -62,24 +62,24 @@ import {
   messagingFile,
   messagingRoom,
   sendMessagingMessage,
-} from "../../../src/server/modules/collaboration/public/messaging";
+} from "@erpx/server-collaboration/public/messaging";
 import {
   attachmentContent,
   bindRecordAttachmentSet,
-} from "../../../src/server/modules/files/public/attachments/service";
+} from "@erpx/server-files/public/attachments/service";
 import {
   attachmentPolicy,
-} from "../../../src/server/modules/files/public/attachments/policy";
-import { getExpense } from "../../../src/server/modules/people_payroll/public/expenses";
-import { expenseRequirements } from "../../../src/server/modules/people_payroll/public/expense-drafts";
-import { legalCommand, detail as legalDetail } from "../../../src/server/modules/legal/public/legal/service";
-import { access as legalAccess } from "../../../src/server/modules/legal/public/legal/access";
-import { portalUpload } from "../../../src/server/modules/legal/public/legal/portal";
+} from "@erpx/server-files/public/attachments/policy";
+import { getExpense } from "@erpx/server-people_payroll/public/expenses";
+import { expenseRequirements } from "@erpx/server-people_payroll/public/expense-drafts";
+import { legalCommand, detail as legalDetail } from "@erpx/server-legal/public/legal/service";
+import { access as legalAccess } from "@erpx/server-legal/public/legal/access";
+import { portalUpload } from "@erpx/server-legal/public/legal/portal";
 import {
   documentExport,
   externalSubmission,
   uploadDocument,
-} from "../../../src/server/modules/legal/public/legal/documents";
+} from "@erpx/server-legal/public/legal/documents";
 
 let fixture: Awaited<ReturnType<typeof expenseFixture>>;
 
@@ -158,7 +158,7 @@ async function messageFile(
 
 describe("specialized canonical attachment adapters", () => {
   it('keeps ordinary module-empty Expense file reuse and actual writer visibility without borrowing Legal or Finance authority or hiding cross-Company retries',async()=>{
-    const {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow,linkExistingAttachment}=await import('../../../src/server/modules/files/public/attachments/service'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility');
+    const {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow,linkExistingAttachment}=await import('@erpx/server-files/public/attachments/service'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility');
     const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64');
     async function receipt(source:typeof fixture,id:string){
       const actor=source.claimant,set=await createAttachmentSet(db,actor,{targetType:'expense_claim',targetId:id,componentKind:'record',purposeKey:'receipt',expectedTargetVersion:1},key()),reserved=await reserveAttachmentFile(db,actor,set.id,{filename:'original-business-receipt.png',mediaType:'image/png',bytes:bytes.byteLength},key()),uploaded=await completeAttachmentUpload(db,env.H001_FILES,actor,reserved.uploadIntentId,Uint8Array.from(bytes).buffer);expect(await scanAttachmentNow(db,env.H001_FILES,uploaded.sourceId)).toBe('available');await bindRecordAttachmentSet(db,actor,set.id,1,key());return uploaded;
@@ -200,7 +200,7 @@ describe("specialized canonical attachment adapters", () => {
 
   });
   it('observes a committed native Legal reader revocation before the first snapshot and composes two Company exports without transaction retries',async()=>{
-    const {measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility');
+    const {measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics'),{committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility');
     const cases:{actor:Awaited<ReturnType<typeof expenseFixture>>['claimant'];itemId:string;documentId:string;body:string}[]=[];
     for(let index=0;index<2;index++){
       const source=index===0?fixture:await expenseFixture(false),actor=await source.member(`legal-visible-reader-${key()}`,'legal_manager');
@@ -238,19 +238,19 @@ describe("specialized canonical attachment adapters", () => {
     }
   });
   it.each(['employee_request','expense_claim','leave_request','expense_payment','invoice_payment'] as const)('preserves actual %s bytes and rolls back a late original source change in the complete Legal parent',async kind=>{
-    const {createHash}=await import('node:crypto'),{preserveAttachment}=await import('../../../src/server/modules/legal/public/legal/sources'),{createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow}=await import('../../../src/server/modules/files/public/attachments/service');
+    const {createHash}=await import('node:crypto'),{preserveAttachment}=await import('@erpx/server-legal/public/legal/sources'),{createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow}=await import('@erpx/server-files/public/attachments/service');
     // Each source is prepared by its original normal owner API, with the
     // independent accounting/treasury steps retained for payment evidence.
     fixture=await expenseFixture();
     let sourceId:string,version:number,creator=fixture.claimant,table:string;
     if(kind==='employee_request'){
-      const {saveEmployeeRequest,employeeRequestSchema}=await import('../../../src/server/modules/records/public/employee-requests');
+      const {saveEmployeeRequest,employeeRequestSchema}=await import('@erpx/server-records/public/employee-requests');
       const result=await saveEmployeeRequest(db,creator,null,employeeRequestSchema.parse({kind:'service',title:'Actual employee evidence for Legal',description:'Preserve the original employee request',branchId:fixture.branch,departmentId:fixture.department}),key());sourceId=result.id;version=1;table='employee_requests';
     }else if(kind==='leave_request'){
-      const {createLeave}=await import('../../../src/server/modules/people_payroll/public/leave');
+      const {createLeave}=await import('@erpx/server-people_payroll/public/leave');
       const result=await createLeave(creator,{startDate:'2026-10-15',days:1,handoverNote:'Original handover evidence'},key());if(typeof result.id!=='string')throw new Error('ACTUAL_LEAVE_ID_REQUIRED');sourceId=result.id;version=1;table='leave_requests';
     }else if(kind==='invoice_payment'){
-      const {createParty,partySchema,createInvoice,invoiceSchema,postInvoice}=await import('../../../src/server/modules/finance/public/finance'),{resolveFlow,assignFlowPrimary}=await import('../../../src/server/modules/workflow/public/flow-routing');
+      const {createParty,partySchema,createInvoice,invoiceSchema,postInvoice}=await import('@erpx/server-finance/public/finance'),{resolveFlow,assignFlowPrimary}=await import('@erpx/server-workflow/public/flow-routing');
       const party=await createParty(fixture.reviewer,partySchema.parse({kind:'supplier',code:key(),name:'Actual Legal evidence supplier',currency:'THB'}),key());
       const invoice=await createInvoice(fixture.reviewer,invoiceSchema.parse({kind:'payable',partyId:party.id,invoiceNumber:key(),invoiceDate:'2026-09-01',dueDate:'2026-09-30',currency:'THB',subtotal:'100',tax:'0',debitAccountId:fixture.accounts.expense,creditAccountId:fixture.accounts.payable}),key());
       const flow=await resolveFlow(db,fixture.owner,'invoice',invoice.id);
@@ -259,7 +259,7 @@ describe("specialized canonical attachment adapters", () => {
     }else{
       sourceId=await fixture.claim();version=1;table='finance_expenses';
       if(kind==='expense_payment'){
-        const {postExpense}=await import('../../../src/server/modules/people_payroll/public/expenses'),{createExpensePayment}=await import('../../../src/server/modules/people_payroll/public/expense-payments');
+        const {postExpense}=await import('@erpx/server-people_payroll/public/expenses'),{createExpensePayment}=await import('@erpx/server-people_payroll/public/expense-payments');
         const receipt=await seedAttachmentSet(db,fixture.claimant,{targetType:'expense_claim',targetId:sourceId,componentKind:'record',purposeKey:'receipt',expectedTargetVersion:1});await bindRecordAttachmentSet(db,fixture.claimant,receipt.setId,1,key());
         await fixture.throughAccounts(sourceId);await fixture.action(fixture.manager,sourceId,'approve');const approved=await getExpense(fixture.manager,sourceId);
         await postExpense(fixture.manager,sourceId,{expectedVersion:Number(approved.version),periodId:fixture.period,entryDate:'2026-09-02'},key());const posted=await getExpense(fixture.payer,sourceId);
@@ -270,7 +270,7 @@ describe("specialized canonical attachment adapters", () => {
     const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64'),checksum=createHash('sha256').update(bytes).digest('hex');
     const set=await createAttachmentSet(db,creator,{targetType:kind,targetId:sourceId,componentKind,componentRef:'legal-preservation',purposeKey,expectedTargetVersion:version},key()),reserved=await reserveAttachmentFile(db,creator,set.id,{filename:`${kind}.png`,mediaType:'image/png',bytes:bytes.byteLength},key()),uploaded=await completeAttachmentUpload(db,env.H001_FILES,creator,reserved.uploadIntentId,Uint8Array.from(bytes).buffer);
     expect(await scanAttachmentNow(db,env.H001_FILES,uploaded.sourceId)).toBe('available');
-    let consumed=0;const files:import('../../../src/server/modules/runtime/public/runtime/types').FileStore={put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args),get:async(...args)=>{const object=await env.H001_FILES.get(...args);return object?{...object,arrayBuffer:async()=>{consumed++;return object.arrayBuffer();}}:null;}};
+    let consumed=0;const files:import("@erpx/server-runtime/public/runtime/types").FileStore={put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args),get:async(...args)=>{const object=await env.H001_FILES.get(...args);return object?{...object,arrayBuffer:async()=>{consumed++;return object.arrayBuffer();}}:null;}};
     const ordinary=await attachmentContent(db,files,creator,uploaded.attachmentLinkId,'original');expect(consumed).toBe(1);expect(Buffer.from(await ordinary.object.arrayBuffer())).toEqual(bytes);expect(consumed).toBe(1);
     const auditBefore=Number(await db.prepare("SELECT count(*) n FROM attachment_access_events WHERE link_id=? AND outcome='allowed'").bind(uploaded.attachmentLinkId).first('n'));
     for(const change of ['source','authority'] as const){const late=`employee_bytes_${key().replaceAll('-','')}`,effect=change==='source'?`UPDATE ${table} SET version=version+1 WHERE id='${sourceId}'`:`UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${creator.assignmentId}'`;
@@ -297,16 +297,16 @@ describe("specialized canonical attachment adapters", () => {
     }
     const result=await preserveAttachment(db,env.H001_FILES,actor,body,command);expect(result).toMatchObject({id:legal.id,version:2});expect(await preserveAttachment(db,env.H001_FILES,actor,body,command)).toEqual(result);
     const document=await db.prepare('SELECT checksum,object_key FROM legal_documents WHERE item_id=?').bind(legal.id).first<{checksum:string;object_key:string}>();expect(document?.checksum).toBe(checksum);expect(Buffer.from(await(await env.H001_FILES.get(document!.object_key))!.arrayBuffer())).toEqual(bytes);
-    const {prepareLegalEvidenceAttachmentParentRead}=await import('../../../src/server/modules/legal/adapters/evidence-attachment-read');
+    const {prepareLegalEvidenceAttachmentParentRead}=await import('@erpx/server-legal/adapters/evidence-attachment-read');
     await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return prepareLegalEvidenceAttachmentParentRead(tx,actor,{attachmentId:uploaded.sourceId,ownerType:kind,ownerId:sourceId});})).rejects.toMatchObject({code:'LEGAL_ATTACHMENT_READ_PREPARATION_REQUIRED'});
     if(kind==='employee_request'){
-      const {inLegalAttachmentPreservationUnit}=await import('../../../src/server/modules/legal/adapters/purchases');
+      const {inLegalAttachmentPreservationUnit}=await import('@erpx/server-legal/adapters/purchases');
       await expect(inLegalAttachmentPreservationUnit(db,actor,tx=>attachmentContent(tx,env.H001_FILES,creator,uploaded.attachmentLinkId,'original'),{attachmentId:uploaded.sourceId,ownerType:kind,ownerId:sourceId})).rejects.toMatchObject({code:'LEGAL_EVIDENCE_READ_PARENT_REQUIRED'});
       await expect(inLegalAttachmentPreservationUnit(db,actor,tx=>attachmentContent(tx,env.H001_FILES,actor,uploaded.attachmentLinkId,'original'),{attachmentId:uploaded.sourceId,ownerType:kind,ownerId:key()})).rejects.toMatchObject({code:'ATTACHMENT_FILE_READ_CHANGED'});
     }
   });
   it.each(['disabled','enforced'] as const)('preserves actual clean Task bytes through the complete Legal owner transaction with Work enforcement %s',async mode=>{
-    const {createHash}=await import('node:crypto'),{saveTask,taskSchema}=await import('../../../src/server/modules/operations/public/staff-tasks'),{preserveAttachment}=await import('../../../src/server/modules/legal/public/legal/sources'),{createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow}=await import('../../../src/server/modules/files/public/attachments/service'),{packageGrantStore}=await import('../../../src/server/modules/commercial/public/package-grants');
+    const {createHash}=await import('node:crypto'),{saveTask,taskSchema}=await import('@erpx/server-operations/public/staff-tasks'),{preserveAttachment}=await import('@erpx/server-legal/public/legal/sources'),{createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow}=await import('@erpx/server-files/public/attachments/service'),{packageGrantStore}=await import('@erpx/server-commercial/public/package-grants');
     const manager=await fixture.member(`legal-task-reader-${key()}`,'legal_manager');
     await legalCommand(db,manager,{action:'settings',enabled:true},key());
     const legal=await legalCommand(db,manager,{action:'create',item:{kind:'contract',title:'Original Task evidence preservation',ownerId:manager.userId,data:{contractType:'Evidence',parties:'Original Company'}}},key());
@@ -331,7 +331,7 @@ describe("specialized canonical attachment adapters", () => {
       const preserved=await db.prepare('SELECT source_type,source_id,checksum FROM legal_file_preservations WHERE item_id=?').bind(legal.id).all();expect(preserved.results).toEqual([{source_type:'attachment',source_id:uploaded.sourceId,checksum}]);
       const document=await db.prepare('SELECT checksum,object_key,attachment_link_id FROM legal_documents WHERE item_id=?').bind(legal.id).first<{checksum:string;object_key:string;attachment_link_id:string}>();expect(document?.checksum).toBe(checksum);expect(Buffer.from(await(await env.H001_FILES.get(document!.object_key))!.arrayBuffer())).toEqual(bytes);
       await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return attachmentContent(tx,env.H001_FILES,manager,uploaded.attachmentLinkId,'original');})).rejects.toMatchObject({code:'WORK_TASK_FILE_READ_TRANSACTION_REQUIRED'});
-      const {prepareWorkTaskAttachmentParentRead}=await import('../../../src/server/modules/operations/public/task-attachment-read');await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return prepareWorkTaskAttachmentParentRead(tx,manager);})).rejects.toMatchObject({code:'LEGAL_ATTACHMENT_READ_PREPARATION_REQUIRED'});
+      const {prepareWorkTaskAttachmentParentRead}=await import('@erpx/server-operations/public/task-attachment-read');await expect(db.transaction(async tx=>{await tx.prepare('SELECT 1').first();return prepareWorkTaskAttachmentParentRead(tx,manager);})).rejects.toMatchObject({code:'LEGAL_ATTACHMENT_READ_PREPARATION_REQUIRED'});
     }finally{for(const [name,value] of [['ERPX_WORK_PACKAGE_ENFORCEMENT',previous.work],['ERPX_LEGAL_PACKAGE_ENFORCEMENT',previous.legal]] as const){if(value===undefined)delete process.env[name];else process.env[name]=value;}}
   });
   it("keeps Messaging CSV pending until clean, then binds it atomically and hides guessed links", async () => {

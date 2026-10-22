@@ -3,19 +3,19 @@ import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname, resolve, join } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
-import { assertHospitalityDevelopmentTarget } from "../../src/lib/shared/hospitality-seed-target";
-import type { WorkContext } from "../../src/server/modules/identity_access/public/authorization";
-import { businessRoles } from "../../src/lib/identity_access/business-roles";
-import { records, record, plusDays } from "../../src/server/modules/pms/public/rules/pms-model";
+import { assertHospitalityDevelopmentTarget } from "@erpx/feature-shared/lib/hospitality-seed-target";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
+import { records, record, plusDays } from "@erpx/server-pms/public/rules/pms-model";
 import { mock } from 'bun:test';
 // CLI has no page renderer. Fail closed if a domain command attempts navigation.
 mock.module('next/navigation',()=>({forbidden:()=>{throw new Error('CLI_PAGE_FORBIDDEN');},redirect:()=>{throw new Error('CLI_REDIRECT_FORBIDDEN');}}));
-import { PostgresDatabase } from "../../src/server/modules/runtime/adapters/runtime/postgres";
-const { pmsCommand, loadPms, drainPms }=await import("../../src/server/modules/pms/public/pms");
-const { posCommand, one }=await import("../../src/server/modules/pos/public/pos-core");
-const { saveMaster }=await import("../../src/server/modules/commerce/public/commerce");
-const { countSchema, saveCount, transitionCount }=await import("../../src/server/modules/inventory/public/inventory-counts");
-const {resolveFlow,assignFlowPrimary}=await import("../../src/server/modules/workflow/public/flow-routing");
+import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+const { pmsCommand, loadPms, drainPms }=await import("../../packages/server-pms/src/public/pms");
+const { posCommand, one }=await import("@erpx/server-pos/public/pos-core");
+const { saveMaster }=await import("@erpx/server-commerce/public/commerce");
+const { countSchema, saveCount, transitionCount }=await import("@erpx/server-inventory/public/inventory-counts");
+const {resolveFlow,assignFlowPrimary}=await import("@erpx/server-workflow/public/flow-routing");
 
 const manifestPath=process.env.ERPX_DATABASE_MANIFEST;
 if(!manifestPath)throw new Error('ERPX_DATABASE_MANIFEST_REQUIRED');
@@ -26,7 +26,7 @@ const jobsPath=join(dirname(manifestPath),'databases-jobs.json');
 const jobsManifest=JSON.parse(await readFile(jobsPath,'utf8'));
 assertHospitalityDevelopmentTarget(jobsManifest,process.env.ERPX_ENVIRONMENT??process.env.NODE_ENV);
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
-const {getRuntime,closeRuntime}=await import("../../src/server/modules/runtime/adapters/runtime/env");
+const {getRuntime,closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
 const env=getRuntime(),db=new PostgresDatabase({connectionString:jobsManifest.databases.H001_DB,max:2}),control=env.CONTROL_DB;
 
 const namespace='acme-hospitality-v1',directory=resolve('.scratch/dev/hospitality-acme');

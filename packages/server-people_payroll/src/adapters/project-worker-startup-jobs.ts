@@ -1,0 +1,42 @@
+import 'server-only';
+import {projectWorkerCommandEvidenceImage} from '@erpx/server-workflow/public/project-worker-startup-evidence';
+import {randomUUID} from 'node:crypto';
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {projectWorkerStartupJobAuthority,projectWorkerStartupSubject,projectWorkerAppliedEvidenceImage} from '@erpx/server-identity_access/public/project-worker-startup-subject';
+import {projectWorkerOrganizationSource} from '@erpx/server-organization/public/project-worker-startup-sources';
+import {checkPurchasedCapability,purchaseCommandBoundary} from '@erpx/server-commercial/public/purchase-command-boundary';
+import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
+import {workerStartupSourcePolicy,workerPlacementSourceRows,workerPlacementMarkedRows,learningWorkerPlacementMarkedRows,projectWorkerPlacementTerminalRows,type WorkerStartupConsumer} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
+import {projectWorkerSourceChanged,projectWorkerSourceLocks} from '@erpx/server-people_payroll/adapters/project-worker-startup-unit';
+import {projectWorkerPersonImage,parseJson} from '@erpx/server-people_payroll/adapters/project-worker-startup-state';
+/** Fixed raw marker detection, existing tables only and safe before1063. */
+export const projectWorkerJobMarkedPredicate=`EXISTS(SELECT 1 FROM (${workerPlacementMarkedRows}) project_worker_marked WHERE project_worker_marked.id=c.id)`;
+/** Preflight selects a unit, never authorizes it. The exact case and native
+ * proof are repeated under all leases; a unit never switches into fallback. */
+export function projectWorkerJobPreflight(database:SqlDatabase,now:number){return database.prepare(`SELECT c.id,c.company_id,CASE WHEN EXISTS(SELECT 1 FROM (${learningWorkerPlacementMarkedRows}) learning_source WHERE learning_source.id=c.id) THEN 'learn' ELSE 'projects' END consumer FROM people_lifecycle_cases c WHERE c.status='scheduled' AND c.effective_at<=? AND c.next_attempt_at<=? AND ${projectWorkerJobMarkedPredicate} ORDER BY c.effective_at,c.id LIMIT 1`).bind(now,now).first<{id:string;company_id:string;consumer:WorkerStartupConsumer}>();}
+export function projectWorkerJobSourceLocks(database:SqlDatabase){return projectWorkerSourceLocks(database,true);}
+export async function prepareProjectWorkerJob(database:SqlDatabase,target:{id:string;company_id:string;consumer:WorkerStartupConsumer}){
+ const policy=workerStartupSourcePolicy(target.consumer),projectWorkerCapabilities=policy.capabilities,changed=()=>projectWorkerSourceChanged(target.consumer);
+ const source=await database.prepare(`SELECT source.*,c.version,c.created_by,c.authorizing_assignment_id,c.definition,c.review_snapshot,c.status,c.effective_at,r.actor_id,r.authority_json FROM (${workerPlacementSourceRows}) source JOIN people_lifecycle_cases c ON c.id=source.id AND c.company_id=source.company_id JOIN command_receipts r ON r.command_id=source.command_id WHERE source.id=? AND source.company_id=? AND source.consumer=?`).bind(target.id,target.company_id,target.consumer).first<{id:string;company_id:string;person_id:string;engagement_id:string;account_id:string;version:number;status:string;created_by:string;actor_id:string;authorizing_assignment_id:string;authority_json:string;definition:unknown;review_snapshot:unknown;effective_at:number;proof:unknown}>();
+ if(!source||source.status!=='scheduled')throw changed();
+ const saved=parseJson<Record<string,unknown>>(source.authority_json),definition=parseJson<Record<string,unknown>>(source.definition),beforeAccount=await projectWorkerStartupSubject(database,source.company_id,source.account_id),beforeAuthority=await projectWorkerStartupJobAuthority(database,source.company_id,source.actor_id,saved),beforeOrg=await projectWorkerOrganizationSource(database,source.company_id),beforeEngagement=await database.prepare('SELECT * FROM hr_engagements WHERE id=? AND person_id=? AND company_id=?').bind(source.engagement_id,source.person_id,source.company_id).first<Record<string,unknown>>();
+ if(!beforeAccount||!beforeAuthority||!beforeEngagement||saved.assignmentId!==source.authorizing_assignment_id||source.created_by!==source.actor_id)throw changed();
+ const managerImage=typeof definition.managerPersonId==='string'?await projectWorkerPersonImage(database,source.company_id,definition.managerPersonId):null;
+ const person=await database.prepare('SELECT user_id FROM hr_people WHERE id=? AND company_id=? AND merged_into_id IS NULL').bind(source.person_id,source.company_id).first<{user_id:string|null}>();if(person?.user_id!==source.account_id)throw changed();
+ for(const feature of policy.releases)await assertProductionModuleEnabled(database,source.company_id,feature);
+ for(const capability of projectWorkerCapabilities)await checkPurchasedCapability(database,'enforced',{companyId:source.company_id,capability,purpose:'settle-existing'});
+ const key=`project-worker-job:${randomUUID()}`,boundaries=projectWorkerCapabilities.map((capability,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${key}:${index}`,{companyId:source.company_id,capability,purpose:'settle-existing'})!}));await database.batch(boundaries.flatMap(item=>item.boundary.before));
+ return {async finish(){
+  const after=await database.prepare('SELECT status,version,definition,review_snapshot FROM people_lifecycle_cases WHERE id=? AND company_id=?').bind(source.id,source.company_id).first<{status:string;version:number;definition:unknown;review_snapshot:unknown}>(),engagement=await database.prepare('SELECT * FROM hr_engagements WHERE id=? AND person_id=? AND company_id=?').bind(source.engagement_id,source.person_id,source.company_id).first<Record<string,unknown>>(),position=beforeOrg.positions.find(row=>row.id===definition.positionId);
+  if(!after||after.status!=='completed'||Number(after.version)!==Number(source.version)+1||!engagement||engagement.status!=='active'||Number(engagement.version)!==Number(beforeEngagement.version)+1||!position||engagement.position_id!==position.id||engagement.level_id!==position.level_id||engagement.manager_person_id!==(definition.managerPersonId??null))throw changed();
+  const expected=await projectWorkerPersonImage(database,source.company_id,source.person_id),expectedEvidence=await projectWorkerCommandEvidenceImage(database,source.company_id,source.id),expectedApplied=await projectWorkerAppliedEvidenceImage(database,source.company_id,source.id);
+  await database.batch(boundaries.flatMap(item=>[...item.boundary.after,database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(item.key)]));await flushFinanceDeferredEffects(database);
+  const [account,authority,organization,image,retained]=await Promise.all([projectWorkerStartupSubject(database,source.company_id,source.account_id),projectWorkerStartupJobAuthority(database,source.company_id,source.actor_id,saved),projectWorkerOrganizationSource(database,source.company_id),projectWorkerPersonImage(database,source.company_id,source.person_id),database.prepare(`SELECT 1 FROM (${policy.placementRows}) source WHERE source.id=? AND source.company_id=? AND source.command_id=?`).bind(source.id,source.company_id,(parseJson<{commandId:string}>(source.proof)).commandId).first()]);
+  const managerAfter=typeof definition.managerPersonId==='string'?await projectWorkerPersonImage(database,source.company_id,definition.managerPersonId):null;
+  const terminal=await database.prepare(`SELECT 1 FROM (${projectWorkerPlacementTerminalRows}) terminal WHERE terminal.id=? AND terminal.company_id=?`).bind(source.id,source.company_id).first();
+  if(!terminal||expectedEvidence!==await projectWorkerCommandEvidenceImage(database,source.company_id,source.id)||expectedApplied!==await projectWorkerAppliedEvidenceImage(database,source.company_id,source.id)||managerImage!==managerAfter||beforeAccount.image!==account?.image||beforeAuthority!==authority||beforeOrg.image!==organization.image||expected!==image||!retained)throw changed();
+  for(const feature of policy.releases)await assertProductionModuleEnabled(database,source.company_id,feature);
+  for(const capability of projectWorkerCapabilities)await checkPurchasedCapability(database,'enforced',{companyId:source.company_id,capability,purpose:'settle-existing'});
+ }};
+}

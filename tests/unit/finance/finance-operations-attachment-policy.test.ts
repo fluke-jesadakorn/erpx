@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { attachmentPolicy } from "../../../src/server/modules/files/public/attachments/policy";
-import { assertSanitizedEvidenceMetadata, financeOperationsAttachmentPolicies } from "../../../src/server/modules/files/public/attachments/finance-operations-policy";
+import { attachmentPolicy } from "@erpx/server-files/public/attachments/policy";
+import { assertSanitizedEvidenceMetadata, financeOperationsAttachmentPolicies } from "@erpx/server-files/public/attachments/finance-operations-policy";
 
 describe("Finance, hospitality, Organization and system attachment policy", () => {
 it("keeps its owner/purpose/component inventory exact and excludes projections and sensitive material", () => {

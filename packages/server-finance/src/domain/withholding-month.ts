@@ -1,0 +1,68 @@
+import { z } from 'zod';
+import type { ThaiDocumentSnapshot } from "@erpx/feature-finance/lib/finance-thai-document";
+const reason = z.string().trim().min(10).max(2000), version = z.number().int().positive();
+export const withholdingPackageSchema = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), formKind: z.enum(["PND3", "PND53"]), reason }).strict();
+export const withholdingPackageDecisionSchema = z.object({ expectedVersion: version, action: z.enum(["approve", "reject", "cancel"]), reason }).strict();
+export const withholdingRemittanceSchema = z.object({ expectedVersion: version, bankAccountId: z.string().min(1), bankTransactionId: z.string().min(1), bankVersion: version, bankReference: z.string().trim().min(1).max(160), filingChannel: z.literal("manual"), filingEvidence: reason }).strict();
+export const withholdingRemittanceReversalSchema = z.object({ expectedVersion: version, bankTransactionId: z.string().min(1), bankVersion: version, bankReference: z.string().trim().min(1).max(160), recoveryEvidence: reason }).strict();
+export type Row = Record<string, unknown>;
+export type SourceRow = {
+    assessmentId: string;
+    assessmentVersion: number;
+    paymentId: string;
+    paymentVersion: number;
+    paymentDate: string;
+    paymentJournalId: string;
+    liabilityAccountId: string;
+    chartId: string;
+    taxMinor: number;
+    incomeMinor: number;
+    sourceFingerprint: string;
+    documentId: string;
+    documentNumber: string;
+    documentSha256: string;
+    payer: ThaiDocumentSnapshot["payer"];
+    payee: ThaiDocumentSnapshot["payee"];
+    items: ThaiDocumentSnapshot["items"];
+    alreadyRemitted: boolean;
+};
+export type Source = {
+    schema: "finance.withholding.month.v1";
+    companyId: string;
+    month: string;
+    formKind: "PND3" | "PND53";
+    sources: SourceRow[];
+    taxMinor: number;
+    monthlyTaxMinor: number;
+    chartId: string;
+    certified: false;
+    filingAdapter: "manual_review_workpaper";
+};
+export type Package = Row & {
+    id: string;
+    status: string;
+    version: number;
+    prepared_by: string;
+    reviewed_by: string | null;
+    source_fingerprint: string;
+    snapshot_json: string;
+    export_csv: string;
+    export_sha256: string;
+    month: string;
+    form_kind: "PND3" | "PND53";
+    chart_id: string;
+    tax_minor: number;
+};
+export type MonthlyInput = z.infer<typeof withholdingPackageSchema>;
+export type MonthlyDecision = z.infer<typeof withholdingPackageDecisionSchema>;
+export type RemittanceInput = z.infer<typeof withholdingRemittanceSchema>;
+export type RecoveryInput = z.infer<typeof withholdingRemittanceReversalSchema>;
+export type BankInput = {
+    bankTransactionId: string;
+    bankVersion: number;
+    bankReference: string;
+};
+export type BankEvidence = {
+    row: Row;
+    periodId: string;
+};

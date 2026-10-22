@@ -1,5 +1,5 @@
 import { expect,it } from "vitest";
-import { financeReportPeriods } from "../../../src/lib/finance/finance-report-periods";
+import { financeReportPeriods } from "@erpx/feature-finance/lib/finance-report-periods";
 const period=(id:string,start_date:string,end_date:string,state="closed")=>({id,start_date,end_date,state});
 it("uses the closed fiscal year without double selecting its closed monthly periods",()=>{
  expect(financeReportPeriods([period("September","2026-09-01","2026-09-30"),period("October","2026-10-01","2026-10-31"),period("year","2026-01-01","2026-12-31")],"2026-01-01","2026-12-31")).toEqual(["year"]);

@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
   readBranch: null as string | null,
 }));
 
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({
   requestedHoldingScope: async () => state.scope,
   requireWorkContext: async () => ({
     role: state.role, assignmentScope: state.role === "operations_manager" ? "branch" : "holding",
@@ -22,11 +22,11 @@ vi.mock("../../../src/server/modules/identity_access/public/authorization", () =
   }),
   requireManageErpxContext: async () => ({ platform: { role: state.platformRole } }),
 }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   activeHoldingBindings: async () => [{ id: "h001", slug: "acme", displayName: "Acme Group" }],
   runtimeEnv: async () => ({ CONTROL_DB: {} }),
 }));
-vi.mock("../../../src/server/modules/commercial/public/usage", () => ({
+vi.mock("@erpx/server-commercial/public/usage", () => ({
   usageMonth: (month: string | null) => ({ month: month ?? "2026-09" }),
   readHoldingUsage: async (_binding: unknown, _month: string, branchId: string | null) => {
     state.readBranch = branchId;
@@ -46,12 +46,12 @@ vi.mock("../../../src/server/modules/commercial/public/usage", () => ({
     };
   },
 }));
-vi.mock("../../../src/server/modules/commercial/public/usage-projection", () => ({
+vi.mock("@erpx/server-commercial/public/usage-projection", () => ({
   readPlatformUsageProjection: async () => ({ holdings: [], items: [], unavailable: [] }),
 }));
 
-import { GET as holdingGet } from "../../../src/app/api/v1/holdings/[holdingSlug]/usage/route";
-import { GET as platformGet } from "../../../src/app/api/v1/platform/billing/usage/route";
+import { GET as holdingGet } from "@erpx/feature-admin/routes/api/v1/holdings/[holdingSlug]/usage/route";
+import { GET as platformGet } from "@erpx/feature-admin/routes/api/v1/platform/billing/usage/route";
 
 const context = { params: Promise.resolve({ holdingSlug: "acme" }) };
 const request = () => new Request("http://localhost:3100/api/v1/holdings/acme/usage?month=2026-09");

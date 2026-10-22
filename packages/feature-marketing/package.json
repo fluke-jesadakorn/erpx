@@ -1,0 +1,26 @@
+{
+  "name": "@erpx/feature-marketing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/public-form-draft-boundary": "./src/components/public-form-draft-boundary.tsx",
+    "./components/public-marketing-form": "./src/components/public-marketing-form.tsx",
+    "./components/marketing-console": "./src/components/marketing-console.tsx",
+    "./lib/public-form-command": "./src/lib/public-form-command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-collaboration": "workspace:*",
+    "@erpx/feature-crm": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-marketing": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "react": "19.3.0"
+  }
+}

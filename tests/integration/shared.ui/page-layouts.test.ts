@@ -10,17 +10,17 @@ import {
   pageLayoutSchema,
   reconcileLayout,
   resetWidgetToOrganization,
-} from "../../../src/lib/work_projection/page-layouts";
-import { pageLayoutRequest } from "../../../src/server/modules/work_projection/public/page-layouts";
+} from "@erpx/feature-work_projection/lib/page-layouts";
+import { pageLayoutRequest } from "@erpx/server-work_projection/public/page-layouts";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { applyMigrations, env } from "../../support/runtime-env";
 let actor: WorkContext;
 let user = "",
   sessionId = "",
   assignment = "";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB }) }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({ write: env.H001_DB }) }));
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({
   currentSession: async () => ({
     session: await env.CONTROL_DB.prepare("SELECT id FROM session WHERE id=?").bind(sessionId).first() ? { user: { id: user }, session: { id: sessionId } } : null,
   }),
@@ -33,7 +33,7 @@ vi.mock("../../../src/server/modules/identity_access/public/authorization", () =
   publicScope: (work: WorkContext) => work.scope,
 
 }));
-vi.mock("../../../src/server/modules/work_projection/public/navigation-context", () => ({ navigationContext: async () => ({
+vi.mock("@erpx/server-work_projection/public/navigation-context", () => ({ navigationContext: async () => ({
   workspaceBase: "/holdings/test", scopeKind: "holding", role: actor.role,
   adminSections: ["people", "organization"], executiveVisible: true,
 }) }));

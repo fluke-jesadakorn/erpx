@@ -1,11 +1,11 @@
 import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { drainPayrollSchedules,drainPayrollScheduledPreviews,submitPayrollReview } from "../../../src/server/modules/people_payroll/public/payroll-readiness";
-import { approvePayrollRun } from "../../../src/server/modules/people_payroll/public/people-payroll";
-import { packageGrantStore, readCompanyPackageGrants } from "../../../src/server/modules/commercial/public/package-grants";
+import { drainPayrollSchedules,drainPayrollScheduledPreviews,submitPayrollReview } from "@erpx/server-people_payroll/public/payroll-readiness";
+import { approvePayrollRun } from "@erpx/server-people_payroll/public/people-payroll";
+import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 let fixture:Awaited<ReturnType<typeof expenseFixture>>;
 const ownedScheduleGroups:string[]=[];

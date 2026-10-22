@@ -2,11 +2,11 @@ import { randomBytes } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { hashPassword } from 'better-auth/crypto';
-import type { RuntimeEnv } from "../../../src/server/modules/runtime/adapters/runtime/env";
-import { pmsCommand } from "../../../src/server/modules/pms/public/pms";
+import type { RuntimeEnv } from "@erpx/server-runtime/adapters/runtime/env";
+import { pmsCommand } from "../../../packages/server-pms/src/public/pms";
 import { createBookingBrowserFixture } from "./booking-browser";
-import { isTransactionalSqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
-import { pmsAccountKeys,type Config } from "../../../src/server/modules/pms/public/rules/pms";
+import { isTransactionalSqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import { pmsAccountKeys,type Config } from "@erpx/server-pms/public/rules/pms";
 
 /** Called only inside the exact disposable browser database launcher.
  * Reviewed configuration uses normal commands; volume history is synthetic

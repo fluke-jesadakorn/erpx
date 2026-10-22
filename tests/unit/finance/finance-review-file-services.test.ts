@@ -1,7 +1,7 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceReviewFileEvidence,type FinanceReviewFilePorts} from "../../../src/server/modules/finance/application/review-file-evidence";
-import {createFinanceReviewFilePolicy} from "../../../src/server/modules/finance/domain/review-file-evidence";
-import type {FinanceReviewFileSource} from "../../../src/server/modules/files/public/finance-review-contract";
+import {createFinanceReviewFileEvidence,type FinanceReviewFilePorts} from "@erpx/server-finance/application/review-file-evidence";
+import {createFinanceReviewFilePolicy} from "@erpx/server-finance/domain/review-file-evidence";
+import type {FinanceReviewFileSource} from "@erpx/server-files/public/finance-review-contract";
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code}),actor={companyId:'company',userId:'reviewer'},file:FinanceReviewFileSource={link_id:'link',source_id:'source',link_state:'bound',set_state:'bound',purpose_key:'finance_contract',checksum_sha256:'retained-checksum',media_type:'application/pdf',bytes:345,source_state:'available'};
 function context(extra:Partial<FinanceReviewFilePorts>={}){const ports:FinanceReviewFilePorts={error,files:vi.fn(async()=>[file]),hash:vi.fn(async bytes=>`hash:${bytes}`),now:()=>123,...extra};return {ports,run:createFinanceReviewFileEvidence(ports)}}
 describe('Finance independent review Files owner evidence',()=>{

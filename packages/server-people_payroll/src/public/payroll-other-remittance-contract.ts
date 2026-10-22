@@ -1,0 +1,2 @@
+export {payrollOtherDescriptions} from '@erpx/server-people_payroll/domain/payroll-other-remittance';
+export type {PayrollOtherLiabilityKind,PayrollOtherRemittanceInput,PayrollOtherBankEvidenceInput,PayrollOtherRemittanceResult,PayrollOtherBankEvidenceResult,PayrollOtherBankEvidenceIgnoreInput,PayrollOtherBankEvidenceIgnoreResult} from '@erpx/server-people_payroll/domain/payroll-other-remittance';

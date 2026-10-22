@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {addBusinessTime,elapsedBusinessTime,businessCalendarSchema,type BusinessCalendar} from "../../../src/lib/shared/business-time";
+import {addBusinessTime,elapsedBusinessTime,businessCalendarSchema,type BusinessCalendar} from "@erpx/feature-shared/lib/business-time";
 const clock:BusinessCalendar={timezone:'Asia/Bangkok',weekdays:[1,2,3,4,5],opensAtMinute:540,closesAtMinute:1020,holidays:['2026-09-21']};
 const at=(s:string)=>Date.parse(s);
 it('retains seconds and skips weekends/holidays according to the supplied calendar snapshot',()=>{

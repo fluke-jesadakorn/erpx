@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import registry from "../../../docs/archive/2026-10-03-engineering-inputs/module-registry.json";
 import receipt from "../../../docs/testing/evidence/2026-10-03-engineering-completion.json";
 import reviews from "../../../docs/status/capability-gate-reviews.json";
-import { validateEngineeringInventory, inventoryVerification } from "../../../src/lib/runtime/engineering-inventory-report";
-import { reviewedCapabilityManifest } from "../../../src/data/capability-gate-reviews";
+import { validateEngineeringInventory, inventoryVerification } from "@erpx/feature-runtime/lib/engineering-inventory-report";
+import { reviewedCapabilityManifest } from "@erpx/catalogue/capability-gate-reviews";
 
 const hash = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
 const validate = (value: unknown) => validateEngineeringInventory(value, registry,

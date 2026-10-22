@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const { workFetch } = vi.hoisted(() => ({ workFetch: vi.fn() }));
-vi.mock("../../../src/lib/work_projection/work-fetch", () => ({ workFetch }));
-import { createLegalCommandClient } from "../../../src/lib/shared/legal/command-client";
+vi.mock("@erpx/feature-work_projection/lib/work-fetch", () => ({ workFetch }));
+import { createLegalCommandClient } from "@erpx/feature-shared/lib/legal/command-client";
 
 const path = "/api/v1/holdings/acme/legal";
 const input = { action: "create", title: "Contract question", metadata: { subject: "Thai text ไทย" } };
@@ -86,14 +86,14 @@ it("keeps recovery isolated to the saved work context", async () => {
 
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {LegalPortal} from '../../../src/components/legal/legal-portal';
-import {legalPortalSnapshot,legalPortalSnapshotMatches} from '../../../src/lib/legal/portal-snapshot';
+import {LegalPortal} from '@erpx/feature-legal/components/legal-portal';
+import {legalPortalSnapshot,legalPortalSnapshotMatches} from '@erpx/feature-legal/lib/portal-snapshot';
 const sharedSource={shareId:'actual-share',kind:'contract',doc:{name:'Actual authorized shared version',body:'Current expressly shared document content.',version:3,checksum:'pinned-sha',object_key:'private-storage-secret'},comments:[{body:'External discussion only',created_at:1}],billing:[{id:'entry',title:'Own submitted hours',state:'submitted',data:{minutes:30,amount:0,evidence:'Private source field unused by these controls'}}],envelopes:[{id:'envelope',state:'sent',consent:'Original recorded consent',signer_state:'pending',expires_at:1}],signingEnabled:false,purchase:{settleExisting:true,history:true,revision:'minimal-revision'},sessionId:'private-session-secret',grants:['private-grant']};
 it('renders the authorized shared version as initial server content and matches only its exact snapshot source',()=>{const initial=legalPortalSnapshot(sharedSource);const html=renderToStaticMarkup(createElement(LegalPortal,{slug:'h001',commandScope:'isolated-portal-account-session',initial:[],initialShareId:'actual-share',initialDetail:initial,quickAccessItems:[],quickAccessPreferences:{pinnedIds:[],version:0}}));expect(html).toContain('Current expressly shared document content.');expect(html).not.toContain('Loading shared document');expect(legalPortalSnapshotMatches(initial,'actual-share')).toBe(true);expect(legalPortalSnapshotMatches(initial,'another-share')).toBe(false);expect(legalPortalSnapshotMatches(undefined,'actual-share')).toBe(false);});
 it('retains shared document history while disabling unavailable settlement and keeping unready signing actions absent',()=>{const initial=legalPortalSnapshot({...sharedSource,purchase:{...sharedSource.purchase,settleExisting:false}}),html=renderToStaticMarkup(createElement(LegalPortal,{slug:'h001',commandScope:'isolated-portal-account-session',initial:[],initialShareId:'actual-share',initialDetail:initial,quickAccessItems:[],quickAccessPreferences:{pinnedIds:[],version:0}})),accept=Array.from(html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)).find(match=>match[0].includes('Accept invitation'))?.[0];expect(accept).toContain('disabled=""');expect(html).toContain('Download original');expect(html).not.toContain('Accept and sign');expect(html).not.toContain('>Decline<');expect(html).toContain('Original recorded consent');});
 it('serializes only the exact Portal presentation fields without private session, grant or unused file metadata',()=>{const snapshot=legalPortalSnapshot(sharedSource);expect(JSON.stringify(snapshot)).not.toMatch(/private-storage-secret|private-session-secret|private-grant|Private source field unused/);expect(Object.keys(snapshot.doc).sort()).toEqual(['body','checksum','name','version']);expect(snapshot.billing[0].data).toEqual({minutes:'30',amount:'0'});expect(snapshot.purchase).toEqual({settleExisting:true,history:true,revision:'minimal-revision'});});
 
-import {legalActionPurchased} from '../../../src/server/modules/legal/public/rules/purchases';
+import {legalActionPurchased} from '@erpx/server-legal/public/rules/purchases';
 it('separates active Legal amendment from retained comment, hold and original document workflow controls',()=>{
  const draining={newWork:false,settleExisting:true,history:true,revision:'actual-current'},purchases={'legal.contracts':draining,'legal.documents':draining,'legal.access':draining,'legal.obligations':draining};
  for(const action of ['create','update','document','share','revision.create','finance.prepare'])expect(legalActionPurchased(purchases,'contract',action)).toBe(false);
@@ -104,7 +104,7 @@ it('separates active Legal amendment from retained comment, hold and original do
  expect(legalActionPurchased(undefined,'contract','create')).toBe(true);
 });
 
-import {legalWorkspaceSnapshot} from '../../../src/lib/legal/workspace-snapshot';
+import {legalWorkspaceSnapshot} from '@erpx/feature-legal/lib/workspace-snapshot';
 it('keeps owner download content and checksums while omitting private Legal File pointers from browser snapshots',()=>{
  const source={item:{id:'actual-contract'},documents:[{id:'actual-original',item_id:'actual-contract',version:2,name:'Approved original.pdf',media_type:'application/pdf',checksum:'current-checksum',bytes:100,body:'',created_by:'authorized-owner',created_at:1,locked:true,object_key:'private/canonical/original',attachment_link_id:'private-link-id',attachment_source_id:'private-source-id'}],events:[],members:[],holds:[],links:[],comments:[],envelopes:[],shares:[],submissions:[]} as unknown as Parameters<typeof legalWorkspaceSnapshot>[0],snapshot=legalWorkspaceSnapshot(source);
  expect(snapshot.documents).toEqual([expect.objectContaining({id:'actual-original',checksum:'current-checksum',version:2,object_key:null})]);expect(JSON.stringify(snapshot)).not.toMatch(/private\/canonical|private-link-id|private-source-id|attachment_link_id|attachment_source_id/);expect(source.documents[0].object_key).toBe('private/canonical/original');
@@ -116,8 +116,8 @@ it('retains exact Legal hold and existing retention duties after inactive withou
  for(const action of ['retention.policy','create','update','document','comment','share','approval.open'])expect(legalActionPurchased(purchases,'contract',action)).toBe(false);
 });
 
-import {createLegalPortalCommandClient} from '../../../src/lib/legal/portal-command-client';
-import {legalPortalUploadFingerprintInput} from '../../../src/server/modules/legal/public/rules/portal-upload-recovery';
+import {createLegalPortalCommandClient} from '@erpx/feature-legal/lib/portal-command-client';
+import {legalPortalUploadFingerprintInput} from '@erpx/server-legal/public/rules/portal-upload-recovery';
 const portalBase='/api/legal-portal/h001',portalSource={shareId:'actual-share',version:3,checksum:'immutable-shared-revision'},portalInput={action:'comment',shareId:'actual-share',body:'Original submitted discussion'};
 function portalTransport(){const transport=vi.fn();vi.stubGlobal('fetch',transport);return transport;}
 it('recovers a lost public Portal response after refresh with the exact saved body and key under its original account session',async()=>{
@@ -167,8 +167,8 @@ it('does not accept an upload outcome as confirmation of an unknown comment',asy
  const transport=portalTransport(),send=createLegalPortalCommandClient(portalBase,'account-session-a');transport.mockRejectedValueOnce(new TypeError('lost response'));await expect(send.command(portalSource,portalInput)).rejects.toThrow('lost response');transport.mockResolvedValueOnce(Response.json({data:{uploadOutcome:{id:'unrelated',requestFingerprint:'unrelated',outcome:'not-applied'}}}));await expect(send.recover()).rejects.toThrow('could not be confirmed');expect(send.pending()).toMatchObject({kind:'command',shareId:portalSource.shareId});
 });
 
-import {createLegalDocumentUploadClient,legalDocumentUploadAcknowledged} from '../../../src/lib/legal/document-upload-client';
-import {legalCommandAcknowledged} from '../../../src/lib/shared/legal/command-acknowledgement';
+import {createLegalDocumentUploadClient,legalDocumentUploadAcknowledged} from '@erpx/feature-legal/lib/document-upload-client';
+import {legalCommandAcknowledged} from '@erpx/feature-shared/lib/legal/command-acknowledgement';
 it.each([{id:'another-record',version:8},{id:'original-record',version:7},{id:'original-record'},{},null])('retains an internal Legal mutation until its exact record/version is acknowledged (%j)',async data=>{
  workFetch.mockResolvedValueOnce(Response.json({data}));const send=createLegalCommandClient('actual-work-context',{strictOwnerReceipt:true}),body={action:'update',id:'original-record',expectedVersion:7,item:{title:'Submitted original'}};await expect(send(path,body)).rejects.toThrow('did not acknowledge');expect(send.hasPending()).toBe(true);expect(workFetch.mock.calls[0][3]).toBe('caller');workFetch.mockResolvedValueOnce(Response.json({data:{id:'original-record',version:8}}));expect(await send.recover()).toMatchObject({input:body,data:{id:'original-record',version:8}});expect(workFetch.mock.calls[1][1]).toEqual(workFetch.mock.calls[0][1]);
 });
@@ -189,10 +189,10 @@ it('acknowledges an executed import only with the original item, next version an
 });
 
 import * as React from 'react';
-import {Button,Field,InlineNotice,Select,TextArea,TextInput} from '../../../src/components/ui/foundation';
-import {DraftFormDrawer} from '../../../src/components/ui/draft-form-drawer';
+import {Button,Field,InlineNotice,Select,TextArea,TextInput} from '@erpx/ui/components/foundation';
+import {DraftFormDrawer} from '@erpx/ui/components/draft-form-drawer';
 async function actualCounselBillingDrawer(){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL('../../../src/components/legal/legal-portal.tsx',import.meta.url),'utf8'),tree=ts.createSourceFile('actual-counsel-billing.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='LegalPortal');if(!owner||!ts.isFunctionDeclaration(owner)||!owner.body)throw Error('Original LegalPortal required');
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../packages/feature-legal/src/components/legal-portal.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-counsel-billing.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='LegalPortal');if(!owner||!ts.isFunctionDeclaration(owner)||!owner.body)throw Error('Original LegalPortal required');
  const nodes=owner.body.statements.filter(ts.isFunctionDeclaration).filter(node=>['acknowledged','act','recover'].includes(node.name?.text??''));expect(nodes).toHaveLength(3);let drawerNode:import('typescript').JsxElement|undefined,triggerNode:import('typescript').JsxElement|undefined;const visit=(node:import('typescript').Node)=>{if(ts.isJsxElement(node)&&node.openingElement.tagName.getText(tree)==='DraftFormDrawer')drawerNode=node;if(ts.isJsxElement(node)&&node.openingElement.tagName.getText(tree)==='Button'&&node.children.some(child=>ts.isJsxText(child)&&child.text.trim()==='Submit time or fees for review'))triggerNode=node;ts.forEachChild(node,visit);};visit(owner);if(!drawerNode)throw Error('Original counsel billing drawer required');
  const current=legalPortalSnapshot({...sharedSource,kind:'counsel'}),send=createLegalPortalCommandClient('/api/legal-portal/h001','counsel-original-session'),state={busy:false,error:'',notice:'',billingOpen:true,pendingAction:null as ReturnType<typeof send.pending>,billing:{entryType:'time',description:'Original reviewed counsel work',minutes:'30',amount:'0',evidence:'Actual original time evidence'}},emptyBilling={entryType:'time',description:'',minutes:'0',amount:'0',evidence:''},selectedRef={current},bodyRef={current:''},billingRef={current:state.billing},fileRef={current:null as File|null},fileInput={current:null as HTMLInputElement|null},alive={current:true},commandInFlight={current:false},open=vi.fn(async(id:string)=>{expect(id).toBe(current.shareId);});
  const compile=(value:string)=>ts.transpileModule(value,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText,
@@ -215,8 +215,8 @@ it('Legal Portal cannot open a new billing drawer over an unrelated restored upl
 // Exercise the actual mixed-kind queue component and its parent's actual open
 // handler. The native current queue reader and React host controls are ports;
 // these cases establish handoff/URL behavior, not native permission acceptance.
-import {recordDrawerHref} from '../../../src/lib/records/record-drawer';
-import {labels as legalQueueLabels,type LegalKind} from '../../../src/server/modules/legal/public/rules/model';
+import {recordDrawerHref} from '@erpx/feature-records/lib/record-drawer';
+import {labels as legalQueueLabels,type LegalKind} from '@erpx/server-legal/public/rules/model';
 type LegalQueueRow={id:string;kind:LegalKind;title:string;state:string;due_date:string|null;owner_id:string};
 type LegalQueueCell={value?:unknown;deps?:readonly unknown[];cleanup?:()=>void};
 function legalQueueHooks(){
@@ -227,10 +227,10 @@ function legalQueueHooks(){
 }
 function legalQueueNodes(node:React.ReactNode,out:React.ReactElement<Record<string,unknown>>[]=[]){React.Children.forEach(node,child=>{if(!React.isValidElement<Record<string,unknown>>(child))return;out.push(child);legalQueueNodes(child.props.children as React.ReactNode,out);});return out;}
 async function actualLegalQueueHandoff(kind:LegalKind,view:'mine'|'deadlines',items:LegalQueueRow[]){
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),jsx=await import('react/jsx-runtime'),[workspace,queue]=await Promise.all([readFile(new URL('../../../src/components/legal/legal-workspace.tsx',import.meta.url),'utf8'),readFile(new URL('../../../src/components/legal/legal-work-queue.tsx',import.meta.url),'utf8')]),tree=ts.createSourceFile('actual-legal-workspace.tsx',workspace,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let openNode:import('typescript').FunctionDeclaration|undefined;
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),jsx=await import('react/jsx-runtime'),[workspace,queue]=await Promise.all([readFile(new URL("../../../packages/feature-legal/src/components/legal-workspace.tsx",import.meta.url),'utf8'),readFile(new URL("../../../packages/feature-legal/src/components/legal-work-queue.tsx",import.meta.url),'utf8')]),tree=ts.createSourceFile('actual-legal-workspace.tsx',workspace,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let openNode:import('typescript').FunctionDeclaration|undefined;
  const visit=(node:import('typescript').Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='LegalWorkspace'&&node.body){openNode=node.body.statements.find((item):item is import('typescript').FunctionDeclaration=>ts.isFunctionDeclaration(item)&&item.name?.text==='open');}ts.forEachChild(node,visit);};visit(tree);if(!openNode)throw Error('Actual Legal owner open handler required');
  const current=`https://legal.example.test/holdings/acme/services/legal/${view}?q=preserved`,router={push:vi.fn()},ownerPorts={embedded:false,selected:null,kind,router,recordDrawerHref,window:{location:{href:current}}},ownerBody=ts.transpileModule(`${openNode.getText(tree)}\nreturn open;`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,owner=new Function(...Object.keys(ownerPorts),ownerBody)(...Object.values(ownerPorts)) as (id:string,targetKind?:LegalKind)=>Promise<void>,open=vi.fn(owner),call=vi.fn(async()=>({assigned:items,deadlines:items})),hooks=legalQueueHooks(),loaded={exports:{} as Record<string,unknown>},compiled=ts.transpileModule(queue,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
- const ports=(name:string):unknown=>{if(name==='react')return hooks.react;if(name==='react/jsx-runtime')return jsx;if(name.endsWith('/foundation'))return{Button:'button',InlineNotice:'Notice'};if(name.endsWith('/rules/model'))return{labels:legalQueueLabels};if(name==='./legal.module.css')return{default:{detail:'detail',small:'small',event:'event',link:'link'}};throw Error('Unexpected actual Legal work-queue import '+name);};new Function('require','module','exports',compiled)(ports,loaded,loaded.exports);
+ const ports=(name:string):unknown=>{if(name==='react')return hooks.react;if(name==='react/jsx-runtime')return jsx;if(name.endsWith("@erpx/ui/components/foundation"))return{Button:'button',InlineNotice:'Notice'};if(name.endsWith("@erpx/server-legal/public/rules/model"))return{labels:legalQueueLabels};if(name==="@erpx/feature-legal/components/legal.module.css")return{default:{detail:'detail',small:'small',event:'event',link:'link'}};throw Error('Unexpected actual Legal work-queue import '+name);};new Function('require','module','exports',compiled)(ports,loaded,loaded.exports);
  const Component=loaded.exports.LegalWorkQueue as (props:{view:'mine'|'deadlines';people:{id:string;name:string}[];call:(path:string)=>Promise<unknown>;open:(id:string,targetKind?:LegalKind)=>Promise<void>})=>React.ReactNode;
  return{router,open,call,current,render:()=>hooks.render(()=>Component({view,people:[],call,open})),close:()=>hooks.close()};
 }
@@ -248,7 +248,7 @@ it('existing Legal callers that supply only an id keep the current register kind
  const mounted=await actualLegalQueueHandoff('template','mine',[]);try{await mounted.open('existing-template');expect(mounted.router.push).toHaveBeenCalledOnce();const [href,options]=mounted.router.push.mock.calls[0],url=new URL(String(href),'https://legal.example.test');expect(url.pathname).toBe('/holdings/acme/services/legal/template/existing-template/overview');expect(url.searchParams.get('returnTo')).toBe('/holdings/acme/services/legal/mine?q=preserved');expect(options).toEqual({scroll:false});expect(mounted.call).not.toHaveBeenCalled();}finally{mounted.close();}
 });
 it('a native current queue denial reports its error without supplying any destination rows',async()=>{
- const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL('../../../src/components/legal/legal-work-queue.tsx',import.meta.url),'utf8'),tree=ts.createSourceFile('actual-legal-queue-effect.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='LegalWorkQueue');if(!owner||!ts.isFunctionDeclaration(owner)||!owner.body)throw Error('Actual Legal work queue required');const effect=owner.body.statements.filter(ts.isExpressionStatement).map(node=>node.expression).find(node=>ts.isCallExpression(node)&&node.expression.getText(tree)==='useEffect');if(!effect||!ts.isCallExpression(effect)||!effect.arguments[0])throw Error('Actual Legal queue reader effect required');
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),text=await readFile(new URL("../../../packages/feature-legal/src/components/legal-work-queue.tsx",import.meta.url),'utf8'),tree=ts.createSourceFile('actual-legal-queue-effect.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),owner=tree.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='LegalWorkQueue');if(!owner||!ts.isFunctionDeclaration(owner)||!owner.body)throw Error('Actual Legal work queue required');const effect=owner.body.statements.filter(ts.isExpressionStatement).map(node=>node.expression).find(node=>ts.isCallExpression(node)&&node.expression.getText(tree)==='useEffect');if(!effect||!ts.isCallExpression(effect)||!effect.arguments[0])throw Error('Actual Legal queue reader effect required');
  const denied=Object.assign(new Error('Current Legal source authority denied'),{status:403,code:'LEGAL_ACCESS_CHANGED'}),call=vi.fn(async()=>{throw denied;}),setData=vi.fn(),setError=vi.fn(),ports={call,setData,setError},emitted=ts.transpileModule(`return (${effect.arguments[0].getText(tree)})();`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,cleanup=new Function(...Object.keys(ports),emitted)(...Object.values(ports)) as ()=>void;
  try{await vi.waitFor(()=>expect(setError).toHaveBeenCalledExactlyOnceWith(denied.message));expect(call).toHaveBeenCalledExactlyOnceWith('/workspace');expect(setData).not.toHaveBeenCalled();}finally{cleanup();}
 });

@@ -1,6 +1,6 @@
 import { getLocalProxy } from "../local/fixtures";
-import { moduleRegistry } from "../../src/data/module-registry";
-import { businessRoles,type BusinessRole } from "../../src/lib/identity_access/business-roles";
+import { moduleRegistry } from "@erpx/catalogue/module-registry";
+import { businessRoles,type BusinessRole } from "@erpx/feature-identity_access/lib/business-roles";
 import { hashPassword } from "better-auth/crypto";
 const p=await getLocalProxy({configPath:"wrangler.jsonc",persist:true,remoteBindings:false});
 const now=Date.now();

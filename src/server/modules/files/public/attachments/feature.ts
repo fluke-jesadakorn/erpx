@@ -1,1 +1,0 @@
-export {attachmentsV2Enabled,attachmentsV2ReadOnly,attachmentsV2Readable,attachmentUploadsFrozen,requireAttachmentsV2,requireAttachmentsV2Read,ATTACHMENT_MAX_BYTES,ATTACHMENT_RESERVATION_MS,ATTACHMENT_DRAFT_MS} from "../../adapters/attachments/feature";

@@ -1,0 +1,11 @@
+import "server-only";
+import { publicScope } from "@erpx/server-identity_access/public/authorization";
+import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
+import { workSnapshot } from "@erpx/server-work_projection/adapters/work-items";
+import { getWorkCapabilities } from "@erpx/server-work_projection/adapters/work-capabilities";
+import { navigationContext } from "@erpx/server-work_projection/public/navigation-context";
+import { readWorkCardPreferences } from "@erpx/server-work_projection/adapters/work-card-preferences";
+import { createWorkSummary } from "@erpx/server-work_projection/application/work-summary";
+const service = createWorkSummary({ clock: { now: () => Date.now() }, scope: publicScope, resource: async (actor) => { const { write } = await holdingResources(actor.holdingId); return { capabilities: actor => getWorkCapabilities(write, actor), preferences: actor => readWorkCardPreferences(write, actor) }; }, navigation: navigationContext, snapshot: workSnapshot });
+export const getWorkCardProjection = service.getWorkCardProjection, getWorkSummary = service.getWorkSummary, getWorkPage = service.getWorkPage;
+export type { WorkSummary, WorkPageSummary } from "@erpx/server-work_projection/application/work-summary";

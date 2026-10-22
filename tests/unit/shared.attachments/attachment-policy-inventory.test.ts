@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { attachmentPolicy, attachmentPolicyRegistry, attachmentRetentionSnapshot } from "../../../src/server/modules/files/public/attachments/policy";
-import { legacyAttachmentPolicy } from "../../../src/server/modules/files/public/attachments/legacy-policy";
+import { attachmentPolicy, attachmentPolicyRegistry, attachmentRetentionSnapshot } from "@erpx/server-files/public/attachments/policy";
+import { legacyAttachmentPolicy } from "@erpx/server-files/public/attachments/legacy-policy";
 
 describe("canonical attachment lifecycle", () => {
 it("keeps a closed exact policy inventory",()=>{

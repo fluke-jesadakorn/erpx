@@ -1,19 +1,19 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createCommandApplication,type CommandPorts,type CommandRepository} from "../../../src/server/modules/workflow/application/commands";
-import {createCommandPolicyApplication,type CommandPolicyPorts} from "../../../src/server/modules/workflow/application/command-policies";
-import {createJobProjectorApplication,type JobProjectorPorts} from "../../../src/server/modules/workflow/application/job-projector";
-import {createFlowAccessApplication} from "../../../src/server/modules/workflow/application/flow-access";
-import {createFlowWorkApplication,type FlowWorkPorts} from "../../../src/server/modules/workflow/application/flow-work";
-import {createFlowRoutingApplication,type FlowRoutingPorts,type FlowRoutingRepository} from "../../../src/server/modules/workflow/application/flow-routing";
-import {createRoutingAttentionApplication,type RoutingAttentionPorts} from "../../../src/server/modules/workflow/application/routing-attention";
-import {flowCommandTarget,flowRoleAllowed} from "../../../src/server/modules/workflow/domain/flow-routing";
-import {eventWork,type EventMessage} from "../../../src/server/modules/workflow/domain/job-projector";
-import {BusinessRuleError} from "../../../src/server/modules/shared/index";
-import {createApprovalAdministrationApplication,type ApprovalAdministrationPorts,type ApprovalAdministrationRecord} from "../../../src/server/modules/workflow/application/approval-administration";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {CommandActor} from "../../../src/server/modules/workflow/domain/commands";
-import type {FlowView,FlowStep} from "../../../src/lib/shared/flow";
-import type {WorkItem} from "../../../src/lib/work_projection/work-item";
+import {createCommandApplication,type CommandPorts,type CommandRepository} from "@erpx/server-workflow/application/commands";
+import {createCommandPolicyApplication,type CommandPolicyPorts} from "@erpx/server-workflow/application/command-policies";
+import {createJobProjectorApplication,type JobProjectorPorts} from "@erpx/server-workflow/application/job-projector";
+import {createFlowAccessApplication} from "@erpx/server-workflow/application/flow-access";
+import {createFlowWorkApplication,type FlowWorkPorts} from "@erpx/server-workflow/application/flow-work";
+import {createFlowRoutingApplication,type FlowRoutingPorts,type FlowRoutingRepository} from "@erpx/server-workflow/application/flow-routing";
+import {createRoutingAttentionApplication,type RoutingAttentionPorts} from "@erpx/server-workflow/application/routing-attention";
+import {flowCommandTarget,flowRoleAllowed} from "@erpx/server-workflow/domain/flow-routing";
+import {eventWork,type EventMessage} from "@erpx/server-workflow/domain/job-projector";
+import {BusinessRuleError} from "@erpx/server-shared/index";
+import {createApprovalAdministrationApplication,type ApprovalAdministrationPorts,type ApprovalAdministrationRecord} from "@erpx/server-workflow/application/approval-administration";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {CommandActor} from "@erpx/server-workflow/domain/commands";
+import type {FlowView,FlowStep} from "@erpx/feature-shared/lib/flow";
+import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[]};
 function administration(overrides:Partial<ApprovalAdministrationPorts>={}) {
  const order:string[]=[];
@@ -55,8 +55,19 @@ describe('Workflow command receipts and atomic contributions',()=>{
 function policy(overrides:Partial<CommandPolicyPorts<string>>={}){return createCommandPolicyApplication(strict<CommandPolicyPorts<string>>({financeReview:async()=>['review'],flow:async()=>({before:['flow-before'],after:['flow-after']}),...overrides}));}
 describe('Owner command handoff policy',()=>{
  test('finance evidence precedes flow and original owner effects',async()=>{expect(await policy().prepareOwnerCommandStatements(actor,'key','finance.journal.post',{},'journal',1,['owner'])).toEqual(['flow-before','review','owner','flow-after']);});
- test('invoice creation delegates its owner policy despite no generic target',async()=>{const invoiceFlow=vi.fn(async()=>({before:['invoice-before'],after:['invoice-after']}));expect(await policy({invoiceFlow}).prepareOwnerCommandStatements(actor,'key','commerce.invoice.create',{},'fulfillment',1,['owner'])).toEqual(['invoice-before','owner','invoice-after']);expect(invoiceFlow).toHaveBeenCalledWith(actor,'key','fulfillment',{},1);});
- test('Expense payment delegates to its own payment policy',async()=>{const expensePaymentFlow=vi.fn(async()=>({before:['payment-before'],after:['payment-after']}));expect(await policy({expensePaymentFlow}).prepareOwnerCommandStatements(actor,'key','expense.payment.approve',{},'expense',2,['owner'])).toEqual(['payment-before','owner','payment-after']);});
+ test('invoice creation delegates its owner policy despite no generic target',async()=>{
+  const invoiceTarget=vi.fn(async()=>({kind:'order' as const,id:'order',action:'invoice' as const})),flow=vi.fn(async()=>({before:['invoice-before'],after:['invoice-after']}));
+  expect(await policy({invoiceTarget,flow}).prepareOwnerCommandStatements(actor,'key','commerce.invoice.create',{},'fulfillment',1,['owner'])).toEqual(['invoice-before','owner','invoice-after']);
+  expect(invoiceTarget).toHaveBeenCalledWith(actor,'fulfillment');expect(flow).toHaveBeenCalledWith(actor,'key','order','order','invoice',{},1);
+ });
+ test('Expense payment delegates to its own payment policy',async()=>{
+  const expensePaymentTarget=vi.fn(async()=>({kind:'expense' as const,id:'parent-expense',action:'payment' as const})),flow=vi.fn(async()=>({before:['payment-before'],after:['payment-after']}));
+  expect(await policy({expensePaymentTarget,flow}).prepareOwnerCommandStatements(actor,'key','expense.payment.approve',{},'payment-draft',2,['owner'])).toEqual(['payment-before','owner','payment-after']);
+  expect(expensePaymentTarget).toHaveBeenCalledWith(actor,'expense.payment.approve','payment-draft');expect(flow).toHaveBeenCalledWith(actor,'key','expense','parent-expense','payment',{},2);
+ });
+ test('a missing owner target preserves the owner effects without invoking a workflow',async()=>{
+  const flow=vi.fn();expect(await policy({invoiceTarget:async()=>null,flow}).prepareOwnerCommandStatements(actor,'key','commerce.invoice.create',{},'missing',1,['owner'])).toEqual(['owner']);expect(flow).not.toHaveBeenCalled();
+ });
  test('non-flow edits never acquire unrelated workflow contributions',async()=>{expect(await policy().prepareOwnerCommandStatements(actor,'key','record.mention',{},'record',2,['owner'])).toEqual(['owner']);});
  test('transition inputs choose the actual owner transition action',()=>{expect(flowCommandTarget('task.transition','task',{action:'complete'})).toEqual({kind:'staff_task',id:'task',action:'complete'});expect(flowCommandTarget('leave.self.submit','leave',{})).toBeNull();expect(flowCommandTarget('expense.payment.export','expense',{})).toBeNull();});
 });

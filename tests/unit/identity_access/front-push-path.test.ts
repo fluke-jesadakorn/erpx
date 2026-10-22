@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frontPushLandingPath } from "../../../src/lib/shared/front-host";
+import { frontPushLandingPath } from "@erpx/feature-shared/lib/front-host";
 
 describe("Front push landing path", () => {
   it("stays on the Front origin and preserves each authorized scope", () => {

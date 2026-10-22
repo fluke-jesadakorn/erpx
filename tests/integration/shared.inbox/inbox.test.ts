@@ -1,10 +1,10 @@
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {env,applyMigrations} from "../../support/runtime-env";
 import {seedExpenseCompany} from "../../../fixtures/expenses/company";
-import {calendarCommand} from "../../../src/server/modules/work_projection/public/calendar/index";
-import {publishInboxEvent,inboxPage,inboxSummary,changeInboxState,sendNotice} from "../../../src/server/modules/collaboration/public/inbox";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {calendarCommand} from "@erpx/server-work_projection/public/calendar/index";
+import {publishInboxEvent,inboxPage,inboxSummary,changeInboxState,sendNotice} from "@erpx/server-collaboration/public/inbox";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 let f:Awaited<ReturnType<typeof seedExpenseCompany>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS)});
@@ -64,7 +64,7 @@ it("fans out a scoped manager notice once when the worker retries",async()=>{
   const colleague=await f.member("notice-department-colleague","employee");
   const result=await sendNotice(db,manager,{title:"Department update",body:"Review the schedule.",audience:{kind:"department",id:f.department}},key());
   expect(result.recipientCount).toBeGreaterThan(0);
-  const {drainInboxNotices}=await import("../../../src/server/modules/collaboration/public/inbox");
+  const {drainInboxNotices}=await import("@erpx/server-collaboration/public/inbox");
   await drainInboxNotices(db);await drainInboxNotices(db);
   const page=await inboxPage(db,colleague,{view:"all",category:"notice"});
   expect(page.items.filter(item=>item.sourceId===result.id)).toHaveLength(1);

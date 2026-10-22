@@ -1,8 +1,8 @@
 import { beforeAll, expect, it } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
-import { calculateSeatForecast, nextBillingMonth, parseForecastBaht, parseForecastGb } from "../../../src/lib/billing/billing-forecast";
-import { readSeatForecastBaseline } from "../../../src/server/modules/billing/public/billing-forecast";
-import type { TargetPrice } from "../../../src/lib/billing/billing-target-pricing";
+import { calculateSeatForecast, nextBillingMonth, parseForecastBaht, parseForecastGb } from "@erpx/feature-billing/lib/billing-forecast";
+import { readSeatForecastBaseline } from "@erpx/server-billing/public/billing-forecast";
+import type { TargetPrice } from "@erpx/feature-billing/lib/billing-target-pricing";
 
 const db = env.CONTROL_DB;
 beforeAll(() => applyMigrations(db, env.CONTROL_TEST_MIGRATIONS));

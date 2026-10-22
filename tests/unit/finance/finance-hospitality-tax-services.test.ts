@@ -1,7 +1,7 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createHospitalityTaxDocuments,type TaxDocumentPorts,type TaxDocumentRepository} from "../../../src/server/modules/finance/application/hospitality-tax-documents";
-import {taxDocumentCommandSchema,type Invoice,type Document} from "../../../src/server/modules/finance/domain/hospitality-tax-documents";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createHospitalityTaxDocuments,type TaxDocumentPorts,type TaxDocumentRepository} from "@erpx/server-finance/application/hospitality-tax-documents";
+import {taxDocumentCommandSchema,type Invoice,type Document} from "@erpx/server-finance/domain/hospitality-tax-documents";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'cashier',name:'Cashier',email:'cashier@example.test',assignmentId:'assignment',role:'finance_approver',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const invoiceId='00000000-0000-4000-8000-000000000001',documentId='00000000-0000-4000-8000-000000000002';
 const invoice:Invoice={id:invoiceId,company_id:'company',source_type:'pos',source_id:'sale',currency:'THB',total_minor:10700,tax_minor:700,status:'paid',branch_id:'branch'};

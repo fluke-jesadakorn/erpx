@@ -1,2 +1,0 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { consolidationRunSchema, consolidationDecisionSchema, consolidationEliminationSchema, consolidationEliminationDecisionSchema, consolidationRunWorkspace, createConsolidationElimination, decideConsolidationElimination, createConsolidationRun, decideConsolidationRun, consolidationDetail, consolidationEliminationDetail } from "@/server/modules/finance/adapters/finance-consolidation";

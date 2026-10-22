@@ -1,1 +1,0 @@
-export type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentRepository,PortalAttachmentStageScope,PortalAttachmentStagedSource,PortalAttachmentRecoverySource} from "../application/portal-attachments";

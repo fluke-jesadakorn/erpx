@@ -5,11 +5,11 @@ import {
   approvePayrollRun, calculatePayrollRun, createPayrollRun, exportPayrollReview, getPayrollReviewFile,
   payrollRunSchema, payrollPostSchema, postPayroll, savePayrollAccountMapping,
   payrollAccountMappingSchema, approvePayrollAccountMapping,
-} from "../../../src/server/modules/people_payroll/public/people-payroll";
-import { cancelPayrollRun, payrollCancelSchema } from "../../../src/server/modules/people_payroll/public/payroll-cancellation";
-import { payrollReadiness, submitPayrollReview } from "../../../src/server/modules/people_payroll/public/payroll-readiness";
+} from "@erpx/server-people_payroll/public/people-payroll";
+import { cancelPayrollRun, payrollCancelSchema } from "@erpx/server-people_payroll/public/payroll-cancellation";
+import { payrollReadiness, submitPayrollReview } from "@erpx/server-people_payroll/public/payroll-readiness";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 let group: string;

@@ -7,7 +7,7 @@ import { pinnedBunBinary } from "../../../scripts/testing/runtime-tooling";
 import { browserChildEnvironment } from "../../../scripts/testing/runner-environment";
 import { Pool } from "pg";
 import { frontOrigin, frontWorkspacePath, signInFrontRole, type SimulatedFrontCredentials } from "../../support/helpers/front-simulation-session";
-import {records, plusDays, type Snapshot} from "../../../src/server/modules/pms/public/rules/pms-model";
+import {records, plusDays, type Snapshot} from "@erpx/server-pms/public/rules/pms-model";
 
 test('keeps hotel drafts scoped while refresh fences stale cash and an inspected higher room type upgrades through the drawer',async({browser},info)=>{
   test.setTimeout(90_000);

@@ -1,0 +1,3 @@
+import type {Clock} from "@erpx/server-shared/application/ports";
+import {featureKinds,type FeatureKind} from "@erpx/feature-legal/lib/legal/features-domain";
+export function createLegalReminderWorker(ports:{clock:Clock;repository:{deadlines():Promise<void>;feature(kind:FeatureKind):Promise<void>;sla(now:number):Promise<void>;escalations():Promise<void>;expire(times:{expires:number;updated:number;event:number}):Promise<void>}}){return async()=>{await ports.repository.deadlines();for(const kind of featureKinds)await ports.repository.feature(kind);await ports.repository.sla(ports.clock.now());await ports.repository.escalations();await ports.repository.expire({expires:ports.clock.now(),updated:ports.clock.now(),event:ports.clock.now()});};}

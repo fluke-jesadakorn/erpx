@@ -1,4 +1,4 @@
-import {prepareCollectionCase,decideCollectionCase,collectionWorkspace,cashDueForecast} from "../../../src/server/modules/finance/public/finance-collections";
+import {prepareCollectionCase,decideCollectionCase,collectionWorkspace,cashDueForecast} from "@erpx/server-finance/public/finance-collections";
 import { afterEach } from "vitest";
 import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
@@ -19,10 +19,10 @@ import {
   businessContractSchema,
   decideNoChargeBilling,
   prepareBusinessBillingRevision,
-} from "../../../src/server/modules/finance/public/finance-business-contracts";
-import { contractBillingCalculation } from "../../../src/server/modules/finance/public/rules/finance-contract-policy";
-import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
-import {scheduleFinanceDraft,drainFinanceDueDrafts,decideFinanceDueDraft} from "../../../src/server/modules/finance/public/finance-due-drafts";
+} from "@erpx/server-finance/public/finance-business-contracts";
+import { contractBillingCalculation } from "@erpx/server-finance/public/rules/finance-contract-policy";
+import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
+import {scheduleFinanceDraft,drainFinanceDueDrafts,decideFinanceDueDraft} from "@erpx/server-finance/public/finance-due-drafts";
 import {
   postInvoice,
   createInvoice,
@@ -30,8 +30,8 @@ import {
   trialBalance,
   beginClose,cancelClose,
   voidDraftInvoice,reverseJournal,
-} from "../../../src/server/modules/finance/public/finance";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-finance/public/finance";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

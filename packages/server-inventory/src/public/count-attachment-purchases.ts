@@ -1,0 +1,1 @@
+export {countAttachmentPurchaseScope,countAttachmentSourceReadLocks,authorizeCountAttachmentPurchase,countAttachmentCommandBoundary,countAttachmentFailure,type CountAttachmentPurchase} from "@erpx/server-inventory/adapters/count-attachment-purchases";

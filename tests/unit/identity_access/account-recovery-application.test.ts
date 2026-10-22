@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAccountRecoveryApplication, type AccountRecoveryPorts } from "../../../src/server/modules/identity_access/application/account-recovery";
+import { createAccountRecoveryApplication, type AccountRecoveryPorts } from "@erpx/server-identity_access/application/account-recovery";
 
 function fixture() {
   const job = { id: "recovery-job", user_id: "user-1", url_ciphertext: "encrypted", attempts: 1, expires_at: 100001 };

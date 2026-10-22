@@ -9,7 +9,7 @@ import {
 import { readFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { selectFixtureAssignment } from "../../support/browser/select-fixture-assignment";
-import type { WorkSummary } from "../../../src/server/modules/work_projection/public/work-summary";
+import type { WorkSummary } from "@erpx/server-work_projection/public/work-summary";
 const file = process.env.ERPX_E2E_FIXTURE ?? ".scratch/work-cards/fixture.json";
 type Account = {
   email: string;

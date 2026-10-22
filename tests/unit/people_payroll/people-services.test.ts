@@ -1,14 +1,14 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createPayrollCancellationApplication,type PayrollCancellationPorts} from "../../../src/server/modules/people_payroll/application/payroll-cancellation";
-import {createPayrollDeductionApplication,type PayrollDeductionItem} from "../../../src/server/modules/people_payroll/application/payroll-deductions";
-import {createSpendingTemplateApplication,type SpendingTemplatePorts} from "../../../src/server/modules/people_payroll/application/spending-templates";
-import {createPeopleWorkspaceApplication,type PeopleWorkspacePorts} from "../../../src/server/modules/people_payroll/application/people-workspace";
-import {createPeopleHrApplication,type PeopleHrPorts,type PeopleHrRepository} from "../../../src/server/modules/people_payroll/application/people-hr-settings";
-import type {CancellationRun} from "../../../src/server/modules/people_payroll/domain/payroll-cancellation";
-import type {SpendingTemplateInput} from "../../../src/server/modules/people_payroll/domain/spending-templates";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {FlowView} from "../../../src/lib/shared/flow";
-import {BusinessRuleError} from "../../../src/server/modules/shared/index";
+import {createPayrollCancellationApplication,type PayrollCancellationPorts} from "@erpx/server-people_payroll/application/payroll-cancellation";
+import {createPayrollDeductionApplication,type PayrollDeductionItem} from "@erpx/server-people_payroll/application/payroll-deductions";
+import {createSpendingTemplateApplication,type SpendingTemplatePorts} from "@erpx/server-people_payroll/application/spending-templates";
+import {createPeopleWorkspaceApplication,type PeopleWorkspacePorts} from "@erpx/server-people_payroll/application/people-workspace";
+import {createPeopleHrApplication,type PeopleHrPorts,type PeopleHrRepository} from "@erpx/server-people_payroll/application/people-hr-settings";
+import type {CancellationRun} from "@erpx/server-people_payroll/domain/payroll-cancellation";
+import type {SpendingTemplateInput} from "@erpx/server-people_payroll/domain/spending-templates";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {FlowView} from "@erpx/feature-shared/lib/flow";
+import {BusinessRuleError} from "@erpx/server-shared/index";
 
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['people_payroll'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 /** Unknown operations fail immediately, so fixtures cannot hide an unexpected side effect. */
@@ -68,12 +68,12 @@ describe('People workspace public graph and private arrangements',()=>{
  test('a public reader never loads archived or administrative arrangement details',async()=>{const prepare=vi.fn(async()=>{}),ports=strictPorts<PeopleWorkspacePorts>({directory:async()=>({companies:[],nodes:[],levels:[],positions:[],people:[]}),prepare});const result=await createPeopleWorkspaceApplication(ports).peopleWorkspaceData({...actor,iam:{permissions:[],grantablePermissions:[],roleRevision:1,identityVersion:1,principalId:'owner',personId:null,freshUntil:9999999999999}},{status:'archived'});expect(result.canManageStructure).toBe(false);expect(result.archivedPeople).toEqual([]);expect(result.accessOrganization).toBeNull();expect(prepare).toHaveBeenCalledOnce();});
 });
 
-import {createPeopleTemplateApplication,type PeopleTemplatePorts,type PeopleTemplateRepository} from "../../../src/server/modules/people_payroll/application/people-templates";
-import type {TemplateDefinition,TemplateRow,AttributeRow} from "../../../src/server/modules/people_payroll/domain/people-templates";
-import type {IamActor} from "../../../src/server/modules/identity_access/public/iam-context";
-import {createLeaveEvidenceApplication,type LeaveEvidencePorts,type LeaveEvidenceRepository} from "../../../src/server/modules/people_payroll/application/leave-evidence";
-import {peopleExplorerTabs as serverTabs} from "../../../src/server/modules/people_payroll/domain/people-explorer-detail";
-import {peopleExplorerTabs as uiTabs} from "../../../src/lib/people_payroll/people-explorer";
+import {createPeopleTemplateApplication,type PeopleTemplatePorts,type PeopleTemplateRepository} from "@erpx/server-people_payroll/application/people-templates";
+import type {TemplateDefinition,TemplateRow,AttributeRow} from "@erpx/server-people_payroll/domain/people-templates";
+import type {IamActor} from "@erpx/server-identity_access/public/iam-context";
+import {createLeaveEvidenceApplication,type LeaveEvidencePorts,type LeaveEvidenceRepository} from "@erpx/server-people_payroll/application/leave-evidence";
+import {peopleExplorerTabs as serverTabs} from "@erpx/server-people_payroll/domain/people-explorer-detail";
+import {peopleExplorerTabs as uiTabs} from "@erpx/feature-people_payroll/lib/people-explorer";
 const iamActor:IamActor={role:'holding_owner',userId:'owner',assignmentId:'assignment',companyId:'company',sessionId:'session',holdingId:'holding',scopeKind:'holding',scopeNodeId:null,branchId:null,departmentId:null,platform:false};
 const definition:TemplateDefinition={onboardingTasks:['Confirm identity'],offboardingTasks:['Return equipment'],attributes:[]};
 const template=(patch:Partial<TemplateRow>={}):TemplateRow=>({id:'template',name:'Standard',version:1,definition,...patch});
@@ -96,15 +96,15 @@ describe('Leave restricted evidence and retained source identities',()=>{
 });
 test('server section authority preserves every existing UI tab across all object kinds',()=>{for(const kind of ['company','branch','department','team','position','person','level','unassigned'] as const)for(const manage of [true,false])for(const pay of [true,false])expect(serverTabs(kind,manage,pay)).toEqual(uiTabs(kind,manage,pay));});
 
-import {createPeoplePayrollApplication,type PeoplePayrollPorts} from "../../../src/server/modules/people_payroll/application/people-payroll";
-import {createPeopleEvaluationApplication,type PeopleEvaluationPorts,type PeopleEvaluationRepository} from "../../../src/server/modules/people_payroll/application/people-evaluation";
-import {createEvaluationQuerySchema} from "../../../src/server/modules/people_payroll/domain/people-evaluation";
-import {validateEvaluationAiResult,type EvaluationAiFacts} from "../../../src/server/modules/people_payroll/domain/people-evaluation-ai";
-import {createPeopleLifecycleApplication,type PeopleLifecyclePorts,type PeopleLifecycleRepository} from "../../../src/server/modules/people_payroll/application/people-lifecycle";
-import {packageInput} from "../../../src/lib/people_payroll/people-lifecycle";
-import {createLeaveSelfServiceApplication,type LeaveSelfServicePorts} from "../../../src/server/modules/people_payroll/application/leave-self-service";
-import {createPeopleRosterApplication,type PeopleRosterPorts} from "../../../src/server/modules/people_payroll/application/people-roster";
-import {createDirectoryProjectionApplication,type DirectoryProjectionRepository} from "../../../src/server/modules/people_payroll/application/directory-projection";
+import {createPeoplePayrollApplication,type PeoplePayrollPorts} from "@erpx/server-people_payroll/application/people-payroll";
+import {createPeopleEvaluationApplication,type PeopleEvaluationPorts,type PeopleEvaluationRepository} from "@erpx/server-people_payroll/application/people-evaluation";
+import {createEvaluationQuerySchema} from "@erpx/server-people_payroll/domain/people-evaluation";
+import {validateEvaluationAiResult,type EvaluationAiFacts} from "@erpx/server-people_payroll/domain/people-evaluation-ai";
+import {createPeopleLifecycleApplication,type PeopleLifecyclePorts,type PeopleLifecycleRepository} from "@erpx/server-people_payroll/application/people-lifecycle";
+import {packageInput} from "@erpx/feature-people_payroll/lib/people-lifecycle";
+import {createLeaveSelfServiceApplication,type LeaveSelfServicePorts} from "@erpx/server-people_payroll/application/leave-self-service";
+import {createPeopleRosterApplication,type PeopleRosterPorts} from "@erpx/server-people_payroll/application/people-roster";
+import {createDirectoryProjectionApplication,type DirectoryProjectionRepository} from "@erpx/server-people_payroll/application/directory-projection";
 
 function payroll(overrides:Partial<PeoplePayrollPorts<string>>={}){return createPeoplePayrollApplication(strictPorts<PeoplePayrollPorts<string>>({authorize:a=>a,...overrides}));}
 describe('Whole Payroll query authority is independent of database preparation',()=>{
@@ -150,11 +150,11 @@ test('self-service create and edit prepare their outer resource before opening a
  expect(await app.createSelfServiceLeave(actor,input,'key')).toBe(receipt);expect(await app.editSelfServiceLeave(actor,'leave-key',{...input,expectedVersion:1},'key')).toBe(receipt);expect(calls).toEqual(['prepare','transaction','replay','prepare','transaction','replay']);
 });
 
-import {createFinalPayCancellationApplication,type FinalPayCancellationPorts} from '../../../src/server/modules/people_payroll/application/final-pay-cancellation';
-import {finalPayCancellationSchema,type FinalPayCancellationSource,type FinalPayCancellationResult} from '../../../src/server/modules/people_payroll/domain/final-pay-cancellation';
+import {createFinalPayCancellationApplication,type FinalPayCancellationPorts} from '@erpx/server-people_payroll/application/final-pay-cancellation';
+import {finalPayCancellationSchema,type FinalPayCancellationSource,type FinalPayCancellationResult} from '@erpx/server-people_payroll/domain/final-pay-cancellation';
 function finalPaySource(patch:Partial<FinalPayCancellationSource>={}):FinalPayCancellationSource{return {id:'preparation',companyId:'company',runId:'run',taskId:'task',caseId:'case',engagementId:'engagement',version:2,runVersion:3,taskVersion:2,caseVersion:2,status:'prepared',runStatus:'preview',mode:'final_pay',preparedBy:'owner',assigneeId:'owner',taskStatus:'cancelled',caseStatus:'cancelled',clearanceType:'payroll',reviewed:false,originalPreparation:true,originalParentCancellation:true,noMoneyEffects:true,preparationImage:'{}',runImage:'{}',taskImage:'{}',caseImage:'{}',engagementImage:'{}',childrenImage:'{}',eventsImage:'[]',image:'captured-private-owner-image',...patch};}
 const finalPayCancelInput={expectedVersion:2,expectedRunVersion:3,expectedTaskVersion:2,expectedCaseVersion:2,reason:'Close the original preparation after normal HR cancellation'};
-function finalPayCancellation(overrides:Partial<FinalPayCancellationPorts>={}){const mutations:import('../../../src/server/modules/people_payroll/application/final-pay-cancellation').FinalPayCancellationMutation[]=[],calls:string[]=[],ports:FinalPayCancellationPorts={clock:{now:()=>42},authorize:(a,permission)=>{calls.push(permission);return a;},currentAuthority:async()=>{calls.push('current');},schemaAvailable:async()=>true,source:async()=>finalPaySource(),replay:async()=>null,commit:async m=>{mutations.push(m);return m.result;},...overrides};return {calls,mutations,app:createFinalPayCancellationApplication(ports)};}
+function finalPayCancellation(overrides:Partial<FinalPayCancellationPorts>={}){const mutations:import("@erpx/server-people_payroll/application/final-pay-cancellation").FinalPayCancellationMutation[]=[],calls:string[]=[],ports:FinalPayCancellationPorts={clock:{now:()=>42},authorize:(a,permission)=>{calls.push(permission);return a;},currentAuthority:async()=>{calls.push('current');},schemaAvailable:async()=>true,source:async()=>finalPaySource(),replay:async()=>null,commit:async m=>{mutations.push(m);return m.result;},...overrides};return {calls,mutations,app:createFinalPayCancellationApplication(ports)};}
 describe('separate final-pay closure after original parent cancellation',()=>{
  test('preserves all source identities and independent review boundaries in a distinct immutable owner result',async()=>{const f=finalPayCancellation(),result=await f.app.cancelFinalPayPreparation(actor,'run',finalPayCancelInput,'actual-key');expect(result).toEqual({id:'preparation',runId:'run',taskId:'task',caseId:'case',status:'cancelled',version:3,runVersion:4,taskVersion:2,caseVersion:2,cancellationId:'final-pay-cancel-event-actual-key'});expect(f.mutations).toEqual([{actor,source:finalPaySource(),input:finalPayCancelInput,key:'actual-key',now:42,result}]);expect(f.calls).toEqual(['payroll.prepare','current']);});
  test('does not discharge an active clearance, normal paid final pay or an unsupported native source',async()=>{for(const patch of [{caseStatus:'scheduled'},{taskStatus:'pending'},{originalParentCancellation:false},{originalPreparation:false},{mode:'production'},{runStatus:'in_review'},{runStatus:'approved'},{runStatus:'posted'},{reviewed:true},{noMoneyEffects:false},{clearanceType:'finance'},{status:'cancelled'}]){const f=finalPayCancellation({source:async()=>finalPaySource(patch)});await expect(f.app.cancelFinalPayPreparation(actor,'run',finalPayCancelInput,'actual-key')).rejects.toMatchObject({code:'FINAL_PAY_CANCELLATION_UNAVAILABLE'});expect(f.mutations).toEqual([]);}});

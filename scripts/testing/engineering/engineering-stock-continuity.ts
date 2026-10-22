@@ -2,7 +2,7 @@
 import {createHash} from 'node:crypto';
 import {chmod,readFile,realpath,writeFile} from 'node:fs/promises';
 import {join,resolve,sep} from 'node:path';
-import {PostgresDatabase} from "../../../src/server/modules/runtime/adapters/runtime/postgres";
+import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {readStockSnapshot,reconcileStockSnapshots,type StockSnapshot} from "../../../fixtures/inventory/builders/engineering-stock-continuity";
 import {runtimeSourceFingerprint,verificationSourceFingerprint} from "../../local/source-fingerprint";
 

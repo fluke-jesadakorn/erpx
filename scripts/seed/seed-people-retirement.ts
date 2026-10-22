@@ -1,9 +1,9 @@
 /** Fictional retirement cases only. No provider calls, messages, payments or account grants. */
 import { readFileSync } from "node:fs";
 import { getLocalProxy } from "../local/fixtures";
-import type { PostgresDatabase } from "../../src/server/modules/runtime/adapters/runtime/postgres";
-import { clearanceKinds, clearanceLabels, retirementInstant, nextRetirementDay } from "../../src/lib/people_payroll/retirement";
-import { addDays } from "../../src/lib/people_payroll/people-roster";
+import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import { clearanceKinds, clearanceLabels, retirementInstant, nextRetirementDay } from "@erpx/feature-people_payroll/lib/retirement";
+import { addDays } from "@erpx/feature-people_payroll/lib/people-roster";
 export async function seedRetirement(db:PostgresDatabase,companyId="acme-co",today=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok"}).format(new Date())) {
  const result: {id:string;scenario:string;created:boolean}[]=[];
  const examples=[{name:"Arun Example",scenario:"Draft retirement plan",days:60,status:"draft"},{name:"Mali Example",scenario:"Retiring in 30 days",days:30,status:"scheduled"},{name:"Niran Example",scenario:"Retiring soon; handover unassigned",days:3,status:"scheduled"},{name:"Suda Example",scenario:"Retired; financial clearance pending",days:-7,status:"completed"},{name:"Wichai Example",scenario:"Retired; clearance complete",days:-30,status:"completed"},{name:"Kanya Example",scenario:"Plan cancelled before cutoff",days:14,status:"cancelled"}];

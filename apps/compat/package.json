@@ -1,0 +1,40 @@
+{
+  "name": "@erpx/app-compat",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun ../../scripts/local/app-task.ts dev --app=compat",
+    "build": "bun ../../scripts/local/app-task.ts build --app=compat",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-account": "workspace:*",
+    "@erpx/feature-admin": "workspace:*",
+    "@erpx/feature-assets": "workspace:*",
+    "@erpx/feature-booking": "workspace:*",
+    "@erpx/feature-finance": "workspace:*",
+    "@erpx/feature-forms": "workspace:*",
+    "@erpx/feature-learn": "workspace:*",
+    "@erpx/feature-legal": "workspace:*",
+    "@erpx/feature-legal-portal": "workspace:*",
+    "@erpx/feature-manufacturing": "workspace:*",
+    "@erpx/feature-people": "workspace:*",
+    "@erpx/feature-pms": "workspace:*",
+    "@erpx/feature-portal": "workspace:*",
+    "@erpx/feature-pos": "workspace:*",
+    "@erpx/feature-projects": "workspace:*",
+    "@erpx/feature-recruit": "workspace:*",
+    "@erpx/feature-sales": "workspace:*",
+    "@erpx/feature-service": "workspace:*",
+    "@erpx/feature-supply": "workspace:*",
+    "@erpx/feature-support": "workspace:*",
+    "@erpx/feature-work": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@erpx/contracts": "workspace:*"
+  }
+}

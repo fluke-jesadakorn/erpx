@@ -3,27 +3,27 @@ import { cp, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { createHash } from "node:crypto";
 import { env } from "../../support/runtime-env";
-import { migrateDatabase } from "../../../src/server/modules/runtime/adapters/runtime/migrations";
+import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import {
   prepareBookRule,
   decideBookRule,
   bookRuleSchema,
   createFinanceDimension,
-} from "../../../src/server/modules/finance/public/finance-books";
+} from "@erpx/server-finance/public/finance-books";
 import {
   prepareAssetPolicy,
   decideAssetPolicy,
   prepareAssetPolicyRun,
   decideAssetPolicyRun,
-} from "../../../src/server/modules/finance/public/finance-asset-policies";
+} from "@erpx/server-finance/public/finance-asset-policies";
 import {
   editManualDraft,
   manualDraftEditSchema,
-} from "../../../src/server/modules/finance/public/finance-manual-drafts";
-import { statementPackageExport } from "../../../src/server/modules/finance/public/finance-reporting";
-import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-finance/public/finance-manual-drafts";
+import { statementPackageExport } from "@erpx/server-finance/public/finance-reporting";
+import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   runtimeEnv: async () => env,
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
 }));

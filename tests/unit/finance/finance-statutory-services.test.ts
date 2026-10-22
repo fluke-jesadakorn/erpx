@@ -1,16 +1,16 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
-import { createWithholding, type WithholdingPorts } from "../../../src/server/modules/finance/application/withholding";
-import { createWithholdingSource, type WithholdingSourcePorts } from "../../../src/server/modules/finance/application/withholding-source";
-import type { WithholdingInput } from "../../../src/server/modules/finance/domain/withholding";
-import type { PersistedInvoiceLine } from "../../../src/server/modules/finance/domain/invoice-line-revision";
+import { createWithholding, type WithholdingPorts } from "@erpx/server-finance/application/withholding";
+import { createWithholdingSource, type WithholdingSourcePorts } from "@erpx/server-finance/application/withholding-source";
+import type { WithholdingInput } from "@erpx/server-finance/domain/withholding";
+import type { PersistedInvoiceLine } from "@erpx/server-finance/domain/invoice-line-revision";
 import { describe, expect, it, vi } from 'vitest';
-import { createAccountingProfiles, type AccountingProfilePorts } from "../../../src/server/modules/finance/application/accounting-profiles";
-import { createTaxIdentities, type TaxIdentityPorts } from "../../../src/server/modules/finance/application/tax-identities";
-import { createThaiDocuments, type ThaiDocumentPorts } from "../../../src/server/modules/finance/application/thai-documents";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import type { TaxIdentity } from "../../../src/server/modules/finance/domain/tax-identities";
-import type { IssuedDocument, IssueInput } from "../../../src/server/modules/finance/domain/thai-documents";
-import { thaiFinanceTaxPack } from "../../../src/lib/finance/thai-finance-tax-pack";
+import { createAccountingProfiles, type AccountingProfilePorts } from "@erpx/server-finance/application/accounting-profiles";
+import { createTaxIdentities, type TaxIdentityPorts } from "@erpx/server-finance/application/tax-identities";
+import { createThaiDocuments, type ThaiDocumentPorts } from "@erpx/server-finance/application/thai-documents";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { TaxIdentity } from "@erpx/server-finance/domain/tax-identities";
+import type { IssuedDocument, IssueInput } from "@erpx/server-finance/domain/thai-documents";
+import { thaiFinanceTaxPack } from "@erpx/feature-finance/lib/thai-finance-tax-pack";
 const actor: WorkContext = { userId: 'reviewer', name: 'Reviewer', email: 'reviewer@example.test', assignmentId: 'assignment', role: 'finance_approver', companyId: 'company', branchId: null, departmentId: null, holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', scope: { kind: 'holding', holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', companyId: 'company' }, assignmentScope: 'holding', inherited: false, modules: ['finance'], assignments: [], workspaces: [] };
 const error = (status: number, code: string, message: string) => Object.assign(new Error(message), { status, code });
 function strict<T extends object>(facts: Partial<T>): T {

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 import { selectFixtureAssignment } from "../../support/browser/select-fixture-assignment";
-import type { WorkPageSummary } from "../../../src/server/modules/work_projection/public/work-summary";
+import type { WorkPageSummary } from "@erpx/server-work_projection/public/work-summary";
 
 const base = "/holdings/acme";
 const api = `/api/v1${base}`;

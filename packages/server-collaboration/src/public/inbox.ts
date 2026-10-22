@@ -1,0 +1,1 @@
+export {publishInboxEvent,inboxPage,inboxSummary,changeInboxState,sendNotice,drainInboxNotices,inboxOperationalMetrics,noticeInput} from '@erpx/server-collaboration/adapters/inbox';export type {InboxCategory,InboxEventInput,InboxItem} from '@erpx/server-collaboration/domain/inbox';

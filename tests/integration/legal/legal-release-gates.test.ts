@@ -1,18 +1,18 @@
 import { beforeAll, expect, it, vi } from 'vitest';
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { legalProductionScope, legalReleaseCriteria, productionScope, releaseCriteria } from "../../../src/data/production-scope";
-import { acceptedReleasePredicate, companyReleaseStatus, currentReleaseInputs, submitReleaseAcceptance, reviewReleaseAcceptance } from "../../../src/server/modules/platform_administration/public/release-acceptance";
-import { assertProductionModuleEnabled, changeCompanyFeatureRollout } from "../../../src/server/modules/pms/public/hospitality-rollout";
-import { legalCompanyCapabilityReady } from "../../../src/server/modules/legal/public/legal/runtime-gate";
-import { legalReminders, drainLegalAi } from "../../../src/server/modules/legal/public/legal/jobs";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import { legalProductionScope, legalReleaseCriteria, productionScope, releaseCriteria } from "@erpx/catalogue/production-scope";
+import { acceptedReleasePredicate, companyReleaseStatus, currentReleaseInputs, submitReleaseAcceptance, reviewReleaseAcceptance } from "@erpx/server-platform_administration/public/release-acceptance";
+import { assertProductionModuleEnabled, changeCompanyFeatureRollout } from "@erpx/server-pms/public/hospitality-rollout";
+import { legalCompanyCapabilityReady } from "@erpx/server-legal/public/legal/runtime-gate";
+import { legalReminders, drainLegalAi } from "@erpx/server-legal/public/legal/jobs";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { mkdtemp, mkdir, readdir, symlink, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { migrateDatabase } from "../../../src/server/modules/runtime/adapters/runtime/migrations";
+import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
 
-vi.mock("../../../src/data/release-artifact.json", () => ({ default: { softwareVersion: 'legal-release-fixture' } }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
+vi.mock("@erpx/catalogue/release-artifact.json", () => ({ default: { softwareVersion: 'legal-release-fixture' } }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 
 async function fixture() {

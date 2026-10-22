@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {crmForecast,crmForecastDecimal} from "../../../src/server/modules/crm/public/rules/crm-forecast";
+import {crmForecast,crmForecastDecimal} from "@erpx/server-crm/public/rules/crm-forecast";
 it('retains exact totals beyond safe Number aggregation and rounds each weighted opportunity half up',()=>{
  const rows=[{opportunity_id:'a',stage:'discovery',currency:'THB',expected_minor:'9007199254740991'},{opportunity_id:'b',stage:'negotiation',currency:'THB',expected_minor:'9007199254740991'},{opportunity_id:'c',stage:'proposal',currency:'USD',expected_minor:'1'},{opportunity_id:'d',stage:'lost',currency:'USD',expected_minor:'9000'},{opportunity_id:'e',stage:'won',currency:'USD',expected_minor:'123'}];
  const result=crmForecast(rows);
@@ -11,12 +11,12 @@ it('retains exact totals beyond safe Number aggregation and rounds each weighted
 import {afterEach,vi} from 'vitest';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {crmCommandAllowed,marketingCommandAllowed,type CRMPurchaseControls} from '../../../src/lib/crm/purchase-controls';
-import {createCRMCommandAttempt,type CRMCommandAttempt} from '../../../src/lib/crm/command-attempt';
-import {createCRMCommandFetch,crmFormUnchanged,validCRMAcknowledgement} from '../../../src/lib/crm/command-fetch';
-import {CRMConsole} from '../../../src/components/crm/crm-console';
-import {CRMActivityConsole} from '../../../src/components/crm/crm-activity-console';
-import {MarketingConsole} from '../../../src/components/marketing/marketing-console';
+import {crmCommandAllowed,marketingCommandAllowed,type CRMPurchaseControls} from '@erpx/feature-crm/lib/purchase-controls';
+import {createCRMCommandAttempt,type CRMCommandAttempt} from '@erpx/feature-crm/lib/command-attempt';
+import {createCRMCommandFetch,crmFormUnchanged,validCRMAcknowledgement} from '@erpx/feature-crm/lib/command-fetch';
+import {CRMConsole} from '@erpx/feature-crm/components/crm-console';
+import {CRMActivityConsole} from '@erpx/feature-crm/components/crm-activity-console';
+import {MarketingConsole} from '@erpx/feature-marketing/components/marketing-console';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/acme/crm',useSearchParams:()=>new URLSearchParams()}));
 afterEach(()=>vi.unstubAllGlobals());
 const activeCRM:CRMPurchaseControls={newWork:true,settleExisting:true,history:true,revision:'opaque-customer'},drainingCRM={...activeCRM,newWork:false},historyCRM={...drainingCRM,settleExisting:false};
@@ -50,8 +50,8 @@ it('keeps Marketing retirement review and existing handoff separate from new add
  const detail={candidate:{id:'candidate',status:'pending',version:1},history:[],canWrite:true,canHandoff:true,purchase:drainingCRM,handoffPurchase:historyCRM},blocked=renderToStaticMarkup(createElement(MarketingConsole,{base:'/holdings/acme',detail}));expect(triggerDisabled(blocked,'Create CRM lead')).toBe(true);expect(triggerDisabled(blocked,'Record')).toBe(false);
 });
 
-import {createCRMAnalyticsApplication,type CRMAnalyticsRepository} from '../../../src/server/modules/crm/application/analytics';
-import {AnalyticsReport} from '../../../src/components/runtime/executive/analytics-report';
+import {createCRMAnalyticsApplication,type CRMAnalyticsRepository} from '@erpx/server-crm/application/analytics';
+import {AnalyticsReport} from '@erpx/feature-runtime/components/executive/analytics-report';
 it('keeps native Marketing submissions and handoffs visible while unavailable CRM and Finance report sources are never read or fabricated as zero',async()=>{
  const denied=async()=>{throw Error('UNAVAILABLE_REPORT_SOURCE_WAS_READ');},repository:CRMAnalyticsRepository={options:denied,baseRows:denied,revenue:denied,events:denied,overdue:denied,touches:denied,qualificationEvents:denied,costs:denied,async candidates(){return [{id:'owned-candidate',crm_lead_id:'private-crm-lead',status:'handed_off',created_at:1,attribution_json:'{}'},{id:'pending-candidate',crm_lead_id:null,status:'pending',created_at:2,attribution_json:'{}'}];}},access={crm:false,marketing:true,hotel:false,costs:false,salesRevenue:false,hotelRevenue:false,revision:'opaque-report'},app=createCRMAnalyticsApplication({actor:{branchId:null},access,clock:{now:()=>42},authorize(){},repository}),report=await app.marketingAnalytics({from:'2026-09-01',to:'2026-09-30'});
  expect(report.metrics.map(row=>[row.id,row.value])).toEqual([['received',2],['pending',1],['handed_off',1],['qualified',null],['won',null]]);expect(report.firstTouch).toEqual([]);expect(report.lastTouch).toEqual([]);expect(report.unattributed).toBeNull();expect(JSON.stringify(report)).not.toContain('private-crm-lead');

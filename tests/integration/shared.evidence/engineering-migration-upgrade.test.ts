@@ -1,18 +1,18 @@
-import { canonicalGuestAccount, legacyGuestAccount, parseGuestAccountJson } from "../../../src/lib/identity_access/guest-account-compat";
+import { canonicalGuestAccount, legacyGuestAccount, parseGuestAccountJson } from "@erpx/feature-identity_access/lib/guest-account-compat";
 import { expect, it, vi } from "vitest";
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { env } from "../../support/runtime-env";
-import { migrateDatabase } from "../../../src/server/modules/runtime/adapters/runtime/migrations";
+import { migrateDatabase } from "@erpx/server-runtime/adapters/runtime/migrations";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { backfillSpecializedAttachments, reconcileAttachmentStorage } from "../../../src/server/modules/files/public/attachments/migration";
-import { scanAttachmentNow } from "../../../src/server/modules/files/public/attachments/service";
-import { defaultConfig } from "../../../src/server/modules/pms/public/rules/pms";
-import { snapshotMoneyCarry } from "../../../src/server/modules/finance/public/company-money";
+import { backfillSpecializedAttachments, reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
+import { scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
+import { defaultConfig } from "@erpx/server-pms/public/rules/pms";
+import { snapshotMoneyCarry } from "@erpx/server-finance/public/company-money";
 
-vi.mock("../../../src/server/modules/files/public/attachments/scanner", () => ({
+vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "Upgrade interface fixture", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "Upgrade interface fixture", definitionUpdatedAt: Date.now() }),
 }));

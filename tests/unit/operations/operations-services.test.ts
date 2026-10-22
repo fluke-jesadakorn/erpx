@@ -1,18 +1,18 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createStaffPolicyApplication,type StaffPolicyPorts,type StaffPolicyRepository} from "../../../src/server/modules/operations/application/staff-policy";
-import {createStaffTasksApplication,type StaffTasksPorts,type StaffTasksRepository} from "../../../src/server/modules/operations/application/staff-tasks";
-import {createStaffTaskAlertsApplication,type StaffTaskAlertsPorts} from "../../../src/server/modules/operations/application/staff-task-alerts";
-import {createHandoverApplication,type HandoverPorts} from "../../../src/server/modules/operations/application/handover";
-import {createOperationsExceptionsApplication,type OperationsExceptionsPorts} from "../../../src/server/modules/operations/application/operations-exceptions";
-import {createGuidedIntakeApplication,type GuidedIntakePorts,type GuidedIntakeRepository} from "../../../src/server/modules/operations/application/guided-intake";
-import {reportingChain,type StaffPerson} from "../../../src/server/modules/operations/domain/staff-policy";
-import type {TaskRow} from "../../../src/server/modules/operations/domain/staff-tasks";
-import {cleanDraft,explicitPurchaseQuantity} from "../../../src/server/modules/operations/domain/guided-intake";
-import {handoverPublishSchema,peopleInScope,type HandoverView} from "../../../src/server/modules/operations/domain/handover";
-import {bangkokToday} from "../../../src/server/modules/operations/domain/handover-time";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {WorkSnapshot} from "../../../src/server/modules/work_projection/public/work-items";
-import type {OperationsCommands} from "../../../src/server/modules/operations/domain/commands";
+import {createStaffPolicyApplication,type StaffPolicyPorts,type StaffPolicyRepository} from "@erpx/server-operations/application/staff-policy";
+import {createStaffTasksApplication,type StaffTasksPorts,type StaffTasksRepository} from "@erpx/server-operations/application/staff-tasks";
+import {createStaffTaskAlertsApplication,type StaffTaskAlertsPorts} from "@erpx/server-operations/application/staff-task-alerts";
+import {createHandoverApplication,type HandoverPorts} from "@erpx/server-operations/application/handover";
+import {createOperationsExceptionsApplication,type OperationsExceptionsPorts} from "@erpx/server-operations/application/operations-exceptions";
+import {createGuidedIntakeApplication,type GuidedIntakePorts,type GuidedIntakeRepository} from "@erpx/server-operations/application/guided-intake";
+import {reportingChain,type StaffPerson} from "@erpx/server-operations/domain/staff-policy";
+import type {TaskRow} from "@erpx/server-operations/domain/staff-tasks";
+import {cleanDraft,explicitPurchaseQuantity} from "@erpx/server-operations/domain/guided-intake";
+import {handoverPublishSchema,peopleInScope,type HandoverView} from "@erpx/server-operations/domain/handover";
+import {bangkokToday} from "@erpx/server-operations/domain/handover-time";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {WorkSnapshot} from "@erpx/server-work_projection/public/work-items";
+import type {OperationsCommands} from "@erpx/server-operations/domain/commands";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 function strict<Ports extends object>(facts:Partial<Ports>):Ports{return new Proxy(facts,{get(target,name){if(name in target)return target[name as keyof Ports];return ()=>{throw Error('Unexpected port: '+String(name));};}}) as Ports;}
 const commands:OperationsCommands<string>={replay:async()=>null,commit:async(_a,_key,_operation,_input,_id,_version,result)=>result};
@@ -50,13 +50,13 @@ test('overdue notifications deduplicate recipients, preserve explicit time and c
 
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {createRoutineCommands,validRoutineReceipt,type RoutineAttempt} from '../../../src/lib/operations/routine-command';
-import {routineSourcePurchase} from '../../../src/lib/operations/routine-purchase-controls';
-import {RoutineSchedules} from '../../../src/components/operations/routine-schedule-controls';
-import {RoutineCommandFeedback} from '../../../src/components/operations/routine-command-feedback';
-import type {useRoutineCommand} from '../../../src/components/operations/use-routine-command';
-import type {TemplateRow,ScheduleRow} from '../../../src/server/modules/operations/domain/routines';
-import {createStaffApiService,type StaffApiPorts} from '../../../src/server/modules/work_projection/application/staff-api';
+import {createRoutineCommands,validRoutineReceipt,type RoutineAttempt} from '@erpx/feature-operations/lib/routine-command';
+import {routineSourcePurchase} from '@erpx/feature-operations/lib/routine-purchase-controls';
+import {RoutineSchedules} from '@erpx/feature-operations/components/routine-schedule-controls';
+import {RoutineCommandFeedback} from '@erpx/feature-operations/components/routine-command-feedback';
+import type {useRoutineCommand} from '@erpx/feature-operations/components/use-routine-command';
+import type {TemplateRow,ScheduleRow} from '@erpx/server-operations/domain/routines';
+import {createStaffApiService,type StaffApiPorts} from '@erpx/server-work_projection/application/staff-api';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/holding/projects-routines/routines',useSearchParams:()=>new URLSearchParams()}));
 const routineBase='/holdings/holding',routineContext='opaque-original-context',routineResponse=(data:unknown,status=200)=>Response.json({data},{status});
 const routineAttempt=(path:string,input:Record<string,unknown>={}):RoutineAttempt=>({path,input,body:JSON.stringify(input),key:'key',context:routineContext,existing:false});
@@ -87,8 +87,8 @@ describe('Routine minimal actual source and server presentation',()=>{
  test('uses the original staff API command key and expected version for explicit owner schedule end',async()=>{const end=vi.fn(async()=>({id:'schedule',version:4,state:'ended'})),app=createStaffApiService(strict<StaffApiPorts>({requireWorkContext:async()=>actor,prepare:async()=>{},endSchedule:end})),result=await app('routine-schedules',new Request('https://console-dev-erpx.jesadakorn.com/api/owner',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':'original-key'},body:JSON.stringify({expectedVersion:3})}),{params:Promise.resolve({holdingSlug:'holding',path:['schedule','end']})});expect(result).toEqual({id:'schedule',version:4,state:'ended'});expect(end).toHaveBeenCalledWith(actor,'schedule',3,'original-key');});
 });
 
-import {createHandoverReceiptCommands,handoverReceiptMatches} from '../../../src/lib/work_projection/handover-acknowledgement';
-import {HandoverAcknowledgement as HandoverReceiptView} from '../../../src/components/work_projection/today/handover-acknowledgement';
+import {createHandoverReceiptCommands,handoverReceiptMatches} from '@erpx/feature-work_projection/lib/handover-acknowledgement';
+import {HandoverAcknowledgement as HandoverReceiptView} from '@erpx/feature-work_projection/components/today/handover-acknowledgement';
 const handoverEndpoint='/api/v1/holdings/test/handover/post/acknowledgement';
 describe('Handover current seed and exact submitted receipt',()=>{
  test('renders the matching original server receipt and draining control before hydration without a status-loading placeholder',()=>{const html=renderToStaticMarkup(createElement(HandoverReceiptView,{api:'/api/v1/holdings/test',postId:'post',version:3,contextToken:'opaque',initial:{postId:'post',postVersion:3,canAcknowledge:true,acknowledged:false,recipientCount:2,acknowledgedCount:1},purchase:{newWork:false,settleExisting:true,history:true,revision:'opaque-purchase'}}));expect(html).toContain('1 of 2 recipients confirmed receipt');expect(html).toContain('Confirm receipt');expect(html).not.toContain('Loading handover receipt');expect(html).not.toContain('authority_json');});
@@ -99,7 +99,7 @@ describe('Handover current seed and exact submitted receipt',()=>{
  test('a first definitive current denial allows review but later denial cannot erase an uncertain original result',async()=>{let count=0;const commands=createHandoverReceiptCommands(async()=>Response.json({error:{message:'Original current recipient'}},{status:++count===1?503:403}),()=> 'key'),attempt=commands.prepare(handoverEndpoint,'post',3,'original');await expect(commands.execute(attempt,()=> 'original')).rejects.toThrow('Original current recipient');await expect(commands.execute(attempt,()=> 'original')).rejects.toThrow('Original current recipient');expect(commands.pending()).toEqual(attempt);const denied=createHandoverReceiptCommands(async()=>Response.json({error:{message:'Original current recipient'}},{status:403}),()=> 'key');await expect(denied.execute(denied.prepare(handoverEndpoint,'post',3,'original'),()=> 'original')).rejects.toThrow('Original current recipient');expect(denied.pending()).toBeNull();});
 });
 
-import {createHandoverPublishCommands,handoverPublishReceiptMatches,handoverViewMatches,type HandoverInput} from '../../../src/lib/work_projection/handover-command';
+import {createHandoverPublishCommands,handoverPublishReceiptMatches,handoverViewMatches,type HandoverInput} from '@erpx/feature-work_projection/lib/handover-command';
 const handoverPublishInput:HandoverInput={date:'2026-10-16',body:'Original reviewed handover',sources:[{id:'task',sourceVersion:3,kind:'staff_task'}],recipientIds:['receiver']},handoverPublishKey='11111111-1111-4111-8111-111111111111';
 const publishedHandover={id:`post-post-draft-${handoverPublishKey}`,version:1};
 describe('Handover publication exact recovery and retained newer drafts',()=>{

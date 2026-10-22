@@ -1,9 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { WorkSummary } from "../../../src/server/modules/work_projection/public/work-summary";
-import { projectWorkPage } from "../../../src/lib/work_projection/work-page";
-import { workAttention } from "../../../src/lib/work_projection/work-attention";
+import type { WorkSummary } from "@erpx/server-work_projection/public/work-summary";
+import { projectWorkPage } from "@erpx/feature-work_projection/lib/work-page";
+import { workAttention } from "@erpx/feature-work_projection/lib/work-attention";
 import { selectFixtureAssignment } from "../../support/browser/select-fixture-assignment";
-import type { WorkItem } from "../../../src/lib/work_projection/work-item";
+import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 
 test.beforeEach(async ({ context, baseURL }) => {
   test.skip(!["localhost", "127.0.0.1"].includes(new URL(baseURL!).hostname), "Uses the local development roster.");

@@ -1,6 +1,6 @@
 import {beforeAll,expect,it} from 'vitest';
 import {env,applyMigrations} from "../../support/runtime-env";
-import {readWorkspacePreference,readCompanyPreference,rememberWorkspace,rememberPlatformRole} from "../../../src/server/modules/work_projection/public/workspace-preferences";
+import {readWorkspacePreference,readCompanyPreference,rememberWorkspace,rememberPlatformRole} from "@erpx/server-work_projection/public/workspace-preferences";
 beforeAll(()=>applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS));
 it('stores workspace and company by account independently of browser/session',async()=>{
  const db=env.CONTROL_DB,user=crypto.randomUUID(),other=crypto.randomUUID();

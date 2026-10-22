@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { filterWork, workInView, workViews, type WorkItem } from "../../../src/lib/work_projection/work-item";
-import { projectWorkPage, type WorkPageQuery } from "../../../src/lib/work_projection/work-page";
-import type { WorkSummary } from "../../../src/server/modules/work_projection/public/work-summary";
+import { filterWork, workInView, workViews, type WorkItem } from "@erpx/feature-work_projection/lib/work-item";
+import { projectWorkPage, type WorkPageQuery } from "@erpx/feature-work_projection/lib/work-page";
+import type { WorkSummary } from "@erpx/server-work_projection/public/work-summary";
 
 const query: WorkPageQuery = { view: "actions", queue: "todo", type: "all", q: "", responsibility: "all" };
 const item = (index: number, extra: Partial<WorkItem> = {}): WorkItem => ({

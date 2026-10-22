@@ -1,5 +1,5 @@
 import { relative, resolve } from "node:path";
-import type { EngineeringObservation } from "../../../src/lib/runtime/engineering-completion";
+import type { EngineeringObservation } from "@erpx/feature-runtime/lib/engineering-completion";
 
 const record=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==="object"&&!Array.isArray(value);
 const digest=(value:unknown):value is string=>typeof value==="string"&&/^[a-f0-9]{64}$/.test(value);

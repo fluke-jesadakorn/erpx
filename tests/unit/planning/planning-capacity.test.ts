@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { createCapacityPlanner, type CapacityRepository } from "../../../src/server/modules/planning/application/capacity";
-import type { CapacityOperation } from "../../../src/server/modules/planning/domain/capacity";
+import { createCapacityPlanner, type CapacityRepository } from "@erpx/server-planning/application/capacity";
+import type { CapacityOperation } from "@erpx/server-planning/domain/capacity";
 
 const operation = (overrides: Partial<CapacityOperation> = {}): CapacityOperation => ({ id: "cut", name: "Cut", resource_id: "machine", status: "active", branch_id: "branch", setup_minutes: 15, run_minutes_per_batch: 100, work_weekdays_json: "[1,2,3,4,5]", daily_minutes: 120, resource_version: 7, ...overrides });
 const input = { specificationId: "spec", branchId: "branch", factor: 1.5, startDate: "2026-10-02", dueDate: "2026-10-04" };

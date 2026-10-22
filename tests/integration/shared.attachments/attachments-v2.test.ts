@@ -1,30 +1,30 @@
 import {recordField} from "../../support/helpers/required-fact";
 import { afterAll,beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { createHash } from "node:crypto";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { applyMigrations,env } from "../../support/runtime-env";
 
-vi.mock("../../../src/server/modules/files/public/attachments/scanner",()=>({
+vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
   attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:"ClamAV test",definitionUpdatedAt:Date.now(),error:null}),
   scanAttachmentBytes:async()=>({clean:true,signature:null,engine:"ClamAV test",definitionUpdatedAt:Date.now()}),
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/preview",()=>({
+vi.mock("@erpx/server-files/public/attachments/preview",()=>({
   attachmentPreviewReadiness:async()=>({ready:true,heifConvert:"/test/heif-convert",pdftoppm:"/test/pdftoppm",error:null}),
   detectedAttachmentMediaType:(_bytes:Uint8Array,declared:string)=>declared,
   sanitizedAttachmentPreview:async(_bytes:Uint8Array,mediaType:string)=>mediaType.startsWith("image/")?{bytes:new Uint8Array([82,73,70,70,4,0,0,0,87,69,66,80]),mediaType:"image/webp" as const}:null,
 }));
 
-import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload,withdrawAttachmentLink } from "../../../src/server/modules/files/public/attachments/service";
-import { attachmentPolicy } from "../../../src/server/modules/files/public/attachments/policy";
-import {postView,publishPost,savePostDraft,type PostContent} from "../../../src/server/modules/collaboration/public/social-home";
-import { listBrandProfiles } from "../../../src/server/modules/brand/public/branding";
-import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "../../../src/server/modules/files/public/attachments/migration";
-import { sha256 } from "../../../src/server/modules/runtime/adapters/crypto";
-import { LocalFileStore } from "../../../src/server/modules/runtime/adapters/runtime/filesystem";
-import { MinioFileStore } from "../../../src/server/modules/runtime/adapters/runtime/minio";
-import { PostgresDatabase,transactionDatabase } from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import type { SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
-import { sealUnreferencedStoredObjects } from "../../../src/server/modules/files/public/attachments/orphan-preservation";
+import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload,withdrawAttachmentLink } from "@erpx/server-files/public/attachments/service";
+import { attachmentPolicy } from "@erpx/server-files/public/attachments/policy";
+import {postView,publishPost,savePostDraft,type PostContent} from "@erpx/server-collaboration/public/social-home";
+import { listBrandProfiles } from "@erpx/server-brand/public/branding";
+import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
+import { sha256 } from "@erpx/server-runtime/adapters/crypto";
+import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem";
+import { MinioFileStore } from "@erpx/server-runtime/adapters/runtime/minio";
+import { PostgresDatabase,transactionDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
+import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import { sealUnreferencedStoredObjects } from "@erpx/server-files/public/attachments/orphan-preservation";
 import { DeleteObjectCommand,S3Client } from "@aws-sdk/client-s3";
 
 const db=env.H001_DB,key=()=>crypto.randomUUID();
@@ -818,7 +818,7 @@ describe("canonical attachment lifecycle",()=>{
 
 
 it('recovers the actual File set and reservation after Marketing source advancement and draining without accepting a fresh intake key',async()=>{
- const {packageGrantStore,readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants'),grant=async(state:'active'|'draining',packageId:'sales'|'sales-marketing'='sales-marketing')=>{const prior=(await readCompanyPackageGrants(db,companyA)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'declared-file-recovery-provider'}),obligations:async()=>{throw Error('FILE_RECOVERY_FIXTURE_DOES_NOT_CERTIFY_INACTIVE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:companyA,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Isolated actual stored File recovery source',evidence:'test:actual-file-recovery'}});};
+ const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants'),grant=async(state:'active'|'draining',packageId:'sales'|'sales-marketing'='sales-marketing')=>{const prior=(await readCompanyPackageGrants(db,companyA)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'declared-file-recovery-provider'}),obligations:async()=>{throw Error('FILE_RECOVERY_FIXTURE_DOES_NOT_CERTIFY_INACTIVE');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:companyA,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Isolated actual stored File recovery source',evidence:'test:actual-file-recovery'}});};
  actorA={...actorA,modules:['marketing']};await db.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(actorA.modules),actorA.assignmentId).run();const asset=`recovery-asset-${key()}`;await db.prepare("INSERT INTO marketing_assets(id,company_id,kind,name,configuration_json,preview_json,status,created_by,version,created_at,updated_at) VALUES(?,?,'content','Actual original File recovery source','{}','{}','draft',?,1,1,1)").bind(asset,companyA,actorA.userId).run();
  vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');
  try{
@@ -867,7 +867,7 @@ it('refuses changed public derivative bytes and arbitrary borrowed publication s
 
 
 it('observes a committed normal public revocation before its first publication byte snapshot',async()=>{
- const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics');
+ const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');
  const set=await createAttachmentSet(db,actorA,{targetType:'product',targetId:productA,componentKind:'record',purposeKey:'product_image',expectedTargetVersion:1},key()),file=await availableProductFile(set.id);
  await bindRecordAttachmentSet(db,actorA,set.id,1,key());const publication=await createAttachmentPublication(db,env.H001_FILES,actorA,{sourceLinkId:file.attachmentLinkId,targetType:'product',targetId:productA,altText:'Current approved public image',ordinal:0},key()),id=String(publication?.id);await approveAttachmentPublication(db,peerA,id,key());
  const files=Object.create(env.H001_FILES) as typeof env.H001_FILES;let reads=0;files.get=async name=>{reads++;return env.H001_FILES.get(name);};
@@ -876,7 +876,7 @@ it('observes a committed normal public revocation before its first publication b
 });
 
 // Enforced purchase checks use this suite's owned local runtime, never an installed manifest.
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",async importOriginal=>({
-  ...await importOriginal<typeof import("../../../src/server/modules/runtime/adapters/runtime")>(),
+vi.mock("@erpx/server-runtime/adapters/runtime",async importOriginal=>({
+  ...await importOriginal<typeof import("@erpx/server-runtime/adapters/runtime")>(),
   runtimeEnv:async()=>env,
 }));

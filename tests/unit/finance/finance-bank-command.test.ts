@@ -2,8 +2,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { workFetch } from "../../../src/lib/work_projection/work-fetch";
-import { createFinanceBankCommands, type FinanceBankDraft, type FinanceBankRequest, type FinanceBankScope } from "../../../src/lib/finance/bank-command";
+import type { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
+import { createFinanceBankCommands, type FinanceBankDraft, type FinanceBankRequest, type FinanceBankScope } from "@erpx/feature-finance/lib/bank-command";
 
 const testRequire = createRequire(import.meta.url);
 
@@ -463,9 +463,9 @@ function callBankHandler(handler: unknown, ...args: unknown[]) {
 /** The real BankMatch and FinanceDraftBoundary closures run with only browser/network ports replaced. */
 async function mountedBankMatch(options: { pending?: FinanceBankRequest; deferEffects?: boolean; realCommands?: boolean; replies?: Array<unknown | Response | Error | Promise<unknown | Response | Error>> } = {}) {
   const ts = testRequire("typescript") as typeof import("typescript"),
-    contextSwitch = await import("../../../src/lib/work_projection/context-switch"),
-    source = await readFile(resolve("src/components/finance/bank-controls.tsx"), "utf8"),
-    boundarySource = await readFile(resolve("src/components/finance/finance-draft-boundary.tsx"), "utf8"),
+    contextSwitch = await import("@erpx/feature-work_projection/lib/context-switch"),
+    source = await readFile(resolve("packages/feature-finance/src/components/bank-controls.tsx"), "utf8"),
+    boundarySource = await readFile(resolve("packages/feature-finance/src/components/finance-draft-boundary.tsx"), "utf8"),
     compilerOptions = { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     compiled = ts.transpileModule(source, { compilerOptions }).outputText,
     compiledBoundary = ts.transpileModule(boundarySource, { compilerOptions }).outputText,
@@ -582,9 +582,9 @@ async function mountedBankMatch(options: { pending?: FinanceBankRequest; deferEf
     if (name === "react") return hooks;
     if (name === "react/jsx-runtime") return jsxRuntime;
     if (name === "next/navigation") return { usePathname: () => address.pathname, useSearchParams: () => new URLSearchParams(address.search) };
-    if (name === "@/lib/work_projection/context-switch") return contextSwitch;
-    if (name === "@/components/ui/dialog") return { Dialog: "dialog" };
-    if (name === "@/components/ui/foundation") return { Button: "button" };
+    if (name === "@erpx/feature-work_projection/lib/context-switch") return contextSwitch;
+    if (name === "@erpx/ui/components/dialog") return { Dialog: "dialog" };
+    if (name === "@erpx/ui/components/foundation") return { Button: "button" };
     throw Error("Unexpected FinanceDraftBoundary import " + name);
   };
   new Function("require", "module", "exports", compiledBoundary)(requireBoundary, boundaryModule, boundaryModule.exports);
@@ -608,20 +608,20 @@ async function mountedBankMatch(options: { pending?: FinanceBankRequest; deferEf
   const ports = (name: string): unknown => {
     if (name === "react") return hooks;
     if (name === "react/jsx-runtime") return jsxRuntime;
-    if (name.endsWith("/destination-registry")) return { canonicalUiHref: (href: string) => href };
-    if (name.endsWith("/ui/foundation")) return foundation;
-    if (name.endsWith("/ui/dialog")) return { FormDrawer: "section" };
-    if (name.endsWith("/destination-router")) return { useRouter: () => router };
-    if (name.endsWith("/finance-money")) return { minorToDecimal: (value: number) => (value / 100).toFixed(2) };
-    if (name.endsWith("/bank-command")) return { createFinanceBankCommands: (read: () => FinanceBankScope) => {
+    if (name.endsWith("@erpx/feature-work_projection/lib/destination-registry")) return { canonicalUiHref: (href: string) => href };
+    if (name.endsWith("@erpx/ui/components/foundation")) return foundation;
+    if (name.endsWith("@erpx/ui/components/dialog")) return { FormDrawer: "section" };
+    if (name.endsWith("@erpx/feature-shared/lib/destination-router")) return { useRouter: () => router };
+    if (name.endsWith("@erpx/feature-finance/lib/finance-money")) return { minorToDecimal: (value: number) => (value / 100).toFixed(2) };
+    if (name.endsWith("@erpx/feature-finance/lib/bank-command")) return { createFinanceBankCommands: (read: () => FinanceBankScope) => {
       readScope = read;
       if (!options.realCommands) return commandPort;
       actualCommands = createFinanceBankCommands(read, send, () => storage, () => "bank-key-1"); return actualCommands;
     } };
     if (name.endsWith("/purchase-context")) return { useFinanceActionAllowed: () => true };
-    if (name.endsWith("/finance-draft-boundary")) return { acknowledgeFinanceForm: acknowledge, captureFinanceForm: () => undefined, useFinanceDraftClose: () => (action: () => void) => action(), useFinanceDraftCommandPending: boundaryModule.exports.useFinanceDraftCommandPending, useFinanceDraftScope: boundaryModule.exports.useFinanceDraftScope };
-    if (name.endsWith("/work-refresh")) return { announceWorkChange: announce };
-    if (name.endsWith("/attachment-panel")) return { AttachmentPanel: "attachment-panel" };
+    if (name.endsWith("@erpx/feature-finance/components/finance-draft-boundary")) return { acknowledgeFinanceForm: acknowledge, captureFinanceForm: () => undefined, useFinanceDraftClose: () => (action: () => void) => action(), useFinanceDraftCommandPending: boundaryModule.exports.useFinanceDraftCommandPending, useFinanceDraftScope: boundaryModule.exports.useFinanceDraftScope };
+    if (name.endsWith("@erpx/feature-work_projection/lib/work-refresh")) return { announceWorkChange: announce };
+    if (name.endsWith("@erpx/feature-files/components/attachment-panel")) return { AttachmentPanel: "attachment-panel" };
     throw Error("Unexpected actual BankMatch import " + name);
   };
   new Function("require", "module", "exports", compiled)(ports, loaded, loaded.exports);
@@ -1379,7 +1379,7 @@ async function mountedBankImport(options: {
   storage?:Map<string,string>;
 } = {}) {
   const ts = testRequire("typescript") as typeof import("typescript"),
-    source = await readFile(resolve("src/components/finance/bank-controls.tsx"), "utf8"),
+    source = await readFile(resolve("packages/feature-finance/src/components/bank-controls.tsx"), "utf8"),
     ast = ts.createSourceFile("bank-controls.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX),
     declaration = ast.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === "BankImport"),
     commandDeclaration = ast.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === "useBankCommand");

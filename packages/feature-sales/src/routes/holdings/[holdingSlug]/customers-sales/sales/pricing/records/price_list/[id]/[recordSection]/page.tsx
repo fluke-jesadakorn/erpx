@@ -1,0 +1,7 @@
+import Screen from '@erpx/workplace/routes/holdings/[holdingSlug]/customers-sales/sales/pricing/_screen';
+import {notFound} from 'next/navigation';
+import {recordSections,defaultRecordSection} from '@erpx/feature-records/lib/record-drawer';
+export default async function Page({params}:{params:Promise<{holdingSlug:string;id:string;recordSection?:string}>}){
+ const p=await params,section=p.recordSection??defaultRecordSection("price_list");if(!(recordSections.price_list??[defaultRecordSection('price_list')]).includes(section))notFound();
+ return <Screen params={Promise.resolve({holdingSlug:p.holdingSlug})} searchParams={Promise.resolve({})}/>;
+}

@@ -1,6 +1,6 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createAssetCarryingEvidence,type AssetCarryingPorts} from "../../../src/server/modules/finance/application/asset-carrying";
-import type {AssetCarryingRow as Row} from "../../../src/server/modules/finance/domain/asset-carrying";
+import {createAssetCarryingEvidence,type AssetCarryingPorts} from "@erpx/server-finance/application/asset-carrying";
+import type {AssetCarryingRow as Row} from "@erpx/server-finance/domain/asset-carrying";
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code}),hash=async(value:string)=>`hash:${value}`;
 const asset:Row={id:'asset',company_id:'company',chart_id:'primary',activation_journal_id:'acquisition',in_service_date:'2026-09-01',account_id:'cost',depreciation_account_id:'accumulated',depreciation_expense_account_id:'expense',cost_minor:10000,residual_minor:1000,accumulated_depreciation_minor:0},book={chartId:'primary',costAccount:'cost',accumulatedAccount:'accumulated',ruleId:null};
 function line(extra:Row={}):Row{return {journal_id:'acquisition',chart_id:'primary',company_id:'company',entry_date:'2026-09-01',status:'posted',source_type:'asset_acquisition',source_id:'asset',account_id:'cost',base_debit_minor:10000,base_credit_minor:0,...extra}}

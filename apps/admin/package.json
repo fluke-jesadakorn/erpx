@@ -1,0 +1,20 @@
+{
+  "name": "@erpx/app-admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun ../../scripts/local/app-task.ts dev --app=admin",
+    "build": "bun ../../scripts/local/app-task.ts build --app=admin",
+    "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=admin",
+    "lint": "bun ../../scripts/testing/scoped-lint.ts --app=admin"
+  },
+  "dependencies": {
+    "@erpx/feature-admin": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@erpx/contracts": "workspace:*"
+  }
+}

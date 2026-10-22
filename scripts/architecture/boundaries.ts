@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import {builtinModules} from "node:module";
-import { ownersForSource } from "../../src/server/modules/ownership";
+import relocationInventory from "./workspace-relocations.json";
+import { ownersForSource } from "@erpx/contracts/ownership";
 
 export type BoundaryIssue = {
   id: string;
@@ -13,6 +14,7 @@ export type BoundaryIssue = {
   grandfatherable: boolean;
 };
 
+const relocatedSources = new Map(relocationInventory.moves.map(move=>[move.from,move.to]));
 const extensions = ["", ".ts", ".tsx", ".mts", ".json", "/index.ts", "/index.tsx"];
 const forbiddenCorePackages = /^(?:next(?:\/|$)|react(?:\/|$)|server-only$|node:|pg$|drizzle-orm(?:\/|$)|@aws-sdk\/)/;
 const nodePackages=new Set(builtinModules.map(name=>name.replace(/^node:/,"")));
@@ -20,16 +22,16 @@ const forbiddenCoreNames = new Set(["SqlDatabase", "TransactionalSqlDatabase", "
 // UPDATE requires SET; imperative workflow guidance without SET is not SQL.
 // Template heads are checked against the complete template below so interpolated targets remain guarded.
 const sql = /^\s*(?:SELECT\s+(?:[\s\S]*\bFROM\b|(?:DISTINCT\s+)?(?:\d+|true|false|null|\?)(?:\s*[,;()]|\s*$)|[\w]+\s*\()|INSERT\s+INTO\s|UPDATE\s+(?!FROM(?:\s|$))[\s\S]*\bSET\b|DELETE\s+FROM\s|WITH\s+\w+\s+AS\s*\(|CREATE\s+TABLE\s|ALTER\s+TABLE\s|DROP\s+TABLE\s)/i;
-const publicEntry = /^src\/server\/modules\/[^/]+\/(?:(?:index|contracts|expense)\.ts|public\/.*\.ts)$/;
+const publicEntry = /^(?:src\/server\/modules\/[^/]+\/|packages\/server-[^/]+\/src\/)(?:(?:index|contracts|expense)\.ts|public\/.*\.ts)$/;
 // Presentation calls semantic owner APIs; inbound HTTP/worker adapters can compose typed resources.
-const runtimeGateway = /^src\/server\/(?:runtime(?:\/env)?|modules\/runtime\/(?:public\/runtime(?:\/env)?|adapters\/runtime(?:\/env)?))\.ts$/;
+const runtimeGateway = /^(?:src\/server\/(?:runtime(?:\/env)?|modules\/runtime\/(?:public\/runtime(?:\/env)?|adapters\/runtime(?:\/env)?))|packages\/server-runtime\/src\/(?:public|adapters)\/runtime(?:\/env)?)\.ts$/;
 const resourceAcquisition = new Set(["holdingResources", "holdingMigrationDatabase", "runtimeEnv", "getRuntime", "controlResources", "controlDatabase", "iamDb", "iamContext", "bookingDatabase", "registeredResources", "registeredMigrationDatabase", "staffPage", "portalContext", "customerPortalContext", "PostgresDatabase"]);
 const resourceBinding = /^(?:CONTROL|H\d{3})(?:_READ)?_(?:DB|FILES)$/;
 const presentationSqlExports: Record<string, ReadonlySet<string>> = {
-  "src/server/modules/pos/public/pos-core.ts": new Set(["one", "all", "run"]),
-  "src/server/modules/work_projection/public/calendar/access.ts": new Set(["rows", "one", "run"]),
-  "src/server/modules/work_projection/public/list-page.ts": new Set(["readListPage"]),
-  "src/server/modules/workflow/public/commands.ts": new Set(["assertion"]),
+  "packages/server-pos/src/public/pos-core.ts": new Set(["one", "all", "run"]),
+  "packages/server-work_projection/src/public/calendar/access.ts": new Set(["rows", "one", "run"]),
+  "packages/server-work_projection/src/public/list-page.ts": new Set(["readListPage"]),
+  "packages/server-workflow/src/public/commands.ts": new Set(["assertion"]),
 };
 
 /** Imperative UI sentences can contain FROM without being a SQL statement. */
@@ -48,14 +50,17 @@ function isStructuredErrorInstruction(node: ts.Node): boolean {
 }
 
 export function resolveSource(root: string, source: string, specifier: string): string | null {
-  const candidate = specifier.startsWith("@/")
+  const workspace = /^@erpx\/([^/]+)\/(.+)$/.exec(specifier);
+  const candidate = workspace ? path.join(root,"packages",workspace[1],"src",workspace[2]) : specifier.startsWith("@/")
     ? path.join(root, "src", specifier.slice(2))
     : specifier.startsWith(".")
       ? path.resolve(root, path.dirname(source), specifier)
       : null;
   if (!candidate) return null;
   for (const extension of extensions) {
-    const file = `${candidate}${extension}`;
+    const original = path.relative(root,`${candidate}${extension}`).replaceAll("\\","/");
+    const moved = relocatedSources.get(original);
+    const file = moved ? path.join(root,moved) : `${candidate}${extension}`;
     if (fs.existsSync(file) && fs.statSync(file).isFile()) return path.relative(root, file).replaceAll("\\", "/");
   }
   // Missing local imports are still checked; deleting a private file cannot bypass a boundary.
@@ -64,7 +69,7 @@ export function resolveSource(root: string, source: string, specifier: string): 
 }
 
 function moduleLayer(source: string): { owner: string; layer: string } | null {
-  const match = /^src\/server\/modules\/([^/]+)\/(domain|application|adapters)\//.exec(source);
+  const match = /^(?:src\/server\/modules\/|packages\/server-)([^/]+)\/(?:src\/)?(domain|application|adapters)\//.exec(source);
   return match ? { owner: match[1], layer: match[2] } : null;
 }
 
@@ -186,13 +191,13 @@ export function inspectSource(root: string, source: string, text: string, coreCo
   const issues: BoundaryIssue[] = [];
   const layer = coreContext??moduleLayer(source);
   const core = layer?.layer === "domain" || layer?.layer === "application";
-  const component = source.startsWith("src/components/");
-  const presentation = component || (/^src\/app\/.*\.tsx?$/.test(source) && !/\/route\.tsx?$/.test(source));
-  const entrypoint = component || /^(?:src\/app|src\/workers)\//.test(source);
+  const component = source.startsWith("src/components/") || /^packages\/[^/]+\/src\/components\//.test(source);
+  const presentation = component || (/^(?:src\/app\/|apps\/[^/]+\/src\/app\/|packages\/[^/]+\/src\/routes\/).*\.tsx?$/.test(source) && !/\/route\.tsx?$/.test(source));
+  const entrypoint = component || /^(?:src\/(?:app|workers)\/|apps\/[^/]+\/src\/app\/|packages\/[^/]+\/src\/routes\/)/.test(source);
   const resolveConstant = constantResolver(parsed);
   const presentationRule = component ? "component-runtime-composition" : "presentation-runtime-composition";
   const namespaceTargets = new Map<string, string>();
-  const owners = coreContext?ownersForSource(`src/server/modules/${coreContext.owner}/domain/__context.ts`):ownersForSource(source);
+  const owners = coreContext?ownersForSource(`packages/server-${coreContext.owner}/src/domain/__context.ts`):ownersForSource(source);
   const add = (node: ts.Node, rule: string, target: string, grandfatherable = false) => {
     const line = parsed.getLineAndCharacterOfPosition(node.getStart(parsed)).line + 1;
     const symbol = ts.isImportDeclaration(node) || ts.isExportDeclaration(node) ? importNames(node) : node.getText(parsed).replaceAll(/\s/g, "");
@@ -260,12 +265,12 @@ export function inspectSource(root: string, source: string, text: string, coreCo
       if(publicEntry.test(target)&&!fs.existsSync(path.join(root,target)))add(node,"public-entry-missing",target);
       if (core && target.startsWith("src/server/") && !targetLayer && !publicEntry.test(target)) add(node, "core-legacy-service", target);
       if (core && targetLayer && (targetLayer.layer === "adapters" || (layer?.layer === "domain" && targetLayer.layer === "application"))) add(node, "core-dependency-direction", target);
-      if (core && publicEntry.test(target) && !typeOnly && !target.includes("/shared/") && !target.includes("/public/rules/")) add(node, "core-runtime-facade", target);
+      if (core && publicEntry.test(target) && !typeOnly && !target.includes("/shared/") && !target.startsWith("packages/server-shared/") && !target.includes("/public/rules/")) add(node, "core-runtime-facade", target);
       const targetOwners = ownersForSource(target);
       const sameOwner = owners.some((owner) => targetOwners.some((other) => owner.id === other.id));
       const sharedCore = targetLayer?.owner === "shared" && targetLayer.layer !== "adapters";
-      if (targetOwners.length && !sameOwner && !sharedCore && !publicEntry.test(target)) add(node, "owner-private-import", target, !core && !source.startsWith("src/server/modules/"));
-      if (targetLayer && !sameOwner && !/^src\/server\/modules\/shared\/(?:domain|application)\//.test(target)) add(node, "module-private-import", target, !core && !source.startsWith("src/server/modules/"));
+      if (targetOwners.length && !sameOwner && !sharedCore && !publicEntry.test(target)) add(node, "owner-private-import", target, !core && !moduleLayer(source));
+      if (targetLayer && !sameOwner && !sharedCore) add(node, "module-private-import", target, !core && !moduleLayer(source));
     }
   };
   const visit = (node: ts.Node) => {
@@ -274,7 +279,7 @@ export function inspectSource(root: string, source: string, text: string, coreCo
       const namedTypes=bindings&&(ts.isNamedImports(bindings)||ts.isNamedExports(bindings))&&bindings.elements.length>0&&bindings.elements.every(entry=>entry.isTypeOnly);
       const typeOnly = ts.isImportDeclaration(node) ? !!node.importClause?.isTypeOnly||!!namedTypes&&!node.importClause?.name : node.isTypeOnly||!!namedTypes;
       checkDependency(node, node.moduleSpecifier.text, typeOnly);
-      if (source.startsWith("src/server/modules/") && ts.isExportDeclaration(node) && !node.exportClause) add(node, "public-wildcard-export", node.moduleSpecifier.text);
+      if (/^packages\/server-|^src\/server\/modules\//.test(source) && ts.isExportDeclaration(node) && !node.exportClause) add(node, "public-wildcard-export", node.moduleSpecifier.text);
     }
     if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference) && node.moduleReference.expression && ts.isStringLiteral(node.moduleReference.expression)) {
       const specifier = node.moduleReference.expression.text, target = resolveSource(root, source, specifier);
@@ -325,11 +330,11 @@ export function architectureSources(root: string): string[] {
   const walk = (directory: string) => {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       const file = path.join(directory, entry.name);
-      if (entry.isDirectory()) walk(file);
+      if (entry.isDirectory() && !["node_modules",".next",".build",".cache",".turbo"].includes(entry.name)) walk(file);
       else if (/\.(?:ts|tsx|mts)$/.test(entry.name)) results.push(path.relative(root, file).replaceAll("\\", "/"));
     }
   };
-  for (const folder of ["src/server", "src/app", "src/workers", "src/components"]) if (fs.existsSync(path.join(root, folder))) walk(path.join(root, folder));
+  for (const folder of ["src/server", "src/app", "src/workers", "src/components", "apps", "packages"]) if (fs.existsSync(path.join(root, folder))) walk(path.join(root, folder));
   return results.sort();
 }
 
@@ -340,7 +345,7 @@ export function inspectArchitecture(root: string): BoundaryIssue[] {
   for(const source of sources){const context=moduleLayer(source);if(!context||!["domain","application"].includes(context.layer))continue;
     const seen=new Set<string>();
     const visit=(current:string,traversalContext=context)=>{
-      const ruleOwner=/^src\/server\/modules\/([^/]+)\/public\/rules\//.exec(current);
+      const ruleOwner=/^(?:src\/server\/modules\/|packages\/server-)([^/]+)\/(?:src\/)?public\/rules\//.exec(current);
       if(ruleOwner)traversalContext={owner:ruleOwner[1],layer:"domain"};
       if(seen.has(current)||!fs.existsSync(path.join(root,current)))return;seen.add(current);
       const text=fs.readFileSync(path.join(root,current),"utf8"),parsed=ts.createSourceFile(current,text,ts.ScriptTarget.Latest,true);

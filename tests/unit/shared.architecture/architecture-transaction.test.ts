@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { runAtomicCommand } from "../../../src/server/modules/shared/application/command";
-import type { CommandIdentity, CommandReceipt, UnitOfWork } from "../../../src/server/modules/shared/application/ports";
+import { runAtomicCommand } from "@erpx/server-shared/application/command";
+import type { CommandIdentity, CommandReceipt, UnitOfWork } from "@erpx/server-shared/application/ports";
 
 const identity: CommandIdentity = { key: "command-key", operation: "expense.approve", recordId: "expense-1", input: { expectedVersion: 1 } };
 type Result = { version: number };

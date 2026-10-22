@@ -1,0 +1,30 @@
+import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
+import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requirePlatformContext, requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
+import { parseHoldingWorkspace, workspaceBase, workspaceHref } from "@erpx/feature-work_projection/lib/workspace";
+import { runtimeEnv } from "../../../../../../../packages/server-runtime/src/public/runtime";
+import { rememberWorkspace } from "@erpx/server-work_projection/public/workspace-preferences";
+import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
+
+export async function POST(request:Request) {
+  try {
+    const {base}=z.object({base:z.string().max(512)}).parse(await request.json());
+    const db=(await runtimeEnv()).CONTROL_DB;
+    if(base==='/platform') {
+      const actor=await requirePlatformContext();
+      await rememberWorkspace(db,actor.userId,canonicalUiHref('/platform/home'));
+    } else {
+      const parts=base.split('/').filter(Boolean);
+      const parsed=parts[0]==='holdings' && parts[1] ? parseHoldingWorkspace(parts[1],parts.slice(2)) : null;
+      if(!parsed || workspaceBase(parsed.scope)!==base)throw new ApiError(422,'INVALID_WORKSPACE','Choose an available workspace.');
+      // The rendered session revision must still be current; an old tab cannot
+      // overwrite the account preference after its role changes.
+      if(!request.headers.has('x-erpx-context-revision'))throw new ApiError(409,'WORK_CONTEXT_CHANGED','Reload your workspace.');
+      const actor=await requireWorkContext(parsed.scope);
+      await rememberWorkspace(db,actor.userId,workspaceHref(publicScope(actor)),{holdingId:actor.holdingId,companyId:actor.companyId});
+    }
+    return NextResponse.json(canonicalDestinationLinks({data:{saved:true}}),{headers:{'Cache-Control':'private, no-store'}});
+  } catch(error) {return errorResponse(error);}
+}

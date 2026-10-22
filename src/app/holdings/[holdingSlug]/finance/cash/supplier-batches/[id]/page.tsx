@@ -1,5 +1,0 @@
-import {FinanceSourceDocumentBackdrop} from "@/components/finance/source-document-backdrop";
-import Screen from "@/app/holdings/[holdingSlug]/_presenters/finance/supplier-batches/screen";
-import {notFound} from 'next/navigation';
-import {recordSections,defaultRecordSection} from '@/lib/records/record-drawer';
-export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;id:string;recordSection?:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {const p={...await params,recordSection:"overview"};if(!(recordSections["supplier_batch"]??[defaultRecordSection("supplier_batch")]).includes(p.recordSection))notFound();const source=await FinanceSourceDocumentBackdrop({holdingSlug:p.holdingSlug,kind:"supplier-batch",id:p.id});if(source)return source;const props={params:Promise.resolve({...p,...{}}),searchParams:Promise.resolve({...await searchParams,...{},detailKind:"supplier_batch",detailId:p.id})} as Parameters<typeof Screen>[0]; return (await Screen(props))??null;}

@@ -1,7 +1,7 @@
-import {productNavigationHref} from "@/lib/work_projection/product-navigation";
+import {productNavigationHref} from "@erpx/feature-work_projection/lib/product-navigation";
 import { beforeAll, expect, it } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import { productSsoStore, ssoHash } from "@/server/modules/identity_access/adapters/product-sso-store";
+import { productSsoStore, ssoHash } from "@erpx/server-identity_access/adapters/product-sso-store";
 import { randomUUID } from "node:crypto";
 
 const db = env.CONTROL_DB;

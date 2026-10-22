@@ -1,6 +1,0 @@
-import 'server-only';
-import {crmHotelReservationSources} from '../../pms/public/crm-purchase-sources';
-import {crmPurchaseLeadRows} from './purchases';
-/** Current native consent evidence, rather than a copied sharing label, controls
- * private Hotel stay/state history in customer reporting. */
-export const crmSharedHotelAnalyticsSources=`SELECT lead.id lead_id,lead.company_id,reservation.id reservation_id,reservation.property_id,reservation.guest_id FROM (${crmPurchaseLeadRows}) lead JOIN crm_leads native ON native.id=lead.id JOIN crm_guest_links sharing ON sharing.contact_id=native.contact_id AND sharing.company_id=lead.company_id JOIN crm_guest_sharing_events reviewed ON reviewed.link_id=sharing.id AND reviewed.company_id=sharing.company_id AND reviewed.version=sharing.version AND reviewed.state='granted' AND reviewed.evidence=sharing.sharing_evidence AND reviewed.actor_id=sharing.sharing_by JOIN (${crmHotelReservationSources}) reservation ON reservation.company_id=lead.company_id AND reservation.branch_id=lead.branch_id AND reservation.property_id=sharing.property_id AND reservation.guest_id=sharing.guest_id WHERE sharing.sharing_state='granted'`;

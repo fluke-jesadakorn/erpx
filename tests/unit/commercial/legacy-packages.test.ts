@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
-import { moduleRegistry } from "@/data/module-registry";
-import { legacyModulePackages, legacyPackagePreview } from "@/server/modules/commercial/domain/legacy-packages";
-import type { LegacyCompanyModuleAccess } from "@/server/modules/identity_access/public/rules/legacy-module-access";
-import type { CompanyPackageGrant } from "@/server/modules/commercial/domain/packages";
+import { moduleRegistry } from "@erpx/catalogue/module-registry";
+import { legacyModulePackages, legacyPackagePreview } from "@erpx/server-commercial/domain/legacy-packages";
+import type { LegacyCompanyModuleAccess } from "@erpx/server-identity_access/public/rules/legacy-module-access";
+import type { CompanyPackageGrant } from "@erpx/server-commercial/domain/packages";
 const facts = (modules: string[], beta = false): LegacyCompanyModuleAccess => ({ companyId: "c1", observedAt: 1000, revision: "authority-1", beta, witnesses: [{ assignmentId: "a1", assignmentVersion: 2, roleId: "custom_fixture", roleRevision: 3, scopeKind: "department", scopeNodeId: "d1", modules, validUntil: 5000, identityVersion: 1, hrAppointmentVersion: null, compatibility: [] }] });
 const options = { startsAt: 1000, now: 1000, reason: "Preserve the witnessed Company scope", evidence: "baseline:fixture" };
 it("classifies all 33 original modules once without using blanket grants", () => {
@@ -81,8 +81,8 @@ it("rejects stale or unmapped facts instead of silently losing a legacy module",
   expect(legacyPackagePreview({ ...facts([]), witnesses: [] }, [], options).requiredPackages).toEqual([]);
 });
 
-import {workforceSelfServiceEntry} from '@/server/modules/people_payroll/public/rules/self-service-product-entry';
-import {recordSections,defaultRecordSection} from '@/lib/records/record-route-definitions';
+import {workforceSelfServiceEntry} from '@erpx/server-people_payroll/public/rules/self-service-product-entry';
+import {recordSections,defaultRecordSection} from '@erpx/feature-records/lib/record-route-definitions';
 it('classifies only the original personal Leave and Overtime Work pages without changing their People owner or granting a management prefix',()=>{
  expect(workforceSelfServiceEntry('leave')).toEqual({kind:'leave',view:'list'});expect(workforceSelfServiceEntry('leave/new')).toEqual({kind:'leave',view:'new'});expect(workforceSelfServiceEntry('overtime')).toEqual({kind:'overtime',view:'list'});expect(workforceSelfServiceEntry('overtime/new')).toEqual({kind:'overtime',view:'new'});
  for(const suffix of ['', '/overview']){expect(workforceSelfServiceEntry('tasks/people_payroll/native-leave'+suffix)).toEqual({kind:'leave-record',id:'native-leave'});expect(workforceSelfServiceEntry('overtime/native-overtime'+suffix)).toEqual({kind:'overtime-record',id:'native-overtime'});}

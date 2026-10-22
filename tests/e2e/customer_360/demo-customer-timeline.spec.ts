@@ -42,6 +42,7 @@ test("isolated demo exposes a scoped Customer 360 timeline to independent Sales 
   const quotationId = state.fixture?.quotationId;
   expect(customerId).toBeTruthy();
   expect(quotationId).toBeTruthy();
+  if (!customerId || !quotationId) throw new Error("EXACT_CUSTOMER_TIMELINE_FIXTURE_REQUIRED");
   const operatorContext = await createEngineeringBrowserContext(browser,testInfo);
   const managerContext = await createEngineeringBrowserContext(browser,testInfo);
   const operatorPage = await operatorContext.newPage();

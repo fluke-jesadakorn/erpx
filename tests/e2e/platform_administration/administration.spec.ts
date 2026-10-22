@@ -2,7 +2,7 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 import { createHmac, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
-import type { OrganizationOverview } from "@/lib/organization/organization";
+import type { OrganizationOverview } from "@erpx/feature-organization/lib/organization";
 import { pinnedBunBinary } from "../../../scripts/testing/runtime-tooling";
 import { browserChildEnvironment } from "../../../scripts/testing/runner-environment";
 import { selectAcmeHoldingOwner } from "../../support/browser/select-acme-holding-owner";

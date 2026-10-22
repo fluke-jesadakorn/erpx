@@ -1,6 +1,6 @@
 /** Read-only evidence for shared physical stock, transport custody and WIP. */
 import {createHash} from 'node:crypto';
-import type {SqlDatabase} from "../../../src/server/modules/runtime/adapters/runtime/types";
+import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
 
 export type StockRow={companyId:string;warehouseId:string;productId:string;quantityMilli:string;valueMinor:string};
 export type StockMovement=StockRow&{id:string;sourceType:string;sourceId:string;movementDate:string;createdAt:string};

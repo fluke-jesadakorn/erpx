@@ -1,13 +1,13 @@
 import {expect,it,vi} from "vitest";
 import sanitizeHtml from "sanitize-html";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {createExecutiveConnections,type ExecutiveConnectionUnit} from "../../../src/server/modules/runtime/application/executive/connections";
-import type {TokenRow,ExecutiveConnectionGrant} from "../../../src/server/modules/runtime/domain/executive/connections";
-import {createExecutiveTools,type ExecutiveMcpUnit} from "../../../src/server/modules/runtime/application/executive/mcp";
-import {metricProjection} from "../../../src/server/modules/runtime/domain/executive/mcp";
-import {createHtmlWidgetDocument} from "../../../src/server/modules/runtime/application/executive/html-widget";
-import {normalizeMetricData,widgetSchema,type Filters} from "../../../src/lib/shared/executive/canvas";
-import {createRuntimePreservationAuthority,type RuntimePreservationUnit} from "../../../src/server/modules/legal/application/runtime-preservation-authority";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {createExecutiveConnections,type ExecutiveConnectionUnit} from "@erpx/server-runtime/application/executive/connections";
+import type {TokenRow,ExecutiveConnectionGrant} from "@erpx/server-runtime/domain/executive/connections";
+import {createExecutiveTools,type ExecutiveMcpUnit} from "@erpx/server-runtime/application/executive/mcp";
+import {metricProjection} from "@erpx/server-runtime/domain/executive/mcp";
+import {createHtmlWidgetDocument} from "@erpx/server-runtime/application/executive/html-widget";
+import {normalizeMetricData,widgetSchema,type Filters} from "@erpx/feature-shared/lib/executive/canvas";
+import {createRuntimePreservationAuthority,type RuntimePreservationUnit} from "@erpx/server-legal/application/runtime-preservation-authority";
 function only<T extends object>(operations:Partial<T>):T{return new Proxy(operations as T,{get(target,name){if(name==="then")return undefined;if(name in target)return Reflect.get(target,name);return ()=>{throw new Error(`unexpected port: ${String(name)}`)}}});}
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
 const actor:WorkContext={userId:"reviewer",name:"Reviewer",email:"reviewer@example.test",assignmentId:"assignment",role:"holding_owner",companyId:"company",branchId:null,departmentId:null,holdingId:"H001",holdingSlug:"test",holdingName:"Test",scope:{kind:"holding",holdingId:"H001",holdingSlug:"test",holdingName:"Test",companyId:"company"},assignmentScope:"holding",inherited:false,modules:["people_payroll"],assignments:[],workspaces:[]};

@@ -2,15 +2,15 @@ import { createHash } from "node:crypto";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
-import registry from "../../../src/data/module-registry.json";
-import { engineeringManifestSchema, evaluateEngineeringCompletion, type EngineeringGate, type EngineeringGateId, type EngineeringObservation } from "../../../src/lib/runtime/engineering-completion";
+import registry from "@erpx/catalogue/module-registry.json";
+import { engineeringManifestSchema, evaluateEngineeringCompletion, type EngineeringGate, type EngineeringGateId, type EngineeringObservation } from "@erpx/feature-runtime/lib/engineering-completion";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../../local/source-fingerprint";
 import { vitestObservations, playwrightObservations } from "./engineering-test-results";
 import { drainEngineeringProcess, runConcurrentEngineeringVerification, runReleaseVerification, serializeEngineeringEvidenceWrites } from "./engineering-release-verification";
 import {reassessEngineeringGates} from "./engineering-gate-validation";
 
 const root = resolve(import.meta.dir, "../../.."), register = join(root, "tests/catalogue/engineering-scenarios.json");
-const registrySha256 = createHash("sha256").update(await readFile(join(root, "src/data/module-registry.json"))).digest("hex");
+const registrySha256 = createHash("sha256").update(await readFile(join(root, "packages/catalogue/src/module-registry.json"))).digest("hex");
 if (registry.length !== 33 || registry.flatMap(module => module.sections.filter(section => section.capability)).length !== 187)
   throw new Error("CATALOGUE_SCOPE_CHANGED_REVIEW_REQUIRED");
 const mode = process.argv[2] ?? "check";

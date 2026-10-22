@@ -4,9 +4,9 @@
  */
 import {createHash} from 'node:crypto';
 import {readFile,writeFile} from 'node:fs/promises';
-import {assertHospitalityDevelopmentTarget} from "../../../src/lib/shared/hospitality-seed-target";
-import {PostgresDatabase} from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import {stripeCall} from "../../../src/server/modules/pos/public/pos-stripe";
+import {assertHospitalityDevelopmentTarget} from "@erpx/feature-shared/lib/hospitality-seed-target";
+import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
+import {stripeCall} from "@erpx/server-pos/public/pos-stripe";
 const path=process.argv[2];
 if(!path?.startsWith('.scratch/dev/')||!path.endsWith('/verification.json'))throw new Error('EXACT_REHEARSAL_EVIDENCE_REQUIRED');
 const bytes=await readFile(path),proof=JSON.parse(bytes.toString()) as {disposableDatabase:boolean;realStripeApi:boolean;account:string;checkedAt:string;cases:Array<{name:string;attemptToken:string;checkoutUrl:string}>};

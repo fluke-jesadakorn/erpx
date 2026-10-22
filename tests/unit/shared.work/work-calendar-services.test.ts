@@ -1,8 +1,8 @@
 import {expect,it,vi} from "vitest";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {createCalendarAvailability,type CalendarAvailabilityUnit} from "../../../src/server/modules/work_projection/application/calendar/availability";
-import {createCalendarCommands,type CalendarCommandsUnit} from "../../../src/server/modules/work_projection/application/calendar/commands";
-import {createCalendarAccess,type CalendarAccessUnit} from "../../../src/server/modules/work_projection/application/calendar/access";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {createCalendarAvailability,type CalendarAvailabilityUnit} from "@erpx/server-work_projection/application/calendar/availability";
+import {createCalendarCommands,type CalendarCommandsUnit} from "@erpx/server-work_projection/application/calendar/commands";
+import {createCalendarAccess,type CalendarAccessUnit} from "@erpx/server-work_projection/application/calendar/access";
 const actor:WorkContext={userId:"reviewer",name:"Reviewer",email:"reviewer@example.test",assignmentId:"assignment",role:"holding_owner",companyId:"company",branchId:null,departmentId:null,holdingId:"H001",holdingSlug:"test",holdingName:"Test",scope:{kind:"holding",holdingId:"H001",holdingSlug:"test",holdingName:"Test",companyId:"company"},assignmentScope:"holding",inherited:false,modules:["people_payroll","collaboration"],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
 const fail=(message:string,code="CALENDAR_FORBIDDEN",status=403):never=>{throw error(status,code,message)};
@@ -21,9 +21,9 @@ it("Calendar hierarchy keeps pilot account access closed before checking staff",
 it("Calendar access does not swallow an unavailable staff owner",async()=>{const unit=repository<CalendarAccessUnit>({activeStaff:async()=>{throw error(503,"STAFF_UNAVAILABLE","unavailable")}});await expect(access.calendarAccess(unit,actor)).rejects.toMatchObject({code:"STAFF_UNAVAILABLE"});});
 
 // Calendar client receipts must acknowledge the exact original owner command.
-import {createCalendarCommands as createCalendarClientCommands,calendarCommandContext,validCalendarReceipt,type CalendarCommandAttempt} from '../../../src/lib/work_projection/calendar-command';
-import type {workFetch} from '../../../src/lib/work_projection/work-fetch';
-import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
+import {createCalendarCommands as createCalendarClientCommands,calendarCommandContext,validCalendarReceipt,type CalendarCommandAttempt} from '@erpx/feature-work_projection/lib/calendar-command';
+import type {workFetch} from '@erpx/feature-work_projection/lib/work-fetch';
+import {setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 it('Calendar transport retains an incomplete acknowledgement and exact original key until a validated retry',async()=>{
  let calls=0;const send=vi.fn<typeof workFetch>(async()=>Response.json({data:++calls===1?{id:'calendar-captured',version:1}:{id:'calendar-captured',version:1,warnings:[]}})),commands=createCalendarClientCommands(send,()=> 'captured'),attempt=commands.prepare({action:'appointment.save',title:'Original meeting'},undefined,'account-A');
  await expect(commands.execute('/calendar',attempt,'account-A')).rejects.toThrow('acknowledgement is incomplete');expect(commands.pending()).toBe(attempt);expect(()=>commands.prepare({action:'appointment.save',title:'Later draft'},undefined,'account-A')).toThrow('newer draft is retained');
@@ -77,19 +77,19 @@ import {createRequire as calendarRequire} from 'node:module';
 import {readFileSync as calendarRead} from 'node:fs';
 import {runInNewContext as calendarEvaluate} from 'node:vm';
 import * as calendarReact from 'react';
-import {addDays as calendarAddDays} from '../../../src/lib/people_payroll/people-roster';
-import {localDateTimeToInstant as calendarInstant} from '../../../src/lib/work_projection/calendar-timeline';
+import {addDays as calendarAddDays} from '@erpx/feature-people_payroll/lib/people-roster';
+import {localDateTimeToInstant as calendarInstant} from '@erpx/feature-work_projection/lib/calendar-timeline';
 type CalendarFormNode=calendarReact.ReactElement<Record<string,unknown>>;
 function standardCalendarEditor(kind:'appointment'|'announcement'|'task',fields:Map<string,string[]>,send:ReturnType<typeof vi.fn>,edited=vi.fn()){
- const require=calendarRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=calendarRead('src/components/work_projection/calendar/standard-calendar-forms.tsx','utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},fetch=vi.fn();
+ const require=calendarRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=calendarRead('packages/feature-work_projection/src/components/calendar/standard-calendar-forms.tsx','utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},fetch=vi.fn();
  const controls=new Proxy({},{get:(_target,key)=>Object.assign((props:Record<string,unknown>)=>calendarReact.createElement(String(key),props),{displayName:String(key)})});
  const localRequire=(name:string):unknown=>{
   if(name==='react')return {...calendarReact,useState:(initial:unknown)=>[typeof initial==='function'?initial():initial,()=>{}]};
   if(name==='react/jsx-runtime')return require(name);
-  if(name.endsWith('/foundation'))return controls;
+  if(name.endsWith("@erpx/ui/components/foundation"))return controls;
   if(name.endsWith('/people-roster'))return {addDays:calendarAddDays};
-  if(name.endsWith('/calendar-timeline'))return {localDateTimeToInstant:calendarInstant};
-  if(name.endsWith('/work-fetch'))return {workFetch:fetch};
+  if(name.endsWith("@erpx/feature-work_projection/lib/calendar-timeline"))return {localDateTimeToInstant:calendarInstant};
+  if(name.endsWith("@erpx/feature-work_projection/lib/work-fetch"))return {workFetch:fetch};
   if(name.endsWith('.module.css'))return {default:new Proxy({},{get:(_target,key)=>String(key)})};
   throw Error('Unexpected live Calendar editor import '+name);
  };
@@ -136,8 +136,8 @@ it('Calendar does not release even a proven schema rejection when the owner chan
  const commands=createCalendarClientCommands(vi.fn<typeof workFetch>().mockResolvedValue(new Original(JSON.stringify({error:{code:'VALIDATION_FAILED',message:'Correct these fields'}}),{status:422,headers:{'content-type':'application/json'}})),()=> 'captured'),attempt=commands.prepare({action:'appointment.save',title:'First'},undefined,'A'),request=commands.execute('/calendar',attempt,()=>source);await ready;source='B';release();await expect(request).rejects.toThrow('account, Company or role changed');expect(commands.pending()).toBe(attempt);
 });
 
-import {installCalendarPendingNavigation,sameCalendarCommandView} from '../../../src/lib/work_projection/calendar-pending-navigation';
-import {hasUnsavedWork as calendarHasUnsavedWork} from '../../../src/lib/work_projection/context-switch';
+import {installCalendarPendingNavigation,sameCalendarCommandView} from '@erpx/feature-work_projection/lib/calendar-pending-navigation';
+import {hasUnsavedWork as calendarHasUnsavedWork} from '@erpx/feature-work_projection/lib/context-switch';
 it.each([true,false])('Calendar mounted no-field pending departure uses public navigation and preserves Next history (Navigation API %s)',withNavigation=>{
  const listeners=new Map<string,EventListener>(),navigation=new EventTarget(),history={pushState:vi.fn(),replaceState:vi.fn(),state:{nativeNext:'unchanged'}},location={href:'https://work.example.test/holdings/acme/work/calendar/team?view=week&date=2026-10-19',origin:'https://work.example.test'},requests:string[]=[],documentPort={querySelector:()=>null,documentElement:{dataset:{}},addEventListener:(name:string,listener:EventListener)=>listeners.set('document:'+name,listener),removeEventListener:(name:string)=>listeners.delete('document:'+name)};
  class LinkElement{constructor(readonly href:string,readonly attributes=new Set<string>(),readonly target=''){}closest(){return this;}hasAttribute(name:string){return this.attributes.has(name);}}
@@ -158,15 +158,15 @@ it('Calendar distinguishes its exact legacy audience-input rejection from the sa
  const unknown=createCalendarClientCommands(vi.fn<typeof workFetch>().mockRejectedValueOnce(Error('Lost result')).mockResolvedValue(reply(literal)),()=> 'captured'),submitted=unknown.prepare(input,undefined,'A');await expect(unknown.execute('/calendar',submitted,'A')).rejects.toThrow('Lost result');await expect(unknown.execute('/calendar',submitted,'A')).rejects.toThrow(literal);expect(unknown.pending()).toBe(submitted);
 });
 it.each(['busy','pending','dirty'] as const)('actual Calendar departure dialog retains %s owner work without allowing uncertain discard',kind=>{
- const require=calendarRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=calendarRead('src/components/work_projection/calendar/calendar-draft-boundary.tsx','utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>};let destination:string|null=null,requestDeparture!:(href:string)=>void,held!:()=>boolean;
+ const require=calendarRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=calendarRead('packages/feature-work_projection/src/components/calendar/calendar-draft-boundary.tsx','utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>};let destination:string|null=null,requestDeparture!:(href:string)=>void,held!:()=>boolean;
  const assign=vi.fn(),switching=vi.fn(),controls=new Proxy({},{get:(_target,key)=>Object.assign((props:Record<string,unknown>)=>calendarReact.createElement(String(key),props),{displayName:String(key)})});
  calendarEvaluate(code,{module:loaded,exports:loaded.exports,window:{location:{assign}},require:(name:string):unknown=>{
   if(name==='react')return {...calendarReact,useState:()=>[destination,(value:string|null)=>{destination=value;}],useEffect:(run:()=>void)=>run()};
   if(name==='react/jsx-runtime')return require(name);
-  if(name.endsWith('/foundation'))return controls;
-  if(name.endsWith('/dialog'))return {Dialog:(props:Record<string,unknown>)=>calendarReact.createElement('aside',props)};
-  if(name.endsWith('/context-switch'))return {setContextSwitching:switching};
-  if(name.endsWith('/calendar-pending-navigation'))return {installCalendarPendingNavigation:(current:()=>boolean,next:(href:string)=>void)=>{held=current;requestDeparture=next;return()=>{};}};
+  if(name.endsWith("@erpx/ui/components/foundation"))return controls;
+  if(name.endsWith("@erpx/ui/components/dialog"))return {Dialog:(props:Record<string,unknown>)=>calendarReact.createElement('aside',props)};
+  if(name.endsWith("@erpx/feature-work_projection/lib/context-switch"))return {setContextSwitching:switching};
+  if(name.endsWith("@erpx/feature-work_projection/lib/calendar-pending-navigation"))return {installCalendarPendingNavigation:(current:()=>boolean,next:(href:string)=>void)=>{held=current;requestDeparture=next;return()=>{};}};
   throw Error('Unexpected actual Calendar boundary import '+name);
  }});
  const Boundary=loaded.exports.CalendarDraftBoundary as (props:Record<string,unknown>)=>CalendarFormNode,props={children:'Actual Calendar',dirty:kind==='dirty',busy:kind==='busy',pending:kind==='pending'};
@@ -178,9 +178,9 @@ it.each(['busy','pending','dirty'] as const)('actual Calendar departure dialog r
 // The real shared editor owns both presentations; native commands and edit
 // completions are identical, rather than substituting the old Calendar form.
 async function calendarAppearanceBoundary(appearance:undefined|'legacy'|'standard',kind:'appointment'|'announcement'|'task'){
- const require=calendarRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),foundation=await import('../../../src/components/ui/foundation'),{renderToStaticMarkup}=await import('react-dom/server'),source=calendarRead('src/components/work_projection/calendar/standard-calendar-forms.tsx','utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},fetch=vi.fn(),send=vi.fn(),edited=vi.fn(),close=vi.fn(),fields=new Map<string,string[]>([['title',['Original meeting']],['description',['Original description']],['start',['2026-10-19T09:00']],['end',['2026-10-19T10:00']],['timezone',['Asia/Bangkok']],['frequency',['none']],['content',['Original announcement']],['audience',['company']],['startDate',['2026-10-19']],['endDate',['2026-10-20']],['dueDate',['2026-10-21']],['assignee',['account-worker']],['responsibility',['Original task scope']]]);
+ const require=calendarRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),foundation=await import('@erpx/ui/components/foundation'),{renderToStaticMarkup}=await import('react-dom/server'),source=calendarRead('packages/feature-work_projection/src/components/calendar/standard-calendar-forms.tsx','utf8'),code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},fetch=vi.fn(),send=vi.fn(),edited=vi.fn(),close=vi.fn(),fields=new Map<string,string[]>([['title',['Original meeting']],['description',['Original description']],['start',['2026-10-19T09:00']],['end',['2026-10-19T10:00']],['timezone',['Asia/Bangkok']],['frequency',['none']],['content',['Original announcement']],['audience',['company']],['startDate',['2026-10-19']],['endDate',['2026-10-20']],['dueDate',['2026-10-21']],['assignee',['account-worker']],['responsibility',['Original task scope']]]);
  let revision='original-edit';const element={isConnected:true,getAttribute:()=>revision,setAttribute:(_name:string,value:string)=>{revision=value;}},localRequire=(name:string):unknown=>{
-  if(name==='react')return {...calendarReact,useState:(initial:unknown)=>[typeof initial==='function'?initial():initial,()=>{}]};if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/foundation'))return foundation;if(name.endsWith('/people-roster'))return {addDays:calendarAddDays};if(name.endsWith('/calendar-timeline'))return {localDateTimeToInstant:calendarInstant};if(name.endsWith('/work-fetch'))return {workFetch:fetch};
+  if(name==='react')return {...calendarReact,useState:(initial:unknown)=>[typeof initial==='function'?initial():initial,()=>{}]};if(name==='react/jsx-runtime')return require(name);if(name.endsWith("@erpx/ui/components/foundation"))return foundation;if(name.endsWith('/people-roster'))return {addDays:calendarAddDays};if(name.endsWith("@erpx/feature-work_projection/lib/calendar-timeline"))return {localDateTimeToInstant:calendarInstant};if(name.endsWith("@erpx/feature-work_projection/lib/work-fetch"))return {workFetch:fetch};
   if(name.endsWith('.module.css'))return {default:new Proxy({},{get:(_target,key)=>(name.includes('standard-calendar-forms')?'standard-':'legacy-')+String(key)})};throw Error('Unexpected actual shared Calendar appearance import '+name);
  };
  calendarEvaluate(code,{require:localRequire,module:loaded,exports:loaded.exports,crypto,Intl,FormData:class{constructor(selected:unknown){expect(selected).toBe(element);}get(name:string){return fields.get(name)?.[0]??null;}getAll(name:string){return fields.get(name)??[];}}});

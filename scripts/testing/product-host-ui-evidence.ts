@@ -5,10 +5,10 @@ import {createHash,createPrivateKey,createPublicKey,X509Certificate} from "node:
 import {createReadStream} from "node:fs";
 import {lstat,readFile,realpath} from "node:fs/promises";
 import {isAbsolute,join,resolve} from "node:path";
-import {productIds,developmentProductOrigin} from "../../src/lib/commercial/product-registry";
-import {sharedHostKeys} from "../../src/lib/commercial/product-registry";
-import {productPageAllowed,productFrontBackofficeAllowed} from "../../src/lib/runtime/product-route-policy";
-import {workspacePathParts} from "../../src/lib/work_projection/destination-registry";
+import {productIds,developmentProductOrigin} from "@erpx/contracts/product-registry";
+import {sharedHostKeys} from "@erpx/contracts/product-registry";
+import {productPageAllowed,productFrontBackofficeAllowed} from "@erpx/feature-runtime/lib/product-route-policy";
+import {workspacePathParts} from "@erpx/feature-work_projection/lib/destination-registry";
 import {productHostProducts,type ProductHostLease,type ProductHostPlan} from "./product-host-cohort";
 type Binding={path:string;sha256:string;bytes?:number};
 export type ProductHostUiState={run:string;prefix?:string;productHosts?:boolean;sourceFingerprint:string;softwareVersion?:string;release:{id:string;fileManifestSha256:string};ready?:boolean;diagnostic?:boolean;port?:number;origin:string;pid?:number;jobsPid?:number;jobsPaused?:boolean;webEntrypoint?:string;jobsEntrypoint?:string};

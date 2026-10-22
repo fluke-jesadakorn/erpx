@@ -1,0 +1,40 @@
+{
+  "name": "@erpx/feature-portal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes/api/customer-portal/enroll/route": "./src/routes/api/customer-portal/enroll/route.ts",
+    "./routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route": "./src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/files/[linkId]/content/route.ts",
+    "./routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route": "./src/routes/api/customer-portal/[holdingSlug]/tickets/[bindingId]/acknowledgements/route.ts",
+    "./routes/api/customer-portal/[holdingSlug]/tickets/route": "./src/routes/api/customer-portal/[holdingSlug]/tickets/route.ts",
+    "./routes/api/customer-portal/[holdingSlug]/quick-access/route": "./src/routes/api/customer-portal/[holdingSlug]/quick-access/route.ts",
+    "./routes/api/customer-portal/[holdingSlug]/route": "./src/routes/api/customer-portal/[holdingSlug]/route.ts",
+    "./routes/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route": "./src/routes/api/customer-portal/[holdingSlug]/attachments/[[...path]]/route.ts",
+    "./routes/customer-portal/enroll/page": "./src/routes/customer-portal/enroll/page.tsx",
+    "./routes/customer-portal/[holdingSlug]/tickets/page": "./src/routes/customer-portal/[holdingSlug]/tickets/page.tsx",
+    "./routes/customer-portal/[holdingSlug]/page": "./src/routes/customer-portal/[holdingSlug]/page.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-customer_authority": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-runtime": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-customer_360": "workspace:*",
+    "@erpx/server-customer_authority": "workspace:*",
+    "@erpx/server-files": "workspace:*",
+    "@erpx/server-identity_access": "workspace:*",
+    "@erpx/server-legal": "workspace:*",
+    "@erpx/server-manage_erpx": "workspace:*",
+    "@erpx/server-runtime": "workspace:*",
+    "@erpx/server-support": "workspace:*",
+    "@erpx/server-work_projection": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "next": "16.4.0",
+    "zod": "4.5.4"
+  }
+}

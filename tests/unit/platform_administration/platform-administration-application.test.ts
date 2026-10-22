@@ -1,11 +1,11 @@
 import { expect, it } from "vitest";
-import { productionScope, legalProductionScope, criteriaForScope } from "../../../src/data/production-scope";
-import { createReleaseAcceptanceApplication, type ReleaseRepository } from "../../../src/server/modules/platform_administration/application/release-acceptance";
-import type { ReleaseRow } from "../../../src/server/modules/platform_administration/domain/release-acceptance";
-import { createSystemEvidenceApplication, type SystemEvidenceTransaction } from "../../../src/server/modules/platform_administration/application/system-evidence";
-import { createEngineeringVerificationApplication } from "../../../src/server/modules/platform_administration/application/engineering-verification";
-import { isEngineeringVerificationOrigin, type EngineeringAttestationFacts } from "../../../src/server/modules/platform_administration/domain/engineering-verification";
-import { createPlatformExecutiveApplication, type PlatformExecutiveRepository } from "../../../src/server/modules/platform_administration/application/platform-executive";
+import { productionScope, legalProductionScope, criteriaForScope } from "@erpx/catalogue/production-scope";
+import { createReleaseAcceptanceApplication, type ReleaseRepository } from "@erpx/server-platform_administration/application/release-acceptance";
+import type { ReleaseRow } from "@erpx/server-platform_administration/domain/release-acceptance";
+import { createSystemEvidenceApplication, type SystemEvidenceTransaction } from "@erpx/server-platform_administration/application/system-evidence";
+import { createEngineeringVerificationApplication } from "@erpx/server-platform_administration/application/engineering-verification";
+import { isEngineeringVerificationOrigin, type EngineeringAttestationFacts } from "@erpx/server-platform_administration/domain/engineering-verification";
+import { createPlatformExecutiveApplication, type PlatformExecutiveRepository } from "@erpx/server-platform_administration/application/platform-executive";
 
 function repository<T extends object>(operations: Partial<T>): T { return new Proxy(operations as T, { get(target, name) { if (name === "then") return undefined; if (name in target) return Reflect.get(target, name); return () => { throw new Error(`unexpected operation: ${String(name)}`); }; } }); }
 const error = (_status: number, code: string) => new Error(code);

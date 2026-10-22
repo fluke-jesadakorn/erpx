@@ -1,0 +1,3 @@
+/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
+export { assignmentApplies, isRoleValidAtScope, currentSession, workspaceGrantsForAccount, workspaceCompaniesForAccount, listWorkspaceCompanies, resolveWorkspaceScope, requestedHoldingScope, requireAccountAccess, requireWorkContext, requirePlatformContext, canEnterManageErpx, requireManageErpxContext, publicScope, firstAuthorizedWorkspace } from "@erpx/server-identity_access/adapters/authorization";
+export type { AssignmentScopeKind, ResolvedWorkspaceScope, WorkContext, AuthorizedWorkspace, PlatformContext, WorkAssignment, WorkspaceCompany, WorkspaceResolutionOptions, AccountAccessContext } from "@erpx/server-identity_access/adapters/authorization";

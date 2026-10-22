@@ -1,25 +1,25 @@
 import { describe, expect, it, vi } from "vitest";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {
   createSaveExpenseDraft, createSaveExpenseAccounting, createPostExpense,
   createExpensePaymentCommands, createTransitionExpenseV2,
   type ExpenseAccountingPorts, type ExpenseDraftPorts, type ExpensePaymentPorts,
   type ExpensePostingPorts, type ExpenseTransitionPorts, type ExpenseCommandPort,
-} from "../../../src/server/modules/people_payroll/application/expense-commands";
-import { createExpenseAiStatus, type ExpenseAiStatusPorts } from "../../../src/server/modules/people_payroll/application/expense-ai-status";
-import { hasIndependentSpendingTeam, independentAccountingCandidates, selectSpendingException } from "../../../src/server/modules/people_payroll/domain/expense-routing-rules";
-import { createExpenseRequirements, createSaveExpensePayment, createRevokePaymentSlip, createRevokeExpenseAttachment, type ExpensePaymentPreparationPorts, type ExpensePaymentSlipRemovalPorts, type ExpenseReceiptRemovalPorts } from "../../../src/server/modules/people_payroll/application/expense-evidence";
-import { createExpenseReads, type ExpenseReadPorts } from "../../../src/server/modules/people_payroll/application/expense-reads";
-import { createTransitionExpense, createPrepareExpensePosting, createReverseExpense, type ExpenseLifecyclePorts, type ExpensePostingPreparationPorts, type ExpenseReversalPorts } from "../../../src/server/modules/people_payroll/application/expense-lifecycle";
-import { createQueueExpenseAi, createRunExpenseAi, type ExpenseAiQueuePorts, type ExpenseAiWorkerPorts, type ExpenseAiSourceFacts } from "../../../src/server/modules/people_payroll/application/expense-ai-jobs";
-import type { AiClaim } from "../../../src/server/modules/people_payroll/public/expense-ai-source";
-import { reconcileExpenseAiResults } from "../../../src/server/modules/people_payroll/domain/expense-ai-processing";
-import { createExpenseRoute, createLegacyExpenseRoute, createSpendingUsers, createSpendingStepCandidates, createExpensePoolCandidates, type ExpenseRoutingPorts } from "../../../src/server/modules/people_payroll/application/expense-routing";
-import { createExpensePayers, createExpenseWorkflowFields, createCurrentExpenseReader, createExpenseApprovalFields, createExpenseDetail, createExpenseOptions, createExpensePaymentReader } from "../../../src/server/modules/people_payroll/application/expense-projections";
-import { createExpenseAiAllowed, createExpenseAiSource, createExpenseAiClaim, type ExpenseAiEligibilityPorts, type ExpenseAiSourcePorts } from "../../../src/server/modules/people_payroll/application/expense-ai-source";
-import type { OrganizationPerson } from "../../../src/server/modules/organization/public/profile-facts";
-import type { StaffPerson } from "../../../src/server/modules/operations/public/staff-policy";
-import type { ApprovalInstance, ApprovalStep } from "../../../src/server/modules/workflow/public/approvals";
+} from "@erpx/server-people_payroll/application/expense-commands";
+import { createExpenseAiStatus, type ExpenseAiStatusPorts } from "@erpx/server-people_payroll/application/expense-ai-status";
+import { hasIndependentSpendingTeam, independentAccountingCandidates, selectSpendingException } from "@erpx/server-people_payroll/domain/expense-routing-rules";
+import { createExpenseRequirements, createSaveExpensePayment, createRevokePaymentSlip, createRevokeExpenseAttachment, type ExpensePaymentPreparationPorts, type ExpensePaymentSlipRemovalPorts, type ExpenseReceiptRemovalPorts } from "@erpx/server-people_payroll/application/expense-evidence";
+import { createExpenseReads, type ExpenseReadPorts } from "@erpx/server-people_payroll/application/expense-reads";
+import { createTransitionExpense, createPrepareExpensePosting, createReverseExpense, type ExpenseLifecyclePorts, type ExpensePostingPreparationPorts, type ExpenseReversalPorts } from "@erpx/server-people_payroll/application/expense-lifecycle";
+import { createQueueExpenseAi, createRunExpenseAi, type ExpenseAiQueuePorts, type ExpenseAiWorkerPorts, type ExpenseAiSourceFacts } from "@erpx/server-people_payroll/application/expense-ai-jobs";
+import type { AiClaim } from "@erpx/server-people_payroll/public/expense-ai-source";
+import { reconcileExpenseAiResults } from "@erpx/server-people_payroll/domain/expense-ai-processing";
+import { createExpenseRoute, createLegacyExpenseRoute, createSpendingUsers, createSpendingStepCandidates, createExpensePoolCandidates, type ExpenseRoutingPorts } from "@erpx/server-people_payroll/application/expense-routing";
+import { createExpensePayers, createExpenseWorkflowFields, createCurrentExpenseReader, createExpenseApprovalFields, createExpenseDetail, createExpenseOptions, createExpensePaymentReader } from "@erpx/server-people_payroll/application/expense-projections";
+import { createExpenseAiAllowed, createExpenseAiSource, createExpenseAiClaim, type ExpenseAiEligibilityPorts, type ExpenseAiSourcePorts } from "@erpx/server-people_payroll/application/expense-ai-source";
+import type { OrganizationPerson } from "@erpx/server-organization/public/profile-facts";
+import type { StaffPerson } from "@erpx/server-operations/public/staff-policy";
+import type { ApprovalInstance, ApprovalStep } from "@erpx/server-workflow/public/approvals";
 
 const actor = { userId: "claimant", name: "Claimant", companyId: "company", holdingId: "h001", branchId: null, departmentId: null } as WorkContext;
 const row = { id: "expense", company_id: "company", branch_id: "branch", department_id: "department", claimant_user_id: "claimant", created_by: "claimant", prepared_by: "claimant", workflow_version: 2, workflow_stage: "accounts_review", status: "in_review", amount_minor: 10000, tax_minor: 700, expense_date: "2026-09-01", version: 4 };
@@ -532,10 +532,10 @@ describe("Expense payment and AI evidence source policy", () => {
 });
 
 // Additive native application/client boundary coverage; original suite above is exact.
-import {createCancelExpensePayment,type ExpensePaymentCancellationPorts} from '../../../src/server/modules/people_payroll/application/expense-payment-cancellation';
-import {expensePaymentCancellationSchema,type ExpensePaymentCancellationInput} from '../../../src/server/modules/people_payroll/domain/expense-payment-cancellation';
-import {createExpensePaymentCancellationCommands,type ExpensePaymentCancellationSource} from '../../../src/lib/people_payroll/expense-payment-cancellation';
-import {setContextSwitching} from '../../../src/lib/work_projection/context-switch';
+import {createCancelExpensePayment,type ExpensePaymentCancellationPorts} from '@erpx/server-people_payroll/application/expense-payment-cancellation';
+import {expensePaymentCancellationSchema,type ExpensePaymentCancellationInput} from '@erpx/server-people_payroll/domain/expense-payment-cancellation';
+import {createExpensePaymentCancellationCommands,type ExpensePaymentCancellationSource} from '@erpx/feature-people_payroll/lib/expense-payment-cancellation';
+import {setContextSwitching} from '@erpx/feature-work_projection/lib/context-switch';
 const cancelPaymentInput:ExpensePaymentCancellationInput={expectedVersion:2,expenseVersion:7,reason:'Verified unused preparation; no bank payment executed',paymentNotExecuted:true};
 function cancellationPorts(){
  const expense={...row,version:7,status:'cancelled',workflow_stage:'cancelled',invoice_id:'invoice',journal_id:'journal',cancelled_at:1000},draft={id:'draft',expense_id:'expense',company_id:'company',version:2,status:'draft',payment_id:null};
@@ -584,8 +584,8 @@ it('an initial stale cancellation context performs no network request or acknowl
  try{const commands=createExpensePaymentCancellationCommands(()=>source);await expect(commands.submit(cancelPaymentInput)).rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED'});expect(fetcher).not.toHaveBeenCalled();expect(saved).toEqual([]);expect(commands.pending()).toBe(false);}finally{vi.unstubAllGlobals();}
 });
 it('the actual cancellation control is reachable for a server-authorized cancelled-parent duty and absent for an unauthorized reader',async()=>{
- const route='../../../src/lib/shared/destination-router';vi.doMock(route,()=>({useRouter:()=>({refresh:()=>{}})}));
- try{const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server'),{ExpensePaymentCancellation}=await import('../../../src/components/people_payroll/expense-payment-cancellation');const f=cancellationPorts();
+ const route="@erpx/feature-shared/lib/destination-router";vi.doMock(route,()=>({useRouter:()=>({refresh:()=>{}})}));
+ try{const {createElement}=await import('react'),{renderToStaticMarkup}=await import('react-dom/server'),{ExpensePaymentCancellation}=await import('@erpx/feature-people_payroll/components/expense-payment-cancellation');const f=cancellationPorts();
   const visible=renderToStaticMarkup(createElement(ExpensePaymentCancellation,{base:'/holdings/test',expense:f.expense,draft:{...f.draft,can_cancel_payment:1}}));expect(visible).toContain('Cancel unused payment preparation');
   expect(renderToStaticMarkup(createElement(ExpensePaymentCancellation,{base:'/holdings/test',expense:f.expense,draft:{...f.draft,can_cancel_payment:0}}))).toBe('');
  }finally{vi.doUnmock(route);}

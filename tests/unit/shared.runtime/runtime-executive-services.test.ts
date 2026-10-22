@@ -1,13 +1,13 @@
 import {describe,expect,test,vi} from 'vitest';
-import {createExecutiveAccessApplication,type ExecutiveAccessPorts} from "../../../src/server/modules/runtime/application/executive/access";
-import {createAdministrationApplication,type AdministrationPorts} from "../../../src/server/modules/runtime/application/administration";
-import {createBusinessReadinessApplication} from "../../../src/server/modules/runtime/application/business-readiness";
-import {createExecutiveContextApplication,type ExecutiveContextPorts} from "../../../src/server/modules/runtime/application/executive/context";
-import {executiveScope} from "../../../src/server/modules/runtime/domain/executive/access";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {MetricData} from "../../../src/lib/shared/executive/canvas";
-import {defaultFilters as explicitDefaultFilters} from "@/server/modules/runtime/public/rules/canvas-domain";
-import {createExecutiveReportApplication,type ExecutiveReportPorts} from "../../../src/server/modules/runtime/application/executive/reports";
+import {createExecutiveAccessApplication,type ExecutiveAccessPorts} from "@erpx/server-runtime/application/executive/access";
+import {createAdministrationApplication,type AdministrationPorts} from "@erpx/server-runtime/application/administration";
+import {createBusinessReadinessApplication} from "@erpx/server-runtime/application/business-readiness";
+import {createExecutiveContextApplication,type ExecutiveContextPorts} from "@erpx/server-runtime/application/executive/context";
+import {executiveScope} from "@erpx/server-runtime/domain/executive/access";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {MetricData} from "@erpx/feature-shared/lib/executive/canvas";
+import {defaultFilters as explicitDefaultFilters} from "@erpx/server-runtime/public/rules/canvas-domain";
+import {createExecutiveReportApplication,type ExecutiveReportPorts} from "@erpx/server-runtime/application/executive/reports";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[]};
 function strict<T extends object>(facts:Partial<T>):T{return new Proxy(facts,{get(target,name){if(name==='then')return undefined;if(name in target)return target[name as keyof T];return ()=>{throw Error('Unexpected port: '+String(name));};}}) as T;}
 function access(facts:Partial<ExecutiveAccessPorts['repository']>={}){return createExecutiveAccessApplication({clock:{now:()=>42},repository:{authority:async()=>true,eligibleEngagement:async()=>false,sharedReport:async()=>false,...facts}});}
@@ -51,9 +51,9 @@ describe('Executive model context contains only authorized bounded facts',()=>{
  test('revocation after snapshots prevents returning any generated context',async()=>{let reads=0;const app=context({currentAuthority:async()=>{if(++reads===2)throw Error('revoked during read');}});await expect(app.executiveAiContext(actor,filters)).rejects.toThrow('revoked during read');});
 });
 
-import {createExecutiveMetricApplication,type ExecutiveMetricPorts,type RawMetricRow} from "../../../src/server/modules/runtime/application/executive/metrics";
-import {exactInteger,sumExact,percentHundredths,moneyRatioMinor} from "../../../src/server/modules/runtime/domain/executive/metrics";
-import {createAgentEvidenceApplication,type AgentEvidencePorts} from "../../../src/server/modules/runtime/application/executive/agent-evidence";
+import {createExecutiveMetricApplication,type ExecutiveMetricPorts,type RawMetricRow} from "@erpx/server-runtime/application/executive/metrics";
+import {exactInteger,sumExact,percentHundredths,moneyRatioMinor} from "@erpx/server-runtime/domain/executive/metrics";
+import {createAgentEvidenceApplication,type AgentEvidencePorts} from "@erpx/server-runtime/application/executive/agent-evidence";
 const metricActor:WorkContext={...actor,modules:['people_payroll','pms','inventory','finance','agent','operations','brand']};
 const metricFilters={from:'2026-10-01',to:'2026-10-31',currency:'THB'};
 function metricApp(raw:RawMetricRow[],overrides:Partial<ExecutiveMetricPorts>={}){return createExecutiveMetricApplication({clock:{now:()=>99},digest:async value=>value,production:()=>false,companyAuthority:async()=>true,enabledModules:async()=>new Set(['finance']),assertModule:async()=>{},read:async()=>({raw,referenceAtOverride:null,watermarks:async()=>[],source:async()=>({row:{name:'group',description:'source'},rows:[],page:1,hasNext:false})}),...overrides});}
@@ -79,10 +79,10 @@ describe('Executive evidence projections enforce scope and fresh authority',()=>
  test('empty searches do not produce misleading record access receipts',async()=>{const source0=vi.fn(async()=>({success:true}));expect(await agentEvidence({searchRows0:async()=>({rows:[],fields:[]}),source0}).searchAgentEvidence(metricActor,{metric:'approved-agent-versions',filters:metricFilters})).toMatchObject({items:[],hasMore:false,nextCursor:null});expect(source0).not.toHaveBeenCalled();});
 });
 
-import {createExecutiveEvidenceApplication,type ExecutiveEvidencePorts} from "../../../src/server/modules/runtime/application/executive/evidence";
-import {createExecutiveGenerationApplication,type ExecutiveGenerationPorts} from "../../../src/server/modules/runtime/application/executive/generation";
-import type {Job} from "../../../src/server/modules/runtime/domain/executive/generation";
-import {emptyDefinition} from "../../../src/lib/shared/executive/canvas";
+import {createExecutiveEvidenceApplication,type ExecutiveEvidencePorts} from "@erpx/server-runtime/application/executive/evidence";
+import {createExecutiveGenerationApplication,type ExecutiveGenerationPorts} from "@erpx/server-runtime/application/executive/generation";
+import type {Job} from "@erpx/server-runtime/domain/executive/generation";
+import {emptyDefinition} from "@erpx/feature-shared/lib/executive/canvas";
 const invoiceFact={id:'invoice',invoice_number:'INV-1',kind:'receivable' as const,invoice_date:'2026-10-05',due_date:'2026-10-31',currency:'THB',total_minor:'100',outstanding_minor:'80',status:'posted',version:3};
 function mainEvidence(repository:Partial<ExecutiveEvidencePorts['repository']>,overrides:Partial<ExecutiveEvidencePorts>={}){return createExecutiveEvidenceApplication(strict<ExecutiveEvidencePorts>({clock:{now:()=>77},digest:async()=> 'evidence-query',repository:strict(repository),currentAuthority:async()=>{},metricCatalogFor:async()=>[{id:'receivables',available:true,label:'Receivables',description:'Posted',unit:'money',dateBasis:'invoice date'},{id:'approved-leave-duration',available:true,label:'Approved leave',description:'Personal',unit:'quantity',dateBasis:'work date'}],assertProductionModuleEnabled:async()=>{},...overrides}));}
 describe('Main Executive evidence keeps owner facts bounded and current',()=>{
@@ -106,16 +106,16 @@ describe('Executive generation maintains replay and lease policies without a pro
  test('read-only viewers cannot see the author generation history',async()=>{const source2=vi.fn(async()=>({results:[generationJob]}));expect(await generation({source2},{reportAccess:async()=>({...reportFacts,canEdit:false})}).generationHistory(metricActor,'report')).toEqual([]);expect(source2).not.toHaveBeenCalled();});
 });
 
-import {metricSourceSelection} from "../../../src/server/modules/runtime/domain/executive/metric-sources";
+import {metricSourceSelection} from "@erpx/server-runtime/domain/executive/metric-sources";
 describe('Metric source groups follow the aggregate boundary',()=>{
  test('a vanished group is rejected before owner source callbacks',async()=>{const source=vi.fn(async()=>{throw Error('unexpected source query');}),app=metricApp([],{read:async()=>({raw:[{label:'January',value:'100'}],referenceAtOverride:null,watermarks:async()=>[],source})});await expect(app.queryMetric(metricActor,'receivables',metricFilters,'default',{label:'December',page:1})).rejects.toMatchObject({code:'METRIC_GROUP_NOT_FOUND'});expect(source).not.toHaveBeenCalled();});
  test('a source group unit must match the selected aggregate unit',()=>{expect(()=>metricSourceSelection({label:'Water',unit:'piece',page:1},[{label:'Water',unit:'litre',value:'1000'}])).toThrow();});
  test('Other sources exclude exactly the first99 displayed groups',()=>{const raw=Array.from({length:101},(_,i)=>({label:'Group '+i,value:'1'}));expect(metricSourceSelection({label:'Other',page:1},raw)).toEqual({other:true,labels:raw.slice(0,99).map(row=>row.label)});});
 });
 
-import {inventoryExecutiveOwnerProjections as commerceSnapshots} from "../../../src/server/modules/commerce/public/inventory-executive-owner-projections";
-import {inventoryExecutiveOwnerProjections as peopleSnapshots} from "../../../src/server/modules/people_payroll/public/inventory-executive-owner-projections";
-import {inventoryExecutiveOwnerProjections as financeSnapshots} from "../../../src/server/modules/finance/public/inventory-executive-owner-projections";
+import {inventoryExecutiveOwnerProjections as commerceSnapshots} from "@erpx/server-commerce/public/inventory-executive-owner-projections";
+import {inventoryExecutiveOwnerProjections as peopleSnapshots} from "@erpx/server-people_payroll/public/inventory-executive-owner-projections";
+import {inventoryExecutiveOwnerProjections as financeSnapshots} from "@erpx/server-finance/public/inventory-executive-owner-projections";
 describe('Closed owner projections keep native Executive snapshots bounded',()=>{
  test('consumer code cannot replace an owner projection with arbitrary SQL',()=>{
   const original=peopleSnapshots.hr_people;

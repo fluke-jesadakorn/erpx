@@ -1,0 +1,24 @@
+{
+  "name": "@erpx/feature-forms",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes/forms/[holdingSlug]/[formId]/page": "./src/routes/forms/[holdingSlug]/[formId]/page.tsx",
+    "./routes/api/public/marketing/[holdingSlug]/[formId]/route": "./src/routes/api/public/marketing/[holdingSlug]/[formId]/route.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-marketing": "workspace:*",
+    "@erpx/feature-runtime": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-manage_erpx": "workspace:*",
+    "@erpx/server-marketing": "workspace:*",
+    "@erpx/server-runtime": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "next": "16.4.0"
+  }
+}

@@ -1,9 +1,9 @@
 import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from "../../../src/server/modules/commerce/public/commerce";
-import {createCustomerNote,changeCustomerNote,customerNotesForOrder,customerNotesForCustomer} from "../../../src/server/modules/sales/public/customer-notes";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
+import {createCustomerNote,changeCustomerNote,customerNotesForOrder,customerNotesForCustomer} from "@erpx/server-sales/public/customer-notes";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,orderId:string,customerId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();const party=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Simulated contact customer'},key());customerId=String(party.id);const warehouse=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Contact warehouse'},key()),product=await saveMaster(f.owner,'products',null,{sku:key(),name:'Contact product',price:'10'},key());const order=await saveOrder(f.owner,null,orderSchema.parse({kind:'sales',partyId:party.id,warehouseId:warehouse.id,orderDate:'2026-09-02',dueDate:'2026-09-03',lines:[{productId:product.id,quantity:'1',price:'10',taxBps:0}]}),key());orderId=String(order.id);});

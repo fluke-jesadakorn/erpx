@@ -1,0 +1,42 @@
+{
+  "name": "@erpx/feature-field_service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/service-reference-fields": "./src/components/service-reference-fields.tsx",
+    "./components/service-spare-form": "./src/components/service-spare-form.tsx",
+    "./components/service-navigation": "./src/components/service-navigation.tsx",
+    "./components/initial-physical-stock-count": "./src/components/initial-physical-stock-count.tsx",
+    "./components/parts-setup": "./src/components/parts-setup.tsx",
+    "./components/field-service-console": "./src/components/field-service-console.tsx",
+    "./components/customer-preparation": "./src/components/customer-preparation.tsx",
+    "./components/parts-entry-link": "./src/components/parts-entry-link.tsx",
+    "./lib/customer-preparation-command": "./src/lib/customer-preparation-command.ts",
+    "./lib/initial-physical-stock-count-command": "./src/lib/initial-physical-stock-count-command.ts",
+    "./lib/command": "./src/lib/command.ts",
+    "./lib/parts-setup-command": "./src/lib/parts-setup-command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-commerce": "workspace:*",
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-finance": "workspace:*",
+    "@erpx/feature-identity_access": "workspace:*",
+    "@erpx/feature-inventory": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-commerce": "workspace:*",
+    "@erpx/server-field_service": "workspace:*",
+    "@erpx/server-finance": "workspace:*",
+    "@erpx/server-inventory": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "react": "19.3.0",
+    "zod": "4.5.4"
+  }
+}

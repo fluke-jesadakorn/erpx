@@ -1,10 +1,10 @@
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from "../../../src/server/modules/commerce/public/commerce";
-import {createSupportTicket} from "../../../src/server/modules/support/public/support";
-import {changeSupportSession,requestSupportSession,supportSessionContext,supportSessionDetail,supportSessionWork} from "../../../src/server/modules/support/public/support-sessions";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
+import {createSupportTicket} from "@erpx/server-support/public/support";
+import {changeSupportSession,requestSupportSession,supportSessionContext,supportSessionDetail,supportSessionWork} from "@erpx/server-support/public/support-sessions";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,ticketId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{vi.restoreAllMocks();f=await expenseFixture();for(const [a,role] of [[f.head,'support_agent'],[f.manager,'support_manager']] as const){a.role=role;a.branchId=null;a.departmentId=null;a.assignmentId=await f.grant(a,role);}const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Session customer'},key()),warehouse=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Session warehouse'},key()),product=await saveMaster(f.owner,'products',null,{sku:key(),name:'Session item',price:'42'},key()),order=await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:warehouse.id,orderDate:'2026-09-20',dueDate:'2026-09-24',lines:[{productId:product.id,quantity:'1',price:'42',taxBps:0}]}),key());ticketId=String((await createSupportTicket(f.owner,{orderId:String(order.id),sourceVersion:1,title:'Customer setup context',issue:'Customer asks Support to review order setup.',ownerId:f.head.userId,dueDate:'2026-09-24'},key())).id);});

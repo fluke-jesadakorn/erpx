@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import { builtInPermissions } from "../../../src/lib/identity_access/permissions";
-import { requireAccessDeadline, requireDelegatedRole, requireExternalReady } from "../../../src/server/modules/identity_access/domain/people-access";
-import type { AccessSubject } from "../../../src/lib/identity_access/people-access";
+import { builtInPermissions } from "@erpx/feature-identity_access/lib/permissions";
+import { requireAccessDeadline, requireDelegatedRole, requireExternalReady } from "@erpx/server-identity_access/domain/people-access";
+import type { AccessSubject } from "@erpx/feature-identity_access/lib/people-access";
 const external: AccessSubject = { id:"external",kind:"external",name:"Vendor",email:"vendor@example.invalid",userId:null,personId:null,departmentId:null,organizationId:"vendor",teamId:null,sponsorPersonId:"employee",expiresAt:2000,status:"active",version:1 };
 it("separates the default HR and IT permission sets", () => {
   expect(builtInPermissions("hr_admin").filter(p=>p.startsWith("iam.") && p!=="iam.self")).toEqual([]);

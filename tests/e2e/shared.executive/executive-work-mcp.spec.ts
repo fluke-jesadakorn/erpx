@@ -65,8 +65,8 @@ test(executiveWorkHostCaseTitle, browserProjects(["desktop"], "The isolated brow
   await expect(connection).toContainText("active");
 
   const observer = await createWorkflowUiObserver(page, testInfo, {
-    routeSource: "src/app/holdings/[holdingSlug]/insights/executive/page.tsx",
-    targetSource: "src/app/holdings/[holdingSlug]/_presenters/executive/screen.tsx",
+    routeSource: "packages/feature-work/src/routes/holdings/[holdingSlug]/insights/executive/page.tsx",
+    targetSource: "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/executive/screen.tsx",
     checks: [
       "Account authentication completed through its normal email and password form.",
       "The Work role chooser selected the exact seeded owner assignment and Company.",

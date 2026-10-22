@@ -1,12 +1,12 @@
 import { expect } from "vitest";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import type { SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
-import { importBankStatement } from "../../../src/server/modules/finance/public/finance";
-import { setFinanceCompanyTool } from "../../../src/server/modules/finance/public/finance-company-tools";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import { importBankStatement } from "@erpx/server-finance/public/finance";
+import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
 import {
   bankAutomationWorkspace,
   proposeBankMatchGroup,
-} from "../../../src/server/modules/finance/public/finance-bank-automation";
+} from "@erpx/server-finance/public/finance-bank-automation";
 
 /** Exercise actual owner-posted cash against a different, still unmatched bank row. */
 export async function assertOwnedCashCannotMatchAgain(

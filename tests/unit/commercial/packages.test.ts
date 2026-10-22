@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { commercialPackages, purchasedCapability, purchasedCapabilityPurpose, validateGrantChange, visiblePurchasedProducts, type CompanyPackageGrant, type CompanyPackageHistoryRight } from "@/server/modules/commercial/public/packages";
-import { effectiveCapabilityDecision, capabilityRevisionSource } from "@/server/modules/commercial/domain/capability-decision";
-import { readPackageObligations, packageObligationModules, type PackageObligationReader } from "@/server/modules/commercial/public/package-obligations";
-import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
-import { validatePackageDependencies } from "@/server/modules/commercial/domain/package-dependencies";
+import { commercialPackages, purchasedCapability, purchasedCapabilityPurpose, validateGrantChange, visiblePurchasedProducts, type CompanyPackageGrant, type CompanyPackageHistoryRight } from "@erpx/server-commercial/public/packages";
+import { effectiveCapabilityDecision, capabilityRevisionSource } from "@erpx/server-commercial/domain/capability-decision";
+import { readPackageObligations, packageObligationModules, type PackageObligationReader } from "@erpx/server-commercial/public/package-obligations";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { validatePackageDependencies } from "@erpx/server-commercial/domain/package-dependencies";
 const now = 1_000;
 const grant = (packageId: string, extra: Partial<CompanyPackageGrant> = {}): CompanyPackageGrant => ({ companyId: "c1", packageId, packageVersion: 1, state: "active", startsAt: 0, endsAt: null, version: 1, reason: "Fixture", evidence: "test:approved", ...extra });
 const retained = (packageId: string, extra: Partial<CompanyPackageHistoryRight> = {}): CompanyPackageHistoryRight => ({ companyId: "c1", packageId, packageVersion: 1, sourceGrantVersion: 1, sourceEventId: "reviewed-purchase", retainedAt: 0, ...extra });

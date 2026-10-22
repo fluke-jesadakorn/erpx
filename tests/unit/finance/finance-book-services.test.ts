@@ -1,10 +1,10 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceBooks,type FinanceBookPorts,type BookReviewRepository} from "../../../src/server/modules/finance/application/books";
-import {createBookAdjustments,type BookAdjustmentPorts,type BookAdjustmentRepository} from "../../../src/server/modules/finance/application/book-adjustments";
-import {bookRuleSchema,dimensionSchema,type BookAccount,type BookRule,type BookWorkspace} from "../../../src/server/modules/finance/domain/books";
-import {bookAdjustmentSchema,type BookAdjustmentRow as Row} from "../../../src/server/modules/finance/domain/book-adjustments";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createFinanceBooks,type FinanceBookPorts,type BookReviewRepository} from "@erpx/server-finance/application/books";
+import {createBookAdjustments,type BookAdjustmentPorts,type BookAdjustmentRepository} from "@erpx/server-finance/application/book-adjustments";
+import {bookRuleSchema,dimensionSchema,type BookAccount,type BookRule,type BookWorkspace} from "@erpx/server-finance/domain/books";
+import {bookAdjustmentSchema,type BookAdjustmentRow as Row} from "@erpx/server-finance/domain/book-adjustments";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code}),hash=async(v:string)=>`hash:${v}`;
 const input=bookRuleSchema.parse({primaryChartId:'primary',secondaryChartId:'secondary',effectiveDate:'2026-10-01',openingPeriodId:'period',reason:'Reviewed retained primary balances',mappings:[{primaryAccountId:'cash',secondaryAccountId:'secondary-cash'},{primaryAccountId:'equity',secondaryAccountId:'secondary-equity'}]}),review={expectedVersion:1,reason:'Independent book opening approval'},opening=[{accountId:'cash',dimensions:'{}',minor:10000},{accountId:'equity',dimensions:'{}',minor:-10000}],rule:BookRule={status:'draft',version:1,primary_chart_id:'primary',secondary_chart_id:'secondary',effective_date:'2026-10-01',opening_json:JSON.stringify(opening),opening_hash:`hash:${JSON.stringify(opening)}`,opening_period_id:'period',prepared_by:'preparer'},workspace:BookWorkspace={definitions:[],values:[],rules:[{id:'rule'},{id:'other'}],mappings:[{rule_id:'rule'},{rule_id:'other'}],charts:[],accounts:[],periods:[]};

@@ -1,7 +1,7 @@
 /** Read-only development audit. File bytes and credentials never enter stdout. */
-import { getRuntime, closeRuntime } from "../../src/server/modules/runtime/adapters/runtime/env";
-import { resourceSlots, registeredResources } from "../../src/lib/runtime/holding-registry";
-import { reconcileAttachmentStorage } from "../../src/server/modules/files/public/attachments/migration";
+import { getRuntime, closeRuntime } from "@erpx/server-runtime/adapters/runtime/env";
+import { resourceSlots, registeredResources } from "@erpx/feature-runtime/lib/holding-registry";
+import { reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
 
 const env = getRuntime();
 if (env.ERPX_ENVIRONMENT !== "local") throw new Error("DEVELOPMENT_FILE_AUDIT_ONLY");

@@ -1,12 +1,12 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { loadPeopleMove, validatePeopleMoveTarget } from "../../../src/server/modules/people_payroll/public/people-move";
-import { installStaffLevels } from "../../../src/server/modules/organization/public/organization";
+import { loadPeopleMove, validatePeopleMoveTarget } from "@erpx/server-people_payroll/public/people-move";
+import { installStaffLevels } from "@erpx/server-organization/public/organization";
 import { createHash } from "node:crypto";
-import { placementBatchInput, previewPlacementBatch, submitPlacementBatch } from "../../../src/server/modules/people_payroll/public/people-placement-batch";
+import { placementBatchInput, previewPlacementBatch, submitPlacementBatch } from "@erpx/server-people_payroll/public/people-placement-batch";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingBindingBySlug: async (slug: string) => {
     if (slug !== "test") throw new Error("HOLDING_NOT_FOUND");
     return { id: "h001", slug, displayName: "Test Holding" };

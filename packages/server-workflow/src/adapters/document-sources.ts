@@ -1,0 +1,9 @@
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {FlowKind} from "@erpx/feature-shared/lib/flow";
+import * as people_payroll from '@erpx/server-people_payroll/public/workflow-document-sources';
+import * as operations from '@erpx/server-operations/public/workflow-document-sources';
+import * as records from '@erpx/server-records/public/workflow-document-sources';
+import * as inventory from '@erpx/server-inventory/public/workflow-document-sources';
+import * as commerce from '@erpx/server-commerce/public/workflow-read-sources';
+import * as finance from '@erpx/server-finance/public/workflow-document-sources';
+export function workflowRecord(db:SqlDatabase,kind:FlowKind,companyId:string,id:string){switch(kind){case 'expense':case 'leave':case 'payroll':return people_payroll.workflowDocument(db,kind,companyId,id);case 'staff_task':return operations.workflowDocument(db,kind,companyId,id);case 'request':case 'record':return records.workflowDocument(db,kind,companyId,id);case 'stock_count':case 'transfer':return inventory.workflowDocument(db,kind,companyId,id);case 'order':return commerce.workflowDocument(db,kind,companyId,id);case 'invoice':case 'journal':return finance.workflowDocument(db,kind,companyId,id);}}
+export function workflowRecordPage(db:SqlDatabase,kind:FlowKind,companyId:string,after:string){switch(kind){case 'expense':case 'leave':case 'payroll':return people_payroll.workflowDocumentPage(db,kind,companyId,after);case 'staff_task':return operations.workflowDocumentPage(db,kind,companyId,after);case 'request':case 'record':return records.workflowDocumentPage(db,kind,companyId,after);case 'stock_count':case 'transfer':return inventory.workflowDocumentPage(db,kind,companyId,after);case 'order':return commerce.workflowDocumentPage(db,kind,companyId,after);case 'invoice':case 'journal':return finance.workflowDocumentPage(db,kind,companyId,after);}}

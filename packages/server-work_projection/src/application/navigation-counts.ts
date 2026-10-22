@@ -1,0 +1,2 @@
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+export function createNavigationCountService(ports:{now():number;base(actor:WorkContext):string;mark(actor:WorkContext,base:string,now:number):Promise<void>;unread(actor:WorkContext,base:string,now:number):Promise<number>}) {return {markHomeRead(actor:WorkContext,now=ports.now()){return ports.mark(actor,ports.base(actor),now);},unreadHomeCount(actor:WorkContext,now=ports.now()){return ports.unread(actor,ports.base(actor),now);}};}

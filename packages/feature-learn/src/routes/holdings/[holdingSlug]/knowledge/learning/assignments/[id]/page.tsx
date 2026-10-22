@@ -1,0 +1,4 @@
+import Screen from "@erpx/workplace/routes/holdings/[holdingSlug]/knowledge/learning/assignments/_screen";
+import {notFound} from 'next/navigation';
+import {recordSections,defaultRecordSection} from '@erpx/feature-records/lib/record-drawer';
+export default async function Page({params,searchParams}:{params:Promise<{holdingSlug:string;id:string;recordSection?:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {const p={...await params,recordSection:"overview"};if(!(recordSections["learning_assignment"]??[defaultRecordSection("learning_assignment")]).includes(p.recordSection))notFound();const props={params:Promise.resolve({...p,...{}}),searchParams:Promise.resolve({...await searchParams,...{"view":"learning","section":"assignments"},detailKind:"learning_assignment",detailId:p.id})} as Parameters<typeof Screen>[0]; return (await Screen(props))??null;}

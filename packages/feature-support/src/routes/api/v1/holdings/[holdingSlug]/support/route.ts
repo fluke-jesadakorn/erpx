@@ -1,0 +1,9 @@
+import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
+import {bindSupportEvidence,revokeSupportEvidence} from "@erpx/server-support/public/support-evidence";
+import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";
+import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
+import {supportWorkspace,supportRecipients,supportDetail,createSupportTicket,changeSupportTicket} from "@erpx/server-support/public/support";
+type Context={params:Promise<{holdingSlug:string}>};const headers={'Cache-Control':'private, no-store'};
+export async function GET(r:Request,c:Context){try{const a=await requireWorkContext((await c.params).holdingSlug),q=new URL(r.url).searchParams,id=q.get('id'),order=q.get('orderId');return Response.json(canonicalDestinationLinks({data:id?await supportDetail(a,id):order?await supportRecipients(a,order):await supportWorkspace(a)}),{headers});}catch(e){return errorResponse(e);}}
+export async function POST(r:Request,c:Context){try{if(r.headers.get('origin')&&r.headers.get('origin')!==requestPublicOrigin(r))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');const key=r.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');const a=await requireWorkContext((await c.params).holdingSlug),input=await r.json();if(!input||typeof input!=='object')throw new ApiError(422,'COMMAND_REQUIRED','Provide a ticket command.');return Response.json(canonicalDestinationLinks({data:input.action==='bind-evidence'?await bindSupportEvidence(a,input.id,input,key):input.action==='revoke-evidence'?await revokeSupportEvidence(a,input.id,input,key):typeof input.id==='string'?await changeSupportTicket(a,input.id,input,key):await createSupportTicket(a,input,key)}),{headers});}catch(e){return errorResponse(e);}}

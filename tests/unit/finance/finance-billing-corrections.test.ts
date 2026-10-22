@@ -1,9 +1,9 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import { describe, expect, it, vi } from 'vitest';
-import { createBillingCorrections, type BillingCorrectionPorts } from "../../../src/server/modules/finance/application/billing-corrections";
-import { billingCorrectionSchema, type Row } from "../../../src/server/modules/finance/domain/billing-corrections";
-import { businessContractSchema, contractBillingCalculation } from "../../../src/server/modules/finance/domain/finance-contract-policy";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import { createBillingCorrections, type BillingCorrectionPorts } from "@erpx/server-finance/application/billing-corrections";
+import { billingCorrectionSchema, type Row } from "@erpx/server-finance/domain/billing-corrections";
+import { businessContractSchema, contractBillingCalculation } from "@erpx/server-finance/domain/finance-contract-policy";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 const actor: WorkContext = { userId: 'reviewer', name: 'Reviewer', email: 'reviewer@example.test', assignmentId: 'assignment', role: 'finance_approver', companyId: 'company', branchId: null, departmentId: null, holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', scope: { kind: 'holding', holdingId: 'h001', holdingSlug: 'holding', holdingName: 'Holding', companyId: 'company' }, assignmentScope: 'holding', inherited: false, modules: ['finance'], assignments: [], workspaces: [] };
 const error = (status: number, code: string, message: string) => Object.assign(new Error(message), { status, code });
 function strict<T extends object>(facts: Partial<T>): T { return new Proxy(facts, { get(target, key) { if (!(key in target))

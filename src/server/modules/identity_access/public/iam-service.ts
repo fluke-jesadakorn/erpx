@@ -1,2 +1,0 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { roleInput, grantInput, reviewInput, accessReviewCampaignInput, accessReviewDecisionInput, iamAuditHistory, listIamRoles, iamOverview, startAccessReviewCampaign, decideAccessReviewItem, cancelAccessReviewCampaign, saveIamRole, validateIamGrant, insertIamGrant, grantIamAccess, revokeIamAssignment, applyIamRevocation, decideIamReview, proposeIamReview } from "@/server/modules/identity_access/adapters/iam-service";

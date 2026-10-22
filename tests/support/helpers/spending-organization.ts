@@ -1,5 +1,5 @@
 import type { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { installStaffLevels, savePosition, positionSchema } from "../../../src/server/modules/organization/public/organization";
+import { installStaffLevels, savePosition, positionSchema } from "@erpx/server-organization/public/organization";
 
 /** Explicit test fixture mapping; this never remaps application staff from roles. */
 export async function mapSpendingOrganization(f:Awaited<ReturnType<typeof seedExpenseCompany>>) {

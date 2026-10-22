@@ -1,4 +1,0 @@
-import {inventoryReadProjection} from '../../inventory/public/inventory-read-projections';
-import {inventoryNotificationAudience} from '../../identity_access/public/inventory-authority-projections';
-import type {SqlDatabase} from '../../runtime/public/runtime/types';
-export function inventoryTransitSources(db:SqlDatabase){return {prepareTransitNotice(key:string,id:string){return db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT DISTINCT ?||'-'||a.user_id,d.company_id,a.user_id,'inventory_transit',d.id,d.version,'Transport handoff updated: inspect dispatch, receipt and discrepancy evidence',d.updated_at ${inventoryReadProjection.transitNotificationSource} ${inventoryNotificationAudience.transitReaders} WHERE d.id=? ON CONFLICT DO NOTHING`).bind(key,id);}};}

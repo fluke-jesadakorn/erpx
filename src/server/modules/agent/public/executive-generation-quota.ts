@@ -1,1 +1,0 @@
-export {executiveGenerationQuota} from '../adapters/executive-generation-quota';

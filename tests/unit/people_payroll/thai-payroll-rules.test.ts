@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateThaiPayroll, ThaiPayrollRuleError, type ThaiPayrollRules } from "../../../src/lib/people_payroll/thai-payroll-rules";
+import { calculateThaiPayroll, ThaiPayrollRuleError, type ThaiPayrollRules } from "@erpx/feature-people_payroll/lib/thai-payroll-rules";
 import fixture from "../../../fixtures/payroll-thai/synthetic-kernel-v1.json";
 
 const syntheticRules: ThaiPayrollRules = {

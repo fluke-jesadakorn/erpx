@@ -1,14 +1,14 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import type { WorkItem } from "../../../src/lib/work_projection/work-item";
-import { getStaffWork } from "../../../src/server/modules/work_projection/public/domain-work";
-import { listTasks, taskDetail, type TaskDetail, type TaskRow } from "../../../src/server/modules/operations/public/staff-tasks";
-import { measureReads } from "../../../src/server/modules/runtime/adapters/runtime/read-metrics";
-import { withPolicyReadSnapshot } from "../../../src/server/modules/identity_access/public/iam-read-snapshot";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
+import { getStaffWork } from "@erpx/server-work_projection/public/domain-work";
+import { listTasks, taskDetail, type TaskDetail, type TaskRow } from "@erpx/server-operations/public/staff-tasks";
+import { measureReads } from "@erpx/server-runtime/adapters/runtime/read-metrics";
+import { withPolicyReadSnapshot } from "@erpx/server-identity_access/public/iam-read-snapshot";
 import { mkdir, writeFile } from "node:fs/promises";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
 }));
 const db = env.H001_DB;

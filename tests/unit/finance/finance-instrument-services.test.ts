@@ -1,9 +1,9 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceInstruments,type FinanceInstrumentPorts,type InstrumentRepository} from "../../../src/server/modules/finance/application/instruments";
-import {instrumentEditionSchema,type InstrumentRow as Row} from "../../../src/server/modules/finance/domain/instruments";
-import {instrumentSchedule} from "../../../src/server/modules/finance/domain/finance-instrument-policy";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createFinanceInstruments,type FinanceInstrumentPorts,type InstrumentRepository} from "@erpx/server-finance/application/instruments";
+import {instrumentEditionSchema,type InstrumentRow as Row} from "@erpx/server-finance/domain/instruments";
+import {instrumentSchedule} from "@erpx/server-finance/domain/finance-instrument-policy";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code}),hash=async(v:string)=>`hash:${v}`;
 const input=instrumentEditionSchema.parse({kind:'lease',number:'Lease-001',name:'Original lease',chartId:'chart',currency:'THB',startDate:'2026-08-31',months:3,annualRateBps:1200,payment:'100.00',bankAccountId:'bank',liabilityAccountId:'liability',interestAccountId:'interest',rightOfUseAccountId:'rou',accumulatedAccountId:'accumulated',depreciationAccountId:'depreciation',reason:'Reviewed original financing terms',periodId:'period'}),schedule=instrumentSchedule(input),review={expectedVersion:1,reason:'Independent original financing evidence'},runInput={expectedVersion:2,kind:'payment' as const,periodId:'period',entryDate:'2026-09-30',bankTransactionId:'movement',bankVersion:1,reason:'Exact retained imported installment'},row:Row={id:'instrument',root_id:'instrument',kind:'lease',status:'active',version:2,edition:1,content_json:JSON.stringify(input),schedule_json:JSON.stringify(schedule),prepared_by:'preparer',source_hash:'retained'},bank:Row={id:'movement',version:1,match_status:'unmatched',bank_account:'bank',currency:'THB',amount_minor:-10000,transaction_date:'2026-09-30',source_hash:'original-statement'};

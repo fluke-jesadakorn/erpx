@@ -5,15 +5,15 @@ import {
   billingView,
   type BillingActor,
   type BillingInput,
-} from "../../../src/server/modules/billing/public/billing";
-import { drainBilling } from "../../../src/server/modules/billing/public/billing-jobs";
-import { ApiError } from "../../../src/server/modules/runtime/adapters/http";
-import { billingMonth, monthBounds, proratedSupport } from "../../../src/lib/billing/billing";
+} from "@erpx/server-billing/public/billing";
+import { drainBilling } from "@erpx/server-billing/public/billing-jobs";
+import { ApiError } from "@erpx/server-runtime/adapters/http";
+import { billingMonth, monthBounds, proratedSupport } from "@erpx/feature-billing/lib/billing";
 import {
   billingStripe,
   type BillingStripe,
   type StripeObject,
-} from "../../../src/server/modules/billing/public/billing-stripe";
+} from "@erpx/server-billing/public/billing-stripe";
 const db = env.CONTROL_DB;
 beforeAll(() => applyMigrations(db, env.CONTROL_TEST_MIGRATIONS));
 class FakeStripe {

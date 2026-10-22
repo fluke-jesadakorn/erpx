@@ -1,0 +1,32 @@
+{
+  "name": "@erpx/feature-learning",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/use-learning-command": "./src/components/use-learning-command.ts",
+    "./components/worker-startup": "./src/components/worker-startup.tsx",
+    "./components/learning-certificate-controls": "./src/components/learning-certificate-controls.tsx",
+    "./components/learning-console": "./src/components/learning-console.tsx",
+    "./lib/worker-startup-command": "./src/lib/worker-startup-command.ts",
+    "./lib/purchase-controls": "./src/lib/purchase-controls.ts",
+    "./lib/command": "./src/lib/command.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-identity_access": "workspace:*",
+    "@erpx/feature-procurement": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-learning": "workspace:*",
+    "@erpx/server-people_payroll": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "@erpx/workplace": "workspace:*",
+    "react": "19.3.0"
+  }
+}

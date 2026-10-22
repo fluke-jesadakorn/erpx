@@ -1,0 +1,23 @@
+{
+  "name": "@erpx/feature-commercial",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/legacy-grant-review.module.css": "./src/components/legacy-grant-review.module.css",
+    "./components/legacy-grant-review": "./src/components/legacy-grant-review.tsx",
+    "./components/company-package-manager": "./src/components/company-package-manager.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-identity_access": "workspace:*",
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-commercial": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "react": "19.3.0"
+  }
+}

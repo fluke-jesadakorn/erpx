@@ -4,9 +4,9 @@ import {
   billingCommand,
   billingView,
   type BillingInput,
-} from "../../../src/server/modules/billing/public/billing";
-import { drainBilling } from "../../../src/server/modules/billing/public/billing-jobs";
-import { billingStripe, testObject } from "../../../src/server/modules/billing/public/billing-stripe";
+} from "@erpx/server-billing/public/billing";
+import { drainBilling } from "@erpx/server-billing/public/billing-jobs";
+import { billingStripe, testObject } from "@erpx/server-billing/public/billing-stripe";
 const enabled =
   process.env.ERPX_TEST_STRIPE_SANDBOX === "1" &&
   process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_");

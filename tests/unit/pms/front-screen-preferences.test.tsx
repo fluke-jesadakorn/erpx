@@ -2,14 +2,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createElement, type ComponentProps } from 'react';
 import { renderToReadableStream } from 'react-dom/server.browser';
 import Loadable from 'next/dist/shared/lib/loadable.shared-runtime';
-import type { WorkContext } from '../../../src/server/modules/identity_access/public/authorization';
-import type { FrontCompanyApp } from '../../../src/server/modules/work_projection/public/front-app';
-import type { PmsHome } from '../../../src/server/modules/pms/public/pms/home';
-import type { PosWorkspace } from '../../../src/server/modules/pos/public/pos';
-import type { CurrencyContextData } from '../../../src/components/finance/money/currency-provider';
-import type { StandardFrontAppShell as FrontAppShell, StandardFrontLocationPicker as FrontLocationPicker } from '../../../src/components/front/standard-front-app-shell';
-import type { StandardPmsToday as PmsToday } from '../../../src/components/pms/standard-pms-today';
-import type { PosConsole } from '../../../src/components/pos/pos-console';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { FrontCompanyApp } from '@erpx/server-work_projection/public/front-app';
+import type { PmsHome } from '@erpx/server-pms/public/pms/home';
+import type { PosWorkspace } from '@erpx/server-pos/public/pos';
+import type { CurrencyContextData } from '@erpx/feature-finance/components/money/currency-provider';
+import type { StandardFrontAppShell as FrontAppShell, StandardFrontLocationPicker as FrontLocationPicker } from '@erpx/front/components/standard-front-app-shell';
+import type { StandardPmsToday as PmsToday } from '@erpx/feature-pms/components/standard-pms-today';
+import type { PosConsole } from '@erpx/feature-pos/components/pos-console';
 
 // Owner and HTTP request adapters are controlled. React, Account preference
 // projection, the specialized page bodies, Front shell, contexts and widgets run.
@@ -23,7 +23,7 @@ const owner = vi.hoisted(() => ({
   pickers: [] as ComponentProps<typeof FrontLocationPicker>[],
   homes: [] as ComponentProps<typeof PmsToday>[],
   consoles: [] as ComponentProps<typeof PosConsole>[],
-  sourceDetail: null as import('../../../src/server/modules/pms/public/pms').PmsWorkspace|null,
+  sourceDetail: null as import("@erpx/server-pms/public/pms").PmsWorkspace|null,
   sourceId: '',
 }));
 vi.mock('server-only', () => ({}));
@@ -37,14 +37,14 @@ vi.mock('next/navigation', async importOriginal => ({
   useSearchParams: () => new URLSearchParams(owner.query),
   useRouter: () => ({ push: owner.push, replace: owner.replace, refresh: owner.refresh }),
 }));
-vi.mock('../../../src/server/modules/identity_access/public/authorization', async () => ({
+vi.mock("@erpx/server-identity_access/public/authorization", async () => ({
   currentSession: owner.session, requireWorkContext: owner.work, requestedHoldingScope:async(holdingSlug:string)=>({kind:'holding',holdingSlug}),
-  publicScope: (await import('../../../src/server/modules/identity_access/domain/authorization')).publicScope,
+  publicScope: (await import('@erpx/server-identity_access/domain/authorization')).publicScope,
 }));
-vi.mock('../../../src/server/modules/identity_access/adapters/authorization', () => ({ currentSession: owner.session }));
-vi.mock('../../../src/server/modules/identity_access/adapters/account-profile', () => ({ currentAccountProfile: owner.profile }));
-vi.mock('../../../src/server/modules/work_projection/public/front-app', async () => ({
-  ...await import('../../../src/server/modules/work_projection/domain/front-app'),
+vi.mock("@erpx/server-identity_access/adapters/authorization", () => ({ currentSession: owner.session }));
+vi.mock("@erpx/server-identity_access/adapters/account-profile", () => ({ currentAccountProfile: owner.profile }));
+vi.mock("@erpx/server-work_projection/public/front-app", async () => ({
+  ...await import('@erpx/server-work_projection/domain/front-app'),
   frontCompanyApp: owner.company, frontCompanyBrand: owner.company,
   frontScopeFromLocation: owner.scope, ensureFrontRole: owner.role, frontWorkspaceHref: owner.frontHref,
   ensureFrontRoleSnapshot: async (...args: [string, string, 'pos' | 'pms', string]) => {
@@ -52,35 +52,35 @@ vi.mock('../../../src/server/modules/work_projection/public/front-app', async ()
     return {...await owner.role(...args), checkedAt};
   },
 }));
-vi.mock('../../../src/server/modules/work_projection/public/front-quick-access', () => ({ frontActionItems: owner.actions }));
-vi.mock('../../../src/server/modules/work_projection/public/quick-access-preferences', () => ({ readQuickAccessPreferences: owner.quick }));
-vi.mock('../../../src/server/modules/pms/public/pms/home', () => ({ pmsHome: owner.home }));
-vi.mock('../../../src/server/modules/pms/public/pms', () => ({ pmsWorkspace: owner.pms }));
-vi.mock('../../../src/server/modules/pms/public/hospitality-rollout', () => ({ companyFeatureCatalogue: owner.catalogue }));
-vi.mock('../../../src/server/modules/pos/public/pos', () => ({ posWorkspace: owner.pos }));
-vi.mock('../../../src/server/modules/pos/public/movement-presentation-query', () => ({ posMovementSaleForPresentation: vi.fn() }));
-vi.mock('../../../src/server/modules/finance/public/company-money', () => ({ moneyContext: owner.money }));
-vi.mock('../../../src/components/front/standard-front-app-shell', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../../src/components/front/standard-front-app-shell')>();
+vi.mock("@erpx/server-work_projection/public/front-quick-access", () => ({ frontActionItems: owner.actions }));
+vi.mock("@erpx/server-work_projection/public/quick-access-preferences", () => ({ readQuickAccessPreferences: owner.quick }));
+vi.mock("@erpx/server-pms/public/pms/home", () => ({ pmsHome: owner.home }));
+vi.mock("@erpx/server-pms/public/pms", () => ({ pmsWorkspace: owner.pms }));
+vi.mock("@erpx/server-pms/public/hospitality-rollout", () => ({ companyFeatureCatalogue: owner.catalogue }));
+vi.mock("@erpx/server-pos/public/pos", () => ({ posWorkspace: owner.pos }));
+vi.mock("@erpx/server-pos/public/movement-presentation-query", () => ({ posMovementSaleForPresentation: vi.fn() }));
+vi.mock("@erpx/server-finance/public/company-money", () => ({ moneyContext: owner.money }));
+vi.mock("@erpx/front/components/standard-front-app-shell", async importOriginal => {
+  const actual = await importOriginal<typeof import("@erpx/front/components/standard-front-app-shell")>();
   return { ...actual,
     StandardFrontAppShell: (props: ComponentProps<typeof actual.StandardFrontAppShell>) => { owner.shells.push(props); return createElement(actual.StandardFrontAppShell, props); },
     StandardFrontLocationPicker: (props: ComponentProps<typeof actual.StandardFrontLocationPicker>) => { owner.pickers.push(props); return createElement(actual.StandardFrontLocationPicker, props); },
   };
 });
-vi.mock('../../../src/components/pms/standard-pms-today', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../../src/components/pms/standard-pms-today')>();
+vi.mock("@erpx/feature-pms/components/standard-pms-today", async importOriginal => {
+  const actual = await importOriginal<typeof import("@erpx/feature-pms/components/standard-pms-today")>();
   return { ...actual, StandardPmsToday: (props: ComponentProps<typeof actual.StandardPmsToday>) => { owner.homes.push(props); return createElement(actual.StandardPmsToday, props); } };
 });
-vi.mock('../../../src/components/pos/pos-console', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../../src/components/pos/pos-console')>();
+vi.mock("@erpx/feature-pos/components/pos-console", async importOriginal => {
+  const actual = await importOriginal<typeof import("@erpx/feature-pos/components/pos-console")>();
   return { ...actual, PosConsole: (props: ComponentProps<typeof actual.PosConsole>) => { owner.consoles.push(props); return createElement(actual.PosConsole, props); } };
 });
-vi.mock('../../../src/components/pos/standard-pos-front-console', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../../src/components/pos/standard-pos-front-console')>();
+vi.mock("@erpx/feature-pos/components/standard-pos-front-console", async importOriginal => {
+  const actual = await importOriginal<typeof import("@erpx/feature-pos/components/standard-pos-front-console")>();
   return { ...actual, StandardFrontPosConsole: (props: ComponentProps<typeof actual.StandardFrontPosConsole>) => { owner.consoles.push(props); return createElement(actual.StandardFrontPosConsole, props); } };
 });
-vi.mock('../../../src/components/records/record-collection', async importOriginal => {
-  const actual=await importOriginal<typeof import('../../../src/components/records/record-collection')>();
+vi.mock("@erpx/feature-records/components/record-collection", async importOriginal => {
+  const actual=await importOriginal<typeof import("@erpx/feature-records/components/record-collection")>();
   return {...actual,RecordCollectionDrawer:function LoadedOwnerDrawer<T>(props:Parameters<typeof actual.RecordCollectionDrawer<T>>[0]){
     if(owner.sourceDetail&&props.kind==='pms_hotel_record'){
       // This exact drawer's original owner response is supplied, not a caller
@@ -93,12 +93,12 @@ vi.mock('../../../src/components/records/record-collection', async importOrigina
   }};
 });
 
-import PmsTodayScreen from '../../../src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry';
-import PosSaleScreen from '../../../src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pos-entry';
-import PosHistoryScreen from '../../../src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pos-entry';
-import FrontEntryScreen from '../../../src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-front-base-entry';
-import { ProductLinkEnvironment } from '../../../src/components/workplace/product-link-context';
-import { ContextSwitchProvider } from '../../../src/components/workplace/context-switch-provider';
+import PmsTodayScreen from '@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry';
+import PosSaleScreen from '@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pos-entry';
+import PosHistoryScreen from '@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pos-entry';
+import FrontEntryScreen from '@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-front-base-entry';
+import { ProductLinkEnvironment } from '@erpx/workplace/components/product-link-context';
+import { ContextSwitchProvider } from '@erpx/workplace/components/context-switch-provider';
 
 const actor: WorkContext = {
   userId: 'current-account', name: 'Current operator', email: 'operator@example.test', assignmentId: 'current-assignment',
@@ -198,7 +198,7 @@ it('keeps the actual current-context refusal inside the original location picker
 });
 
 it('opens an explicit Front location on the current role workflow with original filters instead of a generic route list',async()=>{
-  owner.actions.mockImplementation((await import('../../../src/server/modules/work_projection/domain/front-quick-access')).frontActionItems);
+  owner.actions.mockImplementation((await import('@erpx/server-work_projection/domain/front-quick-access')).frontActionItems);
   for(const [app,permission,screen] of [['pos','pos.read','history'],['pos','pos.kitchen','kitchen'],['pms','pms.housekeeping','rooms']] as const){
     owner.app=app;owner.path=`/${actor.holdingSlug}/${company.companySlug}/holding`;owner.query='q=open&tag=one&tag=two';
     owner.work.mockResolvedValue({...actor,iam:{permissions:[permission]}});
@@ -213,11 +213,11 @@ it('opens an explicit Front location on the current role workflow with original 
 function canonicalPmsRedirect(error:unknown){
  expect(error).toHaveProperty('digest');const digest=(error as {digest:string}).digest;expect(digest).toMatch(/^NEXT_REDIRECT;replace;.*;307;$/);return new URL(digest.slice('NEXT_REDIRECT;replace;'.length,-';307;'.length));
 }
-function originalPmsWorkspace():import('../../../src/server/modules/pms/public/pms').PmsWorkspace{
+function originalPmsWorkspace():import("@erpx/server-pms/public/pms").PmsWorkspace{
  return {bookingDelivery:[],transferRequests:[],chargeCorrections:[],stripeConnectionReady:false,stripePayments:[],counterRefunds:[],bookingRefunds:[],transferBankEvidence:[],defaultDate:'2026-10-16',properties:[],snapshot:null,readiness:[],frontReady:false,canReviewBookingMedia:false,bookingReadiness:{email:false,accounting:false,onlineAccounting:false,fees:false,connect:false},canManageSetup:false,permissions:['pms.read','pms.housekeeping','pms.cashier','pms.reservations'],availablePaymentMethods:['cash'],userId:actor.userId,branches:[],staff:[],accounts:[],charts:[],parties:[],products:[],warehouses:[],documents:[],ledger:null,controlBalances:null,dayControls:null};
 }
 it.each(['legacy','product'] as const)('keeps actual canonical Housekeeping record selection through the %s daily redirect and typed current owner read',async kind=>{
- const {default:CanonicalRecordPage}=await import('../../../src/app/holdings/[holdingSlug]/pms/housekeeping/records/pms_record/[id]/[recordSection]/page'),{default:FrontHousekeepingPage}=await import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry'),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('../../../src/components/pms/standard-pms-front-workspace'),{isValidElement}=await import('react');
+ const {default:CanonicalRecordPage}=await import('@erpx/feature-pms/routes/holdings/[holdingSlug]/pms/housekeeping/records/pms_record/[id]/[recordSection]/page'),{default:FrontHousekeepingPage}=await import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry'),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('@erpx/feature-pms/components/standard-pms-front-workspace'),{isValidElement}=await import('react');
  const origin=kind==='legacy'?'https://dev-pms.jesadakorn.com':'https://pms-dev-erpx.jesadakorn.com',root=`${origin}/${actor.holdingSlug}/${company.companySlug}/holding/`,id='original-task',query={property:'original-hotel',record:'earlier-task',task:'original-task',q:'review',floor:['2','3'],detailKind:'foreign-client-kind',detailId:'wrong-client-id',detailMode:'page',returnTo:`/${actor.holdingSlug}/${company.companySlug}/holding/housekeeping?property=original-hotel`,token:'not-forwarded',return:'view=actions'};
  owner.app='pms';owner.frontHref.mockResolvedValue(root);let caught:unknown;try{await CanonicalRecordPage({params:Promise.resolve({holdingSlug:actor.holdingSlug,id,recordSection:'overview'}),searchParams:Promise.resolve(query)});}catch(error){caught=error;}
  const target=canonicalPmsRedirect(caught);expect(target.origin).toBe(origin);expect(target.pathname).toBe(`/${actor.holdingSlug}/${company.companySlug}/holding/housekeeping`);expect(target.searchParams.get('detailKind')).toBe('pms_record');expect(target.searchParams.get('detailId')).toBe(id);expect(target.searchParams.get('detailMode')).toBe('page');expect(target.searchParams.get('returnTo')).toBe(query.returnTo);expect(target.searchParams.getAll('floor')).toEqual(['2','3']);expect(target.searchParams.get('property')).toBe('original-hotel');expect(target.searchParams.has('token')).toBe(false);expect(target.searchParams.has('return')).toBe(false);expect(owner.work.mock.calls).toEqual([[actor.holdingSlug]]);expect(owner.frontHref.mock.calls).toEqual([[actor,'pms']]);expect(owner.pms).not.toHaveBeenCalled();
@@ -227,25 +227,25 @@ it.each(['legacy','product'] as const)('keeps actual canonical Housekeeping reco
  const found:ComponentProps<typeof PmsWorkspaceView>[]=[];const walk=(value:import('react').ReactNode):void=>{if(Array.isArray(value)){value.forEach(walk);return;}if(!isValidElement<{children?:import('react').ReactNode}>(value))return;if(value.type===PmsWorkspaceView)found.push(value.props as ComponentProps<typeof PmsWorkspaceView>);walk(value.props.children);};walk(node);expect(found).toHaveLength(1);expect(found[0]).toMatchObject({initial:workspace,section:'housekeeping',selectedRecord:id,frontMode:true});expect(owner.role.mock.calls).toEqual([[actor.holdingSlug,actor.companyId,'pms','holding']]);expect(fetcher).not.toHaveBeenCalled();
 });
 it.each(['legacy','product'] as const)('retains the canonical Guest Account entry drawer identity and current close target on the %s daily redirect',async kind=>{
- const {default:CanonicalEntryPage}=await import('../../../src/app/holdings/[holdingSlug]/pms/guest-accounts/records/pms_entry/[id]/[recordSection]/page'),origin=kind==='legacy'?'https://dev-pms.jesadakorn.com':'https://pms-dev-erpx.jesadakorn.com',root=`${origin}/${actor.holdingSlug}/${company.companySlug}/holding/`,close=`/${actor.holdingSlug}/${company.companySlug}/holding/guest-accounts?property=original-hotel&guestAccount=original-account`;
+ const {default:CanonicalEntryPage}=await import('@erpx/feature-pms/routes/holdings/[holdingSlug]/pms/guest-accounts/records/pms_entry/[id]/[recordSection]/page'),origin=kind==='legacy'?'https://dev-pms.jesadakorn.com':'https://pms-dev-erpx.jesadakorn.com',root=`${origin}/${actor.holdingSlug}/${company.companySlug}/holding/`,close=`/${actor.holdingSlug}/${company.companySlug}/holding/guest-accounts?property=original-hotel&guestAccount=original-account`;
  owner.frontHref.mockResolvedValue(root);let caught:unknown;try{await CanonicalEntryPage({params:Promise.resolve({holdingSlug:actor.holdingSlug,id:'original-entry',recordSection:'overview'}),searchParams:Promise.resolve({property:'original-hotel',guestAccount:'original-account',detailMode:'page',returnTo:close})});}catch(error){caught=error;}
  const target=canonicalPmsRedirect(caught);expect(target.pathname).toBe(`/${actor.holdingSlug}/${company.companySlug}/holding/guest-accounts`);expect(target.searchParams.get('detailKind')).toBe('pms_entry');expect(target.searchParams.get('detailId')).toBe('original-entry');expect(target.searchParams.get('detailMode')).toBe('page');expect(target.searchParams.get('returnTo')).toBe(close);expect(target.searchParams.get('guestAccount')).toBe('original-account');expect(owner.pms).not.toHaveBeenCalled();
- const {withoutRecordDrawer}=await import('../../../src/lib/records/record-drawer');expect(withoutRecordDrawer(target.href)).toBe(close);
+ const {withoutRecordDrawer}=await import('@erpx/feature-records/lib/record-drawer');expect(withoutRecordDrawer(target.href)).toBe(close);
  for(const foreign of ['https://unrelated.example/holding/guest-accounts',`/${actor.holdingSlug}/foreign-company/holding/guest-accounts`,`/${actor.holdingSlug}/${company.companySlug}/branches/foreign-branch/guest-accounts`,`/${actor.holdingSlug}/${company.companySlug}/holding/api/auth/sign-out`]){let refused:unknown;try{await CanonicalEntryPage({params:Promise.resolve({holdingSlug:actor.holdingSlug,id:'original-entry',recordSection:'overview'}),searchParams:Promise.resolve({property:'original-hotel',returnTo:foreign})});}catch(error){refused=error;}expect(canonicalPmsRedirect(refused).searchParams.has('returnTo')).toBe(false);}
  let sanitized:unknown;try{await CanonicalEntryPage({params:Promise.resolve({holdingSlug:actor.holdingSlug,id:'original-entry',recordSection:'overview'}),searchParams:Promise.resolve({property:'original-hotel',returnTo:close+'&token=not-forwarded'})});}catch(error){sanitized=error;}expect(canonicalPmsRedirect(sanitized).searchParams.get('returnTo')).toBe(close);
 });
 it('requires the actual canonical PMS work context before generating a daily redirect',async()=>{
- const {default:CanonicalRecordPage}=await import('../../../src/app/holdings/[holdingSlug]/pms/housekeeping/records/pms_record/[id]/[recordSection]/page'),denied=Object.assign(Error('Original current PMS authority denied'),{status:403});owner.work.mockRejectedValue(denied);owner.frontHref.mockResolvedValue('https://dev-pms.jesadakorn.com/unused/');
+ const {default:CanonicalRecordPage}=await import('@erpx/feature-pms/routes/holdings/[holdingSlug]/pms/housekeeping/records/pms_record/[id]/[recordSection]/page'),denied=Object.assign(Error('Original current PMS authority denied'),{status:403});owner.work.mockRejectedValue(denied);owner.frontHref.mockResolvedValue('https://dev-pms.jesadakorn.com/unused/');
  await expect(CanonicalRecordPage({params:Promise.resolve({holdingSlug:actor.holdingSlug,id:'private-task',recordSection:'overview'}),searchParams:Promise.resolve({property:'private-hotel'})})).rejects.toBe(denied);expect(owner.frontHref).not.toHaveBeenCalled();expect(owner.pms).not.toHaveBeenCalled();expect(fetcher).not.toHaveBeenCalled();
 });
 it.each([['reservations','groups'],['guest-accounts','approval'],['guest-accounts','corrections'],['cashier','approval']] as const)('keeps the existing %s %s review on its original owner presenter',async(section,queue)=>{
- const {default:PmsPage}=await import('../../../src/app/holdings/[holdingSlug]/_presenters/pms/standard-entry');owner.frontHref.mockImplementation(async(_actor:WorkContext,app:'pms'|'pos')=>app==='pms'?`https://dev-pms.jesadakorn.com/${actor.holdingSlug}/${company.companySlug}/holding/`:null);owner.pms.mockResolvedValue(originalPmsWorkspace());
+ const {default:PmsPage}=await import('@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/pms/standard-entry');owner.frontHref.mockImplementation(async(_actor:WorkContext,app:'pms'|'pos')=>app==='pms'?`https://dev-pms.jesadakorn.com/${actor.holdingSlug}/${company.companySlug}/holding/`:null);owner.pms.mockResolvedValue(originalPmsWorkspace());
  await expect(PmsPage({params:Promise.resolve({holdingSlug:actor.holdingSlug,section:[section]}),searchParams:Promise.resolve({property:'original-hotel',queue})})).resolves.toBeDefined();expect(owner.pms).toHaveBeenCalledWith(actor,'original-hotel',false,false,expect.objectContaining({view:'list',section}));expect(fetcher).not.toHaveBeenCalled();
 });
 
 it.each([['room','housekeeping'],['stay','front-desk'],['entry','guest-accounts']] as const)('opens the actual %s metric source in its registered %s owner section with exact current selection',async(kind,section)=>{
- const {PmsHotelSources}=await import('../../../src/components/records/pms-hotel-sources'),{newProperty}=await import('../../../src/lib/pms/pms-engine'),{frontProductLaunchTarget}=await import('../../../src/lib/work_projection/product-navigation'),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('../../../src/components/pms/standard-pms-front-workspace'),{isValidElement}=await import('react');
- const rows:{room:import('../../../src/server/modules/pms/public/rules/pms-model').PmsRecord<'room'>;stay:import('../../../src/server/modules/pms/public/rules/pms-model').PmsRecord<'stay'>;entry:import('../../../src/server/modules/pms/public/rules/pms-model').PmsRecord<'entry'>}={
+ const {PmsHotelSources}=await import('@erpx/feature-records/components/pms-hotel-sources'),{newProperty}=await import('@erpx/feature-pms/lib/pms-engine'),{frontProductLaunchTarget}=await import('@erpx/feature-work_projection/lib/product-navigation'),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('@erpx/feature-pms/components/standard-pms-front-workspace'),{isValidElement}=await import('react');
+ const rows:{room:import("@erpx/server-pms/public/rules/pms-model").PmsRecord<'room'>;stay:import("@erpx/server-pms/public/rules/pms-model").PmsRecord<'stay'>;entry:import("@erpx/server-pms/public/rules/pms-model").PmsRecord<'entry'>}={
   room:{id:'original-room',kind:'room',version:3,updatedAt:100,data:{number:'101',typeId:'original-type',building:'A',floor:'1',active:true,cleanliness:'inspected',dnd:false,observedOccupied:null}},
   stay:{id:'original-stay',kind:'stay',version:4,updatedAt:100,data:{reservationId:'original-reservation',guestId:'original-guest',typeId:'original-type',rateId:'original-rate',roomId:'original-room',arrival:'2026-10-15',departure:'2026-10-17',adults:1,state:'in_house',guestAccountId:'original-guest-account',prices:[],segments:[]}},
   entry:{id:'original-entry',kind:'entry',version:5,updatedAt:100,data:{guestAccountId:'original-guest-account',stayId:'original-stay',date:'2026-10-16',kind:'charge',description:'Original room night',net:10000,service:0,tax:700,total:10700,method:'night',reference:'Original night',sourceKey:'night:original-night',originalId:'',shiftId:'',actorId:actor.userId,at:100}},
@@ -257,7 +257,7 @@ it.each([['room','housekeeping'],['stay','front-desk'],['entry','guest-accounts'
  expect(target,'The real rendered link must be a closed registered Front destination.').not.toBeNull();expect(url.pathname).toBe(`/${actor.holdingSlug}/${company.companySlug}/holding/${section}`);expect(url.searchParams.get('property')).toBe(snapshot.property.id);expect(url.searchParams.get('record')).toBe(row.id);
  expect(url.searchParams.get('guestAccount')).toBe(kind==='room'?null:'original-guest-account');
  owner.sourceDetail=null;owner.path=url.pathname;owner.query=url.searchParams.toString();owner.pms.mockResolvedValue(workspace);
- const {default:FrontOwnerPage}=await import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry');
+ const {default:FrontOwnerPage}=await import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry');
  const node=await FrontOwnerPage({params:Promise.resolve({holdingSlug:actor.holdingSlug,companySlug:company.companySlug,app:'pms',path:['holding',section]}),searchParams:Promise.resolve(Object.fromEntries(url.searchParams))});
  expect(owner.pms.mock.calls).toEqual([[actor,snapshot.property.id,false,true,{view:'list',section,page:0,q:'',status:'',building:'',floor:'',typeId:'',selectedId:row.id}]]);
  const views:ComponentProps<typeof PmsWorkspaceView>[]=[];const walk=(value:import('react').ReactNode):void=>{if(Array.isArray(value)){value.forEach(walk);return;}if(!isValidElement<{children?:import('react').ReactNode}>(value))return;if(value.type===PmsWorkspaceView)views.push(value.props as ComponentProps<typeof PmsWorkspaceView>);walk(value.props.children);};walk(node);
@@ -275,17 +275,17 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 
-import StandardPmsDailyEntry from '../../../src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry';
+import StandardPmsDailyEntry from '@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-pms-daily-entry';
 const nativePmsDailyRecordRoutes=[
- ['reservations',()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/holding/reservations/records/[recordKind]/[id]/[recordSection]/page')],
- ['front-desk',()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/holding/front-desk/records/[recordKind]/[id]/[recordSection]/page')],
- ['rooms',()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/holding/rooms/records/[recordKind]/[id]/[recordSection]/page')],
- ['housekeeping',()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/holding/housekeeping/records/[recordKind]/[id]/[recordSection]/page')],
- ['guest-accounts',()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/holding/guest-accounts/records/[recordKind]/[id]/[recordSection]/page')],
- ['cashier',()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/holding/cashier/records/[recordKind]/[id]/[recordSection]/page')],
+ ['reservations',()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/holding/reservations/records/[recordKind]/[id]/[recordSection]/page')],
+ ['front-desk',()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/holding/front-desk/records/[recordKind]/[id]/[recordSection]/page')],
+ ['rooms',()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/holding/rooms/records/[recordKind]/[id]/[recordSection]/page')],
+ ['housekeeping',()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/holding/housekeeping/records/[recordKind]/[id]/[recordSection]/page')],
+ ['guest-accounts',()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/holding/guest-accounts/records/[recordKind]/[id]/[recordSection]/page')],
+ ['cashier',()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/holding/cashier/records/[recordKind]/[id]/[recordSection]/page')],
 ] as const;
 it.each(nativePmsDailyRecordRoutes)('retains the actual %s record route, native selection and current owner read through the common PMS entry',async(section,load)=>{
- const {default:Page}=await load(),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('../../../src/components/pms/standard-pms-front-workspace'),{isValidElement}=await import('react');
+ const {default:Page}=await load(),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('@erpx/feature-pms/components/standard-pms-front-workspace'),{isValidElement}=await import('react');
  const id='selected-native-source',query={property:'original-hotel',record:'superseded-source',guestAccount:'original-guest-account',queue:'arrivals',q:'review',page:'2',floor:'3',detailMode:'page',returnTo:'/'+actor.holdingSlug+'/'+company.companySlug+'/holding/'+section};
  owner.app='pms';owner.path='/'+actor.holdingSlug+'/'+company.companySlug+'/holding/'+section+'/records/pms_record/'+id+'/overview';owner.query=new URLSearchParams(query).toString();
  const workspace=originalPmsWorkspace();workspace.permissions.push('pms.frontdesk');owner.pms.mockResolvedValue(workspace);
@@ -302,7 +302,7 @@ it.each(nativePmsDailyRecordRoutes)('retains the actual %s record route, native 
 
 
 it('retains the actual Today property dashboard reader without substituting the home projection or financial mode',async()=>{
- const {default:Page}=await import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/holding/today/page'),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('../../../src/components/pms/standard-pms-front-workspace'),{isValidElement}=await import('react');
+ const {default:Page}=await import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/holding/today/page'),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('@erpx/feature-pms/components/standard-pms-front-workspace'),{isValidElement}=await import('react');
  const query={property:'original-hotel',record:'dashboard-native-source',q:'retained-filter'};
  owner.app='pms';owner.path='/'+actor.holdingSlug+'/'+company.companySlug+'/holding/today';owner.query=new URLSearchParams(query).toString();
  const workspace=originalPmsWorkspace();owner.pms.mockResolvedValue(workspace);
@@ -316,7 +316,7 @@ it('retains the actual Today property dashboard reader without substituting the 
  expect(owner.role).toHaveBeenCalledExactlyOnceWith(actor.holdingSlug,actor.companyId,'pms','holding');expect(fetcher).not.toHaveBeenCalled();
 });
 it('retains the actual Night audit record reader financial mode and exact native selection instead of the Today home branch',async()=>{
- const {default:Page}=await import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/holding/night-audit/records/[recordKind]/[id]/[recordSection]/page'),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('../../../src/components/pms/standard-pms-front-workspace'),{isValidElement}=await import('react');
+ const {default:Page}=await import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/holding/night-audit/records/[recordKind]/[id]/[recordSection]/page'),{StandardPmsFrontWorkspace:PmsWorkspaceView}=await import('@erpx/feature-pms/components/standard-pms-front-workspace'),{isValidElement}=await import('react');
  const id='original-night-source',query={property:'original-hotel',night:'superseded-night',page:'1',status:'open',q:'review'};
  owner.app='pms';owner.path='/'+actor.holdingSlug+'/'+company.companySlug+'/holding/night-audit/records/pms_record/'+id+'/overview';owner.query=new URLSearchParams(query).toString();
  const workspace=originalPmsWorkspace();workspace.permissions.push('pms.audit');owner.pms.mockResolvedValue(workspace);
@@ -332,16 +332,16 @@ it('retains the actual Night audit record reader financial mode and exact native
 
 
 it('standard PMS navigation preserves native permission destinations, selected Property and current section without an HTTP read',async()=>{
- const {StandardPmsNavigation}=await import('../../../src/components/pms/standard-pms-navigation');
+ const {StandardPmsNavigation}=await import('@erpx/feature-pms/components/standard-pms-navigation');
  const stream=await renderToReadableStream(createElement(StandardPmsNavigation,{href:'/fictional-holding/original-company/branches/original-branch/',section:'housekeeping',permissions:['pms.read','pms.inspect'],propertyId:'original hotel / ก'}));await stream.allReady;const html=await new Response(stream).text();
  expect(html).toContain('aria-label="Hotel tasks"');expect(html).toContain('/fictional-holding/original-company/branches/original-branch/today?property=original%20hotel%20%2F%20%E0%B8%81');expect(html).toContain('/fictional-holding/original-company/branches/original-branch/housekeeping?property=original%20hotel%20%2F%20%E0%B8%81');expect(html).toContain('aria-current="page"');expect(html).not.toContain('/cashier?');expect(html).not.toContain('/reservations?');expect(html).not.toContain('/settings?');expect(html).not.toContain('/inventory?');expect(fetcher).not.toHaveBeenCalled();
 });
 it('maps the native PMS inventory identity to its mounted minibar route',async()=>{
- const {pmsSectionPath}=await import('../../../src/lib/pms/section-route');
+ const {pmsSectionPath}=await import('@erpx/feature-pms/lib/section-route');
  expect(pmsSectionPath('inventory')).toBe('minibar');expect(pmsSectionPath('settings')).toBe('settings');
 });
 it('actual standard PMS parent renders original empty-owner readiness with standard controls and no mount-time HTTP duplication',async()=>{
- const {StandardPmsFrontWorkspace}=await import('../../../src/components/pms/standard-pms-front-workspace'),{CurrencyProvider}=await import('../../../src/components/finance/money/currency-provider');
+ const {StandardPmsFrontWorkspace}=await import('@erpx/feature-pms/components/standard-pms-front-workspace'),{CurrencyProvider}=await import('@erpx/feature-finance/components/money/currency-provider');
  owner.path='/fictional-holding/original-company/holding/rooms';owner.query='';
  const workspace=originalPmsWorkspace();
  const stream=await renderToReadableStream(<CurrencyProvider initial={money} apiBase="/api/v1/front/fictional-holding/original-company/pms"><StandardPmsFrontWorkspace initial={workspace} base="/front/fictional-holding/original-company" erpBase="/holdings/fictional-holding" section="rooms" frontMode={true} crossLinks={{inventory:false,finance:false,pos:false}}/></CurrencyProvider>);await stream.allReady;const html=await new Response(stream).text();
@@ -357,13 +357,13 @@ it.each(['today','sale'] as const)('actual %s location entry renders standard cu
 });
 
 
-import StandardFrontNotificationsEntry from '../../../src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-front-notifications-entry';
+import StandardFrontNotificationsEntry from '@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-front-notifications-entry';
 const actualNotificationRoutes=[
- [[],()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/notifications/page')],
- [['holding'],()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/holding/notifications/page')],
- [['branches','original-branch'],()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/branches/[branchSlug]/notifications/page')],
- [['departments','original-department'],()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/departments/[departmentSlug]/notifications/page')],
- [['branches','original-branch','departments','original-department'],()=>import('../../../src/app/front/[holdingSlug]/[companySlug]/[app]/branches/[branchSlug]/departments/[departmentSlug]/notifications/page')],
+ [[],()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/notifications/page')],
+ [['holding'],()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/holding/notifications/page')],
+ [['branches','original-branch'],()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/branches/[branchSlug]/notifications/page')],
+ [['departments','original-department'],()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/departments/[departmentSlug]/notifications/page')],
+ [['branches','original-branch','departments','original-department'],()=>import('@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/branches/[branchSlug]/departments/[departmentSlug]/notifications/page')],
 ] as const;
 it.each((['pos','pms'] as const).flatMap(app=>actualNotificationRoutes.map(([path,load])=>[app,path,load] as const)))('actual %s notification route retains its native %j path and exact query at the common owner',async(app,path,load)=>{
  const {default:Page}=await load(),{isValidElement}=await import('react'),query={q:'review',tag:['one','two'],token:'fixture-only-original-token'};
@@ -372,7 +372,7 @@ it.each((['pos','pms'] as const).flatMap(app=>actualNotificationRoutes.map(([pat
  expect(node.type).toBe(StandardFrontNotificationsEntry);expect(await node.props.params).toMatchObject({holdingSlug:actor.holdingSlug,companySlug:company.companySlug,app,path:[...path,'notifications']});expect(await node.props.searchParams).toBe(query);expect(owner.session).not.toHaveBeenCalled();expect(fetcher).not.toHaveBeenCalled();
 });
 it.each(['pos','pms'] as const)('actual %s notification owner preserves current role and original Push owner props without exposing query or starting consent/HTTP work in SSR',async app=>{
- const {PushSettings}=await import('../../../src/components/platform_administration/settings/push-settings'),{isValidElement}=await import('react');
+ const {PushSettings}=await import('@erpx/feature-platform_administration/components/settings/push-settings'),{isValidElement}=await import('react');
  owner.app=app;owner.path='/'+actor.holdingSlug+'/'+company.companySlug+'/holding/notifications';owner.query='q=review&token=fixture-only-original-token';
  owner.profile.mockResolvedValue({profile:{preferences:{language:'en',appearance:'light',version:4}}});
  const node=await StandardFrontNotificationsEntry({params:Promise.resolve({holdingSlug:actor.holdingSlug,companySlug:company.companySlug,app,path:['holding','notifications']}),searchParams:Promise.resolve({q:'review',token:'fixture-only-original-token'})});
@@ -390,24 +390,24 @@ it.each(['pos','pms'] as const)('actual %s notification login handoff preserves 
 });
 
 const actualBackofficeRoutes=[
- ['approvals','guest-accounts',()=>import('../../../src/app/holdings/[holdingSlug]/pms/approvals/_entry')],
- ['cashier','cashier',()=>import('../../../src/app/holdings/[holdingSlug]/pms/cashier/_entry')],
- ['dashboard','dashboard',()=>import('../../../src/app/holdings/[holdingSlug]/pms/dashboard/_entry')],
- ['document section','reports',()=>import('../../../src/app/holdings/[holdingSlug]/pms/documents/[id]/[recordSection]/page')],
- ['document','reports',()=>import('../../../src/app/holdings/[holdingSlug]/pms/documents/[id]/page')],
- ['front-desk','front-desk',()=>import('../../../src/app/holdings/[holdingSlug]/pms/front-desk/_entry')],
- ['guest-accounts','guest-accounts',()=>import('../../../src/app/holdings/[holdingSlug]/pms/guest-accounts/_entry')],
- ['guests','guests',()=>import('../../../src/app/holdings/[holdingSlug]/pms/guests/_entry')],
- ['housekeeping','housekeeping',()=>import('../../../src/app/holdings/[holdingSlug]/pms/housekeeping/_entry')],
- ['minibar','inventory',()=>import('../../../src/app/holdings/[holdingSlug]/pms/minibar/_entry')],
- ['night-audit','night-audit',()=>import('../../../src/app/holdings/[holdingSlug]/pms/night-audit/_entry')],
- ['reports','reports',()=>import('../../../src/app/holdings/[holdingSlug]/pms/reports/_entry')],
- ['reservations','reservations',()=>import('../../../src/app/holdings/[holdingSlug]/pms/reservations/_entry')],
- ['rooms','rooms',()=>import('../../../src/app/holdings/[holdingSlug]/pms/rooms/_entry')],
- ['settings','settings',()=>import('../../../src/app/holdings/[holdingSlug]/pms/settings/_entry')],
+ ['approvals','guest-accounts',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/approvals/_entry')],
+ ['cashier','cashier',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/cashier/_entry')],
+ ['dashboard','dashboard',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/dashboard/_entry')],
+ ['document section','reports',()=>import('@erpx/feature-pms/routes/holdings/[holdingSlug]/pms/documents/[id]/[recordSection]/page')],
+ ['document','reports',()=>import('@erpx/feature-pms/routes/holdings/[holdingSlug]/pms/documents/[id]/page')],
+ ['front-desk','front-desk',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/front-desk/_entry')],
+ ['guest-accounts','guest-accounts',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/guest-accounts/_entry')],
+ ['guests','guests',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/guests/_entry')],
+ ['housekeeping','housekeeping',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/housekeeping/_entry')],
+ ['minibar','inventory',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/minibar/_entry')],
+ ['night-audit','night-audit',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/night-audit/_entry')],
+ ['reports','reports',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/reports/_entry')],
+ ['reservations','reservations',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/reservations/_entry')],
+ ['rooms','rooms',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/rooms/_entry')],
+ ['settings','settings',()=>import('@erpx/workplace/routes/holdings/[holdingSlug]/pms/settings/_entry')],
 ] as const;
 it.each(actualBackofficeRoutes)('actual canonical PMS %s entry uses its original native %s reader and real standard Backoffice owner',async(label,section,load)=>{
- const {default:Page}=await load(),{StandardPmsBackofficeWorkspace}=await import('../../../src/components/pms/standard-pms-backoffice-workspace'),{isValidElement}=await import('react');
+ const {default:Page}=await load(),{StandardPmsBackofficeWorkspace}=await import('@erpx/feature-pms/components/standard-pms-backoffice-workspace'),{isValidElement}=await import('react');
  owner.frontHref.mockResolvedValue(null);const workspace=originalPmsWorkspace();owner.pms.mockResolvedValue(workspace);
  const node=await Page({params:Promise.resolve({holdingSlug:actor.holdingSlug,id:'original-document',recordSection:'overview'}),searchParams:Promise.resolve({property:'original-hotel',guestAccount:'original-account',q:'Original guest',from:'2026-10-01',to:'2026-10-31',page:'2',status:'open',building:'Original building',floor:'2',typeId:'original-type',detailKind:'pms_record',detailId:'original-record'})});
  if(!isValidElement<ComponentProps<typeof StandardPmsBackofficeWorkspace>>(node))throw Error('The actual canonical route must render its real Backoffice owner.');
@@ -415,20 +415,20 @@ it.each(actualBackofficeRoutes)('actual canonical PMS %s entry uses its original
  expect(owner.work).toHaveBeenCalledExactlyOnceWith(actor.holdingSlug);expect(owner.pms).toHaveBeenCalledTimes(1);expect(owner.pms.mock.calls[0].slice(0,4)).toEqual([actor,'original-hotel',section==='night-audit',false]);expect(fetcher).not.toHaveBeenCalled();
 });
 it('standard PMS Backoffice navigation retains exact native visible-section permissions and scoped Property destinations',async()=>{
- const {StandardPmsBackofficeNavigation}=await import('../../../src/components/pms/standard-pms-backoffice-navigation'),{pmsMenu}=await import('../../../src/components/shared/hospitality/module-menu'),{visiblePmsSections}=await import('../../../src/server/modules/pms/public/rules/pms-model'),{canonicalUiHref}=await import('../../../src/lib/work_projection/destination-registry');
+ const {StandardPmsBackofficeNavigation}=await import('@erpx/feature-pms/components/standard-pms-backoffice-navigation'),{pmsMenu}=await import('@erpx/feature-shared/components/hospitality/module-menu'),{visiblePmsSections}=await import('@erpx/server-pms/public/rules/pms-model'),{canonicalUiHref}=await import('@erpx/feature-work_projection/lib/destination-registry');
  const permissions=['pms.read','pms.housekeeping'],base='/holdings/'+actor.holdingSlug+'/branches/original-branch',propertyId='original hotel / ก';
  const items=pmsMenu('en').filter(item=>visiblePmsSections(permission=>permissions.includes(permission)).some(([id])=>id===item.id)).map(item=>({...item,href:canonicalUiHref(`${base}/pms/${item.id}?property=${encodeURIComponent(propertyId)}`)}));
  const stream=await renderToReadableStream(<StandardPmsBackofficeNavigation label="Hotel tasks" current="housekeeping" items={items}/>);await stream.allReady;const html=await new Response(stream).text();
  expect(html).toContain('aria-label="Hotel tasks"');expect(html).toContain('aria-current="page"');expect(html).toContain('data-appearance="standard"');expect(html).toContain(base+'/pms/housekeeping?property=original%20hotel%20%2F%20%E0%B8%81');expect(html).toContain(base+'/pms/inventory?');expect(html).toContain(base+'/pms/settings?');expect(html).not.toContain(base+'/pms/cashier?');expect(html).not.toContain(base+'/pms/guest-accounts?');expect(html).not.toContain(base+'/pms/reports?');expect(html).not.toContain(base+'/pms/night-audit?');expect(fetcher).not.toHaveBeenCalled();
 });
 it('actual standard PMS Backoffice parent keeps honest first-hotel setup and native owner authority without a duplicate mount read',async()=>{
- const {StandardPmsBackofficeWorkspace}=await import('../../../src/components/pms/standard-pms-backoffice-workspace'),{CurrencyProvider}=await import('../../../src/components/finance/money/currency-provider');
+ const {StandardPmsBackofficeWorkspace}=await import('@erpx/feature-pms/components/standard-pms-backoffice-workspace'),{CurrencyProvider}=await import('@erpx/feature-finance/components/money/currency-provider');
  owner.path='/holdings/'+actor.holdingSlug+'/pms/settings';owner.query='';const workspace=originalPmsWorkspace();
  const stream=await renderToReadableStream(<CurrencyProvider initial={money} apiBase={'/api/v1/holdings/'+actor.holdingSlug}><StandardPmsBackofficeWorkspace initial={workspace} base={'/holdings/'+actor.holdingSlug} section="settings" crossLinks={{inventory:false,finance:false,pos:false}}/></CurrencyProvider>);await stream.allReady;const html=await new Response(stream).text();
  expect(html).toContain('ui-page-header');expect(html).toContain('data-appearance="standard"');expect(html).toContain('Hotel PMS');expect(html).toContain('Set up your first hotel');expect(html).toContain('Hotel + Restaurant Setup');expect(html).toContain('/holdings/'+actor.holdingSlug+'/pms/setup');expect(html).toContain('aria-label="Hotel"');expect(html).not.toContain('Create hotel');expect(fetcher).not.toHaveBeenCalled();expect(owner.pms).not.toHaveBeenCalled();
 });
 it('standard PMS Backoffice readiness retains original Finance/setup handoffs and never substitutes an opening command',async()=>{
- const {StandardPmsBackofficeReadiness}=await import('../../../src/components/pms/standard-pms-backoffice-readiness');
+ const {StandardPmsBackofficeReadiness}=await import('@erpx/feature-pms/components/standard-pms-backoffice-readiness');
  const items=[{id:'accounting',label:'Accounting review',ready:false,owner:'Finance approver',href:'/holdings/'+actor.holdingSlug+'/pms/settings?property=original-hotel'},{id:'open',label:'Verify readiness and open hotel',ready:false,owner:'Hotel administrator',href:'/holdings/'+actor.holdingSlug+'/pms/settings?property=original-hotel'}];
  const stream=await renderToReadableStream(<StandardPmsBackofficeReadiness title="Hotel readiness" items={items}/>);await stream.allReady;const html=await new Response(stream).text();
  expect(html).toContain('data-appearance="standard"');expect(html).toContain('2 to prepare');expect(html).toContain('Finance approver');expect(html).toContain('Hotel administrator');expect(html).toContain('Verify readiness and open hotel');expect(html).toContain(items[0].href);expect(html).not.toContain('<form');expect(fetcher).not.toHaveBeenCalled();
@@ -436,8 +436,8 @@ it('standard PMS Backoffice readiness retains original Finance/setup handoffs an
 
 
 import {isValidElement as isInitialContextElement,type ReactNode as InitialContextNode} from 'react';
-import {WorkContextBoundary as FrontInitialContextBoundary} from '../../../src/components/workplace/work-context-boundary';
-import FrontNotificationsSnapshotScreen from '../../../src/app/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-front-notifications-entry';
+import {WorkContextBoundary as FrontInitialContextBoundary} from '@erpx/workplace/components/work-context-boundary';
+import FrontNotificationsSnapshotScreen from '@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/_screens/standard-front-notifications-entry';
 it.each(['pms','pos','notifications','base'] as const)('binds the actual %s Front SSR boundary snapshot to current public user/role/location metadata',async screen=>{
  owner.app=screen==='pms'?'pms':'pos';const segment=screen==='pms'?'today':screen==='notifications'?'notifications':screen==='pos'?'sale':undefined;owner.path=`/${actor.holdingSlug}/${company.companySlug}/holding${segment?'/'+segment:''}`;owner.actions.mockReturnValue([]);
  let roleObservedAt=0;owner.role.mockImplementation(async()=>{roleObservedAt=Date.now();return {options:[{id:actor.assignmentId,role:actor.role}]};});

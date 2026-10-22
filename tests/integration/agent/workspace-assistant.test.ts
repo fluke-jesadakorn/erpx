@@ -1,10 +1,10 @@
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {env,applyMigrations} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {assistantPage,assistantAskSchema} from "../../../src/lib/work_projection/ai/workspace-assistant";
-import {askAssistant,assistantSources,assistantView} from "../../../src/server/modules/agent/public/workspace-assistant";
-import {assertProductionFeatureRoute} from "../../../src/server/modules/pms/public/hospitality-rollout";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {assistantPage,assistantAskSchema} from "@erpx/feature-work_projection/lib/ai/workspace-assistant";
+import {askAssistant,assistantSources,assistantView} from "@erpx/server-agent/public/workspace-assistant";
+import {assertProductionFeatureRoute} from "@erpx/server-pms/public/hospitality-rollout";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const aiEnv={AI_BASE_URL:"https://opencode.ai/zen/go/v1",AI_MODEL:"muse-spark-1.3-contributor",AI_API_KEY:"synthetic-key"};
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 const generate=vi.fn(async()=>({result:{answer:"Review this page.",sourceIds:["page-guide"],followUps:[]},inputTokens:10,outputTokens:5}));

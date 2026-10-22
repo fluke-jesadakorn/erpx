@@ -1,10 +1,11 @@
 // App Router topology, separate from source identity and content fingerprints.
 // Named slots and route groups organize the loader tree; neither is a URL segment.
-const appRoot = 'src/app';
+function rootFor(source) { return /^(?:src\/app|apps\/[^/]+\/src\/app|packages\/[^/]+\/src\/routes)(?=\/|$)/.exec(source)?.[0] ?? null; }
 const segmentConventions = ['layout', 'template', 'loading', 'error', 'not-found', 'forbidden', 'unauthorized'];
 
 function pageSegments(source) {
-  if (!source.startsWith(`${appRoot}/`) || !source.endsWith('/page.tsx')) return null;
+  const appRoot=rootFor(source);
+  if (!appRoot || !source.endsWith('/page.tsx')) return null;
   const segments = source.slice(appRoot.length + 1, -'/page.tsx'.length).split('/').filter(Boolean);
   if (segments.some(segment => segment.startsWith('_'))) return null;
   return segments;
@@ -23,7 +24,7 @@ function publicPath(segments) {
 }
 
 export function appPageContext(source) {
-  const segments = pageSegments(source);
+  const segments = pageSegments(source),appRoot=rootFor(source);
   if (!segments) return null;
   const slots = [];
   for (let index = 0; index < segments.length; index++) {
@@ -40,7 +41,7 @@ export function appPageContext(source) {
 }
 
 export function appPageBoundaries(source, availableSources) {
-  const segments = pageSegments(source);
+  const segments = pageSegments(source),appRoot=rootFor(source);
   if (!segments) return [];
   const available = new Set(availableSources), ancestors = new Set();
   for (let length = segments.length; length >= 0; length--) {

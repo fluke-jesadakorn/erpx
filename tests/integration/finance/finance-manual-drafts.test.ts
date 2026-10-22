@@ -1,4 +1,4 @@
-import { packageGrantStore } from "../../../src/server/modules/commercial/public/package-grants";
+import { packageGrantStore } from "@erpx/server-commercial/public/package-grants";
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import {
@@ -11,13 +11,13 @@ import {
   createJournalSchema,
   postJournal,
   trialBalance,
-} from "../../../src/server/modules/finance/public/finance";
+} from "@erpx/server-finance/public/finance";
 import {
   editManualDraft,
   manualDraftEditSchema,
-} from "../../../src/server/modules/finance/public/finance-manual-drafts";
-import { createFinanceDimension } from "../../../src/server/modules/finance/public/finance-books";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-finance/public/finance-manual-drafts";
+import { createFinanceDimension } from "@erpx/server-finance/public/finance-books";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -251,8 +251,8 @@ it('retains exact manual journal Money through the original reversal and lawful 
   f = await expenseFixture(true, false);
   for (const [actor, role] of [[f.owner, 'finance_preparer'], [f.manager, 'finance_approver']] as const) { actor.role = role;actor.assignmentId = await f.grant(actor, role); }
   await journalMoneyFinancePurchase();
-  const { confirmManualRate } = await import('../../../src/server/modules/finance/public/company-money');
-  const { reverseJournal } = await import('../../../src/server/modules/finance/public/finance');
+  const { confirmManualRate } = await import('@erpx/server-finance/public/company-money');
+  const { reverseJournal } = await import('@erpx/server-finance/public/finance');
   expect(await db.prepare('SELECT COUNT(*) n FROM company_fx_rates WHERE company_id=?').bind(f.company).first('n')).toBe(0);
   const journal = await createJournal(f.owner, createJournalSchema.parse(input()), key()), id = String(journal.id), postKey = key(), postInput = { expectedVersion: 1 }, noQuote = await journalMoneyImage();
   await expect(postJournal(f.manager, id, postKey, postInput)).rejects.toMatchObject({ status: 422, code: 'MANUAL_RATE_REQUIRED' });
@@ -319,7 +319,7 @@ async function journalMoneyFault(event: 'money' | 'cleanup', company: string, co
 }
 it('rolls back generic reversal Money with late original authority and purchase-cleanup source changes, then retains the first request on retry and replay', async () => {
   await journalMoneyFinancePurchase();
-  const { reverseJournal } = await import('../../../src/server/modules/finance/public/finance');
+  const { reverseJournal } = await import('@erpx/server-finance/public/finance');
   const journal = await createJournal(f.owner, createJournalSchema.parse(input()), key()), id = String(journal.id);await postJournal(f.manager, id, key(), { expectedVersion: 1 });
   const command = key(), body = { periodId: f.period, entryDate: '2026-10-01', memo: 'Original request survives a whole owned reversal rollback' };
   await journalMoneyFault('money', f.company, command, `UPDATE assignments SET revoked_at=1,version=version+1 WHERE id='${f.manager.assignmentId}'`, () => reverseJournal(f.manager, id, command, body), { status: 403, code: 'FINANCE_ACCESS_CHANGED' });
@@ -336,11 +336,11 @@ it('rolls back generic reversal Money with late original authority and purchase-
 });
 
 it('waits before the real selected Work row held by an old disabled Finance command without deadlocks serialization or hidden retries', async () => {
-  const { reverseJournal, createAccount } = await import('../../../src/server/modules/finance/public/finance');
-  const { measureReads } = await import('../../../src/server/modules/runtime/adapters/runtime/read-metrics');
+  const { reverseJournal, createAccount } = await import('@erpx/server-finance/public/finance');
+  const { measureReads } = await import('@erpx/server-runtime/adapters/runtime/read-metrics');
   const journal = await createJournal(f.owner, createJournalSchema.parse(input()), key()), id = String(journal.id);await postJournal(f.manager, id, key(), { expectedVersion: 1 });
   vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT', 'disabled');
-  const {selectWorkRole}=await import('../../../src/server/modules/work_projection/public/work-role-store'),sessionId=key(),version=Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(f.manager.assignmentId).first('version'));
+  const {selectWorkRole}=await import('@erpx/server-work_projection/public/work-role-store'),sessionId=key(),version=Number(await db.prepare('SELECT version FROM assignments WHERE id=?').bind(f.manager.assignmentId).first('version'));
   const selection=await selectWorkRole(db,{sessionId,userId:f.manager.userId,companyId:f.company,assignmentId:f.manager.assignmentId,assignmentVersion:version,revision:0,expiresAt:Date.now()+600000});
   const actor={...f.manager,authority:{sessionId,revision:selection.revision,assignmentVersion:version}};
   const oldBody = { chartId: f.chart, code: '5881', name: 'Original disabled owner account', category: 'expense' as const, currency: 'THB', controlKind: 'none' as const, isControl: false }, oldKey = key(), reversalKey = key(), body = { periodId: f.period, entryDate: '2026-10-01', memo: 'Actual new reversal waits before protected snapshots' }, name = 'journal_money_writer_' + key().replaceAll('-', '');
@@ -370,7 +370,7 @@ it('waits before the real selected Work row held by an old disabled Finance comm
 });
 
 async function journalMoneyOpeningSource() {
-  const native = await import('../../../src/server/modules/finance/public/finance');
+  const native = await import('@erpx/server-finance/public/finance');
   const receivable = await native.createAccount(f.owner, { chartId: f.chart, code: '1181', name: 'Original opening receivable', category: 'asset', currency: 'THB', controlKind: 'receivable', isControl: true }, key());
   const equity = await native.createAccount(f.owner, { chartId: f.chart, code: '3181', name: 'Original opening equity', category: 'equity', currency: 'THB', controlKind: 'none', isControl: false }, key());
   const party = await native.createParty(f.owner, native.partySchema.parse({ kind: 'customer', code: key(), name: 'Original opening customer', currency: 'THB' }), key());
@@ -404,7 +404,7 @@ it('retains real unused Opening subledgers and their original Money when a late 
 
 it('waits for the actual disabled Opening receipt confirmation before its first reversal snapshot and preserves the original settled-subledger refusal with zero retries', async () => {
   await journalMoneyFinancePurchase();
-  const source = await journalMoneyOpeningSource(), { measureReads } = await import('../../../src/server/modules/runtime/adapters/runtime/read-metrics');
+  const source = await journalMoneyOpeningSource(), { measureReads } = await import('@erpx/server-runtime/adapters/runtime/read-metrics');
   const bank = await source.native.createAccount(f.owner, { chartId: f.chart, code: '1081', name: 'Actual original opening receipt bank', category: 'asset', currency: 'THB', controlKind: 'bank', isControl: true }, key());
   f.payer.role = 'treasury';f.payer.assignmentId = await f.grant(f.payer, 'treasury');
   const payment = await source.native.createPayment(f.owner, { partyId: String(source.party.id), kind: 'receipt', paymentNumber: key(), paymentDate: '2026-10-02', currency: 'THB', amount: '100.01', bankAccount: String(bank.id), settlementInvoiceId: source.invoice.id }, key()), paymentId = String(payment.id);

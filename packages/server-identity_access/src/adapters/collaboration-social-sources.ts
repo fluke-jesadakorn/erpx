@@ -1,0 +1,1 @@
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function collaborationSocialSources(db:SqlDatabase){return {async activeMentionAccount(targetId:string,now:number,now2:number){return db.prepare(`SELECT 1 AS ok FROM assignments WHERE user_id=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>? LIMIT 1`).bind(targetId,now,now2).first();}};}

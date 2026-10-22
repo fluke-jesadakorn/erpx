@@ -485,10 +485,14 @@ describe("conservative base and head impact selection", () => {
   });
   it("requires complete semantic ownership in impact CI even after import boundaries pass", () => {
     const workflow = readFileSync(join(process.cwd(), ".github/workflows/nextjs.yml"), "utf8");
-    const impactJob = workflow.match(/^  impact:\n([\s\S]*?)(?=^  native:)/m)?.[1];
-    expect(impactJob).toContain("run: bun scripts/testing/pr-regression.ts native");
-    const regressionRunner = readFileSync(join(process.cwd(), "scripts/testing/pr-regression.ts"), "utf8");
-    for (const command of ['"scripts/architecture/acceptance.ts"', '"run", "structure:check"', '"run", "docs:check"', '"run", "products:check"', '"run", "lint"', '"run", "typecheck"', '"run", "deploy:build"']) expect(regressionRunner).toContain(command);
+    const impactJob = workflow.match(/^  verification:\n([\s\S]*?)(?=^  acceptance:)/m)?.[1];
+    expect(impactJob).toContain('run: bun run test:ci');
+    expect(impactJob).not.toContain('release:acceptance');
+    expect(impactJob).not.toContain('deploy:build');
+    const regressionRunner = readFileSync(join(process.cwd(), "scripts/testing/scoped.ts"), "utf8");
+    for (const command of ['scripts/architecture/check.ts', 'scripts/testing/layout.ts', 'scripts/docs/check-documentation.ts']) expect(regressionRunner).toContain(command);
+    expect(regressionRunner).not.toContain('scripts/testing/full.ts');
+
   });
   it("starts CI for operational runners, nested fixtures and workspace rules that force full impact", () => {
     const workflow=readFileSync(join(process.cwd(),".github/workflows/nextjs.yml"),"utf8");
@@ -515,20 +519,18 @@ describe("conservative base and head impact selection", () => {
     expect(workflow).toMatch(/^  merge_group:/m);
     expect(workflow).toMatch(/^  workflow_dispatch:/m);
     expect(workflow).toContain("branches: [development]");
-    expect(workflow).toContain('if [ "$EVENT_NAME" = push ] && [ "$base_is_zero" = true ]; then');
-    expect(workflow).toContain("Unable to resolve the event base; refusing an under-scoped PR profile.");
+    expect(workflow).toContain('An exact candidate base is required.');
+    expect(workflow).toContain('git rev-parse --verify "$base^{commit}"');
     expect(workflow).not.toContain("base.ref == 'development'");
     expect(workflow).toContain("cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}");
-    expect(workflow).toContain("if: needs.scope.outputs.profile == 'pr'");
-    expect(workflow).toContain('name: Browser full regression ${{ matrix.shard }}/64');
-    expect(workflow).toContain('contains(fromJSON(needs.scope.outputs.browser_shards), matrix.shard)');
-    expect(workflow).toContain('pr-regression.ts browser --base=${{ needs.scope.outputs.base }} --head=${{ needs.scope.outputs.candidate }} --shard=${{ matrix.shard }}/4');
-    expect(workflow).toContain('ci-regression.ts browser --shard=${{ matrix.shard }}/64');
-    expect(workflow).not.toContain('browser-pr:');
-    expect(workflow).toContain('test "$IMPACT_RESULT" = success');
-    expect(workflow).toContain('test "$BROWSER_RESULT" = success');
-    expect(workflow).toContain('pattern: pr-*-${{ needs.scope.outputs.candidate }}');
-    expect(workflow).toContain('name: full-candidate-${{ needs.scope.outputs.candidate }}');
+    expect(workflow).toContain("if: github.event_name != 'workflow_dispatch'");
+    expect(workflow).toContain("if: github.event_name == 'workflow_dispatch'");
+    expect(workflow).not.toContain('schedule:');
+    expect(workflow).toContain('name: Affected development verification');
+    expect(workflow).toContain('run: bun run release:acceptance --candidate="$CANDIDATE"');
+    expect(workflow).not.toContain('deploy:build');
+    expect(workflow).not.toContain('ci-regression.ts browser');
+
   });
   it("includes the owning module, reverse import consumers and journeys", () => {
     expect(impacted([{ status: "M", path: "src/server/sales/pricing.ts" }]).modules).toEqual(["finance", "sales"]);
@@ -549,11 +551,11 @@ describe("conservative base and head impact selection", () => {
     const headOwnership: SourceOwnership = { owners: [...ownership.owners, { id: "people_payroll", modules: ["people_payroll"], source: ["src/server/sales/pricing.ts"] }] };
     expect(impacted([{ status: "M", path: "src/server/sales/pricing.ts" }], base, base, ownership, headOwnership).modules).toEqual(["finance", "people_payroll", "sales"]);
   });
-  it.each(["src/server/modules/identity_access/public/iam-service.ts", "src/server/modules/identity_access/domain/account-recovery.ts", "src/server/modules/identity_access/adapters/legacy/iam-service.ts", "src/server/modules/finance/adapters/legacy/finance-transactions.ts", "src/server/modules/finance/public/finance-transactions.ts", "src/server/modules/shared/application/command.ts", "src/server/modules/runtime/adapters/runtime/postgres.ts", "migrations/postgres/holding-write/0002.sql", "tests/support/helpers/expense-fixture.ts", "tests/config/vitest.unit.config.mts", "scripts/testing/catalogue.ts", "AGENTS.md", "tests/catalogue/engineering-scenarios.json"])("falls back to full for shared/global input %s", path => {
+  it.each(["packages/server-identity_access/src/public/iam-service.ts", "packages/server-identity_access/src/domain/account-recovery.ts", "packages/server-identity_access/src/adapters/legacy/iam-service.ts", "packages/server-finance/src/adapters/legacy/finance-transactions.ts", "packages/server-finance/src/public/finance-transactions.ts", "packages/server-shared/src/application/command.ts", "packages/server-runtime/src/adapters/runtime/postgres.ts", "migrations/postgres/holding-write/0002.sql", "tests/support/helpers/expense-fixture.ts", "tests/config/vitest.unit.config.mts", "scripts/testing/catalogue.ts", "AGENTS.md", "tests/catalogue/engineering-scenarios.json"])("falls back to full for shared/global input %s", path => {
     expect(impacted([{ status: "M", path }]).mode).toBe("full");
   });
   it("forces a full run for relocated IAM and transaction code even with complete ownership and no consumers", () => {
-    for (const path of ["src/server/modules/identity_access/domain/revocation.ts", "src/server/modules/finance/adapters/legacy/finance-transactions.ts", "src/server/modules/shared/domain/error.ts"]) {
+    for (const path of ["packages/server-identity_access/src/domain/revocation.ts", "packages/server-finance/src/adapters/legacy/finance-transactions.ts", "packages/server-shared/src/domain/error.ts"]) {
       const mapped = { owners: [{ id: "finance", modules: ["finance"], source: [path] }] };
       const tree = new Map([[path, "export const rule = 1"]]);
       expect(impacted([{ status: "M", path }], tree, tree, mapped, mapped).reasons).toEqual([`GLOBAL_DEPENDENCY:${path}`]);
@@ -662,7 +664,11 @@ describe("PR regression selection", () => {
       "shared.test-infrastructure.ci-regression.unit", "shared.test-infrastructure.browser-isolation-receipts.unit"])
       expect(critical.has(id), id).toBe(true);
     const target = actual.suites.find(item => item.id === "finance.money.unit")!;
-    expect(() => validateCatalogue({ ...actual, suites: actual.suites.map(item => item.id === target.id ? { ...item, ci: undefined } : item) })).toThrow(`NATIVE_CI_CLASSIFICATION_REQUIRED:${target.id}`);
+    // Current development selection uses explicit workspace ownership. Historical
+    // critical classifications retain their old receipt scope but are optional.
+    expect(() => validateCatalogue({ ...actual, suites: actual.suites.map(item => item.id === target.id ? { ...item, ci: undefined } : item) })).not.toThrow();
+    expect(target.apps?.length).toBeGreaterThan(0);
+    expect(target.packages).toBeDefined();
   });
 });
 
@@ -725,7 +731,7 @@ describe("required native cases", () => {
 });
 
 describe("complete UAT source route inventory", () => {
-  const pages = ["src/app/page.tsx", "src/app/holdings/[holdingSlug]/people/page.tsx"];
+  const pages = ["packages/workplace/src/routes/page.tsx", "src/app/holdings/[holdingSlug]/people/page.tsx"];
   const entries = [{ source: pages[0], template: "/" }, { source: pages[1], template: "/holdings/[holdingSlug]/people" }];
   it("rejects a missing required page replaced by an unrelated route despite an unchanged count", () => {
     expect(() => assertUatRouteSources({ pageRouteCount: 2, entries: [entries[0], { source: "src/app/optional/page.tsx", template: "/optional" }] }, pages)).toThrow("UAT_ROUTE_SOURCE_INVENTORY_MISMATCH");

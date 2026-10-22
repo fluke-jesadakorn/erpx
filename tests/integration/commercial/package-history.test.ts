@@ -1,13 +1,13 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants, readCompanyPurchaseFacts } from "@/server/modules/commercial/public/package-grants";
-import { ownerPackageObligations, withOwnerPackageObligations } from "@/server/modules/commercial/public/owner-package-obligations";
-import { purchasedCapability, type CompanyPackageGrant } from "@/server/modules/commercial/public/packages";
-import { readPurchasedAccess } from "@/server/modules/commercial/public/purchase-command-boundary";
-import { purchasedCapabilityPredicate } from "@/server/modules/commercial/public/purchased-capability-sql";
-import { readCommandCapability, readEffectiveCapability } from "@/server/modules/commercial/public/capability-decision";
-import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
+import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants, readCompanyPurchaseFacts } from "@erpx/server-commercial/public/package-grants";
+import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
+import { purchasedCapability, type CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
+import { readPurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
+import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
+import { readCommandCapability, readEffectiveCapability } from "@erpx/server-commercial/public/capability-decision";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });

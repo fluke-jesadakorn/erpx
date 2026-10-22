@@ -1,0 +1,25 @@
+{
+  "name": "@erpx/feature-legal-portal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./routes/legal-portal/[holdingSlug]/page": "./src/routes/legal-portal/[holdingSlug]/page.tsx",
+    "./routes/api/legal-portal/[holdingSlug]/[[...path]]/route": "./src/routes/api/legal-portal/[holdingSlug]/[[...path]]/route.ts",
+    "./routes/api/legal-portal/[holdingSlug]/quick-access/route": "./src/routes/api/legal-portal/[holdingSlug]/quick-access/route.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-legal": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-legal": "workspace:*",
+    "@erpx/server-manage_erpx": "workspace:*",
+    "@erpx/server-runtime": "workspace:*",
+    "@erpx/server-work_projection": "workspace:*",
+    "next": "16.4.0",
+    "zod": "4.5.4"
+  }
+}

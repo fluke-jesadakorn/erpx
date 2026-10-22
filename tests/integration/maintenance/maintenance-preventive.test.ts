@@ -1,14 +1,14 @@
-import {packageGrantStore} from "../../../src/server/modules/commercial/public/package-grants";
-import {withAssetPurchasedCommand} from "../../../src/server/modules/assets/public/purchases";
+import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
+import {withAssetPurchasedCommand} from "@erpx/server-assets/public/purchases";
 import {beforeAll,beforeEach,afterEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createAsset,changeMaintenanceWork,maintenanceDetail} from "../../../src/server/modules/assets/public/asset-maintenance";
-import {savePreventivePlan,changePreventivePlan,preventivePlanDetail,preventivePlanWork} from "../../../src/server/modules/maintenance/public/maintenance-preventive";
-import {readSourceRecord} from "../../../src/server/modules/records/public/source-record-policy";
-import {calendarData} from "../../../src/server/modules/work_projection/public/calendar/index";
-import {collaborationActionDetail,createActionCard,createRecordRelation,changeActionCard,collaborationWorkspace} from "../../../src/server/modules/collaboration/public/collaboration-work";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {createAsset,changeMaintenanceWork,maintenanceDetail} from "@erpx/server-assets/public/asset-maintenance";
+import {savePreventivePlan,changePreventivePlan,preventivePlanDetail,preventivePlanWork} from "@erpx/server-maintenance/public/maintenance-preventive";
+import {readSourceRecord} from "@erpx/server-records/public/source-record-policy";
+import {calendarData} from "@erpx/server-work_projection/public/calendar/index";
+import {collaborationActionDetail,createActionCard,createRecordRelation,changeActionCard,collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 afterEach(()=>vi.unstubAllEnvs());
 let f:Awaited<ReturnType<typeof expenseFixture>>,assetId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -89,7 +89,7 @@ it('composes the purchased preventive addon into one real Work and Asset transac
 
 it('filters actual Asset, preventive and Work sources before shared limits and keeps purchased history scoped to the current selected role',async()=>{
  await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);
- const {getRecord,recordsPage,searchReferences}=await import("../../../src/server/modules/records/public/records"),{listStaffNotifications,notificationsPage}=await import("../../../src/server/modules/collaboration/public/staff-notifications"),{publishInboxEvent,inboxPage}=await import("../../../src/server/modules/collaboration/public/inbox");
+ const {getRecord,recordsPage,searchReferences}=await import("@erpx/server-records/public/records"),{listStaffNotifications,notificationsPage}=await import("@erpx/server-collaboration/public/staff-notifications"),{publishInboxEvent,inboxPage}=await import("@erpx/server-collaboration/public/inbox");
  const id=await plan();await act(id,"activate",1);const generated=await act(id,"generate",2,f.head),work=String(generated.workOrderId),now=Date.now(),shared=key(),recordActor={...f.owner,modules:["assets","maintenance"]};
  const records=[{module:"assets",section:"asset-register",id:assetId,title:"Private original physical Asset"},{module:"maintenance",section:"work-orders",id:work,title:"Private original Maintenance Work"},{module:"maintenance",section:"work-orders",id,title:"Private original Preventive Plan"},{module:"assets",section:"asset-register",id:shared,title:"Shared independent asset reference"}];
  for(const record of records)await db.prepare("INSERT INTO workspace_records(module_id,id,section_id,title,description,status,fields_json,company_id,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,'','draft','[]',?,?,?,?,?)").bind(record.module,record.id,record.section,record.title,f.company,f.owner.userId,f.owner.userId,now,now).run();

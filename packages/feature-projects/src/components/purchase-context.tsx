@@ -1,0 +1,8 @@
+"use client";
+import {createContext,useContext,type ReactNode} from "react";
+import type {ProjectPurchaseControls} from "@erpx/feature-projects/lib/purchase-controls";
+import {ProjectEditorBoundary} from "@erpx/feature-projects/components/project-editor-boundary";
+import type {ProjectEditorScope} from "@erpx/feature-projects/lib/project-editor-command";
+const ProjectPurchases=createContext<ProjectPurchaseControls|undefined>(undefined);
+export function ProjectPurchaseProvider({purchases,children,editorSource}:{purchases?:ProjectPurchaseControls;children:ReactNode;editorSource?:ProjectEditorScope}){return <ProjectPurchases.Provider value={purchases}>{editorSource?<ProjectEditorBoundary source={editorSource}>{children}</ProjectEditorBoundary>:children}</ProjectPurchases.Provider>;}
+export function useProjectPurchases(){return useContext(ProjectPurchases);}

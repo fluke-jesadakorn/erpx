@@ -27,13 +27,13 @@ vi.mock("react", async (original) => ({
     hooks.slots[index] = { value: dependencies };
   },
 }));
-vi.mock("../../../src/components/ui/foundation", () => ({ Button: "button", Field: "label", TextInput: "input", ActionLink: "a" }));
-vi.mock("../../../src/components/ui/dialog", () => ({ Dialog: "dialog" }));
-vi.mock("../../../src/components/work_projection/quick-access/use-local-preference", () => ({
+vi.mock("@erpx/ui/components/foundation", () => ({ Button: "button", Field: "label", TextInput: "input", ActionLink: "a" }));
+vi.mock("@erpx/ui/components/dialog", () => ({ Dialog: "dialog" }));
+vi.mock("@erpx/feature-work_projection/components/quick-access/use-local-preference", () => ({
   useLocalShortcutPreference: (_key: unknown, preference: unknown) => ({ preference }),
 }));
 
-import { QuickAccessShelf } from "../../../src/components/work_projection/quick-access/shelf";
+import { QuickAccessShelf } from "@erpx/feature-work_projection/components/quick-access/shelf";
 
 type NodeProps = {
   children?: ReactNode; open?: boolean; disabled?: boolean; "aria-label"?: string;

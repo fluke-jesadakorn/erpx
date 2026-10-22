@@ -1,0 +1,23 @@
+{
+  "name": "@erpx/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./workforce-self-service-entry": "./src/workforce-self-service-entry.ts",
+    "./ownership.json": "./src/ownership.json",
+    "./apps": "./src/apps.ts",
+    "./product-registry": "./src/product-registry.ts",
+    "./next-routes": "./src/next-routes.ts",
+    "./social-post-entry": "./src/social-post-entry.ts",
+    "./command-flow": "./src/command-flow.ts",
+    "./ownership": "./src/ownership.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "react": "19.3.0"
+  }
+}

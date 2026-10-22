@@ -1,7 +1,7 @@
 import {beforeAll,expect,it} from 'vitest';
 import {env,applyMigrations} from "../../support/runtime-env";
-import {selectWorkRole,readWorkSelection,restoreWorkSelection} from "../../../src/server/modules/work_projection/public/work-role-store";
-import {executeCommand,replayCommand} from "../../../src/server/modules/workflow/public/commands";
+import {selectWorkRole,readWorkSelection,restoreWorkSelection} from "@erpx/server-work_projection/public/work-role-store";
+import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 const db=env.H001_DB;
 beforeAll(()=>applyMigrations(db,env.STAFF_TEST_MIGRATIONS));
 async function fixture(){

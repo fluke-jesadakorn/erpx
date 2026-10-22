@@ -1,7 +1,7 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceWorkspace,type FinanceWorkspacePorts} from "../../../src/server/modules/finance/application/workspace";
-import type {ClosePeriodSource} from "../../../src/server/modules/finance/domain/workspace";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createFinanceWorkspace,type FinanceWorkspacePorts} from "@erpx/server-finance/application/workspace";
+import type {ClosePeriodSource} from "@erpx/server-finance/domain/workspace";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
 type Ports=FinanceWorkspacePorts<{items:{id:string}[];nextCursor:string|null},{runs:{id:string}[]},{statusCounts:{proposed:number};transactions:{id:string}[]}>;

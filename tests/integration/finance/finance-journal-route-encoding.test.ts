@@ -2,16 +2,16 @@ import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { createAsset, createMaintenanceWork, changeMaintenanceWork, maintenanceDetail } from "../../../src/server/modules/assets/public/asset-maintenance";
-import { saveMaster } from "../../../src/server/modules/commerce/public/commerce";
-import { assignFlowPrimary, resolveFlow } from "../../../src/server/modules/workflow/public/flow-routing";
-import JournalPage from "../../../src/app/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { createAsset, createMaintenanceWork, changeMaintenanceWork, maintenanceDetail } from "@erpx/server-assets/public/asset-maintenance";
+import { saveMaster } from "@erpx/server-commerce/public/commerce";
+import { assignFlowPrimary, resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import JournalPage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen";
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "console-dev-erpx.jesadakorn.com" }) }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
-vi.mock("../../../src/server/modules/work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: db, files: env.H001_FILES }), runtimeEnv: async () => env }));
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({ requireWorkContext: async () => actor, publicScope: () => ({ kind: "holding", holdingSlug: "test" }) }));
+vi.mock("@erpx/server-work_projection/public/page-error", () => ({ pageError: (error: unknown) => { throw error; } }));
 let actor: WorkContext, f: Awaited<ReturnType<typeof expenseFixture>>, workId: string, journalId: string;
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {

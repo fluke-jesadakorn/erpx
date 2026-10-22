@@ -1,16 +1,16 @@
 import {beforeAll,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createInvoice,createParty,invoiceSchema} from "../../../src/server/modules/finance/public/finance";
-import {readWorkSnapshot} from "../../../src/server/modules/work_projection/public/work-items";
+import {createInvoice,createParty,invoiceSchema} from "@erpx/server-finance/public/finance";
+import {readWorkSnapshot} from "@erpx/server-work_projection/public/work-items";
 vi.mock("server-only",()=>({}));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>({})}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>({})}));
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 it("keeps authorized Finance work when a page actor cannot access other source apps",async()=>{const f=await expenseFixture(),party=await createParty(f.reviewer,{kind:"supplier",code:key(),name:"Queue source supplier",currency:"THB",paymentTermsDays:30,creditLimit:"0"},key()),invoice=await createInvoice(f.reviewer,invoiceSchema.parse({partyId:party.id,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-10",dueDate:"2026-10-10",currency:"THB",subtotal:"100",tax:"0",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());const snapshot=await readWorkSnapshot({...f.reviewer,pageRequest:true});expect(snapshot.unavailableSources).not.toContain("Commercial and financial workflows");expect(snapshot.items.some(item=>item.type==="invoice"&&item.id===invoice.id)).toBe(true);expect(snapshot.items.filter(item=>item.type==="order")).toEqual([]);});
 
 it("keeps batched workflow candidates identical to individual reads for every role and scope", async () => {
-  const { workflowStaffRoleUsers } = await import("../../../src/server/modules/identity_access/public/workflow-role-facts");
-  const { withPolicyReadSnapshot } = await import("../../../src/server/modules/identity_access/public/iam-read-snapshot");
+  const { workflowStaffRoleUsers } = await import("@erpx/server-identity_access/public/workflow-role-facts");
+  const { withPolicyReadSnapshot } = await import("@erpx/server-identity_access/public/iam-read-snapshot");
   const f = await expenseFixture();
   const scopes = [
     { company_id: f.company, branch_id: null, department_id: null },
@@ -27,8 +27,8 @@ it("keeps batched workflow candidates identical to individual reads for every ro
 });
 
 it("keeps all commercial work and approval ownership identical to the authorized detail reader", async () => {
-  const { otherFlowWork } = await import("../../../src/server/modules/workflow/public/flow-work");
-  const { withPolicyReadSnapshot } = await import("../../../src/server/modules/identity_access/public/iam-read-snapshot");
+  const { otherFlowWork } = await import("@erpx/server-workflow/public/flow-work");
+  const { withPolicyReadSnapshot } = await import("@erpx/server-identity_access/public/iam-read-snapshot");
   const f = await expenseFixture();
   const party = await createParty(f.reviewer,{kind:"supplier",code:key(),name:"Batch work supplier",currency:"THB",paymentTermsDays:30,creditLimit:"0"},key());
   for (let index=0;index<8;index++) await createInvoice(f.reviewer,invoiceSchema.parse({partyId:party.id,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-10",dueDate:"2026-10-10",currency:"THB",subtotal:"100",tax:"0",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());

@@ -2,11 +2,11 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {dirname,join,resolve} from 'node:path';
 import {mock} from 'bun:test';
-import {assertHospitalityDevelopmentTarget} from "../../../src/lib/shared/hospitality-seed-target";
-import {businessRoles} from "../../../src/lib/identity_access/business-roles";
+import {assertHospitalityDevelopmentTarget} from "@erpx/feature-shared/lib/hospitality-seed-target";
+import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
 import {posDemoCompany as company} from "../../../fixtures/pos/catalog";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import {PostgresDatabase} from "../../../src/server/modules/runtime/adapters/runtime/postgres";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 mock.module('next/navigation',()=>({forbidden:()=>{throw new Error('CLI_PAGE_FORBIDDEN');},redirect:()=>{throw new Error('CLI_REDIRECT_FORBIDDEN');}}));
 const manifestPath=process.env.ERPX_DATABASE_MANIFEST;if(!manifestPath)throw new Error('DEVELOPMENT_MANIFEST_REQUIRED');
 const app=JSON.parse(await readFile(manifestPath,'utf8')),jobsPath=join(dirname(manifestPath),'databases-jobs.json'),jobs=JSON.parse(await readFile(jobsPath,'utf8'));
@@ -14,9 +14,9 @@ assertHospitalityDevelopmentTarget(app,process.env.ERPX_ENVIRONMENT);assertHospi
 const flag=(name:string)=>process.argv.find(arg=>arg.startsWith(`--${name}=`))?.slice(name.length+3);
 const numbers=[flag('room-sale'),flag('retail-sale')];if(numbers.some(number=>!number))throw new Error('PASS_BROWSER_ROOM_AND_RETAIL_BILL_NUMBERS');
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
-const {closeRuntime}=await import("../../../src/server/modules/runtime/adapters/runtime/env");
-const {posCommand,one,all}=await import("../../../src/server/modules/pos/public/pos-core");
-const {posDayReport}=await import("../../../src/server/modules/pos/public/pos-daily");
+const {closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
+const {posCommand,one,all}=await import("@erpx/server-pos/public/pos-core");
+const {posDayReport}=await import("@erpx/server-pos/public/pos-daily");
 const db=new PostgresDatabase({connectionString:jobs.databases.H001_DB,max:2});
 const actor=(label:'manager'|'finance')=>({userId:`pos-thb-v1-${label}`,assignmentId:`pos-thb-v1-${label}-access`,role:label==='manager'?'pos_manager':'finance_approver',companyId:company,branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'acme',holdingName:'ACME',name:label,email:`${label}@pos-thb-v1.example`,assignmentScope:'holding',inherited:false,modules:[...businessRoles[label==='manager'?'pos_manager':'finance_approver']],assignments:[],workspaces:[],scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'ACME',companyId:company}} as WorkContext);
 try{

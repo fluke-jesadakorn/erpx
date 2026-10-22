@@ -1,33 +1,33 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { childSelections, hiddenDraftKeys, peopleExplorerTabs, selectPanel, trayKindsForParents } from "../../../src/lib/people_payroll/people-explorer";
-import { emptyDraft } from "../../../src/lib/organization/organization-draft";
-import type { HoldingPeopleDirectory } from "../../../src/server/modules/organization/public/holding-people-directory";
-import {createPerformanceCommandFetch, performanceCommandPurpose, performanceFormUnchanged, validPerformanceAcknowledgement} from "../../../src/lib/people_payroll/performance-command-fetch";
-import {EvaluationConsole} from "../../../src/components/people_payroll/evaluation-console";
-import {DefinitionEditor} from "../../../src/components/people_payroll/evaluation-editors";
-import {EmbeddedRecord} from "../../../src/components/records/record-context";
-import type {EvaluationWorkspace} from "../../../src/server/modules/people_payroll/public/people-evaluation";
-import {defaultEvaluationPolicy} from "../../../src/lib/people_payroll/people-evaluation";
+import { childSelections, hiddenDraftKeys, peopleExplorerTabs, selectPanel, trayKindsForParents } from "@erpx/feature-people_payroll/lib/people-explorer";
+import { emptyDraft } from "@erpx/feature-organization/lib/organization-draft";
+import type { HoldingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
+import {createPerformanceCommandFetch, performanceCommandPurpose, performanceFormUnchanged, validPerformanceAcknowledgement} from "@erpx/feature-people_payroll/lib/performance-command-fetch";
+import {EvaluationConsole} from "@erpx/feature-people_payroll/components/evaluation-console";
+import {DefinitionEditor} from "@erpx/feature-people_payroll/components/evaluation-editors";
+import {EmbeddedRecord} from "@erpx/ui/components/record-context";
+import type {EvaluationWorkspace} from "@erpx/server-people_payroll/public/people-evaluation";
+import {defaultEvaluationPolicy} from "@erpx/feature-people_payroll/lib/people-evaluation";
 import {createElement,type ComponentProps} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
-import {InstallLevels} from "../../../src/components/organization/organization-workspace";
-import {useStaffCommand} from "../../../src/components/work_projection/use-staff-command";
-import {CompensationEditor} from "../../../src/components/people_payroll/payroll-controls";
-import {PayrollFormDrawer} from "../../../src/components/people_payroll/payroll-form-drawer";
-import type {DraftFormDrawer} from "../../../src/components/ui/draft-form-drawer";
+import {InstallLevels} from "@erpx/feature-organization/components/organization-workspace";
+import {useStaffCommand} from "@erpx/feature-work_projection/components/use-staff-command";
+import {CompensationEditor} from "@erpx/feature-people_payroll/components/payroll-controls";
+import {PayrollFormDrawer} from "@erpx/feature-people_payroll/components/payroll-form-drawer";
+import type {DraftFormDrawer} from "@erpx/ui/components/draft-form-drawer";
 const evaluationNavigation=vi.hoisted(()=>({search:"view=criteria",routineModuleImports:0,payrollBoundaryImports:0,drawers:[] as ComponentProps<typeof DraftFormDrawer>[]}));
-vi.mock("../../../src/components/people_payroll/payroll-draft-boundary", async importOriginal => {
- const actual=await importOriginal<typeof import("../../../src/components/people_payroll/payroll-draft-boundary")>();
+vi.mock("@erpx/feature-people_payroll/components/payroll-draft-boundary", async importOriginal => {
+ const actual=await importOriginal<typeof import("@erpx/feature-people_payroll/components/payroll-draft-boundary")>();
  evaluationNavigation.payrollBoundaryImports++;
  return actual;
 });
-vi.mock("../../../src/components/ui/draft-form-drawer", async importOriginal => {
- const actual=await importOriginal<typeof import("../../../src/components/ui/draft-form-drawer")>();
+vi.mock("@erpx/ui/components/draft-form-drawer", async importOriginal => {
+ const actual=await importOriginal<typeof import("@erpx/ui/components/draft-form-drawer")>();
  const {createElement}=await import("react");
  return {...actual,DraftFormDrawer:function ObservedDraftDrawer(props:ComponentProps<typeof actual.DraftFormDrawer>){evaluationNavigation.drawers.push(props);return createElement(actual.DraftFormDrawer,props);}};
 });
-vi.mock("../../../src/components/operations/routine-schedule-controls", async importOriginal => {
- const actual=await importOriginal<typeof import("../../../src/components/operations/routine-schedule-controls")>();
+vi.mock("@erpx/feature-operations/components/routine-schedule-controls", async importOriginal => {
+ const actual=await importOriginal<typeof import("@erpx/feature-operations/components/routine-schedule-controls")>();
  evaluationNavigation.routineModuleImports++;
  return actual;
 });

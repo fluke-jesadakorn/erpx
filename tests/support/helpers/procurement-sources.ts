@@ -1,13 +1,13 @@
 import {expect,vi} from "vitest";
 import {expenseDb as db,key,type expenseFixture} from "./expense-fixture";
 import {env,applyMigrations} from "../runtime-env";
-import {packageGrantStore} from "../../../src/server/modules/commercial/public/package-grants";
-import {getRecord,recordsPage,searchReferences} from "../../../src/server/modules/records/public/records";
-import {listStaffNotifications,notificationsPage} from "../../../src/server/modules/collaboration/public/staff-notifications";
-import {publishInboxEvent,inboxPage} from "../../../src/server/modules/collaboration/public/inbox";
-import {calendarData} from "../../../src/server/modules/work_projection/public/calendar/index";
+import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
+import {getRecord,recordsPage,searchReferences} from "@erpx/server-records/public/records";
+import {listStaffNotifications,notificationsPage} from "@erpx/server-collaboration/public/staff-notifications";
+import {publishInboxEvent,inboxPage} from "@erpx/server-collaboration/public/inbox";
+import {calendarData} from "@erpx/server-work_projection/public/calendar/index";
 import {attachmentBindingState,seedAttachmentSet} from "./attachment-v2";
-import {attachmentContent,bindRecordAttachmentSet,createAttachmentSet} from "../../../src/server/modules/files/public/attachments/service";
+import {attachmentContent,bindRecordAttachmentSet,createAttachmentSet} from "@erpx/server-files/public/attachments/service";
 type Fixture=Awaited<ReturnType<typeof expenseFixture>>;
 function purchase(f:Fixture){
  const store=packageGrantStore(db,{authorize:async()=>({userId:"isolated-rfq-source-provider"}),obligations:async()=>{throw Error("No Procurement inactive witness is invented");}}),grant={companyId:f.company,packageId:"supply",packageVersion:1,state:"active" as const,startsAt:0,endsAt:null,version:1,reason:"Actual Procurement source history",evidence:"test:procurement-sources"};

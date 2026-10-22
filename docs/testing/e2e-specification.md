@@ -13,14 +13,14 @@ in session storage and reuse an idempotency key for an unchanged failed command.
 
 Read alongside these implementation sources:
 
-- [Work page](../../src/app/holdings/[holdingSlug]/work/page.tsx),
-  [dashboard](../../src/components/workplace/work-dashboard.tsx),
-  [results](../../src/components/workplace/work-list.tsx), and
-  [new-work dialog](../../src/components/workplace/new-work.tsx).
-- [Request editor and actions](../../src/components/workplace/request-controls.tsx),
-  [request service](../../src/server/modules/records/public/employee-requests.ts),
-  [browser draft recovery](../../src/components/ui/use-recoverable-draft.tsx), and
-  [command retry](../../src/components/work_projection/staff-work-controls.tsx).
+- [Work page](../../packages/feature-work/src/routes/holdings/[holdingSlug]/work/page.tsx),
+  [dashboard](../../packages/workplace/src/components/work-dashboard.tsx),
+  [results](../../packages/workplace/src/components/work-list.tsx), and
+  [new-work dialog](../../packages/workplace/src/components/new-work.tsx).
+- [Request editor and actions](../../packages/workplace/src/components/request-controls.tsx),
+  [request service](../../packages/server-records/src/public/employee-requests.ts),
+  [browser draft recovery](../../packages/ui/src/components/use-recoverable-draft.tsx), and
+  [command retry](../../packages/feature-work_projection/src/components/staff-work-controls.tsx).
 - [Named workflow handoffs](../production-plan.md),
   [local personas and connected examples](../local-seed.md), and
   [module inventory](../production-plan.md).

@@ -6,7 +6,7 @@ import {describe,it,expect,vi} from 'vitest';
 /** Real complete HTTP controllers; isolated owner ports do not prove native
  * authorization, transaction, source lineage or purchased-workflow acceptance. */
 function controller(){
- const source=readFileSync('src/app/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts','utf8'),file=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);
+ const source=readFileSync("packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts",'utf8'),file=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);
  const nodes=file.statements.filter(node=>ts.isFunctionDeclaration(node)&&node.name&&['GET','POST'].includes(node.name.text));
  expect(nodes).toHaveLength(2);
  const code=ts.transpileModule(nodes.map(node=>node.getText(file)).join('\n').replaceAll('export async function','async function'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;

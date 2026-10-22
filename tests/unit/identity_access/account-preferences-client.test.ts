@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { createAccountPreferencesClient } from "@/lib/identity_access/account-preferences-client";
-import type { AccountPreferences, AccountPreferenceSnapshot } from "@/server/modules/identity_access/public/account-preferences";
+import { createAccountPreferencesClient } from "@erpx/feature-identity_access/lib/account-preferences-client";
+import type { AccountPreferences, AccountPreferenceSnapshot } from "@erpx/server-identity_access/public/account-preferences";
 
 const key = "a".repeat(64), other = "b".repeat(64);
 const preference = (version = 1, appearance: AccountPreferences["appearance"] = "light", language: AccountPreferences["language"] = "en") => ({ version, appearance, language });
@@ -130,8 +130,8 @@ it("accepts a matching central Account save without a duplicate PATCH and ignore
   expect(ports.write).not.toHaveBeenCalled(); expect(ports.read).not.toHaveBeenCalled();
 });
 
-import {createAccountLanguageRefresh,createAccountPreferenceRefresh} from '@/lib/identity_access/account-preference-refresh';
-import type {PreferenceRefreshOutcome} from '@/lib/identity_access/account-preferences-client';
+import {createAccountLanguageRefresh,createAccountPreferenceRefresh} from '@erpx/feature-identity_access/lib/account-preference-refresh';
+import type {PreferenceRefreshOutcome} from '@erpx/feature-identity_access/lib/account-preferences-client';
 function synchronizationFixture(){
  let visible=true,active=true,sequence=0;const timers=new Map<number,{run:()=>void;delay:number}>(),read=vi.fn(async():Promise<PreferenceRefreshOutcome>=>'ok');
  const synchronization=createAccountPreferenceRefresh({visible:()=>visible,active:()=>active,read,setTimer:(run,delay)=>{const id=++sequence;timers.set(id,{run,delay});return id;},clearTimer:id=>{timers.delete(id);}});
@@ -173,11 +173,11 @@ it('ignores an older same-account periodic snapshot without applying it or stopp
 it('a hidden or anonymous/context-unavailable surface does not start a periodic read',()=>{const f=synchronizationFixture();f.visible(false);f.synchronization.start();expect(f.timers.size).toBe(0);f.visible(true);f.active(false);f.synchronization.start();expect(f.timers.size).toBe(0);expect(f.read).not.toHaveBeenCalled();f.synchronization.dispose();});
 it('keeps a hidden page language refresh pending until it is visible without refreshing business content in the background',()=>{let active=false;const refresh=vi.fn(),language=createAccountLanguageRefresh('en',{active:()=>active,dirty:()=>false,refresh});language.apply('th');language.flush();expect(refresh).not.toHaveBeenCalled();expect(language.pending()).toBe(true);active=true;language.flush();language.flush();expect(refresh).toHaveBeenCalledTimes(1);});
 
-import {createAccountSecurityCommand,accountSecurityAcknowledgement} from '@/lib/identity_access/account-security-client';
-import {accountSecurityInput,accountSecuritySeedSchema,type AccountSecuritySeed} from '@/lib/identity_access/account-security';
-import {AccountShell} from '@/components/identity_access/account-shell';
-import {AccountSessions} from '@/components/identity_access/account-sessions';
-import {accountSelfNavigation} from '@/lib/identity_access/account-self-navigation';
+import {createAccountSecurityCommand,accountSecurityAcknowledgement} from '@erpx/feature-identity_access/lib/account-security-client';
+import {accountSecurityInput,accountSecuritySeedSchema,type AccountSecuritySeed} from '@erpx/feature-identity_access/lib/account-security';
+import {AccountShell} from '@erpx/feature-identity_access/components/account-shell';
+import {AccountSessions} from '@erpx/feature-identity_access/components/account-sessions';
+import {accountSelfNavigation} from '@erpx/feature-identity_access/lib/account-self-navigation';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 vi.mock('next/navigation',()=>({useRouter:()=>({refresh:vi.fn(),push:vi.fn()})}));
@@ -198,9 +198,9 @@ it('keeps original Console self links when central Account routing is disabled a
 
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
-import type {AccountProfile} from '@/server/modules/identity_access/public/account-preferences';
-import {accountProfileAcknowledgement,accountProfilePreferenceEvent,accountProfileResponseCurrent,observeAccountProfileWitness,type AccountProfileWitness} from '@/lib/identity_access/account-profile-client';
-import {AccountProfileForm} from '@/components/identity_access/account-profile-form';
+import type {AccountProfile} from '@erpx/server-identity_access/public/account-preferences';
+import {accountProfileAcknowledgement,accountProfilePreferenceEvent,accountProfileResponseCurrent,observeAccountProfileWitness,type AccountProfileWitness} from '@erpx/feature-identity_access/lib/account-profile-client';
+import {AccountProfileForm} from '@erpx/feature-identity_access/components/account-profile-form';
 
 /** Execute the original owner handler with explicit state/browser ports. This
  * does not simulate React hooks or claim a browser/hydration observation. */
@@ -215,8 +215,8 @@ function accountOwnerCallable(source:string,name:string,kind:'function'|'variabl
  }).outputText;
  const result:unknown=Function(...Object.keys(ports),js)(...Object.values(ports));if(typeof result!=='function')throw Error('Actual Account handler was not callable');return result;
 }
-const profileOwnerSource=()=>readFileSync(new URL('../../../src/components/identity_access/account-profile-form.tsx',import.meta.url),'utf8');
-const preferenceProviderSource=()=>readFileSync(new URL('../../../src/components/identity_access/account-preferences-provider.tsx',import.meta.url),'utf8');
+const profileOwnerSource=()=>readFileSync(new URL("../../../packages/feature-identity_access/src/components/account-profile-form.tsx",import.meta.url),'utf8');
+const preferenceProviderSource=()=>readFileSync(new URL("../../../packages/feature-identity_access/src/components/account-preferences-provider.tsx",import.meta.url),'utf8');
 
 type AccountProfileFormState={received:AccountProfile;baseline:AccountProfile;draft:Pick<AccountProfile,'name'>&Pick<AccountPreferences,'language'|'appearance'>};
 function actualAccountProfileFixture(options:{accountKey?:string;initialVersion?:number;priorWitness?:AccountProfileWitness;clean?:boolean;preferenceRead?:AccountPreferences;holdPreferenceWrite?:boolean}={}){

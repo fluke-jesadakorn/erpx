@@ -1,4 +1,4 @@
-import * as nativeHttps from "../../../src/server/modules/runtime/adapters/runtime/https";
+import * as nativeHttps from "@erpx/server-runtime/adapters/runtime/https";
 import { env } from "../../support/runtime-env";
 import { applyMigrations, type TestMigration } from "../../support/runtime-env";
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
@@ -20,27 +20,27 @@ import {
   aiSelectionSchema,
   aiDiscoverySchema,
   discoverAiModelsInput,
-} from "../../../src/server/modules/agent/public/ai-providers";
+} from "@erpx/server-agent/public/ai-providers";
 import {
   aiBaseUrl,
   generateProviderJson,
   openAiKey,
   publicAddress,
   sealAiKey,
-} from "../../../src/server/modules/agent/public/ai-transport";
-import { administrationAccess } from "../../../src/server/modules/runtime/public/administration";
+} from "@erpx/server-agent/public/ai-transport";
+import { administrationAccess } from "@erpx/server-runtime/public/administration";
 import {
   grantPersonAccess,
   grantSchema,
-} from "../../../src/server/modules/identity_access/public/account-access";
+} from "@erpx/server-identity_access/public/account-access";
 import {
   queueExpenseAi,
   runExpenseAi,
   expenseAiStatus,
-} from "../../../src/server/modules/people_payroll/public/expense-ai";
-import { saveDocumentPage } from "../../../src/server/modules/files/public/document-derivatives";
-import { getExpense } from "../../../src/server/modules/people_payroll/public/expenses";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-people_payroll/public/expense-ai";
+import { saveDocumentPage } from "@erpx/server-files/public/document-derivatives";
+import { getExpense } from "@erpx/server-people_payroll/public/expenses";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
@@ -874,7 +874,7 @@ it("re-extracts ready suggestions only on explicit retry and still deduplicates 
 });
 
 async function expenseAiPurchaseGrant(state:'active'|'draining'='active'){
- const {packageGrantStore,readCompanyPackageGrants}=await import('../../../src/server/modules/commercial/public/package-grants');
+ const {packageGrantStore,readCompanyPackageGrants}=await import('@erpx/server-commercial/public/package-grants');
  const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-expense-ai-purchase-provider'}),obligations:async()=>{throw Error('Concrete owner withdrawal is required');}});
  for(const packageId of ['people','people-expenses']){
   const current=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);if(packageId==='people'&&current)continue;
@@ -914,7 +914,7 @@ it('clears a revoked original Expense queued author through native failure bookk
 
 
 it('keeps queued payment AI as a real duty after independent unused-preparation cancellation until the original worker closes it without provider IO',async()=>{
- const {expenseDetail,postExpense,reverseExpense}=await import('../../../src/server/modules/people_payroll/public/expenses'),{createExpensePayment,cancelExpensePayment}=await import('../../../src/server/modules/people_payroll/public/expense-payments'),{withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import('../../../src/server/modules/commercial/public/owner-package-obligations'),{packageGrantStore,readCompanyPackageGrants,packageGrantRevision}=await import('../../../src/server/modules/commercial/public/package-grants');
+ const {expenseDetail,postExpense,reverseExpense}=await import('@erpx/server-people_payroll/public/expenses'),{createExpensePayment,cancelExpensePayment}=await import('@erpx/server-people_payroll/public/expense-payments'),{withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),{packageGrantStore,readCompanyPackageGrants,packageGrantRevision}=await import('@erpx/server-commercial/public/package-grants');
  await connection();await expenseAiPurchaseGrant();vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_ATTACHMENTS_V2','false');
  const scope={companyId:f.company,packageId:'people-expenses',packageVersion:1},observe=()=>withOwnerPackageObligations(db,scope,tx=>readOwnerPackageObligations(db,tx,{...scope,now:Date.now()}));
  const store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-expense-payment-ai-closure-provider'}),obligations:(tx,companyId,packageId)=>ownerPackageObligations(db,tx,companyId,packageId)});

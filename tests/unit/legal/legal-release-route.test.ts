@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { legalProductionScope, productionScope } from "../../../src/data/production-scope";
+import { legalProductionScope, productionScope } from "@erpx/catalogue/production-scope";
 
 const state = vi.hoisted(() => ({
   scopeVersion: "legal-th-operations-v1",
@@ -8,16 +8,16 @@ const state = vi.hoisted(() => ({
   revoke: vi.fn(),
   write: { name: "holding-write" },
 }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({
   requireWorkContext: async () => ({ holdingId: "h001", companyId: "company-a", userId: "reviewer" }),
 }));
-vi.mock("../../../src/server/modules/runtime/public/runtime", () => ({
+vi.mock("@erpx/server-runtime/public/runtime", () => ({
   holdingResources: async () => ({ write: state.write }),
 }));
-vi.mock("../../../src/server/modules/manage_erpx/public/public-origin", () => ({
+vi.mock("@erpx/server-manage_erpx/public/public-origin", () => ({
   requestPublicOrigin: () => "https://dev-erpx.example.test",
 }));
-vi.mock("../../../src/server/modules/platform_administration/public/release-acceptance", () => ({
+vi.mock("@erpx/server-platform_administration/public/release-acceptance", () => ({
   releaseAcceptance: state.acceptance,
   submitReleaseAcceptance: vi.fn(),
   reviewReleaseAcceptance: state.review,
@@ -25,7 +25,7 @@ vi.mock("../../../src/server/modules/platform_administration/public/release-acce
   acceptedReleasePredicate: () => "FALSE",
 }));
 
-import { POST } from "../../../src/app/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route";
+import { POST } from "@erpx/feature-legal/routes/api/v1/holdings/[holdingSlug]/legal/[[...path]]/route";
 
 beforeEach(() => {
   state.scopeVersion = legalProductionScope.version;

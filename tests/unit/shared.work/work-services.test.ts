@@ -1,13 +1,13 @@
 import { expect, it, vi } from "vitest";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import type { WorkItem } from "../../../src/lib/work_projection/work-item";
-import type { FlowView } from "../../../src/lib/shared/flow";
-import { createQuickPreferenceService, type QuickPreferenceUnit } from "../../../src/server/modules/work_projection/application/quick-access-preferences";
-import { createWorkRoleStore, type WorkRoleUnit } from "../../../src/server/modules/work_projection/application/work-role-store";
-import { createDailyPlan, type DailyPlanUnit } from "../../../src/server/modules/work_projection/application/daily-plan";
-import { createWorkCapabilities } from "../../../src/server/modules/work_projection/application/work-capabilities";
-import { createWorkReports, type WorkReportUnit, type WorkReportProjection, workReportCsv } from "../../../src/server/modules/work_projection/application/work-reports";
-import type { WorkReportCandidate } from "../../../src/server/modules/work_projection/domain/work-reports";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
+import type { FlowView } from "@erpx/feature-shared/lib/flow";
+import { createQuickPreferenceService, type QuickPreferenceUnit } from "@erpx/server-work_projection/application/quick-access-preferences";
+import { createWorkRoleStore, type WorkRoleUnit } from "@erpx/server-work_projection/application/work-role-store";
+import { createDailyPlan, type DailyPlanUnit } from "@erpx/server-work_projection/application/daily-plan";
+import { createWorkCapabilities } from "@erpx/server-work_projection/application/work-capabilities";
+import { createWorkReports, type WorkReportUnit, type WorkReportProjection, workReportCsv } from "@erpx/server-work_projection/application/work-reports";
+import type { WorkReportCandidate } from "@erpx/server-work_projection/domain/work-reports";
 const actor: WorkContext = { userId: "reviewer", name: "Reviewer", email: "reviewer@example.test", assignmentId: "assignment", role: "holding_owner", companyId: "company", branchId: null, departmentId: null, holdingId: "H001", holdingSlug: "test", holdingName: "Test", scope: { kind: "holding", holdingId: "H001", holdingSlug: "test", holdingName: "Test", companyId: "company" }, assignmentScope: "holding", inherited: false, modules: ["people_payroll", "collaboration"], assignments: [], workspaces: [] };
 const error = (status: number, code: string, message: string) => Object.assign(new Error(message), { status, code });
 function repository<T extends object>(operations: Partial<T>): T { return new Proxy(operations as T, { get(target, name) { if (name === "then")
@@ -46,7 +46,7 @@ it("Work reports propagate an unavailable permission owner and never produce a p
 it("Work report dates use the injected clock and CSV preserves formula neutralization", async () => { const unit = repository<WorkReportUnit>({ ...emptyProjections, candidates: async () => [candidate], people: async () => ({ results: [] }), nodes: async () => ({ results: [] }), access: async () => { }, flow: async () => flow, decisions: async () => ({ results: [] }), events: async () => ({ results: [] }), savedRoutes: async () => ({ results: [] }), page: async <Row>(projection:WorkReportProjection) => { const rows = JSON.parse(projection.scoped) as Row[]; return { results: rows.map(row => ({ row })) }; } }); const result = await reports(unit).workReports(actor, { mode: "drafts" }, false); expect(result.query).toMatchObject({ from: "2026-10-01", to: "2026-10-06" }); const csv = workReportCsv(result.rows.map(row => ({ ...row, title: "=SUM(A1:A2)" }))); expect(csv.startsWith("\ufeff")).toBe(true); expect(csv).toContain('"\'=SUM(A1:A2)"'); });
 
 it.each(['approved','posted'] as const)('does not restore legacy Expense %s actions from role and status after settlement access is removed',async status=>{
- const {createDomainWork}=await import('../../../src/server/modules/work_projection/application/domain-work');
+ const {createDomainWork}=await import('@erpx/server-work_projection/application/domain-work');
  const row={id:'retained-expense',status,workflow_version:1,created_by:'claimant',prepared_by:'preparer',claimant_user_id:'claimant',approved_by:'reviewer',legal_name:'Original claimant',merchant:'Retained merchant',currency:'THB',amount_minor:10000,tax_minor:700,outstanding_minor:10700,updated_at:1,can_post:0,can_pay:0,approval_blocked_reason:'Original independent processing queue is unavailable',expense_purchase_settle_existing:0};
  const unused=async()=>{throw Error('UNEXPECTED_OTHER_DOMAIN_READ');};
  const work=(rows:typeof row[])=>createDomainWork({listExpenses:async()=>rows,canEditExpense:()=>false,canReviewExpense:()=>false,canPostExpenses:()=>true,listTasks:unused,taskWorkState:unused,listCounts:unused,listTransfers:unused,canReadCounts:()=>false,canEditCount:()=>false,canReviewCount:()=>false,canEditTransfer:()=>false,canReviewTransfer:()=>false}).getDomainWork(actor,'expense');
@@ -56,7 +56,7 @@ it.each(['approved','posted'] as const)('does not restore legacy Expense %s acti
  expect((await work([legacy]))[0]).toMatchObject({id:row.id,status,canAct:true,queue:'todo'});
 });
 it('clamps native current Expense Work actions to history-only without changing their original role checks',async()=>{
- const {createDomainWork}=await import('../../../src/server/modules/work_projection/application/domain-work');
+ const {createDomainWork}=await import('@erpx/server-work_projection/application/domain-work');
  const unused=async()=>{throw Error('UNEXPECTED_OTHER_DOMAIN_READ');};
  const row={id:'current-retained',status:'approved',workflow_version:2,workflow_stage:'gl_posting',created_by:'claimant',prepared_by:'preparer',claimant_user_id:'claimant',approved_by:'reviewer',legal_name:'Claimant',currency:'THB',amount_minor:100,tax_minor:0,updated_at:1,can_post:1,can_pay:1,approval_blocked_reason:'Original route requires current settlement access',expense_purchase_settle_existing:0};
  const ports={listExpenses:async()=>[row],canEditExpense:()=>false,canReviewExpense:()=>false,canPostExpenses:()=>true,listTasks:unused,taskWorkState:unused,listCounts:unused,listTransfers:unused,canReadCounts:()=>false,canEditCount:()=>false,canReviewCount:()=>false,canEditTransfer:()=>false,canReviewTransfer:()=>false};

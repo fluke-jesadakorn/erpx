@@ -5,19 +5,19 @@ import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-
 import {businessFileOwners,businessFileTarget} from "../../support/helpers/business-file-targets";
 import {attachmentBindingState} from "../../support/helpers/attachment-v2";
 import ownerMatrix from "../../catalogue/engineering-attachment-owner-cases.json";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {AttachmentComponentKind} from "../../../src/server/modules/files/public/attachments/types";
-import {attachmentPolicy} from "../../../src/server/modules/files/public/attachments/policy";
-import {attachmentContent,attachmentLinkStatus,bindRecordAttachmentSet,completeAttachmentUpload,createAttachmentSet,drainAttachmentScans,listAttachmentSets,prepareAttachmentBinding,reserveAttachmentFile} from "../../../src/server/modules/files/public/attachments/service";
-import {loadIamAuthority} from "../../../src/server/modules/identity_access/public/iam-store";
-import {packageGrantStore,readCompanyPackageGrants} from "../../../src/server/modules/commercial/public/package-grants";
-import {attachmentDestructionEligibility} from "../../../src/server/modules/files/public/attachments/service";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {AttachmentComponentKind} from "@erpx/server-files/public/attachments/types";
+import {attachmentPolicy} from "@erpx/server-files/public/attachments/policy";
+import {attachmentContent,attachmentLinkStatus,bindRecordAttachmentSet,completeAttachmentUpload,createAttachmentSet,drainAttachmentScans,listAttachmentSets,prepareAttachmentBinding,reserveAttachmentFile} from "@erpx/server-files/public/attachments/service";
+import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
+import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
+import {attachmentDestructionEligibility} from "@erpx/server-files/public/attachments/service";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 // The clean scanner is a declared fixture. Upload bytes, sniffing, sanitized
 // preview creation, quota, storage, owner policy and transactions are real.
 // Root verifies ClamAV with the compiled scanner separately on this source.
-vi.mock("../../../src/server/modules/files/public/attachments/scanner",()=>({
+vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
  attachmentScannerReadiness:async()=>({enabled:true,ready:true,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now(),error:null}),
  scanAttachmentBytes:async()=>({clean:true,signature:null,engine:'Declared clean scanner fixture',definitionUpdatedAt:Date.now()}),
 }));

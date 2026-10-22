@@ -1,10 +1,10 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { archivedPeopleDirectory, holdingDirectorySelection, holdingPeopleDirectory } from "../../../src/server/modules/organization/public/holding-people-directory";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import { archivedPeopleDirectory, holdingDirectorySelection, holdingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { applyMigrations, env } from "../../support/runtime-env";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingBindingBySlug: async (slug: string) => {
     if (slug === "test") return { id: "h001", slug, displayName: "Test Holding" };
     if (slug === "other") return { id: "h002", slug, displayName: "Other Holding" };

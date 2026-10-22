@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Document, Packer, Paragraph } from "docx";
-import { attachmentPolicy, assertAttachmentMedia } from "../../../src/server/modules/files/public/attachments/policy";
-import { detectedAttachmentMediaType } from "../../../src/server/modules/files/public/attachments/preview";
+import { attachmentPolicy, assertAttachmentMedia } from "@erpx/server-files/public/attachments/policy";
+import { detectedAttachmentMediaType } from "@erpx/server-files/public/attachments/preview";
 
 describe("specialized canonical attachment adapters", () => {
 it("keeps CSV and DOCX as closed specialized media exceptions", async () => {

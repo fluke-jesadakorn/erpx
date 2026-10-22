@@ -1,8 +1,8 @@
 import { expect, it, vi, afterEach } from "vitest";
-import { mergeAiDraft, type RecoverableDraft } from "../../../src/lib/shared/ai-draft";
-import { createReceiptUploader, validateReceipt } from "../../../src/lib/people_payroll/expense-upload";
-import { prepareDocumentPages } from "../../../src/lib/files/document-pages";
-vi.mock("../../../src/lib/files/document-pages", () => ({ prepareDocumentPages: vi.fn(async () => {}) }));
+import { mergeAiDraft, type RecoverableDraft } from "@erpx/feature-shared/lib/ai-draft";
+import { createReceiptUploader, validateReceipt } from "@erpx/feature-people_payroll/lib/expense-upload";
+import { prepareDocumentPages } from "@erpx/feature-files/lib/document-pages";
+vi.mock("@erpx/feature-files/lib/document-pages", () => ({ prepareDocumentPages: vi.fn(async () => {}) }));
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 const baseline = JSON.stringify({ merchant: "", currency: "", amount: "" });
 const initial = (): RecoverableDraft<Record<string, string>> => ({ fields: JSON.parse(baseline), baseline, ai: {} });
@@ -65,7 +65,7 @@ it("retries failed PDF rendering without uploading another original", async () =
 });
 
 it("recovers a lost draft response after reload with the original idempotency key and values", async () => {
-  const { createExpenseDraftOnce } = await import("../../../src/lib/people_payroll/expense-draft-create");
+  const { createExpenseDraftOnce } = await import("@erpx/feature-people_payroll/lib/expense-draft-create");
   const stored = new Map<string, string>();
   vi.stubGlobal("sessionStorage", { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => stored.set(key, value), removeItem: (key: string) => stored.delete(key) });
   const fetcher = vi.fn().mockRejectedValueOnce(Error("Response lost"))
@@ -83,7 +83,7 @@ it("recovers a lost draft response after reload with the original idempotency ke
   expect(JSON.parse(stored.get("draft:same-draft:touched")!)).toEqual(["currency"]);
 });
 it("allows correcting a definitively rejected draft without replaying invalid input", async () => {
-  const { createExpenseDraftOnce } = await import("../../../src/lib/people_payroll/expense-draft-create");
+  const { createExpenseDraftOnce } = await import("@erpx/feature-people_payroll/lib/expense-draft-create");
   const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ error: { message: "Invalid date" } }, { status: 422 }))
     .mockResolvedValueOnce(Response.json({ data: { id: "corrected-draft" } }));
   vi.stubGlobal("fetch", fetcher);
@@ -94,7 +94,7 @@ it("allows correcting a definitively rejected draft without replaying invalid in
 });
 
 it("fills the receipt total despite unknown VAT recoverability and preserves user amounts", async () => {
-  const { normalizeDraftReceiptAmounts } = await import("../../../src/lib/people_payroll/expense-ai");
+  const { normalizeDraftReceiptAmounts } = await import("@erpx/feature-people_payroll/lib/expense-ai");
   const citations = [{ attachmentId: "swiss", page: 1 }];
   const result = normalizeDraftReceiptAmounts({ summary: "CHF 54.50 includes VAT 3.85", fields: [
     { name: "receiptTotal", value: "54.50", citations }, { name: "amount", value: "50.65", citations }, { name: "tax", value: "3.85", citations },
@@ -117,7 +117,7 @@ it("uses a recoverable tax edited while AI was running without counting it twice
   expect(result.fields).toEqual({ amount: "50.65", tax: "3.85" });
 });
 it.each([null, "-54.50", "999999999999999999999", "invalid"])("does not turn missing or invalid receipt total %s into an amount", async value => {
-  const { normalizeDraftReceiptAmounts } = await import("../../../src/lib/people_payroll/expense-ai");
+  const { normalizeDraftReceiptAmounts } = await import("@erpx/feature-people_payroll/lib/expense-ai");
   const result = normalizeDraftReceiptAmounts({ summary: "Conflicting evidence", fields: [
     { name: "receiptTotal", value, citations: [{ attachmentId: "r", page: 1 }] },
     { name: "amount", value: "50.65", citations: [{ attachmentId: "r", page: 1 }] },

@@ -1,0 +1,1 @@
+export {isManufacturingAttachmentReadTarget,manufacturingAttachmentReadSourceLocks,manufacturingAttachmentReadSourceImage} from '@erpx/server-manufacturing/adapters/attachment-read-sources';

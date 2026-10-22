@@ -1,0 +1,35 @@
+{
+  "name": "@erpx/feature-platform_administration",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/ai-providers": "./src/components/ai-providers.tsx",
+    "./components/platform-migration-run": "./src/components/platform-migration-run.tsx",
+    "./components/settings/company-business-acceptance": "./src/components/settings/company-business-acceptance.tsx",
+    "./components/settings/push-settings.module.css": "./src/components/settings/push-settings.module.css",
+    "./components/settings/push-settings": "./src/components/settings/push-settings.tsx",
+    "./components/ai-connection-form.module.css": "./src/components/ai-connection-form.module.css",
+    "./components/ai-providers.module.css": "./src/components/ai-providers.module.css",
+    "./components/ai-connection-form": "./src/components/ai-connection-form.tsx",
+    "./components/platform-migration-run.module.css": "./src/components/platform-migration-run.module.css",
+    "./components/platform-holding-provisioning": "./src/components/platform-holding-provisioning.tsx",
+    "./components/platform-job-recovery": "./src/components/platform-job-recovery.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-people_payroll": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-runtime": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-agent": "workspace:*",
+    "@erpx/server-platform_administration": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "lucide-react": "1.41.0",
+    "react": "19.3.0"
+  }
+}

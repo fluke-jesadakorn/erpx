@@ -1,14 +1,14 @@
 import {describe,expect,test} from 'vitest';
-import {createBetaOnboardingApplication,createBetaBootstrapEffects,type BetaControlRepository,type BetaHoldingRepository} from "../../../src/server/modules/manage_erpx/application/onboarding";
-import {createBetaTeamApplication,type BetaInvitationRepository,type BetaTeamPorts,type BetaTeamRepository} from "../../../src/server/modules/manage_erpx/application/team";
-import {createBetaEmailApplication,type BetaEmailPorts} from "../../../src/server/modules/manage_erpx/application/email";
-import {createBetaApiApplication,type BetaApiPorts,type BetaApiRepository} from "../../../src/server/modules/manage_erpx/application/api";
-import {requireVerified,type BetaUser,type SlotRow} from "../../../src/server/modules/manage_erpx/domain/onboarding";
-import {betaEmailBody} from "../../../src/server/modules/manage_erpx/domain/email";
-import {publicOrigin} from "../../../src/server/modules/manage_erpx/domain/public-origin";
-import {betaLimits} from "../../../src/server/modules/manage_erpx/domain/config";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
-import type {GrantInput} from "../../../src/server/modules/identity_access/public/beta-invitation-contract";
+import {createBetaOnboardingApplication,createBetaBootstrapEffects,type BetaControlRepository,type BetaHoldingRepository} from "@erpx/server-manage_erpx/application/onboarding";
+import {createBetaTeamApplication,type BetaInvitationRepository,type BetaTeamPorts,type BetaTeamRepository} from "@erpx/server-manage_erpx/application/team";
+import {createBetaEmailApplication,type BetaEmailPorts} from "@erpx/server-manage_erpx/application/email";
+import {createBetaApiApplication,type BetaApiPorts,type BetaApiRepository} from "@erpx/server-manage_erpx/application/api";
+import {requireVerified,type BetaUser,type SlotRow} from "@erpx/server-manage_erpx/domain/onboarding";
+import {betaEmailBody} from "@erpx/server-manage_erpx/domain/email";
+import {publicOrigin} from "@erpx/server-manage_erpx/domain/public-origin";
+import {betaLimits} from "@erpx/server-manage_erpx/domain/config";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
+import type {GrantInput} from "@erpx/server-identity_access/public/beta-invitation-contract";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['manage_erpx'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 const user:BetaUser={id:'owner',name:'Owner',email:'owner@example.test',emailVerified:true},input={companyName:'Company',branchName:'Main',slug:'company'},slot:SlotRow={holding_id:'h001',slug:'company',company_name:'Company',branch_name:'Main',state:'provisioning'};
 function repository<Repository extends object>(facts:Partial<Repository>,calls:string[]):Repository{return new Proxy(facts,{get(target,name){if(name==='then')return undefined;if(name in target)return target[name as keyof Repository];if(typeof name==='string'&&/^(prepare|guard|clear)/.test(name))return ()=>{calls.push(name);return name;};return ()=>{throw new Error('Unexpected operation: '+String(name));};}})as Repository;}

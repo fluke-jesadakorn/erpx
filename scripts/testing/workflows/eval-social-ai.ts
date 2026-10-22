@@ -1,5 +1,5 @@
 import cases from "../../../fixtures/ai/social-beta-cases.json";
-import { callAi } from "../../../src/server/modules/collaboration/public/social-ai";
+import { callAi } from "@erpx/server-collaboration/public/social-ai";
 const provider = {
   AI_BASE_URL: process.env.AI_BASE_URL,
   AI_MODEL: process.env.AI_MODEL,

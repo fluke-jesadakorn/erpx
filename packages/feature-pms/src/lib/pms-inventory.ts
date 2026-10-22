@@ -1,0 +1,4 @@
+import type {Snapshot} from "@erpx/server-pms/public/rules/pms-model";
+import {availability as evaluate} from "@erpx/feature-pms/lib/pms-inventory-domain";
+/** Compatibility boundary supplies time for callers without an evaluated snapshot. */
+export function availability(s:Snapshot,typeId:string,date:string,excludeStay="",excludeBlock=""){return evaluate({...s,asOf:s.asOf??Date.now()},typeId,date,excludeStay,excludeBlock);}

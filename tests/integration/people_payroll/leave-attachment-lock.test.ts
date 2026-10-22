@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { applyMigrations, env } from "../../support/runtime-env";
 
-vi.mock("../../../src/server/modules/files/public/attachments/scanner", () => ({
+vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "ClamAV test", definitionUpdatedAt: Date.now(), error: null }),
   scanAttachmentBytes: async () => ({ clean: true, signature: null, engine: "ClamAV test", definitionUpdatedAt: Date.now() }),
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/preview", () => ({
+vi.mock("@erpx/server-files/public/attachments/preview", () => ({
   attachmentPreviewReadiness: async () => ({ ready: true, heifConvert: "/test/heif-convert", pdftoppm: "/test/pdftoppm", error: null }),
   detectedAttachmentMediaType: (_bytes: Uint8Array, declared: string) => declared,
   sanitizedAttachmentPreview: async () => null,
@@ -19,7 +19,7 @@ import {
   linkExistingAttachment,
   reserveAttachmentFile,
   withdrawAttachmentLink,
-} from "../../../src/server/modules/files/public/attachments/service";
+} from "@erpx/server-files/public/attachments/service";
 
 const db = env.H001_DB;
 const key = () => crypto.randomUUID();

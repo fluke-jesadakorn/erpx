@@ -1,7 +1,7 @@
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceDueDrafts,type FinanceDuePorts} from "../../../src/server/modules/finance/application/due-drafts";
-import type {Row} from "../../../src/server/modules/finance/domain/due-drafts";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createFinanceDueDrafts,type FinanceDuePorts} from "@erpx/server-finance/application/due-drafts";
+import type {Row} from "@erpx/server-finance/domain/due-drafts";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'preparer',name:'Preparer',email:'preparer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
 const payload={expectedVersion:2,month:'2026-09',invoiceDate:'2026-09-16',dueDate:'2026-09-30'},request={kind:'billing' as const,sourceId:'contract',runOn:'2026-09-16',input:payload,reason:'Prepare retained September evidence'},scheduled:Row={id:'due',kind:'billing',company_id:'company',source_id:'contract',assignment_id:'assignment',assignment_version:3,delegated_by:'preparer',role:'holding_owner',version:1,status:'scheduled',input_json:JSON.stringify(payload),input_hash:`hash:${JSON.stringify(payload)}`},now=new Date('2026-09-16T17:15:00Z');

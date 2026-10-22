@@ -1,6 +1,6 @@
 import { expect,it } from 'vitest';
 import { env } from "../../support/runtime-env";
-import { readListPage } from "../../../src/server/modules/work_projection/public/list-page";
+import { readListPage } from "@erpx/server-work_projection/public/list-page";
 const sql = `SELECT lpad(n::text,4,'0') AS id, (n/3)::text AS page_key FROM generate_series(1,95) n`;
 it('pages duplicate sort keys forward and backward without losing rows',async()=>{
   const db=env.CONTROL_DB;

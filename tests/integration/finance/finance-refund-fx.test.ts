@@ -1,17 +1,17 @@
-import {calendarData} from "../../../src/server/modules/work_projection/public/calendar/index";
-import {packageGrantStore} from "../../../src/server/modules/commercial/public/package-grants";
+import {calendarData} from "@erpx/server-work_projection/public/calendar/index";
+import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
 import {afterEach} from "vitest";
 import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixture";
 import {beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {approvePayment,confirmPayment,createInvoice,createJournal,createParty,createPayment,importBankStatement,postInvoice,postJournal,releasePayment} from "../../../src/server/modules/finance/public/finance";
-import {confirmManualRate} from "../../../src/server/modules/finance/public/company-money";
-import {assignFlowPrimary,resolveFlow} from "../../../src/server/modules/workflow/public/flow-routing";
-import {approveRefund,confirmRefundInstruction,exportRefundInstructions,prepareRefundInstruction,recoverRefundExport,refundConfirmationSchema,refundInstructionSchema,refundWorkspace,refundWork,listRefunds} from "../../../src/server/modules/finance/public/refunds";
-import {invoiceHistoryCte} from "../../../src/server/modules/finance/public/finance-history";
+import {approvePayment,confirmPayment,createInvoice,createJournal,createParty,createPayment,importBankStatement,postInvoice,postJournal,releasePayment} from "@erpx/server-finance/public/finance";
+import {confirmManualRate} from "@erpx/server-finance/public/company-money";
+import {assignFlowPrimary,resolveFlow} from "@erpx/server-workflow/public/flow-routing";
+import {approveRefund,confirmRefundInstruction,exportRefundInstructions,prepareRefundInstruction,recoverRefundExport,refundConfirmationSchema,refundInstructionSchema,refundWorkspace,refundWork,listRefunds} from "@erpx/server-finance/public/refunds";
+import {invoiceHistoryCte} from "@erpx/server-finance/public/finance-history";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();f.head.role="finance_approver";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"finance_approver");});

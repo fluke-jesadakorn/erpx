@@ -2,7 +2,7 @@ import {expect,it} from 'vitest';
 import {cp,mkdir,mkdtemp,readdir,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {env} from "../../support/runtime-env";
-import {migrateDatabase} from "../../../src/server/modules/runtime/adapters/runtime/migrations";
+import {migrateDatabase} from "@erpx/server-runtime/adapters/runtime/migrations";
 it('preserves populated canonical receipts, referencing evidence, cache revisions, ACL and triggers through hash partition migration and replay',async()=>{
  const root=await mkdtemp(resolve('.runtime/tests/command-receipts-upgrade-')),db=env.H001_DB;
  try{

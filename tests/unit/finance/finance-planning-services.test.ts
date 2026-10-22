@@ -1,10 +1,10 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import {describe,expect,it,vi} from 'vitest';
-import {createFinancePlanning,type FinancePlanningPorts,type PlanningRepository} from "../../../src/server/modules/finance/application/planning";
-import {createFinancePlanningCalculations,canonicalDimensions} from "../../../src/server/modules/finance/domain/planning-calculations";
-import {capturedFiscalClose} from "../../../src/server/modules/finance/domain/fiscal-close";
-import {budgetEditionSchema,forecastEditionSchema,financialReportSchema,type PlanRow,type LedgerLine} from "../../../src/server/modules/finance/domain/planning";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createFinancePlanning,type FinancePlanningPorts,type PlanningRepository} from "@erpx/server-finance/application/planning";
+import {createFinancePlanningCalculations,canonicalDimensions} from "@erpx/server-finance/domain/planning-calculations";
+import {capturedFiscalClose} from "@erpx/server-finance/domain/fiscal-close";
+import {budgetEditionSchema,forecastEditionSchema,financialReportSchema,type PlanRow,type LedgerLine} from "@erpx/server-finance/domain/planning";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'reviewer',name:'Reviewer',email:'reviewer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code}),hash=async(v:string)=>`hash:${v}`,calc=createFinancePlanningCalculations(error);
 const budget=budgetEditionSchema.parse({chartId:'chart',name:'FY original',year:2026,lines:[{accountId:'expense',month:'2026-09',amount:'100.00'}]}),report=financialReportSchema.parse({chartId:'chart',name:'Original report',rows:[{key:'expense',label:'Expense',kind:'accounts',accountIds:['expense']}]}),review={expectedVersion:1,reason:'Independent retained edition review'},period={startDate:'2026-09-01',endDate:'2026-09-30'},row:PlanRow={id:'edition',company_id:'company',chart_id:'chart',kind:'budget',name:'FY original',parent_id:null,edition:2,status:'draft',version:1,content_json:JSON.stringify({year:2026,lines:[{accountId:'expense',month:'2026-09',minor:10000,dimensions:{}}]}),content_hash:'retained',prepared_by:'preparer'};

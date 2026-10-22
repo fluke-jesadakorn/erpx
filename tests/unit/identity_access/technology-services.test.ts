@@ -1,10 +1,10 @@
 import {expect,it,vi} from "vitest";
-import {createTechnologyService,type TechnologyPorts,type TechnologyStore} from "../../../src/server/modules/identity_access/application/technology";
-import {provisioningInput} from "../../../src/server/modules/identity_access/domain/provisioning-input";
-import type {ProvisionOperation,ProvisionGrant} from "../../../src/server/modules/identity_access/domain/technology";
-import {grantInput} from "../../../src/server/modules/identity_access/domain/iam-service";
-import type {IamActor} from "../../../src/server/modules/identity_access/domain/iam-actor";
-import {ApiError} from "../../../src/server/modules/runtime/public/http";
+import {createTechnologyService,type TechnologyPorts,type TechnologyStore} from "@erpx/server-identity_access/application/technology";
+import {provisioningInput} from "@erpx/server-identity_access/domain/provisioning-input";
+import type {ProvisionOperation,ProvisionGrant} from "@erpx/server-identity_access/domain/technology";
+import {grantInput} from "@erpx/server-identity_access/domain/iam-service";
+import type {IamActor} from "@erpx/server-identity_access/domain/iam-actor";
+import {ApiError} from "@erpx/server-runtime/public/http";
 function only<T>(values:Partial<T>):T{return new Proxy(values,{get(target,name){if(name in target)return Reflect.get(target,name);throw Error(`Unexpected port ${String(name)}`);}}) as T;}
 const actor={userId:"operator",assignmentId:"authority",sessionId:"session",companyId:"company",platform:false} as IamActor;
 const input=provisioningInput.parse({engagementIds:["engagement"],validUntil:200,reason:"Reviewed provision resources"});
@@ -38,12 +38,12 @@ it("retries only the same operator's interrupted version with fresh authority",a
 import {afterEach} from 'vitest';
 import {createElement,isValidElement,Children,type ReactNode,type ReactElement,type ComponentProps} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {createPositionBindingCommands,createPositionBindingCommandStore,positionBindingCanPrepare,positionBindingCanPreview,type PositionBindingSource,type PositionBindingInput,type PositionBindingPreview} from '@/lib/identity_access/position-binding-command';
-import {StandardPositionConsole} from '@/components/identity_access/technology/standard-position-console';
-import {DraftFormDrawer} from '@/components/ui/draft-form-drawer';
-import {Button,Select} from '@/components/ui/foundation';
-import {packageDefinition,type PeopleLifecycleData} from '@/lib/people_payroll/people-lifecycle';
-import type {workFetch,WorkCommandCompletion} from '@/lib/work_projection/work-fetch';
+import {createPositionBindingCommands,createPositionBindingCommandStore,positionBindingCanPrepare,positionBindingCanPreview,type PositionBindingSource,type PositionBindingInput,type PositionBindingPreview} from '@erpx/feature-identity_access/lib/position-binding-command';
+import {StandardPositionConsole} from '@erpx/feature-identity_access/components/technology/standard-position-console';
+import {DraftFormDrawer} from '@erpx/ui/components/draft-form-drawer';
+import {Button,Select} from '@erpx/ui/components/foundation';
+import {packageDefinition,type PeopleLifecycleData} from '@erpx/feature-people_payroll/lib/people-lifecycle';
+import type {workFetch,WorkCommandCompletion} from '@erpx/feature-work_projection/lib/work-fetch';
 
 const positionHooks=vi.hoisted(()=>({active:false,index:0,slots:[] as unknown[],effects:[] as (()=>void|(()=>void))[],cleanups:[] as (()=>void)[],refresh:vi.fn()}));
 // Exercise the actual function component and its actual handlers without adding
@@ -60,7 +60,7 @@ vi.mock('react',async original=>{
   useSyncExternalStore:<T,>(subscribe:(listener:()=>void)=>()=>void,read:()=>T,server?:()=>T)=>positionHooks.active?read():react.useSyncExternalStore(subscribe,read,server),
  };
 });
-vi.mock('@/lib/shared/destination-router',()=>({useRouter:()=>({refresh:positionHooks.refresh,push:vi.fn(),replace:vi.fn()})}));
+vi.mock("@erpx/feature-shared/lib/destination-router",()=>({useRouter:()=>({refresh:positionHooks.refresh,push:vi.fn(),replace:vi.fn()})}));
 vi.mock('next/navigation',()=>({usePathname:()=>'/holdings/acme/administration/technology/organization',useSearchParams:()=>new URLSearchParams(),useRouter:()=>({refresh:positionHooks.refresh,push:vi.fn(),replace:vi.fn()})}));
 afterEach(()=>{for(const cleanup of positionHooks.cleanups)cleanup();positionHooks.cleanups=[];positionHooks.effects=[];positionHooks.slots=[];positionHooks.index=0;positionHooks.active=false;positionHooks.refresh.mockClear();vi.unstubAllGlobals();});
 
@@ -164,9 +164,9 @@ it('actual standard Position keeps exact recovery visible after late props misma
 });
 
 // The real standard Organization/Directory owners replace live callers, not the protected legacy module.
-import {StandardOrganizationAccessWorkspace,StandardOrganizationActionDialog} from '@/components/identity_access/technology/standard-organization-access-workspace';
-import {StandardDirectoryWorkspace} from '@/components/identity_access/technology/standard-directory-workspace';
-import {createOrganizationAccessCommands,type OrganizationAccessCommandScope} from '@/lib/identity_access/organization-access-command';
+import {StandardOrganizationAccessWorkspace,StandardOrganizationActionDialog} from '@erpx/feature-identity_access/components/technology/standard-organization-access-workspace';
+import {StandardDirectoryWorkspace} from '@erpx/feature-identity_access/components/technology/standard-directory-workspace';
+import {createOrganizationAccessCommands,type OrganizationAccessCommandScope} from '@erpx/feature-identity_access/lib/organization-access-command';
 function standardOrganizationProps():ComponentProps<typeof StandardOrganizationAccessWorkspace>{return {base:positionBase,companyName:'Actual Company',organization:{positions:[],people:[],nodes:[],levels:[],canManage:false,canMovePeople:false,actorId:'operator'},lifecycle:positionData({positions:[],roster:[],canManage:false,canPrepare:false}),automation:{connections:[],cases:[],jobs:[],canManage:false,canReview:false},technology:{applications:[],operations:[]},canApply:false};}
 it('actual standard Organization and closed Directory SSR preserve initial owner snapshots and honest missing prerequisites without mount reads',()=>{
  const network=vi.fn();vi.stubGlobal('fetch',network);const props=standardOrganizationProps(),html=renderToStaticMarkup(createElement(StandardOrganizationAccessWorkspace,props));
@@ -219,9 +219,9 @@ it('actual Organization action preview preserves later reason edits during ORIGI
  Reflect.apply(positionElement(tree,node=>typeof node.props.onSubmit==='function').props.onSubmit as (event:unknown)=>void,undefined,[{preventDefault(){},currentTarget:form}]);await vi.waitFor(()=>expect(fetcher).toHaveBeenCalledTimes(2));await vi.waitFor(()=>expect(props.commandStore.busy()).toBe(false));tree=presenter.render();expect(positionText(tree)).toContain('Publish GPO rule');expect(props.onComplete).not.toHaveBeenCalled();expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).reason).toBe('Original reviewed GPO');expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).reason).toBe('Newer reviewed GPO reason');expect(new Headers(fetcher.mock.calls[1][1]?.headers).get('Idempotency-Key')).not.toBe(new Headers(fetcher.mock.calls[0][1]?.headers).get('Idempotency-Key'));
 });
 
-import {OrganizationStructureSurface} from '@/components/organization/organization-structure-surface';
-import * as organizationDestinationRouter from '@/lib/shared/destination-router';
-import * as organizationDestinationSearch from '@/lib/shared/destination-search';
+import {OrganizationStructureSurface} from '@erpx/feature-organization/components/organization-structure-surface';
+import * as organizationDestinationRouter from '@erpx/feature-shared/lib/destination-router';
+import * as organizationDestinationSearch from '@erpx/feature-shared/lib/destination-search';
 function standardOrganizationPresenter(props:ComponentProps<typeof StandardOrganizationAccessWorkspace>){return {render:()=>{for(const cleanup of positionHooks.cleanups)cleanup();positionHooks.cleanups=[];positionHooks.index=0;positionHooks.effects=[];positionHooks.active=true;let tree:ReturnType<typeof StandardOrganizationAccessWorkspace>;try{tree=StandardOrganizationAccessWorkspace(props);}finally{positionHooks.active=false;}for(const effect of positionHooks.effects){const cleanup=effect();if(cleanup)positionHooks.cleanups.push(cleanup);}return tree;}};}
 it('actual standard Organization selection preserves query context and GPO drag opens only its authorized native target with the same parent-owned command store',()=>{
  const env=positionEnvironment();Object.assign(window,{matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})});

@@ -1,0 +1,93 @@
+import { FeaturePage } from "@erpx/feature-shared/components/features/feature-page";
+import { FinanceWorkspace } from "@erpx/feature-finance/components/finance-workspace";
+import { FinanceCollectionControls } from "@erpx/feature-finance/components/finance-collection-controls";
+import {
+  FormLayout,
+  Field,
+  Select,
+  TextInput,
+  Button,
+} from "@erpx/ui/components/foundation";
+import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
+import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
+import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
+import { ledgerWorkspace } from "@erpx/server-finance/public/ledger";
+import {
+  collectionWorkspace,
+  cashDueForecast,
+} from "@erpx/server-finance/public/finance-collections";
+import { financeCompanyTools } from "@erpx/server-finance/public/finance-company-tools";
+export const dynamic = "force-dynamic";
+export default async function CollectionsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ holdingSlug: string }>;
+  searchParams: Promise<{ chart?: string; asOf?: string; invoiceCursor?: string; caseCursor?: string; q?: string }>;
+}) {
+  const actor = await requireWorkContext((await params).holdingSlug),
+    base = workspaceBase(publicScope(actor)),
+    query = await searchParams,
+    ledger = await ledgerWorkspace(actor, query.chart),
+    asOf = query.asOf ?? new Date().toISOString().slice(0, 10),
+    [data, forecast, tools] = await Promise.all([
+      collectionWorkspace(actor, asOf, query),
+      cashDueForecast(actor, { chartId: String(ledger.chart.id), asOf }),
+      financeCompanyTools(actor),
+    ]),
+    enabled = tools.some((r) => r.tool === "collections" && r.enabled === 1);
+  return (
+    <FeaturePage className="ui-page-content" data-source="live">
+      <FinanceWorkspace actor={actor}
+        base={base}
+        active="cash"
+        title="Collections and cash forecast"
+        description="Review overdue obligations and cash due dates"
+        context={{
+          chartId: String(ledger.chart.id),
+          chartName: String(ledger.chart.name),
+          currency: String(ledger.chart.base_currency),
+        }}
+      >
+        <FormLayout className="ui-form-grid">
+          <Field appearance="standard">
+            Book
+            <Select
+              appearance="standard"
+              name="chart"
+              defaultValue={String(ledger.chart.id)}
+            >
+              {ledger.charts.map((c) => (
+                <option key={String(c.id)} value={String(c.id)}>
+                  {String(c.name)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field appearance="standard">Customer, invoice or message<TextInput appearance="standard" name="q" defaultValue={query.q ?? ""}/></Field>
+          <Field appearance="standard">
+            As of
+            <TextInput
+              appearance="standard"
+              name="asOf"
+              type="date"
+              defaultValue={asOf}
+            />
+          </Field>
+          <Button appearance="standard" type="submit">
+            Show forecast
+          </Button>
+        </FormLayout>
+        <FinanceCollectionControls
+          base={base}
+          data={data}
+          query={query}
+          forecast={forecast}
+          canWrite={hasPermission(actor, "finance.write") && enabled}
+          canApprove={hasPermission(actor, "finance.approve")}
+          userId={actor.userId}
+        />
+      </FinanceWorkspace>
+    </FeaturePage>
+  );
+}

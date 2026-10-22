@@ -1,2 +1,0 @@
-export {attachmentComponentKinds,attachmentSourceStates,attachmentLinkStates} from "../../adapters/attachments/types";
-export type {AttachmentComponentKind,AttachmentSourceState,AttachmentLinkState,AttachmentClassification,AttachmentManifestItem,AttachmentLinkDto,AttachmentSetDto,PreparedAttachmentBinding,AttachmentBindingContext,AttachmentBindingContract,AttachmentTargetScope,AttachmentOperation,AttachmentPolicy} from "../../adapters/attachments/types";

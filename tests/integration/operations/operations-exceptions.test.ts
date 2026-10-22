@@ -1,11 +1,11 @@
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createAsset,changeAsset} from "../../../src/server/modules/assets/public/asset-maintenance";
-import {draftQueuePolicy,reviewQueuePolicy,operationsWorkspace,operationsExceptionDetail,openOperationsException,changeOperationsException,operationsExceptionWork} from "../../../src/server/modules/operations/public/operations-exceptions";
-import {listStaffNotifications} from "../../../src/server/modules/collaboration/public/staff-notifications";
-import {readWorkSnapshot} from "../../../src/server/modules/work_projection/public/work-items";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
+import {createAsset,changeAsset} from "@erpx/server-assets/public/asset-maintenance";
+import {draftQueuePolicy,reviewQueuePolicy,operationsWorkspace,operationsExceptionDetail,openOperationsException,changeOperationsException,operationsExceptionWork} from "@erpx/server-operations/public/operations-exceptions";
+import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
+import {readWorkSnapshot} from "@erpx/server-work_projection/public/work-items";
+vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,assetId:string,policyId:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{

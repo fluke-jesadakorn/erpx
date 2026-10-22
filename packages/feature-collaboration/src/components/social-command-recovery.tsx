@@ -1,0 +1,4 @@
+"use client";
+import {Button,InlineNotice} from '@erpx/ui/components/foundation';
+import type {useSocialCommand} from '@erpx/feature-collaboration/components/social-command';
+export function SocialCommandRecovery({command,history=true}:{command:ReturnType<typeof useSocialCommand>;history?:boolean}){return <>{(command.retryAttempt||command.imagePending)&&<InlineNotice tone="warning" role="status"><p>The submitted action has an uncertain result. Your later edits remain here.</p><Button appearance="standard" disabled={command.retrying||!history} onClick={()=>void command.retry()}>Retry submitted action</Button></InlineNotice>}{command.recovered!==null&&<InlineNotice tone="info" role="status">The original submitted action was saved. Review the retained draft before continuing.</InlineNotice>}</>;}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "tasks": {
+    "typecheck": {
+      "outputs": [
+        ".cache/typecheck.tsbuildinfo"
+      ]
+    },
+    "lint": {
+      "outputs": []
+    },
+    "build": {
+      "outputs": [
+        ".next/**",
+        "!.next/dev/**",
+        "!.next/cache/**"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  },
+  "cacheDir": ".turbo/cache"
+}

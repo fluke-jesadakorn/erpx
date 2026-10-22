@@ -1,6 +1,6 @@
 import { describe,expect,it } from "vitest";
 import { readFile } from "node:fs/promises";
-import { buildAttachmentAdjudicationManifest,holdingAttachmentReconciliationReady,type AttachmentReconciliationSnapshot } from "../../../src/server/modules/files/public/attachments/reconciliation-adjudication";
+import { buildAttachmentAdjudicationManifest,holdingAttachmentReconciliationReady,type AttachmentReconciliationSnapshot } from "@erpx/server-files/public/attachments/reconciliation-adjudication";
 
 function cleanStorage(){
   return {unknownOwnership:0,unavailable:0,sealedMalware:0,unknownOwnershipSources:[],unavailableSources:[],crossCompanyLinks:[],crossCompanyIntents:[],crossCompanyStorage:[],crossCompanyDerivatives:[],crossCompanyPublications:[],missingObjects:[],sizeMismatches:[],checksumMismatches:[],missingLedger:[],orphanObjects:[],quotaDeltaBytes:0,duplicateLedgerObjects:0};

@@ -3,11 +3,11 @@ import { cp, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { env } from "../../support/runtime-env";
-import { migrateDatabase } from "@/server/modules/runtime/public/runtime/migrations";
-import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants, readCompanyPurchaseFacts } from "@/server/modules/commercial/public/package-grants";
-import { ownerPackageObligations, withOwnerPackageObligations } from "@/server/modules/commercial/public/owner-package-obligations";
-import { purchasedCapability, type CompanyPackageGrant } from "@/server/modules/commercial/public/packages";
-import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
+import { migrateDatabase } from "@erpx/server-runtime/public/runtime/migrations";
+import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants, readCompanyPurchaseFacts } from "@erpx/server-commercial/public/package-grants";
+import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
+import { purchasedCapability, type CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 
 const db = env.H002_DB;
 const store = packageGrantStore(db, { authorize: async () => ({ userId: "declared-old-writer-reviewer" }),

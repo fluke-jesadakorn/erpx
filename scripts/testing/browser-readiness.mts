@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 
 // Execute this transport only with the pinned Node binary: Bun 1.4.3's native
 // HTTP Client crashes during these probes on the current macOS runtime.
-export async function waitForBrowserReadiness(origin: string, pid: number, options: { deadlineMs?: number; requestMs?: number; intervalMs?: number; settleMs?: number } = {}) {
+export async function waitForBrowserReadiness(origin: string, pid: number, options: { deadlineMs?: number; requestMs?: number; intervalMs?: number; settleMs?: number; paths?: readonly string[] } = {}) {
   const url = new URL(origin);
   if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || !Number.isInteger(pid) || pid < 1) throw new Error("BROWSER_READINESS_ARGUMENTS_REQUIRED");
   const until = Date.now() + (options.deadlineMs ?? 120_000);
@@ -14,8 +14,10 @@ export async function waitForBrowserReadiness(origin: string, pid: number, optio
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Math.min(options.requestMs ?? 3_000, until - Date.now()));
     try {
-      const statuses = await Promise.all(["health", "ready"].map(path => new Promise<number>((done, reject) => {
-        const request = get(new URL(`/api/${path}`, url), { signal: controller.signal }, response => {
+      const paths = options.paths ?? ["/api/health", "/api/ready"];
+      if (!paths.length || paths.some(path=>!["/api/health","/api/ready","/login"].includes(path))) throw new Error("BROWSER_READINESS_PATH_REQUIRED");
+      const statuses = await Promise.all(paths.map(path => new Promise<number>((done, reject) => {
+        const request = get(new URL(path, url), { signal: controller.signal }, response => {
           response.once("error", reject);
           response.once("aborted", () => reject(new Error("BROWSER_READINESS_RESPONSE_ABORTED")));
           response.once("end", () => done(response.statusCode ?? 0));
@@ -41,7 +43,8 @@ export async function waitForBrowserReadiness(origin: string, pid: number, optio
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     if (process.version !== "v26.11.1") throw new Error("PINNED_TOOLCHAIN_REQUIRED");
-    await waitForBrowserReadiness(process.argv[2], Number(process.argv[3]));
+    const development = process.argv.includes("--development");
+    await waitForBrowserReadiness(process.argv[2], Number(process.argv[3]), development ? { paths: ["/login", ...(process.argv.includes("--jobs") ? ["/api/ready"] : []), ...(process.argv.includes("--scanner") ? ["/api/health"] : [])] } : {});
   } catch (error) {
     const code = error instanceof Error && /^(BROWSER_|PINNED_TOOLCHAIN_REQUIRED)/.test(error.message) ? error.message : "BROWSER_READINESS_FAILED";
     console.error(code);

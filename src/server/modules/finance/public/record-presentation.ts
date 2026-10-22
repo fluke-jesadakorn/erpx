@@ -1,1 +1,0 @@
-export {financeDocumentPresentationAccess,financeSourceDocumentBackdrop,financeDocumentFlow,journalRecordWorkspace,invoiceRecordWorkspace} from "../adapters/record-presentation";

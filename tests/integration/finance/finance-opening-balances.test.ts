@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import { confirmManualRate } from "../../../src/server/modules/finance/public/company-money";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { confirmManualRate } from "@erpx/server-finance/public/company-money";
 import {
   aging,
   approvePayment,
@@ -14,9 +14,9 @@ import {
   previewOpeningTrialBalance,
   releasePayment,
   reverseJournal,
-} from "../../../src/server/modules/finance/public/finance";
+} from "@erpx/server-finance/public/finance";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

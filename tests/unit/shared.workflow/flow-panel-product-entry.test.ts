@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { WorkContext } from "@/server/modules/identity_access/public/authorization";
-import type { FlowView } from "@/lib/shared/flow";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { FlowView } from "@erpx/feature-shared/lib/flow";
 const pagePath="/holdings/acme/finance/accounting/journals/j1/overview?returnTo=%2Fholdings%2Facme%2Ffinance%2Faccounting%2Fjournals&tag=one&tag=two";
 const request = vi.hoisted(() => ({ host: "finance-dev-erpx.jesadakorn.com", path: "" }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: request.host, "x-erpx-page-path": request.path }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/holdings/acme/finance/accounting/journals/j1/overview", useSearchParams: () => new URLSearchParams(), forbidden: () => { throw Error("FORBIDDEN"); }, notFound: () => { throw Error("NOT_FOUND"); }, redirect: (href: string) => { throw Error("REDIRECT:" + href); }, unstable_rethrow: () => {} }));
-vi.mock("@/server/modules/workflow/public/document-flow", () => ({ documentFlow: () => { throw Error("Unexpected owner read with provided flow"); } }));
-import { FlowPanel } from "@/components/workplace/flow-panel";
+vi.mock("@erpx/server-workflow/public/document-flow", () => ({ documentFlow: () => { throw Error("Unexpected owner read with provided flow"); } }));
+import { FlowPanel } from "@erpx/workplace/components/flow-panel";
 
 const actor: WorkContext = { userId: "user", name: "User", email: "user@example.test", assignmentId: "selected", role: "finance_approver", companyId: "company", branchId: null, departmentId: null, holdingId: "holding", holdingSlug: "acme", holdingName: "Acme", scope: { kind: "holding", holdingId: "holding", holdingSlug: "acme", holdingName: "Acme", companyId: "company" }, assignmentScope: "holding", inherited: false, modules: ["finance"], workspaces: [], assignments: [
   { id: "other", role: "employee", label: "Other role", companyId: "company", branchId: null, modules: [], scopeKind: "holding", scopeNodeId: "company" },

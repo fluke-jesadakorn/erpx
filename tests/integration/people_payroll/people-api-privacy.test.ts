@@ -1,19 +1,19 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { GET as legacyListGET } from "../../../src/app/api/v1/holdings/[holdingSlug]/people/route";
-import { GET as legacyDetailGET } from "../../../src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route";
-import { GET as publicDirectoryGET } from "../../../src/app/api/v1/holdings/[holdingSlug]/people-public-directory/route";
+import { GET as legacyListGET } from "@erpx/feature-people/routes/api/v1/holdings/[holdingSlug]/people/route";
+import { GET as legacyDetailGET } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/people/[...path]/route";
+import { GET as publicDirectoryGET } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/people-public-directory/route";
 
 const state = vi.hoisted(() => ({ actor: null as WorkContext | null }));
-vi.mock("../../../src/server/modules/identity_access/public/authorization", () => ({
+vi.mock("@erpx/server-identity_access/public/authorization", () => ({
   requireWorkContext: async (slug: string) => {
     if (slug !== "test" || !state.actor) throw new Error("FORBIDDEN");
     return state.actor;
   },
 }));
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingBindingBySlug: async (slug: string) => {
     if (slug !== "test") throw new Error("HOLDING_NOT_FOUND");
     return { id: "h001", slug, displayName: "Test Holding" };
@@ -120,7 +120,7 @@ it("lets compensation staff read pay but strips another person's private profile
 });
 
 it("checks explorer tabs on the server and exposes only work contacts to ordinary readers", async () => {
- const { GET } = await import("../../../src/app/api/v1/holdings/[holdingSlug]/people/explorer-detail/route");
+ const { GET } = await import("@erpx/feature-people/routes/api/v1/holdings/[holdingSlug]/people/explorer-detail/route");
  const personId=await seedPrivateProfile(),id=`eng-${fixture.head.userId}`;
  const detail=(tab:string,selected=id)=>GET(request(`people/explorer-detail?kind=person&id=${selected}&tab=${tab}`),listContext);
  const profile=await detail('Profile');expect(profile.status).toBe(200);
@@ -137,7 +137,7 @@ it("checks explorer tabs on the server and exposes only work contacts to ordinar
 });
 
 it("loads exactly the engagement selected in an explorer panel",async()=>{
- const { GET } = await import("../../../src/app/api/v1/holdings/[holdingSlug]/people/explorer-detail/route");
+ const { GET } = await import("@erpx/feature-people/routes/api/v1/holdings/[holdingSlug]/people/explorer-detail/route");
  const personId=`person-${fixture.head.userId}`,first=`eng-${fixture.head.userId}`,second=`eng-second-${crypto.randomUUID()}`;
  await env.H001_DB.prepare(`INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,job_title,worker_type,employment_type,start_date,status,currency,created_by,created_at,updated_at) SELECT ?,person_id,company_id,branch_id,department_id,'Second engagement',worker_type,employment_type,'2026-01-01',status,currency,created_by,created_at,updated_at FROM hr_engagements WHERE id=?`).bind(second,first).run();
  state.actor=fixture.owner;

@@ -1,28 +1,29 @@
+import {routeDependencies,routeClosureIds} from "../../../scripts/ui/inventory.mjs";
 import { createElement, createRef, type ComponentProps } from "react";
 import type NextLink from "next/link";
-import type { Dialog } from "@/components/ui/dialog";
-import { ProductNavigationBoundary } from "@/components/workplace/product-navigation-boundary";
-import { CalendarDraftBoundary } from "@/components/work_projection/calendar/calendar-draft-boundary";
+import type { Dialog } from "@erpx/ui/components/dialog";
+import { ProductNavigationBoundary } from "@erpx/workplace/components/product-navigation-boundary";
+import { CalendarDraftBoundary } from "@erpx/feature-work_projection/components/calendar/calendar-draft-boundary";
 import { renderToStaticMarkup } from "react-dom/server";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterEach, expect, it, vi } from "vitest";
-import WorkspaceLink from "@/components/workplace/workspace-link";
-import { ProductLinkEnvironment, ProductWorkLinks } from "@/components/workplace/product-link-context";
-import { DestinationIndexView } from "@/components/workplace/destination-index-view";
+import WorkspaceLink from "@erpx/workplace/components/workspace-link";
+import { ProductLinkEnvironment, ProductWorkLinks } from "@erpx/workplace/components/product-link-context";
+import { DestinationIndexView } from "@erpx/workplace/components/destination-index-view";
 import { scopeFor } from "../../../scripts/ui/standard-scope.mjs";
 
 const roots: string[] = [];
-function expandedRouteClosure(manifest: { closurePaths: string[] }, route: { closureIds: number[] }) {
-  return route.closureIds.map(index => manifest.closurePaths[index]);
+function expandedRouteClosure(manifest: { closurePaths: string[] }, route: { closureIds?: number[]; entryIds?:number[] }) {
+  return routeClosureIds(manifest,route).map((index:number) => manifest.closurePaths[index]);
 }
 const observedLinks = vi.hoisted(() => ({ props: [] as ComponentProps<typeof NextLink>[] }));
 const observedNavigation = vi.hoisted(() => ({ dialogs: [] as ComponentProps<typeof Dialog>[], refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: observedNavigation.refresh }) }));
-vi.mock("@/components/ui/dialog", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/components/ui/dialog")>();
+vi.mock("@erpx/ui/components/dialog", async importOriginal => {
+  const actual = await importOriginal<typeof import("@erpx/ui/components/dialog")>();
   const { createElement } = await import("react");
   return { ...actual, Dialog: function ObservedDialog(props: ComponentProps<typeof actual.Dialog>) {
     observedNavigation.dialogs.push(props);
@@ -119,24 +120,24 @@ it("preserves the owner-filtered empty state without manufacturing a visible des
 
 it("keeps extracted hospitality presenters in their original boundary and requires adapters for other ordinary descendants", () => {
   for (const owner of ["pms/[[...section]]", "pms/import", "pos", "hospitality/setup"])
-    expect(scopeFor(`src/app/holdings/[holdingSlug]/_presenters/${owner}/screen.tsx`)).toBe("deferred-pms-pos");
-  expect(scopeFor("src/app/holdings/[holdingSlug]/_presenters/finance/screen.tsx")).toBe("standardize");
-  expect(scopeFor("src/components/workplace/workspace-link.tsx")).toBe("shared-adapter");
-  expect(scopeFor("src/components/workplace/destination-index-view.tsx")).toBe("shared-adapter");
+    expect(scopeFor(`packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/${owner}/screen.tsx`)).toBe("deferred-pms-pos");
+  expect(scopeFor("packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance/screen.tsx")).toBe("standardize");
+  expect(scopeFor("packages/workplace/src/components/workspace-link.tsx")).toBe("shared-adapter");
+  expect(scopeFor("packages/workplace/src/components/destination-index-view.tsx")).toBe("shared-adapter");
 
   const root = mkdtempSync(join(tmpdir(), "erpx-boundary-adapters-")); roots.push(root);
-  for (const directory of ["scripts/ui", "docs/ux-ui", "src/components/pms", "src/components/workplace", "src/components/ordinary", "node_modules"])
+  for (const directory of ["scripts/ui", "docs/ux-ui", "packages/feature-pms/src/components", "packages/workplace/src/components", "packages/feature-ordinary/src/components", "node_modules"])
     mkdirSync(join(root, directory), { recursive: true });
-  for (const file of ["coverage.mjs", "route-topology.mjs", "standard-scope.mjs", "shared-consumers.json"])
+  for (const file of ["coverage.mjs", "route-topology.mjs", "standard-scope.mjs", "shared-consumers.json", "inventory.mjs"])
     copyFileSync(resolve("scripts/ui", file), join(root, "scripts/ui", file));
   symlinkSync(resolve("node_modules/typescript"), join(root, "node_modules/typescript"), "dir");
-  writeFileSync(join(root, "src/components/pms/owner.tsx"), 'import Link from "../workplace/workspace-link"; export const Owner=()=> <Link/>;');
-  writeFileSync(join(root, "src/components/workplace/workspace-link.tsx"), 'import {Panel} from "../ordinary/panel"; export default function Link(){return <Panel/>;}');
-  writeFileSync(join(root, "src/components/ordinary/panel.tsx"), 'export const Panel=()=> <section/>;');
+  writeFileSync(join(root, "packages/feature-pms/src/components/owner.tsx"), 'import Link from "@erpx/workplace/components/workspace-link"; export const Owner=()=> <Link/>;');
+  writeFileSync(join(root, "packages/workplace/src/components/workspace-link.tsx"), 'import {Panel} from "@erpx/feature-ordinary/components/panel"; export default function Link(){return <Panel/>;}');
+  writeFileSync(join(root, "packages/feature-ordinary/src/components/panel.tsx"), 'export const Panel=()=> <section/>;');
   const result = spawnSync(process.execPath, [join(root, "scripts/ui/coverage.mjs")], { cwd: root, encoding: "utf8" });
   expect(result.status, result.stdout + result.stderr).toBe(0);
   const manifest = JSON.parse(readFileSync(join(root, "docs/ux-ui/standard-coverage.json"), "utf8"));
-  expect(manifest.boundaryConsumers).toEqual([{ owner: "src/components/pms/owner.tsx", component: "src/components/ordinary/panel.tsx",
+  expect(manifest.boundaryConsumers).toEqual([{ owner: "packages/feature-pms/src/components/owner.tsx", component: "packages/feature-ordinary/src/components/panel.tsx",
     reason: "An ordinary migrated component is reachable from an excluded owner; add an explicit legacy adapter or document a narrower boundary." }]);
 });
 
@@ -196,7 +197,7 @@ it("keeps specialized Calendar server content and the original legacy confirmati
 });
 
 it('the actual canonical POS parent selects the standard index without replacing its native scoped reader or link values',async()=>{
- const {createRequire}=await import('node:module'),require=createRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=readFileSync(resolve('src/app/holdings/[holdingSlug]/pos/page.tsx'),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},nativeLinks=[{label:'Register settings',href:'/holdings/acme/pos/settings?register=original#readiness'},{label:'Receipts',href:'/holdings/acme/pos/history?q=Original&status=paid'}],native=vi.fn(async(props:{appearance:'standard'|'legacy';holdingSlug:string;path:string})=>createElement(DestinationIndexView,{appearance:props.appearance,title:'POS',links:nativeLinks}));
+ const {createRequire}=await import('node:module'),require=createRequire(import.meta.url),ts=require('typescript') as typeof import('typescript'),source=readFileSync(resolve("packages/feature-pos/src/routes/holdings/[holdingSlug]/pos/page.tsx"),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,loaded={exports:{} as Record<string,unknown>},nativeLinks=[{label:'Register settings',href:'/holdings/acme/pos/settings?register=original#readiness'},{label:'Receipts',href:'/holdings/acme/pos/history?q=Original&status=paid'}],native=vi.fn(async(props:{appearance:'standard'|'legacy';holdingSlug:string;path:string})=>createElement(DestinationIndexView,{appearance:props.appearance,title:'POS',links:nativeLinks}));
  new Function('require','module','exports',compiled)((name:string):unknown=>{if(name==='react/jsx-runtime')return require(name);if(name.endsWith('/destination-index'))return {DestinationIndex:native};throw Error('Unexpected actual POS parent import '+name);},loaded,loaded.exports);
  const Page=loaded.exports.default as(props:{params:Promise<{holdingSlug:string}>})=>Promise<import('react').ReactElement<{appearance:'standard'|'legacy';holdingSlug:string;path:string}>>,tree=await Page({params:Promise.resolve({holdingSlug:'acme'})});expect(tree.type).toBe(native);expect(tree.props).toEqual({appearance:'standard',holdingSlug:'acme',path:'pos'});expect(native).not.toHaveBeenCalled();const html=renderToStaticMarkup(await native(tree.props));expect(native).toHaveBeenCalledExactlyOnceWith(tree.props);expect(html).toContain('data-appearance="standard"');expect(html).toContain('ui-record-item');expect(html).toContain('href="/holdings/acme/pos/settings?register=original#readiness"');expect(html).toContain('href="/holdings/acme/pos/history?q=Original&amp;status=paid"');
 });
@@ -218,29 +219,29 @@ it("maps all actual named-slot sources to Next public paths without collapsing t
   const { normalizeAppPath } = require("next/dist/shared/lib/router/utils/app-paths") as { normalizeAppPath: (source: string) => string };
   const pages = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry =>
     entry.isDirectory() ? pages(`${directory}/${entry.name}`) : entry.name === "page.tsx" ? [`${directory}/${entry.name}`] : []);
-  const sources = pages("src/app"), slots = sources.filter(source => source.split("/").some(segment => segment.startsWith("@")));
+  const sources = pages("apps/compat/src/app"), slots = sources.filter(source => source.split("/").some(segment => segment.startsWith("@")));
   expect(slots).toHaveLength(295);
   const identities = new Set<string>();
   for (const source of slots) {
     const context = appPageContext(source);
     expect(context).not.toBeNull(); if (!context) throw new Error("The actual named-slot page was omitted.");
-    expect(context.route).toBe(normalizeAppPath(source.slice("src/app".length).replace(/\.tsx$/, "")));
+    expect(context.route).toBe(normalizeAppPath(source.slice("apps/compat/src/app".length).replace(/\.tsx$/, "")));
     expect(context.route).not.toContain("/@");
     expect(context.routeContext.kind).toBe("parallel-slot");
     expect(context.routeContext.slots.map(slot => slot.name)).toEqual(["record"]);
     identities.add(source);
   }
   expect(identities.size).toBe(slots.length);
-  expect(appPageContext("src/app/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page.tsx")).toEqual({
+  expect(appPageContext("packages/feature-finance/src/routes/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page.tsx")).toEqual({
     route: "/holdings/[holdingSlug]/finance/documents/expenses/[id]",
-    routeContext: { kind: "parallel-slot", slots: [{ name: "record", source: "src/app/holdings/[holdingSlug]/@record",
-      parentSource: "src/app/holdings/[holdingSlug]", parentRoute: "/holdings/[holdingSlug]" }] },
+    routeContext: { kind: "parallel-slot", slots: [{ name: "record", source: "packages/feature-finance/src/routes/holdings/[holdingSlug]/@record",
+      parentSource: "packages/feature-finance/src/routes/holdings/[holdingSlug]", parentRoute: "/holdings/[holdingSlug]" }] },
   });
 });
 
 it("keeps nested slot and route-group ownership explicit and does not expose private implementation pages", async () => {
   const { appPageContext } = await import("../../../scripts/ui/route-topology.mjs");
-  expect(appPageContext("src/app/page.tsx")).toEqual({ route: "/", routeContext: { kind: "children", slots: [] } });
+  expect(appPageContext("packages/workplace/src/routes/page.tsx")).toEqual({ route: "/", routeContext: { kind: "children", slots: [] } });
   expect(appPageContext("src/app/(workspace)/dashboard/@team/(members)/@detail/[id]/page.tsx")).toEqual({
     route: "/dashboard/[id]", routeContext: { kind: "parallel-slot", slots: [
       { name: "team", source: "src/app/(workspace)/dashboard/@team", parentSource: "src/app/(workspace)/dashboard", parentRoute: "/dashboard" },
@@ -275,7 +276,7 @@ it("finds real ancestor and slot fallback boundaries without promoting private o
 it("generates both canonical and drawer cases at their public URL and fingerprints actual Next boundary imports", () => {
   const root = mkdtempSync(join(tmpdir(), "erpx-route-topology-")); roots.push(root);
   for (const directory of ["scripts/ui", "docs/ux-ui", "node_modules"]) mkdirSync(join(root, directory), { recursive: true });
-  for (const file of ["coverage.mjs", "route-topology.mjs", "standard-scope.mjs", "shared-consumers.json"])
+  for (const file of ["coverage.mjs", "route-topology.mjs", "standard-scope.mjs", "shared-consumers.json", "inventory.mjs"])
     copyFileSync(resolve("scripts/ui", file), join(root, "scripts/ui", file));
   symlinkSync(resolve("node_modules/typescript"), join(root, "node_modules/typescript"), "dir");
   const holding = "src/app/(workspace)/holdings/[holdingSlug]", canonical = `${holding}/finance/documents/[id]/page.tsx`,
@@ -313,7 +314,7 @@ it("generates both canonical and drawer cases at their public URL and fingerprin
   const manifest = generate(); expect(manifest.summary.routes).toBe(4);
   expect(manifest.closurePaths).toEqual([...new Set(manifest.closurePaths)].sort());
   for (const route of manifest.routes) {
-    expect(route.closureIds).toEqual([...new Set(route.closureIds)].sort((a, b) => a - b));
+    expect(routeClosureIds(manifest,route)).toEqual([...new Set<number>(routeClosureIds(manifest,route))].sort((a,b)=>a-b));
     expect(expandedRouteClosure(manifest, route)).toEqual([...expandedRouteClosure(manifest, route)].sort());
   }
   expect(manifest.routes.map(route => route.source)).toEqual(expect.arrayContaining([canonical, drawer, `${holding}/@record/[...path]/page.tsx`]));
@@ -325,8 +326,8 @@ it("generates both canonical and drawer cases at their public URL and fingerprin
   expect(canonicalCase.routeContext).toEqual({ kind: "children", slots: [] });
   expect(drawerCase.routeContext.kind).toBe("parallel-slot"); expect(drawerCase.routeContext.slots[0]).toMatchObject({ name: "record", parentRoute: "/holdings/[holdingSlug]" });
   for (const route of [canonicalCase, drawerCase]) {
-    expect(route.dependencies).toContain("src/app/global-error.tsx");
-    expect(route.dependencies).toContain("src/app/(workspace)/holdings/forbidden.tsx");
+    expect(routeDependencies(manifest,route)).toContain("src/app/global-error.tsx");
+    expect(routeDependencies(manifest,route)).toContain("src/app/(workspace)/holdings/forbidden.tsx");
     expect(route.styles).toContain("src/app/global-state.css"); expect(route.styles).toContain("src/app/(workspace)/holdings/denied.css");
     expect(route.boundaries).toContain(fallback); expect(expandedRouteClosure(manifest, route)).not.toContain(`${holding}/_presenters/forbidden.tsx`);
     expect(route.styles).not.toContain(`${holding}/_presenters/private.css`);
@@ -350,7 +351,7 @@ function runtimeImportCoverageFixture(fixture: Record<string, string>) {
   const root = mkdtempSync(join(tmpdir(), "erpx-runtime-imports-")); roots.push(root);
   for (const directory of ["scripts/ui", "docs/ux-ui", "node_modules"])
     mkdirSync(join(root, directory), { recursive: true });
-  for (const file of ["coverage.mjs", "route-topology.mjs", "standard-scope.mjs", "shared-consumers.json"])
+  for (const file of ["coverage.mjs", "route-topology.mjs", "standard-scope.mjs", "shared-consumers.json", "inventory.mjs"])
     copyFileSync(resolve("scripts/ui", file), join(root, "scripts/ui", file));
   symlinkSync(resolve("node_modules/typescript"), join(root, "node_modules/typescript"), "dir");
   for (const [source, contents] of Object.entries(fixture)) {
@@ -365,16 +366,18 @@ function runtimeImportCoverageFixture(fixture: Record<string, string>) {
 }
 
 it("does not require the actual chart editor on Finance profile through erased FinanceChart imports, while retaining its real chart caller", () => {
-  const base = "src/app/holdings/[holdingSlug]/finance/setup", profile = `${base}/profile/page.tsx`, chart = `${base}/chart/page.tsx`,
-    target = "src/components/finance/finance-chart-controls.tsx", controls = "src/components/finance/accounting-profile-controls.tsx";
-  const files = [profile, `${base}/profile/_screen.tsx`, chart, `${base}/chart/_screen.tsx`, target, controls];
+  const moves=JSON.parse(readFileSync(resolve("scripts/architecture/workspace-relocations.json"),"utf8")).moves as {from:string;to:string}[];
+  const current=(source:string)=>{const moved=moves.find(move=>move.from===source);if(!moved)throw new Error("Actual route relocation missing");return moved.to;};
+  const base="src/app/holdings/[holdingSlug]/finance/setup",profile=current(`${base}/profile/page.tsx`),chart=current(`${base}/chart/page.tsx`),
+    target="packages/feature-finance/src/components/finance-chart-controls.tsx",controls="packages/feature-finance/src/components/accounting-profile-controls.tsx";
+  const files=[profile,current(`${base}/profile/_screen.tsx`),chart,current(`${base}/chart/_screen.tsx`),target,controls];
   const fixture = runtimeImportCoverageFixture(Object.fromEntries(files.map(source => [source, readFileSync(resolve(source), "utf8")])));
   const before = fixture.generate(), profileCase = before.routes.find(route => route.source === profile), chartCase = before.routes.find(route => route.source === chart);
   if (!profileCase || !chartCase) throw new Error("An actual Finance setup route was omitted.");
   expect(before.summary.routes).toBe(2);
-  expect(profileCase.dependencies).toContain(controls);
-  expect(expandedRouteClosure(before, profileCase)).not.toContain(target); expect(profileCase.dependencies).not.toContain(target);
-  expect(expandedRouteClosure(before, chartCase)).toContain(target); expect(chartCase.dependencies).toContain(target);
+  expect(routeDependencies(before,profileCase)).toContain(controls);
+  expect(expandedRouteClosure(before, profileCase)).not.toContain(target); expect(routeDependencies(before,profileCase)).not.toContain(target);
+  expect(expandedRouteClosure(before, chartCase)).toContain(target); expect(routeDependencies(before,chartCase)).toContain(target);
   expect(before.sources.some(source => source.source === target)).toBe(true);
   writeFileSync(join(fixture.root, target), readFileSync(resolve(target), "utf8") + "\n// A changed real chart editor remains a chart-route fingerprint dependency.\n");
   const after = fixture.generate();
@@ -444,17 +447,17 @@ it("uses installed TypeScript erasure for explicit type edges in both TSX and TS
     const source = `src/app/${lane}-${item.name}/page.tsx`, route = manifest.routes.find(candidate => candidate.source === source);
     if (!route) throw new Error(`The ${lane} import case disappeared: ${item.name}`);
     expect(expandedRouteClosure(manifest, route).includes(target), `${lane} ${item.name}: exact source edge`).toBe(item.kept);
-    expect(route.dependencies.includes(target), `${lane} ${item.name}: UI owner requirements`).toBe(item.kept);
+    expect(routeDependencies(manifest,route).includes(target), `${lane} ${item.name}: UI owner requirements`).toBe(item.kept);
   }
   expect(manifest.sources.some(source => source.source === target)).toBe(true);
 });
 
 it("resolves the actual public runtime.ts owner ahead of a same-name directory in both TSX and TS caller graphs", () => {
-  const publicOwner = "src/server/modules/runtime/public/runtime.ts", adapter = "src/server/modules/runtime/adapters/runtime.ts",
-    publicChild = "src/server/modules/runtime/public/runtime/env.ts", adapterChild = "src/server/modules/runtime/adapters/runtime/env.ts";
+  const publicOwner = "packages/server-runtime/src/public/runtime.ts", adapter = "packages/server-runtime/src/adapters/runtime.ts",
+    publicChild = "packages/server-runtime/src/public/runtime/env.ts", adapterChild = "packages/server-runtime/src/adapters/runtime/env.ts";
   const sources = [publicOwner, adapter, publicChild, adapterChild];
   const fixture: Record<string, string> = Object.fromEntries(sources.map(source => [source, readFileSync(resolve(source), "utf8")]));
-  const originalImport = 'import { runtimeEnv } from "@/server/modules/runtime/public/runtime";';
+  const originalImport = 'import { runtimeEnv } from "@erpx/server-runtime/public/runtime";';
   fixture["src/app/runtime-direct/page.tsx"] = `${originalImport} export default function Page(){return typeof runtimeEnv;}`;
   fixture["src/app/runtime-relay/page.tsx"] = 'import { selected } from "./reader"; export default function Page(){return typeof selected;}';
   fixture["src/app/runtime-relay/reader.ts"] = `${originalImport} export const selected = runtimeEnv;`;
@@ -466,7 +469,7 @@ it("resolves the actual public runtime.ts owner ahead of a same-name directory i
     const closure = expandedRouteClosure(manifest, route);
     expect(closure).toContain(publicOwner); expect(closure).toContain(adapter); expect(closure).toContain(adapterChild);
     expect(closure).not.toContain(publicChild);
-    expect(closure).not.toContain("src/server/modules/runtime/public/runtime");
-    expect(closure).not.toContain("src/server/modules/runtime/adapters/runtime");
+    expect(closure).not.toContain("packages/server-runtime/src/public/runtime");
+    expect(closure).not.toContain("packages/server-runtime/src/adapters/runtime");
   }
 });

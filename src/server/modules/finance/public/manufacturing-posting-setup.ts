@@ -1,2 +1,0 @@
-export {requireManufacturingPostingFinanceAuthority,manufacturingPostingFinanceReferenceLocks,manufacturingPostingFinanceReadLocks,manufacturingPostingFinanceReferences,manufacturingPostingFinanceHistoryLocks,manufacturingPostingFinanceState,validateManufacturingPostingFinanceState,manufacturingPostingEffectiveService} from '../adapters/manufacturing-posting-setup';
-export {manufacturingPostingProfileReferenceSnapshot} from '../adapters/manufacturing-posting-prerequisites';

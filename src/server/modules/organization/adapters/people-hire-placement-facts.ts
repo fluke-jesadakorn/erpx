@@ -1,3 +1,0 @@
-import type { SqlDatabase } from '../../runtime/public/runtime/types';
-import { assertion } from '../../workflow/public/commands';
-export function peopleHirePlacementFacts(database: SqlDatabase) { return { guard13(key: string, value: "hire-placement", branch_id: string, companyId: string, department_id: string | null, department_id2: string | null, companyId2: string, branch_id2: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND status='active') AND (?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND status='active'))", [branch_id, companyId, department_id, department_id2, companyId2, branch_id2]); } }; }

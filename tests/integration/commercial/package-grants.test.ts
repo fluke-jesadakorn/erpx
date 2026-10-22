@@ -1,13 +1,13 @@
-import { commercialPackages } from "@/server/modules/commercial/public/packages";
-import { readCompanyPackageGrants } from "@/server/modules/commercial/public/package-grants";
+import { commercialPackages } from "@erpx/server-commercial/public/packages";
+import { readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
 import { beforeAll, expect, it } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
-import { packageGrantStore } from "@/server/modules/commercial/adapters/package-grants";
-import type { CompanyPackageGrant } from "@/server/modules/commercial/public/packages";
+import { packageGrantStore } from "@erpx/server-commercial/adapters/package-grants";
+import type { CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
 import { randomUUID } from "node:crypto";
-import { readCommandCapability, readEffectiveCapability } from "@/server/modules/commercial/public/capability-decision";
-import { PostgresDatabase } from "@/server/modules/runtime/public/runtime/postgres";
-import type { SqlDatabase } from "@/server/modules/runtime/public/runtime/types";
+import { readCommandCapability, readEffectiveCapability } from "@erpx/server-commercial/public/capability-decision";
+import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 const db = env.H001_DB;
 let authorized = true, obligations = 0;
 const store = packageGrantStore(db, { authorize: async () => { if (!authorized) throw new Error("FORBIDDEN"); return { userId: "provider-fixture" }; }, obligations: async () => obligations, now: () => 1000 });
@@ -111,7 +111,7 @@ it("requires draining and a fresh owner obligation check before final inactivati
   expect(await store.apply(inactive)).toEqual(inactive.grant);
 });
 it("keeps a draining add-on settled until a reviewed atomic base/add-on inactivation", async () => {
-  const companyId=randomUUID(),{readCompanyPackageGrants,packageGrantRevision}=await import("@/server/modules/commercial/public/package-grants");
+  const companyId=randomUUID(),{readCompanyPackageGrants,packageGrantRevision}=await import("@erpx/server-commercial/public/package-grants");
   for(const packageId of ["support","support-portal"])await store.apply(change(companyId,packageId));
   for(const packageId of ["support","support-portal"]){const before=(await readCompanyPackageGrants(db,companyId)).find(row=>row.packageId===packageId)!;await store.apply({expectedVersion:1,idempotencyKey:randomUUID(),grant:{...before,state:"draining",version:2}});}
   const before=await readCompanyPackageGrants(db,companyId),base=before.find(row=>row.packageId==='support')!;
@@ -124,7 +124,7 @@ it("keeps a draining add-on settled until a reviewed atomic base/add-on inactiva
   expect((await readCompanyPackageGrants(db,companyId)).map(row=>row.state)).toEqual(["inactive","inactive"]);
 });
 it("refuses to move a base beyond a draining add-on even when the declared owner backlog is empty", async () => {
-  const companyId=randomUUID(),{readCompanyPackageGrants}=await import("@/server/modules/commercial/public/package-grants");
+  const companyId=randomUUID(),{readCompanyPackageGrants}=await import("@erpx/server-commercial/public/package-grants");
   for(const packageId of ["support","support-portal"])await store.apply(change(companyId,packageId));
   const addon=(await readCompanyPackageGrants(db,companyId)).find(row=>row.packageId==='support-portal')!;
   await store.apply({expectedVersion:1,idempotencyKey:randomUUID(),grant:{...addon,state:"draining",version:2}});
@@ -133,7 +133,7 @@ it("refuses to move a base beyond a draining add-on even when the declared owner
   expect((await readCompanyPackageGrants(db,companyId)).find(row=>row.packageId==='support')).toEqual(base);
 });
 it("previews and commits a reviewed base/add-on change atomically with one immutable batch receipt", async () => {
-  const companyId = randomUUID(), { packageGrantRevision } = await import("@/server/modules/commercial/public/package-grants");
+  const companyId = randomUUID(), { packageGrantRevision } = await import("@erpx/server-commercial/public/package-grants");
   const input = { companyId, expectedRevision: packageGrantRevision(companyId, []), idempotencyKey: randomUUID(), changes: [change(companyId,"people-payroll"),change(companyId,"people")].map(({grant,expectedVersion})=>({grant,expectedVersion})) };
   const preview = await store.batch.preview(input);
   expect(preview.before).toEqual([]); expect(preview.after).toHaveLength(2);
@@ -147,7 +147,7 @@ it("previews and commits a reviewed base/add-on change atomically with one immut
   await expect(store.apply({...change(companyId,"work"),idempotencyKey:input.idempotencyKey})).rejects.toThrow("IDEMPOTENCY_CONFLICT");
 });
 it("rolls back every grant and audit if authority disappears after the first staged grant", async () => {
-  const companyId=randomUUID(),{packageGrantRevision}=await import("@/server/modules/commercial/public/package-grants");
+  const companyId=randomUUID(),{packageGrantRevision}=await import("@erpx/server-commercial/public/package-grants");
   const scoped=packageGrantStore(db,{authorize:async database=>{
     const count=(await database.prepare("SELECT count(*) AS total FROM company_package_grants WHERE company_id=?").bind(companyId).first<{total:number}>())!.total;
     if(count>0)throw new Error("FORBIDDEN");return{userId:"provider-fixture"};
@@ -157,14 +157,14 @@ it("rolls back every grant and audit if authority disappears after the first sta
   for(const table of ["company_package_grants","company_package_grant_events","company_package_change_sets"])expect((await db.prepare(`SELECT count(*) AS total FROM ${table} WHERE company_id=?`).bind(companyId).first<{total:number}>())!.total).toBe(0);
 });
 it("validates the complete prospective periods before atomically shortening a base and its add-on", async () => {
-  const companyId=randomUUID(),{packageGrantRevision,readCompanyPackageGrants}=await import("@/server/modules/commercial/public/package-grants");
+  const companyId=randomUUID(),{packageGrantRevision,readCompanyPackageGrants}=await import("@erpx/server-commercial/public/package-grants");
   for(const id of ["people","people-payroll"]){const input=change(companyId,id);await store.apply({...input,grant:{...input.grant,endsAt:5000}});}
   const before=await readCompanyPackageGrants(db,companyId),input={companyId,expectedRevision:packageGrantRevision(companyId,before),idempotencyKey:randomUUID(),changes:before.map(grant=>({expectedVersion:grant.version,grant:{...grant,endsAt:3000,version:grant.version+1}}))};
   await store.batch.preview(input);await store.batch.apply(input,async()=>{});
   expect((await readCompanyPackageGrants(db,companyId)).map(grant=>grant.endsAt)).toEqual([3000,3000]);
 });
 it("rejects a changed Company revision, expired review and duplicate package targets without any writes", async () => {
-  const companyId=randomUUID(),{packageGrantRevision}=await import("@/server/modules/commercial/public/package-grants");
+  const companyId=randomUUID(),{packageGrantRevision}=await import("@erpx/server-commercial/public/package-grants");
   const entry=change(companyId),input={companyId,expectedRevision:packageGrantRevision(companyId,[]),idempotencyKey:randomUUID(),changes:[{grant:entry.grant,expectedVersion:0}]};
   await expect(store.batch.apply(input,async()=>{throw new Error("PREVIEW_EXPIRED");})).rejects.toThrow("PREVIEW_EXPIRED");
   expect(await db.prepare("SELECT 1 FROM company_package_grants WHERE company_id=?").bind(companyId).first()).toBeNull();
@@ -172,7 +172,7 @@ it("rejects a changed Company revision, expired review and duplicate package tar
   await store.apply(change(companyId,"finance")); await expect(store.batch.apply(input,async()=>{})).rejects.toThrow("STALE_PACKAGE_BATCH");
 });
 it("rejects one of two concurrent whole-Company reviews even when they target different new packages",async()=>{
-  const companyId=randomUUID(),{packageGrantRevision}=await import("@/server/modules/commercial/public/package-grants");
+  const companyId=randomUUID(),{packageGrantRevision}=await import("@erpx/server-commercial/public/package-grants");
   const inputs=["work","finance"].map(packageId=>{const entry=change(companyId,packageId);return{companyId,expectedRevision:packageGrantRevision(companyId,[]),idempotencyKey:randomUUID(),changes:[{grant:entry.grant,expectedVersion:0}]};});
   const results=await Promise.allSettled(inputs.map(input=>store.batch.apply(input,async()=>{})));
   expect(results.filter(result=>result.status==="fulfilled")).toHaveLength(1);
@@ -180,7 +180,7 @@ it("rejects one of two concurrent whole-Company reviews even when they target di
   expect((await db.prepare("SELECT count(*) AS total FROM company_package_grants WHERE company_id=?").bind(companyId).first<{total:number}>())!.total).toBe(1);
 });
 it("keeps both per-grant and reviewed batch audit rows immutable",async()=>{
-  const companyId=randomUUID(),{packageGrantRevision}=await import("@/server/modules/commercial/public/package-grants"),entry=change(companyId);
+  const companyId=randomUUID(),{packageGrantRevision}=await import("@erpx/server-commercial/public/package-grants"),entry=change(companyId);
   const input={companyId,expectedRevision:packageGrantRevision(companyId,[]),idempotencyKey:randomUUID(),changes:[{grant:entry.grant,expectedVersion:0}]};
   await store.batch.apply(input,async()=>{});
   for(const table of ["company_package_change_sets","company_package_grant_events"]){
@@ -189,7 +189,7 @@ it("keeps both per-grant and reviewed batch audit rows immutable",async()=>{
   }
 });
 it("requires the live owner's transaction for batch apply and rolls back grants, audits and receipts when the owner rejects afterward", async () => {
-  const companyId = randomUUID(), { packageGrantRevision } = await import("@/server/modules/commercial/public/package-grants"), entry = change(companyId);
+  const companyId = randomUUID(), { packageGrantRevision } = await import("@erpx/server-commercial/public/package-grants"), entry = change(companyId);
   const input = { companyId, expectedRevision: packageGrantRevision(companyId, []), idempotencyKey: randomUUID(), changes: [{ grant: entry.grant, expectedVersion: 0 }] };
   expect(() => store.batch.applyIn(db, input, async () => {})).toThrow("TRANSACTION_NOT_ACTIVE_OR_OWNED");
   const other = new PostgresDatabase({ ...db.pool.options, max: 1 });
@@ -212,8 +212,8 @@ it("requires the live owner's transaction for batch apply and rolls back grants,
 it.each(commercialPackages.map(({ id, version }) => ({ packageId: id, packageVersion: version })))
   ("opens the real declared $packageId v$packageVersion withdrawal source unit without changing Company authority or grants", async definition => {
     const { expenseFixture } = await import("../../support/helpers/expense-fixture");
-    const { withOwnerPackageObligations, readOwnerPackageObligations } = await import("@/server/modules/commercial/public/owner-package-obligations");
-    const { packageObligationModules } = await import("@/server/modules/commercial/public/package-obligations");
+    const { withOwnerPackageObligations, readOwnerPackageObligations } = await import("@erpx/server-commercial/public/owner-package-obligations");
+    const { packageObligationModules } = await import("@erpx/server-commercial/public/package-obligations");
     const fixture = await expenseFixture(false, false);
     const input = { companyId: fixture.company, ...definition, now: Date.now() };
     const authorityImage = async () => (await db.prepare("SELECT to_jsonb(a)::text image FROM assignments a WHERE company_id=? ORDER BY id").bind(fixture.company).all()).results;
@@ -237,7 +237,7 @@ it.each(commercialPackages.map(({ id, version }) => ({ packageId: id, packageVer
 
 it("composes base Hotel/POS and their three add-on source units in one owned Company review without replacing individual evidence", async () => {
   const { expenseFixture } = await import("../../support/helpers/expense-fixture");
-  const { withOwnerPackageObligations, readOwnerPackageObligations } = await import("@/server/modules/commercial/public/owner-package-obligations");
+  const { withOwnerPackageObligations, readOwnerPackageObligations } = await import("@erpx/server-commercial/public/owner-package-obligations");
   const fixture = await expenseFixture(false, false), now = Date.now();
   const inputs = ["pos", "pms", "pos-restaurant", "pos-hotel-charge", "pms-minibar-linen"].map(packageId => ({ companyId: fixture.company, packageId, packageVersion: 1, now }));
   const expected = [];

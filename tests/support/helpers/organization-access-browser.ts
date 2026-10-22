@@ -1,6 +1,6 @@
 import { expect, type BrowserContext, type Page, type Locator } from "@playwright/test";
-import type { OrganizationAccessData } from "../../../src/lib/organization/organization-access";
-import type { DirectoryAutomationData } from "../../../src/lib/identity_access/directory-operations";
+import type { OrganizationAccessData } from "@erpx/feature-organization/lib/organization-access";
+import type { DirectoryAutomationData } from "@erpx/feature-identity_access/lib/directory-operations";
 import { selectFixtureAssignment } from "../browser/select-fixture-assignment";
 
 export async function organizationSession(context: BrowserContext, role: "hr_admin" | "it_admin") {

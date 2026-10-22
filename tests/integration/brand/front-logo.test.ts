@@ -3,8 +3,8 @@ import { applyMigrations,env } from "../../support/runtime-env";
 
 const fileStore=vi.hoisted(()=>({get:vi.fn()}));
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime",async importOriginal=>{
-  const actual=await importOriginal<typeof import("../../../src/server/modules/runtime/adapters/runtime")>();
+vi.mock("@erpx/server-runtime/adapters/runtime",async importOriginal=>{
+  const actual=await importOriginal<typeof import("@erpx/server-runtime/adapters/runtime")>();
   return {
     ...actual,
     holdingBindingBySlug:async(slug:string)=>({id:"h001",slug}),
@@ -12,7 +12,7 @@ vi.mock("../../../src/server/modules/runtime/adapters/runtime",async importOrigi
   };
 });
 
-import { GET as storefrontLogoRoute } from "../../../src/app/front/[holdingSlug]/[companySlug]/[app]/logo/route";
+import { GET as storefrontLogoRoute } from "@erpx/workplace/routes/front/[holdingSlug]/[companySlug]/[app]/logo/route";
 
 const previousGate=process.env.ERPX_ATTACHMENTS_V2;
 const previousReadOnly=process.env.ERPX_ATTACHMENTS_READ_ONLY;

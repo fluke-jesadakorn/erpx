@@ -18,16 +18,16 @@ import {
   readMessaging,
   sendMessagingMessage,
   messageSchema,
-} from "../../../src/server/modules/collaboration/public/messaging";
-import {attachmentContent,createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow,withdrawAttachmentLink} from '../../../src/server/modules/files/public/attachments/service';
-import type {FileStore} from '../../../src/server/modules/runtime/public/runtime/types';
-import { uploadMessagingFile,discardMessagingFile } from "../../../src/server/modules/collaboration/public/messaging-files";
+} from "@erpx/server-collaboration/public/messaging";
+import {attachmentContent,createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow,withdrawAttachmentLink} from '@erpx/server-files/public/attachments/service';
+import type {FileStore} from '@erpx/server-runtime/public/runtime/types';
+import { uploadMessagingFile,discardMessagingFile } from "@erpx/server-collaboration/public/messaging-files";
 
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: db, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/scanner", () => ({
+vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({
     enabled: true,
     ready: true,
@@ -42,10 +42,10 @@ vi.mock("../../../src/server/modules/files/public/attachments/scanner", () => ({
     definitionUpdatedAt: Date.now(),
   }),
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/preview", async () => {
+vi.mock("@erpx/server-files/public/attachments/preview", async () => {
   const actual = await vi.importActual<
-    typeof import("../../../src/server/modules/files/public/attachments/preview")
-  >("../../../src/server/modules/files/public/attachments/preview");
+    typeof import("@erpx/server-files/public/attachments/preview")
+  >("@erpx/server-files/public/attachments/preview");
   return {
     ...actual,
     attachmentPreviewReadiness: async () => ({
@@ -57,8 +57,8 @@ vi.mock("../../../src/server/modules/files/public/attachments/preview", async ()
     sanitizedAttachmentPreview: async () => null,
   };
 });
-import {packageGrantStore,readCompanyPackageGrants,packageGrantRevision} from '../../../src/server/modules/commercial/public/package-grants';
-import {withOwnerPackageObligations,ownerPackageObligations} from '../../../src/server/modules/commercial/public/owner-package-obligations';
+import {packageGrantStore,readCompanyPackageGrants,packageGrantRevision} from '@erpx/server-commercial/public/package-grants';
+import {withOwnerPackageObligations,ownerPackageObligations} from '@erpx/server-commercial/public/owner-package-obligations';
 afterEach(()=>vi.unstubAllEnvs());
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => {
@@ -477,7 +477,7 @@ it('purchasedMessages buffers private bytes through actual deferred access-audit
 });
 
 it('purchasedMessages waits for a committed real Files metadata writer before its first byte snapshot without hidden serialization retries',async()=>{
- const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('../../../src/server/modules/runtime/public/runtime/read-metrics');await messagesGrant('work');await messagesGrant('work-messages');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');const room=await direct(),id=key(),original=await uploadMessagingFile(db,env.H001_FILES,f.claimant,room.id,{id,name:'leased.csv',type:'text/csv'},new Request('http://localhost/upload',{method:'PUT',body:'source,lease\nexact,bytes'}));let fetched=0;const files:FileStore={put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args),get:async(...args)=>{fetched++;return env.H001_FILES.get(...args);}};
+ const {committedSourceVisibility}=await import('../../support/helpers/source-writer-visibility'),{measureReads}=await import('@erpx/server-runtime/public/runtime/read-metrics');await messagesGrant('work');await messagesGrant('work-messages');vi.stubEnv('ERPX_WORK_PACKAGE_ENFORCEMENT','enforced');const room=await direct(),id=key(),original=await uploadMessagingFile(db,env.H001_FILES,f.claimant,room.id,{id,name:'leased.csv',type:'text/csv'},new Request('http://localhost/upload',{method:'PUT',body:'source,lease\nexact,bytes'}));let fetched=0;const files:FileStore={put:(...args)=>env.H001_FILES.put(...args),head:(...args)=>env.H001_FILES.head(...args),delete:(...args)=>env.H001_FILES.delete(...args),list:(...args)=>env.H001_FILES.list(...args),get:async(...args)=>{fetched++;return env.H001_FILES.get(...args);}};
  const measured=await measureReads(()=>committedSourceVisibility(db,tx=>tx.prepare("UPDATE attachment_links SET state='withdrawn',withdrawn_by=created_by,withdrawn_at=1,withdrawal_reason='Actual committed private metadata writer' WHERE id=? AND state='draft'").bind(original.attachmentLinkId).run(),async()=>{try{await attachmentContent(db,files,f.claimant,original.attachmentLinkId,'original',{compatibilityAdapter:true});return null;}catch(error){return error;}}));expect(measured.result).toMatchObject({code:'ATTACHMENT_LINK_NOT_FOUND'});expect(fetched).toBe(0);expect(measured.metrics.serializationFailures??0).toBe(0);expect(measured.metrics.deadlockFailures??0).toBe(0);expect(measured.metrics.transactionRetries??0).toBe(0);expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(original.attachmentLinkId).first('state')).toBe('withdrawn');
 });
 it('purchasedMessages removes only newly written unreferenced upload objects after late original owner authority rolls the complete upload back',async()=>{

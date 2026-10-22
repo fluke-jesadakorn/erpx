@@ -5,8 +5,8 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import { orderSchema, saveMaster, saveOrder } from "../../../src/server/modules/commerce/public/commerce";
-import { createSupportTicket } from "../../../src/server/modules/support/public/support";
+import { orderSchema, saveMaster, saveOrder } from "@erpx/server-commerce/public/commerce";
+import { createSupportTicket } from "@erpx/server-support/public/support";
 import {
   changeActionCard,
   collaborationExport,
@@ -15,8 +15,8 @@ import {
   createActionCard,
   createRecordRelation,
   removeRecordRelation,
-} from "../../../src/server/modules/collaboration/public/collaboration-work";
-vi.mock("../../../src/server/modules/runtime/adapters/runtime", () => ({
+} from "@erpx/server-collaboration/public/collaboration-work";
+vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));

@@ -2,11 +2,11 @@
 import {readFile,writeFile,realpath} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
-import {PostgresDatabase} from "../../../src/server/modules/runtime/adapters/runtime/postgres";
-import {LocalFileStore} from "../../../src/server/modules/runtime/adapters/runtime/filesystem";
-import {drainLegalDestruction} from "../../../src/server/modules/legal/public/legal/retention";
-import type {SqlDatabase} from "../../../src/server/modules/runtime/adapters/runtime/types";
-import type {LegalDestructionManifest} from "../../../src/server/modules/legal/public/legal/destruction-sources";
+import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
+import {LocalFileStore} from "@erpx/server-runtime/adapters/runtime/filesystem";
+import {drainLegalDestruction} from "@erpx/server-legal/public/legal/retention";
+import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
+import type {LegalDestructionManifest} from "@erpx/server-legal/public/legal/destruction-sources";
 
 const root=resolve(import.meta.dir,'../../..'),[run,phase,requestId]=process.argv.slice(2);
 if(!run||!/^[a-f0-9]{12}$/.test(run)||!['fault','resume','hold'].includes(phase)||!requestId||!/^[a-f0-9-]{36}$/.test(requestId))throw new Error('EXACT_ISOLATED_DESTRUCTION_REQUEST_REQUIRED');

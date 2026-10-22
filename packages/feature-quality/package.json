@@ -1,0 +1,35 @@
+{
+  "name": "@erpx/feature-quality",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/quality-console.module.css": "./src/components/quality-console.module.css",
+    "./components/quality-console": "./src/components/quality-console.tsx",
+    "./components/source-record-backdrop": "./src/components/source-record-backdrop.tsx",
+    "./components/use-quality-command": "./src/components/use-quality-command.ts",
+    "./components/quality-tool": "./src/components/quality-tool.tsx",
+    "./components/quality-draft-boundary": "./src/components/quality-draft-boundary.tsx",
+    "./components/quality-purchase-context": "./src/components/quality-purchase-context.tsx",
+    "./lib/quality-purchase-controls": "./src/lib/quality-purchase-controls.ts",
+    "./lib/quality-command-attempt": "./src/lib/quality-command-attempt.ts",
+    "./lib/quality-command-fetch": "./src/lib/quality-command-fetch.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@erpx/feature-files": "workspace:*",
+    "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-runtime": "workspace:*",
+    "@erpx/feature-shared": "workspace:*",
+    "@erpx/feature-work_projection": "workspace:*",
+    "@erpx/server-quality": "workspace:*",
+    "@erpx/server-work_projection": "workspace:*",
+    "@erpx/ui": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "server-only": "0.0.1"
+  }
+}

@@ -3,17 +3,17 @@ import { createECDH } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
-import { publishInboxEvent } from "../../../src/server/modules/collaboration/public/inbox";
-import { allowedPushOrigin,drainWebPush,pushSettings,quietDelayMs,registerPush,removePushDevice,removePushSession,savePushPreferences,validatePushSubscription } from "../../../src/server/modules/collaboration/public/web-push";
-import { leavePushForWorkspaceChange } from "../../../src/lib/shared/push-client";
-import type { WorkContext } from "../../../src/server/modules/identity_access/public/authorization";
-import type { SqlDatabase } from "../../../src/server/modules/runtime/adapters/runtime/types";
-import { createAuth } from "../../../src/server/modules/identity_access/public/auth";
-import { DELETE as cleanPushSession } from "../../../src/app/api/v1/holdings/[holdingSlug]/push/session/route";
+import { publishInboxEvent } from "@erpx/server-collaboration/public/inbox";
+import { allowedPushOrigin,drainWebPush,pushSettings,quietDelayMs,registerPush,removePushDevice,removePushSession,savePushPreferences,validatePushSubscription } from "@erpx/server-collaboration/public/web-push";
+import { leavePushForWorkspaceChange } from "@erpx/feature-shared/lib/push-client";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
+import { createAuth } from "@erpx/server-identity_access/public/auth";
+import { DELETE as cleanPushSession } from "@erpx/workplace/routes/api/v1/holdings/[holdingSlug]/push/session/route";
 
 // Only runtime composition is isolated; normal Better Auth, registered Holding
 // resolution, the route, owner cleanup and PostgreSQL effects remain real.
-vi.mock("../../../src/server/modules/runtime/adapters/runtime/env",()=>({getRuntime:()=>env}));
+vi.mock("@erpx/server-runtime/adapters/runtime/env",()=>({getRuntime:()=>env}));
 const db=env.H001_DB,control=env.CONTROL_DB;
 const previous=Object.fromEntries(["ERPX_PUSH_VAPID_PUBLIC_KEY","ERPX_PUSH_VAPID_PRIVATE_KEY","ERPX_PUSH_VAPID_SUBJECT","ERPX_PUSH_DATA_KEY"].map(key=>[key,process.env[key]]));
 const subscription={endpoint:"https://fcm.googleapis.com/fcm/send/test-token",keys:{

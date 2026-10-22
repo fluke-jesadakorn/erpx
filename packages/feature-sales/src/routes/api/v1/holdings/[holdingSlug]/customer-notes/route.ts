@@ -1,0 +1,9 @@
+import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
+import {requireWorkContext} from "@erpx/server-identity_access/public/authorization";
+import {requestPublicOrigin} from "@erpx/server-manage_erpx/public/public-origin";
+import {ApiError,errorResponse} from "@erpx/server-runtime/public/http";
+import {createCustomerNote,changeCustomerNote,customerNotesForOrder,customerNotesForCustomer} from "@erpx/server-sales/public/customer-notes";
+type Context={params:Promise<{holdingSlug:string}>};
+const headers={'Cache-Control':'private, no-store'};
+export async function GET(r:Request,c:Context){try{const query=new URL(r.url).searchParams,orderId=query.get('orderId'),customerId=query.get('customerId'),a=await requireWorkContext((await c.params).holdingSlug);if(orderId&&customerId)throw new ApiError(422,'SOURCE_AMBIGUOUS','Choose either an order or customer source.');if(!orderId&&!customerId)throw new ApiError(422,'SOURCE_REQUIRED','Choose an order or customer source.');return Response.json(canonicalDestinationLinks({data:orderId?await customerNotesForOrder(a,orderId):await customerNotesForCustomer(a,customerId!)}),{headers});}catch(e){return errorResponse(e);}}
+export async function POST(r:Request,c:Context){try{if(r.headers.get('origin')&&r.headers.get('origin')!==requestPublicOrigin(r))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');const key=r.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');const a=await requireWorkContext((await c.params).holdingSlug),input=await r.json();return Response.json(canonicalDestinationLinks({data:typeof input.id==='string'?await changeCustomerNote(a,input.id,input,key):await createCustomerNote(a,input,key)}),{headers});}catch(e){return errorResponse(e);}}

@@ -1,8 +1,8 @@
 import { storedCommandReceipt } from "../../support/helpers/command-replay-fixture";
 import {describe,expect,it,vi} from 'vitest';
-import {createFinanceStarterService,type FinanceStarterPorts} from "../../../src/server/modules/finance/application/starter";
-import {starterDates,starterConfiguration,financeStarterSchema} from "../../../src/server/modules/finance/domain/starter";
-import type {WorkContext} from "../../../src/server/modules/identity_access/public/authorization";
+import {createFinanceStarterService,type FinanceStarterPorts} from "@erpx/server-finance/application/starter";
+import {starterDates,starterConfiguration,financeStarterSchema} from "@erpx/server-finance/domain/starter";
+import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 const actor:WorkContext={userId:'preparer',name:'Preparer',email:'preparer@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['finance'],assignments:[],workspaces:[]},request={expectedVersion:0 as const,preset:'thai_services_v1' as const,name:'Reviewed starting ledger',firstMonth:'2028-02',organizationDimensions:true,reason:'Reviewed starter chart before independent policy approval'};
 const error=(status:number,code:string,message:string)=>Object.assign(new Error(message),{status,code});
 function context(extra:Partial<FinanceStarterPorts>={}){const ports:FinanceStarterPorts={error,permission:a=>a,ready:vi.fn(async()=>{}),transaction:vi.fn(async work=>work()),now:()=>123,uniqueConflict:()=>false,replay:async()=>null,requireMoneyScale:vi.fn(async()=>{}),company:async()=>({id:'company'}),existingChart:async()=>false,overlappingPeriod:async()=>false,organizationNodes:vi.fn(async()=>[{id:'branch',kind:'branch',display_name:'North'},{id:'department',kind:'department',display_name:'Kitchen'}]),candidates:async()=>({rows:[],permissions:[]}),independent:vi.fn(async()=>false),commit:vi.fn(async f=>({id:f.id,periodId:f.plan.periodId,accountCount:f.plan.accounts.length,policyReviewRequired:true})),...extra};return {ports,run:createFinanceStarterService(ports)}}

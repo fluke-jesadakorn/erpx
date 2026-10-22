@@ -295,7 +295,7 @@ test.describe("UAT source inventory", uatAuthProfiles(), () => {
     expect(inventory.pageRouteCount).toBeGreaterThan(0);
     expect(inventory.sourceFingerprint).toMatch(/^[a-f0-9]{64}$/);
     expect(inventory.sourceFingerprint).toBe(currentSourceHash.digest("hex"));
-    expect(inventory.entries.find((entry) => entry.source === "src/app/page.tsx")?.template).toBe("/");
+    expect(inventory.entries.find((entry) => entry.source === "packages/workplace/src/routes/page.tsx")?.template).toBe("/");
   });
 });
 
@@ -552,7 +552,7 @@ test.describe("asset register UI observations", uatAuthProfiles("owner"), () => 
     expect(hash(readFileSync(resolve(releaseDirectory, "release-files.json")))).toBe(nativeState.release.fileManifestSha256);
     const coverageBytes = readFileSync(resolve(root, "docs/ux-ui/standard-coverage.json"));
     const coverage = JSON.parse(coverageBytes.toString()) as { closurePaths: string[]; sources: Source[]; routes: Route[] };
-    const routeSource = "src/app/holdings/[holdingSlug]/services/assets/register/page.tsx", targetSource = "src/components/assets/asset-editor.tsx";
+    const routeSource = "packages/feature-assets/src/routes/holdings/[holdingSlug]/services/assets/register/page.tsx", targetSource = "packages/feature-assets/src/components/asset-editor.tsx";
     const routes = coverage.routes.filter(row => row.source === routeSource), sources = coverage.sources.filter(row => row.source === targetSource);
     expect(routes).toHaveLength(1); expect(sources).toHaveLength(1);
     const route = routes[0], source = sources[0];

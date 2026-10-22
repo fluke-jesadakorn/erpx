@@ -16,20 +16,20 @@ const state=vi.hoisted(()=>({
   billingReconciliationReady:false,
 }));
 
-vi.mock("../../../src/server/modules/files/public/attachments/scanner",()=>({
+vi.mock("@erpx/server-files/public/attachments/scanner",()=>({
   attachmentScannerReadiness:async(environment:NodeJS.ProcessEnv)=>{
     state.scannerGate=environment.ERPX_ATTACHMENTS_V2??null;
     return {enabled:true,ready:state.scannerReady,engine:state.scannerReady?`ClamAV ${state.scannerVersion}/test`:null,definitionUpdatedAt:state.scannerReady?Date.now():null,error:state.scannerReady?null:"CLAMD_UNAVAILABLE"};
   },
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/preview",()=>({
+vi.mock("@erpx/server-files/public/attachments/preview",()=>({
   attachmentPreviewReadiness:async()=>({ready:state.previewReady,heifConvert:"/private/heif-convert",pdftoppm:"/private/pdftoppm",error:state.previewReady?null:"PREVIEW_UNAVAILABLE"}),
 }));
-vi.mock("../../../src/server/modules/files/public/attachments/feature",()=>({
+vi.mock("@erpx/server-files/public/attachments/feature",()=>({
   attachmentsV2Enabled:()=>state.enabled,
   attachmentUploadsFrozen:()=>state.appFrozen,
 }));
-vi.mock("../../../src/server/modules/billing/public/billing-attachments",()=>({
+vi.mock("@erpx/server-billing/public/billing-attachments",()=>({
   billingEvidenceReadiness:async()=>({
     ready:state.billingScanReady&&state.billingReconciliationReady,
     scanReady:state.billingScanReady,
@@ -39,7 +39,7 @@ vi.mock("../../../src/server/modules/billing/public/billing-attachments",()=>({
     reconciledAt:state.billingReconciliationReady?Date.now():null,
   }),
 }));
-vi.mock("../../../src/server/modules/runtime/public/runtime",()=>({
+vi.mock("@erpx/server-runtime/public/runtime",()=>({
   runtimeEnv:async()=>({
     CONTROL_DB:{prepare:()=>({first:async()=>({
       heartbeat_at:state.heartbeatAt,
@@ -47,17 +47,17 @@ vi.mock("../../../src/server/modules/runtime/public/runtime",()=>({
     })})},
   }),
 }));
-vi.mock("../../../src/lib/runtime/holding-registry",()=>({
+vi.mock("@erpx/feature-runtime/lib/holding-registry",()=>({
   resourceSlots:()=>[{id:"h001"}],
   registeredResources:()=>({write:{prepare:()=>({first:async()=>state.holdingFinal?{ready:true}:null})}}),
 }));
 
-vi.mock("../../../src/server/modules/files/public/attachments/readiness",async importActual=>{
-  const actual=await importActual<typeof import("../../../src/server/modules/files/public/attachments/readiness")>();
+vi.mock("@erpx/server-files/public/attachments/readiness",async importActual=>{
+  const actual=await importActual<typeof import("@erpx/server-files/public/attachments/readiness")>();
   return {attachmentRuntimeReadiness:()=>actual.attachmentRuntimeReadiness({...process.env,ERPX_ATTACHMENT_UPLOAD_FREEZE:state.appFrozen?"true":"false"})};
 });
 
-import { GET } from "../../../src/app/api/health/route";
+import { GET } from "@erpx/workplace/routes/api/health/route";
 
 beforeEach(()=>{
   state.enabled=false;
