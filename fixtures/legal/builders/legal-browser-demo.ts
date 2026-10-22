@@ -13,40 +13,6 @@ import { legalCommand, detail } from "../../../src/server/modules/legal/public/l
 import { lawCorpusCommand } from "../../../src/server/modules/legal/public/legal/law-corpus";
 import { uploadDocument } from "../../../src/server/modules/legal/public/legal/documents";
 import { workspaceBase } from "../../../src/lib/work_projection/workspace";
-import { createHash } from "node:crypto";
-
-/** Minimal disposable owner fixture used only by the exact Product Host invitation case. */
-export async function seedLegalProductHostInvitationDemo(input:{run:string;directory:string;control:PostgresDatabase;h001:PostgresDatabase;h001Files:FileStore}){
-  if(!/^[a-f0-9]{12}$/.test(input.run))throw new Error('EXACT_LEGAL_INVITATION_RUN_REQUIRED');
-  exactDatabase(input.control,input.run,'CONTROL_DB');exactDatabase(input.h001,input.run,'H001_DB');
-  const password=`Legal-Invitation-${randomBytes(18).toString('hex')}`,passwordHash=await hashPassword(password),now=Date.now();
-  const f=await seedExpenseCompany(input.h001,input.h001Files,false,false);
-  const owner=await f.member(`legal-owner-${input.run}`,'legal_manager');
-  const grant={companyId:f.company,packageId:'legal',packageVersion:1,state:'active',startsAt:now-1000,endsAt:null,version:1,reason:'Disposable Legal invitation browser fixture',evidence:`browser:${input.run}:legal.invitation-enrollment`};
-  const grantEvent=`fixture:legal-invitation:${input.run}`;
-  await input.h001.transaction(async tx=>{
-    await tx.prepare('INSERT INTO company_package_grants(company_id,package_id,package_version,state,starts_at,ends_at,version,reason,evidence,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(grant.companyId,grant.packageId,grant.packageVersion,grant.state,grant.startsAt,grant.endsAt,grant.version,grant.reason,grant.evidence,now).run();
-    await tx.prepare('INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) VALUES(?,?,?,?,?,NULL,?::jsonb,?)').bind(grantEvent,grant.companyId,grant.packageId,owner.userId,createHash('sha256').update(JSON.stringify([grantEvent,grant])).digest('hex'),JSON.stringify(grant),now).run();
-  });
-  owner.name=`Legal Owner ${input.run}`;owner.email=`legal-owner-${input.run}@example.test`;owner.modules=[...businessRoles.legal_manager];
-  await input.h001.prepare('UPDATE assignments SET modules_json=? WHERE id=? AND company_id=?').bind(JSON.stringify(businessRoles.legal_manager),owner.assignmentId,f.company).run();
-  await input.control.batch([
-    input.control.prepare('INSERT INTO "user"(id,name,email,emailVerified,createdAt,updatedAt) VALUES(?,?,?,?,?,?)').bind(owner.userId,owner.name,owner.email,1,now,now),
-    input.control.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,'credential','local:credential',?,?,?,?)").bind(`account-${owner.userId}`,owner.userId,owner.userId,passwordHash,now,now),
-    input.control.prepare("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES(?,?,?,'active',?)").bind(`principal-${owner.userId}`,owner.userId,owner.name,now),
-  ]);
-  await legalCommand(input.h001,owner,{action:'settings',enabled:true,aiEnabled:false},commandKey());
-  const recordId=String((await legalCommand(input.h001,owner,{action:'create',item:{kind:'contract',title:`Disposable invitation source ${input.run}`,description:'Synthetic Legal invitation fixture. No real contract, advice, or signature.',classification:'confidential',ownerId:owner.userId,data:{contractType:'Synthetic invitation source',parties:'Fixture owner and verified recipient'}}},commandKey())).id);
-  const current=await detail(input.h001,owner,recordId);
-  await legalCommand(input.h001,owner,{action:'document',id:recordId,expectedVersion:current.item.version,name:'Synthetic invitation source.pdf',body:`Private synthetic Legal source for run ${input.run}.`},commandKey());
-  const documentId=String((await detail(input.h001,owner,recordId)).documents[0]?.id??'');if(!documentId)throw new Error('EXACT_LEGAL_INVITATION_DOCUMENT_REQUIRED');
-  const ownerAssignment=await input.h001.prepare('SELECT version FROM assignments WHERE id=? AND company_id=? AND user_id=? AND revoked_at IS NULL').bind(owner.assignmentId,f.company,owner.userId).first<{version:number}>();
-  if(!ownerAssignment)throw new Error('EXACT_LEGAL_INVITATION_OWNER_ASSIGNMENT_REQUIRED');
-  const invitationEnrollment={companyId:f.company,holdingSlug:'simulation',recordId,documentId,ownerUserId:owner.userId,ownerEmail:owner.email,ownerAssignmentId:owner.assignmentId,ownerAssignmentVersion:Number(ownerAssignment.version)};
-  await privateJson(join(input.directory,'legal-credentials.json'),{run:input.run,password,users:[{key:'invitation-owner',name:owner.name,email:owner.email,userId:owner.userId,role:'legal_manager',companyId:f.company,holdingSlug:'simulation',assignmentId:owner.assignmentId,workspaceBase:workspaceBase({kind:'holding',holdingSlug:'simulation'}),scope:'holding',scopeNodeId:null}]});
-  await privateJson(join(input.directory,'legal-invitation-fixture.json'),{run:input.run,invitationEnrollment});
-  return{invitationEnrollment,notice:'Synthetic fixture only. External recipient access is limited to one version-bound Legal document.'};
-}
 
 type Input = { run:string; directory:string; control:PostgresDatabase; h001:PostgresDatabase; h002:PostgresDatabase; h001Files:FileStore; h002Files:FileStore };
 export type LegalUatUser = { key:string; name:string; email:string; userId:string; role:string; companyId:string; holdingSlug:string; assignmentId:string; workspaceBase:string; scope:string; scopeNodeId:string|null };

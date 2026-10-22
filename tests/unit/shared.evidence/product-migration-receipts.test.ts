@@ -121,7 +121,6 @@ type FixtureBrowserCase = {
   productHostLease?: { path: string; sha256: string };
   productHostCommercial?: { path: string; sha256: string; bytes: number };
   productHostReadOnly?: { path: string; sha256: string; bytes: number };
-  productHostLegalInvitation?: { path: string; sha256: string; bytes: number };
   passed?: boolean;
   faultProbe?: true;
   failure?: string;
@@ -175,7 +174,7 @@ async function writeBrowserIsolationFixture(root: string, runId: string, binding
           scopedBusinessWorkflow: businessWorkflow,
           readOnlyBusiness: businessWorkflow === null,
           readOnlyWorkflow,
-          isolatedNormalCommercial: businessWorkflow === "legal.invitation-enrollment" ? false : readOnlyWorkflow === null,
+          isolatedNormalCommercial: readOnlyWorkflow === null,
           wholeProductAcceptance: false,
         };
         const leasePath = join(caseDirectory, "product-host-lease.json"), leaseBytes = Buffer.from(JSON.stringify(lease) + "\n");
@@ -223,72 +222,6 @@ async function writeBrowserIsolationFixture(root: string, runId: string, binding
             sha256: createHash("sha256").update(proofBytes).digest("hex"),
             bytes: proofBytes.length,
           };
-        } else if (businessWorkflow === "legal.invitation-enrollment") {
-          const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZ0AAAAASUVORK5CYII=", "base64");
-          const screenshotPath = resolve(root, artifactDirectory, "legal-invitation-owner-access-screen.png");
-          await writeFixtureFile(root, relative(root, screenshotPath), png);
-          attachments.push({ name: "legal-invitation-owner-access-screen", contentType: "image/png", path: screenshotPath });
-
-          const observationPath = resolve(root, artifactDirectory, "legal-invitation-owner-access-observation.json");
-          await writeFixtureFile(root, relative(root, observationPath), JSON.stringify({
-            schema: "erpx-ui-browser-observation/v1",
-            result: "passed",
-            run: test.run,
-            sourceFingerprint: binding.runtimeFingerprint,
-            verificationFingerprint: binding.verificationFingerprint,
-            screenshot: {
-              path: relative(root, screenshotPath).replaceAll("\\", "/"),
-              sha256: createHash("sha256").update(png).digest("hex"),
-              bytes: png.length,
-            },
-          }) + "\n");
-          attachments.push({ name: "erpx-ui-observation", contentType: "application/json", path: observationPath });
-
-          const proof = {
-            schema: "erpx-product-host-legal-invitation-enrollment/v1",
-            result: "passed",
-            workflow: businessWorkflow,
-            run: test.run,
-            sourceFingerprint: binding.runtimeFingerprint,
-            verificationFingerprint: binding.verificationFingerprint,
-            release: lease.release,
-            project: test.project,
-            authority: {
-              companyId: "h001-company",
-              userId: "h001-owner",
-              assignmentId: "h001-owner-assignment",
-              role: "legal_manager",
-              normalAccountSignIn: true,
-              normalAppsSso: true,
-              distinctProductSession: true,
-            },
-            invitation: {
-              recordId: "legal-record-fixture",
-              documentId: "legal-document-fixture",
-              shareId: "legal-share-fixture",
-              email: `legal-invite-${test.run}@example.test`,
-              verifiedEmailBinding: true,
-              emailVerified: true,
-              accountUserId: "legal-invitee-fixture",
-              staffAssignments: 0,
-              continuationDidNotAccept: true,
-              explicitAcceptance: true,
-              acceptedUserId: "legal-invitee-fixture",
-              revoked: true,
-              revocationDeniedAccess: true,
-            },
-            unexpectedWrites: [],
-            wholeProductAcceptance: false,
-          };
-          const proofPath = resolve(root, artifactDirectory, "legal-product-host-invitation-enrollment.json");
-          const proofBytes = Buffer.from(JSON.stringify(proof, null, 2) + "\n");
-          await writeFixtureFile(root, relative(root, proofPath), proofBytes);
-          attachments.unshift({ name: "legal-product-host-invitation-enrollment", contentType: "application/json", path: proofPath });
-          test.productHostLegalInvitation = {
-            path: relative(root, proofPath).replaceAll("\\", "/"),
-            sha256: createHash("sha256").update(proofBytes).digest("hex"),
-            bytes: proofBytes.length,
-          };
         } else {
           const attachmentPath = resolve(root, artifactDirectory, "isolated-normal-commercial.json");
           const commercial = {
@@ -313,7 +246,7 @@ async function writeBrowserIsolationFixture(root: string, runId: string, binding
         test.report = reportPath;
         test.reportSha256 = createHash("sha256").update(reportBytes).digest("hex");
         test.productHostLease = { path: leasePath, sha256: createHash("sha256").update(leaseBytes).digest("hex") };
-        if (readOnlyWorkflow === null && businessWorkflow !== "legal.invitation-enrollment") {
+        if (readOnlyWorkflow === null) {
           const attachmentPath = resolve(root, artifactDirectory, "isolated-normal-commercial.json");
           const commercialBytes = await readFile(attachmentPath);
           test.productHostCommercial = {
@@ -1370,11 +1303,10 @@ describe("current-source product migration receipt v2", () => {
     expect(() => requiredProductMigrationCases("unknown/workflow", "implemented")).toThrow("UNSUPPORTED_PRODUCT_MIGRATION_WORKFLOW");
   });
 
-  it("maps only required exact cases for the 20 non-owner workflows and preserves concrete blockers", () => {
+  it("maps only required exact cases for the 19 non-owner workflows and preserves concrete blockers", () => {
     const ids = productWorkflowReceiptIds();
-    expect(ids).toHaveLength(20);
+    expect(ids).toHaveLength(19);
     expect(ids).toEqual(expect.arrayContaining([
-      "legal-portal:share-invitation-enrollment-and-revocation",
       "legal-portal:scoped-shared-version-access-and-revocation",
       "legal-portal:private-document-download-and-access-history",
     ]));

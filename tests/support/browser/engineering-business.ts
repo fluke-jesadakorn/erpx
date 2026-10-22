@@ -57,14 +57,22 @@ export async function customerPortalEmailLink(loaded:Loaded,email:string,options
   const query=options.deliveryKey
    ?{sql:'SELECT delivery_key,recipient,subject,body_text,body_ciphertext,provider_id FROM sandbox_email_deliveries WHERE delivery_key=$1',values:[options.deliveryKey]}
    :{sql:'SELECT delivery_key,recipient,subject,body_text,body_ciphertext,provider_id FROM sandbox_email_deliveries WHERE recipient=$1 AND subject=$2 AND created_at>=$3 ORDER BY created_at DESC LIMIT 1',values:[email,options.subject,options.createdAfter??0]};
-  for(let attempt=0;attempt<60&&!delivery;attempt++){
+  const invitationId=options.deliveryKey?.startsWith('customer-portal-invitation-')?options.deliveryKey.slice('customer-portal-invitation-'.length):undefined;
+  let invitationState:{state:string;last_error:string|null;attempts:number}|undefined;
+  // The first retry backoff is 60 seconds. Keep polling the invitation and
+  // sandbox receipt through that window instead of failing after 30 seconds.
+  for(let attempt=0;attempt<180&&!delivery;attempt++){
    delivery=(await control.query<{delivery_key:string;recipient:string;subject:string;body_text:string;body_ciphertext:string|null;provider_id:string}>(query.sql,query.values)).rows[0];
+   if(delivery)break;
+   if(invitationId){
+    invitationState=(await loaded.db.query<{state:string;last_error:string|null;attempts:number}>('SELECT state,last_error,attempts FROM customer_portal_invitations WHERE id=$1',[invitationId])).rows[0];
+    if(!invitationState||['accepted','expired','failed','revoked','superseded'].includes(invitationState.state))throw new Error(`CUSTOMER_PORTAL_SENSITIVE_DELIVERY_NOT_REDACTED:${JSON.stringify(invitationState??null)}`);
+   }
    if(!delivery)await new Promise(resolve=>setTimeout(resolve,500));
   }
   if(!delivery){
-   const invitationId=options.deliveryKey?.startsWith('customer-portal-invitation-')?options.deliveryKey.slice('customer-portal-invitation-'.length):undefined;
-   const state=invitationId?(await loaded.db.query<{state:string;last_error:string|null;attempts:number}>('SELECT state,last_error,attempts FROM customer_portal_invitations WHERE id=$1',[invitationId])).rows[0]:undefined;
-   throw new Error(`CUSTOMER_PORTAL_SENSITIVE_DELIVERY_NOT_REDACTED:${JSON.stringify(state??null)}`);
+   if(invitationId)invitationState=(await loaded.db.query<{state:string;last_error:string|null;attempts:number}>('SELECT state,last_error,attempts FROM customer_portal_invitations WHERE id=$1',[invitationId])).rows[0];
+   throw new Error(`CUSTOMER_PORTAL_SENSITIVE_DELIVERY_NOT_REDACTED:${JSON.stringify(invitationState??null)}`);
   }
   if(delivery.recipient!==email||delivery.subject!==options.subject||delivery.body_text!=='[redacted sensitive email body]'||!delivery.body_ciphertext)throw new Error('CUSTOMER_PORTAL_SENSITIVE_DELIVERY_NOT_REDACTED');
   let body:string;

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { attachProductMigrationUiObservation } from "../../support/browser/product-migration-ui-observation";
 
 test("scrubs the invitation fragment and presents email-pinned enrollment and acceptance", async ({ page, baseURL }) => {
   if (!baseURL) throw new Error("BROWSER_BASE_URL_REQUIRED");
@@ -38,6 +39,13 @@ test("scrubs the invitation fragment and presents email-pinned enrollment and ac
 
   expect(enrollmentRequests).toEqual([]);
   expect(mutationRequests).toEqual([]);
+  await attachProductMigrationUiObservation(page, test.info(), {
+    label: "customer-portal-invitation-email-pinned-enrollment",
+    subject: "Customer Portal invitation enrollment before signup",
+    audience: "Unauthenticated external invitee opening the invitation link",
+    authority: "The invitation token pins the recipient email; enrollment waits for the recipient's explicit action.",
+    checks: ["invitation fragment is removed from the address and rendered page", "recipient email cannot be overridden", "sign-in and explicit acceptance guidance are visible", "no enrollment or other mutation request occurs before signup"],
+  });
 });
 
 test("offers verification resend when the invited account was created but email delivery failed", async ({ page, baseURL }) => {
@@ -67,4 +75,11 @@ test("offers verification resend when the invited account was created but email 
   expect(signupBody).not.toHaveProperty("email");
   await expect(page).toHaveURL(new URL("/customer-portal/enroll", baseURL).href);
   expect(await page.locator("body").innerText()).not.toContain(invitationToken);
+  await attachProductMigrationUiObservation(page, test.info(), {
+    label: "customer-portal-invitation-verification-resend",
+    subject: "Customer Portal invitation signup recovery after verification email delivery failure",
+    audience: "Unauthenticated external invitee whose account was created but not verified",
+    authority: "Signup preserves the invitation token and fixed recipient email; resend uses the ordinary verification route.",
+    checks: ["sandboxed signup reports account creation despite delivery failure", "verification resend link is available", "signup request contains no caller-supplied email", "invitation token is scrubbed from the address and rendered page"],
+  });
 });

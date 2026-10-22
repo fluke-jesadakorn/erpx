@@ -2,8 +2,8 @@
   "version": 3,
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
-  "sourceFingerprint": "3d2d624c47577f1bb7c8f95f5f2d28a12250d8ca4e930744d1d46d319156753f",
-  "verificationFingerprint": "676cc4496795b7ca4538e5d61049f97a374da138bbd8001479e2cf27ecfb17f0",
+  "sourceFingerprint": "7f3b5823edca7a61c6e2b01ee4884bc497a093f3a06176f860ec14d7f6e5c8b7",
+  "verificationFingerprint": "6b132c3019e47edb9903b252abd597c95ad50ae977b0f310fde623a21b87a7ea",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",
@@ -13560,31 +13560,6 @@
     {
       "id": "legal-portal",
       "workflows": [
-        {
-          "id": "legal-portal:share-invitation-enrollment-and-revocation",
-          "acceptance": {
-            "implemented": {
-              "state": "pending",
-              "evidence": null
-            },
-            "verified": {
-              "state": "pending",
-              "evidence": null
-            },
-            "enabled": {
-              "state": "pending",
-              "evidence": null
-            }
-          },
-          "receiptMapping": {
-            "native": {
-              "state": "mapped"
-            },
-            "browser": {
-              "state": "mapped"
-            }
-          }
-        },
         {
           "id": "legal-portal:scoped-shared-version-access-and-revocation",
           "acceptance": {

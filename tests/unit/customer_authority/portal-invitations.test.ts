@@ -9,6 +9,7 @@ import {
   type CustomerPortalInvitationCommand,
   type CustomerPortalInvitationRepository,
 } from "../../../src/server/modules/customer_authority/application/portal-invitations";
+import { createCustomerPortalInvitationDelivery } from "../../../src/server/modules/customer_authority/application/portal-invitation-delivery";
 
 const secret = "test-only-customer-portal-secret";
 const tokenFacts = {
@@ -179,4 +180,45 @@ it("resend advances the signed generation and persists only the token hash", asy
   expect(created?.tokenHash).toBe(customerPortalInvitationTokenHash(expectedToken));
   expect(JSON.stringify(created)).not.toContain(expectedToken);
   expect(verifyCustomerPortalInvitationToken(secret, expectedToken)).toMatchObject({ generation: 2, bindingId: "binding-1" });
+});
+
+it("retains safe sandbox email failure codes without persisting arbitrary error text", async () => {
+  const job = {
+    id: "customer-portal-invitation-1",
+    binding_id: "binding-1",
+    holding_slug: "northwind",
+    generation: 1,
+    email: "customer@example.test",
+    token_hash: "token-hash",
+    token_key_version: 1 as const,
+    token_expires_at: 900,
+    attempts: 1,
+    lease_token: "lease-1",
+  };
+  const persisted: string[] = [];
+
+  for (const [deliveryError, expected] of [
+    [new Error("EMAIL_SENSITIVE_RECEIPT_INVALID"), "EMAIL_SENSITIVE_RECEIPT_INVALID"],
+    [new Error("Private message for customer@example.test"), "EMAIL_DELIVERY_FAILED"],
+  ] as const) {
+    const drain = createCustomerPortalInvitationDelivery({
+      repository: {
+        recover: async () => {},
+        claim: async () => job,
+        current: async () => true,
+        cancel: async () => {},
+        sent: async () => {},
+        failed: async (_job, _now, _state, code) => { persisted.push(code); },
+      },
+      clock: { now: () => 100 },
+      identifiers: { next: () => "delivery-1" },
+      token: () => "signed-token",
+      tokenHashMatches: () => true,
+      accountOrigin: "http://127.0.0.1:3104",
+      send: async () => { throw deliveryError; },
+    });
+
+    await expect(drain()).resolves.toBe(true);
+    expect(persisted.at(-1)).toBe(expected);
+  }
 });

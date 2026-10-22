@@ -120,7 +120,7 @@ if (mode === "aggregate") {
         const cohort = { group: group.id, suiteIds: group.suites.map(suite => suite.id), passed: false } as NonNullable<BrowserCiReceipt["cohorts"]>[number];
         receipt.cohorts!.push(cohort);
         try {
-          if (group.id === "product-host" && (!productHostPlanPaths.default || !productHostPlanPaths.businessWorkflows?.["work.request-draft"] || !productHostPlanPaths.businessWorkflows?.["finance.sales-invoice"] || !productHostPlanPaths.businessWorkflows?.["legal.invitation-enrollment"])) {
+          if (group.id === "product-host" && (!productHostPlanPaths.default || !productHostPlanPaths.businessWorkflows?.["work.request-draft"] || !productHostPlanPaths.businessWorkflows?.["finance.sales-invoice"])) {
             cohort.reason = "PRODUCT_HOST_SCOPED_PLANS_REQUIRED";
             receipt.blocker = { phase: "product-host", reason: "PRODUCT_HOST_SCOPED_PLANS_REQUIRED" };
             throw new Error("CI_PRODUCT_HOST_SCOPED_PLANS_REQUIRED");

@@ -49,9 +49,6 @@ if([productHosts,executiveWorkHosts,formsHosts].filter(Boolean).length>1)throw E
 const localAttachmentMode=process.env.ERPX_BROWSER_SIMULATION_ATTACHMENTS==='local';
 const localJobsEnabled=process.env.ERPX_BROWSER_SIMULATION_JOBS==='1';
 const legalDemoEnabled=process.env.ERPX_BROWSER_SIMULATION_LEGAL==='1';
-const legalInvitationEnrollment=process.env.ERPX_BROWSER_SIMULATION_LEGAL_INVITATION_ENROLLMENT==='1';
-if(legalInvitationEnrollment&&(port!==3104||profile!=='general-company'||!productHosts||!legalDemoEnabled||process.env.ERPX_EMAIL_ADAPTER!=='sandbox'))throw new Error('EXACT_PRODUCT_HOST_LEGAL_INVITATION_MODE_REQUIRED');
-if(!legalInvitationEnrollment&&process.env.ERPX_BROWSER_SIMULATION_LEGAL_INVITATION_ENROLLMENT!==undefined)throw new Error('LEGAL_INVITATION_SEED_REQUIRES_EXACT_MODE');
 const menuImagesEnabled=process.env.ERPX_BROWSER_SIMULATION_MENU_IMAGES==='1';
 const pmsScaleEnabled=process.env.ERPX_BROWSER_SIMULATION_PMS_SCALE==='1';
 const pmsProviderFixtureEnabled=process.env.ERPX_PMS_PROVIDER_FIXTURE==='1';
@@ -79,7 +76,6 @@ const safeEnv=(secret:string)=>({
  ...(pmsScaleEnabled?{ERPX_BROWSER_SIMULATION_PMS_SCALE:'1',ERPX_BROWSER_SIMULATION_PMS_POOL_MAX:pmsScalePool,ERPX_BROWSER_SIMULATION_PMS_CONTROL_POOL_MAX:pmsControlPool,ERPX_PMS_RELEASE_DIAGNOSTICS:'1',ERPX_PERF_LOG:'1'}:{}),
  ...(profile==='booking'?{RESEND_API_KEY:'deterministic-browser-booking',RESEND_FROM:'Fictional Hotel <hotel@example.test>'}:{}),
  ...(process.env.ERPX_BROWSER_SIMULATION_CUSTOMER_PORTAL_INVITATIONS==='1'&&profile==='engineering'&&[3102,3104].includes(port)?{ERPX_BROWSER_SIMULATION_CUSTOMER_PORTAL_INVITATIONS:'1',RESEND_API_KEY:'isolated-sandbox-no-provider-key',RESEND_FROM:'Fictional <no-reply@example.test>'}:{}),
- ...(legalInvitationEnrollment?{ERPX_BROWSER_SIMULATION_LEGAL_INVITATION_ENROLLMENT:'1',RESEND_API_KEY:'isolated-sandbox-no-provider-key',RESEND_FROM:'Fictional <no-reply@example.test>'}:{}),
  ...(pmsProviderFixtureEnabled?{ERPX_PMS_PROVIDER_FIXTURE:'1',PMS_STRIPE_BOOKING_ENABLED:'true',POS_STRIPE_TEST_SECRET_KEY:'sk_test_erpx_fictional_provider',POS_STRIPE_TEST_WEBHOOK_SECRET:'whsec_erpx_fictional_provider'} : {}),
  // Explicit fixture activation for the existing restaurant/hotel pilot.
  // The compiled runtime still checks the enrolled Company and both owners.
@@ -409,9 +405,7 @@ if(mode==='prepare'||diagnostic){
   state.fixture={customerId:customer.id,customerDuplicateIds:[duplicateCustomerLeft.id,duplicateCustomerRight.id],customerDuplicateQuotationId:duplicateCustomerQuotation.id,quotationId:quotation.id,crmLeadId:crmLead.id,purchaseRequestId:purchaseRequest.id,companyId:f.company,inventoryAccountId,clearingAccountId,openingEquityAccountId,openingJournalId:opening.id,browserOpeningChartId,browserOpeningCashId,browserOpeningEquityId,sourceWarehouseId:source,targetWarehouseId:target,productId:product,transitProductId:transitProduct,laptopEachProductId:laptopEach,laptopCaseProductId:laptopCase,lotProductId:lotProduct,serialProductId:serialProduct,qualityDueSoonHoldId:qualityDueSoon.id,qualityOverdueHoldId:qualityOverdue.id,demoSupplierIds:demoSuppliers,periodId:f.period,closePeriodIds:closePeriods,closeBankAccountId:closeBank,bankMatchPaymentId:bankMatchPayment,controlledPaymentPeriodId:paymentPeriod,controlledPaymentInvoiceId:paymentInvoice,controlledPaymentBankTransactionId:paymentBankTransaction,customerRefundBankTransactionId:refundBankTransaction,expenseAccountId:f.accounts.expense,supplierInvoiceMatchingPolicy:'required',users,scenarioIds:guide.scenarios.map(s=>s.id),hospitality:{companyId:hospitality.companyId,propertyId:hospitality.propertyId,registerId:hospitality.registerId,warehouseId:hospitality.warehouseId,openingJournalId:hospitality.openingJournalId,openingInventoryAccountId:hospitality.openingInventoryAccountId,roomIds:hospitality.roomIds,roomTypeIds:hospitality.roomTypeIds,rateIds:hospitality.rateIds,productIds:hospitality.productIds,supplierIds:hospitality.supplierIds,purchaseRequestId:hospitality.purchaseRequestId,payrollGroupId:hospitality.payrollGroupId,payrollEngagementIds:hospitality.payrollEngagementIds,payrollPersonIds:hospitality.payrollPersonIds,leaveTypeId:hospitality.leaveTypeId,leavePolicyId:hospitality.leavePolicyId,leaveAssignmentId:hospitality.leaveAssignmentId,rosterWeekId:hospitality.rosterWeekId,rosterShiftId:hospitality.rosterShiftId}};await writePrivate(statePath,state);await writePrivate(join(directory,'credentials.json'),{password,users:[...users,...hospitality.users]});await writePrivate(join(directory,'demo-guide.json'),guide);await writePrivate(join(directory,'hospitality-guide.json'),hospitality.guide);
   if(legalDemoEnabled) {
     if(port!==3104)throw new Error('LEGAL_UAT_REQUIRES_3104');
-    const legal=legalInvitationEnrollment
-      ?await (await import("../../fixtures/legal/builders/legal-browser-demo")).seedLegalProductHostInvitationDemo({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h001Files:env.H001_FILES})
-      :await (await import("../../fixtures/legal/builders/legal-browser-demo")).seedLegalBrowserDemo({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES});
+    const legal=await (await import("../../fixtures/legal/builders/legal-browser-demo")).seedLegalBrowserDemo({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES});
     state.fixture.legal=legal;await writePrivate(statePath,state);
   }
   if(port===3104||profile==='engineering') {

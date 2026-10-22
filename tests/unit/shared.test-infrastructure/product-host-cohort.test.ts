@@ -5,7 +5,7 @@ import type {ChildProcess} from 'node:child_process';
 import {mkdtempSync,mkdirSync,writeFileSync,rmSync,realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {assertProductHostPlanWorkflow,companyAdminOwnerReadsProductHostCase,financeSalesInvoiceProductHostCase,fullAcceptanceProductHostPlanPathsFromEnvironment,legalInvitationEnrollmentProductHostCase,permitsProductHostBusinessWrite,permitsProductHostFinanceInvoice,permitsProductHostLegalInvitationWrite,permitsProductHostLegalVerificationGet,permitsProductHostReadOnlyPost,permitsProductHostRequestPreview,permitsProductHostUiWrite,permitsProductHostRequestOrigin,productHostBusinessWorkflowForCase,productHostPlanPathForWorkflow,productHostPlanPathsFromEnvironment,productHostReadOnlyWorkflowForCase,productHostPlan,productHostProducts,productHostBrowserFile,productHostWorkflowIsArmed,waitForProductHostEdgeMessage,workRequestDraftProductHostCase,type ProductHostLegalInvitationState} from '../../../scripts/testing/product-host-cohort';
+import {assertProductHostPlanWorkflow,companyAdminOwnerReadsProductHostCase,financeSalesInvoiceProductHostCase,fullAcceptanceProductHostPlanPathsFromEnvironment,permitsProductHostBusinessWrite,permitsProductHostFinanceInvoice,permitsProductHostReadOnlyPost,permitsProductHostRequestPreview,permitsProductHostUiWrite,permitsProductHostRequestOrigin,productHostBusinessWorkflowForCase,productHostPlanPathForWorkflow,productHostPlanPathsFromEnvironment,productHostReadOnlyWorkflowForCase,productHostPlan,productHostProducts,productHostBrowserFile,productHostWorkflowIsArmed,waitForProductHostEdgeMessage,workRequestDraftProductHostCase} from '../../../scripts/testing/product-host-cohort';
 import {executiveWorkGetKind,executiveWorkPostKind,executiveWorkBackgroundTrafficIsCurrent,isKnownExecutiveWorkChromiumBackgroundHost} from '../../../scripts/testing/executive-work-host-cohort';
 import {productIds} from '../../../src/lib/commercial/product-registry';
 import {formsHostOrigin,formsHostWorkflow,formsHostRequestKind,permitsFormsHostRequest,formsHostRedirectAllowed,assertFormsHostHistoricalBindings,type FormsHostPolicyInput,type FormsHostFixture} from '../../../scripts/testing/forms-host-cohort';
@@ -122,12 +122,11 @@ function refusedPlan(change:Record<string,unknown>={}){
 }
 describe('explicit owned product-host browser mode preflight',()=>{
  it('routes each business case to its own one-workflow plan and unscoped cases to the default arm',()=>{
-  const paths=productHostPlanPathsFromEnvironment({ERPX_TEST_PRODUCT_HOST_WORK_PLAN:'/private/work.json',ERPX_TEST_PRODUCT_HOST_FINANCE_PLAN:'/private/finance.json',ERPX_TEST_PRODUCT_HOST_LEGAL_PLAN:'/private/legal.json'});
+  const paths=productHostPlanPathsFromEnvironment({ERPX_TEST_PRODUCT_HOST_WORK_PLAN:'/private/work.json',ERPX_TEST_PRODUCT_HOST_FINANCE_PLAN:'/private/finance.json'});
   expect(paths.default).toBe('/private/work.json');
   expect(productHostPlanPathForWorkflow(paths,null)).toBe('/private/work.json');
   expect(productHostPlanPathForWorkflow(paths,'work.request-draft')).toBe('/private/work.json');
   expect(productHostPlanPathForWorkflow(paths,'finance.sales-invoice')).toBe('/private/finance.json');
-  expect(productHostPlanPathForWorkflow(paths,'legal.invitation-enrollment')).toBe('/private/legal.json');
  });
  it('does not fall back from an explicit missing workflow plan to another plan scope',()=>{
   const paths={default:'/private/work.json',businessWorkflows:{'work.request-draft':'/private/work.json'}};
@@ -148,8 +147,6 @@ describe('explicit owned product-host browser mode preflight',()=>{
   expect(productHostPlanPathForWorkflow(twoArms,'work.request-draft')).toBe('/private/work.json');
   expect(productHostPlanPathForWorkflow(twoArms,'finance.sales-invoice')).toBe('/private/finance.json');
   expect(twoArms.default).toBe('/private/work.json');
-  const threeArms=fullAcceptanceProductHostPlanPathsFromEnvironment({ERPX_TEST_PRODUCT_HOST_WORK_PLAN:'/private/work.json',ERPX_TEST_PRODUCT_HOST_FINANCE_PLAN:'/private/finance.json',ERPX_TEST_PRODUCT_HOST_LEGAL_PLAN:'/private/legal.json'});
-  expect(productHostPlanPathForWorkflow(threeArms,'legal.invitation-enrollment')).toBe('/private/legal.json');
  });
  it('requires the plan arm to match the exact business case workflow',()=>{
   expect(()=>assertProductHostPlanWorkflow({allowIsolatedBusinessWorkflow:'work.request-draft'},'work.request-draft')).not.toThrow();
@@ -157,7 +154,7 @@ describe('explicit owned product-host browser mode preflight',()=>{
   expect(()=>assertProductHostPlanWorkflow({},'finance.sales-invoice')).toThrow('PRODUCT_HOST_BUSINESS_PLAN_SCOPE_MISMATCH');
  });
  it('keeps the closed15 names equal to the actual product registry',()=>{expect(productHostProducts).toEqual(productIds);expect(new Set(productHostProducts).size).toBe(15);});
- it('arms a workflow only for its exact registered product-host browser case',()=>{expect(productHostBusinessWorkflowForCase(productHostBrowserFile,workRequestDraftProductHostCase)).toBe('work.request-draft');expect(productHostBusinessWorkflowForCase(productHostBrowserFile,financeSalesInvoiceProductHostCase)).toBe('finance.sales-invoice');expect(productHostBusinessWorkflowForCase(productHostBrowserFile,legalInvitationEnrollmentProductHostCase)).toBe('legal.invitation-enrollment');expect(productHostBusinessWorkflowForCase('/repo/'+productHostBrowserFile,workRequestDraftProductHostCase)).toBe('work.request-draft');expect(productHostBusinessWorkflowForCase('e2e/identity_access/product-hosts.spec.ts',workRequestDraftProductHostCase)).toBe('work.request-draft');expect(productHostBusinessWorkflowForCase('/repo/e2e/identity_access/product-hosts.spec.ts',workRequestDraftProductHostCase)).toBeNull();expect(productHostBusinessWorkflowForCase(productHostBrowserFile,'a different Finance case')).toBeNull();expect(productHostBusinessWorkflowForCase(productHostBrowserFile,'a different Work case')).toBeNull();expect(productHostBusinessWorkflowForCase('tests/journeys/shared.work/work-journeys.spec.ts',financeSalesInvoiceProductHostCase)).toBeNull();});
+ it('arms a workflow only for its exact registered product-host browser case',()=>{expect(productHostBusinessWorkflowForCase(productHostBrowserFile,workRequestDraftProductHostCase)).toBe('work.request-draft');expect(productHostBusinessWorkflowForCase(productHostBrowserFile,financeSalesInvoiceProductHostCase)).toBe('finance.sales-invoice');expect(productHostBusinessWorkflowForCase('/repo/'+productHostBrowserFile,workRequestDraftProductHostCase)).toBe('work.request-draft');expect(productHostBusinessWorkflowForCase('e2e/identity_access/product-hosts.spec.ts',workRequestDraftProductHostCase)).toBe('work.request-draft');expect(productHostBusinessWorkflowForCase('/repo/e2e/identity_access/product-hosts.spec.ts',workRequestDraftProductHostCase)).toBeNull();expect(productHostBusinessWorkflowForCase(productHostBrowserFile,'a different Finance case')).toBeNull();expect(productHostBusinessWorkflowForCase(productHostBrowserFile,'a different Work case')).toBeNull();expect(productHostBusinessWorkflowForCase('tests/journeys/shared.work/work-journeys.spec.ts',financeSalesInvoiceProductHostCase)).toBeNull();});
  it('classifies the exact Company Admin case as read-only and permits only Account sign-in/out POSTs',()=>{
   const workflow='admin.company-brand-organization-iam' as const;
   expect(productHostReadOnlyWorkflowForCase(productHostBrowserFile,companyAdminOwnerReadsProductHostCase)).toBe(workflow);
@@ -182,40 +179,6 @@ describe('explicit owned product-host browser mode preflight',()=>{
   const scope='work.request-draft' as const,idempotencyKey='migration-case-1234',createdDraftIds=new Set<string>(),base={method:'POST',origin:'https://work-dev-erpx.jesadakorn.com',workflowHeader:scope,idempotencyKey,createdDraftIds},create={...base,path:'/api/v1/holdings/simulation/requests',body:JSON.stringify({kind:'service',category:'it',title:'Migration Work draft case',description:'A fictional isolated owner workflow.'})};
   expect(permitsProductHostBusinessWrite(scope,create)).toBe(true);expect(permitsProductHostBusinessWrite(scope,{...create,origin:'https://support-dev-erpx.jesadakorn.com'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...create,origin:'https://finance-dev-erpx.jesadakorn.com'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...create,workflowHeader:'work'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...create,body:JSON.stringify({...JSON.parse(create.body),kind:'purchase'})})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...create,body:JSON.stringify({...JSON.parse(create.body),title:'Unscoped request'})})).toBe(false);
   const ownId=`request-${idempotencyKey}`,cancel={...base,createdDraftIds:new Set([ownId]),path:`/api/v1/holdings/simulation/requests/${ownId}/actions`,body:JSON.stringify({action:'cancel',expectedVersion:2})};expect(permitsProductHostBusinessWrite(scope,cancel)).toBe(true);expect(permitsProductHostBusinessWrite(scope,{...cancel,origin:'https://support-dev-erpx.jesadakorn.com'})).toBe(true);expect(permitsProductHostBusinessWrite(scope,{...cancel,origin:'https://finance-dev-erpx.jesadakorn.com'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,path:'/api/v1/holdings/simulation/requests/request_other/actions'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,body:JSON.stringify({action:'approve',expectedVersion:2})})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,body:JSON.stringify({action:'cancel',expectedVersion:2,note:'outside the exact UI command'})})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,method:'GET'})).toBe(false);expect(permitsProductHostBusinessWrite(scope,{...cancel,path:'/api/v1/holdings/other/requests/request_123/actions'})).toBe(false);expect(permitsProductHostBusinessWrite(null,create)).toBe(false);
- });
- it('allows one run-bound Legal invitation enrollment, verification, explicit accept, and owner revocation while refusing staff or signer writes',()=>{
-  const scope='legal.invitation-enrollment' as const,run='abcdef123456',account='https://account-dev-erpx.jesadakorn.com',legal='https://legal-dev-erpx.jesadakorn.com',portal='https://legal-portal-dev-erpx.jesadakorn.com',invitee=`legal-invite-${run}@example.test`,shareId='share-exact',id='record-exact',documentId='document-exact',key='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',now=Date.now();
-  const state:ProductHostLegalInvitationState={run,companyId:'company-exact',recordId:id,documentId,ownerUserId:'owner-exact',ownerAssignmentId:'assignment-exact',ownerAssignmentVersion:3,ownerEmail:'legal-owner@example.test',shareId:null,shareCreateSubmitted:false,enrollmentSubmitted:false,emailVerified:false,accepted:false,revoked:false};
-  const base={method:'POST',search:'',contentType:'application/json',workflowHeader:scope,idempotencyKey:key,now};
-  const roleForm=new URLSearchParams({companyId:state.companyId,assignmentId:state.ownerAssignmentId,assignmentVersion:String(state.ownerAssignmentVersion),next:'/holdings/simulation/services/legal/mine',revision:'123'}).toString();
-  expect(permitsProductHostLegalInvitationWrite(scope,state,{...base,origin:legal,path:'/launch',contentType:'application/x-www-form-urlencoded',body:roleForm})).toBe(true);
-  const ownerLogin={...base,origin:account,path:'/api/auth/sign-in/email',body:JSON.stringify({email:state.ownerEmail,password:'fictional-owner-password'})};
-  expect(permitsProductHostLegalInvitationWrite(scope,state,ownerLogin)).toBe(true);
-  expect(permitsProductHostLegalInvitationWrite(scope,state,{...ownerLogin,body:JSON.stringify({email:'another-owner@example.test',password:'fictional-owner-password'})})).toBe(false);
-  const createBody=JSON.stringify({action:'share',documentId,email:invitee,expectedVersion:2,expiresAt:now+30*86_400_000,id});
-  const create={...base,origin:legal,path:'/api/v1/holdings/simulation/legal',body:createBody};
-  expect(permitsProductHostLegalInvitationWrite(scope,state,create)).toBe(true);
-  expect(permitsProductHostLegalInvitationWrite(scope,state,{...create,idempotencyKey:'not-a-uuid'})).toBe(false);
-  expect(permitsProductHostLegalInvitationWrite(scope,state,{...create,body:JSON.stringify({...JSON.parse(createBody),email:'different@example.test'})})).toBe(false);
-  state.shareCreateSubmitted=true;state.createRequest={key,body:createBody};state.shareId=shareId;
-  const enroll={...base,origin:account,path:'/api/legal-portal/enroll',body:JSON.stringify({token:'invitation-token-that-is-long-enough',name:`Legal invitation recipient ${run}`,password:'fictional-recipient-password-2026'})};
-  expect(permitsProductHostLegalInvitationWrite(scope,state,enroll)).toBe(true);
-  state.enrollmentSubmitted=true;
-  const verifySearch='?'+new URLSearchParams({token:'verification-token',callbackURL:`${account}/legal-portal/continue?holding=simulation&share=${shareId}`});
-  expect(permitsProductHostLegalVerificationGet(scope,state,{method:'GET',origin:account,path:'/api/auth/verify-email',search:verifySearch})).toBe(true);
-  expect(permitsProductHostLegalVerificationGet(scope,state,{method:'GET',origin:account,path:'/api/auth/verify-email',search:'?token=wrong&callbackURL=https%3A%2F%2Faccount-dev-erpx.jesadakorn.com%2F'})).toBe(false);
-  state.emailVerified=true;
-  const acceptBody=JSON.stringify({action:'accept',shareId}),accept={...base,origin:portal,path:'/api/legal-portal/simulation',body:acceptBody};
-  expect(permitsProductHostLegalInvitationWrite(scope,state,accept)).toBe(true);
-  expect(permitsProductHostLegalInvitationWrite(scope,state,{...accept,body:JSON.stringify({action:'accept',shareId:'other-share'})})).toBe(false);
-  state.accepted=true;const revokeBody=JSON.stringify({action:'share.revoke',expectedVersion:3,id,shareId}),revoke={...base,origin:legal,path:'/api/v1/holdings/simulation/legal',body:revokeBody};
-  expect(permitsProductHostLegalInvitationWrite(scope,state,revoke)).toBe(true);
-  for(const denied of [
-   {...base,origin:account,path:'/api/v1/account/iam/mfa/verify',body:'{}'},
-   {...base,origin:legal,path:'/api/v1/holdings/simulation/iam/assignments',body:'{}'},
-   {...base,origin:legal,path:'/api/v1/holdings/simulation/legal',body:JSON.stringify({action:'sign',id,shareId})},
-   {...revoke,origin:'https://attacker.invalid'},
-  ])expect(permitsProductHostLegalInvitationWrite(scope,state,denied)).toBe(false);
  });
  it('allows one exact disposable Finance invoice body and only its original idempotent replay',()=>{
   const run='abcdef123456',scope='finance.sales-invoice' as const,idempotencyKey='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',expectedPartyId='fixture-customer',payload={partyId:expectedPartyId,invoiceDate:'2026-10-21',dueDate:'2026-10-21',currency:'THB',completionConfirmed:true,completionNote:`Fictional Finance Product Host completion evidence ${run}`,lines:[{description:`Fictional Finance Product Host completed service ${run}`,quantity:'2',unitPrice:'100',taxBps:700}]},body=JSON.stringify(payload),base={method:'POST',origin:'https://finance-dev-erpx.jesadakorn.com',path:'/api/v1/holdings/simulation/finance/sales/invoices',search:'',contentType:'application/json',workflowHeader:scope,idempotencyKey,expectedPartyId,run,body};

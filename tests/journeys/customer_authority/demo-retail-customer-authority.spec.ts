@@ -2,6 +2,7 @@ import {test,expect,type BrowserContext,type Page} from '@playwright/test';
 import {randomUUID} from 'node:crypto';
 import {businessActor,businessCustomerActor,businessPosFront,businessFixture,businessOpen,businessReady,businessClick,businessRead,businessRequest,businessEvidence,closeBusiness,customerPortalAccountState,customerPortalEmailLink,navigateCustomerPortalMailLink} from "../../support/browser/engineering-business";
 import {createEngineeringBrowserContext} from "../../support/browser/engineering-browser-evidence";
+import {attachProductMigrationUiObservation} from "../../support/browser/product-migration-ui-observation";
 
 async function posClick(page:Page,operation:string,click:()=>Promise<void>){
  const suffix=`/pos/${operation.replace('.', '/')}`;
@@ -161,6 +162,11 @@ test.describe('native retail and customer authority engineering workflows',()=>{
    await customer.page.reload({waitUntil:'domcontentloaded'});await expect(customer.page.getByRole('heading',{name:'No approved documents yet',exact:true})).toBeVisible();expect((await (await customer.page.request.get(portalApi)).json()).data.items).toEqual([]);
    await businessOpen(source.page,path);const history=await businessRead<{binding:{status:string;version:number};events:Array<{action:string}>;reads:Array<{user_id:string;binding_version:number;projection_version:string}>;invitations:Array<{id:string;state:string;accepted_user_id:string|null}>;invitationEvents:Array<{invitation_id:string;action:string}>}>(source.page,`customer-access?id=${a.bindingId}`);expect(history.binding).toMatchObject({status:'revoked',version:4});expect(history.events.map(row=>row.action)).toEqual(['request','approve','portal-evidence-bind','revoke']);expect(history.reads.length).toBeGreaterThan(0);expect(history.reads.every(row=>row.user_id===a.recipientUserId&&[2,3].includes(Number(row.binding_version))&&row.projection_version==='customer-order-v1')).toBe(true);expect(history.invitations).toContainEqual(expect.objectContaining({state:'accepted',accepted_user_id:a.recipientUserId}));expect(history.invitationEvents.some(row=>row.action==='accepted')).toBe(true);
    expect((await db.query('SELECT COUNT(*)::integer count FROM customer_portal_actions WHERE binding_id=$1',[a.bindingId])).rows[0].count).toBe(1);await expect(source.page.getByRole('heading',{name:'Immutable decision history',exact:true})).toBeVisible();await expect(source.page.getByRole('heading',{name:'Customer read audit',exact:true})).toBeVisible();await businessEvidence(source.page,info,'revoked-customer-portal-retains-versioned-decisions-and-read-audit');
+   await attachProductMigrationUiObservation(customer.page,info,{
+    label:'customer-portal-verified-invitee-revoked-access',subject:'Verified Customer Portal invitation acceptance, scoped document access and revocation',
+    audience:'Existing verified invited customer identity',authority:'Independent source reviewer approval binds one customer identity; source-owner revocation removes its Portal access while the authority history remains.',
+    checks:['verified invited account explicitly accepts the invitation','Portal projection exposes only the independently approved binding','scoped support evidence and replay retain one customer action','unrelated and stale identities are denied','revocation removes cached document access and preserves immutable invitation history'],
+   });
   }finally{await closeBusiness(contexts,db);}
  });
  });
@@ -229,6 +235,11 @@ test.describe('native retail and customer authority engineering workflows',()=>{
     await businessOpen(source.page,path);const revoke=await openCustomerAccessAction(source.page,'Revoke access','Withdraw the external customer grant while retaining the exact invitation decision history.');await businessClick(source.page,'customer-access',()=>revoke.click());
      await invitee.reload({waitUntil:'domcontentloaded'});await expect(invitee.getByRole('heading',{name:'No approved documents yet',exact:true})).toBeVisible();expect((await (await invitee.request.get(portalApi)).json()).data.items).toEqual([]);expect((await invitee.request.get(preview)).status()).toBe(404);
     await businessOpen(source.page,path);const history=await businessRead<{binding:{status:string;version:number};invitations:Array<{id:string;state:string;accepted_user_id:string|null}>;invitationEvents:Array<{invitation_id:string;action:string}>}>(source.page,`customer-access?id=${a.invitedBindingId}`);expect(history.binding).toMatchObject({status:'revoked',version:4});expect(history.invitations).toContainEqual(expect.objectContaining({id:issued.invitationId,state:'accepted',accepted_user_id:invitedAccount.id}));expect(history.invitationEvents.some(row=>row.invitation_id===issued.invitationId&&row.action==='accepted')).toBe(true);
+    await attachProductMigrationUiObservation(invitee,info,{
+     label:'customer-portal-new-invitee-revoked-access',subject:'Customer Portal tenant-token signup, email verification, invitation acceptance and revocation',
+     audience:'Newly created and email-verified external invitee using the pinned invitation address',authority:'Independent approval authorizes one binding; email verification and explicit acceptance bind the exact invited account; source-owner revocation removes access while preserving invitation history.',
+     checks:['new invited account verifies its pinned email before acceptance','verified invitee explicitly accepts the invitation and sees one approved document','scoped support evidence is private and its exact replay is idempotent','another identity receives no binding access','revocation removes Portal access and retains the accepted invitation event'],
+    });
    }finally{await closeBusiness(contexts,db);}
   });
  });

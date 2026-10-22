@@ -2,6 +2,21 @@
   "version": 1,
   "cases": [
     {
+      "runner": "vitest",
+      "file": "tests/integration/legal/legal.test.ts",
+      "title": "opens an actual Legal invitation through central invited signup, sandbox verification and normal product SSO without creating staff authority or accepting on GET"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/legal/legal.test.ts",
+      "title": "binds invited enrollment to a signed unexpired share and revokes it immediately"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/integration/legal/legal.test.ts",
+      "title": "sends generic version-scoped invitations through retryable jobs and cancels revoked shares"
+    },
+    {
       "runner": "playwright",
       "file": "tests/e2e/pms/pms-booking-payment-recovery.spec.ts",
       "title": "paid guest booking recovers interrupted receipt and independently approved partial refund without duplicate money",
@@ -1322,18 +1337,6 @@
       "runner": "playwright",
       "file": "tests/e2e/identity_access/product-hosts.spec.ts",
       "title": "isolated Finance native invoice drawer keeps dirty work across the appearance matrix",
-      "project": "mobile"
-    },
-    {
-      "runner": "playwright",
-      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
-      "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
-      "project": "desktop"
-    },
-    {
-      "runner": "playwright",
-      "file": "tests/e2e/identity_access/product-hosts.spec.ts",
-      "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
       "project": "mobile"
     },
     {

@@ -53,7 +53,7 @@ async function execute(args: string[], env: Record<string, string | undefined>, 
 }
 
 
-export type BrowserRunCaseReceipt = { suite: string; file?: string; project: "desktop" | "mobile"; title?: string; run?: string; report?: string; reportSha256?: string; passed?: boolean; required?: false; reason?: string; faultProbe?: true; failure?: string; productHostLease?:{path:string;sha256:string}; productHostCommercial?:{path:string;sha256:string;bytes:number}; productHostBusiness?:{proof:{path:string;sha256:string;bytes:number};fixtureState:{path:string;sha256:string;bytes:number};screenshot:{path:string;sha256:string;bytes:number}};productHostReadOnly?:{path:string;sha256:string;bytes:number};productHostLegalInvitation?:{path:string;sha256:string;bytes:number}; executiveWorkHostLease?:{path:string;sha256:string}; formsHostLease?:{path:string;sha256:string}; cleanup?: { completed: boolean; ownedDirectoryAbsent: boolean }; uiEvidence?:UiBrowserEvidenceWitness };
+export type BrowserRunCaseReceipt = { suite: string; file?: string; project: "desktop" | "mobile"; title?: string; run?: string; report?: string; reportSha256?: string; passed?: boolean; required?: false; reason?: string; faultProbe?: true; failure?: string; productHostLease?:{path:string;sha256:string}; productHostCommercial?:{path:string;sha256:string;bytes:number}; productHostBusiness?:{proof:{path:string;sha256:string;bytes:number};fixtureState:{path:string;sha256:string;bytes:number};screenshot:{path:string;sha256:string;bytes:number}};productHostReadOnly?:{path:string;sha256:string;bytes:number}; executiveWorkHostLease?:{path:string;sha256:string}; formsHostLease?:{path:string;sha256:string}; cleanup?: { completed: boolean; ownedDirectoryAbsent: boolean }; uiEvidence?:UiBrowserEvidenceWitness };
 export type BrowserRunReceipt = { version: 1; passed: boolean; runtimeFingerprint: string; verificationFingerprint: string; shard: BrowserShard | null; interrupted: string | null; suites: string[]; cleanupFailures: string[]; inventory: BrowserInventoryCase[]; receipts: BrowserRunCaseReceipt[]; execution: { caseOrder: BrowserCaseOrder; mode: "acceptance" | "fault-probe"; faultProbe?: BrowserCaseIdentity }; evidencePath?: string };
 export class BrowserFaultProbeError extends Error {
   constructor(readonly evidenceDirectory: string) { super(browserFaultProbeError); this.name = "BrowserFaultProbeError"; }
@@ -123,14 +123,14 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
   if(productHostCases)await loadProductPlan(defaultProductPlanPath!);
   for(const workflow of neededProductHostWorkflows){
     const path=productHostPlanPathForWorkflow(productPlanPaths,workflow);
-    if(!path)throw Error(workflow==="work.request-draft"?"PRODUCT_HOST_WORK_PLAN_REQUIRED":workflow==="finance.sales-invoice"?"PRODUCT_HOST_FINANCE_PLAN_REQUIRED":"PRODUCT_HOST_LEGAL_PLAN_REQUIRED");
+    if(!path)throw Error(workflow==="work.request-draft"?"PRODUCT_HOST_WORK_PLAN_REQUIRED":workflow==="finance.sales-invoice"?"PRODUCT_HOST_FINANCE_PLAN_REQUIRED":"PRODUCT_HOST_BUSINESS_PLAN_REQUIRED");
     const input=await loadProductPlan(path);
     assertProductHostPlanWorkflow(input.plan,workflow);
   }
   const productPlanForCase=(wanted:BrowserCase|undefined)=>{
     if(!wanted)return defaultProductPlanPath?productPlanInputs.get(resolve(root,defaultProductPlanPath)):undefined;
     const workflow=productHostBusinessWorkflowForCase(wanted.file,wanted.title),path=productHostPlanPathForWorkflow(productPlanPaths,workflow);
-    if(!path)throw Error(workflow==="work.request-draft"?"PRODUCT_HOST_WORK_PLAN_REQUIRED":workflow==="finance.sales-invoice"?"PRODUCT_HOST_FINANCE_PLAN_REQUIRED":workflow==="legal.invitation-enrollment"?"PRODUCT_HOST_LEGAL_PLAN_REQUIRED":"PRODUCT_HOST_MODE_REQUIRES_EXPLICIT_PLAN_AND_CURRENT_RELEASE");
+    if(!path)throw Error(workflow==="work.request-draft"?"PRODUCT_HOST_WORK_PLAN_REQUIRED":workflow==="finance.sales-invoice"?"PRODUCT_HOST_FINANCE_PLAN_REQUIRED":"PRODUCT_HOST_MODE_REQUIRES_EXPLICIT_PLAN_AND_CURRENT_RELEASE");
     const input=productPlanInputs.get(resolve(root,path));if(!input)throw Error("PRODUCT_HOST_PLAN_NOT_VALIDATED");return input;
   };
   const formsArm=options.formsHostPlanPath??process.env.ERPX_TEST_FORMS_HOST_PLAN;
@@ -220,12 +220,10 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
 
   async function cohort(suite: Suite, project: "desktop" | "mobile", wanted?: BrowserCase): Promise<BrowserCase[]> {
     const productMode=suite.files.includes(productHostBrowserFile);
-    const legalInvitationMode=Boolean(productMode&&wanted&&productHostBusinessWorkflowForCase(wanted.file,wanted.title)==="legal.invitation-enrollment");
     const productPlan=productMode?productPlanForCase(wanted):undefined;
     const executiveWorkMode=suite.files.includes(executiveWorkHostBrowserFile);
     const formsHostSuiteMode=suite.files.includes(formsHostBrowserFile),formsMode=formsHostSuiteMode&&Boolean(wanted);
     if(productMode&&(suite.files.length!==1||!productPlan))throw Error("EXACT_PRODUCT_HOST_SUITE_AND_ARM_REQUIRED");
-    if(legalInvitationMode&&(suite.fixture!=="general-company"||!releaseDirectory))throw Error("EXACT_LEGAL_INVITATION_PRODUCT_HOST_CASE_REQUIRED");
     if(executiveWorkMode&&(suite.files.length!==1||suite.fixture!=="executive-work"||!releaseDirectory||productMode))throw Error("EXACT_EXECUTIVE_WORK_HOST_CASE_REQUIRED");
     if(formsHostSuiteMode&&(suite.files.length!==1||suite.fixture!=="engineering"||!releaseDirectory||productMode||executiveWorkMode))throw Error("EXACT_FORMS_HOST_CASE_AND_ARM_REQUIRED");
     if(formsMode&&!formsPlan)throw Error("EXACT_FORMS_HOST_CASE_AND_ARM_REQUIRED");
@@ -241,7 +239,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
     const env = {
       ERPX_BROWSER_SIMULATION_RUN_ID: run, ERPX_BROWSER_SIMULATION_PORT: String(port), ERPX_BROWSER_SIMULATION_PROFILE: suite.fixture,
       ERPX_BROWSER_SIMULATION_ATTACHMENTS: requirements.scanner ? "local" : "none", ERPX_BROWSER_SIMULATION_JOBS: requirements.jobs ? "1" : "0",
-      ERPX_BROWSER_SIMULATION_LEGAL: suite.fixture === "legal" || suite.fixture === "uat" || legalInvitationMode ? "1" : "0",
+      ERPX_BROWSER_SIMULATION_LEGAL: suite.fixture === "legal" || suite.fixture === "uat" ? "1" : "0",
       ERPX_BROWSER_SIMULATION_MENU_IMAGES: options.investorCapture ? "1" : "0",
       ...(suite.id === "customer_authority.demo-retail-customer-authority.journeys" ? {
         ERPX_BROWSER_SIMULATION_CUSTOMER_PORTAL_INVITATIONS: "1", ERPX_ENVIRONMENT: "local", ERPX_PUBLIC_ORIGIN: origin,
@@ -249,7 +247,6 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
         ERPX_DATA_DIR: join(root, ".runtime/browser", run), RESEND_API_KEY: "isolated-sandbox-no-provider-key",
         RESEND_FROM: "Fictional <no-reply@example.test>",
       } : {}),
-      ...(legalInvitationMode?{ERPX_BROWSER_SIMULATION_LEGAL_INVITATION_ENROLLMENT:"1",ERPX_EMAIL_ADAPTER:"sandbox",ERPX_ENVIRONMENT:"local",ERPX_PUBLIC_ORIGIN:origin,ERPX_DATA_DIR:join(root,".runtime/browser",run),RESEND_API_KEY:"isolated-sandbox-no-provider-key",RESEND_FROM:"Fictional <no-reply@example.test>"}:{}),
       ...(productMode?{ERPX_BROWSER_SIMULATION_PRODUCT_HOSTS:"1",ERPX_PRODUCT_HOST_PLAN:productPlan!.binding.path,ERPX_PRODUCT_HOST_PLAN_SHA256:productPlan!.binding.sha256}:{}),
       ...(executiveWorkMode?{ERPX_BROWSER_SIMULATION_EXECUTIVE_WORK_HOSTS:"1"}:{}),
       ...(formsMode?{ERPX_BROWSER_SIMULATION_FORMS_HOSTS:"1",ERPX_FORMS_HOST_PLAN:formsPlan!.binding.path,ERPX_FORMS_HOST_PLAN_SHA256:formsPlan!.binding.sha256}:{}),
@@ -265,7 +262,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
     let formsEdge:Awaited<ReturnType<typeof startFormsHostEdge>>|undefined;
     try {
       if (await runtimeSourceFingerprint(root) !== runtimeFingerprint || await verificationSourceFingerprint(root, runtimeFingerprint) !== verificationFingerprint) throw new Error("BROWSER_SOURCE_CHANGED");
-      const templateKey = JSON.stringify([suite.fixture, port, requirements, suite.fictionalProvider ?? null, ...(productMode?["product-hosts-v1"]:[]), ...(legalInvitationMode?["legal-invitation-enrollment-v1"]:[]), ...(executiveWorkMode?["executive-work-hosts-v1"]:[]), ...(formsMode?["forms-host-v1"]:[])]);
+      const templateKey = JSON.stringify([suite.fixture, port, requirements, suite.fictionalProvider ?? null, ...(productMode?["product-hosts-v1"]:[]), ...(executiveWorkMode?["executive-work-hosts-v1"]:[]), ...(formsMode?["forms-host-v1"]:[])]);
       let template = templates.get(templateKey);
       if (!template) {
         const templateRun = randomBytes(6).toString("hex"), templateOutput = join(evidence, `template-${templateRun}`);
@@ -340,7 +337,7 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
         const reportSha256=createHash("sha256").update(await readFile(report)).digest("hex");
         const productBindings=productEdge?await captureProductHostReceiptBindings(root,evidence,run,report,result):undefined;
         if(productBindings&&productBindings.leaseSha256!==createHash("sha256").update(await readFile(productEdge!.path)).digest("hex"))throw Error("PRODUCT_HOST_LEASE_CHANGED_DURING_RECEIPT_CAPTURE");
-        const productHostEvidence=productEdge?("productHostReadOnly" in productBindings! ? {productHostReadOnly:productBindings!.productHostReadOnly} : "productHostLegalInvitation" in productBindings! ? {productHostLegalInvitation:productBindings!.productHostLegalInvitation} : {productHostCommercial:productBindings!.productHostCommercial,...("productHostBusiness" in productBindings! ? {productHostBusiness:productBindings!.productHostBusiness} : {})}):{};
+        const productHostEvidence=productEdge?("productHostReadOnly" in productBindings! ? {productHostReadOnly:productBindings!.productHostReadOnly} : {productHostCommercial:productBindings!.productHostCommercial,...("productHostBusiness" in productBindings! ? {productHostBusiness:productBindings!.productHostBusiness} : {})}):{};
         caseReceipt = { suite: suite.id, file: wanted.file, project, title: wanted.title, run, report, reportSha256, passed: true, ...(productEdge?{productHostLease:uiEvidence?.productHostLease??{path:productEdge.path,sha256:productBindings!.leaseSha256}}:{}),...productHostEvidence,...(executiveWorkEdge?{executiveWorkHostLease:uiEvidence?.executiveWorkHostLease??{path:executiveWorkEdge.path,sha256:createHash("sha256").update(await readFile(executiveWorkEdge.path)).digest("hex")}}:{}),...(formsEdge?{formsHostLease:uiEvidence?.formsHostLease??{path:formsEdge.path,sha256:createHash("sha256").update(await readFile(formsEdge.path)).digest("hex")}}:{}),...(uiEvidence?{uiEvidence}:{}) };
         receipts.push(caseReceipt);
         console.log(JSON.stringify({ suite: suite.id, project, title: wanted.title, passed: true }));
@@ -382,8 +379,9 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
 if (import.meta.main) {
   const modules: string[] = [], suiteIds: string[] = [], files: string[] = [], options: Parameters<typeof runBrowserSuites>[1] = {};
   let caseSelector: string | undefined;
-  let productHostWorkPlanPath: string | undefined, productHostFinancePlanPath: string | undefined, productHostLegalPlanPath:string|undefined;
+  let productHostWorkPlanPath: string | undefined, productHostFinancePlanPath: string | undefined;
   let projectSelected = false;
+  let portSelected = false;
   let lane: "e2e" | "journeys" | "uat" | undefined, list = false;
   const args = process.argv.slice(2);
   for (let index = 0; index < args.length; index++) {
@@ -395,6 +393,7 @@ if (import.meta.main) {
     else if (arg === "--module" || arg.startsWith("--module=")) modules.push(...value("--module").split(","));
     else if (arg === "--suite" || arg.startsWith("--suite=")) suiteIds.push(...value("--suite").split(","));
     else if (arg === "--project" || arg.startsWith("--project=")) { if (projectSelected) throw new Error("DUPLICATE_TEST_PROJECT_SELECTION"); projectSelected = true; const project = value("--project"); if (!["desktop", "mobile"].includes(project)) throw new Error("UNKNOWN_BROWSER_PROJECT"); options.projects = [project as "desktop" | "mobile"]; }
+    else if (arg === "--port" || arg.startsWith("--port=")) { if (portSelected) throw new Error("DUPLICATE_BROWSER_PORT_SELECTION"); portSelected = true; const port = value("--port"); if (port !== "3102" && port !== "3104") throw new Error("UNKNOWN_BROWSER_PORT"); options.port = Number(port) as 3102 | 3104; }
     else if (arg === "--grep" || arg.startsWith("--grep=")) options.grep = value("--grep");
     else if (arg === "--case-order" || arg.startsWith("--case-order=")) options.caseOrder = selectBrowserCaseOrder(options.caseOrder, value("--case-order"));
     else if (arg === "--case" || arg.startsWith("--case=")) {
@@ -404,15 +403,14 @@ if (import.meta.main) {
     else if(arg==="--product-host-plan"||arg.startsWith("--product-host-plan="))options.productHostPlanPath=resolve(value("--product-host-plan"));
     else if(arg==="--product-host-work-plan"||arg.startsWith("--product-host-work-plan=")){if(productHostWorkPlanPath)throw Error("DUPLICATE_PRODUCT_HOST_WORK_PLAN");productHostWorkPlanPath=resolve(value("--product-host-work-plan"));}
     else if(arg==="--product-host-finance-plan"||arg.startsWith("--product-host-finance-plan=")){if(productHostFinancePlanPath)throw Error("DUPLICATE_PRODUCT_HOST_FINANCE_PLAN");productHostFinancePlanPath=resolve(value("--product-host-finance-plan"));}
-    else if(arg==="--product-host-legal-plan"||arg.startsWith("--product-host-legal-plan=")){if(productHostLegalPlanPath)throw Error("DUPLICATE_PRODUCT_HOST_LEGAL_PLAN");productHostLegalPlanPath=resolve(value("--product-host-legal-plan"));}
     else if(arg==="--forms-host-plan"||arg.startsWith("--forms-host-plan="))options.formsHostPlanPath=resolve(value("--forms-host-plan"));
     else if (arg === "--release-dir" || arg.startsWith("--release-dir=")) options.releaseDirectory = resolve(value("--release-dir"));
     else if (arg.startsWith("tests/")) files.push(arg);
     else if (arg !== "--") throw new Error(`UNKNOWN_BROWSER_ARGUMENT:${arg}`);
   }
-  if(productHostWorkPlanPath||productHostFinancePlanPath||productHostLegalPlanPath){
-    const defaultPath=options.productHostPlanPath??productHostWorkPlanPath??productHostFinancePlanPath??productHostLegalPlanPath;
-    options.productHostPlanPaths={default:defaultPath,businessWorkflows:{...(productHostWorkPlanPath?{"work.request-draft":productHostWorkPlanPath}:{}),...(productHostFinancePlanPath?{"finance.sales-invoice":productHostFinancePlanPath}:{}),...(productHostLegalPlanPath?{"legal.invitation-enrollment":productHostLegalPlanPath}:{})}};
+  if(productHostWorkPlanPath||productHostFinancePlanPath){
+    const defaultPath=options.productHostPlanPath??productHostWorkPlanPath??productHostFinancePlanPath;
+    options.productHostPlanPaths={default:defaultPath,businessWorkflows:{...(productHostWorkPlanPath?{"work.request-draft":productHostWorkPlanPath}:{}),...(productHostFinancePlanPath?{"finance.sales-invoice":productHostFinancePlanPath}:{})}};
   }
   if (caseSelector && options.grep) throw new Error("EXACT_BROWSER_CASE_PATTERN_CONFLICT");
   const catalogue = loadCatalogue();

@@ -61,7 +61,17 @@ export function createCustomerPortalInvitationDelivery(ports: {
       await ports.send(job.email,"Your ERPX Customer Portal invitation",`Use this private link to verify your account and accept the invitation for the approved customer document.\n\n${url.href}\n\nThe link expires at ${new Date(Number(job.token_expires_at)).toISOString()}. After verifying your email, reopen this invitation link and sign in to accept it.`,`customer-portal-invitation-${job.id}`,true);
       await ports.repository.sent(job,ports.clock.now());
     } catch (error) {
-      const code = error instanceof Error && ["EMAIL_NOT_CONFIGURED","PUBLIC_ORIGIN_NOT_CONFIGURED","INVITATION_SIGNING_SECRET_UNAVAILABLE","INVITATION_SIGNING_SECRET_CHANGED"].includes(error.message)
+      const code = error instanceof Error && [
+        "EMAIL_NOT_CONFIGURED",
+        "EMAIL_SANDBOX_NOT_CONFIGURED",
+        "EMAIL_SANDBOX_FORBIDDEN_IN_PRODUCTION",
+        "EMAIL_SANDBOX_RECEIPT_MISSING",
+        "EMAIL_SENSITIVE_RECEIPT_INVALID",
+        "EMAIL_IDEMPOTENCY_CONFLICT",
+        "PUBLIC_ORIGIN_NOT_CONFIGURED",
+        "INVITATION_SIGNING_SECRET_UNAVAILABLE",
+        "INVITATION_SIGNING_SECRET_CHANGED",
+      ].includes(error.message)
         ? error.message
         : "EMAIL_DELIVERY_FAILED";
       await ports.repository.failed(job,ports.clock.now(),Number(job.attempts)>=6?"failed":"queued",code,now+Math.min(3600000,30000*2**Number(job.attempts)));

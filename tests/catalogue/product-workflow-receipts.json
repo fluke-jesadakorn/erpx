@@ -425,43 +425,6 @@
       ]
     },
     {
-      "id": "legal-portal:share-invitation-enrollment-and-revocation",
-      "cases": [
-        {
-          "runner": "vitest",
-          "file": "tests/integration/legal/legal.test.ts",
-          "title": "sends generic version-scoped invitations through retryable jobs and cancels revoked shares",
-          "proof": "The Legal owner sends a version-scoped share invitation through retryable jobs and cancels the share without creating staff authority."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/legal/legal.test.ts",
-          "title": "binds invited enrollment to a signed unexpired share and revokes it immediately",
-          "proof": "Invited enrollment requires the signed, unexpired share and revocation immediately denies the enrolled external identity."
-        },
-        {
-          "runner": "vitest",
-          "file": "tests/integration/legal/legal.test.ts",
-          "title": "opens an actual Legal invitation through central invited signup, sandbox verification and normal product SSO without creating staff authority or accepting on GET",
-          "proof": "Normal central signup and sandbox verification bind the invited account through Legal product SSO; a GET never accepts the share or creates staff authority."
-        },
-        {
-          "runner": "playwright",
-          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
-          "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
-          "project": "desktop",
-          "proof": "The isolated owner creates a version-scoped Legal share, invites a recipient through normal Account signup and verified email, and verifies separate Legal Portal SSO, explicit acceptance, no staff assignment, revocation, and denied post-revoke reads."
-        },
-        {
-          "runner": "playwright",
-          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
-          "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
-          "project": "mobile",
-          "proof": "The isolated owner creates a version-scoped Legal share, invites a recipient through normal Account signup and verified email, and verifies separate Legal Portal SSO, explicit acceptance, no staff assignment, revocation, and denied post-revoke reads."
-        }
-      ]
-    },
-    {
       "id": "legal-portal:scoped-shared-version-access-and-revocation",
       "cases": [
         {

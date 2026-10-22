@@ -167,10 +167,10 @@ if (process.argv.slice(2).includes("--list")) {
         await stable();
       };
       for (const group of isolationGroups) {
-        if (group.id === "product-host" && (!productHostPlanPaths.default || !productHostPlanPaths.businessWorkflows?.["work.request-draft"] || !productHostPlanPaths.businessWorkflows?.["finance.sales-invoice"] || !productHostPlanPaths.businessWorkflows?.["legal.invitation-enrollment"])) {
-          await writeIsolationEvidence("PRODUCT_HOST_WORK_FINANCE_AND_LEGAL_PLANS_REQUIRED");
+        if (group.id === "product-host" && (!productHostPlanPaths.default || !productHostPlanPaths.businessWorkflows?.["work.request-draft"] || !productHostPlanPaths.businessWorkflows?.["finance.sales-invoice"])) {
+          await writeIsolationEvidence("PRODUCT_HOST_WORK_AND_FINANCE_PLANS_REQUIRED");
           phases.push({ phase: "browser-isolation:product-host-plan", passed: false });
-          throw new Error("FULL_REGRESSION_PRODUCT_HOST_WORK_FINANCE_AND_LEGAL_PLANS_REQUIRED");
+          throw new Error("FULL_REGRESSION_PRODUCT_HOST_WORK_AND_FINANCE_PLANS_REQUIRED");
         }
         if (group.id === "forms-host" && !formsHostPlanPath) {
           await writeIsolationEvidence("FORMS_HOST_PLAN_REQUIRED");

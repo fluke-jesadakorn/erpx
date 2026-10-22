@@ -250,12 +250,6 @@ describe("test selection contracts", () => {
         title: "isolated Company Admin reads current Brand, Organization, and IAM projections without changing H001 authority",
         project,
       })),
-      ...(["desktop", "mobile"] as const).map(project => ({
-        runner: "playwright" as const,
-        file: "tests/e2e/identity_access/product-hosts.spec.ts",
-        title: "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
-        project,
-      })),
       ...([
         "Apps opens a pre-entitled Branch workspace for its scoped user",
         "Apps opens a pre-entitled Department workspace for its scoped user",

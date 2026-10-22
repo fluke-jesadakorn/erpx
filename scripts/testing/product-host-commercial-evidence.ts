@@ -5,13 +5,12 @@ import type { BrowserRunCaseReceipt, BrowserRunReceipt } from "./browser-runner"
 import { browserCases, assertBrowserCasePassed, sameBrowserFileIdentity } from "./browser-results";
 import { assignedBrowserShard } from "./browser-sharding";
 import type { BrowserCiCohortReceipt } from "./browser-sharding";
-import { companyAdminOwnerReadsProductHostCase, legalInvitationEnrollmentProductHostCase, productHostBusinessWorkflowForCase, productHostReadOnlyWorkflowForCase, type ProductHostBusinessWorkflow } from "./product-host-cohort";
+import { companyAdminOwnerReadsProductHostCase, productHostBusinessWorkflowForCase, productHostReadOnlyWorkflowForCase, type ProductHostBusinessWorkflow } from "./product-host-cohort";
 
 export const productHostSuiteId = "identity_access.product-hosts.e2e";
 export const productHostBrowserFile = "tests/e2e/identity_access/product-hosts.spec.ts";
 const commercialAttachmentName = "isolated-normal-commercial";
 const readOnlyAttachmentName = "company-admin-owner-reads";
-const legalInvitationAttachmentName = "legal-product-host-invitation-enrollment";
 const readOnlyPages = [
   { owner: "brand", path: "/holdings/simulation/administration/brand/identity", screenshot: "company-admin-brand-identity" },
   { owner: "organization", path: "/holdings/simulation/administration/technology/organization", screenshot: "company-admin-organization" },
@@ -23,7 +22,6 @@ const digest = (value: unknown): value is string => typeof value === "string" &&
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
 export type ProductHostEvidenceBinding = { path: string; sha256: string; bytes: number };
-export type ProductHostLegalInvitationBinding = ProductHostEvidenceBinding;
 export type ProductHostRelease = { id: string; fileManifestSha256: string };
 
 type RawAttachment = { name?: unknown; contentType?: unknown; path?: unknown };
@@ -147,77 +145,6 @@ export async function validateProductHostReadOnlyCase(input: {
       test.uiEvidence.report.sha256 !== input.reportBinding.sha256 || test.uiEvidence.productHostLease?.sha256 !== input.leaseBinding.sha256))
     throw new Error("PRODUCT_HOST_UI_WITNESS_BINDING_MISMATCH");
   return { suite: test.suite, file: test.file, title: test.title, project: test.project, run: test.run, workflow };
-}
-
-/** Bind the Legal invitee lifecycle to one exact synthetic document, verified account, and owner assignment. */
-export async function validateProductHostLegalInvitationCase(input: {
-  root: string;
-  receipt: BrowserRunReceipt;
-  test: BrowserRunCaseReceipt;
-  report: unknown;
-  lease: unknown;
-  proof: unknown;
-  leaseBinding: { path: string; sha256: string };
-  reportBinding: { path: string; sha256: string };
-  proofBinding: ProductHostLegalInvitationBinding;
-  proofAttachmentPath: string;
-  expected: { runtimeFingerprint: string; verificationFingerprint: string; release: ProductHostRelease };
-}) {
-  const { receipt, test, expected } = input, workflow = test.file ? productHostBusinessWorkflowForCase(test.file, test.title ?? "") : null;
-  if (workflow !== "legal.invitation-enrollment" || test.suite !== productHostSuiteId || !test.file ||
-      !sameBrowserFileIdentity(test.file, productHostBrowserFile) || test.title !== legalInvitationEnrollmentProductHostCase ||
-      !test.run || !/^[a-f0-9]{12}$/.test(test.run) || test.passed !== true || test.required === false ||
-      !["desktop", "mobile"].includes(test.project) || !digest(input.reportBinding.sha256) || !digest(input.leaseBinding.sha256) ||
-      !digest(input.proofBinding.sha256) || !Number.isSafeInteger(input.proofBinding.bytes) || input.proofBinding.bytes < 1) {
-    throw new Error("PRODUCT_HOST_LEGAL_INVITATION_CASE_RECEIPT_REQUIRED");
-  }
-  if (!record(input.report) || !Array.isArray(input.report.suites)) throw new Error("PRODUCT_HOST_REPORT_REQUIRED");
-  if (input.reportBinding.sha256 !== test.reportSha256 || !test.productHostLease ||
-      resolve(test.productHostLease.path) !== resolve(input.leaseBinding.path) || test.productHostLease.sha256 !== input.leaseBinding.sha256 ||
-      !sameBinding(test.productHostLegalInvitation, input.proofBinding) || test.productHostCommercial !== undefined ||
-      test.productHostReadOnly !== undefined) throw new Error("PRODUCT_HOST_LEGAL_INVITATION_EVIDENCE_BINDING_REQUIRED");
-  const report = input.report as BrowserReport, cases = browserCases(report);
-  if (cases.length !== 1 || !sameBrowserFileIdentity(cases[0].file, test.file) || cases[0].title !== test.title || cases[0].project !== test.project)
-    throw new Error("PRODUCT_HOST_REPORT_CASE_IDENTITY_REQUIRED");
-  assertBrowserCasePassed(report as Parameters<typeof assertBrowserCasePassed>[0], cases[0]);
-  const rawTest = reportTest(report, test), attachments = rawTest.results?.[0]?.attachments ?? [];
-  if (rawTest.results?.length !== 1 || rawTest.results[0].status !== "passed") throw new Error("PRODUCT_HOST_REPORT_PASS_REQUIRED");
-  if (attachments.some(item => item.name === commercialAttachmentName || item.name === readOnlyAttachmentName))
-    throw new Error("PRODUCT_HOST_LEGAL_INVITATION_UNRELATED_EVIDENCE");
-  const proofAttachments = attachments.filter(item => item.name === legalInvitationAttachmentName),screenshots=attachments.filter(item=>item.name==="legal-invitation-owner-access-screen"),observations=attachments.filter(item=>item.name==="erpx-ui-observation");
-  if (proofAttachments.length !== 1 || proofAttachments[0].contentType !== "application/json" || typeof proofAttachments[0].path !== "string" ||
-      screenshots.length!==1||screenshots[0].contentType!=="image/png"||typeof screenshots[0].path!=="string"||observations.length!==1)
-    throw new Error("PRODUCT_HOST_LEGAL_INVITATION_ARTIFACTS_REQUIRED");
-  const proofPath = resolve(String(proofAttachments[0].path));
-  if (!isAbsolute(String(proofAttachments[0].path)) || proofPath !== resolve(input.proofAttachmentPath) ||
-      !isAbsolute(input.reportBinding.path) || resolve(test.report ?? "") !== resolve(input.reportBinding.path) || !isAbsolute(input.leaseBinding.path))
-    throw new Error("PRODUCT_HOST_LEGAL_INVITATION_ATTACHMENT_BINDING_REQUIRED");
-  const proofFile = await readBoundLeaf(resolve(input.root), proofPath, resolve(dirname(input.reportBinding.path), "artifacts"));
-  if (!sameBinding(input.proofBinding, proofFile.binding)) throw new Error("PRODUCT_HOST_LEGAL_INVITATION_ATTACHMENT_BINDING_REQUIRED");
-  const lease = input.lease,value=input.proof;
-  if (!record(value) || Object.keys(value).sort().join(",") !== ["authority","invitation","project","release","result","run","schema","sourceFingerprint","verificationFingerprint","unexpectedWrites","wholeProductAcceptance","workflow"].sort().join(",") ||
-      value.schema !== "erpx-product-host-legal-invitation-enrollment/v1" || value.result !== "passed" || value.workflow !== workflow ||
-      value.run !== test.run || value.sourceFingerprint !== expected.runtimeFingerprint || value.verificationFingerprint !== expected.verificationFingerprint ||
-      value.project !== test.project || value.wholeProductAcceptance !== false || !Array.isArray(value.unexpectedWrites) || value.unexpectedWrites.length!==0 || !record(value.release) || value.release.id !== expected.release.id ||
-      value.release.fileManifestSha256 !== expected.release.fileManifestSha256) throw new Error("PRODUCT_HOST_LEGAL_INVITATION_PROOF_MISMATCH");
-  const authority=value.authority,invitation=value.invitation;
-  if(!record(authority)||Object.keys(authority).sort().join(",")!==["assignmentId","companyId","distinctProductSession","normalAccountSignIn","normalAppsSso","role","userId"].sort().join(",")||
-      typeof authority.companyId!=="string"||!authority.companyId||typeof authority.userId!=="string"||!authority.userId||typeof authority.assignmentId!=="string"||!authority.assignmentId||
-      authority.role!=="legal_manager"||authority.normalAccountSignIn!==true||authority.normalAppsSso!==true||authority.distinctProductSession!==true||
-      !record(invitation)||Object.keys(invitation).sort().join(",")!==["accountUserId","acceptedUserId","documentId","email","emailVerified","explicitAcceptance","recordId","revocationDeniedAccess","revoked","shareId","staffAssignments","verifiedEmailBinding","continuationDidNotAccept"].sort().join(",")||
-      typeof invitation.recordId!=="string"||!invitation.recordId||typeof invitation.documentId!=="string"||!invitation.documentId||typeof invitation.shareId!=="string"||!invitation.shareId||
-      invitation.email!==`legal-invite-${test.run}@example.test`||invitation.verifiedEmailBinding!==true||invitation.emailVerified!==true||
-      typeof invitation.accountUserId!=="string"||!invitation.accountUserId||invitation.acceptedUserId!==invitation.accountUserId||invitation.staffAssignments!==0||
-      invitation.continuationDidNotAccept!==true||invitation.explicitAcceptance!==true||invitation.revoked!==true||invitation.revocationDeniedAccess!==true)
-    throw new Error("PRODUCT_HOST_LEGAL_INVITATION_AUTHORITY_OR_OUTCOME_MISMATCH");
-  if(!record(lease)||lease.schema!=="erpx-owned-product-host-browser/v1"||lease.run!==test.run||lease.sourceFingerprint!==expected.runtimeFingerprint||
-      lease.verificationFingerprint!==expected.verificationFingerprint||!record(lease.release)||lease.release.id!==expected.release.id||lease.release.fileManifestSha256!==expected.release.fileManifestSha256||
-      lease.readOnlyBusiness!==false||lease.scopedBusinessWorkflow!==workflow||lease.readOnlyWorkflow!==null||lease.isolatedNormalCommercial!==false||lease.wholeProductAcceptance!==false)
-    throw new Error("PRODUCT_HOST_LEGAL_INVITATION_LEASE_SCOPE_REQUIRED");
-  if(receipt.runtimeFingerprint!==expected.runtimeFingerprint||receipt.verificationFingerprint!==expected.verificationFingerprint)throw new Error("PRODUCT_HOST_RECEIPT_FINGERPRINT_MISMATCH");
-  if(test.uiEvidence&&(resolve(input.root,test.uiEvidence.report.path)!==resolve(input.reportBinding.path)||test.uiEvidence.report.sha256!==input.reportBinding.sha256||test.uiEvidence.productHostLease?.sha256!==input.leaseBinding.sha256))
-    throw new Error("PRODUCT_HOST_UI_WITNESS_BINDING_MISMATCH");
-  return {suite:test.suite,file:test.file,title:test.title,project:test.project,run:test.run,workflow};
 }
 
 /** Pure contract check for one exact passing Product Host case and its retained commercial claim. */
@@ -347,7 +274,7 @@ export async function validateProductHostCommercialCohort(
   const evidenceDirectory = resolve(root, receipt.evidencePath);
   if (!evidenceDirectory.startsWith(resolve(root, ".scratch/dev/test-suites/browser") + sep))
     throw new Error("PRODUCT_HOST_EVIDENCE_ROOT_REQUIRED");
-  const accepted: (ReturnType<typeof validateProductHostCommercialCase> | Awaited<ReturnType<typeof validateProductHostLegalInvitationCase>> | Awaited<ReturnType<typeof validateProductHostReadOnlyCase>>)[] = [];
+  const accepted: (ReturnType<typeof validateProductHostCommercialCase> | Awaited<ReturnType<typeof validateProductHostReadOnlyCase>>)[] = [];
   for (const test of tests) {
     if (!test.file || !sameBrowserFileIdentity(test.file, productHostBrowserFile) || typeof test.report !== "string" ||
         typeof test.run !== "string" || !/^[a-f0-9]{12}$/.test(test.run) ||
@@ -372,18 +299,6 @@ export async function validateProductHostCommercialCohort(
     const rawTest = reportTest(report as BrowserReport, { file: test.file, title: test.title, project: test.project });
     const attachments = rawTest.results?.[0]?.attachments ?? [];
     const businessWorkflow = productHostBusinessWorkflowForCase(test.file,test.title??"");
-    if(businessWorkflow==="legal.invitation-enrollment"){
-      if(!test.productHostLegalInvitation||test.productHostCommercial!==undefined||test.productHostReadOnly!==undefined)throw new Error("PRODUCT_HOST_LEGAL_INVITATION_CASE_RECEIPT_REQUIRED");
-      const matches=attachments.filter(item=>item.name===legalInvitationAttachmentName);
-      if(matches.length!==1||matches[0].contentType!=="application/json"||typeof matches[0].path!=="string")throw new Error("PRODUCT_HOST_LEGAL_INVITATION_ATTACHMENT_REQUIRED");
-      const proofPath=resolve(String(matches[0].path));if(!isAbsolute(String(matches[0].path)))throw new Error("PRODUCT_HOST_LEGAL_INVITATION_ATTACHMENT_BINDING_REQUIRED");
-      const proofFile=await readBoundLeaf(root,proofPath,artifactsDirectory),proofBinding={...proofFile.binding};
-      if(!sameBinding(test.productHostLegalInvitation,proofBinding))throw new Error("PRODUCT_HOST_LEGAL_INVITATION_ATTACHMENT_BINDING_REQUIRED");
-      let proof:unknown;try{proof=JSON.parse(proofFile.bytes.toString("utf8"));}catch(error){throw new Error("PRODUCT_HOST_LEGAL_INVITATION_ATTACHMENT_INVALID",{cause:error});}
-      if(test.uiEvidence){const witness=test.uiEvidence;if(resolve(root,witness.report.path)!==expectedReportPath||witness.report.sha256!==reportFile.binding.sha256||witness.productHostLease?.sha256!==leaseFile.binding.sha256||(witness.productHostLease&&resolve(root,witness.productHostLease.path)!==expectedLeasePath))throw new Error("PRODUCT_HOST_UI_WITNESS_BINDING_MISMATCH");}
-      accepted.push(await validateProductHostLegalInvitationCase({root,receipt,test,report,lease,proof,leaseBinding:{path:expectedLeasePath,sha256:leaseFile.binding.sha256},reportBinding:{path:expectedReportPath,sha256:reportFile.binding.sha256},proofBinding,proofAttachmentPath:proofFile.path,expected}));
-      continue;
-    }
     const readOnlyWorkflow = productHostReadOnlyWorkflowForCase(test.file, test.title ?? "");
     if (readOnlyWorkflow) {
       if (!test.productHostReadOnly || test.productHostCommercial !== undefined) throw new Error("PRODUCT_HOST_READ_ONLY_CASE_RECEIPT_REQUIRED");
@@ -481,13 +396,6 @@ export async function captureProductHostReceiptBindings(root: string, evidenceDi
       throw new Error("PRODUCT_HOST_READ_ONLY_ATTACHMENT_REQUIRED");
     const readOnly = await readBoundLeaf(resolve(root), String(matchingReadOnly[0].path), resolve(evidenceDirectory, run, "artifacts"));
     return { reportSha256: reportFile.binding.sha256, productHostReadOnly: readOnly.binding, leaseSha256: lease.binding.sha256 };
-  }
-  if(businessWorkflow==='legal.invitation-enrollment'){
-    if(attachments.some(item=>item.name===commercialAttachmentName||item.name===readOnlyAttachmentName))throw new Error("PRODUCT_HOST_LEGAL_INVITATION_UNRELATED_EVIDENCE");
-    const proof=attachments.filter(item=>item.name===legalInvitationAttachmentName),screenshots=attachments.filter(item=>item.name==="legal-invitation-owner-access-screen"),observations=attachments.filter(item=>item.name==="erpx-ui-observation");
-    if(proof.length!==1||proof[0].contentType!=="application/json"||typeof proof[0].path!=="string"||screenshots.length!==1||screenshots[0].contentType!=="image/png"||typeof screenshots[0].path!=="string"||observations.length!==1)throw new Error("PRODUCT_HOST_LEGAL_INVITATION_ARTIFACTS_REQUIRED");
-    const proofFile=await readBoundLeaf(resolve(root),String(proof[0].path),resolve(evidenceDirectory,run,"artifacts"));
-    return{reportSha256:reportFile.binding.sha256,productHostLegalInvitation:proofFile.binding,leaseSha256:lease.binding.sha256};
   }
   const matching = attachments.filter(item => item.name === commercialAttachmentName);
   if (matching.length !== 1 || matching[0].contentType !== "application/json" || typeof matching[0].path !== "string")

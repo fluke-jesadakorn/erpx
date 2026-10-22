@@ -143,24 +143,6 @@
             "project": "mobile"
           }
         ]
-      },
-      {
-        "reviewedAt": "2026-10-21",
-        "reason": "Require desktop/mobile isolated Product Host browser evidence for the in-scope Legal owner invitation, Account verification, explicit document acceptance, and revocation workflow; invited-signer MFA and signing remain a separate deferred feature.",
-        "cases": [
-          {
-            "runner": "playwright",
-            "file": "tests/e2e/identity_access/product-hosts.spec.ts",
-            "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
-            "project": "desktop"
-          },
-          {
-            "runner": "playwright",
-            "file": "tests/e2e/identity_access/product-hosts.spec.ts",
-            "title": "isolated Legal owner invites and revokes a verified external document recipient through Account and Legal Portal",
-            "project": "mobile"
-          }
-        ]
       }
     ]
   },
@@ -2484,13 +2466,13 @@
     {
       "runner": "playwright",
       "file": "tests/e2e/collaboration/social-beta.spec.ts",
-      "title": "social post \u2192 manual task \u2192 evidence \u2192 independent acceptance, with AI fallback",
+      "title": "social post → manual task → evidence → independent acceptance, with AI fallback",
       "project": "desktop"
     },
     {
       "runner": "playwright",
       "file": "tests/e2e/collaboration/social-beta.spec.ts",
-      "title": "social post \u2192 manual task \u2192 evidence \u2192 independent acceptance, with AI fallback",
+      "title": "social post → manual task → evidence → independent acceptance, with AI fallback",
       "project": "mobile"
     },
     {
