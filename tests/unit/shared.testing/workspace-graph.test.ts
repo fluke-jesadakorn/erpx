@@ -188,3 +188,31 @@ it('keeps verification-only package commands out of app runtime identities', () 
   files.set('apps/finance/package.json', JSON.stringify({ name: '@erpx/app-finance', scripts: { typecheck: 'new-check', build: 'build-app' }, dependencies: { next: '17.0.0' } }));
   expect(appRuntimeFingerprint(createWorkspaceGraph(files), 'finance')).not.toBe(before);
 });
+
+it('selects declared black-box boundary smoke without expanding into unrelated native suites', () => {
+  const files = sources(); files.set('scripts/local/gateway.ts', 'export const version=1;');
+  files.set('tests/e2e/shared.ui/boundary.spec.ts', 'export {};');
+  const smoke: Suite = { ...suite('boundary-smoke', 'apps', 'tests/e2e/shared.ui/boundary.spec.ts'), lane: 'e2e', verificationInputs: ['scripts/local/gateway.ts'] };
+  const graph = createWorkspaceGraph(files);
+  expect(selectCandidateSuites(graph, graph, [...suites, smoke], ['scripts/local/gateway.ts']).suites.map(suite => suite.id)).toEqual(['boundary-smoke']);
+});
+
+it('retains lazy import and require edges alongside type-only imports of the same implementation', () => {
+  for (const expression of ['import("./money")', 'require("./money")', 'import(`./money`)']) {
+    const files = sources();
+    files.set('packages/contracts/src/finance.ts', `import type { Currency } from "./money"; export const load=()=>${expression};`);
+    const before = appRuntimeFingerprint(createWorkspaceGraph(files), 'finance');
+    files.set('packages/contracts/src/money.ts', 'export const changed=1;');
+    expect(appRuntimeFingerprint(createWorkspaceGraph(files), 'finance')).not.toBe(before);
+  }
+});
+
+import { startWorkspaceBrowserRuntime } from '../../../scripts/testing/workspace-browser-runtime';
+import { workspaceBrowserApps } from '../../../scripts/testing/development-host-profile';
+it('keeps development app profiles explicit and rejects compatibility mixed into product apps', async () => {
+  expect(workspaceBrowserApps(undefined)).toBeNull();
+  expect(workspaceBrowserApps('["account","apps","learn"]')).toEqual(['account', 'apps', 'learn']);
+  expect(workspaceBrowserApps('["compat"]')).toEqual(['compat']);
+  for (const value of ['[]', '["compat","learn"]', '["learn","learn"]', '["unknown"]']) expect(() => workspaceBrowserApps(value)).toThrow();
+  await expect(startWorkspaceBrowserRuntime()).rejects.toThrow('ISOLATED_WORKSPACE_BROWSER_RUNTIME_REQUIRED');
+});

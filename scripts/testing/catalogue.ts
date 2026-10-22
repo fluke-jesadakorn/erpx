@@ -16,6 +16,7 @@ export type Suite = {
   owner: string;
   modules: string[];
   files: string[];
+  verificationInputs?: string[];
   fixture: FixtureProfile;
   requires: { jobs: boolean; scanner: boolean };
   ci?: { critical: boolean; reason: string };
@@ -164,6 +165,10 @@ export function validateBrowserFixtureContract(suite: Suite, root = repositoryRo
   }
 }
 
+export function verificationSources(suites: readonly Suite[]) {
+  return [...new Set(suites.flatMap(suite => [...suite.files, ...(suite.verificationInputs ?? [])]))];
+}
+
 export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): void {
   if (catalogue.version !== 1 || !Array.isArray(catalogue.modules) || !Array.isArray(catalogue.suites)) throw new Error("INVALID_TEST_MANIFEST");
   const registered = (JSON.parse(readFileSync(resolve(root, "packages/catalogue/src/module-registry.json"), "utf8")) as { id: string }[]).map(module => module.id).sort();
@@ -173,6 +178,9 @@ export function validateCatalogue(catalogue: Catalogue, root = repositoryRoot): 
     if (!suite.id || ids.has(suite.id)) throw new Error(`DUPLICATE_TEST_SUITE:${suite.id}`);
     ids.add(suite.id);
     if (!testLanes.includes(suite.lane) || !suite.owner || !Array.isArray(suite.modules) || !suite.modules.length || !Array.isArray(suite.files) || !suite.files.length || !fixtureProfiles.has(suite.fixture) || typeof suite.requires?.jobs !== "boolean" || typeof suite.requires?.scanner !== "boolean") throw new Error(`INVALID_TEST_SUITE:${suite.id}`);
+    if (suite.serial !== undefined && (typeof suite.serial?.reason !== "string" || !suite.serial.reason.trim())) throw new Error(`SERIAL_SUITE_REASON_REQUIRED:${suite.id}`);
+    if (suite.verificationInputs !== undefined && (!Array.isArray(suite.verificationInputs) || new Set(suite.verificationInputs).size !== suite.verificationInputs.length || suite.verificationInputs.some(file =>
+      typeof file !== "string" || isAbsolute(file) || file.includes("\\") || file.split("/").some(part => !part || part === "." || part === ".." || ["node_modules", ".next", ".build", ".cache", ".turbo", ".scratch", ".runtime", ".git"].includes(part)) || !existsSync(resolve(root,file))))) throw new Error(`INVALID_SUITE_VERIFICATION_INPUT:${suite.id}`);
     if (!suite.modules.every(module => catalogue.modules.includes(module))) throw new Error(`UNKNOWN_SUITE_MODULE:${suite.id}`);
     if (suite.lane === "unit" || suite.lane === "integration") {
       if (suite.ci && (typeof suite.ci.critical !== "boolean" || typeof suite.ci.reason !== "string" || !suite.ci.reason.trim())) throw new Error(`NATIVE_CI_CLASSIFICATION_REQUIRED:${suite.id}`);

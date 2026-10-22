@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, watch } from 'node:
 import { resolve } from 'node:path';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { appDefinition } from '@erpx/contracts/apps';
-import { loadCatalogue, validateCatalogue, repositoryRoot as root } from './catalogue';
+import { verificationSources, loadCatalogue, validateCatalogue, repositoryRoot as root } from './catalogue';
 import { dependencyClosure, workspaceInputFile, changedWorkspaceFiles, loadRevisionWorkspaceGraph, loadWorkspaceGraph, selectCandidateSuites, selectWorkspaceSuites, workspaceFingerprint } from './workspace-graph';
 import { pinnedNode } from '../local/app-task';
 import { refreshWorkspaceTaskInputs } from './workspace-tasks';
@@ -27,6 +27,7 @@ export function scopedPlan(options:Options){
  const catalogue=loadCatalogue();validateCatalogue(catalogue);
  for(const suite of catalogue.suites){if(!suite.apps || !suite.packages)throw new Error(`WORKSPACE_SUITE_OWNERSHIP_REQUIRED:${suite.id}`);if(suite.lane==='integration'&&!suite.postgres?.slots.length)throw new Error(`POSTGRES_SUITE_PROFILE_REQUIRED:${suite.id}`);}
  const current=loadWorkspaceGraph();
+ for(const suite of catalogue.suites)for(const file of suite.verificationInputs??[])if(!current.files.has(file))throw new Error(`WORKSPACE_VERIFICATION_INPUT_UNMAPPED:${suite.id}:${file}`);
  if(options.head){const sha=execFileSync('git',['rev-parse','--verify',`${options.head}^{commit}`],{cwd:root,encoding:'utf8'}).trim();
   if(!options.list&&!options.json){const checked=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();if(sha!==checked||execFileSync('git',['status','--porcelain','--untracked-files=normal'],{cwd:root,encoding:'utf8'}).trim())throw new Error('CI_REQUIRES_CLEAN_CHECKED_OUT_CANDIDATE');}}
  const graph=options.head?loadRevisionWorkspaceGraph(options.head):current;
@@ -53,7 +54,7 @@ export async function runScoped(options:Options){
  if(options.list||options.json){console.log(JSON.stringify(plan,null,options.json?0:2));return;}
  refreshWorkspaceStyles(true);
  const directory=resolve(root,'.scratch/dev/test-suites/workspaces',new Date().toISOString().replace(/[:.]/g,'-'));mkdirSync(directory,{recursive:true,mode:0o700});
- const entries=plan.suites.flatMap(suite=>suite.files).concat(plan.apps.flatMap(id=>[...graph.apps.get(id)!]));
+ const entries=verificationSources(plan.suites).concat(plan.apps.flatMap(id=>[...graph.apps.get(id)!]));
  const fingerprint=workspaceFingerprint(graph,entries,['scripts/testing/scoped.ts','scripts/testing/catalogue.ts','tests/catalogue/suite-manifest.json','eslint.config.mjs']);
  let passed=false;const started=Date.now();
  try{
@@ -75,10 +76,10 @@ export async function runScoped(options:Options){
    const units=plan.native.filter(suite=>suite.lane==='unit'),integration=plan.native.filter(suite=>suite.lane==='integration');
    const testFiles=[...plan.native,...plan.browser].flatMap(suite=>suite.files);
    if(testFiles.length){
-    const key=workspaceFingerprint(graph,selectedTypecheckInputs(testFiles),['scripts/testing/selected-typecheck.ts','tests/config/tsconfig.json','tsconfig.base.json']);
+    const key=workspaceFingerprint(graph,[...selectedTypecheckInputs(testFiles),...verificationSources(plan.native)],['scripts/testing/selected-typecheck.ts','tests/config/tsconfig.json','tsconfig.base.json']);
     await pureTask('test-types-'+key,()=>execute([pinnedNode(),'--max-old-space-size=8192','node_modules/typescript/bin/tsc','--noEmit','--project',selectedTypecheckConfig(testFiles)]));
    }
-   if(units.length){const sourceKey=workspaceFingerprint(graph,units.flatMap(suite=>suite.files),['scripts/testing/test.ts','scripts/testing/vitest-config.ts','tests/config/vitest.unit.config.mts','scripts/testing/required-cases-reporter.ts']);const key=createHash('sha256').update(sourceKey).update(JSON.stringify(Object.entries(vitestChildEnvironment(process.env,false)).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');await pureTask(key,()=>execute([process.execPath,'scripts/testing/test.ts','unit',...units.map(suite=>`--suite=${suite.id}`)]));}
+   if(units.length){const sourceKey=workspaceFingerprint(graph,verificationSources(units),['scripts/testing/test.ts','scripts/testing/vitest-config.ts','tests/config/vitest.unit.config.mts','scripts/testing/required-cases-reporter.ts']);const key=createHash('sha256').update(sourceKey).update(JSON.stringify(Object.entries(vitestChildEnvironment(process.env,false)).sort(([a],[b])=>a.localeCompare(b)))).digest('hex');await pureTask(key,()=>execute([process.execPath,'scripts/testing/test.ts','unit',...units.map(suite=>`--suite=${suite.id}`)]));}
    // External state is always exercised. Never reuse a passing integration receipt.
    for(const group of [integration.filter(suite=>!suite.serial),...integration.filter(suite=>suite.serial).map(suite=>[suite])])if(group.length)await execute([process.execPath,'scripts/testing/test.ts','integration',...group.map(suite=>`--suite=${suite.id}`)]);
    if(plan.browser.length)await execute([process.execPath,'scripts/testing/development-smoke.ts',...plan.browser.map(suite=>`--suite=${suite.id}`)]);
@@ -94,7 +95,7 @@ async function watchScoped(options:Options){
  const refreshInputs=()=>{
   if(!options.apps.length)return;
   const {graph,plan}=scopedPlan(options);
-  watchedInputs=new Set([...dependencyClosure(graph,[...plan.apps.flatMap(id=>[...graph.apps.get(id)!]),...plan.suites.flatMap(suite=>suite.files)])].map(workspaceInputFile));
+  watchedInputs=new Set([...dependencyClosure(graph,[...plan.apps.flatMap(id=>[...graph.apps.get(id)!]),...verificationSources(plan.suites)])].map(workspaceInputFile));
  };
  const relevant=(path:string)=>!watchedInputs || watchedInputs.has(path) || options.apps.some(id=>path.startsWith(`apps/${id}/`)) || /^(?:tests\/catalogue|scripts\/(?:testing|architecture|local|assets))\//.test(path);
  const run=async()=>{if(terminated||running||!pending)return;running=true;pending=false;stopping=false;try{refreshInputs();await runScoped({...options,watch:false});}catch(error){console.error(error instanceof Error?error.message:String(error));}finally{running=false;if(pending&&!terminated)void run();}};

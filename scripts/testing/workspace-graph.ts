@@ -4,7 +4,7 @@ import { resolve, posix } from "node:path";
 import { execFileSync } from "node:child_process";
 import ts from "typescript";
 import { appDefinitions, appDefinition } from "@erpx/contracts/apps";
-import { importSpecifiers, resolveImport, type Suite, repositoryRoot } from "./catalogue";
+import { verificationSources, importSpecifiers, resolveImport, type Suite, repositoryRoot } from "./catalogue";
 
 export type WorkspaceGraph = { runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
 const resourcePrefix = 'resource-input:';
@@ -113,17 +113,25 @@ export function createWorkspaceGraph(files: Map<string, string>): WorkspaceGraph
     if (/\.[cm]?[jt]sx?$/.test(file)) {
       const tree = ts.createSourceFile(file, files.get(file)!, ts.ScriptTarget.Latest, true);
       const executable = new Map<string, boolean>();
+      function targetOf(specifier:string) {
+        let target=resolveImport(file,specifier,names);
+        if(specifier.startsWith('@erpx/')) {
+          const [,owner,...subpath]=specifier.split('/'),manifest=files.get(`packages/${owner}/package.json`);
+          if(manifest){const exported=JSON.parse(manifest).exports?.[subpath.length?`./${subpath.join('/')}`:'.'];if(typeof exported==='string')target=`packages/${owner}/${exported.slice(2)}`;}
+        }
+        return target;
+      }
+      function runtimeCalls(node:ts.Node) {
+        if(ts.isCallExpression(node) && (node.expression.kind===ts.SyntaxKind.ImportKeyword || ts.isIdentifier(node.expression)&&node.expression.text==='require') && node.arguments.length && ts.isStringLiteralLike(node.arguments[0])) {
+          const target=targetOf(node.arguments[0].text);if(target)executable.set(target,true);
+        }
+        ts.forEachChild(node,runtimeCalls);
+      }
+      runtimeCalls(tree);
       for (const statement of tree.statements) {
         if ((ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
           const specifier = statement.moduleSpecifier.text;
-          let target = resolveImport(file, specifier, names);
-          if (specifier.startsWith('@erpx/')) {
-            const [, owner, ...subpath] = specifier.split('/'), manifest = files.get(`packages/${owner}/package.json`);
-            if (manifest) {
-              const exported = JSON.parse(manifest).exports?.[subpath.length ? `./${subpath.join('/')}` : '.'];
-              if (typeof exported === 'string') target = `packages/${owner}/${exported.slice(2)}`;
-            }
-          }
+          const target = targetOf(specifier);
           const typeOnly = ts.isImportDeclaration(statement)
             ? statement.importClause?.isTypeOnly || statement.importClause?.namedBindings && ts.isNamedImports(statement.importClause.namedBindings) && !statement.importClause.name && statement.importClause.namedBindings.elements.length > 0 && statement.importClause.namedBindings.elements.every(item => item.isTypeOnly)
             : statement.isTypeOnly || statement.exportClause && ts.isNamedExports(statement.exportClause) && statement.exportClause.elements.length > 0 && statement.exportClause.elements.every(item => item.isTypeOnly);
@@ -157,7 +165,7 @@ export function sourceUsers(graph: WorkspaceGraph, changed: Iterable<string>): S
   return users;
 }
 export function changedWorkspaceFiles(root = repositoryRoot, base = "HEAD", head?: string): string[] {
-  const git = (args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean);
+  const git = (args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer:64*1024*1024 }).split("\0").filter(Boolean);
   execFileSync("git", ["rev-parse", "--verify", `${base}^{commit}`], { cwd: root, stdio: "ignore" });
   const paths = git(["diff", "--name-only", "--no-renames", "-z", base, ...(head ? [head] : [])]);
   if (!head) paths.push(...git(["ls-files", "--others", "--exclude-standard", "-z"]));
@@ -168,7 +176,7 @@ export function selectWorkspaceSuites(graph: WorkspaceGraph, suites: readonly Su
   const users = sourceUsers(graph, options.changed ?? []);
   const selected = suites.filter(suite => {
     if (suite.lane === "provider" || suite.lane === "uat") return false;
-    if (suite.files.some(file => users.has(file))) return true;
+    if (verificationSources([suite]).some(file => users.has(file))) return true;
     if (options.apps?.length) {
       if (!suite.apps || !suite.packages) throw new Error(`WORKSPACE_SUITE_OWNERSHIP_REQUIRED:${suite.id}`);
       return suite.apps.some(id => options.apps!.includes(id));
@@ -207,7 +215,7 @@ if (import.meta.main) {
 /** Read both sides of a candidate without switching the shared checkout. */
 export function loadRevisionWorkspaceGraph(revision: string, root = repositoryRoot): WorkspaceGraph {
   const sha = execFileSync('git', ['rev-parse', '--verify', `${revision}^{commit}`], { cwd: root, encoding: 'utf8' }).trim();
-  const paths = execFileSync('git', ['ls-tree', '-rz', '--name-only', sha], { cwd: root, encoding: 'utf8' }).split('\0')
+  const paths = execFileSync('git', ['ls-tree', '-rz', '--name-only', sha], { cwd: root, encoding: 'utf8', maxBuffer:64*1024*1024 }).split('\0')
     .filter(file => (sourceExtension.test(file) || /^(?:public|docs|fixtures)\//.test(file)) && (/^(?:apps|packages|src|scripts|tests|fixtures|public|docs|\.github|ops|migrations)\//.test(file) || ['next.config.ts','tsconfig.base.json','tsconfig.json','postcss.config.mjs','package.json','bun.lock','eslint.config.mjs','README.md','AGENTS.md','CONTEXT.md','CONTRACT_POLICY.md','.bun-version','.node-version','bunfig.toml','turbo.json','.gitignore'].includes(file)));
   if (paths.some(file => /[\r\n]/.test(file))) throw new Error('UNSUPPORTED_GIT_SOURCE_NAME');
   const contents = execFileSync('git', ['cat-file', '--batch'], { cwd: root, input: paths.map(file => `${sha}:${file}\n`).join(''), maxBuffer: 512 * 1024 * 1024 });
@@ -240,7 +248,7 @@ export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph
     if (['e2e','journeys'].includes(suite.lane) && suite.apps?.some(id => affectedApps.includes(id))) selected.add(suite.id);
   for (const suite of suites) if (suite.apps?.some(id => boundaryApps.includes(id)) && suite.lane !== 'provider' && suite.lane !== 'uat') selected.add(suite.id);
   const covered = new Set<string>();
-  for (const graph of [head,base]) for (const suite of suites) for (const file of dependencyClosure(graph,suite.files)) covered.add(file);
+  for (const graph of [head,base]) for (const suite of suites) for (const file of dependencyClosure(graph,verificationSources([suite]))) covered.add(file);
   const unmapped = known.filter(file => /^(?:packages|src|apps|tests\/(?:unit|integration))\//.test(file) && !covered.has(file) && !affectedApps.length && head.files.has(file));
   if (unmapped.length) throw new Error(`WORKSPACE_TEST_MAPPING_REQUIRED:${unmapped.join(',')}`);
   return { scope: 'development' as const, acceptance: false as const, apps: affectedApps, changed, suites: suites.filter(suite => selected.has(suite.id)), removed: changed.filter(file => base.files.has(file) && !head.files.has(file)) };

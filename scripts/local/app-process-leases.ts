@@ -10,7 +10,7 @@ export type RecoveryPorts = {
 };
 
 /** PID reuse never confers ownership. Check the entire lease before signaling. */
-export async function recoverGatewayApps(input: unknown, root: string, ports: RecoveryPorts) {
+export async function recoverGatewayApps(input: unknown, root: string, ports: RecoveryPorts, assignedPorts?: ReadonlyMap<string,number>) {
   const lease = input as GatewayProcessLease;
   if (!lease || lease.root !== root || !Array.isArray(lease.apps) || !Number.isSafeInteger(lease.gatewayPid))
     throw new Error('GATEWAY_LEASE_IDENTITY_REQUIRED');
@@ -20,8 +20,8 @@ export async function recoverGatewayApps(input: unknown, root: string, ports: Re
   const owned: AppProcessLease[] = [];
   const seen = new Set<number>();
   for (const app of lease.apps) {
-    const port = app.id === 'compat' ? 3200 : appDefinitions.find(entry => entry.id === app.id)?.port;
-    if (!port || app.port !== port || !Number.isSafeInteger(app.pid) || app.pid <= 1 || seen.has(app.pid))
+    const port = assignedPorts ? assignedPorts.get(app.id) : app.id === 'compat' ? 3200 : appDefinitions.find(entry => entry.id === app.id)?.port;
+    if (!port || port < 3200 || port > 3299 || app.port !== port || !Number.isSafeInteger(app.pid) || app.pid <= 1 || seen.has(app.pid))
       throw new Error('INVALID_APP_PROCESS_LEASE');
     seen.add(app.pid);
     const identity = ports.identity(app.pid);

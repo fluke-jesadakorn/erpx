@@ -19,6 +19,7 @@ import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders
 import {runtimeSourceFingerprint} from './source-fingerprint';
 import {copyReleaseArtifact} from './copy-release-artifact';
 import {workspaceCopyInput} from './workspace-copy-input';
+import {workspaceBrowserApps} from '../testing/development-host-profile';
 import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence,moduleBrowserReleaseVerificationCompanyIds} from '../testing/browser-fixture-metadata';
 import {browserChildEnvironment} from '../testing/runner-environment';
 const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=Number(process.env.ERPX_BROWSER_SIMULATION_PORT??'3102');
@@ -38,7 +39,7 @@ const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holdi
 const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?(process.env.ERPX_BROWSER_SIMULATION_RUN_ID??randomBytes(6).toString('hex')):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
+type State={executionMode?:"development-smoke";workspaceApps?:string[];run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
 const productHosts=process.env.ERPX_BROWSER_SIMULATION_PRODUCT_HOSTS==='1';
 if(productHosts&&(port!==3104||!process.env.ERPX_PRODUCT_HOST_PLAN||!process.env.ERPX_PRODUCT_HOST_PLAN_SHA256))throw Error('EXPLICIT_PRODUCT_HOST_ARM_REQUIRED');
 const executiveWorkHosts=process.env.ERPX_BROWSER_SIMULATION_EXECUTIVE_WORK_HOSTS==='1';
@@ -47,6 +48,8 @@ const formsHosts=process.env.ERPX_BROWSER_SIMULATION_FORMS_HOSTS==='1';
 if(formsHosts&&(port!==3104||profile!=='engineering'||!process.env.ERPX_FORMS_HOST_PLAN||!process.env.ERPX_FORMS_HOST_PLAN_SHA256||productHosts||executiveWorkHosts))throw Error('EXACT_FORMS_HOST_ENGINEERING_MODE_REQUIRED');
 if(!formsHosts&&(process.env.ERPX_FORMS_HOST_PLAN!==undefined||process.env.ERPX_FORMS_HOST_PLAN_SHA256!==undefined))throw Error('FORMS_HOST_PLAN_REQUIRES_FORMS_MODE');
 if([productHosts,executiveWorkHosts,formsHosts].filter(Boolean).length>1)throw Error('BROWSER_HOST_MODES_ARE_EXCLUSIVE');
+const workspaceApps=workspaceBrowserApps(process.env.ERPX_BROWSER_WORKSPACE_APPS);
+if(workspaceApps&&(process.env.ERPX_BROWSER_EXECUTION_MODE!=='development-smoke'||port!==3104||productHosts||executiveWorkHosts||formsHosts||process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR||process.env.ERPX_PMS_PROVIDER_FIXTURE==='1'))throw new Error('WORKSPACE_BROWSER_IS_DEVELOPMENT_ONLY');
 const localAttachmentMode=process.env.ERPX_BROWSER_SIMULATION_ATTACHMENTS==='local';
 const localJobsEnabled=process.env.ERPX_BROWSER_SIMULATION_JOBS==='1';
 const legalDemoEnabled=process.env.ERPX_BROWSER_SIMULATION_LEGAL==='1';
@@ -65,6 +68,7 @@ const safeEnv=(secret:string)=>({
  HOME:process.env.HOME??'',
  TMPDIR:process.env.TMPDIR??'/tmp',
  NODE_ENV:'development' as const,
+ ...(workspaceApps?{ERPX_BROWSER_EXECUTION_MODE:'development-smoke',ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspaceApps)}:{}),
  // Match workspace dev headroom while compiling the complete route inventory.
  NODE_OPTIONS:'--max-old-space-size=8192',
  ERPX_ENVIRONMENT:'local',
@@ -121,12 +125,12 @@ if(mode==='prepare'||diagnostic){
  const sourceFingerprint=await runtimeSourceFingerprint(root);
  if(process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT&&process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT!==sourceFingerprint)
   throw new Error('BROWSER_FIXTURE_COMPILED_SOURCE_MISMATCH');
- await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint,...(productHosts?{productHosts:true}:{}),...(executiveWorkHosts?{executiveWorkHosts:true}:{}),...(formsHosts?{productHosts:false,executiveWorkHosts:false,formsHosts:true}:{})};await writePrivate(statePath,state);
+ await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={...(process.env.ERPX_BROWSER_EXECUTION_MODE==='development-smoke'?{executionMode:'development-smoke' as const}:{}),...(workspaceApps?{workspaceApps}:{}),run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint,...(productHosts?{productHosts:true}:{}),...(executiveWorkHosts?{executiveWorkHosts:true}:{}),...(formsHosts?{productHosts:false,executiveWorkHosts:false,formsHosts:true}:{})};await writePrivate(statePath,state);
  const templateRun=process.env.ERPX_BROWSER_SIMULATION_TEMPLATE_RUN;
  if(templateRun){
   if(!/^[a-f0-9]{12}$/.test(templateRun)||templateRun===run)throw new Error('EXACT_BROWSER_TEMPLATE_RUN_REQUIRED');
   const templateDirectory=join(parent,templateRun),template=JSON.parse(await readFile(join(templateDirectory,'state.json'),'utf8')) as State;
-  if(template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||Boolean(template.productHosts)!==productHosts||Boolean(template.executiveWorkHosts)!==executiveWorkHosts||Boolean(template.formsHosts)!==formsHosts||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
+  if(JSON.stringify(template.workspaceApps??null)!==JSON.stringify(workspaceApps)||template.executionMode!==state.executionMode||template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||Boolean(template.productHosts)!==productHosts||Boolean(template.executiveWorkHosts)!==executiveWorkHosts||Boolean(template.formsHosts)!==formsHosts||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
   if(Boolean(template.providerFixture)!==pmsProviderFixtureEnabled)throw new Error('FROZEN_PROVIDER_TEMPLATE_SETTING_REQUIRED');
   const templateManifest=JSON.parse(await readFile(join(templateDirectory,'databases.json'),'utf8')) as {version:number;databases:Record<string,string>;slots:Array<{id:string;write:string;read:string;files:string;internal?:boolean}>};
   for(const [binding,value] of Object.entries(templateManifest.databases)){
@@ -417,10 +421,19 @@ if(mode==='prepare'||diagnostic){
     const {seedEngineeringFinanceCloseBrowser}=await import("../../fixtures/finance/builders/engineering-finance-close-browser");
     const {createEngineeringShowcaseGuide}=await import("../../fixtures/shared/builders/engineering-showcase-guide");
     state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
+    // The isolated Learn pilot declares the academy fixture only. Other
+    // development profiles and compiled acceptance keep their full cohort.
+    const academyOnly=workspaceApps?.includes('learn')&&workspaceApps.every(id=>['account','apps','learn'].includes(id));
+    if(academyOnly){
+     const {seedLearningWorkspacePackages}=await import('../../fixtures/learning/builders/workspace-browser');
+     await seedLearningWorkspacePackages({run,db:env.H001_DB as PostgresDatabase,academy:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
+    }
+    if(!academyOnly){
     state.fixture.engineeringBusiness=await seedEngineeringBusinessBrowser({run,db:env.H001_DB,f});
     state.fixture.engineeringWorkplacePlatform=await seedEngineeringWorkplacePlatformBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h003:env.H003_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES,h003Files:env.H003_FILES});
     state.fixture.engineeringThaiPayroll=await seedEngineeringThaiPayrollBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
     state.fixture.engineeringFinanceClose=await seedEngineeringFinanceCloseBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});
+    }
     if(port===3104&&legalDemoEnabled){
      const showcaseGuide=await createEngineeringShowcaseGuide({run,directory,origin,sourceFingerprint,fixture:state.fixture,databases:{CONTROL_DB:env.CONTROL_DB as PostgresDatabase,H001_DB:env.H001_DB as PostgresDatabase,H002_DB:env.H002_DB as PostgresDatabase,H003_DB:env.H003_DB as PostgresDatabase}});
      await writePrivate(join(directory,'engineering-showcase-guide.json'),showcaseGuide);
@@ -487,6 +500,13 @@ if(mode==='prepare'||diagnostic){
  let webArgs=[webEntrypoint,'dev',join(app,'apps/compat'),...(useWebpack?['--webpack']:[]),'--hostname','127.0.0.1','-p',String(port)],workingDirectory=app;
  const suppliedRelease=process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR;
  if(Boolean(state.providerFixture)!==pmsProviderFixtureEnabled||pmsProviderFixtureEnabled&&!suppliedRelease)throw new Error('PMS_PROVIDER_FIXTURE_COMPILED_RELEASE_REQUIRED');
+ if(workspaceApps){
+  if(state.executionMode!=='development-smoke'||JSON.stringify(state.workspaceApps)!==JSON.stringify(workspaceApps)||state.release)throw new Error('WORKSPACE_BROWSER_STATE_APPS_CHANGED');
+  const output=join(app,'.runtime/workspace-gateway');await mkdir(output,{recursive:true});
+  const bundle=await Bun.build({entrypoints:[join(app,'scripts/testing/workspace-browser-runtime.ts')],outdir:output,target:'node',format:'esm',naming:'gateway.mjs',env:'disable'});
+  if(!bundle.success)throw new Error('WORKSPACE_BROWSER_GATEWAY_BUILD_FAILED');
+  webEntrypoint=join(output,'gateway.mjs');webArgs=[webEntrypoint];
+ }
  if(suppliedRelease){
   if(port!==3104||!localJobsEnabled||!localAttachmentMode)throw new Error('RELEASE_VERIFICATION_REQUIRES_3104_SCANNER_AND_JOBS');
   const releaseRoot=await realpath(resolve(suppliedRelease)),allowedRoot=join(root,'.runtime/releases')+'/';
@@ -570,7 +590,7 @@ if(mode==='prepare'||diagnostic){
   if(!worker.pid){await jobsLog.close();throw new Error('BROWSER_SIMULATION_JOBS_FAILED');}
   state.jobsPid=worker.pid;state.jobsStartedAt=Bun.spawnSync(['ps','-p',String(worker.pid),'-o','lstart=']).stdout.toString().trim();state.jobsPaused=false;state.jobsEntrypoint=jobsBundle;await writePrivate(statePath,state);worker.unref();await jobsLog.close();
  }
- console.log(JSON.stringify({run,pid:state.pid,...(state.jobsPid?{jobsPid:state.jobsPid}:{}),origin,runtime:suppliedRelease?'standalone-release':useWebpack?'webpack':'turbopack',softwareVersion:state.softwareVersion}));
+ console.log(JSON.stringify({run,pid:state.pid,...(state.jobsPid?{jobsPid:state.jobsPid}:{}),origin,runtime:workspaceApps?'workspace-development':suppliedRelease?'standalone-release':useWebpack?'webpack':'turbopack',softwareVersion:state.softwareVersion}));
 }else if(mode==='pause-jobs'||mode==='resume-jobs'){
  const state=JSON.parse(await readFile(statePath,'utf8')) as State,workingDirectory=state.release?join(directory,'release'):app,entrypoint=state.release?join(workingDirectory,'tools/jobs.mjs'):join(app,'.runtime/jobs/jobs.mjs');
  if(Boolean(state.providerFixture)!==pmsProviderFixtureEnabled)throw new Error('PMS_PROVIDER_FIXTURE_RESTART_SETTING_CHANGED');
@@ -600,7 +620,7 @@ if(mode==='prepare'||diagnostic){
   if(!state.jobsPaused||state.jobsPid)throw new Error('COHORT_JOBS_ALREADY_RUNNING');
   const pause=JSON.parse(await readFile(receiptPath,'utf8'));if(!pause.stopped||pause.scope!==scope||pause.run!==run||pause.sourceFingerprint!==state.sourceFingerprint||pause.softwareVersion!==state.softwareVersion||pause.entrypoint!==entrypoint||pause.cwd!==workingDirectory||pause.releaseManifestSha256!==releaseManifestSha256)throw new Error('COHORT_JOBS_PAUSE_RECEIPT_REQUIRED');
   const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));
-  const environment:NodeJS.ProcessEnv={...safeEnv(secret),...(release?{NODE_ENV:'production',PORT:String(port),HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId,ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint}:{}),ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath};
+  const environment:NodeJS.ProcessEnv={...safeEnv(secret),ERPX_REPOSITORY_ROOT:workingDirectory,ERPX_RESOURCE_ROOT:workingDirectory,...(release?{NODE_ENV:'production',PORT:String(port),HOSTNAME:'127.0.0.1',NEXT_DEPLOYMENT_ID:release.deploymentId,ERPX_ENGINEERING_VERIFICATION_RUN:run,ERPX_ENGINEERING_SOURCE_FINGERPRINT:state.sourceFingerprint}:{}),ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath};
   if(pmsProviderFixtureEnabled)environment.NODE_OPTIONS+=` --import=${join(workingDirectory,'tools/pms-provider-fixture.mjs')}`;
   const log=await open(join(directory,'jobs.log'),'a',0o600),worker=spawn(node,[entrypoint],{cwd:workingDirectory,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});
   if(!worker.pid){await log.close();throw new Error('COHORT_JOBS_RESTART_FAILED');}
@@ -613,9 +633,9 @@ if(mode==='prepare'||diagnostic){
  if(existsSync(manifestPath))assertCohortManifest(JSON.parse(await readFile(manifestPath,'utf8')));
  let stopped=false;
  const webMarker=state.webEntrypoint??join(app,'node_modules/next/dist/bin/next'),jobsMarker=state.jobsEntrypoint??join(app,'.runtime/jobs/jobs.mjs');
- if(![join(app,'node_modules/next/dist/bin/next'),join(directory,'release/server.js')].includes(webMarker)||
+ if(![join(app,'node_modules/next/dist/bin/next'),join(directory,'release/server.js'),...(state.workspaceApps&&state.executionMode==='development-smoke'&&!state.release?[join(app,'.runtime/workspace-gateway/gateway.mjs')]:[])].includes(webMarker)||
    ![join(app,'.runtime/jobs/jobs.mjs'),join(directory,'release/tools/jobs.mjs')].includes(jobsMarker))throw new Error('BROWSER_ENTRYPOINT_MISMATCH');
- for(const [key,pid,marker,group] of [['pid',state.pid,webMarker,true],['jobsPid',state.jobsPid,jobsMarker,true]] as const){
+ for(const [key,pid,marker,group] of [['pid',state.pid,webMarker,!state.workspaceApps],['jobsPid',state.jobsPid,jobsMarker,true]] as const){
   if(!pid)continue;
   const command=Bun.spawnSync(['ps','-p',String(pid),'-o','command=']).stdout.toString();
   if(command.trim()){
@@ -623,7 +643,7 @@ if(mode==='prepare'||diagnostic){
    const actualCwd=Bun.spawnSync(['lsof','-a','-p',String(pid),'-d','cwd','-Fn']).stdout.toString().split('\n').find(line=>line.startsWith('n'))?.slice(1);
    const ownedNextTitle=key==='pid'&&/^next-server(?:\s|$)/.test(command.trim())&&actualCwd===expectedCwd;
    if(!(command.includes(marker)||ownedNextTitle)||actualCwd!==expectedCwd)throw new Error(key==='pid'?'BROWSER_PROCESS_IDENTITY_CHANGED':'BROWSER_JOBS_IDENTITY_CHANGED');
-   process.kill(group?-pid:pid,'SIGTERM');stopped=true;
+   process.kill(group?-pid:pid,'SIGTERM');stopped=true;if(state.workspaceApps)continue;
   }
   delete state[key];
  }

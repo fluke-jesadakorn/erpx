@@ -3,16 +3,19 @@ import { join } from "node:path";
 import { readFileSync, realpathSync, lstatSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { formsHostOrigin, formsHostWorkflow } from "../../scripts/testing/forms-host-cohort";
+import { readDevelopmentHostLease } from "../../scripts/testing/development-host-profile";
 
 // All package and catalogue runners execute from the repository root. Keep
 // report/artifact locations stable when Playwright loads this config as CJS.
 const root = process.cwd();
+const developmentLease = readDevelopmentHostLease(root, process.env);
 
 // Use the persistent development server. Starting/stopping it belongs to the
 // workspace lifecycle, not Playwright (the public Tunnel also uses this server).
 const productLeasePath=process.env.ERPX_PRODUCT_HOST_LEASE;
 const executiveWorkLeasePath=process.env.ERPX_EXECUTIVE_WORK_HOST_LEASE;
 const formsHostLeasePath=process.env.ERPX_FORMS_HOST_LEASE;
+if(developmentLease&&(productLeasePath||executiveWorkLeasePath||formsHostLeasePath))throw Error('DEVELOPMENT_HOST_LEASE_MODE_IS_EXCLUSIVE');
 if(productLeasePath&&executiveWorkLeasePath)throw Error("PRODUCT_AND_EXECUTIVE_WORK_HOST_MODES_ARE_EXCLUSIVE");
 if(formsHostLeasePath&&(productLeasePath||executiveWorkLeasePath))throw Error("FORMS_HOST_LEASE_MODE_IS_EXCLUSIVE");
 if(formsHostLeasePath&&process.env.ERPX_E2E_BASE_URL!==formsHostOrigin)throw Error("FORMS_HOST_EXACT_HTTPS_ORIGIN_REQUIRED");
@@ -66,9 +69,12 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never", outputFolder: join(root, "playwright-report") }]],
   use: {
     baseURL,
+    ...(developmentLease ? { serviceWorkers: "block", ignoreHTTPSErrors: false } : {}),
     launchOptions: {
+      ...(developmentLease ? {proxy:{server:"http://127.0.0.1:3102"},executablePath:chromium.executablePath()} : {}),
       ...(lease||executiveWorkLease||formsHostLease?{proxy:{server:"http://127.0.0.1:3102"},executablePath:(lease??executiveWorkLease??formsHostLease).chromium.path}:{}),
       args: ["--host-resolver-rules=MAP dev-pms.localhost 127.0.0.1,MAP dev-pos.localhost 127.0.0.1,MAP dev-erpx.localhost 127.0.0.1",
+        ...(developmentLease?["--proxy-bypass-list=<-loopback>",`--ignore-certificate-errors-spki-list=${Buffer.from(developmentLease.spki,"hex").toString("base64")}`,"--disable-background-networking","--disable-component-update","--disable-sync"]:[]),
         ...(lease||executiveWorkLease||formsHostLease?["--proxy-bypass-list=<-loopback>",`--ignore-certificate-errors-spki-list=${Buffer.from((lease??executiveWorkLease??formsHostLease).spki,"hex").toString("base64")}`]:[]),
         ...(executiveWorkLease||formsHostLease?["--disable-background-networking","--disable-component-update","--disable-sync","--no-first-run","--disable-domain-reliability","--disable-features=AutofillServerCommunication,OptimizationHints"]:[])],
     },

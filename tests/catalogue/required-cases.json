@@ -1484,6 +1484,18 @@
       "runner": "vitest",
       "file": "tests/integration/commercial/legacy-module-preview.test.ts",
       "title": "projects the published commerce/iam/people legacy witness into current Sales workspace entry without writing grants"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/learning/workspace-smoke.spec.ts",
+      "title": "Learn workspace signs in through Account and preserves its isolated drawer draft",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/learning/workspace-smoke.spec.ts",
+      "title": "Learn workspace signs in through Account and preserves its isolated drawer draft",
+      "project": "mobile"
     }
   ]
 }

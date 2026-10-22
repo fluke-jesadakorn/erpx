@@ -61,6 +61,20 @@
       "file": "tests/e2e/procurement/demo-purchase-rfq.spec.ts",
       "title": "isolated demo creates, awards and hands off a supplier quotation to a draft PO",
       "project": "desktop"
+    },
+    {
+      "suite": "learning.workspace-smoke.e2e",
+      "file": "tests/e2e/learning/workspace-smoke.spec.ts",
+      "title": "Learn workspace signs in through Account and preserves its isolated drawer draft",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "learn"
+        ],
+        "entryApp": "learn"
+      }
     }
   ],
   "deferredSuites": [

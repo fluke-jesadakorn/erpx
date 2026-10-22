@@ -22,6 +22,8 @@ import { executiveWorkHostBrowserFile, startExecutiveWorkHostEdge } from "./exec
 import { formsHostBrowserFile, formsHostCaseTitle, formsHostOrigin, formsHostPlan, startFormsHostEdge } from "./forms-host-cohort";
 import {captureUiBrowserEvidence,uiLocalFrontAppForCase,verifyUiBrowserEvidence,type UiBrowserEvidenceWitness} from "./ui-evidence-witness";
 import {captureProductHostReceiptBindings} from "./product-host-commercial-evidence";
+import { developmentHostProfile, developmentHostOrigin, type DevelopmentHostProfile } from './development-host-profile';
+import { startDevelopmentHostProcess } from './development-host-process';
 import { preparePdfAssets } from "../assets/prepare-pdf-assets";
 import { resolveRegisteredCase, suiteForRegisteredCase } from "./exact-case-selection";
 
@@ -53,16 +55,18 @@ async function execute(args: string[], env: Record<string, string | undefined>, 
 }
 
 
-export type BrowserRunCaseReceipt = { suite: string; file?: string; project: "desktop" | "mobile"; title?: string; run?: string; report?: string; reportSha256?: string; passed?: boolean; required?: false; reason?: string; faultProbe?: true; failure?: string; productHostLease?:{path:string;sha256:string}; productHostCommercial?:{path:string;sha256:string;bytes:number}; productHostBusiness?:{proof:{path:string;sha256:string;bytes:number};fixtureState:{path:string;sha256:string;bytes:number};screenshot:{path:string;sha256:string;bytes:number}};productHostReadOnly?:{path:string;sha256:string;bytes:number}; executiveWorkHostLease?:{path:string;sha256:string}; formsHostLease?:{path:string;sha256:string}; cleanup?: { completed: boolean; ownedDirectoryAbsent: boolean }; uiEvidence?:UiBrowserEvidenceWitness };
+export type BrowserRunCaseReceipt = { suite: string; file?: string; project: "desktop" | "mobile"; title?: string; run?: string; report?: string; reportSha256?: string; passed?: boolean; required?: false; reason?: string; faultProbe?: true; failure?: string; productHostLease?:{path:string;sha256:string}; productHostCommercial?:{path:string;sha256:string;bytes:number}; productHostBusiness?:{proof:{path:string;sha256:string;bytes:number};fixtureState:{path:string;sha256:string;bytes:number};screenshot:{path:string;sha256:string;bytes:number}};productHostReadOnly?:{path:string;sha256:string;bytes:number}; executiveWorkHostLease?:{path:string;sha256:string}; formsHostLease?:{path:string;sha256:string}; developmentHost?:{path:string;sha256:string;apps:string[]}; cleanup?: { completed: boolean; ownedDirectoryAbsent: boolean }; uiEvidence?:UiBrowserEvidenceWitness };
 export type BrowserRunReceipt = { version: 1; acceptance?: false; passed: boolean; runtimeFingerprint: string; verificationFingerprint: string; shard: BrowserShard | null; interrupted: string | null; suites: string[]; cleanupFailures: string[]; inventory: BrowserInventoryCase[]; receipts: BrowserRunCaseReceipt[]; execution: { caseOrder: BrowserCaseOrder; mode: "acceptance" | "fault-probe" | "development-smoke"; acceptance?: false; faultProbe?: BrowserCaseIdentity }; evidencePath?: string };
 export class BrowserFaultProbeError extends Error {
   constructor(readonly evidenceDirectory: string) { super(browserFaultProbeError); this.name = "BrowserFaultProbeError"; }
 }
 
-export async function runBrowserSuites(suites: Suite[], options: { mode?: "development-smoke"; projects?: ("desktop" | "mobile")[]; grep?: string; headed?: boolean; releaseDirectory?: string; shard?: BrowserShard; caseOrder?: BrowserCaseOrder; faultProbe?: BrowserCaseIdentity; investorCapture?: boolean; port?: 3102 | 3104; caseSelection?: { suite: string; file?: string; title: string; project: "desktop" | "mobile" }[]; onInvestorEvidence?: (directory: string) => void; productHostPlanPath?:string; productHostPlanPaths?:ProductHostPlanPaths; formsHostPlanPath?:string } = {}) {
+export async function runBrowserSuites(suites: Suite[], options: { mode?: "development-smoke"; workspace?: DevelopmentHostProfile; projects?: ("desktop" | "mobile")[]; grep?: string; headed?: boolean; releaseDirectory?: string; shard?: BrowserShard; caseOrder?: BrowserCaseOrder; faultProbe?: BrowserCaseIdentity; investorCapture?: boolean; port?: 3102 | 3104; caseSelection?: { suite: string; file?: string; title: string; project: "desktop" | "mobile" }[]; onInvestorEvidence?: (directory: string) => void; productHostPlanPath?:string; productHostPlanPaths?:ProductHostPlanPaths; formsHostPlanPath?:string } = {}) {
   if (!suites.length || suites.some(suite => !["e2e", "journeys", "uat"].includes(suite.lane))) throw new Error("BROWSER_SUITES_REQUIRED");
   if (options.shard && (options.grep || options.projects)) throw new Error("SHARDED_BROWSER_FULL_INVENTORY_REQUIRED");
   const development = options.mode === "development-smoke";
+  const workspace = options.workspace ? developmentHostProfile(options.workspace) : undefined;
+  if(workspace&&!development)throw new Error('WORKSPACE_BROWSER_DEVELOPMENT_MODE_REQUIRED');
   if (development && (!options.caseSelection?.length || options.faultProbe || options.caseOrder && options.caseOrder !== "forward" || options.releaseDirectory || options.projects?.some(project => project !== "desktop"))) throw new Error("DEVELOPMENT_SMOKE_FORWARD_SELECTION_REQUIRED");
   const caseOrder = parseBrowserCaseOrder(options.caseOrder ?? "forward");
   const selection = options.caseSelection;
@@ -227,6 +231,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
 
   async function cohort(suite: Suite, project: "desktop" | "mobile", wanted?: BrowserCase): Promise<BrowserCase[]> {
     const productMode=suite.files.includes(productHostBrowserFile);
+    if(workspace&&(productMode||suite.files.includes(executiveWorkHostBrowserFile)||suite.files.includes(formsHostBrowserFile)||suite.fictionalProvider||suite.lane==='uat'||releaseDirectory))throw new Error('WORKSPACE_BROWSER_PROFILE_IS_EXCLUSIVE');
     const productPlan=productMode?productPlanForCase(wanted):undefined;
     const executiveWorkMode=suite.files.includes(executiveWorkHostBrowserFile);
     const formsHostSuiteMode=suite.files.includes(formsHostBrowserFile),formsMode=formsHostSuiteMode&&Boolean(wanted);
@@ -235,7 +240,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
     if(formsHostSuiteMode&&(suite.files.length!==1||suite.fixture!=="engineering"||!releaseDirectory||productMode||executiveWorkMode))throw Error("EXACT_FORMS_HOST_CASE_AND_ARM_REQUIRED");
     if(formsMode&&!formsPlan)throw Error("EXACT_FORMS_HOST_CASE_AND_ARM_REQUIRED");
     if(formsMode&&wanted&&(canonicalCaseFile(wanted.file,suite.files)!==formsHostBrowserFile||wanted.title!==formsHostCaseTitle))throw Error("EXACT_FORMS_HOST_CASE_AND_ARM_REQUIRED");
-    const run = randomBytes(6).toString("hex"), port = productMode||executiveWorkMode||formsHostSuiteMode?3104:options.port ?? (suite.lane === "uat" || suite.fixture === "legal" || suite.fictionalProvider ? 3104 : 3102);
+    const run = randomBytes(6).toString("hex"), port = workspace||productMode||executiveWorkMode||formsHostSuiteMode?3104:options.port ?? (suite.lane === "uat" || suite.fixture === "legal" || suite.fictionalProvider ? 3104 : 3102);
     const origin = `http://127.0.0.1:${port}`, output = join(evidence, run);
     await freePort(port); await mkdir(output, { mode: 0o700 });
     if (suite.fictionalProvider && (port !== 3104 || !releaseDirectory)) throw new Error('FICTIONAL_PROVIDER_COMPILED_3104_REQUIRED');
@@ -246,6 +251,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
     const env = {
       ERPX_BROWSER_SIMULATION_RUN_ID: run, ERPX_BROWSER_SIMULATION_PORT: String(port), ERPX_BROWSER_SIMULATION_PROFILE: suite.fixture,
       ERPX_BROWSER_EXECUTION_MODE: development ? "development-smoke" : "acceptance",
+      ...(workspace?{ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspace.apps)}:{}),
       ERPX_BROWSER_SIMULATION_ATTACHMENTS: requirements.scanner ? "local" : "none", ERPX_BROWSER_SIMULATION_JOBS: requirements.jobs ? "1" : "0",
       ERPX_BROWSER_SIMULATION_LEGAL: suite.fixture === "legal" || suite.fixture === "uat" ? "1" : "0",
       ERPX_BROWSER_SIMULATION_MENU_IMAGES: options.investorCapture ? "1" : "0",
@@ -265,12 +271,13 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
     let failed = false;
     let caseReceipt: BrowserRunCaseReceipt | undefined;
     let faultTriggered = false;
+    let developmentEdge:Awaited<ReturnType<typeof startDevelopmentHostProcess>>|undefined;
     let productEdge:Awaited<ReturnType<typeof startProductHostEdge>>|undefined;
     let executiveWorkEdge:Awaited<ReturnType<typeof startExecutiveWorkHostEdge>>|undefined;
     let formsEdge:Awaited<ReturnType<typeof startFormsHostEdge>>|undefined;
     try {
       if (await runtimeSourceFingerprint(root) !== runtimeFingerprint || await verificationSourceFingerprint(root, runtimeFingerprint) !== verificationFingerprint) throw new Error("BROWSER_SOURCE_CHANGED");
-      const templateKey = JSON.stringify([suite.fixture, port, requirements, suite.fictionalProvider ?? null, ...(productMode?["product-hosts-v1"]:[]), ...(executiveWorkMode?["executive-work-hosts-v1"]:[]), ...(formsMode?["forms-host-v1"]:[])]);
+      const templateKey = JSON.stringify([suite.fixture, port, requirements, suite.fictionalProvider ?? null, workspace ?? null, ...(productMode?["product-hosts-v1"]:[]), ...(executiveWorkMode?["executive-work-hosts-v1"]:[]), ...(formsMode?["forms-host-v1"]:[])]);
       let template = templates.get(templateKey);
       if (!template) {
         const templateRun = randomBytes(6).toString("hex"), templateOutput = join(evidence, `template-${templateRun}`);
@@ -285,7 +292,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
       const browserEnvironment = { ...env };
       delete browserEnvironment.ERPX_FORMS_HOST_PLAN;
       delete browserEnvironment.ERPX_FORMS_HOST_PLAN_SHA256;
-      const testEnv = { ...browserEnvironment, ERPX_INVESTOR_CAPTURE: options.investorCapture ? "1" : undefined, ...localBrowserActorEnvironment(suite.fixture, state.fixture), ERPX_DEMO_RUN: run, ERPX_BROWSER_SIMULATION_RUN: run, ERPX_E2E_BASE_URL: formsMode ? formsHostOrigin : origin,
+      const testEnv = { ...browserEnvironment, ERPX_INVESTOR_CAPTURE: options.investorCapture ? "1" : undefined, ...localBrowserActorEnvironment(suite.fixture, state.fixture), ERPX_DEMO_RUN: run, ERPX_BROWSER_SIMULATION_RUN: run, ERPX_E2E_BASE_URL: workspace ? developmentHostOrigin(workspace.entryApp) : formsMode ? formsHostOrigin : origin,
         ERPX_E2E_FIXTURE: join(root, ".runtime/browser", run, "fixture.json"), ERPX_SERVICES_FIXTURE: join(root, ".runtime/browser", run, "fixture.json"),
         ERPX_UAT_AUTH_DIR: suite.lane === "uat" ? join(root, ".runtime/browser", run, "uat-auth") : "",
         ERPX_UAT_EVIDENCE_FILE: suite.lane === "uat" && wanted ? await prepareUatCaseEvidence(root, run, output) : undefined,
@@ -299,9 +306,14 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
         await execute(simulation("start"), { ...env, ERPX_BROWSER_SIMULATION_RELEASE_DIR: verifyRelease ? releaseDirectory : undefined }, join(output, "start.log"));
         const started = JSON.parse(await readFile(join(root, ".runtime/browser", run, "state.json"), "utf8"));
         if (!Number.isInteger(started.pid) || started.pid < 1) throw new Error("BROWSER_COHORT_PROCESS_REQUIRED");
+        if(workspace){
+          developmentEdge=await startDevelopmentHostProcess({root,run,output,node,sourceFingerprint:runtimeFingerprint,profile:workspace});
+          Object.assign(testEnv,{ERPX_DEVELOPMENT_HOST_LEASE:developmentEdge.path,NODE_EXTRA_CA_CERTS:developmentEdge.certificatePath});
+        }else{
         await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid), ...(development ? ["--development", ...(requirements.jobs ? ["--jobs"] : []), ...(requirements.scanner ? ["--scanner"] : [])] : [])], env, join(output, "readiness.log"));
         Object.assign(testEnv, await prepareBrowserCasePrerequisites({ suite, wanted, run, directory: join(root, ".runtime/browser", run), releaseDirectory, evidenceDirectory: output, environment: testEnv, execute }));
         await execute([node, "scripts/testing/browser-readiness.mts", origin, String(started.pid), ...(development ? ["--development", ...(requirements.jobs ? ["--jobs"] : []), ...(requirements.scanner ? ["--scanner"] : [])] : [])], env, join(output, "prerequisites-readiness.log"));
+        }
         if(productMode){
           productEdge=await startProductHostEdge(root,productPlan!,run,output,productHostBusinessWorkflowForCase(wanted.file,wanted.title),productHostReadOnlyWorkflowForCase(wanted.file,wanted.title));
           Object.assign(testEnv,{ERPX_PRODUCT_HOST_LEASE:productEdge.path,NODE_EXTRA_CA_CERTS:productEdge.lease.ca.path});
@@ -347,7 +359,11 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
         const productBindings=productEdge?await captureProductHostReceiptBindings(root,evidence,run,report,result):undefined;
         if(productBindings&&productBindings.leaseSha256!==createHash("sha256").update(await readFile(productEdge!.path)).digest("hex"))throw Error("PRODUCT_HOST_LEASE_CHANGED_DURING_RECEIPT_CAPTURE");
         const productHostEvidence=productEdge?("productHostReadOnly" in productBindings! ? {productHostReadOnly:productBindings!.productHostReadOnly} : {productHostCommercial:productBindings!.productHostCommercial,...("productHostBusiness" in productBindings! ? {productHostBusiness:productBindings!.productHostBusiness} : {})}):{};
-        caseReceipt = { suite: suite.id, file: wanted.file, project, title: wanted.title, run, report, reportSha256, passed: true, ...(productEdge?{productHostLease:uiEvidence?.productHostLease??{path:productEdge.path,sha256:productBindings!.leaseSha256}}:{}),...productHostEvidence,...(executiveWorkEdge?{executiveWorkHostLease:uiEvidence?.executiveWorkHostLease??{path:executiveWorkEdge.path,sha256:createHash("sha256").update(await readFile(executiveWorkEdge.path)).digest("hex")}}:{}),...(formsEdge?{formsHostLease:uiEvidence?.formsHostLease??{path:formsEdge.path,sha256:createHash("sha256").update(await readFile(formsEdge.path)).digest("hex")}}:{}),...(uiEvidence?{uiEvidence}:{}) };
+        if(developmentEdge){
+          const path=join(output,'development-host-lease.json');await copyFile(developmentEdge.path,path);await chmod(path,0o600);
+          await copyFile(join(root,'.runtime/browser',run,'workspace-runtime.json'),join(output,'workspace-runtime.json'));
+        }
+        caseReceipt = { suite: suite.id, file: wanted.file, project, title: wanted.title, run, report, reportSha256, passed: true, ...(developmentEdge?{developmentHost:{path:join(output,'development-host-lease.json'),sha256:createHash('sha256').update(await readFile(developmentEdge.path)).digest('hex'),apps:workspace!.apps}}:{}), ...(productEdge?{productHostLease:uiEvidence?.productHostLease??{path:productEdge.path,sha256:productBindings!.leaseSha256}}:{}),...productHostEvidence,...(executiveWorkEdge?{executiveWorkHostLease:uiEvidence?.executiveWorkHostLease??{path:executiveWorkEdge.path,sha256:createHash("sha256").update(await readFile(executiveWorkEdge.path)).digest("hex")}}:{}),...(formsEdge?{formsHostLease:uiEvidence?.formsHostLease??{path:formsEdge.path,sha256:createHash("sha256").update(await readFile(formsEdge.path)).digest("hex")}}:{}),...(uiEvidence?{uiEvidence}:{}) };
         receipts.push(caseReceipt);
         console.log(JSON.stringify({ suite: suite.id, project, title: wanted.title, passed: true }));
         return [];
@@ -362,6 +378,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
     }
     finally {
       let edgeFailed=false,edgeFailure:unknown;
+      if(developmentEdge){try{await developmentEdge.close();await copyFile(join(root,'.runtime/browser',run,'workspace-edge-result.json'),join(output,'development-host-result.json'));}catch(error){cleanupErrors.push(error);}}
       if(productEdge){try{await productEdge.stable();}catch(error){edgeFailed=true;edgeFailure=error;}try{await productEdge.close();}catch(error){if(!edgeFailed){edgeFailed=true;edgeFailure=error;}}if(edgeFailed)cleanupErrors.push(edgeFailure);}
       if(executiveWorkEdge){try{await executiveWorkEdge.stable();}catch(error){edgeFailed=true;edgeFailure=error;}try{await executiveWorkEdge.close();}catch(error){if(!edgeFailed){edgeFailed=true;edgeFailure=error;}}if(edgeFailed)cleanupErrors.push(edgeFailure);}
       if(formsEdge){try{await formsEdge.stable();}catch(error){edgeFailed=true;edgeFailure=error;}try{await formsEdge.close();}catch(error){if(!edgeFailed){edgeFailed=true;edgeFailure=error;}}if(edgeFailed)cleanupErrors.push(edgeFailure);}

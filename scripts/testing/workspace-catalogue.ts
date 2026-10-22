@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { products } from "@erpx/contracts/product-registry";
 import { appDefinitions } from "@erpx/contracts/apps";
-import { loadCatalogue, repositoryRoot, type Suite } from "./catalogue";
+import { verificationSources, loadCatalogue, repositoryRoot, type Suite } from "./catalogue";
 import { dependencyClosure, loadWorkspaceGraph } from "./workspace-graph";
 
 const slots = ["CONTROL_DB", "CONTROL_READ_DB", "H001_DB", "H001_READ_DB", "H002_DB", "H002_READ_DB", "H003_DB", "H003_READ_DB"];
@@ -34,7 +34,7 @@ export function inferPostgresProfile(files: string[], texts: string[]) {
 if (import.meta.main) {
   const root = repositoryRoot, graph = loadWorkspaceGraph(root), catalogue = loadCatalogue(root);
   for (const suite of catalogue.suites) {
-    const dependencies = dependencyClosure(graph, suite.files);
+    const dependencies = dependencyClosure(graph, verificationSources([suite]));
     suite.apps = suiteApps(suite);
     suite.packages = [...new Set([...dependencies].flatMap(file => /^packages\/([^/]+)\//.exec(file)?.[1] ?? []))].map(name => `@erpx/${name}`).sort();
     if (suite.lane === "integration" || suite.fixture === "postgres") {

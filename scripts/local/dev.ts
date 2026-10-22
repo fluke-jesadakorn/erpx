@@ -1,3 +1,4 @@
+import { hasPortListener } from "./port-listeners";
 import { existsSync, mkdirSync, openSync, closeSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { connect } from "node:net";
@@ -14,7 +15,7 @@ for (const arg of args) {
   if (!arg.startsWith("--app=")) throw new Error(`UNKNOWN_DEVELOPMENT_OPTION:${arg}`);
   for (const id of arg.slice(6).split(",")) { appDefinition(id); selected.push(id); }
 }
-const occupied = await new Promise<boolean>(done => {
+const occupied = hasPortListener(3100) || await new Promise<boolean>(done => {
   const socket = connect({ host: "127.0.0.1", port: 3100 });
   socket.once("connect", () => { socket.destroy(); done(true); }); socket.once("error", () => done(false));
 });
