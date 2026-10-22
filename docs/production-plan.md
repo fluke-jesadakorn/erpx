@@ -473,13 +473,13 @@ The [Service intake checkpoint](testing/service-intake-2026-10-15.md) is runtime
 | field_service | service | 6 | 0/6 | 0/6 | 0/6 |
 | agent | shared | 7 | 0/7 | 0/7 | 0/7 |
 | collaboration | work | 8 | 0/8 | 0/8 | 0/8 |
-| pms | pms | 12 | 0/12 | 0/12 | 0/12 |
+| pms | pms | 12 | 4/12 | 0/12 | 0/12 |
 | manage_erpx | provider | 4 | 0/4 | 0/4 | 0/4 |
 
 | Product workflow outside Module catalogue | Product | Implemented | Verified | Enabled |
 | --- | --- | ---: | ---: | ---: |
 | work:company-executive-and-scoped-mcp | work | 0/1 | 0/1 | 0/1 |
-| finance:sales-invoice-workspace | finance | 0/1 | 0/1 | 0/1 |
+| finance:sales-invoice-workspace | finance | 1/1 | 0/1 | 0/1 |
 
 <!-- product-migration-coverage:end -->
 

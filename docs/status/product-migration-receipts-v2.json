@@ -117,6 +117,71 @@
       },
       "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-legal-portal-private-document-download-and-access-history-0cf2cacace828e15c42c9f616ba30d12684cd3f40a96adce08b409b85021ac10-verified.json",
       "sha256": "8c91596dce08fe90c7f4764b49c4fca2aeb5c0c37cd6c245d17423e22ee25d55"
+    },
+    {
+      "id": "finance:sales-invoice-workspace",
+      "phase": "implemented",
+      "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T06-54-39-259Z",
+        "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-finance-sales-invoice-workspace-a7413b9edefb2c064f662dc158636cfbb092b9bf55e54145f50262c93e6443c6-implemented.json",
+      "sha256": "8da099f480472a31c36ecfa292c4db45b74f09a2e17af9295b8a1295bad94e04"
+    },
+    {
+      "id": "pms/dashboard",
+      "phase": "implemented",
+      "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T06-54-39-259Z",
+        "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-pms-dashboard-038cdaf91353b70c8354575ec404e862afedebf11b15676e124956ad9f82f7d8-implemented.json",
+      "sha256": "4fbc2924b97c100a4328de3b59f99c3d0cccf2470b997f4e1e9750a9f7f0c31c"
+    },
+    {
+      "id": "pms/inventory",
+      "phase": "implemented",
+      "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T06-54-39-259Z",
+        "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-pms-inventory-68132ee18373436f21c8cd0f1bfd58c0119f8657c47fe48264f58a4992a0d151-implemented.json",
+      "sha256": "da4a458a4856e3f30b015fe251fe6217651c2c69227bad4e525cd79e74d11f83"
+    },
+    {
+      "id": "pms/reports",
+      "phase": "implemented",
+      "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T06-54-39-259Z",
+        "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-pms-reports-7c6bf13d1ba2f755e604f465748f7568ee7faad7b3b08f177761148b21bf299b-implemented.json",
+      "sha256": "0499e1804d687ceb587a10df8f5b0222833d89707f754abf739b7990a66fa84f"
+    },
+    {
+      "id": "pms/settings",
+      "phase": "implemented",
+      "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T06-54-39-259Z",
+        "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/e3664e6360d596bb196e4cb79a34905e0f8e5054-pms-settings-7b6571edf88940a22d79e9ff919c9d0730915c04e27750d0cc284b9be1f0240d-implemented.json",
+      "sha256": "ed550e3f674d288627cded4cf82170a5a8940e128ca5ad24be8a2a2cf0ab7e38"
     }
   ]
 }

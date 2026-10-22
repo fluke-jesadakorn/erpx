@@ -1,0 +1,52 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "pms/inventory",
+  "phase": "implemented",
+  "candidateSha": "e3664e6360d596bb196e4cb79a34905e0f8e5054",
+  "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+  "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+  "release": {
+    "id": "2026-10-22T06-54-39-259Z",
+    "fileManifestSha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "pms.pms.integration",
+      "file": "tests/integration/pms/pms.test.ts",
+      "title": "posts minibar and inventory cost together, rolling back insufficient stock",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-20261022-e3664e63/pms-inventory-implemented.json",
+      "sha256": "c9e1b774b79e610541cb94b93fb1736b2fb6f120d5da3979ed2261f602c2ab6d"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "b2b4dca8c2a0eda52171ce552fc8b198f42c41559a3d2bcf1eb19dba0839d6ac"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T06-54-39-259Z/release.json",
+      "sha256": "fcc6b5b133277d2e6472b2efa79366dafdbd480c05ea3c9095b15915d6643452"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T06-54-39-259Z/release-files.json",
+      "sha256": "327b097ec7e94857b9a17dde6c34a2640770704c6d6bae4d26281cd65b29d54d"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "b2b4dca8c2a0eda52171ce552fc8b198f42c41559a3d2bcf1eb19dba0839d6ac"
+    },
+    "browserRuns": []
+  }
+}
