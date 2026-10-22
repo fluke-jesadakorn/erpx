@@ -1,8 +1,10 @@
 import { expect, test, type BrowserContext, type Page, type TestInfo } from "@playwright/test";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { readFile, writeFile } from "node:fs/promises";
+import { relative, resolve } from "node:path";
 import { createEngineeringBrowserContext } from "../../support/browser/engineering-browser-evidence";
 import { selectFixtureAssignment } from "../../support/browser/select-fixture-assignment";
+import { verificationSourceFingerprint } from "../../../scripts/local/source-fingerprint";
 import {
   frontOrigin,
   frontWorkspacePath,
@@ -160,6 +162,52 @@ function normalizeVisibleText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+async function attachPmsUiObservation(page: Page, info: TestInfo, workflow: string) {
+  // Only compiled 3104 runs can produce release-bound UI evidence. The
+  // dashboard's dev-pms.localhost alias is admitted separately by an exact
+  // local-front host binding in the browser runner.
+  if (new URL(configuredOrigin).port !== "3104") return;
+
+  const statePath = resolve(".runtime/browser", runId, "state.json");
+  const state = JSON.parse(await readFile(statePath, "utf8")) as {
+    run: string;
+    origin: string;
+    port: number;
+    sourceFingerprint: string;
+    release?: { id?: string; fileManifestSha256?: string };
+  };
+  expect(state).toMatchObject({ run: runId, origin: configuredOrigin, port: 3104, release: {
+    id: expect.any(String), fileManifestSha256: expect.any(String),
+  } });
+  const verificationFingerprint = await verificationSourceFingerprint(process.cwd(), state.sourceFingerprint);
+  const screenshotPath = info.outputPath(`pms-${workflow}-screen.png`);
+  const screenshotBytes = await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+  const attachmentIndex = info.attachments.length;
+  await info.attach(`pms-${workflow}-screen`, { path: screenshotPath, contentType: "image/png" });
+  const screenshotAttachment = info.attachments[attachmentIndex];
+  if (!screenshotAttachment?.path) throw new Error("PMS_UI_SCREENSHOT_ATTACHMENT_REQUIRED");
+  const retainedScreenshot = await readFile(screenshotAttachment.path);
+  expect(retainedScreenshot).toEqual(screenshotBytes);
+
+  const observationPath = info.outputPath(`pms-${workflow}-observation.json`);
+  await writeFile(observationPath, JSON.stringify({
+    schema: "erpx-ui-browser-observation/v1",
+    result: "passed",
+    run: runId,
+    sourceFingerprint: state.sourceFingerprint,
+    verificationFingerprint,
+    url: page.url(),
+    workflow,
+    viewport: page.viewportSize(),
+    screenshot: {
+      path: relative(process.cwd(), screenshotAttachment.path).replaceAll("\\", "/"),
+      sha256: createHash("sha256").update(retainedScreenshot).digest("hex"),
+      bytes: retainedScreenshot.length,
+    },
+  }, null, 2) + "\n", { flag: "wx", mode: 0o600 });
+  await info.attach("erpx-ui-observation", { path: observationPath, contentType: "application/json" });
+}
+
 test("pms/dashboard renders the selected hotel's live room status through its owner-scoped read", async ({ browser }, info) => {
   test.skip(!isolatedHospitality, "Requires the exact disposable hospitality simulation on port 3102 or 3104.");
   const fixture = await prepareHospitalityOwner(browser, info);
@@ -227,6 +275,7 @@ test("pms/dashboard renders the selected hotel's live room status through its ow
         contentType: "image/png",
       });
     }
+    await attachPmsUiObservation(fixture.page, info, "dashboard");
     assertNoWrites();
   } finally {
     await fixture.context.close();
@@ -316,6 +365,7 @@ test("pms/inventory opens the mounted minibar route with inventory section ident
       await expect(fixture.page.getByText(item.data.description, { exact: true })).toBeVisible();
     }
     if (!lostItems.length) await expect(fixture.page.getByText("No lost-property records available in this view.", { exact: true })).toBeVisible();
+    await attachPmsUiObservation(fixture.page, info, "inventory");
     assertNoWrites();
   } finally {
     await fixture.context.close();
@@ -453,6 +503,7 @@ test("pms/reports runs a date-range report for the selected hotel using read-onl
     }
     expect(glBalances.debit).toBe(glBalances.credit);
     await expect(fixture.page.getByText(`${date} → ${date} · THB · Balances at range end`, { exact: true })).toBeVisible();
+    await attachPmsUiObservation(fixture.page, info, "reports");
     assertNoWrites();
   } finally {
     await fixture.context.close();
@@ -512,6 +563,7 @@ test("pms/settings shows configured rooms and rates from the selected hotel's sc
       const rateRow = fixture.page.locator(`[data-pms-record="${rate.id}"]`);
       await expect(rateRow.locator("strong")).toContainText(rate.data.name);
     }
+    await attachPmsUiObservation(fixture.page, info, "settings");
     assertNoWrites();
   } finally {
     await fixture.context.close();

@@ -1,0 +1,73 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "projects/feature-projects-wbs",
+  "phase": "implemented",
+  "candidateSha": "1dea690a9e4647e66ac3f5a9e4fe15246a165361",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "d1f706841e18f43c01e933b950f56d03f1395a45d3e0c49195f4d6bfcd2f98d7",
+  "release": {
+    "id": "2026-10-22T11-26-48-555Z",
+    "fileManifestSha256": "49ae089596e7e858f0a7e707c31a6c5582fdb99511dcabb733ce615d52446a8c"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "projects.project-structure.integration",
+      "file": "tests/integration/projects/project-structure.test.ts",
+      "title": "closes hierarchical work packages with real tasks, independently reviewed time and posted costs, and preserves every issued handoff after rejection, acceptance and reopening",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "projects.project-structure.integration",
+      "file": "tests/integration/projects/project-structure.test.ts",
+      "title": "rejects hierarchy and dependency deadlocks, stale task sources, competing structure commands and revoked membership without partial WBS writes",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "projects.project-structure.integration",
+      "file": "tests/integration/projects/project-structure.test.ts",
+      "title": "prepares a true zero-worker Projects-only Company through original Directory and reviewed HR placement before explicit Project membership and approved time",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "projects.project-structure.integration",
+      "file": "tests/integration/projects/project-structure.test.ts",
+      "title": "proves the actual Projects worker entry against current native Company HR assignment, purchase and Person source",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-1dea690a-bulk/projects-feature-projects-wbs-128a74f9-implemented.json",
+      "sha256": "c978331b81f4699930f4f65c19d97d1ca828ef14f1585b504c293ed9f6b2fd6c"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "abd093366481502364a0cabc16680f1b35366bdd85687de02cb0452400e75f77"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T11-26-48-555Z/release.json",
+      "sha256": "8e83da70a12ef8031297955da6b968daedac5401eee8f22211a345400bbdcc1b"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T11-26-48-555Z/release-files.json",
+      "sha256": "49ae089596e7e858f0a7e707c31a6c5582fdb99511dcabb733ce615d52446a8c"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "abd093366481502364a0cabc16680f1b35366bdd85687de02cb0452400e75f77"
+    },
+    "browserRuns": []
+  }
+}

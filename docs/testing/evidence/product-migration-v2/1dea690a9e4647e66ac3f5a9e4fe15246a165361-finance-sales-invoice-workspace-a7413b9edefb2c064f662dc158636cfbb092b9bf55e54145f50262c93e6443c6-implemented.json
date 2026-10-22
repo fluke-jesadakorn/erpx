@@ -1,0 +1,185 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "finance:sales-invoice-workspace",
+  "phase": "implemented",
+  "candidateSha": "1dea690a9e4647e66ac3f5a9e4fe15246a165361",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "d1f706841e18f43c01e933b950f56d03f1395a45d3e0c49195f4d6bfcd2f98d7",
+  "release": {
+    "id": "2026-10-22T11-26-48-555Z",
+    "fileManifestSha256": "49ae089596e7e858f0a7e707c31a6c5582fdb99511dcabb733ce615d52446a8c"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "finance.sales-workspace.integration",
+      "file": "tests/integration/finance/finance-sales-workspace.test.ts",
+      "title": "Sales-only grants can create and replay standalone service invoices while draining blocks new invoices",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.sales-workspace.integration",
+      "file": "tests/integration/finance/finance-sales-workspace.test.ts",
+      "title": "Sales-only standalone invoice posting fails closed when completion outbox evidence is missing",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "Finance draft boundary blocks same-view invoice query navigation while a marked draft is dirty",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "marks state-managed Finance form edits in the same dirty-navigation boundary",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "Finance draft boundary blocks navigation and explicit discard while a Finance acknowledgement is unresolved",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales command registers its original request with FinanceDraftBoundary through ambiguous retry and preserves newer edits",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales command releases the boundary lock after a definitive first response",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice Escape uses Finance confirmation and discards only its own form",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice Close uses Finance confirmation and discards only its own form",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice Add service is dirty and preserves the close confirmation",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice Remove service is dirty when it is the only edit after an acknowledged baseline",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice scoped discard refuses a replaced owner root and retains other Finance drafts",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice retains its native dismissal guard for pending commands",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice retains its native dismissal guard for unresolved commands",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice drawer preserves the submitted command and newer service edits while the command is unresolved",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice clean close removes only its open flag and retains current repeated filters, cursor and hash",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice discard close removes only its open flag and retains current repeated filters, cursor and hash",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice clean close keeps another dirty Sales owner mounted without URL replacement",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.navigation.unit",
+      "file": "tests/unit/finance/finance-navigation.test.ts",
+      "title": "actual Sales invoice inline close and already-absent open flag do not navigate",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.record-projection-services.unit",
+      "file": "tests/unit/finance/finance-product-presentation.test.ts",
+      "title": "routes direct Finance invoice setup failures through the access boundary before rendering the form",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-1dea690a-bulk/finance-sales-invoice-workspace-a7413b9e-implemented.json",
+      "sha256": "5eff4a23c89ac4ab8b2b96eec5ab012001d189191d5943801be0d939422c82ec"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "abd093366481502364a0cabc16680f1b35366bdd85687de02cb0452400e75f77"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T11-26-48-555Z/release.json",
+      "sha256": "8e83da70a12ef8031297955da6b968daedac5401eee8f22211a345400bbdcc1b"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T11-26-48-555Z/release-files.json",
+      "sha256": "49ae089596e7e858f0a7e707c31a6c5582fdb99511dcabb733ce615d52446a8c"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "abd093366481502364a0cabc16680f1b35366bdd85687de02cb0452400e75f77"
+    },
+    "browserRuns": []
+  }
+}

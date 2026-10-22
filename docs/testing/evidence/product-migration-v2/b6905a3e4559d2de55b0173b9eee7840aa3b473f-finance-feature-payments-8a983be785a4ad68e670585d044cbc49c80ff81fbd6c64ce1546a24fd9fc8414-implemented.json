@@ -1,0 +1,143 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "finance/feature-payments",
+  "phase": "implemented",
+  "candidateSha": "b6905a3e4559d2de55b0173b9eee7840aa3b473f",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
+  "release": {
+    "id": "2026-10-22T09-09-10-280Z",
+    "fileManifestSha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "finance.generic-payments.integration",
+      "file": "tests/integration/finance/finance-generic-payments.test.ts",
+      "title": "generic controlled payments uses three people and atomically posts, allocates, and reconciles exact bank evidence",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "ordinary Thai Finance withholding and issued documents independently pays net bank amounts posts gross AP and withholding GL and issues immutable sourced 50 tawi copies immediately",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "ordinary Thai Finance withholding and issued documents retains original certificate bytes through independently reviewed identity amendment and cancels all copies only with the real financial reversal",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "ordinary Thai Finance withholding and issued documents keeps cumulative partial payment withholding exact and rejects a gross bank debit",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "ordinary Thai Finance withholding and issued documents serializes concurrent reviewed installment confirmations so one source revision produces one tax receipt and one discharge",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "monthly ordinary Thai withholding remittance and recovery reviews actual paid source certificates remits the exact monthly bank debit and recovers tax before cancelling retained source copies",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "monthly ordinary Thai withholding remittance and recovery serializes concurrent tax bank confirmations into one immutable monthly receipt and no duplicate GL",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "monthly ordinary Thai withholding remittance and recovery uses the actual bank month and effective payer interval and rejects direct unclassified supplier settlement atomically",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "monthly ordinary Thai withholding remittance and recovery retains a paid monthly edition and adds only new late supplier tax to an independently remitted supplemental edition",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "monthly ordinary Thai withholding remittance and recovery rejects stale certificates and cross Company review while keeping cancelled monthly editions immutable",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "finance.withholding.integration",
+      "file": "tests/integration/finance/finance-withholding.test.ts",
+      "title": "monthly ordinary Thai withholding remittance and recovery allows one current bank owner when a reviewed supplier payment races a monthly tax remittance",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "sales.commerce-foreign-goods.integration",
+      "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
+      "title": "native foreign Commerce goods carrying retains receipt-date functional stock through revalued partial supplier returns and dated refunds (matched=false)",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "sales.commerce-foreign-goods.integration",
+      "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
+      "title": "native foreign Commerce goods carrying retains receipt-date functional stock through revalued partial supplier returns and dated refunds (matched=true)",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "sales.commerce-foreign-goods.integration",
+      "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
+      "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-b6905a3e-bulk/finance-feature-payments-8a983be7-implemented.json",
+      "sha256": "7217f9a8b0ac09d0593d15f45eb0f2716571b3bf1719431afc09de3096d911f0"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release.json",
+      "sha256": "49b8c5aac042a8b38f27d5939a94f74f9ee609acba83b9ab181fb6799ba368a0"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release-files.json",
+      "sha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    "browserRuns": []
+  }
+}

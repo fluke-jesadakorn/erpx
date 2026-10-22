@@ -1,0 +1,80 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "legal-portal:private-document-download-and-access-history",
+  "phase": "implemented",
+  "candidateSha": "b6905a3e4559d2de55b0173b9eee7840aa3b473f",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
+  "release": {
+    "id": "2026-10-22T09-09-10-280Z",
+    "fileManifestSha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-download-route.test.ts",
+      "title": "returns native portal 404 envelopes without bytes for mismatched and revoked shares while preserving the exact authorized original",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-download-route.test.ts",
+      "title": "legalPortalRead orders a normal share withdrawal after buffered original bytes and the complete owned access audits",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-download-route.test.ts",
+      "title": "legalPortalDetailRead keeps a normal share withdrawal after the original private detail and view audit",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-portal-download-session.test.ts",
+      "title": "holds the actual normally authenticated Legal Portal family through lazy original bytes and both Holding audits before normal product sign-out",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-portal-download-session.test.ts",
+      "title": "holds the actual normal Legal detail family until its original view audit and complete authorized response finish before product sign-out",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-b6905a3e/legal-portal-private-document-download-and-access-history-implemented.json",
+      "sha256": "25e92765c134111a7cd13ec9061abb98399a32b47e55cbc8fa8a61c4ae6b3f0b"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release.json",
+      "sha256": "49b8c5aac042a8b38f27d5939a94f74f9ee609acba83b9ab181fb6799ba368a0"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release-files.json",
+      "sha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    "browserRuns": []
+  }
+}

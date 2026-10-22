@@ -1,0 +1,73 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "inventory/reservations",
+  "phase": "implemented",
+  "candidateSha": "b6905a3e4559d2de55b0173b9eee7840aa3b473f",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
+  "release": {
+    "id": "2026-10-22T09-09-10-280Z",
+    "fileManifestSha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "inventory.stock-reservations.integration",
+      "file": "tests/integration/inventory/stock-reservations.test.ts",
+      "title": "consumes only its source reservation with partial deliveries and leaves quantities and costs consistent",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "manufacturing.business-scheduled-production.integration",
+      "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
+      "title": "blocks nonattested production alert creation and mail claims without consuming native sources",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "manufacturing.business-scheduled-production.integration",
+      "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
+      "title": "delivers only the attested Company Quality and all three reservation sources once while disabled sources and certification remain unchanged",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "manufacturing.business-scheduled-production.integration",
+      "file": "tests/integration/manufacturing/business-scheduled-production.test.ts",
+      "title": "rechecks Company withdrawal and expiry before each worker write and resumes the preserved native sources without duplicates",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-b6905a3e-bulk/inventory-reservations-38a64887-implemented.json",
+      "sha256": "f4c1c5e0f3e6c4538434a99c0d2db0bacf82ff58072139a489e8497d3154161f"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release.json",
+      "sha256": "49b8c5aac042a8b38f27d5939a94f74f9ee609acba83b9ab181fb6799ba368a0"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release-files.json",
+      "sha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    "browserRuns": []
+  }
+}

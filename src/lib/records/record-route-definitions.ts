@@ -132,6 +132,7 @@ export const collectionRecordKinds=['billing_cost','billing_source','billing_sta
 export type RecordTarget = { kind: RecordKind; id: string; args?: Record<string, string> };
 export function isRecordKind(value: string): value is RecordKind { return Object.hasOwn(recordRoutes, value); }
 export const recordSections: Partial<Record<RecordKind,readonly string[]>>={
+ customer:['overview','history'],
  legal:['overview','tasks','documents','workflow','access','holds','retention','ai','activity'],
  project:['overview','tasks','structure','actuals','handoff','documents'],
  person:['profile','work','pay','access'],

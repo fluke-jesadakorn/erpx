@@ -1,0 +1,194 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "legal-portal:private-document-download-and-access-history",
+  "phase": "verified",
+  "candidateSha": "b6905a3e4559d2de55b0173b9eee7840aa3b473f",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
+  "release": {
+    "id": "2026-10-22T09-09-10-280Z",
+    "fileManifestSha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-download-route.test.ts",
+      "title": "returns native portal 404 envelopes without bytes for mismatched and revoked shares while preserving the exact authorized original",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-download-route.test.ts",
+      "title": "legalPortalRead orders a normal share withdrawal after buffered original bytes and the complete owned access audits",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-download-route.test.ts",
+      "title": "legalPortalDetailRead keeps a normal share withdrawal after the original private detail and view audit",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-portal-download-session.test.ts",
+      "title": "holds the actual normally authenticated Legal Portal family through lazy original bytes and both Holding audits before normal product sign-out",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "legal.download-route.integration",
+      "file": "tests/integration/legal/legal-portal-download-session.test.ts",
+      "title": "holds the actual normal Legal detail family until its original view audit and complete authorized response finish before product sign-out",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "legal.uat.uat",
+      "file": "tests/uat/legal/legal-uat.spec.ts",
+      "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+      "project": "desktop",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "legal.uat.uat",
+      "file": "tests/uat/legal/legal-uat.spec.ts",
+      "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+      "project": "mobile",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-b6905a3e/legal-portal-private-document-download-and-access-history-verified.json",
+      "sha256": "4345a0f678bec7acc939d16acb9c75e83abc3989e81a39b907d2fe14e35566fe"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release.json",
+      "sha256": "49b8c5aac042a8b38f27d5939a94f74f9ee609acba83b9ab181fb6799ba368a0"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release-files.json",
+      "sha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/07ed9c19e236/result.json",
+      "sha256": "07c4e48133544c952774fd95d7e084c27289b320b42fbceecc8e0e026264d210"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/07ed9c19e236/state.json",
+      "sha256": "2686ff099769f7f1c0741394f8d8bf43a58597f6fb167ed56c508b84f2f80430"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/07ed9c19e236/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-desktop/attachments/erpx-ui-observation-28ad06c4c03c87dd50eb36962c32270302bc1e1b.json",
+      "sha256": "61fbfe30e6c753c5bc8e9338fe73937c045df35ba72ba6060e8f52afac754609"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/07ed9c19e236/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-desktop/attachments/erpx-ui-observation-f38e680573976a3d678a03627dc9296720720865.json",
+      "sha256": "c5f5984cfc77e50fd1af6c73ad533eebfbd530f512d34849c2e502dce0f12c4f"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/07ed9c19e236/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-desktop/attachments/product-migration-ui-screenshot-dcab838256178e4561cb114e8ec11bbc97cff076.png",
+      "sha256": "22255c683d110bd0ef5c74464bf23db0c138cbef36f0a18a3e0f58b245645a3e"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/07ed9c19e236/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-desktop/attachments/product-migration-ui-screenshot-f8bb04ac58f5a5d1950b3c454e03fc903bae3e8d.png",
+      "sha256": "9810d7da7132b8e1fa028a5cbeb55ea743351f9466bc69c25fb5a07208658c40"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/7612c455a5f8/result.json",
+      "sha256": "2d2d86148b953c582ea16568f34ccc35c51c30a38f337fdf0da1dd2924baeaed"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/7612c455a5f8/state.json",
+      "sha256": "65ca3d852729321ad337b277c60a3e82a499e8ad94cb4518002a0fe0314668cc"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/7612c455a5f8/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-mobile/attachments/erpx-ui-observation-9ebf80d721dfc6c7f17468a44031f0c2d5210f6e.json",
+      "sha256": "489f12abf535f2c09f69d2d6518c790bbeddd015ae56270a30ba1e5648b9f46b"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/7612c455a5f8/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-mobile/attachments/erpx-ui-observation-a3827ecd130e2049815983f913d9fa39565614ac.json",
+      "sha256": "2e89651013b6244e654eaa2ab307bd7146079f22260d51f4ddc95f056176472f"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/7612c455a5f8/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-mobile/attachments/product-migration-ui-screenshot-adb9574f9b9c27967d194d64f2783793c73ab777.png",
+      "sha256": "155249a591fa1e34ec24acad8bcfad54d1c4bc13c42b86d5fc06906036ad5839"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/7612c455a5f8/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-mobile/attachments/product-migration-ui-screenshot-c75f3186d2ca116f411f3f1edc8e3990e1dbdc02.png",
+      "sha256": "f516b017f5753e30ede05799a2a28029c2b8e7a54c10dc36f0ce2aa3d68d5c50"
+    },
+    {
+      "kind": "browser-run-receipt",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/receipt.json",
+      "sha256": "1bee34ddf68921d5baf2442801fbcc068a01ba5c63a031a83745508cdb5942cd"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    "browserRuns": [
+      {
+        "run": "07ed9c19e236",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/receipt.json",
+        "sha256": "1bee34ddf68921d5baf2442801fbcc068a01ba5c63a031a83745508cdb5942cd",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "legal.uat.uat",
+            "file": "tests/uat/legal/legal-uat.spec.ts",
+            "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+            "project": "desktop"
+          }
+        ]
+      },
+      {
+        "run": "7612c455a5f8",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T09-29-20-114Z/receipt.json",
+        "sha256": "1bee34ddf68921d5baf2442801fbcc068a01ba5c63a031a83745508cdb5942cd",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "legal.uat.uat",
+            "file": "tests/uat/legal/legal-uat.spec.ts",
+            "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+            "project": "mobile"
+          }
+        ]
+      }
+    ]
+  }
+}

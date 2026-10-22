@@ -217,7 +217,7 @@ import {relative} from "node:path";
 import {captureUiBrowserEvidence,verifyUiBrowserEvidence} from "../../../scripts/testing/ui-evidence-witness";
 
 /** File-contract fixtures only: no browser, native owner, process or database is invoked. */
-async function withOriginalUiLeaves(action:(fixture:{root:string;output:string;cohort:string;reportPath:string;imagePath:string;observationPath:string;stateBytes:Buffer;capture:()=>ReturnType<typeof captureUiBrowserEvidence>;writeObservation:(patch:Record<string,unknown>)=>Promise<void>})=>Promise<void>){
+async function withOriginalUiLeaves(action:(fixture:{root:string;output:string;cohort:string;reportPath:string;imagePath:string;observationPath:string;stateBytes:Buffer;capture:(localFrontApp?:"pms"|"pos")=>ReturnType<typeof captureUiBrowserEvidence>;writeObservation:(patch:Record<string,unknown>)=>Promise<void>})=>Promise<void>){
  const root=await realpath(await mkdtemp(join(tmpdir(),"erpx-original-ui-leaves-"))),output=join(root,".scratch/dev/test-suites/browser/2026-10-18T00-00-00-000Z",run),cohort=join(root,".runtime/browser",run),artifacts=join(output,"artifacts"),imagePath=join(artifacts,"native-view.png"),observationPath=join(artifacts,"observation.json"),reportPath=join(output,"result.json");
  try{
   await mkdir(artifacts,{recursive:true,mode:0o700});await mkdir(cohort,{recursive:true,mode:0o700});
@@ -225,7 +225,7 @@ async function withOriginalUiLeaves(action:(fixture:{root:string;output:string;c
   const image=Buffer.from("Original PNG attachment byte contract; image decoding is a separate UI gate.");await writeFile(imagePath,image,{mode:0o600});
   const observation={schema:"erpx-ui-browser-observation/v1",result:"passed",run,sourceFingerprint,verificationFingerprint:sourceFingerprint,url:"http://127.0.0.1:3104/example",screenshot:{path:relative(root,imagePath),sha256:createHash("sha256").update(image).digest("hex"),bytes:image.length}};
   const report={suites:[{specs:[{file:"tests/uat/shared.ui/example.spec.ts",title:"original leaf capture",tests:[{projectName:"desktop",expectedStatus:"passed",status:"expected",results:[{status:"passed",attachments:[{name:"erpx-ui-observation",contentType:"application/json",path:observationPath},{name:"original-view",contentType:"image/png",path:imagePath}]}]}]}]}]};await writeFile(observationPath,JSON.stringify(observation),{mode:0o600});await writeFile(reportPath,JSON.stringify(report),{mode:0o600});
-  await action({root,output,cohort,reportPath,imagePath,observationPath,stateBytes,capture:()=>captureUiBrowserEvidence({root,run,reportPath,report,runtimeFingerprint:sourceFingerprint,verificationFingerprint:sourceFingerprint}),writeObservation:async patch=>{await writeFile(observationPath,JSON.stringify({...observation,...patch}),{mode:0o600});}});
+  await action({root,output,cohort,reportPath,imagePath,observationPath,stateBytes,capture:localFrontApp=>captureUiBrowserEvidence({root,run,reportPath,report,runtimeFingerprint:sourceFingerprint,verificationFingerprint:sourceFingerprint,...(localFrontApp?{localFrontApp}:{})}),writeObservation:async patch=>{await writeFile(observationPath,JSON.stringify({...observation,...patch}),{mode:0o600});}});
  }finally{await rm(root,{recursive:true,force:true});}
 }
 
@@ -245,6 +245,12 @@ describe("original native UI evidence leaf capture",()=>{
  });
  it("refuses public-development URLs instead of correlating them with a compiled3104 cohort",async()=>{
   await withOriginalUiLeaves(async f=>{await f.writeObservation({url:"https://people-dev-erpx.jesadakorn.com/example"});await expect(f.capture()).rejects.toThrow("UI_NATIVE_OBSERVATION_ORIGIN_REQUIRED");});
+ });
+ it("binds the exact local PMS host alias to its compiled loopback cohort and rejects unleased aliases",async()=>{
+  await withOriginalUiLeaves(async f=>{await f.writeObservation({url:"http://dev-pms.localhost:3104/example"});const witness=await f.capture("pms");expect(witness?.localFrontApp).toBe("pms");await verifyUiBrowserEvidence(f.root,witness!);});
+  await withOriginalUiLeaves(async f=>{await f.writeObservation({url:"http://dev-pms.localhost:3104/example"});await expect(f.capture()).rejects.toThrow("UI_NATIVE_OBSERVATION_ORIGIN_REQUIRED");});
+  await withOriginalUiLeaves(async f=>{await f.writeObservation({url:"http://dev-pos.localhost:3104/example"});await expect(f.capture("pms")).rejects.toThrow("UI_NATIVE_OBSERVATION_ORIGIN_REQUIRED");});
+  await withOriginalUiLeaves(async f=>{const state=JSON.parse(f.stateBytes.toString());state.productHosts=true;await writeFile(join(f.cohort,"state.json"),JSON.stringify(state),{mode:0o600});await f.writeObservation({url:"http://dev-pms.localhost:3104/example"});await expect(f.capture("pms")).rejects.toThrow("UI_NATIVE_LOCAL_FRONT_HOST_BINDING_REQUIRED");});
  });
  it("refuses a UI attachment outside its owned case artifacts or through a symlink",async()=>{
   await withOriginalUiLeaves(async f=>{const outside=join(f.root,"different-case.png"),bytes=Buffer.from("other owner bytes");await writeFile(outside,bytes);await f.writeObservation({screenshot:{path:relative(f.root,outside),sha256:createHash("sha256").update(bytes).digest("hex"),bytes:bytes.length}});await expect(f.capture()).rejects.toThrow("UI_NATIVE_LEAF_OUTSIDE_CASE");});

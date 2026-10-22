@@ -8,7 +8,7 @@ import { loadCatalogue } from "../testing/catalogue";
 import { verifyEngineeringCandidateInventory } from "../testing/engineering/engineering-candidate-inventory";
 import { fullRegressionRunIdFromPath, validateFullRegressionBrowserIsolationArtifacts, validateFullRegressionCases, validateFullRegressionRollbackArtifacts } from "../testing/full-regression-receipt";
 import { canonicalCaseFile, internalRequiredCases, loadRequiredCases } from "../testing/required-case-inventory";
-import { verifyUiBrowserEvidence, type UiBrowserEvidenceWitness } from "../testing/ui-evidence-witness";
+import { uiLocalFrontAppForCase, verifyUiBrowserEvidence, type UiBrowserEvidenceWitness } from "../testing/ui-evidence-witness";
 import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../local/source-fingerprint";
 import { productHostBrowserFile, productHostBusinessWorkflowForCase, productHostReadOnlyWorkflowForCase } from "../testing/product-host-cohort";
 import catalogue from "../../tests/catalogue/suite-manifest.json";
@@ -562,6 +562,8 @@ async function browserWitness(root: string, value: Record<string, unknown> & { r
   const witness = result.uiEvidence as unknown as UiBrowserEvidenceWitness;
   const witnessWithFormsHost = witness as UiBrowserEvidenceWitness & { formsHostLease?: { path: string; sha256: string; bytes: number } };
   await verifyUiBrowserEvidence(root, witness);
+  if (witness.localFrontApp !== uiLocalFrontAppForCase(wanted.suite, wanted.file, wanted.title))
+    throw new Error("PRODUCT_MIGRATION_LOCAL_FRONT_HOST_CASE_BINDING_REQUIRED");
   const stateFile = await readBoundEvidence(root, witness.state, "browser"), state = json(stateFile.bytes);
   if (!record(state) || state.run !== result.run || state.sourceFingerprint !== input.runtimeFingerprint || !exactRelease(state.release, input.release))
     throw new Error("PRODUCT_MIGRATION_COMPILED_RELEASE_WITNESS_MISMATCH");

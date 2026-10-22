@@ -1,0 +1,73 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "support/sla-watch",
+  "phase": "implemented",
+  "candidateSha": "b6905a3e4559d2de55b0173b9eee7840aa3b473f",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
+  "release": {
+    "id": "2026-10-22T09-09-10-280Z",
+    "fileManifestSha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "support.sla.integration",
+      "file": "tests/integration/support/support-sla.test.ts",
+      "title": "requires independent policy approval, snapshots the calendar and preserves consumed time through wait/resume/rework",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "support.sla.integration",
+      "file": "tests/integration/support/support-sla.test.ts",
+      "title": "recovers a breach after worker downtime and routes it when manager coverage becomes available",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "shared.workplace-journeys.engineering-workplace-workers.integration",
+      "file": "tests/integration/shared.workplace-journeys/engineering-workplace-workers.test.ts",
+      "title": "delivers one enabled Support breach to the current manager across retries while disabled and unenrolled Companies stay untouched",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "shared.workplace-journeys.engineering-workplace-workers.integration",
+      "file": "tests/integration/shared.workplace-journeys/engineering-workplace-workers.test.ts",
+      "title": "keeps the ordinary compiled production boundary closed when the engineering attestation is absent",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-b6905a3e-bulk/support-sla-watch-7f80fc50-implemented.json",
+      "sha256": "ac30d4bb76a4b1e991b060ef2a88199c351b7bc3b2786b639a9433fbde21c71b"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release.json",
+      "sha256": "49b8c5aac042a8b38f27d5939a94f74f9ee609acba83b9ab181fb6799ba368a0"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release-files.json",
+      "sha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    "browserRuns": []
+  }
+}

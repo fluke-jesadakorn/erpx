@@ -1,0 +1,59 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "people_payroll/feature-leave-requests",
+  "phase": "implemented",
+  "candidateSha": "1dea690a9e4647e66ac3f5a9e4fe15246a165361",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "d1f706841e18f43c01e933b950f56d03f1395a45d3e0c49195f4d6bfcd2f98d7",
+  "release": {
+    "id": "2026-10-22T11-26-48-555Z",
+    "fileManifestSha256": "49ae089596e7e858f0a7e707c31a6c5582fdb99511dcabb733ce615d52446a8c"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.self-service-journeys.integration",
+      "file": "tests/integration/people_payroll/self-service-journeys.test.ts",
+      "title": "Staff self-service transactional journeys reserves once under retries; rejection releases without usage and resubmission re-previews",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.self-service-journeys.integration",
+      "file": "tests/integration/people_payroll/self-service-journeys.test.ts",
+      "title": "Staff self-service transactional journeys keeps approved absence until both cancellation reviews, with exactly one reversal",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-1dea690a-bulk/people-payroll-feature-leave-requests-70051a04-implemented.json",
+      "sha256": "a37baf2fa1fcc183a5c5414ace395cc3485fb981c0f88cd5f01a1a4d95a10fca"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "abd093366481502364a0cabc16680f1b35366bdd85687de02cb0452400e75f77"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T11-26-48-555Z/release.json",
+      "sha256": "8e83da70a12ef8031297955da6b968daedac5401eee8f22211a345400bbdcc1b"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T11-26-48-555Z/release-files.json",
+      "sha256": "49ae089596e7e858f0a7e707c31a6c5582fdb99511dcabb733ce615d52446a8c"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "abd093366481502364a0cabc16680f1b35366bdd85687de02cb0452400e75f77"
+    },
+    "browserRuns": []
+  }
+}

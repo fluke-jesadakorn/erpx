@@ -211,15 +211,26 @@
     },
     {
       "id": "account:authorized-package-area",
-      "blockers": {
-        "verified": "No isolated browser case currently exercises the Account package area and its authorized-product result."
-      },
       "cases": [
         {
           "runner": "vitest",
           "file": "tests/integration/identity_access/iam.test.ts",
           "title": "preserves actual Company financial-role Apps/SSO entry and original redacted owner readers without People module or base Finance purchase",
           "proof": "For a synthetic Company with only People parent/payroll/expenses package facts and a finance-only role, the native launch projection emits exactly Finance and People SSO destinations, including owner-history exceptions, and no other product links. This verifies projection eligibility only; it does not render Account/Apps."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Account My access and Company Admin show authorized products and current owner projections without changing H001 authority",
+          "project": "desktop",
+          "proof": "The read-only isolated Account owner sees the existing My access role, enters Apps, sees the authorized Company Admin product, and reads the same current owner assignment across Brand, Organization, and IAM. Screenshot observations bind Account, Apps and Admin UI without grants, Commercial Apply or business writes."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/identity_access/product-hosts.spec.ts",
+          "title": "isolated Account My access and Company Admin show authorized products and current owner projections without changing H001 authority",
+          "project": "mobile",
+          "proof": "The read-only isolated Account owner sees the existing My access role, enters Apps, sees the authorized Company Admin product, and reads the same current owner assignment across Brand, Organization, and IAM. Screenshot observations bind Account, Apps and Admin UI without grants, Commercial Apply or business writes."
         }
       ]
     },
@@ -238,16 +249,16 @@
         {
           "runner": "playwright",
           "file": "tests/e2e/identity_access/product-hosts.spec.ts",
-          "title": "isolated Company Admin reads current Brand, Organization, and IAM projections without changing H001 authority",
+          "title": "isolated Account My access and Company Admin show authorized products and current owner projections without changing H001 authority",
           "project": "desktop",
-          "proof": "Normal Account sign-in and the actual Apps Company administration tile open the existing H001 Company without selecting a role. Desktop reads show the Company-scoped Brand identity, Company organization node, and current holding_owner IAM assignment with one unchanged assignment id across the three destinations. The exact case attachment binds three screenshots and an empty list of non-authentication writes; the read-only Product Host edge denies Commercial, MFA, role, package and grant POSTs."
+          "proof": "Read-only Account sign-in shows My access and opens the authorized Company Admin Apps destination without selecting a role. Desktop reads show the Company-scoped Brand identity, Company organization node, and current holding_owner IAM assignment with one unchanged assignment id across the three destinations. Screenshot observations bind the Account and Apps UI, the Admin evidence binds all three owner pages, and an empty non-authentication write list confirms the read-only edge denies Commercial, MFA, role, package and grant POSTs."
         },
         {
           "runner": "playwright",
           "file": "tests/e2e/identity_access/product-hosts.spec.ts",
-          "title": "isolated Company Admin reads current Brand, Organization, and IAM projections without changing H001 authority",
+          "title": "isolated Account My access and Company Admin show authorized products and current owner projections without changing H001 authority",
           "project": "mobile",
-          "proof": "Normal Account sign-in and the actual Apps Company administration tile open the existing H001 Company without selecting a role. Mobile reads show the Company-scoped Brand identity, Company organization node, and current holding_owner IAM assignment with one unchanged assignment id across the three destinations. The exact case attachment binds three screenshots and an empty list of non-authentication writes; the read-only Product Host edge denies Commercial, MFA, role, package and grant POSTs."
+          "proof": "Read-only Account sign-in shows My access and opens the authorized Company Admin Apps destination without selecting a role. Mobile reads show the Company-scoped Brand identity, Company organization node, and current holding_owner IAM assignment with one unchanged assignment id across the three destinations. Screenshot observations bind the Account and Apps UI, the Admin evidence binds all three owner pages, and an empty non-authentication write list confirms the read-only edge denies Commercial, MFA, role, package and grant POSTs."
         }
       ]
     },

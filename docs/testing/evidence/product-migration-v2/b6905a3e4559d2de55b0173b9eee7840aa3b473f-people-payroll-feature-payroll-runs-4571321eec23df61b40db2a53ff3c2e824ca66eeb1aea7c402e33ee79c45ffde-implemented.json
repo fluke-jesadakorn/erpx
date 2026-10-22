@@ -1,0 +1,178 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "people_payroll/feature-payroll-runs",
+  "phase": "implemented",
+  "candidateSha": "b6905a3e4559d2de55b0173b9eee7840aa3b473f",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
+  "release": {
+    "id": "2026-10-22T09-09-10-280Z",
+    "fileManifestSha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow calculates salary OT bonus and service charge, preserves statutory evidence and atomically posts balanced GL and money",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.core.integration",
+      "file": "tests/integration/people_payroll/payroll-core.test.ts",
+      "title": "requires an independent correction decision and preserves every reviewed payroll revision",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow calculates daily regular pay and approved OT through independent compensation and time commands",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow calculates hourly regular pay and approved OT through independent compensation and time commands",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow carries independently corrected posted months into December actual YTD while preserving the original review export",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow prepares assigned final pay with calendar-month salary proration and reviewed actual YTD withholding",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow issues one immutable employee-own payslip per posted revision and denies other employees cross Company and revoked cached grants",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.cancellation.integration",
+      "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
+      "title": "cancels a future draft with retained owner evidence and permits exact-period and completed non-overlap retries",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.cancellation.integration",
+      "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
+      "title": "replays a lost cancellation response once and rejects stale or conflicting keys without extra evidence",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.cancellation.integration",
+      "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
+      "title": "serializes concurrent cancellation commands and an identical lost-response retry into one owner transition",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.cancellation.integration",
+      "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
+      "title": "retains calculated item snapshots and issued review bytes after preview cancellation",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.cancellation.integration",
+      "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
+      "title": "guards a concurrent preview calculation against cancellation without orphaned calculation items",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.cancellation.integration",
+      "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
+      "title": "requires current creator or named Company authority and denies cached revocation, expiry and cross-Company cancellation",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.cancellation.integration",
+      "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
+      "title": "allows the normally named preparer to cancel a scheduled draft without taking over its original creator",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.cancellation.integration",
+      "file": "tests/integration/people_payroll/payroll-cancellation.test.ts",
+      "title": "rejects submitted, approved and posted payroll cancellation while retaining its exact GL and immutable employee payslip",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow pays an independently reviewed posted-payroll delta without changing original bank slips exports GL or repeated YTD",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow retains draft adjustment revisions and cancels claims before an exact source retry while rejecting stale and concurrent commands",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow hands a paid net overpayment to own written consent independent review and Finance then collects exact bounded installments through later statutory payroll",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "people_payroll.statutory.integration",
+      "file": "tests/integration/people_payroll/payroll-statutory.test.ts",
+      "title": "source-dated Thai payroll owner workflow retains declined and cancelled recovery sources and rejects concurrent overclaims before any receivable or deduction",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-b6905a3e-bulk/people-payroll-feature-payroll-runs-4571321e-implemented.json",
+      "sha256": "2efb1da2311c29f7a04661f33a0276438a5ccd63cd03af32e0d208959622f710"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release.json",
+      "sha256": "49b8c5aac042a8b38f27d5939a94f74f9ee609acba83b9ab181fb6799ba368a0"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release-files.json",
+      "sha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    "browserRuns": []
+  }
+}

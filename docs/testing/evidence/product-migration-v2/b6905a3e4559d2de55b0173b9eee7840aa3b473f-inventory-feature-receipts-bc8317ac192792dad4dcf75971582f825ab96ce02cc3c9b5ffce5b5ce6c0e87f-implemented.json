@@ -1,0 +1,80 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "inventory/feature-receipts",
+  "phase": "implemented",
+  "candidateSha": "b6905a3e4559d2de55b0173b9eee7840aa3b473f",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
+  "release": {
+    "id": "2026-10-22T09-09-10-280Z",
+    "fileManifestSha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "procurement.purchase-to-payment.integration",
+      "file": "tests/integration/procurement/purchase-to-payment.test.ts",
+      "title": "runs an approved ten-laptop request through RFQ, 6+4 receipts, one consolidated AP invoice, bank evidence and payment",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "sales.commerce-foreign-goods.integration",
+      "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
+      "title": "native foreign Commerce goods carrying allocates original tax and clearing cents across partial credits and reverses every posted source account exactly",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "sales.commerce-foreign-goods.integration",
+      "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
+      "title": "native foreign Commerce goods carrying retains receipt-date functional stock through revalued partial supplier returns and dated refunds (matched=false)",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "sales.commerce-foreign-goods.integration",
+      "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
+      "title": "native foreign Commerce goods carrying retains receipt-date functional stock through revalued partial supplier returns and dated refunds (matched=true)",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "sales.commerce-foreign-goods.integration",
+      "file": "tests/integration/sales/commerce-foreign-goods.test.ts",
+      "title": "native foreign Commerce goods carrying restores original functional lot cost and clears revalued USD receivables with independently settled customer refunds",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-b6905a3e-bulk/inventory-feature-receipts-bc8317ac-implemented.json",
+      "sha256": "6b0dfb7c69d41dfeef4846bfbd9093847519d0006fb6f2f131a2b5ee60f8993d"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release.json",
+      "sha256": "49b8c5aac042a8b38f27d5939a94f74f9ee609acba83b9ab181fb6799ba368a0"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release-files.json",
+      "sha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    "browserRuns": []
+  }
+}
