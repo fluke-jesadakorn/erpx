@@ -8,7 +8,7 @@ import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/se
 import {companyPurchaseReadLocks,readPurchasedAccesses,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {salesServiceProductFinanceLeases,salesServiceProductFinanceSource,salesServiceProductMoneySource,salesServiceProductMoneyMatches} from '@erpx/server-finance/public/sales-service-product-sources';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';

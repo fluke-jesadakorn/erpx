@@ -5,7 +5,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {projectWorkerStartupJobAuthority,projectWorkerStartupSubject,projectWorkerAppliedEvidenceImage} from '@erpx/server-identity_access/public/project-worker-startup-subject';
 import {projectWorkerOrganizationSource} from '@erpx/server-organization/public/project-worker-startup-sources';
 import {checkPurchasedCapability,purchaseCommandBoundary} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {workerStartupSourcePolicy,workerPlacementSourceRows,workerPlacementMarkedRows,learningWorkerPlacementMarkedRows,projectWorkerPlacementTerminalRows,type WorkerStartupConsumer} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 import {projectWorkerSourceChanged,projectWorkerSourceLocks} from '@erpx/server-people_payroll/adapters/project-worker-startup-unit';

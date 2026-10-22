@@ -8,7 +8,7 @@ import {createMarketingPresentationApplication,type PublicMarketingForm,type Mar
 import {prepareMarketingCreativeGuards,approvedMarketingCreative} from "@erpx/server-files/public/marketing-creative";
 import {commercePackageEnforcementMode,checkPurchasedCapability} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {crmMarketingCandidateSources} from "@erpx/server-marketing/adapters/crm-purchase-sources";
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {withPublicMarketingFormRead} from '@erpx/server-marketing/adapters/public-form-read';
 function translate(error:unknown):never{if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 export function marketingPresentationReferences(configuration:unknown){try{return references(configuration);}catch(error){return translate(error);}}

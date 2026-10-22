@@ -119,7 +119,7 @@ export class MinioFileStore implements FileStore {
     }
     if (!this.preservationDb) return operation();
     const guarded = async (tx: SqlDatabase) => {
-      const authority=(await import("@erpx/server-legal/public/runtime-minio-preservation-authority")).runtimeMinioPreservationAuthority(tx);
+      const authority=(await import("@erpx/server-legal/public/runtime-minio-mutation-authority")).runtimeMinioMutationAuthority(tx);
       await authority.lock();
       if(await authority.preservationReady())for(const key of keys)
         if(await authority.pendingOwner(key))throw new Error('FILE_PRESERVED_PENDING_OWNER');
@@ -129,7 +129,8 @@ export class MinioFileStore implements FileStore {
     return database ? guarded(database) : this.preservationDb.transaction(guarded);
   }
   async destroyPreserved(keys: string[], authorization: Parameters<NonNullable<FileStore['destroyPreserved']>>[1]) {
-    const row=await (await import("@erpx/server-legal/public/runtime-minio-preservation-authority")).runtimeMinioPreservationAuthority(authorization.database).destruction(authorization.destructionId);
+    if(!authorization.owner)throw new Error('LEGAL_DESTRUCTION_NOT_AUTHORIZED');
+    const row=await authorization.owner.readRemote(authorization.database,authorization.destructionId);
     if (!row) throw new Error('LEGAL_DESTRUCTION_NOT_AUTHORIZED');
     const manifest = typeof row.manifest === 'string' ? JSON.parse(row.manifest) : row.manifest;
     for (const key of keys) {

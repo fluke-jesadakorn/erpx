@@ -8,7 +8,7 @@ import {assignmentReadSql} from "@erpx/server-identity_access/public/record-sour
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {learningPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 const nativeSources=`SELECT id,company_id,NULL::text branch_id,NULL::text department_id,'learn.courses' capability FROM learning_courses
  UNION ALL SELECT e.id,c.company_id,NULL::text,NULL::text,'learn.courses' FROM learning_course_events e JOIN learning_courses c ON c.id=e.course_id
  UNION ALL SELECT id,company_id,branch_id,department_id,'learn.assignments' FROM learning_assignments

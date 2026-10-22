@@ -10,7 +10,7 @@ import "server-only";
 import {createHash} from "node:crypto";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import {hasPermission,permissionCatalog} from "@erpx/feature-identity_access/lib/permissions";
-import {productionFeatureGuard} from "@erpx/server-pms/public/hospitality-rollout";
+import { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";

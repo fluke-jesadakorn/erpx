@@ -4,7 +4,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import type {SocialPostSourceEntry,SocialPostEntryScope} from '@erpx/contracts/social-post-entry';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {readPurchasedAccess} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {projectSocialPurchaseSources} from '@erpx/server-projects/public/social-purchase-sources';
 import {socialPmsSourceFacts} from '@erpx/server-pms/public/social-source-facts';
 import {workSocialProductReadScope} from '@erpx/server-collaboration/adapters/work-social-purchases';

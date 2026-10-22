@@ -11,7 +11,7 @@ import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/se
 import {companyPurchaseReadLocks,readPurchasedAccesses,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';

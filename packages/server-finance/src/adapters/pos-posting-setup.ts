@@ -6,7 +6,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {salesGoodsPostingFinanceState,validateSalesGoodsPostingFinanceState} from '@erpx/server-finance/adapters/sales-goods-posting-setup';
 import type {PosPostingSetupInput} from '@erpx/server-commerce/public/pos-posting-setup';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 /** Original Company Finance setup authority, without Finance discovery or a
  * personal Finance module requirement. The actual POS owner still separately
  * requires its three original bootstrap permissions and independent review. */

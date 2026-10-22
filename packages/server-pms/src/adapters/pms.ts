@@ -13,7 +13,7 @@ import { z } from "zod";
 import { type Effects } from "@erpx/feature-pms/lib/pms-engine";
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
 import { roomChargeSchema } from "@erpx/feature-pms/lib/pms-room-charge";
-import { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import { hospitalityDayControls } from "@erpx/server-pms/public/hospitality-day-controls";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { executeCommand, replayCommand } from "@erpx/server-workflow/public/commands";

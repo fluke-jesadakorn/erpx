@@ -2,7 +2,7 @@ import {serviceInitialPhysicalStockCountMarked,serviceInitialPhysicalStockCountS
 import {posInitialPhysicalStockCountMarked,posInitialPhysicalStockCountSource,posInitialPhysicalStockCapabilities,posInitialPhysicalStockCountSourceRows,posInitialPhysicalStockSourceLeases} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source';
 import {manufacturingInitialPhysicalStockCountMarked,manufacturingInitialPhysicalStockCountSource,manufacturingInitialPhysicalStockCapabilities,manufacturingInitialPhysicalStockCountSourceRows,manufacturingInitialPhysicalStockSourceLeases} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source';
 import {initialPhysicalStockCountMarked,initialPhysicalStockCountSource,initialPhysicalStockCapabilities,initialPhysicalStockCountSourceRows} from '@erpx/server-inventory/adapters/initial-physical-stock-count-source';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import "server-only";
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";

@@ -11,7 +11,7 @@ import {holdingResources} from '../../../../packages/server-runtime/src/public/r
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {financialConstraintError} from '@erpx/server-workflow/public/commands';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import type {CustomerMail,CustomerNotification,CustomerNotificationRetry,CustomerNotificationSettings} from '@erpx/server-sales/domain/notifications';
 type Command={key:string}&({kind:'settings';input:CustomerNotificationSettings}|{kind:'queue';id:string;input:CustomerNotification}|{kind:'retry';id:string;input:CustomerNotificationRetry});
 export type SalesNotificationSource=CustomerMail&{version:number;status:string;created_by:string;provider_message_id:string|null;lease_until:number|null;next_attempt_at:number;branch_id:string|null;department_id:string|null;order_state:string|null;customer_status:string|null;notification_email:string|null;notification_consent:string|null;current_adapter:string|null;source_company:string|null;customer_company:string|null;release_ready:boolean;image:string};

@@ -18,7 +18,7 @@ import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { requireAuthor } from "@erpx/server-runtime/public/executive/access";
 import { reportAccess } from "@erpx/server-runtime/public/executive/reports";
 import { executiveAiContext } from "@erpx/server-runtime/public/executive/context";
-import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import type { Job } from '@erpx/server-runtime/domain/executive/generation';
 import { createExecutiveGenerationApplication, type ExecutiveGenerationRepository } from '@erpx/server-runtime/application/executive/generation';

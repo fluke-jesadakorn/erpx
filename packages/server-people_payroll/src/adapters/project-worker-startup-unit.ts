@@ -11,7 +11,7 @@ import {lockPackageSettlementSources,packageWriterFence} from '@erpx/server-comm
 import {companyPurchaseReadLocks,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {projectWorkerOrganizationSourceLocks} from '@erpx/server-organization/public/project-worker-startup-sources';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {financialConstraintError} from '@erpx/server-workflow/public/commands';

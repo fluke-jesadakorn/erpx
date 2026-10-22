@@ -6,7 +6,7 @@ import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
 import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {workerStartupSourcePolicy,workerStartupMarkedRows,type WorkerStartupConsumer} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 export type ProjectWorkerProductScope={companyId:string;branchId:string|null;departmentId:string|null;userId:string;assignmentId:string;assignmentVersion:number;role:string;sessionId:string;beta?:boolean};
 /** Exact HR preparation only. No Projects discovery, roles or Work context are

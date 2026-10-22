@@ -11,7 +11,7 @@ import type {CapabilityPurpose} from '@erpx/server-commercial/public/packages';
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public/owner-source-locks';
 import {attachmentPrivateReadSourceLocks} from '@erpx/server-files/public/private-attachment-reads';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {supportTicketPortalInstalled,supportTicketPortalSourceLocks} from '@erpx/server-support/adapters/ticket-portal-sources';
 export const ticketPortalDigest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');

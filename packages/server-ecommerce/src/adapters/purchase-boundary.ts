@@ -8,7 +8,7 @@ import {commerceOwnerTransaction,deferCommerceOwnerCheck} from '@erpx/server-com
 import {commercialOwnerProjectionSources as commerce} from '@erpx/server-commerce/public/commercial-owner-projection-sources';
 import {commercialOwnerProjectionSources as finance} from '@erpx/server-finance/public/commercial-owner-projection-sources';
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandBoundary} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';

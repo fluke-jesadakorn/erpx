@@ -5,7 +5,7 @@ import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {projectsPackageEnforcementMode,readPurchasedAccess,checkPurchasedCapability} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {ApiError} from '@erpx/server-runtime/public/http';
 

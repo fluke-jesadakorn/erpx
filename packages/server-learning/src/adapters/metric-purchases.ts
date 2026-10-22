@@ -7,7 +7,7 @@ import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {learningPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 const capabilities={'learning-completions':'learn.results','overdue-required-learning':'learn.assignments'} as const;
 export async function learningMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await learningPackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,['learn.assignments','learn.results']);if(mode!=='enforced')return {'learning-completions':true,'overdue-required-learning':true};

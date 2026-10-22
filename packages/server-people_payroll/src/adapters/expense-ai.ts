@@ -19,7 +19,7 @@ import {requireJobAuthority} from "@erpx/server-identity_access/public/iam-jobs"
 import { sha256 as aiSessionHash } from "@erpx/server-runtime/public/crypto";
 import type { SqlDatabase, FileStore } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type { StaffActor } from "@erpx/server-operations/public/staff-policy";
 import type { BetaEnvironment } from "@erpx/server-manage_erpx/public/beta-config";

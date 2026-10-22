@@ -3,7 +3,7 @@ import {env,applyMigrations} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {assistantPage,assistantAskSchema} from "@erpx/feature-work_projection/lib/ai/workspace-assistant";
 import {askAssistant,assistantSources,assistantView} from "@erpx/server-agent/public/workspace-assistant";
-import {assertProductionFeatureRoute} from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionFeatureRoute } from "@erpx/server-pms/public/feature-availability";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const aiEnv={AI_BASE_URL:"https://opencode.ai/zen/go/v1",AI_MODEL:"muse-spark-1.3-contributor",AI_API_KEY:"synthetic-key"};
 let f:Awaited<ReturnType<typeof expenseFixture>>;

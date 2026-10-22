@@ -7,7 +7,7 @@ import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {currentAssignmentReadScope} from "@erpx/server-identity_access/public/record-source-authority";
 import {servicePackageEnforcementMode,readPurchasedAccess,checkPurchasedCapability} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {fieldServiceCustomerSourceRows} from "@erpx/server-finance/public/field-service-references";
 import {fieldServiceAssetSourceRows} from "@erpx/server-assets/public/field-service-references";
 import {fieldServiceTicketSourceRows} from "@erpx/server-support/public/field-service-sources";

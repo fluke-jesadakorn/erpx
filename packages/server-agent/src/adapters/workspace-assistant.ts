@@ -31,7 +31,7 @@ import {posWorkspace} from "@erpx/server-pos/public/pos";
 import {commercePage} from "@erpx/server-commerce/public/commerce";
 import {financeOverviewCounts} from "@erpx/server-finance/public/finance";
 import {closeWorkspace} from "@erpx/server-finance/public/finance-workspace";
-import {assertProductionModuleEnabled} from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {getWorkPage} from "@erpx/server-work_projection/public/work-summary";
 import {homePosts,postView} from "@erpx/server-collaboration/public/social-home";
 import {getLeave} from "@erpx/server-people_payroll/public/leave";

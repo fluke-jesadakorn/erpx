@@ -17,7 +17,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards} from '@erpx/server-workflow/public/commands';
 import {workTaskApprovalSourceLocks,workApprovalSettlementSources as journals} from '@erpx/server-workflow/public/work-package-obligation-sources';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {withOperationsTaskPurchaseUnit,deferOperationsTaskPurchaseCheck} from '@erpx/server-projects/public/task-purchases';
 import {withProjectPurchasedCommand} from '@erpx/server-projects/public/purchases';
 import {workPackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandBoundary,companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';

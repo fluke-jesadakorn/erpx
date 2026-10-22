@@ -1,7 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { acceptedReleasePredicate, releaseRevisionTable } from "@erpx/server-platform_administration/public/release-acceptance";
+import { acceptedReleasePredicate, releaseRevisionTable } from "@erpx/server-platform_administration/public/release-predicate";
 import artifact from "@erpx/catalogue/release-artifact.json";
 import type { PmsRolloutRelease } from "@erpx/server-pms/public/rollout-contracts";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";

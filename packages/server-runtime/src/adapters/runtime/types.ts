@@ -41,6 +41,11 @@ export type StoredFile = FileMetadata & {
   arrayBuffer(): Promise<ArrayBuffer>;
   text(): Promise<string>;
 };
+/** The Legal owner supplies these ports inside its existing deletion unit. */
+export type FileDestructionAuthority={
+ assertLocal(database:SqlDatabase,destructionId:string,keys:string[]):Promise<void>;
+ readRemote(database:SqlDatabase,destructionId:string):Promise<{manifest:string|{keys:string[]}}|null>;
+};
 export interface FileStore {
   /** Protected stores can reuse an active transaction from their owning database. */
   readonly supportsTransactionDeletion?: boolean;
@@ -49,6 +54,6 @@ export interface FileStore {
   get(key: string, options?: { range?: { offset?: number; length?: number; suffix?: number } }): Promise<StoredFile | null>;
   head(key: string): Promise<FileMetadata | null>;
   delete(key: string | string[], authorization?: { database: SqlDatabase }): Promise<void>;
-  destroyPreserved?(keys:string[], authorization:{database:SqlDatabase;destructionId:string}):Promise<void>;
+  destroyPreserved?(keys:string[], authorization:{database:SqlDatabase;destructionId:string;owner?:FileDestructionAuthority}):Promise<void>;
   list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: FileMetadata[]; truncated: boolean; cursor?: string }>;
 }

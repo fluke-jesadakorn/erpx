@@ -12,7 +12,7 @@ import type { generateProviderJson, withAiGatewayScope } from "@erpx/server-agen
 import type { requireAuthor } from "@erpx/server-runtime/public/executive/access";
 import type { reportAccess } from "@erpx/server-runtime/public/executive/reports";
 import type { executiveAiContext } from "@erpx/server-runtime/public/executive/context";
-import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 type Tail<Value extends unknown[]> = Value extends [
     unknown,
     ...infer Rest

@@ -197,7 +197,12 @@
     "./domain/references": "./src/domain/references.ts",
     "./domain/portal": "./src/domain/portal.ts",
     "./domain/deadlines": "./src/domain/deadlines.ts",
-    "./domain/signing": "./src/domain/signing.ts"
+    "./domain/signing": "./src/domain/signing.ts",
+    "./adapters/runtime-mutation-authority": "./src/adapters/runtime-mutation-authority.ts",
+    "./adapters/runtime-minio-mutation-authority": "./src/adapters/runtime-minio-mutation-authority.ts",
+    "./adapters/file-destruction-ports": "./src/adapters/file-destruction-ports.ts",
+    "./public/runtime-mutation-authority": "./src/public/runtime-mutation-authority.ts",
+    "./public/runtime-minio-mutation-authority": "./src/public/runtime-minio-mutation-authority.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

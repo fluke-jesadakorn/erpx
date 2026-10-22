@@ -12,7 +12,7 @@ import {lockPackageSettlementSources} from '@erpx/server-commercial/public/packa
 import {servicePartsPostingSourceLocks,servicePartsPostingState} from '@erpx/server-commerce/public/service-parts-posting-sources';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {financialConstraintError,replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';

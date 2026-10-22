@@ -10,7 +10,7 @@ import {requirePermission} from "@erpx/server-identity_access/public/iam-permiss
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import {assertProductionModuleEnabled,productionFeatureGuard,scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {commercePackageEnforcementMode} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {withSalesNotificationPurchase,requireSalesNotificationRead} from '@erpx/server-sales/adapters/notification-purchases';
 import {deliverPurchasedCustomerNotification,drainPurchasedCustomerNotifications} from '@erpx/server-sales/adapters/notification-execution';

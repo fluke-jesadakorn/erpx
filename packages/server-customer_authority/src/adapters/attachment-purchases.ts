@@ -13,7 +13,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards} from '@erpx/server-workflow/public/commands';
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public/owner-source-locks';
 import {finalRootOwnerProjectionSources as commerce} from '@erpx/server-commerce/public/final-root-owner-projection-sources';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
 import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finance-transactions';
 export type PortalAttachmentPurchase={companyId:string;capability:'sales.portal';purpose:CapabilityPurpose;actor:WorkContext;targetId:string;external:boolean;witness:string};

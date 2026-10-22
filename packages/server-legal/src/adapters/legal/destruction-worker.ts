@@ -1,3 +1,4 @@
+import {fileDestructionAuthority} from "@erpx/server-legal/adapters/file-destruction-ports";
 import {withLegalRetentionExecutionUnit,authorizeLegalRetentionDeletion} from "@erpx/server-legal/adapters/retention-execution";
 import "server-only";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
@@ -39,7 +40,7 @@ retireAi:async (facts:{item_id:string;})=>{await db.prepare("UPDATE legal_ai_pro
 revokeShares:async (facts:{now:number;item_id:string;})=>{await db.prepare("UPDATE legal_shares SET revoked_at=? WHERE item_id=? AND revoked_at IS NULL").bind(facts.now,facts.item_id).run();},
 completeDestruction:async (facts:{now:number;id:string;})=>{await db.prepare("UPDATE legal_destructions SET state='completed',completed_at=?,error=NULL,version=version+1 WHERE id=?").bind(facts.now,facts.id).run();},
 recordCompleted:async (facts:{identifier:string;item_id:string;fact2:string;item_version:number;now:number;})=>{await db.prepare("INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,'retention.destroyed','system:legal',?,?,?)").bind(facts.identifier,facts.item_id,facts.fact2,facts.item_version,facts.now).run();},
-lockCompany:async id=>{await lock(db,id).run();},canDestroy:()=>Boolean(files.destroyPreserved),validate:(id,company,manifest)=>validateLegalDestructionSources(db,id,company,manifest),seal:(company,id,manifest)=>sealLegalDestructionSources(db,company,id,manifest),destroy:async(keys,id)=>{if(!files.destroyPreserved)throw new Error("LEGAL_DESTRUCTION_STORE_UNAVAILABLE");await authorizeLegalRetentionDeletion(db,id);return files.destroyPreserved(keys,{database:db,destructionId:id});}
+lockCompany:async id=>{await lock(db,id).run();},canDestroy:()=>Boolean(files.destroyPreserved),validate:(id,company,manifest)=>validateLegalDestructionSources(db,id,company,manifest),seal:(company,id,manifest)=>sealLegalDestructionSources(db,company,id,manifest),destroy:async(keys,id)=>{if(!files.destroyPreserved)throw new Error("LEGAL_DESTRUCTION_STORE_UNAVAILABLE");await authorizeLegalRetentionDeletion(db,id);return files.destroyPreserved(keys,{database:db,destructionId:id,owner:fileDestructionAuthority(db,id)});}
 };}
 export function drainLegalDestruction(db:PostgresDatabase,files:FileStore){let candidate:{id:string;company_id:string}|null=null;return createLegalDestructionWorker({clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},repository:{
 candidate:async()=>{candidate=await db.prepare("SELECT x.id,i.company_id FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id WHERE x.state IN ('approved','executing') AND x.attempts<6 ORDER BY x.created_at LIMIT 1").first<{id:string;company_id:string}>();return candidate;},

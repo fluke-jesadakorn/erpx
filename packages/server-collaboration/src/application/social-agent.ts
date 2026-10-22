@@ -12,7 +12,7 @@ import type { requireJobAuthority } from '@erpx/server-identity_access/public/ia
 import type { iamMutationGuards } from '@erpx/server-identity_access/public/iam-store';
 import type { sourceGuard } from '@erpx/server-collaboration/public/social-source';
 import type { aiSnapshotGuard, aiUsageStatement } from '@erpx/server-agent/public/ai-providers';
-import type { assertProductionModuleEnabled } from '@erpx/server-pms/public/hospitality-rollout';
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { aiRequestQuotaLock } from '@erpx/server-agent/public/ai-quota';
 import { replySchema, type Reply } from '@erpx/server-collaboration/domain/social-agent';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';

@@ -13,7 +13,7 @@ import {hireHandoffPayGroupSourceLocks,hireHandoffPayGroupSourceImage} from '@er
 import {peopleHireHandoffFacts} from '@erpx/server-talent/public/people-hire-handoff-facts';
 import type {Source} from '@erpx/server-people_payroll/domain/people-handoffs';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {financialConstraintError,replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import type {HireHandoffPayGroupInput} from '@erpx/server-people_payroll/domain/hire-handoff-pay-group';

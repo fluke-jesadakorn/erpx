@@ -9,7 +9,7 @@ import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { prepareJournal } from "@erpx/server-finance/public/finance";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { originalSource } from "@erpx/server-people_payroll/adapters/payroll-adjustments";

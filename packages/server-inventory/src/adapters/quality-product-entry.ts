@@ -3,7 +3,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {QualityProductEntryScope} from "@erpx/server-quality/public/rules/product-entry";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
 /** Only a proven existing Sales disposal Count. This does not grant Supply's
  * collection, preparation, amendment or recount capabilities. */

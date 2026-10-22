@@ -5,7 +5,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {currentAuthority} from "@erpx/server-runtime/public/executive/access";
 import {sha256} from "@erpx/server-runtime/public/crypto";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {assertProductionModuleEnabled} from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createBenefitEvidenceApplication,type BenefitEvidencePorts} from "@erpx/server-benefits/application/executive-evidence";
 import {benefitEvidenceProvider,benefitEvidenceFields,type BenefitEvidenceRow} from "@erpx/server-benefits/domain/executive-evidence";

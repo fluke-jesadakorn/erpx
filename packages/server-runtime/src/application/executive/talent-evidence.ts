@@ -6,7 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { talentEvidenceMetrics, type TalentEvidenceMetric, providerId, requisitionFields, applicationFields, inputSchema, type TalentEvidenceRow, parseCursor, safeVersion, safeTimestamp, utcRange, notFound } from '@erpx/server-runtime/domain/executive/talent-evidence';
 import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
 import type { talentExecutiveEvidenceRow } from "@erpx/server-talent/public/talent";
-import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { currentAuthority } from "@erpx/server-runtime/public/executive/access";
 import type { metricCatalogFor } from "@erpx/server-runtime/public/executive/metrics";
 type Tail<Value extends unknown[]> = Value extends [

@@ -12,7 +12,7 @@ import {workPackageEnforcementMode,companyPurchaseReadLocks,readPurchasedAccess,
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {calendarPeopleProjectionSources} from '@erpx/server-people_payroll/public/calendar-people-projection-sources';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';

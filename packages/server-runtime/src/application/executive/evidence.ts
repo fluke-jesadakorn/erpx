@@ -16,7 +16,7 @@ import { providerId, payrollSummaryMetric, payrollSummaryProviderId, payrollSumm
 import type { Clock } from '@erpx/server-shared/index';
 import type { currentAuthority } from "@erpx/server-runtime/public/executive/access";
 import type { metricCatalogFor } from "@erpx/server-runtime/public/executive/metrics";
-import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { getSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
 import type { getQualityHold } from "@erpx/server-quality/public/quality";
 import type { fieldServiceDetail } from "@erpx/server-field_service/public/field-service";

@@ -7,7 +7,7 @@ import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {runWithRequestMemo} from "@erpx/server-runtime/public/runtime/request-memo";
 import {engineeringVerificationContext,enrollEngineeringVerification,isolatedEngineeringVerification} from "@erpx/server-platform_administration/public/engineering-verification";
-import {assertProductionModuleEnabled,assertProductionFeatureRoute,productionFeatureGuard,scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled, assertProductionFeatureRoute, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {legalCompanyCapabilityReady} from "@erpx/server-legal/public/legal/runtime-gate";
 import {companyReleaseStatus} from "@erpx/server-platform_administration/public/release-acceptance";
 import {getRuntime,closeRuntime} from "@erpx/server-runtime/adapters/runtime/env";

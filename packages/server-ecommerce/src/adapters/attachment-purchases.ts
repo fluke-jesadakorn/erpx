@@ -12,7 +12,7 @@ import {commercePackageEnforcementMode,checkPurchasedCapability,purchaseCommandB
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards} from '@erpx/server-workflow/public/commands';
 import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finance-transactions';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import {ecommerceCommerceSourceReadLocks} from '@erpx/server-ecommerce/adapters/commerce-source-locks';
 

@@ -8,7 +8,7 @@ import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {workPackageEnforcementMode,purchaseCommandBoundary,observePurchaseResults} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finance-transactions';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {AttachmentOperation} from '@erpx/server-files/public/attachments/types';
 import {ApiError} from '@erpx/server-runtime/public/http';

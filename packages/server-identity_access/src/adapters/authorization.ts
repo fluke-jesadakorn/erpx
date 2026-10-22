@@ -15,7 +15,7 @@ import { initializeWorkSelection } from "@erpx/server-work_projection/public/wor
 import type { RoleRevision } from "@erpx/feature-identity_access/lib/iam";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { betaAccess } from "@erpx/server-identity_access/public/beta-access";
-import { assertProductionFeatureRoute } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionFeatureRoute } from "@erpx/server-pms/public/feature-availability";
 import "server-only";
 import { headers } from "next/headers";
 import type { HoldingWorkspaceScope } from "@erpx/feature-work_projection/lib/workspace";

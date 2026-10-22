@@ -216,3 +216,12 @@ it('keeps development app profiles explicit and rejects compatibility mixed into
   for (const value of ['[]', '["compat","learn"]', '["learn","learn"]', '["unknown"]']) expect(() => workspaceBrowserApps(value)).toThrow();
   await expect(startWorkspaceBrowserRuntime()).rejects.toThrow('ISOLATED_WORKSPACE_BROWSER_RUNTIME_REQUIRED');
 });
+
+import { runtimeLeafViolations } from '../../../scripts/architecture/runtime-leaves';
+it('keeps storage and availability leaves from regaining indirect business-command dependencies', () => {
+  const source='packages/server-runtime/src/adapters/runtime/filesystem.ts',read='packages/server-legal/src/adapters/runtime-mutation-authority.ts',command='packages/server-legal/src/adapters/retention-execution.ts';
+  const runtimeImports=new Map([[source,new Set([read])],[read,new Set<string>()]]);
+  expect(runtimeLeafViolations({runtimeImports})).toEqual([]);
+  runtimeImports.get(read)!.add(command);
+  expect(runtimeLeafViolations({runtimeImports})).toEqual([{source,target:command}]);
+});

@@ -7,7 +7,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-purchase-sources';
 import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';

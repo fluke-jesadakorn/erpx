@@ -32,7 +32,7 @@ import { accountWorkModuleAccess } from "@erpx/server-identity_access/adapters/w
 import { readCompanyPurchaseFacts } from "@erpx/server-commercial/public/package-grants";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { initializeWorkSelection, selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
-import { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import { executiveVisible as isExecutiveVisible } from "@erpx/server-runtime/public/executive/access";
 import { loadIamAuthority } from "@erpx/server-identity_access/adapters/iam-store";
 import { betaAccess } from "@erpx/server-identity_access/adapters/beta-access";

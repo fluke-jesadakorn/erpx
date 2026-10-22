@@ -6,7 +6,7 @@ import {privateFileDenialAuthoritySourceLocks} from '@erpx/server-identity_acces
 import {workPackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,readPurchasedAccess,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';

@@ -11,7 +11,7 @@ import {packageClockSql} from "@erpx/server-commercial/public/purchased-capabili
 import {salesQualityCountProductEntry} from "@erpx/server-inventory/public/quality-product-entry";
 import {qualityPurchaseSourceRows} from "@erpx/server-quality/adapters/purchase-sources";
 import {qualitySourcePurchasePredicate} from "@erpx/server-quality/adapters/record-purchases";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {workContextGuards,financialConstraintError} from "@erpx/server-workflow/public/commands";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {ApiError} from "@erpx/server-runtime/public/http";

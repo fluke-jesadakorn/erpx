@@ -13,7 +13,7 @@ import { requirePermission } from "@erpx/server-identity_access/public/iam-permi
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 
 
 import {BusinessRuleError} from '@erpx/server-shared/index';

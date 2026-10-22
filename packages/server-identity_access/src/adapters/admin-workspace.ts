@@ -8,7 +8,7 @@ import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {ApiError,errorResponse} from '@erpx/server-runtime/public/http';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {administrationAccess} from '@erpx/server-runtime/public/administration';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {productCompany} from '@erpx/server-organization/public/product-company';
 import {initializeWorkSelection,selectWorkRole} from '@erpx/server-work_projection/public/work-role-store';
 import {requireAccountAccess,requirePlatformContext} from '@erpx/server-identity_access/adapters/authorization';

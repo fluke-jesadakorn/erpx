@@ -13,7 +13,7 @@ import {socialProjectAudienceSource,socialProjectAudienceReadPredicate} from '@e
 import {socialPmsSourceFacts,socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {pmsSocialSourcePurchasePredicate,pmsSocialSourcePurchaseScopes} from '@erpx/server-pms/public/social-source-purchases';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';

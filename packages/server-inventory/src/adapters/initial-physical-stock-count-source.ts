@@ -10,7 +10,7 @@ import {initialPhysicalStockCommerceSourceLocks} from '@erpx/server-commerce/pub
 import {initialPhysicalStockCountFinanceLeases} from '@erpx/server-finance/public/initial-physical-stock-count-sources';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {financialConstraintError} from '@erpx/server-workflow/public/commands';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';

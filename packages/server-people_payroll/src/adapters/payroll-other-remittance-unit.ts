@@ -9,7 +9,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import {companyPurchaseReadLocks,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {payrollOtherFinanceLeases,payrollOtherFinanceState} from '@erpx/server-finance/public/payroll-other-remittance-facts';
 import {financialConstraintError} from '@erpx/server-workflow/public/commands';

@@ -5,8 +5,8 @@ import type { SavedApproval } from "@erpx/server-records/public/employee-request
 import type { approvalView } from "@erpx/server-workflow/public/approvals";
 import type { canOverrideEmployeeRequest } from "@erpx/server-records/public/employee-requests";
 import type { readRequestForOverride } from "@erpx/server-records/public/employee-requests";
-import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
-import type { productionFeatureGuard } from "@erpx/server-pms/public/hospitality-rollout";
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
+import type { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import type { hasPolicyReadSnapshot } from "@erpx/server-identity_access/public/iam-read-snapshot";
 import type { currentPersonPrincipals } from "@erpx/server-identity_access/public/iam-person";
 import type { personIdentityIds } from "@erpx/server-identity_access/public/iam-person";

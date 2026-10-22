@@ -11,7 +11,7 @@ import {projectTaskRecordPolicy} from '@erpx/server-operations/adapters/project-
 import {workTaskPurchaseAccess,workTaskReadScope} from '@erpx/server-operations/adapters/work-task-purchases';
 import {projectTaskReadScope} from '@erpx/server-projects/public/task-purchases';
 import {routineSourceReadScope} from '@erpx/server-operations/adapters/routine-source-read';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {workTaskSocialReadScope} from '@erpx/server-collaboration/public/work-task-read-policy';
 import {handbookSourceReadScope,requireHandbookWorkspaceRead} from '@erpx/server-collaboration/public/handbook-purchases';
 

@@ -1496,6 +1496,21 @@
       "file": "tests/e2e/learning/workspace-smoke.spec.ts",
       "title": "Learn workspace signs in through Account and preserves its isolated drawer draft",
       "project": "mobile"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/legal/file-destruction-ports.test.ts",
+      "title": "refuses a deletion port rebound to another database or destruction before consulting owner policy"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/legal/file-destruction-ports.test.ts",
+      "title": "rechecks local owner authority after a previously allowed deletion without caching the permission"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/legal/file-destruction-ports.test.ts",
+      "title": "reads remote destruction authority afresh and exposes its revocation to storage"
     }
   ]
 }

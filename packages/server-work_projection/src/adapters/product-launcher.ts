@@ -19,7 +19,7 @@ import { consoleOrigin } from "@erpx/feature-runtime/lib/erpx-hosts";
 import { legacyConsoleRetired } from "@erpx/feature-runtime/lib/console-retirement";
 import { productWorkspaceChoices } from "@erpx/server-organization/public/workspace-choices";
 import { frontActiveCompanies } from "@erpx/server-organization/public/front-company-options";
-import { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { accountWorkModuleAccess } from "@erpx/server-identity_access/public/work-module-access";
 import { createProductLauncher } from "@erpx/server-work_projection/application/product-launcher";

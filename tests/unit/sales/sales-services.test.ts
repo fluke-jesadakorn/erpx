@@ -246,7 +246,7 @@ test('owner receipt decoder refuses invented uniform versions, foreign Company a
 });
 
 vi.mock("@erpx/server-identity_access/public/authorization",async importOriginal=>({...await importOriginal<typeof import("@erpx/server-identity_access/public/authorization")>(),requireWorkContext:servicePostingPorts.actor}));
-vi.mock("@erpx/server-pms/public/hospitality-rollout",async importOriginal=>({...await importOriginal<typeof import("@erpx/server-pms/public/hospitality-rollout")>(),assertProductionModuleEnabled:servicePostingPorts.release}));
+vi.mock("@erpx/server-pms/public/feature-availability",async importOriginal=>({...await importOriginal<typeof import("@erpx/server-pms/public/feature-availability")>(),assertProductionModuleEnabled:servicePostingPorts.release}));
 vi.mock("@erpx/server-manage_erpx/public/public-origin",()=>({requestPublicOrigin:(request:Request)=>new URL(request.url).origin}));
 vi.mock("@erpx/server-work_projection/public/page-error",()=>({pageError:(error:unknown)=>{throw error;}}));
 import SalesPostingPage from '@erpx/feature-sales/routes/holdings/[holdingSlug]/customers-sales/sales/settings/posting/page';

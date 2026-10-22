@@ -7,7 +7,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { supportRecipientEligibility } from "@erpx/server-support/adapters/support-recipient";
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { nativeSupportRuntime } from "@erpx/server-support/adapters/command-runtime";
 import { createDrainSupportSla, createSupportAlerts, createGetSupportAlert, createAcknowledgeSupportAlert, createSupportAlertWork } from "@erpx/server-support/application/support-sla-alerts";
 import type { SupportAlert as Alert } from "@erpx/server-support/domain/support-sla-alerts";

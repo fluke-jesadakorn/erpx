@@ -94,14 +94,15 @@ export class LocalFileStore implements FileStore {
     }
     if(!this.preservationDb)return operation();
     const guarded=async(tx:SqlDatabase)=>{
-      await (await import("@erpx/server-legal/public/runtime-preservation-authority")).runtimePreservationAuthority(tx).assertMutation(keys);
+      await (await import("@erpx/server-legal/public/runtime-mutation-authority")).runtimeMutationAuthority(tx).assertMutation(keys);
       return operation();
     };
     return database?guarded(database):this.preservationDb.transaction(guarded);
   }
   async destroyPreserved(keys:string[],authorization:Parameters<NonNullable<FileStore['destroyPreserved']>>[1]){
     const tx=authorization.database;
-    await (await import("@erpx/server-legal/public/runtime-preservation-authority")).runtimePreservationAuthority(tx).assertDestruction(keys,authorization.destructionId);
+    if(!authorization.owner)throw new Error('LEGAL_DESTRUCTION_NOT_AUTHORIZED');
+    await authorization.owner.assertLocal(tx,authorization.destructionId,keys);
     for(const key of keys)await rm(this.location(key),{recursive:true,force:true});
   }
   async list(options: { prefix?: string; cursor?: string; limit?: number } = {}) {

@@ -4,7 +4,7 @@ import {requirePermission} from '@erpx/server-identity_access/public/iam-permiss
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {salesGoodsPostingFulfillmentSources} from '@erpx/server-commerce/public/sales-goods-posting-setup';
 import {approvedSalesPostingDefaults,approvedSalesPostingDefaultMatches,approvedSalesPostingEffectiveService} from '@erpx/server-finance/adapters/approved-sales-posting-defaults';
 import {commercePostingFinanceReferences,validateCommercePostingFinanceReferences} from '@erpx/server-finance/adapters/commerce-posting-setup';

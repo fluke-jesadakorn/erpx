@@ -165,7 +165,10 @@
     "./domain/social-events": "./src/domain/social-events.ts",
     "./domain/home": "./src/domain/home.ts",
     "./domain/pms-model": "./src/domain/pms-model.ts",
-    "./domain/pms": "./src/domain/pms.ts"
+    "./domain/pms": "./src/domain/pms.ts",
+    "./public/feature-availability": "./src/public/feature-availability.ts",
+    "./adapters/feature-availability": "./src/adapters/feature-availability.ts",
+    "./application/feature-availability": "./src/application/feature-availability.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

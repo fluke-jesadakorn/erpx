@@ -11,7 +11,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {financePackageEnforcementMode,readPurchasedAccesses,companyPurchaseReadLocks,checkPurchasedCapability} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {commerceFinanceRecordSources} from '@erpx/server-commerce/public/finance-record-sources';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {financeSourceDocumentReadLeases} from '@erpx/server-finance/adapters/document-purchases';
 import {withFinancePurchasedCommand} from '@erpx/server-finance/adapters/purchase-boundary';
 import {financeSalesReceiptOriginalSources} from '@erpx/server-finance/adapters/sales-receipt-sources';

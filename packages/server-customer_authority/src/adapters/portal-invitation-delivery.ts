@@ -6,7 +6,7 @@ import type { BetaEnvironment } from "@erpx/server-manage_erpx/public/beta-confi
 import { sendBetaEmail, type BetaEmailOptions } from "@erpx/server-manage_erpx/public/beta-email";
 import { publicSurfaceOrigin } from "@erpx/server-identity_access/public/public-surface-entry";
 import { customerPortalPurchaseScope } from "@erpx/server-customer_authority/adapters/portal-read-purchases";
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { createCustomerPortalInvitationDelivery, type CustomerPortalInvitationDeliveryJob } from "@erpx/server-customer_authority/application/portal-invitation-delivery";
 import { customerPortalInvitationToken, customerPortalInvitationTokenHashMatches } from "@erpx/server-customer_authority/adapters/portal-invitation-crypto";
 import { customerPortalInvitableOrderStates } from "@erpx/server-customer_authority/domain/portal-invitation";

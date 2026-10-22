@@ -8,7 +8,7 @@ import { commercePackageEnforcementMode, checkPurchasedCapability, companyPurcha
 import { commerceCompleteOwnerSourceReadLocks } from "@erpx/server-commerce/public/owner-source-locks";
 import { customerPortalSourceReadLocks } from "@erpx/server-customer_authority/adapters/portal-source-locks";
 import { customerPortalPurchaseScope } from "@erpx/server-customer_authority/adapters/portal-read-purchases";
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { configuredProductHandoff } from "@erpx/feature-runtime/lib/product-hosts";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { customerPortalInvitableOrderStates } from "@erpx/server-customer_authority/domain/portal-invitation";

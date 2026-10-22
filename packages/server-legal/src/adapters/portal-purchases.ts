@@ -8,7 +8,7 @@ import {legalKindCapability} from '@erpx/server-legal/domain/purchases';
 import {legalItemPurchasePredicate,inLegalOwnerUnit,deferLegalOwnerCheck,legalSourceWitness} from '@erpx/server-legal/adapters/purchases';
 import {legalPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {attachmentPrivateReadSourceLocks} from '@erpx/server-files/public/private-attachment-reads';
 export async function legalPortalPurchasePredicate(alias='i',strictHistory=false){

@@ -15,7 +15,7 @@ import {PublicMarketingForm} from '@erpx/feature-marketing/components/public-mar
 
 let marketingDatabase:SqlDatabase|undefined;
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:marketingDatabase??env.H001_DB,files:env.H001_FILES}),holdingBindingBySlug:async()=>({id:'H001'}),runtimeEnv:async()=>env}));
-vi.mock("@erpx/server-pms/public/hospitality-rollout",()=>({assertProductionModuleEnabled:async()=>{}}));
+vi.mock("@erpx/server-pms/public/feature-availability",()=>({assertProductionModuleEnabled:async()=>{}}));
 // Declared scanner adapter for integration only; preview bytes, private storage,
 // native owner binding, approval and revocation are real. Compiled browser UAT
 // uses the separately required actual release scanner.

@@ -6,7 +6,7 @@ import {fieldServiceFinanceRecordSources,fieldServiceFinanceSourceReadLocks} fro
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {financePackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks} from "@erpx/server-commercial/public/purchase-command-boundary";

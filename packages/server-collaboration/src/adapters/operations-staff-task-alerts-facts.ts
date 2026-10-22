@@ -1,6 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 export function StaffTaskAlertsCollaborationFacts(database: SqlDatabase) {
     return { stageEscalateStaffTasksResult(value: string, company_id: string, userId: string, value2: "staff_task_alert", id: string, version: number, message: string, now: number, value3: string[]) {
             return database.prepare(`INSERT INTO staff_notifications

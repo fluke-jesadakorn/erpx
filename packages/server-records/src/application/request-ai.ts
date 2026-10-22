@@ -16,8 +16,8 @@ import type { employeeRequestDetail } from "@erpx/server-records/public/employee
 import type { requestVersionGuard } from "@erpx/server-records/public/employee-requests";
 import type { serviceAuthoritySnapshot } from "@erpx/server-support/public/service-access";
 import type { validateServiceScope } from "@erpx/server-support/public/service-access";
-import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
-import type { productionFeatureGuard } from "@erpx/server-pms/public/hospitality-rollout";
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
+import type { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import type { isThaiHotelAiMockEnabled } from "@erpx/server-runtime/public/simulation-only-adapters";
 import { requestAiInput, requestAiResult, type Proposal } from '@erpx/server-records/domain/request-ai';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';

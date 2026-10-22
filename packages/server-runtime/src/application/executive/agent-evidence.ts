@@ -5,7 +5,7 @@ import { filtersSchema, type MetricId } from "@erpx/server-runtime/public/rules/
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { agentEvidenceMetrics, type AgentEvidenceMetric, providerId, approvedVersionMetric, approvedVersionFields, invocationFields, inputSchema, type ApprovedVersionRow, type InvocationRow, parseCursor, encodeCursor, exactNumber } from '@erpx/server-runtime/domain/executive/agent-evidence';
 import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
-import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { currentAuthority } from "@erpx/server-runtime/public/executive/access";
 import type { metricCatalogFor } from "@erpx/server-runtime/public/executive/metrics";
 type Tail<Value extends unknown[]> = Value extends [

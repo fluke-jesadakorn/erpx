@@ -7,7 +7,7 @@ import { effects, persistPmsRecords } from "../../../../packages/server-pms/src/
 import { snapshotMoney } from "@erpx/server-finance/public/company-money";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase, TransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { Effects } from "@erpx/feature-pms/lib/pms-engine";

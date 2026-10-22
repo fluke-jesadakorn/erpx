@@ -12,7 +12,7 @@ import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {legalPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import type {LegalKind} from '@erpx/server-legal/domain/model';
 import type {LegalEvidenceSource} from '@erpx/server-legal/adapters/evidence-attachment-read';

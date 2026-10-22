@@ -4,7 +4,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {JobEnv} from '@erpx/server-workflow/public/job-projector';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {inSalesNotificationOwnerUnit,salesNotificationSource,salesNotificationSourceHash,salesNotificationInvalid,salesNotificationAuthorization,requireSalesNotificationExecution,type SalesNotificationSource,type SalesNotificationAuthorization} from '@erpx/server-sales/adapters/notification-purchases';
 type Attempt={id:string;notification_id:string;company_id:string;authorization_command_id:string;attempt:number;lease_until:number;source_hash:string;state:string};
 type Stage={mail:SalesNotificationSource;authorization:SalesNotificationAuthorization;attempt:Attempt};

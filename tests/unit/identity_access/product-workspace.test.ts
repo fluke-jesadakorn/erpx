@@ -20,7 +20,7 @@ vi.mock("@erpx/server-identity_access/adapters/authorization", () => ({ requireA
 vi.mock("@erpx/server-identity_access/adapters/work-module-access", () => ({ accountWorkModuleAccess: mocks.modules }));
 vi.mock("@erpx/server-commercial/public/package-grants", () => ({ readCompanyPurchaseFacts: async (...args: unknown[]) => ({grants:await mocks.grants(...args),history:await mocks.history(...args)}) }));
 vi.mock("@erpx/server-runtime/public/runtime", () => ({ holdingResources: async () => ({ write: {} }) }));
-vi.mock("@erpx/server-pms/public/hospitality-rollout", () => ({ assertProductionModuleEnabled: mocks.ready }));
+vi.mock("@erpx/server-pms/public/feature-availability", () => ({ assertProductionModuleEnabled: mocks.ready }));
 vi.mock("@erpx/server-work_projection/public/work-role-store", () => ({ initializeWorkSelection: mocks.selection, selectWorkRole: mocks.select }));
 vi.mock("@erpx/server-organization/public/product-company", () => ({ productCompany: async () => ({ id: "c2", name: "Fixture Company" }) }));
 vi.mock("@erpx/server-work_projection/public/front-app",()=>({frontCompanyApp:mocks.front}));

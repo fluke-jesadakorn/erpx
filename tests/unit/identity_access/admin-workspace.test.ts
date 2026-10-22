@@ -7,7 +7,7 @@ vi.mock("@erpx/server-identity_access/adapters/work-module-access",()=>({account
 vi.mock("@erpx/server-identity_access/adapters/beta-access",()=>({betaAccess:mocks.beta}));
 vi.mock("@erpx/server-identity_access/adapters/iam-store",()=>({loadIamAuthority:mocks.iam}));
 vi.mock("@erpx/server-runtime/public/administration",()=>({administrationAccess:mocks.admin}));
-vi.mock("@erpx/server-pms/public/hospitality-rollout",()=>({assertProductionModuleEnabled:mocks.ready}));
+vi.mock("@erpx/server-pms/public/feature-availability",()=>({assertProductionModuleEnabled:mocks.ready}));
 vi.mock("@erpx/server-runtime/public/runtime",()=>({holdingResources:async()=>({write:{prepare:()=>({bind:()=>({first:mocks.current})})}})}));
 vi.mock("@erpx/server-work_projection/public/work-role-store",()=>({initializeWorkSelection:mocks.selection,selectWorkRole:mocks.select}));
 vi.mock("@erpx/server-organization/public/product-company",()=>({productCompany:async()=>({id:'company',name:'Current Company'})}));

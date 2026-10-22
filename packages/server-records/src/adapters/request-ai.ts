@@ -11,7 +11,7 @@ import { generateProviderJson, withAiGatewayScope } from "@erpx/server-agent/pub
 import { employeeRequestDetail, requestVersionGuard } from "@erpx/server-records/public/employee-requests";
 import { serviceAuthoritySnapshot, validateServiceScope } from "@erpx/server-support/public/service-access";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { generateThaiHotelMockAi, isThaiHotelAiMockEnabled } from "@erpx/server-runtime/public/simulation-only-adapters";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';

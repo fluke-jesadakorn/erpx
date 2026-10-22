@@ -6,7 +6,7 @@ import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/qu
 import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
 import {platformOwnerProjectionSources as identitySources} from '@erpx/server-identity_access/public/platform-owner-projection-sources';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {ApiError} from '@erpx/server-runtime/public/http';

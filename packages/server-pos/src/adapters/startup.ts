@@ -6,7 +6,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {companyPurchaseReadLocks,readPurchasedAccesses,checkPurchasedCapability} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {financeStarterOrganizationNodes} from '@erpx/server-organization/public/finance-starter-sources';
 import {posStartupMasterChoiceLocks,posStartupMasterChoices} from '@erpx/server-commerce/public/pos-startup-master-choices';
 import {posStartupMasterFinanceSource,posStartupBootstrapFinanceReferences} from '@erpx/server-finance/public/pos-startup-master-sources';

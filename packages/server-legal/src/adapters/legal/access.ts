@@ -8,7 +8,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type { LegalItem, LegalKind } from "@erpx/server-legal/public/rules/model";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
-import { productionFeatureGuard } from "@erpx/server-pms/public/hospitality-rollout";
+import { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",

@@ -7,7 +7,7 @@ import type { PlanningExecutiveEvidenceMetric } from "@erpx/server-manufacturing
 import { planningEvidenceMetrics, type PlanningEvidenceMetric, providerId, inputSchema, type EvidenceRow, fieldsFor, scopeKey, parseCursor, safeRevision, safeWholeText, safeTimestamp, safeDate, shortages, notFound } from '@erpx/server-runtime/domain/executive/planning-evidence';
 import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
 import type { planningExecutiveEvidenceRow } from "@erpx/server-manufacturing/public/production";
-import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { currentAuthority } from "@erpx/server-runtime/public/executive/access";
 import type { metricCatalogFor } from "@erpx/server-runtime/public/executive/metrics";
 type Tail<Value extends unknown[]> = Value extends [

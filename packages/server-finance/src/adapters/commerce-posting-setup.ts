@@ -5,7 +5,7 @@ import {requirePermission} from '@erpx/server-identity_access/public/iam-permiss
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {requireFinanceMoneyScale} from '@erpx/server-finance/public/finance-money-policy';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 
 type Chart={id:string;name:string;base_currency:string;status:string;version:number;source:string};
 type Account={id:string;chart_id:string;code:string;name:string;category:string;currency:string;control_kind:string;status:string;version:number;source:string};

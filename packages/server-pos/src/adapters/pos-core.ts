@@ -12,7 +12,7 @@ import { workContextGuards } from "@erpx/server-workflow/public/commands";
 import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { applyPosRoomCharge, reversePosRoomCharge } from "../../../../packages/server-pms/src/public/pms";
-import { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal } from "@erpx/server-finance/public/company-money";
 import { capturePosReceipt, createPosCustomer, posDayCommand, assertPosDayWritable } from "@erpx/server-pos/public/pos-daily";

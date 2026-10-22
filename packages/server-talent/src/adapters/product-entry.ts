@@ -4,7 +4,7 @@ import type {TalentHireProductEntryScope,TalentProductSourceTarget,TalentSourceP
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {readPurchasedAccesses,checkPurchasedCapability} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";

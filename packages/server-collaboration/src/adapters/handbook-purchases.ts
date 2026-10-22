@@ -6,7 +6,7 @@ import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/qu
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {workContextGuards} from '@erpx/server-workflow/public/commands';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {workPackageEnforcementMode,readPurchasedAccess,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';

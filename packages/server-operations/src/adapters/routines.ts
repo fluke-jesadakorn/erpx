@@ -7,7 +7,7 @@ import { validateTaskConfiguration, configGuards } from "@erpx/server-operations
 import { activeStaff, companyAuthority, staffGuard, notification, type StaffActor } from "@erpx/server-operations/public/staff-policy";
 import { taskRoute, openApproval } from "@erpx/server-workflow/public/approvals";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';

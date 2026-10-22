@@ -3,7 +3,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
 import {expensePostingSetupNativeSources} from '@erpx/server-people_payroll/public/expense-posting-setup-sources';
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {ExpensePostingSetupInput} from '@erpx/server-commerce/public/expense-posting-setup';

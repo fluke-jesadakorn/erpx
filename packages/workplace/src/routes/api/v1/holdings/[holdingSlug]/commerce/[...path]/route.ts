@@ -3,7 +3,7 @@ import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/desti
 import {commerceEntrypointFacts} from "@erpx/server-commerce/public/entrypoint-facts";
 import {commerceEntrypointFinanceFacts} from "@erpx/server-finance/public/commerce-entrypoint-facts";
 import { changeOrderReservation } from "@erpx/server-commerce/public/commerce";
-import { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { z } from "zod";

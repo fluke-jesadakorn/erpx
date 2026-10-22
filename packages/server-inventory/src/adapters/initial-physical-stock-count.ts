@@ -12,7 +12,7 @@ import {initialPhysicalStockCommerceSource,initialPhysicalStockMasterChoices,ini
 import {initialPhysicalStockCountFinanceSource} from '@erpx/server-finance/public/initial-physical-stock-count-sources';
 import {financeStarterOrganizationNodes} from '@erpx/server-organization/public/finance-starter-sources';
 import {inventoryQualitySnapshotSources} from '@erpx/server-quality/public/inventory-quality-snapshot-sources';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';

@@ -4,7 +4,7 @@ import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import {projectsPackageEnforcementMode} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {projectPurchaseControls} from '@erpx/server-projects/adapters/purchases';
 import {listProjects} from '@erpx/server-projects/adapters/staff-projects';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {betaAccess} from '@erpx/server-identity_access/public/beta-access';
 
 async function strictReferenceReady(database:SqlDatabase,actor:StaffActor){

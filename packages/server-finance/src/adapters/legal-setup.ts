@@ -8,7 +8,7 @@ import { taxIdentityWorkspace } from "@erpx/server-finance/adapters/finance-tax-
 import { withholdingWorkspace } from "@erpx/server-finance/adapters/finance-withholding";
 import { withholdingMonthlyWorkspace } from "@erpx/server-finance/adapters/finance-withholding-remittance";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import type {FinanceProductPresentationOptions} from "@erpx/server-finance/adapters/record-presentation";
 import type {FinancePurchaseControls} from "@erpx/server-finance/domain/purchase-controls";

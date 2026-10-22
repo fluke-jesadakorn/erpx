@@ -6,7 +6,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {salesGoodsPostingFinanceState,validateSalesGoodsPostingFinanceState} from '@erpx/server-finance/adapters/sales-goods-posting-setup';
 import type {ManufacturingPostingSetupInput} from '@erpx/server-commerce/public/manufacturing-posting-setup';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 /** Existing Company Finance authority, independently of personal module lists.
  * This closed constructor never buys or discovers the Finance management UI. */
 export async function requireManufacturingPostingFinanceAuthority(database:SqlDatabase,actor:WorkContext,permission:'finance.read'|'finance.write'|'finance.approve'='finance.write'){

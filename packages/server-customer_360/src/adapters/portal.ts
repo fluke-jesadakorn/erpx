@@ -16,7 +16,7 @@ import {withCustomerPortalRequestProjection} from '@erpx/server-customer_authori
 import {portalSupportInstalled} from '@erpx/server-customer_authority/public/portal-support-sources';
 import {customerPortalOwnedUnit} from '@erpx/server-customer_authority/public/portal-purchases';
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandBoundary} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 
 function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()=>Promise<void>): PortalRepository {

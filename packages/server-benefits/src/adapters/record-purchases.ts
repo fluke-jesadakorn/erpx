@@ -7,7 +7,7 @@ import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {currentAssignmentReadScope} from "@erpx/server-identity_access/public/record-source-authority";
 import {peoplePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {benefitAttachmentPeopleSources as people} from "@erpx/server-people_payroll/public/benefits-owner-facts";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {benefitPurchaseControls,benefitAssignmentModulePredicate} from "@erpx/server-benefits/adapters/purchases";

@@ -17,7 +17,7 @@ import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { resolveAiProvider, aiSnapshotGuard, aiUsageStatement } from "@erpx/server-agent/public/ai-providers";
 import { generateProviderJson, withAiGatewayScope } from "@erpx/server-agent/public/ai-transport";
-import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { financeAiRevision, financeAiSnapshot, financeRevisionSql, requireFinanceAiScope } from "@erpx/server-finance/public/finance-ai-source";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { sha256 } from "@erpx/server-runtime/public/crypto";

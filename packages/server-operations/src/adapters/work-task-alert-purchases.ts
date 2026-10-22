@@ -13,7 +13,7 @@ import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/qu
 import {withProjectTaskAlert} from '@erpx/server-projects/public/scheduled-tasks';
 import {workPackageEnforcementMode,projectsPackageEnforcementMode,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-purchase-sources';
 import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';

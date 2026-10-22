@@ -9,7 +9,7 @@ import {salesEditorFinanceReferences,salesEditorFinanceSourceReadLocks} from '@e
 import {CommerceSalesFacts} from '@erpx/server-sales/public/commerce-facts';
 import {commerceOwnerPricingSourceReadLocks} from '@erpx/server-sales/public/commerce-owner-sources';
 import {requireCommerceCurrentAuthority} from '@erpx/server-commerce/adapters/purchase-boundary';
-import {assertProductionModuleEnabled} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {isTransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';

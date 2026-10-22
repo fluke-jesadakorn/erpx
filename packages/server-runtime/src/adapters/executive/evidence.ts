@@ -7,7 +7,7 @@ import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { currentAuthority } from "@erpx/server-runtime/public/executive/access";
 import { metricCatalogFor } from "@erpx/server-runtime/public/executive/metrics";
-import { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import { getSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
 import { getQualityHold } from "@erpx/server-quality/public/quality";
 import {serviceEvidenceDetail} from "@erpx/server-field_service/public/record-purchases";

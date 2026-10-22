@@ -18,7 +18,7 @@ import { stageWorkflowPostedOrderRevision } from '@erpx/server-commerce/public/w
 import { workflowRecord } from '@erpx/server-workflow/adapters/document-sources';
 import { approvalView } from "@erpx/server-workflow/adapters/approvals";
 import { canOverrideEmployeeRequest, readRequestForOverride } from "@erpx/server-records/public/employee-requests";
-import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { hasPolicyReadSnapshot } from "@erpx/server-identity_access/public/iam-read-snapshot";
 import { currentPersonPrincipals, personIdentityIds } from "@erpx/server-identity_access/public/iam-person";
 import type { PermissionActor } from "@erpx/feature-identity_access/lib/iam";

@@ -1,16 +1,14 @@
+import {activeRolloutPredicate} from "@erpx/server-pms/adapters/feature-availability";
 import 'server-only';
-import { moduleRegistry } from '@erpx/catalogue/module-registry';
-import { isReleaseModule } from "@erpx/feature-shared/lib/hospitality-rollout";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import { acceptedReleasePredicate, companyReleaseStatus } from "@erpx/server-platform_administration/public/release-acceptance";
-import { legalProductionScope } from '@erpx/catalogue/production-scope';
+import { companyReleaseStatus } from "@erpx/server-platform_administration/public/release-acceptance";
 import { authorityGuard } from "@erpx/server-operations/public/staff-policy";
-import { engineeringVerificationPredicate, isolatedEngineeringVerification } from "@erpx/server-platform_administration/public/engineering-verification";
+import { isolatedEngineeringVerification } from "@erpx/server-platform_administration/public/engineering-verification";
 import { createPmsRollout, type PmsRolloutRepository, type PmsRolloutRow } from "@erpx/server-pms/application/hospitality-rollout";
 import { productionAccepted } from "@erpx/server-pms/public/hospitality-evidence";
 type Readiness = Record<string, boolean>;
@@ -33,30 +31,10 @@ async function setupReadiness(db: SqlDatabase, companyId: string): Promise<Readi
         organization: Boolean(organization), procurement: Boolean(commerce), sales: Boolean(commerce), legal: Boolean(legal) };
 }
 /** Keep a queued result from becoming visible if rollout changes during provider inference. */
-export function productionFeatureGuard(db: SqlDatabase, key: string, companyId: string, moduleId: string) {
-    if (process.env.NODE_ENV !== 'production')
-        return [];
-    const engineering = moduleRegistry.some(module => module.id === moduleId) ? engineeringVerificationPredicate('?') : 'FALSE';
-    if (!isReleaseModule(moduleId)) {
-        if (engineering === 'FALSE')
-            throw new ApiError(403, 'FEATURE_COMING_SOON', 'This feature is outside the approved release scopes');
-        return [assertion(db, key, 'isolated-engineering', engineering, [companyId])];
-    }
-    return [db.prepare('SELECT module_id FROM company_feature_rollouts WHERE company_id=? AND module_id=? FOR SHARE').bind(companyId, moduleId), assertion(db, key, 'feature-rollout', `(EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE company_id=? AND module_id=? AND ${activeRolloutPredicate('f')}) OR ${engineering})`, [companyId, moduleId, ...(engineering === 'FALSE' ? [] : [companyId])])];
-}
+
 /** SQL predicate for company-scoped scheduled reads and writes. Expressions are code-owned, never user input. */
-export function scheduledFeaturePredicate(companyExpression: string, moduleId: string) {
-    if (process.env.NODE_ENV !== 'production')
-        return 'TRUE';
-    const engineering = moduleRegistry.some(module => module.id === moduleId) ? engineeringVerificationPredicate('engineering_subject.company_id') : 'FALSE';
-    if (engineering === 'FALSE')
-        return !isReleaseModule(moduleId) ? 'FALSE' : `EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE f.company_id=${companyExpression} AND f.module_id='${moduleId}' AND ${activeRolloutPredicate('f')})`;
-    const accepted = isReleaseModule(moduleId) ? `EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE f.company_id=engineering_subject.company_id AND f.module_id='${moduleId}' AND ${activeRolloutPredicate('f')})` : 'FALSE';
-    return `(SELECT (${accepted} OR ${engineering}) FROM (SELECT ${companyExpression}::text company_id) engineering_subject)`;
-}
-function activeRolloutPredicate(alias: string) {
-    return `(CASE WHEN ${alias}.module_id='legal' THEN ${alias}.rollout_state IN ('pilot','available') AND ${acceptedReleasePredicate(`${alias}.company_id`, legalProductionScope.version)} ELSE (${alias}.rollout_state='pilot' OR (${alias}.rollout_state='available' AND ${acceptedReleasePredicate(`${alias}.company_id`)})) END)`;
-}
+
+
 function repository(write: SqlDatabase): PmsRolloutRepository {
     return {
         rollouts: companyId => write.prepare('SELECT module_id,rollout_state,version,reason,changed_at FROM company_feature_rollouts WHERE company_id=?').bind(companyId).all<PmsRolloutRow>().then(rows => rows.results),
@@ -82,9 +60,9 @@ function repository(write: SqlDatabase): PmsRolloutRepository {
 const application = createPmsRollout({ repository: async (actor) => repository((await holdingResources(actor.holdingId)).write), clock: { now: () => Date.now() }, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), environment: () => process.env.NODE_ENV, deployment: () => process.env.ERPX_ENVIRONMENT, inventoryAccepted: productionAccepted });
 export const companyFeatureCatalogue = application.companyFeatureCatalogue;
 export const changeCompanyFeatureRollout = application.changeCompanyFeatureRollout;
-export function assertProductionFeatureRoute(db: SqlDatabase, companyId: string, destination: string, method: string) { return application.assertProductionFeatureRoute(repository(db), companyId, destination, method); }
-export function assertProductionModuleEnabled(db: SqlDatabase, companyId: string, moduleId: string) { return application.assertProductionModuleEnabled(repository(db), companyId, moduleId); }
-export function enabledProductionModules(db: SqlDatabase, companyId: string) { return application.enabledProductionModules(repository(db), companyId); }
+
+
+
 import { pmsRolloutPosFacts } from "@erpx/server-pos/public/pms-rollout-facts";
 import { pmsRolloutFinanceFacts } from "@erpx/server-finance/public/pms-rollout-facts";
 import { pmsRolloutCommerceFacts } from "@erpx/server-commerce/public/pms-rollout-facts";

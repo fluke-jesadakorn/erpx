@@ -6,7 +6,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {projectsPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 const capabilities={projects:"projects.wbs","overdue-project-milestones":"projects.wbs","project-dependency-blockers":"projects.wbs","project-actual-hours":"projects.time","project-posted-cost":"projects.costs"} as const;
 type ProjectMetric=keyof typeof capabilities;
 export async function projectMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){

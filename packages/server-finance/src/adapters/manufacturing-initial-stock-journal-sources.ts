@@ -2,7 +2,7 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {inventoryFinanceRecordSources} from '@erpx/server-inventory/public/finance-record-sources';
 import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 export const manufacturingInitialStockJournalCapabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
 const roots=(alias:string)=>`SELECT ${alias}.id,${alias}.company_id UNION SELECT book.primary_journal_id,${alias}.company_id FROM finance_book_postings book WHERE book.secondary_journal_id=${alias}.id AND book.company_id=${alias}.company_id`;
 export const manufacturingInitialStockJournalMarkedPredicate=(alias:string)=>`EXISTS(SELECT 1 FROM (${roots(alias)}) root JOIN (${inventoryFinanceRecordSources.manufacturingInitialPhysicalCountMarkedJournal}) marker ON marker.id=root.id AND marker.company_id=root.company_id)`;

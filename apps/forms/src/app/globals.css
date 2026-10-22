@@ -9,10 +9,13 @@
 @source "../../../../packages/feature-identity_access/src";
 @source "../../../../packages/feature-legal/src";
 @source "../../../../packages/feature-marketing/src";
+@source "../../../../packages/feature-operations/src";
 @source "../../../../packages/feature-organization/src";
 @source "../../../../packages/feature-people_payroll/src";
 @source "../../../../packages/feature-pms/src";
 @source "../../../../packages/feature-pos/src";
+@source "../../../../packages/feature-procurement/src";
+@source "../../../../packages/feature-projects/src";
 @source "../../../../packages/feature-records/src";
 @source "../../../../packages/feature-runtime/src";
 @source "../../../../packages/feature-shared/src";

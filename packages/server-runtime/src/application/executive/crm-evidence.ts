@@ -5,7 +5,7 @@ import { filtersSchema, type Filters } from "@erpx/server-runtime/public/rules/c
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { crmEvidenceMetrics, type CrmEvidenceMetric, opportunityProviderId, opportunityMetricId, followupProviderId, followupMetricId, openStages, fields, followupFields, inputSchema, type OpportunityRow, type FollowupRow, parseCursor, encodeCursor, parseFollowupCursor, encodeFollowupCursor, exactVersion, exactMinor, notFound, auditRecords } from '@erpx/server-runtime/domain/executive/crm-evidence';
 import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
-import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { crmOpportunityEvidenceRow } from "@erpx/server-crm/public/crm";
 import type { customerFollowupEvidenceRow } from "@erpx/server-sales/public/customer-followups";
 import type { currentAuthority } from "@erpx/server-runtime/public/executive/access";

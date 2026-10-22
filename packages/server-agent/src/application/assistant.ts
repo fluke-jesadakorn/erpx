@@ -19,7 +19,7 @@ import type {posWorkspace} from "@erpx/server-pos/public/pos";
 import type {commercePage} from "@erpx/server-commerce/public/commerce";
 import type {financeOverviewCounts} from "@erpx/server-finance/public/finance";
 import type {closeWorkspace} from "@erpx/server-finance/public/finance-workspace";
-import type {assertProductionModuleEnabled} from "@erpx/server-pms/public/hospitality-rollout";
+import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type {getWorkPage} from "@erpx/server-work_projection/public/work-summary";
 import type {homePosts,postView} from "@erpx/server-collaboration/public/social-home";
 import type {getLeave} from "@erpx/server-people_payroll/public/leave";

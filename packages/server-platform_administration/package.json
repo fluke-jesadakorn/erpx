@@ -43,7 +43,9 @@
     "./domain/system-evidence": "./src/domain/system-evidence.ts",
     "./domain/operations-summary": "./src/domain/operations-summary.ts",
     "./domain/release-acceptance": "./src/domain/release-acceptance.ts",
-    "./domain/engineering-verification": "./src/domain/engineering-verification.ts"
+    "./domain/engineering-verification": "./src/domain/engineering-verification.ts",
+    "./public/release-predicate": "./src/public/release-predicate.ts",
+    "./adapters/release-predicate": "./src/adapters/release-predicate.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -4,7 +4,7 @@ import type {SqlDatabase,FileStore} from '@erpx/server-runtime/public/runtime/ty
 import type {CustomerPortalSessionActor} from '@erpx/server-customer_360/public/portal-contract';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {supportTicketPortalSharedFiles,supportTicketPortalPreviewSource,supportTicketPortalFileAccess,supportTicketPortalFileAccessImage} from '@erpx/server-files/public/support-ticket-portal-files';
 import {bufferedAttachmentRead} from '@erpx/server-files/public/private-attachment-reads';
 import {supportTicketPortalAcknowledgementSchema,type SupportTicketPortalProjection,type SupportTicketPortalAcknowledgementResult} from '@erpx/server-support/domain/ticket-portal';

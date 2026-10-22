@@ -18,7 +18,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand} from '@erpx/server-workflow/public/commands';
 import { resolveAiProvider, aiSnapshotGuard, aiUsageStatement } from '@erpx/server-agent/public/ai-providers';
 import { generateProviderJson, withAiGatewayScope } from '@erpx/server-agent/public/ai-transport';
-import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { aiRequestQuotaLock } from '@erpx/server-agent/public/ai-quota';
 import { collaborationAgentSources as filesFacts } from '@erpx/server-files/public/collaboration-agent-sources';
 import { collaborationAgentSources as agent } from '@erpx/server-agent/public/collaboration-agent-sources';

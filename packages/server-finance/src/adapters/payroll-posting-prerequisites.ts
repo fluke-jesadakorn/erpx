@@ -13,7 +13,7 @@ import {lockPackageSettlementSources} from '@erpx/server-commercial/public/packa
 import {companyPurchaseReadLocks,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled,scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {payrollPostingPrerequisiteSourceLocks,payrollPostingPrerequisiteSources} from '@erpx/server-people_payroll/public/payroll-posting-prerequisite-sources';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {isTransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';

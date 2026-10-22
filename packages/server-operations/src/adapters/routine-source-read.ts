@@ -5,7 +5,7 @@ import {permissionForRoles} from '@erpx/feature-identity_access/lib/permissions'
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {workPackageEnforcementMode,projectsPackageEnforcementMode,readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {finalRootOwnerProjectionSources as projects} from '@erpx/server-projects/public/final-root-owner-projection-sources';
 /** Fixed native template alias t. Published templates retain the original
  * Company visibility; unpublished templates remain creator/Company-owner

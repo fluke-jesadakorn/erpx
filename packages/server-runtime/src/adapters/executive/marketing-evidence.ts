@@ -2,7 +2,7 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { marketingExecutiveEvidenceRow } from "@erpx/server-marketing/public/marketing";
-import { assertProductionModuleEnabled } from "@erpx/server-pms/public/hospitality-rollout";
+import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { currentAuthority } from "@erpx/server-runtime/public/executive/access";

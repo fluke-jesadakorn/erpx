@@ -1,7 +1,7 @@
 import {createLegalRuntimeApplication,type LegalRuntimeTask} from "@erpx/server-legal/application/runtime-gate";
 import 'server-only';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { scheduledFeaturePredicate } from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 

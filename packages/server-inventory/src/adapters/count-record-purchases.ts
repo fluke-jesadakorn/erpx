@@ -12,7 +12,7 @@ import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commerc
 import {initialPhysicalStockCountSourceRows,initialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/initial-physical-stock-count-source-sql';
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
 import {requireCountPurchasedRead} from "@erpx/server-inventory/adapters/count-purchases";
 

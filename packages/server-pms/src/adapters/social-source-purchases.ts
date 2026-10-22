@@ -4,7 +4,7 @@ import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import {pmsPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/adapters/hospitality-rollout';
+import {scheduledFeaturePredicate} from '@erpx/server-pms/adapters/feature-availability';
 import {pmsSourcesSql} from '@erpx/server-pms/adapters/pms/source-query';
 import {ApiError} from '@erpx/server-runtime/public/http';
 

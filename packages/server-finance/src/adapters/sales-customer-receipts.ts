@@ -13,7 +13,7 @@ import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commerc
 import {commerceFinanceRecordSources} from '@erpx/server-commerce/public/finance-record-sources';
 import {commerceFinanceSalesSources} from '@erpx/server-commerce/public/finance-sales-sources';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {assertProductionModuleEnabled,scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { assertProductionModuleEnabled, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {financialConstraintError} from '@erpx/server-workflow/public/commands';
 import {financeSourceDocumentReadLeases} from '@erpx/server-finance/adapters/document-purchases';
 import {financeSalesReceiptOriginalSources} from '@erpx/server-finance/adapters/sales-receipt-sources';

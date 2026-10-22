@@ -7,7 +7,7 @@ import {assignmentReadSql} from '@erpx/server-identity_access/public/record-sour
 import {platformOwnerProjectionSources as identitySources} from '@erpx/server-identity_access/public/platform-owner-projection-sources';
 import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {scheduledFeaturePredicate} from '@erpx/server-pms/public/hospitality-rollout';
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 export type AssetsFinancialProductScope={companyId:string;branchId:string|null;departmentId:string|null;userId:string;assignmentId:string;assignmentVersion:number;role:string;sessionId:string;beta?:boolean};
 /** Exact Assets financial workspace/record only, before Work role selection.
  * No general Finance, Asset discovery or acting context is manufactured. */

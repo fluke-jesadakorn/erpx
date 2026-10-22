@@ -6,7 +6,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/
 import {projectsPackageEnforcementMode,readPurchasedAccesses,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
-import {scheduledFeaturePredicate} from "@erpx/server-pms/public/hospitality-rollout";
+import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 const capabilities=['projects.wbs','projects.tasks'];
 export async function projectTaskAlertReadScope(now:number){
  if(await projectsPackageEnforcementMode()!=='enforced')return 'TRUE';
