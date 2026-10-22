@@ -3,7 +3,7 @@
   "environment": "development",
   "deliveryPlan": "docs/production-plan.md",
   "sourceFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
-  "verificationFingerprint": "54d07049eedcc730b09678fb800eb37ccea1ae25aa1449715db5fe4cec88e01e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
   "baseline": {
     "source": ".scratch/dev/product-migration-baseline-2026-10-14/",
     "privateAuthority": "read-only per-database snapshots; no secrets or personal authority rows in this register",

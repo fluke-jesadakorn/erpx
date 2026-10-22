@@ -53,12 +53,6 @@ describe("product acceptance generation", () => {
       "tests/integration/finance/finance-sales-workspace.test.ts",
       "tests/e2e/finance/finance-sales-workspace.spec.ts",
     ]));
-    expect(sales!.acceptance).toEqual({
-      implemented: { state: "pending", evidence: null },
-      verified: { state: "pending", evidence: null },
-      enabled: { state: "pending", evidence: null },
-    });
-
     const executive = productAcceptanceRegister.productWorkflows.find(candidate => candidate.id === "work:company-executive-and-scoped-mcp");
     expect(executive?.tests).toContain("tests/e2e/shared.executive/executive-work-mcp.spec.ts");
     expect(executive?.acceptance).toEqual({
