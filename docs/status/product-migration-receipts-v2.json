@@ -1,4 +1,122 @@
 {
   "schema": "erpx-product-migration-receipts/v2",
-  "records": []
+  "records": [
+    {
+      "id": "portal:tenant-token-invitation-document-and-private-files",
+      "phase": "implemented",
+      "candidateSha": "0e51dd17c604ee04aa4f837aa00ea88e68273d0c",
+      "runtimeFingerprint": "7f3b5823edca7a61c6e2b01ee4884bc497a093f3a06176f860ec14d7f6e5c8b7",
+      "verificationFingerprint": "6b132c3019e47edb9903b252abd597c95ad50ae977b0f310fde623a21b87a7ea",
+      "release": {
+        "id": "2026-10-22T03-08-31-371Z",
+        "fileManifestSha256": "8fac0bd4c7c54610bc9003c2c9e4df7c4309e854e5f2497d9f911be5da6fd6ef"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/0e51dd17c604ee04aa4f837aa00ea88e68273d0c-portal-tenant-token-invitation-document-and-private-files-50e1027946cca35d73235f274379fd70429f2b3bf522eb0d1398ccf0481744ae-implemented.json",
+      "sha256": "52ab9702ef059658b7880489b588ee645f5d442e92a425ccaa25ffd468f0ca1c"
+    },
+    {
+      "id": "legal-portal:scoped-shared-version-access-and-revocation",
+      "phase": "implemented",
+      "candidateSha": "0e51dd17c604ee04aa4f837aa00ea88e68273d0c",
+      "runtimeFingerprint": "7f3b5823edca7a61c6e2b01ee4884bc497a093f3a06176f860ec14d7f6e5c8b7",
+      "verificationFingerprint": "6b132c3019e47edb9903b252abd597c95ad50ae977b0f310fde623a21b87a7ea",
+      "release": {
+        "id": "2026-10-22T03-08-31-371Z",
+        "fileManifestSha256": "8fac0bd4c7c54610bc9003c2c9e4df7c4309e854e5f2497d9f911be5da6fd6ef"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/0e51dd17c604ee04aa4f837aa00ea88e68273d0c-legal-portal-scoped-shared-version-access-and-revocation-e1c7cbf4a8e4cd81b0216e720e776ef4c90991907acf1bc3f2687be767718ecc-implemented.json",
+      "sha256": "b17a27a48916bacfd4a40f89e61f8b7ba5de8ac8c582a12e682b8d8763a071ef"
+    },
+    {
+      "id": "legal-portal:private-document-download-and-access-history",
+      "phase": "implemented",
+      "candidateSha": "0e51dd17c604ee04aa4f837aa00ea88e68273d0c",
+      "runtimeFingerprint": "7f3b5823edca7a61c6e2b01ee4884bc497a093f3a06176f860ec14d7f6e5c8b7",
+      "verificationFingerprint": "6b132c3019e47edb9903b252abd597c95ad50ae977b0f310fde623a21b87a7ea",
+      "release": {
+        "id": "2026-10-22T03-08-31-371Z",
+        "fileManifestSha256": "8fac0bd4c7c54610bc9003c2c9e4df7c4309e854e5f2497d9f911be5da6fd6ef"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/0e51dd17c604ee04aa4f837aa00ea88e68273d0c-legal-portal-private-document-download-and-access-history-0cf2cacace828e15c42c9f616ba30d12684cd3f40a96adce08b409b85021ac10-implemented.json",
+      "sha256": "3d5dbeaeba016264c1fe20ecf55ab43a41b09f09f85e918e5dfd22b2af144d83"
+    },
+    {
+      "id": "portal:tenant-token-invitation-document-and-private-files",
+      "phase": "implemented",
+      "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T04-54-29-019Z",
+        "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-portal-tenant-token-invitation-document-and-private-files-50e1027946cca35d73235f274379fd70429f2b3bf522eb0d1398ccf0481744ae-implemented.json",
+      "sha256": "6e8ea4360b63d7713dbcf8f9733445672fe734ccc1ee6d9d878f8c4f0b095b12"
+    },
+    {
+      "id": "legal-portal:scoped-shared-version-access-and-revocation",
+      "phase": "implemented",
+      "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T04-54-29-019Z",
+        "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-legal-portal-scoped-shared-version-access-and-revocation-e1c7cbf4a8e4cd81b0216e720e776ef4c90991907acf1bc3f2687be767718ecc-implemented.json",
+      "sha256": "bb98c51d1b2a84138b0c318b843952be731fbd75b563b408d4489b147495ad03"
+    },
+    {
+      "id": "legal-portal:private-document-download-and-access-history",
+      "phase": "implemented",
+      "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T04-54-29-019Z",
+        "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-legal-portal-private-document-download-and-access-history-0cf2cacace828e15c42c9f616ba30d12684cd3f40a96adce08b409b85021ac10-implemented.json",
+      "sha256": "4fe34c287177c06ed3a41ce2c43f95f4b95e1e17f380300f6296b1a6ba5adbd7"
+    },
+    {
+      "id": "portal:tenant-token-invitation-document-and-private-files",
+      "phase": "verified",
+      "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T04-54-29-019Z",
+        "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-portal-tenant-token-invitation-document-and-private-files-50e1027946cca35d73235f274379fd70429f2b3bf522eb0d1398ccf0481744ae-verified.json",
+      "sha256": "4f0d1df69857874937dd8bc03552cadc75dc870bf9599ee23989086fff01e4f5"
+    },
+    {
+      "id": "legal-portal:scoped-shared-version-access-and-revocation",
+      "phase": "verified",
+      "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T04-54-29-019Z",
+        "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-legal-portal-scoped-shared-version-access-and-revocation-e1c7cbf4a8e4cd81b0216e720e776ef4c90991907acf1bc3f2687be767718ecc-verified.json",
+      "sha256": "f2220e3293dfde8e6093b856d196ecefd8fb534442e7dad07296c88dbc1ee039"
+    },
+    {
+      "id": "legal-portal:private-document-download-and-access-history",
+      "phase": "verified",
+      "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+      "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+      "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+      "release": {
+        "id": "2026-10-22T04-54-29-019Z",
+        "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+      },
+      "path": "docs/testing/evidence/product-migration-v2/a826d11f1d172dcc3e7ce43b3607b539b730d5cf-legal-portal-private-document-download-and-access-history-0cf2cacace828e15c42c9f616ba30d12684cd3f40a96adce08b409b85021ac10-verified.json",
+      "sha256": "8c91596dce08fe90c7f4764b49c4fca2aeb5c0c37cd6c245d17423e22ee25d55"
+    }
+  ]
 }

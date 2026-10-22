@@ -1,0 +1,166 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "legal-portal:scoped-shared-version-access-and-revocation",
+  "phase": "verified",
+  "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+  "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+  "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+  "release": {
+    "id": "2026-10-22T04-54-29-019Z",
+    "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "legal.legal.integration",
+      "file": "tests/integration/legal/legal.test.ts",
+      "title": "limits external readers to shared versions and hides internal comments",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "legal.uat.uat",
+      "file": "tests/uat/legal/legal-uat.spec.ts",
+      "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+      "project": "desktop",
+      "status": "passed"
+    },
+    {
+      "runner": "playwright",
+      "suite": "legal.uat.uat",
+      "file": "tests/uat/legal/legal-uat.spec.ts",
+      "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+      "project": "mobile",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-20261022-a826d11f/legal-portal-verified.json",
+      "sha256": "ee02e895470bbe043dc3faf75844179f3235c67fdb951741b5fde90d65fcfeb1"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "73d63b864f88e3ef1633eeb5d3eb8a593fd67fd0848e0ac863796d619317ec45"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T04-54-29-019Z/release.json",
+      "sha256": "473b124a0325492583815d825d585bb341dbb1ef83df3baf027c3ab5bcd98490"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T04-54-29-019Z/release-files.json",
+      "sha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/1193c0c51ec7/result.json",
+      "sha256": "b7a4ebde3dedceb0424b2df367c3e6d251d5650c71f80c774d206c76122d2179"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/1193c0c51ec7/state.json",
+      "sha256": "ae52293536900c6cb980117e1bf9b3dc6ff272d1281c210bdd92b6abf6ce3489"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/1193c0c51ec7/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-desktop/attachments/erpx-ui-observation-2393763a7c0085d9b5fbe93cfce1dc5e1ed7028b.json",
+      "sha256": "2a72431feb210f2c8afe8007a165d933275defc7c422a150bd0970fde6941378"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/1193c0c51ec7/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-desktop/attachments/erpx-ui-observation-f0b69dcff525cb9cc5b2ec38d55316fd5650841f.json",
+      "sha256": "e2c94c31957940e89b7ff5cb1a5da16d73cc6e58710bbe9a1abedc6f80d2b797"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/1193c0c51ec7/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-desktop/attachments/product-migration-ui-screenshot-687a464b97327bfc0f56c4cd95be45b96b0c5cce.png",
+      "sha256": "393520848a926e801485f2f81f5cb75cff3b238bfe174ea923299e88692a41c3"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/1193c0c51ec7/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-desktop/attachments/product-migration-ui-screenshot-7119928223ec0504a774615f30e93ba31045b75e.png",
+      "sha256": "8827de7c6cea6206b11c5b12755ba0cab88e7f247b78ae524d1a013e903b3da8"
+    },
+    {
+      "kind": "browser-playwright-report",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/7facc7b7e0cf/result.json",
+      "sha256": "6f9b3b0cb8247e62327ae16429a6dbafdab0cea97ac0cabd3c2d9c37537494d7"
+    },
+    {
+      "kind": "browser-state",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/7facc7b7e0cf/state.json",
+      "sha256": "e76bb008a465a3fb0af372e21311535378f74d0dfea4030d5fdcebbbcfeb226d"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/7facc7b7e0cf/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-mobile/attachments/erpx-ui-observation-0d0d8f40f7c8fbb3bb9511df876fd8294e5bc711.json",
+      "sha256": "8872b5bb48f8f917a57d268119adfb0a9edd3c9bcf1e4b3bf59aab845bb055fc"
+    },
+    {
+      "kind": "browser-observation",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/7facc7b7e0cf/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-mobile/attachments/erpx-ui-observation-1dd6599e79f607f8c13e231c9b11dd73f1f1f345.json",
+      "sha256": "55764a74d06b2a9eb3d24c28679d30272a95e8b2c8ca525fffb695dfa521bbf0"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/7facc7b7e0cf/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-mobile/attachments/product-migration-ui-screenshot-1ad992e8f190801561662b2d3bca2da226039dac.png",
+      "sha256": "155249a591fa1e34ec24acad8bcfad54d1c4bc13c42b86d5fc06906036ad5839"
+    },
+    {
+      "kind": "browser-screenshot",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/7facc7b7e0cf/artifacts/uat-legal-legal-uat-UAT-17-46617-spending-request-to-Finance-mobile/attachments/product-migration-ui-screenshot-2c7a900da60c3e6dd234963a638bbebd7d199719.png",
+      "sha256": "87606d2f7a4d8eb36d6ed866ddc7271f959b3a7cb2c22661e1057a50e8c66cd6"
+    },
+    {
+      "kind": "browser-run-receipt",
+      "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+      "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "73d63b864f88e3ef1633eeb5d3eb8a593fd67fd0848e0ac863796d619317ec45"
+    },
+    "browserRuns": [
+      {
+        "run": "1193c0c51ec7",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "legal.uat.uat",
+            "file": "tests/uat/legal/legal-uat.spec.ts",
+            "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+            "project": "desktop"
+          }
+        ]
+      },
+      {
+        "run": "7facc7b7e0cf",
+        "passed": true,
+        "cleanupFailures": [],
+        "path": ".scratch/dev/test-suites/browser/2026-10-22T05-20-05-208Z/receipt.json",
+        "sha256": "daf9c1125af8a4f748b88afe63aa52ec668fbb100f3fe6708b1f42f07468d4fb",
+        "cases": [
+          {
+            "runner": "playwright",
+            "suite": "legal.uat.uat",
+            "file": "tests/uat/legal/legal-uat.spec.ts",
+            "title": "UAT-17: external counsel sees the shared revision, downloads the private original and sends one reviewed spending request to Finance",
+            "project": "mobile"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "legal-portal:scoped-shared-version-access-and-revocation",
+  "phase": "implemented",
+  "candidateSha": "a826d11f1d172dcc3e7ce43b3607b539b730d5cf",
+  "runtimeFingerprint": "b330ea89843bd16f6f358de447283911cfc0a302b11bc1ec68f8666035a2cbcd",
+  "verificationFingerprint": "f6069f2c39522dcc489db844baa7ad702d937cde1b7b96e65e1d25cc7355ddc2",
+  "release": {
+    "id": "2026-10-22T04-54-29-019Z",
+    "fileManifestSha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "legal.legal.integration",
+      "file": "tests/integration/legal/legal.test.ts",
+      "title": "limits external readers to shared versions and hides internal comments",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-20261022-a826d11f/legal-portal-implemented.json",
+      "sha256": "5616abce6c27ca36771646185a1e834a020d17cfeb583f3460f6dc76b5fcaf61"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "73d63b864f88e3ef1633eeb5d3eb8a593fd67fd0848e0ac863796d619317ec45"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T04-54-29-019Z/release.json",
+      "sha256": "473b124a0325492583815d825d585bb341dbb1ef83df3baf027c3ab5bcd98490"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T04-54-29-019Z/release-files.json",
+      "sha256": "59a82f3a4be0ed66395109d9075cd07d8ccaa2254494055a30eed98a3a5a9bd0"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "73d63b864f88e3ef1633eeb5d3eb8a593fd67fd0848e0ac863796d619317ec45"
+    },
+    "browserRuns": []
+  }
+}
