@@ -33,8 +33,9 @@
     "admin": "turbopack",
     "work": "turbopack",
     "people": "turbopack",
-    "recruit": "turbopack"
+    "recruit": "turbopack",
+    "finance": "turbopack"
   },
   "defaultBundler": "webpack",
-  "bundlerReason": "Account, Apps, Learn, Admin, Work, People and Recruit use measured Turbopack overrides recorded in the production plan. Webpack remains the default until each remaining app completes its comparison."
+  "bundlerReason": "Account, Apps, Learn, Admin, Work, People, Recruit and Finance use measured Turbopack overrides recorded in the production plan. Webpack remains the default until each remaining app completes its comparison."
 }

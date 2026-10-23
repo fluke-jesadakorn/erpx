@@ -148,7 +148,7 @@
           "finance"
         ],
         "entryApp": "finance",
-        "bundler": "webpack",
+        "bundler": "turbopack",
         "consoleRetired": true
       }
     },
