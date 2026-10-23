@@ -10,6 +10,7 @@ const benchmarks={
  learn:{suite:'learning.workspace-hmr.e2e',apps:['account','apps','learn'],file:'tests/e2e/learning/workspace-hmr.spec.ts',title:'Learn client edits preserve the draft through twenty measured HMR updates',scope:'Learn desktop client HMR'},
  account:{suite:'identity_access.workspace-hmr.e2e',apps:['account','apps'],file:'tests/e2e/identity_access/workspace-hmr.spec.ts',title:'Account client edits preserve the profile draft through twenty measured HMR updates',scope:'Account desktop client HMR'},
  apps:{suite:'identity_access.workspace-hmr.e2e',apps:['account','apps'],file:'tests/e2e/identity_access/workspace-hmr.spec.ts',title:'Apps server component edits preserve the session through twenty measured HMR updates',scope:'Apps desktop server component HMR'},
+ admin:{suite:'identity_access.workspace-hmr.e2e',apps:['account','apps','admin'],file:'tests/e2e/identity_access/workspace-hmr.spec.ts',title:'Admin server component edits preserve the session through twenty measured HMR updates',scope:'Admin desktop server component HMR'},
 };
 if(!Object.hasOwn(benchmarks,app))throw new Error('REGISTERED_HMR_APP_REQUIRED');
 const benchmark=benchmarks[app as keyof typeof benchmarks],bundler=workspaceBrowserBundler(raw),suite=loadCatalogue().suites.find(suite=>suite.id===benchmark.suite);

@@ -75,6 +75,21 @@
         ],
         "entryApp": "learn"
       }
+    },
+    {
+      "suite": "identity_access.admin-workspace-smoke.e2e",
+      "file": "tests/e2e/identity_access/admin-workspace-smoke.spec.ts",
+      "title": "Admin workspace signs in through Account and opens its isolated brand drawer without changing authority",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "admin"
+        ],
+        "entryApp": "admin",
+        "bundler": "turbopack"
+      }
     }
   ],
   "deferredSuites": [
@@ -444,7 +459,7 @@
     },
     {
       "suite": "identity_access.workspace-hmr.e2e",
-      "reason": "Account/Apps twenty-edit compiler measurements run only through the explicit workspace-hmr performance command; full acceptance remains deferred."
+      "reason": "Account/Apps/Admin twenty-edit compiler measurements run only through the explicit workspace-hmr performance command; full acceptance remains deferred."
     }
   ]
 }

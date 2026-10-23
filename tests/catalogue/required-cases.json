@@ -1699,6 +1699,18 @@
       "file": "tests/e2e/identity_access/workspace-hmr.spec.ts",
       "title": "Apps server component edits preserve the session through twenty measured HMR updates",
       "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-hmr.spec.ts",
+      "title": "Admin server component edits preserve the session through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/admin-workspace-smoke.spec.ts",
+      "title": "Admin workspace signs in through Account and opens its isolated brand drawer without changing authority",
+      "project": "desktop"
     }
   ]
 }

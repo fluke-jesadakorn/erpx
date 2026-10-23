@@ -30,7 +30,24 @@ it('rechecks original release, current assignment and exact Company and exposes 
 it('requires actual matching Platform plus ERPX Holding permission for management without selecting a role',async()=>{const account=access(),assignment=account.assignments[0];expect(await adminManagementAvailable(account,assignment)).toBe(false);const erpx={...account,scope:{...account.scope,holdingSlug:'erpx',holdingId:'h003' as const}};expect(await adminManagementAvailable(erpx,assignment)).toBe(true);mocks.platform.mockResolvedValue({userId:'other'});expect(await adminManagementAvailable(erpx,assignment)).toBe(false);mocks.platform.mockResolvedValue({userId:'user'});expect(await adminManagementAvailable(erpx,erpx.assignments[1])).toBe(false);expect(mocks.select).not.toHaveBeenCalled();});
 
 it('guards the native Admin role form with the shared dirty check before context switching',async()=>{
- const {AdminRoleChoiceForm}=await import('@erpx/feature-identity_access/components/admin-role-choice-form'),{setContextSwitching,contextIsSwitching}=await import('@erpx/feature-work_projection/lib/context-switch'),confirm=vi.fn(()=>false),preventDefault=vi.fn();vi.stubGlobal('document',{querySelector:()=>({dirty:true}),documentElement:{dataset:{}}});vi.stubGlobal('window',{confirm,dispatchEvent:vi.fn()});try{const form=AdminRoleChoiceForm({children:'Visible role'});form.props.onSubmit({preventDefault});expect(preventDefault).toHaveBeenCalledTimes(1);expect(contextIsSwitching()).toBe(false);confirm.mockReturnValue(true);form.props.onSubmit({preventDefault});expect(contextIsSwitching()).toBe(true);expect(form.props.action).toBe('/admin/launch');expect(form.props.method).toBe('post');}finally{setContextSwitching(false);vi.unstubAllGlobals();}
+ const {submitAdminRoleChoice}=await import('@erpx/feature-identity_access/components/admin-role-choice-form'),{setContextSwitching,contextIsSwitching}=await import('@erpx/feature-work_projection/lib/context-switch'),confirm=vi.fn(()=>false),send=vi.fn(),assign=vi.fn();
+ vi.stubGlobal('document',{querySelector:()=>({dirty:true}),documentElement:{dataset:{}}});
+ vi.stubGlobal('window',{confirm,dispatchEvent:vi.fn(),location:{origin:'https://admin-dev-erpx.jesadakorn.com',assign}});
+ vi.stubGlobal('FormData',class{*[Symbol.iterator](){yield ['assignmentId','existing-owner'];yield ['revision','4'];}});
+ vi.stubGlobal('fetch',send);
+ try{
+  expect(await submitAdminRoleChoice({} as HTMLFormElement)).toBe(false);expect(contextIsSwitching()).toBe(false);expect(send).not.toHaveBeenCalled();
+  confirm.mockReturnValue(true);send.mockResolvedValue({ok:true,redirected:true,url:'https://admin-dev-erpx.jesadakorn.com/holdings/simulation/administration'});
+  expect(await submitAdminRoleChoice({} as HTMLFormElement)).toBe(true);expect(contextIsSwitching()).toBe(true);
+  expect(send).toHaveBeenCalledWith('/admin/launch',expect.objectContaining({method:'POST',mode:'cors',credentials:'same-origin',referrerPolicy:'no-referrer'}));
+  expect(send.mock.calls[0][1].body.toString()).toBe('assignmentId=existing-owner&revision=4');
+  expect(assign).toHaveBeenCalledWith('https://admin-dev-erpx.jesadakorn.com/holdings/simulation/administration');
+  expect(await submitAdminRoleChoice({} as HTMLFormElement)).toBe(false);expect(send).toHaveBeenCalledTimes(1);
+  for(const response of [{ok:false},{ok:true,redirected:false,url:'https://admin-dev-erpx.jesadakorn.com/'},{ok:true,redirected:true,url:'https://foreign.invalid/'}]){
+   setContextSwitching(false);send.mockResolvedValue(response);await expect(submitAdminRoleChoice({} as HTMLFormElement)).rejects.toThrow();expect(contextIsSwitching()).toBe(false);
+  }
+  expect(assign).toHaveBeenCalledTimes(1);
+ }finally{setContextSwitching(false);vi.unstubAllGlobals();}
 });
 
 it('reads only the prospective role for discovery while normal role choices retain their fresh full module scans',async()=>{
