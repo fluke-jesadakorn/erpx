@@ -38,7 +38,14 @@ export async function verifyFrontWorkspace(page:Page,context:BrowserContext,info
   const drawer=page.getByRole('dialog',{name:app==='pos'?/^Customer · /:'Write a post',exact:app!=='pos'});await expect(drawer).toBeVisible();
   const box=await drawer.boundingBox(),viewport=page.viewportSize()!;expect(box).not.toBeNull();expect(Math.abs(box!.x+box!.width-viewport.width)).toBeLessThan(2);
   await info.attach(`${app} owned Front workspace drawer`,{body:await page.screenshot(),contentType:'image/png'});await drawer.getByRole('button',{name:'Close dialog',exact:true}).click();await expect(drawer).toBeHidden();
-  expect(ssoStarts).toEqual(['document']);await refresh(page,app);expect(await authority()).toEqual(before);expect(observed.errors).toEqual([]);expect(observed.failures).toEqual([]);
+  expect(ssoStarts).toEqual(['document']);await refresh(page,app);
+  // A first visit to the Front root must also use one document handoff, with
+  // the existing normal Account session and no manufactured product cookie.
+  await context.clearCookies({name:'__Host-erpx-product'});
+  const callback=page.waitForResponse(response=>new URL(response.url()).origin===origin&&new URL(response.url()).pathname==='/sso/callback',{timeout:120_000});
+  await page.goto(origin+'/?choose=1',{timeout:120_000});expect((await callback).status()).toBe(303);
+  await page.waitForURL(url=>url.origin===origin&&!url.pathname.startsWith('/sso/')&&url.pathname!=='/login',{timeout:120_000});
+  await expect(page.locator('h1').first()).toBeVisible({timeout:120_000});expect(ssoStarts).toEqual(['document','document']);await refresh(page,app);expect(await authority()).toEqual(before);expect(observed.errors).toEqual([]);expect(observed.failures).toEqual([]);
   expect(observed.mutations.filter(value=>!value.endsWith('/api/v1/workspace-preference'))).toEqual([]);
   for(const cookie of (await context.cookies()).filter(cookie=>cookie.name==='__Host-erpx-product'))expect({domain:cookie.domain,secure:cookie.secure,httpOnly:cookie.httpOnly}).toEqual({domain:new URL(origin).hostname,secure:true,httpOnly:true});
  }finally{await db.end();}

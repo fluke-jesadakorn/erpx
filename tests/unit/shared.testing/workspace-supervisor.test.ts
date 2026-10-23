@@ -108,7 +108,6 @@ it('retires Console HTTP and upgrades before app startup and sends health only t
   gateway=await startWorkspaceGateway({root,node:process.execPath,port:3104,preview:false,fallback:null,appPorts:new Map([['account',3293]]),
    environment:{PATH:process.env.PATH,NODE_ENV:'development',ERPX_ENVIRONMENT:'local',ERPX_PRODUCT_ENVIRONMENT:'development',ERPX_PUBLIC_ORIGIN:'https://console-dev-erpx.jesadakorn.com',ERPX_PRODUCT_ROUTING:'enabled',ERPX_PRODUCT_SSO:'enabled',ERPX_CONSOLE_RETIRED:'enabled'},
    settings:()=>({version:1,activeApps:appIds,maxApps:4,idleMinutes:10,bundlers:{},defaultBundler:'webpack'})});
-  const host='console-dev-erpx.jesadakorn.com';
   for(const host of ['console-dev-erpx.jesadakorn.com','127.0.0.1:3104','localhost:3104','[::1]:3104'])for(const method of ['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS']){
    const result=await new Promise<{status:number;body:string;location:unknown;cookie:unknown}>((done,reject)=>{
     const req=request({host:'127.0.0.1',port:3104,path:'/api/old-command?token=must-not-replay',method,headers:{Host:host},agent:false},res=>{
@@ -117,8 +116,10 @@ it('retires Console HTTP and upgrades before app startup and sends health only t
    });
    expect(result.status).toBe(410);expect(result.location).toBeUndefined();expect(result.cookie).toBeUndefined();expect(result.body).not.toContain('must-not-replay');expect(result.body).not.toContain('private-command-body');
   }
-  const upgrade=await new Promise<string>((done,reject)=>{const socket=connect(3104,'127.0.0.1');let text='';socket.on('connect',()=>socket.write(`GET /_next/hmr HTTP/1.1\r\nHost: ${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`));socket.on('data',chunk=>text+=chunk);socket.on('end',()=>done(text));socket.on('error',reject);});
-  expect(upgrade).toContain('HTTP/1.1 410 Gone');await expect(readFile(join(root,'account-requests.log'))).rejects.toMatchObject({code:'ENOENT'});
+  for(const host of ['console-dev-erpx.jesadakorn.com','127.0.0.1:3104','localhost:3104','[::1]:3104'])for(const path of ['/_next/hmr','/api/health','/api/ready']){
+  const upgrade=await new Promise<string>((done,reject)=>{const socket=connect(3104,'127.0.0.1');let text='';socket.on('connect',()=>socket.write(`GET ${path} HTTP/1.1\r\nHost: ${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`));socket.on('data',chunk=>text+=chunk);socket.on('end',()=>done(text));socket.on('error',reject);});
+  expect(upgrade).toContain('HTTP/1.1 410 Gone');}
+  await expect(readFile(join(root,'account-requests.log'))).rejects.toMatchObject({code:'ENOENT'});
   for(const host of ['console-dev-erpx.jesadakorn.com','127.0.0.1:3104','localhost:3104','[::1]:3104'])expect(await get(3104,host,'/api/health')).toEqual({status:200,body:'account-health'});
   const reads=(await readFile(join(root,'account-requests.log'),'utf8')).trim().split('\n');expect(reads.length).toBeGreaterThanOrEqual(2);expect(new Set(reads)).toEqual(new Set(['GET /api/health']));
   const leases=JSON.parse(await readFile(gateway.leasePath,'utf8'));expect(leases.apps.map((app:{id:string})=>app.id)).toEqual(['account']);

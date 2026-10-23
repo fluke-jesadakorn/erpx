@@ -16,7 +16,13 @@
     "support",
     "service",
     "legal",
-    "manufacturing"
+    "manufacturing",
+    "pos",
+    "pms",
+    "booking",
+    "portal",
+    "legal-portal",
+    "forms"
   ],
   "maxApps": 4,
   "idleMinutes": 10,

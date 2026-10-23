@@ -1,4 +1,6 @@
 import { afterEach,beforeEach,it,expect,vi } from 'vitest';
+import { proxy as accountProxy } from "../../../apps/account/src/proxy";
+import { appProxy } from "../../../scripts/local/app-proxy";
 import { NextRequest } from 'next/server';
 import { proxy } from "@erpx/workplace/proxy";
 import { marketingConsoleUrl } from "@erpx/feature-runtime/lib/erpx-hosts";
@@ -333,10 +335,18 @@ it('preserves health and ready, rejects foreign hosts and cannot reopen retired 
  enableDevelopmentProducts();vi.stubEnv('ERPX_CONSOLE_RETIRED','enabled');
  const request=(path:string,host='console-dev-erpx.jesadakorn.com')=>proxy(new NextRequest('http://127.0.0.1:3100'+path,{headers:{host}}));
  for(const path of ['/api/health','/api/ready'])expect(request(path).headers.get('x-middleware-next')).toBe('1');
+ for(const path of ['/api/health','/api/ready'])for(const method of ['GET','HEAD']){
+  const health=new NextRequest('http://127.0.0.1:3217'+path+'?probe=read-only',{method,headers:{host:'console-dev-erpx.jesadakorn.com'}});
+  const response=accountProxy(health);expect(response.status).toBe(200);expect(response.headers.get('x-middleware-next')).toBe('1');expect(response.headers.get('x-erpx-app')).toBe('account');
+  expect(appProxy('finance')(health).status).toBe(421);
+ }
+ for(const path of ['/api/health/','/api/ready/extra','/login','/api/auth/sign-in/email'])expect(accountProxy(new NextRequest('http://127.0.0.1:3217'+path,{headers:{host:'console-dev-erpx.jesadakorn.com'}})).status).toBe(421);
+ for(const method of ['POST','PUT','PATCH','DELETE','OPTIONS'])expect(accountProxy(new NextRequest('http://127.0.0.1:3217/api/health',{method,headers:{host:'console-dev-erpx.jesadakorn.com'}})).status).toBe(421);
+
  expect(request('/','unknown.example').status).toBe(421);expect(request('/api/health','127.0.0.1:3100').status).toBe(200);
  expect(request('/','apps-dev-erpx.jesadakorn.com').status).toBe(200);
  for(const flag of ['ERPX_PRODUCT_ROUTING','ERPX_PRODUCT_SSO']){vi.stubEnv(flag,'disabled');expect(request('/login').status).toBe(410);vi.stubEnv(flag,'enabled');}
- for(const environment of ['staging','production']){vi.stubEnv('ERPX_ENVIRONMENT',environment);expect(request('/login').status).toBe(200);}
+ for(const environment of ['staging','production']){vi.stubEnv('ERPX_ENVIRONMENT',environment);expect(request('/login').status).toBe(200);expect(accountProxy(new NextRequest('http://127.0.0.1:3217/api/health',{headers:{host:'console-dev-erpx.jesadakorn.com'}})).status).toBe(421);}
  vi.stubEnv('ERPX_ENVIRONMENT','local');vi.stubEnv('ERPX_CONSOLE_RETIRED','disabled');expect(request('/login').status).toBe(200);
  for(const path of ['/_next/static/chunks/app.js','/_next/image?url=image','/vendor/file.js']){
   const response=request(path,'pos-dev-erpx.jesadakorn.com');expect(response.headers.get('cache-control')).toBeNull();expect(response.headers.get('x-middleware-next')).toBe('1');
