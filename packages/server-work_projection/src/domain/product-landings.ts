@@ -18,6 +18,7 @@ export type ProductLandingContext = Pick<NavigationContext, "role" | "permission
   readyModules: readonly string[];
   capabilities: readonly string[];
   executiveVisible?: boolean;
+  commercialAdmissionDeferred?: boolean;
 };
 function navigationContext(input: ProductLandingContext): NavigationContext {
   return { ...input, workspaceBase: "", moduleIds: input.modules,
@@ -35,7 +36,7 @@ export function productDestinationAvailable(id: ProductId, path: string, input: 
   if (id === "projects" && projectWorkerStartupEntry(path)) return false;
   if (id === "service" && (servicePartsSetupEntry(path) || serviceInitialPhysicalStockCountEntry(path))) return false;
   const capability = productEntryCapability(id, path);
-  if (!capability || !input.capabilities.includes(capability)) return false;
+  if (!capability || !input.commercialAdmissionDeferred && !input.capabilities.includes(capability)) return false;
   // Standalone Routines are Operations-owned Company work, including the
   // original module-free staff/retained-history roles. Projects is an optional
   // source on a template, not the readiness owner for this Work collection.
@@ -47,7 +48,7 @@ export function productDestinationAvailable(id: ProductId, path: string, input: 
   const context = navigationContext(input);
   const allowed = (item: typeof destinations[number]) => {
     const required = productEntryCapability(id, item.path);
-    return !!required && input.capabilities.includes(required) &&
+    return !!required && (input.commercialAdmissionDeferred || input.capabilities.includes(required)) &&
       !(input.scopeKind === "department" && item.source === "commerce" && item.selection.view === "stock") && destinationAvailable(context, item);
   };
   const exact = destinations.find(item => item.path === path);
@@ -65,7 +66,7 @@ export function productDestinationAvailable(id: ProductId, path: string, input: 
 export function productOfficeLanding(id: ProductId, input: ProductLandingContext) {
   const definition = product(id);
   if (!definition) return null;
-  if (id === "work") return input.readyModules.includes("operations") && input.capabilities.includes("work.today") ? definition.landing : null;
+  if (id === "work") return input.readyModules.includes("operations") && (input.commercialAdmissionDeferred || input.capabilities.includes("work.today")) ? definition.landing : null;
   if (!definition.modules.some(moduleId => input.modules.includes(moduleId) && input.readyModules.includes(moduleId))) return null;
   if (productDestinationAvailable(id, definition.landing, input)) return definition.landing;
   return destinations.find(item => destinationProduct(item.path) === id && productDestinationAvailable(id, item.path, input))?.path ?? null;

@@ -38,6 +38,7 @@ export function productWorkspaceCandidates(choices: readonly WorkspaceChoice[]):
 }
 
 export function createProductLauncher(ports: {
+  commercialAdmissionDeferred?(id:ProductId):boolean;
   choices(): Promise<WorkspaceChoice[]>;
   access(scope: HoldingWorkspaceScope, options: { companyId: string }): Promise<AccountAccessContext>;
   purchaseFacts(access: AccountAccessContext): Promise<CompanyPurchaseFacts>;
@@ -60,6 +61,7 @@ export function createProductLauncher(ports: {
   now(): number;
 }) {
   return async (productId?: ProductId) => {
+    const deferredProducts=new Set(products.filter(definition=>ports.commercialAdmissionDeferred?.(definition.id)===true).map(definition=>definition.id));
     const purchaseReads = new Map<string, Promise<CompanyPurchaseFacts>>();
     const moduleReads = new Map<string, ReturnType<typeof ports.moduleAccess>>();
     const result: (ProductWorkspaceCandidate & { productId: ProductId; href: string; purchasePurpose: CapabilityPurpose; sourceRecord?:true })[] = [];
@@ -72,7 +74,7 @@ export function createProductLauncher(ports: {
       if (!pending) { pending = ports.purchaseFacts(access); purchaseReads.set(key, pending); }
       const facts = await pending;
       const purchased = visiblePurchasedProducts(facts.grants, candidate.companyId, ports.now(), "history", facts.history);
-      if (!purchased.length) continue;
+      if (!purchased.length && !deferredProducts.size) continue;
       let moduleRead = moduleReads.get(key);
       if (!moduleRead) { moduleRead = ports.moduleAccess(access); moduleReads.set(key, moduleRead); }
       const authority = await moduleRead;
@@ -86,8 +88,9 @@ export function createProductLauncher(ports: {
       for (const definition of products) {
         if (productId && definition.id !== productId) continue;
         const origin = ports.origin(definition.id);
+        const commercialAdmissionDeferred=deferredProducts.has(definition.id);
         const expenseIncluded=definition.id==="finance"&&purchasedCapabilityPurpose(facts,candidate.companyId,"people.expenses",ports.now())!==null;
-        if (!origin || !purchased.includes(definition.id)&&!expenseIncluded) continue;
+        if (!origin || !commercialAdmissionDeferred&&!purchased.includes(definition.id)&&!expenseIncluded) continue;
         let landing: string | null = null;
         let purchasePurpose: CapabilityPurpose | null = null;
         let sourceRecord=false;
@@ -100,11 +103,11 @@ export function createProductLauncher(ports: {
           let includedPurpose: CapabilityPurpose | null = null;
           const permissions = authority.permissionsByAssignment.get(assignment.id);
           const context = { role: assignment.role, permissions, scopeKind: access.scope.kind,
-            modules, readyModules: ready, beta: authority.beta, capabilities: purchasedCapabilities(facts.grants, candidate.companyId, "history", ports.now(), facts.history) };
+            modules, readyModules: ready, beta: authority.beta, commercialAdmissionDeferred, capabilities: purchasedCapabilities(facts.grants, candidate.companyId, "history", ports.now(), facts.history) };
           if (definition.shell === "front" && access.scope.kind !== "department" &&
               definition.modules.some(id => modules.includes(id) && ready.includes(id)) &&
               hasPermission({ role: assignment.role, permissions }, definition.id + ".read")) roleLanding = definition.landing;
-          else roleLanding = purchased.includes(definition.id)?productOfficeLanding(definition.id, context):null;
+          else roleLanding = commercialAdmissionDeferred||purchased.includes(definition.id)?productOfficeLanding(definition.id, context):null;
           if(!roleLanding&&(definition.id==="finance"||definition.id==="people")){
             const kind=definition.id==="finance"?"expense":"payroll",capability=kind==="expense"?"people.expenses":"people.payroll";
             if(purchasedCapabilityPurpose(facts,candidate.companyId,capability,ports.now())&&peopleFinancialPresentationAllowed({...context,modules:authority.modulesByAssignment.get(assignment.id)??[]},kind)&&Number.isSafeInteger(assignment.version)&&assignment.version!>0&&await readyModule("people_payroll")&&await readyModule("finance")){
@@ -158,7 +161,7 @@ export function createProductLauncher(ports: {
             if(entry){roleLanding=initialPhysicalStockCountLanding;includedPurpose=entry.purchasePurpose;}
           }
           const capability = roleLanding && productEntryCapability(definition.id,roleLanding);
-          const purpose = includedPurpose ?? (capability ? purchasedCapabilityPurpose(facts,candidate.companyId,capability,ports.now()) : null);
+          const purpose = includedPurpose ?? (capability ? commercialAdmissionDeferred ? 'new-work' : purchasedCapabilityPurpose(facts,candidate.companyId,capability,ports.now()) : null);
           if (!purpose) continue;
           const priority: CapabilityPurpose[] = ["new-work","settle-existing","history"];
           if (!purchasePurpose || priority.indexOf(purpose)<priority.indexOf(purchasePurpose)) { landing=roleLanding;purchasePurpose=purpose;sourceRecord=includedPurpose!==null; }

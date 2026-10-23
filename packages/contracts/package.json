@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./console-retirement": "./src/console-retirement.ts",
+    "./development-module-admission": "./src/development-module-admission.ts",
     "./workforce-self-service-entry": "./src/workforce-self-service-entry.ts",
     "./ownership.json": "./src/ownership.json",
     "./apps": "./src/apps.ts",

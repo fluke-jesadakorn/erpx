@@ -251,7 +251,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
     const env = {
       ERPX_BROWSER_SIMULATION_RUN_ID: run, ERPX_BROWSER_SIMULATION_PORT: String(port), ERPX_BROWSER_SIMULATION_PROFILE: suite.fixture,
       ERPX_BROWSER_EXECUTION_MODE: development ? "development-smoke" : "acceptance",
-      ...(workspace?{ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspace.apps),ERPX_BROWSER_WORKSPACE_BUNDLER:workspace.bundler??'webpack'}:{}),
+      ...(workspace?{ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspace.apps),ERPX_BROWSER_WORKSPACE_BUNDLER:workspace.bundler??'webpack',...(workspace.consoleRetired?{ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED:'1'}:{})}:{}),
       ERPX_BROWSER_SIMULATION_ATTACHMENTS: requirements.scanner ? "local" : "none", ERPX_BROWSER_SIMULATION_JOBS: requirements.jobs ? "1" : "0",
       ERPX_BROWSER_SIMULATION_LEGAL: suite.fixture === "legal" || suite.fixture === "uat" ? "1" : "0",
       ERPX_BROWSER_SIMULATION_MENU_IMAGES: options.investorCapture ? "1" : "0",

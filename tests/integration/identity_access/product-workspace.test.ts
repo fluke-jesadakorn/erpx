@@ -18,7 +18,7 @@ import { readPurchasedAccess } from "@erpx/server-commercial/public/purchase-com
 vi.mock("@erpx/server-runtime/public/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB }), runtimeEnv: async () => env }));
 const db = env.H001_DB;
 beforeAll(async () => { await Promise.all([applyMigrations(db, env.STAFF_TEST_MIGRATIONS), applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS)]); });
-async function fixture(marketing = true, ownerModule = "marketing", initialPackages?:string[]) {
+async function fixture(marketing = true, ownerModule = "marketing", initialPackages?:string[],deferCommercial=false) {
   const f = await seedExpenseCompany(db, env.H001_FILES), userId = f.owner.userId, sessionId = randomUUID();
   await db.prepare("UPDATE assignments SET modules_json=? WHERE id=?").bind(JSON.stringify([ownerModule]),f.owner.assignmentId).run();
   const financeId = randomUUID(), salesId = randomUUID();
@@ -43,6 +43,7 @@ async function fixture(marketing = true, ownerModule = "marketing", initialPacka
   };
   let selections = 0;
   const service = createProductWorkspace({ access, modules: accountWorkModuleAccess, purchaseFacts: account => readCompanyPurchaseFacts(db, account.scope.companyId),
+    commercialAdmissionDeferred:()=>deferCommercial,
     ready: async () => true,
     selection: (account, applicable) => initializeWorkSelection(db, { sessionId, userId, companyId: f.company, expiresAt: account.expiresAt }, account.assignments, applicable),
     select: (account, option, revision) => { selections++; return selectWorkRole(db, { sessionId, userId, companyId: f.company, expiresAt: account.expiresAt,
@@ -53,6 +54,23 @@ async function fixture(marketing = true, ownerModule = "marketing", initialPacka
   return { ...f, nativeAccess:access,userId, sessionId, financeId, salesId, service, input, store, selections: () => selections,
     current: () => readWorkSelection(db, sessionId, userId, f.company) };
 }
+
+it('keeps native development module entry and explicit role CAS without Commercial grants, and refuses revoked authority',async()=>{
+ const f=await fixture(true,'marketing',[],true);
+ const assignments=(await db.prepare('SELECT * FROM assignments WHERE company_id=? ORDER BY id').bind(f.company).all()).results;
+ const before=await f.current(),entry=await f.service.read('sales',f.input);
+ expect(entry.target).toBeNull();expect(entry.options.some(option=>option.assignmentId===f.salesId)).toBe(true);
+ expect(await f.current()).toEqual(before);expect(f.selections()).toBe(0);
+ await f.service.choose('sales',f.input,f.salesId,before!.revision,1);
+ // Sales Operator has Sales, not CRM pipeline authority; keep its native Today landing.
+ expect((await f.service.read('sales',f.input)).target).toBe('/holdings/test/customers-sales/sales/today?q=retained#draft');
+ expect((await db.prepare('SELECT * FROM assignments WHERE company_id=? ORDER BY id').bind(f.company).all()).results).toEqual(assignments);
+ expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);
+ expect((await db.prepare('SELECT id FROM company_package_grant_events WHERE company_id=?').bind(f.company).all()).results).toEqual([]);
+ await db.prepare('UPDATE assignments SET revoked_at=? WHERE id IN (?,?)').bind(Date.now(),f.salesId,f.owner.assignmentId).run();
+ await expect(f.service.read('sales',f.input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});
+ expect(await readCompanyPackageGrants(db,f.company)).toEqual([]);
+});
 
 it("keeps the live Finance role until an explicit normal-service Marketing selection, with assignment data intact", async () => {
   const f = await fixture(), before = (await db.prepare("SELECT id,version,role,modules_json FROM assignments WHERE company_id=? ORDER BY id").bind(f.company).all()).results;

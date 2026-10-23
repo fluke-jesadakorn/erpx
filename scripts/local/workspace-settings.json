@@ -4,7 +4,10 @@
     "account",
     "apps",
     "learn",
-    "admin"
+    "admin",
+    "work",
+    "people",
+    "recruit"
   ],
   "maxApps": 4,
   "idleMinutes": 10,

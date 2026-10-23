@@ -326,6 +326,8 @@ it('keeps development app profiles explicit and rejects compatibility mixed into
   expect(developmentHostProfile({apps:['account','learn'],entryApp:'learn',bundler:'turbopack'})).toEqual({apps:['account','learn'],entryApp:'learn',bundler:'turbopack'});
   expect(()=>developmentHostProfile({apps:['learn'],entryApp:'learn',bundler:'unknown' as 'webpack'})).toThrow('EXPLICIT_WORKSPACE_BROWSER_BUNDLER_REQUIRED');
   expect(()=>developmentHostProfile({apps:['learn'],entryApp:'finance'})).toThrow('DEVELOPMENT_HOST_ENTRY_APP_REQUIRED');
+  expect(developmentHostProfile({apps:['account','finance'],entryApp:'finance',consoleRetired:true})).toEqual({apps:['account','finance'],entryApp:'finance',consoleRetired:true});
+  expect(()=>developmentHostProfile({apps:['compat'],entryApp:'compat',consoleRetired:true})).toThrow('RETIRED_CONSOLE_PROFILE_REQUIRES_PRODUCT_HOSTS');
   await expect(startWorkspaceBrowserRuntime()).rejects.toThrow('ISOLATED_WORKSPACE_BROWSER_RUNTIME_REQUIRED');
 });
 

@@ -40,12 +40,14 @@ import { effectiveWorkModules } from "@erpx/server-identity_access/domain/work-m
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { productCompany } from "@erpx/server-organization/public/product-company";
 import { z } from "zod";
+import {developmentModuleAdmissionDeferred} from '@erpx/contracts/development-module-admission';
 
 const responseHeaders = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" };
 const formSchema = z.object({ companyId: z.string().min(1).max(128), next: z.string().min(1).max(2000),
   assignmentId: z.string().min(1).max(128), assignmentVersion: z.coerce.number().int().positive(), revision: z.coerce.number().int().nonnegative() }).strict();
 function service() {
   return createProductWorkspace({
+    commercialAdmissionDeferred:id=>developmentModuleAdmissionDeferred(id,process.env),
     access: input => requireAccountAccess(input.scope, { companyId: input.companyId }),
     modules: accountWorkModuleAccess,
     purchaseFacts: async access => readCompanyPurchaseFacts((await holdingResources(access.scope.holdingId)).write, access.scope.companyId),

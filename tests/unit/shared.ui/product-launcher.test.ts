@@ -11,6 +11,8 @@ import type { CompanyPackageGrant, CompanyPackageHistoryRight } from "@erpx/serv
 import { builtInPermissions } from "@erpx/feature-identity_access/lib/permissions";
 import { productOfficeLanding, productDestinationAvailable } from "@erpx/server-work_projection/domain/product-landings";
 import { commercialPackages } from "@erpx/server-commercial/domain/packages";
+import {developmentModuleAdmissionDeferred} from '@erpx/contracts/development-module-admission';
+import {productIds} from '@erpx/contracts/product-registry';
 
 const choices = (): WorkspaceChoice[] => [buildWorkspaceHoldingChoice("acme", "Acme Holding", [
   { companyId: "c1", companyName: "Company One", scopeKind: "holding", scopeNodeId: null },
@@ -35,6 +37,28 @@ function fixture() {
   const ports = { choices: async () => choices(), access, purchaseFacts, grants, history, ready, moduleAccess, companySlug: async () => "company-one", origin: (id: string) => `https://${id}-dev-erpx.jesadakorn.com`, denied: (error: unknown) => error instanceof Error && error.message === "FORBIDDEN", now: () => 1000 };
   return { ...ports, launch: () => createProductLauncher(ports)() };
 }
+it('defers only Commercial admission at the exact authorized development cutover',()=>{
+ const environment={ERPX_ENVIRONMENT:'local',ERPX_PRODUCT_ENVIRONMENT:'development',ERPX_PUBLIC_ORIGIN:'https://console-dev-erpx.jesadakorn.com',ERPX_PRODUCT_ROUTING:'enabled',ERPX_PRODUCT_SSO:'enabled',ERPX_CONSOLE_RETIRED:'enabled'};
+ for(const id of productIds)expect(developmentModuleAdmissionDeferred(id,environment)).toBe(true);
+ for(const key of Object.keys(environment))expect(developmentModuleAdmissionDeferred('finance',{...environment,[key]:'other'})).toBe(false);
+ for(const mode of ['shadow','enforced','invalid'])expect(developmentModuleAdmissionDeferred('finance',{...environment,ERPX_FINANCE_PACKAGE_ENFORCEMENT:mode})).toBe(false);
+ expect(developmentModuleAdmissionDeferred('finance',{...environment,ERPX_ENVIRONMENT:'production'})).toBe(false);
+ expect(developmentModuleAdmissionDeferred('sales',{...environment,ERPX_COMMERCE_PACKAGE_ENFORCEMENT:'enforced'})).toBe(false);
+ expect(developmentModuleAdmissionDeferred('supply',{...environment,ERPX_COMMERCE_PACKAGE_ENFORCEMENT:'enforced'})).toBe(false);
+ expect(developmentModuleAdmissionDeferred('unknown' as typeof productIds[number],environment)).toBe(false);
+});
+it('keeps existing Finance module entry without manufacturing grants, and retains readiness and current role permissions',async()=>{
+ const f=fixture();f.grants.mockResolvedValue([]);
+ const launch=createProductLauncher({...f,commercialAdmissionDeferred:id=>id==='finance'});
+ const original=structuredClone(await f.moduleAccess());
+ const links=await launch('finance');expect(links).toHaveLength(4);
+ expect(links.every(link=>new URL(link.href).origin==='https://finance-dev-erpx.jesadakorn.com')).toBe(true);
+ expect(await f.moduleAccess()).toEqual(original);
+ expect(await f.purchaseFacts(await f.access({kind:'holding',holdingSlug:'acme'},{companyId:'c1'}))).toEqual({grants:[],history:[]});
+ f.ready.mockResolvedValue(false);expect(await launch('finance')).toEqual([]);
+ f.ready.mockResolvedValue(true);f.moduleAccess.mockResolvedValue({...original,permissionsByAssignment:new Map([['role',[]]])});expect(await launch('finance')).toEqual([]);
+ f.moduleAccess.mockResolvedValue({...original,modulesByAssignment:new Map(),presentationModulesByAssignment:new Map()});expect(await launch('finance')).toEqual([]);
+});
 it("enumerates every Company and inherited Branch/Department without promoting a direct Department to its parent", () => {
   const candidates = productWorkspaceCandidates(choices());
   expect(candidates.map(candidate => `${candidate.companyId}/${candidate.scope.kind}`)).toEqual(["c1/holding", "c1/branch", "c1/department", "c2/department"]);

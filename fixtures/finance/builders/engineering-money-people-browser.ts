@@ -8,6 +8,7 @@ import type {FileStore} from "@erpx/server-runtime/adapters/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {seedExpenseCompany} from "../../expenses/company";
 import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
+import {product,type ProductId} from '@erpx/contracts/product-registry';
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import {createAccount,createAccountSchema,createChart,createChartSchema,createJournal,createJournalSchema,createPeriod,createPeriodSchema,postJournalBatch,createParty,createPayment,importBankStatement} from "@erpx/server-finance/public/finance";
 import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-finance/public/accounting-profiles";
@@ -17,7 +18,7 @@ import {createTalentRequisition,createTalentCandidate,createTalentApplication,cr
 import {createLearningCourse,createLearningAssignment,changeLearningCourse} from "@erpx/server-learning/public/learning";
 import {createBenefitPlan,createBenefitWindow,changeBenefitRecord} from "@erpx/server-benefits/public/benefits";
 
-type Input={run:string;directory:string;control:PostgresDatabase;db:PostgresDatabase;files:FileStore};
+type Input={run:string;directory:string;control:PostgresDatabase;db:PostgresDatabase;files:FileStore;workspaceProducts?:readonly ProductId[]};
 export type EngineeringMoneyPeopleUser={key:string;email:string;userId:string;role:string;assignmentId:string;workspaceBase:string};
 export type EngineeringMoneyPeopleCompany={companyId:string;users:Record<string,EngineeringMoneyPeopleUser>;asset:{chartId:string;periodId:string;costAccountId:string;accumulatedAccountId:string;expenseAccountId:string;cashAccountId:string;gainAccountId:string};report:{chartId:string;cashId:string;capitalId:string;retainedId:string;revenueId:string;expenseId:string};hire:{handoffId:string;candidateId:string;candidateName:string;offerId:string;applicationId:string;payGroupId:string;sourceHandoff:unknown};learning:{assignmentId:string;courseId:string;planId:string;windowId:string;personId:string};withholding:{supplierId:string;paymentId:string;bankTransactionId:string;remittanceBankTransactionId:string;recoveryBankTransactionId:string;chartId:string;periodId:string;expenseAccountId:string;payableAccountId:string;inputVatAccountId:string;bankAccountId:string;withholdingAccountId:string;invoiceNumber:string}};
 export type EngineeringMoneyPeopleBrowser={run:string;seedRun?:string;password:string;notice:string;companies:Record<string,EngineeringMoneyPeopleCompany>};
@@ -25,6 +26,7 @@ const key=()=>randomUUID();
 function exact(db:PostgresDatabase,run:string,binding:string){const url=new URL(String(db.pool.options.connectionString));if(url.hostname!=='127.0.0.1'||url.port!=='5432'||url.username!=='erpx_test_admin'||url.pathname!==`/erpx_browser_${run}_${binding}`)throw new Error('EXACT_MONEY_PEOPLE_BROWSER_DATABASE_REQUIRED');}
 
 export async function seedEngineeringMoneyPeopleBrowser(input:Input){
+ if(input.workspaceProducts&&(new Set(input.workspaceProducts).size!==input.workspaceProducts.length||input.workspaceProducts.some(id=>!product(id))))throw new Error('EXACT_WORKSPACE_PRODUCT_FIXTURE_REQUIRED');
  if(!/^[a-f0-9]{12}$/.test(input.run))throw new Error('EXACT_MONEY_PEOPLE_BROWSER_RUN_REQUIRED');exact(input.control,input.run,'control_db');exact(input.db,input.run,'h001_db');
  const password=`Engineering-${randomBytes(18).toString('hex')}`,passwordHash=await hashPassword(password),now=Date.now();
  const state:EngineeringMoneyPeopleBrowser={run:input.run,password,notice:'Fictional companies, declared manual FX quotes and synthetic academy/provider. Engineering browser evidence; no business or provider certification.',companies:{}};
@@ -45,7 +47,7 @@ export async function seedEngineeringMoneyPeopleBrowser(input:Input){
   async function register(label:string,role:string,department=false){
    const actor=await f.member(`${project}-${label}`,role);actor.assignmentId=await f.grant(actor,role,department?'department':'holding',department?f.department:null);actor.holdingSlug='simulation';actor.holdingName='Simulation';actor.assignmentScope=department?'department':'holding';actor.branchId=department?f.branch:null;actor.departmentId=department?f.department:null;
    actor.scope=department?{kind:'department',holdingId:'h001',holdingSlug:'simulation',holdingName:'Simulation',companyId:f.company,branchId:f.branch,branchSlug:f.branch,branchName:'Synthetic branch',departmentId:f.department,departmentSlug:f.department,departmentName:'Synthetic team'}:{kind:'holding',holdingId:'h001',holdingSlug:'simulation',holdingName:'Simulation',companyId:f.company};
-   actor.modules=role.startsWith('custom_')?rolePermissions[role].filter(permission=>permission.startsWith('module.')).map(permission=>permission.split('.')[1]):[...businessRoles[role as keyof typeof businessRoles]];
+   actor.modules=role==='holding_owner'?[...new Set((input.workspaceProducts??[]).flatMap(id=>product(id)!.modules))]:role.startsWith('custom_')?rolePermissions[role].filter(permission=>permission.startsWith('module.')).map(permission=>permission.split('.')[1]):[...businessRoles[role as keyof typeof businessRoles]];
    actor.name=`${project} ${label} · synthetic`;actor.email=`engineering-${input.run}-${project}-${label}@simulation.test`;
    await input.db.batch([
     input.db.prepare('UPDATE assignments SET revoked_at=? WHERE company_id=? AND user_id=? AND id<>?').bind(now,f.company,actor.userId,actor.assignmentId),
@@ -61,6 +63,7 @@ export async function seedEngineeringMoneyPeopleBrowser(input:Input){
    actor.iam=await loadIamAuthority(input.db,f.company,actor.userId,role);actors[label]=actor;users[label]={key:label,email:actor.email,userId:actor.userId,role,assignmentId:actor.assignmentId,workspaceBase:department?`/holdings/simulation/branches/${f.branch}/departments/${f.department}`:'/holdings/simulation'};return actor;
   }
   const finance=await register('finance-author','finance_preparer'),approver=await register('finance-reviewer','finance_approver');await register('hr','custom_engineering_hr');const academy=await register('academy-author','custom_engineering_academy'),academyReview=await register('academy-reviewer','custom_engineering_academy'),learner=await register('learner','custom_engineering_learner'),talent=await register('talent-author','custom_engineering_talent',true),talentReview=await register('talent-reviewer','custom_engineering_talent',true);
+  if(input.workspaceProducts?.length)await register('workspace-owner','holding_owner');
   const accumulated=String((await createAccount(finance,createAccountSchema.parse({chartId:f.chart,code:'ACCUMULATED',name:'Accumulated depreciation',category:'asset'}),key())).id);
   const reportChart=String((await createChart(finance,createChartSchema.parse({name:'Synthetic NPAEs reporting ledger',baseCurrency:'THB',accountingBasis:'TFRS for NPAEs'}),key())).id),reportAccounts:Record<string,string>={};
   for(const [name,category] of [['cash','asset'],['capital','equity'],['retained','equity'],['revenue','revenue'],['expense','expense']] as const)reportAccounts[name]=String((await createAccount(finance,createAccountSchema.parse({chartId:reportChart,code:name.toUpperCase(),name:`Report ${name}`,category}),key())).id);

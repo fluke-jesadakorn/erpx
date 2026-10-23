@@ -3,7 +3,7 @@ import {GET as launchGet,POST as launchPost} from "@erpx/workplace/routes/launch
 import {productFrontLaunch} from "@erpx/server-identity_access/public/product-front-launch";
 import {financeDocumentEntry,salesCustomerReceiptEntry} from "@erpx/server-finance/public/rules/document-entry";
 import {qualitySourceEntry} from "@erpx/server-quality/public/rules/product-entry";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach,afterEach, expect, it, vi } from "vitest";
 import type { AccountAccessContext } from "@erpx/server-identity_access/public/authorization";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ access: vi.fn(), modules: vi.fn(), grants: vi.fn(), history: vi.fn(), ready: vi.fn(), selection: vi.fn(), select: vi.fn(),front:vi.fn(),legal:vi.fn(),posting:vi.fn(),salesPosting:vi.fn(),salesReceipt:vi.fn() }));
@@ -49,6 +49,8 @@ it("launches Company Executive on Work with its current permission and independe
  expect(productWorkspaceTarget("finance","c2",target)).toBeNull();expect(productWorkspaceTarget("admin","c2",target)).toBeNull();
 });
 beforeEach(() => {
+  // This suite exercises required Commercial admission regardless of installed dev flags.
+  vi.stubEnv('ERPX_CONSOLE_RETIRED','disabled');
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.access.mockResolvedValue(access());
   mocks.modules.mockResolvedValue({ modulesByAssignment: new Map([["assignment", ["finance"]]]),
@@ -56,6 +58,18 @@ beforeEach(() => {
   mocks.grants.mockResolvedValue([{ companyId: "c2", packageId: "finance", packageVersion: 1, state: "active", startsAt: 0, endsAt: null, version: 1, reason: "Fixture", evidence: "test:fixture" }]);
   mocks.history.mockResolvedValue([]);
   mocks.selection.mockResolvedValue(selected());
+});
+afterEach(()=>vi.unstubAllEnvs());
+it('preserves existing Company and role authority when development Commercial admission is deferred',async()=>{
+ let released=true;
+ const service=createProductWorkspace({access:async()=>access(),modules:mocks.modules,purchaseFacts:async()=>({grants:[],history:[]}),
+  commercialAdmissionDeferred:id=>id==='finance',ready:async()=>released,selection:mocks.selection,select:mocks.select,now:Date.now,error:(status,code,message)=>new ApiError(status,code,message)});
+ const input=productWorkspaceTarget('finance','c2','/holdings/acme/finance/documents?state=kept')!;
+ expect(await service.read('finance',input)).toMatchObject({target:input.target});expect(mocks.select).not.toHaveBeenCalled();
+ released=false;await expect(service.read('finance',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});released=true;
+ mocks.modules.mockResolvedValue({modulesByAssignment:new Map([['assignment',['finance']]]),presentationModulesByAssignment:new Map([['assignment',['finance']]]),permissionsByAssignment:new Map([['assignment',[]]]),beta:false});
+ await expect(service.read('finance',input)).rejects.toMatchObject({code:'PRODUCT_ROLE_REQUIRED'});
+ expect(productWorkspaceTarget('people','c2',input.target)).toBeNull();
 });
 it("checks explicit Company access before setting a host-only cookie and preserves the target query", async () => {
   const response = await productWorkspaceRequest(request());

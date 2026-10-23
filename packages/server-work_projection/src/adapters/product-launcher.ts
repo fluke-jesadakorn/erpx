@@ -10,6 +10,7 @@ import {manufacturingInitialPhysicalStockCountProductEntry} from "@erpx/server-i
 import {manufacturingPostingSetupProductEntry} from "@erpx/server-manufacturing/public/posting-setup";
 import {initialPhysicalStockCountProductEntry} from "@erpx/server-inventory/public/initial-physical-stock-count";
 import "server-only";
+import {developmentModuleAdmissionDeferred} from '@erpx/contracts/development-module-admission';
 import { activeHoldingBindings, holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { firstAuthorizedWorkspace, requireAccountAccess, resolveWorkspaceScope, type AccountAccessContext } from "@erpx/server-identity_access/public/authorization";
 import { readCompanyPurchaseFacts } from "@erpx/server-commercial/public/package-grants";
@@ -42,6 +43,7 @@ export async function productLaunchChoices(productId?: import("@erpx/contracts/p
   // explicit node/lineage validation for each requested scope. Never global.
   const accounts = new Map<string, Promise<AccountAccessContext>>();
   return createProductLauncher({
+  commercialAdmissionDeferred:id=>developmentModuleAdmissionDeferred(id,process.env),
   choices: productWorkspaceChoices, moduleAccess: accountWorkModuleAccess,
   access: async (scope, options) => {
     const key = `${scope.holdingSlug}:${options.companyId}`;

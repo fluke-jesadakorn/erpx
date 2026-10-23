@@ -34,6 +34,7 @@ export function createProductWorkspace(ports: {
   access(input: ProductWorkspaceInput): Promise<AccountAccessContext>;
   modules(access: AccountAccessContext): Promise<ProductModuleAccess>;
   purchaseFacts(access: AccountAccessContext): Promise<CompanyPurchaseFacts>;
+  commercialAdmissionDeferred?(id:NonNullable<ReturnType<typeof product>>['id']):boolean;
   ready(access: AccountAccessContext, moduleId: string): Promise<boolean>;
   executiveVisible?(access: AccountAccessContext, assignment: WorkAssignment): Promise<boolean>;
   expensePostingPrerequisitesEntry?(access:AccountAccessContext,assignment:WorkAssignment):Promise<{revision:string;purchasePurpose:"history"}|null>;
@@ -79,6 +80,7 @@ export function createProductWorkspace(ports: {
     const applicable = access.assignments.filter(assignment => assignmentApplies(assignment, access.scope));
     if (!applicable.length) throw ports.error(403, "ASSIGNMENT_UNAVAILABLE", "Your account cannot open this workspace.");
     const facts = await ports.purchaseFacts(access);
+    const commercialAdmissionDeferred=ports.commercialAdmissionDeferred?.(definition.id)===true;
     const retainedExpensePrerequisites=definition.id==="finance"&&expensePostingPrerequisitesEntry(destination);
     const retainedPayrollPrerequisites=definition.id==="people"&&payrollPostingPrerequisitesEntry(destination);
     const financialTarget=peopleFinancialEntry(destination);
@@ -105,7 +107,7 @@ export function createProductWorkspace(ports: {
     const retainedInitialPhysicalStock=definition.id==="sales"?initialPhysicalStockCountEntry(destination):null;
     const retainedSalesPostingSetup=definition.id==="sales"&&destination==="customers-sales/sales/settings/posting";
     const retainedNotifications=definition.id==="work"&&destination==="inbox/notifications"&&purchasedCapabilities(facts.grants,input.companyId,"history",ports.now(),facts.history).includes("foundation.notifications");
-    const visibleProduct=visiblePurchasedProducts(facts.grants, input.companyId, ports.now(), "history", facts.history).includes(definition.id);
+    const visibleProduct=commercialAdmissionDeferred||visiblePurchasedProducts(facts.grants, input.companyId, ports.now(), "history", facts.history).includes(definition.id);
     if (!visibleProduct&&!retainedExpensePrerequisites&&!retainedPayrollPrerequisites&&!retainedFinancial&&!retainedLearningWorker&&!retainedProjectWorker&&!retainedServiceParts&&!retainedServiceStock&&!retainedPosInitialStock&&!retainedAssetsFinancial&&!retainedManufacturingInitialStock&&!retainedManufacturingPostingSetup&&!retainedInitialPhysicalStock&&!retainedCustomerReceipt&&!retainedDocument&&!retainedLegalSetup&&!retainedPostingSetup&&!retainedSalesPostingSetup&&!retainedNotifications&&!retainedQuality&&!retainedTask&&!retainedHire&&!retainedCandidatePrivacy&&!retainedPost&&!retainedSelf)
       throw ports.error(403, "PRODUCT_PACKAGE_REQUIRED", "This Company has no available purchase or retained history for this product.");
     const authority = await ports.modules(access), readiness = new Map<string, Promise<boolean>>();
@@ -124,7 +126,7 @@ export function createProductWorkspace(ports: {
       const executiveDestination = definition.id === "work" && (destination === "insights/executive" || destination.startsWith("insights/executive/"));
       const canSeeExecutive = executiveDestination ? await ports.executiveVisible?.(access, assignment) ?? false : undefined;
       const context = { role: assignment.role, permissions: authority.permissionsByAssignment.get(assignment.id),
-        modules, readyModules, beta: authority.beta, scopeKind: access.scope.kind,
+        modules, readyModules, beta: authority.beta, scopeKind: access.scope.kind, commercialAdmissionDeferred,
         capabilities: purchasedCapabilities(facts.grants, input.companyId, "history", ports.now(), facts.history),
         ...(executiveDestination ? { executiveVisible: canSeeExecutive } : {}) };
       if(retainedExpensePrerequisites){
@@ -334,7 +336,7 @@ export function createProductWorkspace(ports: {
         target = url.pathname + url.search + url.hash;
       } else if (!productDestinationAvailable(definition.id, destination, context)) continue;
       const capability = productEntryCapability(definition.id,destination===definition.landing?landing:destination);
-      const purchasePurpose = capability ? purchasedCapabilityPurpose(facts,input.companyId,capability,ports.now()) : null;
+      const purchasePurpose = capability ? commercialAdmissionDeferred ? 'new-work' : purchasedCapabilityPurpose(facts,input.companyId,capability,ports.now()) : null;
       if (!purchasePurpose) continue;
       options.push({ assignmentId: assignment.id, assignmentVersion: assignment.version!, role: assignment.role,
         label: assignment.label ?? assignment.role.replaceAll("_", " "), target, purchasePurpose });

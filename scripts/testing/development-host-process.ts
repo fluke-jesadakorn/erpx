@@ -10,6 +10,7 @@ export async function startDevelopmentHostProcess(input: { root: string; run: st
   while (true) {
     try {
       const runtime = JSON.parse(await readFile(join(directory, 'workspace-runtime.json'), 'utf8'));
+      if(Boolean(runtime.consoleRetired)!==Boolean(profile.consoleRetired))throw new Error('DEVELOPMENT_CONSOLE_PROFILE_CHANGED');
       if (runtime.run !== input.run || runtime.sourceFingerprint !== input.sourceFingerprint || JSON.stringify(runtime.apps) !== JSON.stringify(profile.apps) || (runtime.bundler??'webpack')!==(profile.bundler??'webpack')) throw new Error('WORKSPACE_BROWSER_RUNTIME_CHANGED');
       process.kill(runtime.pid, 0); break;
     } catch (error) {

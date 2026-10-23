@@ -10,6 +10,7 @@ import { recoverGatewayApps, type ProcessIdentity } from "./app-process-leases";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { appDefinitions, appDirectory, appForHost } from "@erpx/contracts/apps";
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
+import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/contracts/console-retirement';
 
 export type WorkspaceGatewaySettings = { version: number; activeApps: string[]; maxApps: number; idleMinutes: number; bundlers: Record<string, string>; defaultBundler: string };
 type RunningApp = { id: string; port: number; child: ChildProcess; started: Promise<void>; requests: number; upgraded: Set<Duplex>; lastUsed: number; identity: ProcessIdentity; startupAttempt: number; ready: boolean; servedRequest: boolean; intentionalStop: boolean };
@@ -133,7 +134,7 @@ async function acquire(id: string, startupAttempt = 0): Promise<RunningApp> {
     const deadline = Date.now() + 120_000;
     let healthy = false;
     while (!healthy) {
-      if (child.exitCode !== null || child.signalCode || Date.now() > deadline) {
+      if (stopping || child.exitCode !== null || child.signalCode || Date.now() > deadline) {
         const exited = child.exitCode !== null || !!child.signalCode;
         child.kill("SIGTERM");
         throw Object.assign(new Error(`APP_STARTUP_FAILED:${id}`), {startupExited:exited});
@@ -185,6 +186,9 @@ async function ensure(id: string, startupAttempt = 0) {
   try { return await next; } finally { if (starting.get(id) === next) starting.delete(id); }
 }
 function target(req: IncomingMessage) {
+  if(developmentConsoleRetired(environment)&&req.headers.host==='console-dev-erpx.jesadakorn.com'&&['/api/health','/api/ready'].includes((req.url??'').split('?')[0])){
+    settings();return 'account';
+  }
   const app = appForHost(req.headers.host ?? "");
   const cookies = (req.headers.cookie ?? "").split(";").map(value=>value.trim()).filter(value=>value.startsWith("__Host-erpx-dev-preview="));
   const header = req.headers["x-erpx-workspace-preview"] ?? (cookies.length===1 ? cookies[0].slice("__Host-erpx-dev-preview=".length) : undefined);
@@ -200,6 +204,10 @@ function failed(res: ServerResponse, error: unknown) {
   else res.destroy();
 }
 const server = createServer(async (req, res) => {
+  try{
+    const retired=consoleRetirementResult({host:req.headers.host,method:req.method??'GET',url:req.url??'/',accept:req.headers.accept},environment);
+    if(retired){settings();res.writeHead(retired.status,retired.headers);res.end(retired.body);return;}
+  }catch(error){failed(res,error);return;}
   // A temporary host-only routing preference lets the normal browser review a
   // candidate app before its public host mapping changes. It grants no access.
   const previewPath = (req.url ?? "").split("?")[0];
@@ -233,6 +241,9 @@ server.on("upgrade", async (req, downstream, head) => {
   downstream.once('close',()=>{releaseDemand?.();releaseHandshake?.();waiting.destroy();});
   waiting.once('error',()=>downstream.destroy());downstream.pipe(waiting);
   try {
+    if(consoleRetirementResult({host:req.headers.host,method:req.method??'GET',url:req.url??'/',accept:req.headers.accept},environment)){
+      settings();downstream.unpipe(waiting);waiting.destroy();downstream.end('HTTP/1.1 410 Gone\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n');return;
+    }
     const id=target(req);releaseDemand=holdDemand(id);
     const app = await ensure(id);if(downstream.destroyed)return;app.requests++;releaseDemand();app.servedRequest=true; app.lastUsed = Date.now();
     let finished=false;releaseHandshake=()=>{if(finished)return;finished=true;app.requests--;app.lastUsed=Date.now();};

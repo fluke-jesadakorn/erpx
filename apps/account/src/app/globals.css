@@ -4,6 +4,7 @@
 @source "../../../../packages/catalogue/src/module-registry.ts";
 @source "../../../../packages/catalogue/src/production-scope.ts";
 @source "../../../../packages/contracts/src/apps.ts";
+@source "../../../../packages/contracts/src/console-retirement.ts";
 @source "../../../../packages/contracts/src/product-registry.ts";
 @source "../../../../packages/contracts/src/social-post-entry.ts";
 @source "../../../../packages/contracts/src/work-social-api.ts";

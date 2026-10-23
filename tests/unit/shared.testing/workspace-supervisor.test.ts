@@ -92,6 +92,50 @@ it('launches the stable Apps host and process identity from its launcher directo
   }finally{await gateway?.close();await rm(root,{recursive:true,force:true});}
 },15_000);
 
+it('retires Console HTTP and upgrades before app startup and sends health only to Account',async()=>{
+ for(const port of [3104,3293])await free(port);
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-retired-console-')));
+ let gateway:Awaited<ReturnType<typeof startWorkspaceGateway>>|undefined;
+ try{
+  await mkdir(join(root,'node_modules/next/dist/bin'),{recursive:true});await mkdir(join(root,'apps/account'),{recursive:true});
+  await writeFile(join(root,'package.json'),JSON.stringify({name:'erpx'}));await writeFile(join(root,'node_modules/next/package.json'),JSON.stringify({name:'next',type:'commonjs'}));
+  await writeFile(join(root,'node_modules/next/dist/bin/next'),`const{createServer}=require('node:http'),{appendFileSync}=require('node:fs');if(process.env.ERPX_APP_ID!=='account')process.exit(2);createServer((req,res)=>{appendFileSync('account-requests.log',req.method+' '+req.url+'\\n');res.setHeader('X-ERPX-App','account');res.end('account-health');}).listen(Number(process.env.ERPX_APP_PORT),'127.0.0.1');`);
+  gateway=await startWorkspaceGateway({root,node:process.execPath,port:3104,preview:false,fallback:null,appPorts:new Map([['account',3293]]),
+   environment:{PATH:process.env.PATH,NODE_ENV:'development',ERPX_ENVIRONMENT:'local',ERPX_PRODUCT_ENVIRONMENT:'development',ERPX_PUBLIC_ORIGIN:'https://console-dev-erpx.jesadakorn.com',ERPX_PRODUCT_ROUTING:'enabled',ERPX_PRODUCT_SSO:'enabled',ERPX_CONSOLE_RETIRED:'enabled'},
+   settings:()=>({version:1,activeApps:appIds,maxApps:4,idleMinutes:10,bundlers:{},defaultBundler:'webpack'})});
+  const host='console-dev-erpx.jesadakorn.com';
+  for(const method of ['GET','HEAD','POST','PUT','PATCH','DELETE']){
+   const result=await new Promise<{status:number;body:string;location:unknown;cookie:unknown}>((done,reject)=>{
+    const req=request({host:'127.0.0.1',port:3104,path:'/api/old-command?token=must-not-replay',method,headers:{Host:host},agent:false},res=>{
+     let body='';res.on('data',chunk=>body+=chunk);res.on('end',()=>done({status:res.statusCode!,body,location:res.headers.location,cookie:res.headers['set-cookie']}));
+    });req.on('error',reject);req.end(method==='POST'?'private-command-body':undefined);
+   });
+   expect(result.status).toBe(410);expect(result.location).toBeUndefined();expect(result.cookie).toBeUndefined();expect(result.body).not.toContain('must-not-replay');expect(result.body).not.toContain('private-command-body');
+  }
+  const upgrade=await new Promise<string>((done,reject)=>{const socket=connect(3104,'127.0.0.1');let text='';socket.on('connect',()=>socket.write(`GET /_next/hmr HTTP/1.1\r\nHost: ${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`));socket.on('data',chunk=>text+=chunk);socket.on('end',()=>done(text));socket.on('error',reject);});
+  expect(upgrade).toContain('HTTP/1.1 410 Gone');await expect(readFile(join(root,'account-requests.log'))).rejects.toMatchObject({code:'ENOENT'});
+  expect(await get(3104,host,'/api/health')).toEqual({status:200,body:'account-health'});
+  const reads=(await readFile(join(root,'account-requests.log'),'utf8')).trim().split('\n');expect(reads.length).toBeGreaterThanOrEqual(2);expect(new Set(reads)).toEqual(new Set(['GET /api/health']));
+  const leases=JSON.parse(await readFile(gateway.leasePath,'utf8'));expect(leases.apps.map((app:{id:string})=>app.id)).toEqual(['account']);
+ }finally{await gateway?.close();await rm(root,{recursive:true,force:true});}
+},20_000);
+
+it('cleans an owned cold startup during shutdown without waiting for its readiness deadline or replaying the request',async()=>{
+ for(const port of [3104,3294])await free(port);
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-stop-startup-')));
+ let gateway:Awaited<ReturnType<typeof startWorkspaceGateway>>|undefined;
+ try{
+  await mkdir(join(root,'node_modules/next/dist/bin'),{recursive:true});await mkdir(join(root,'apps/account'),{recursive:true});
+  await writeFile(join(root,'package.json'),JSON.stringify({name:'erpx'}));await writeFile(join(root,'node_modules/next/package.json'),JSON.stringify({name:'next',type:'commonjs'}));
+  await writeFile(join(root,'node_modules/next/dist/bin/next'),`require('node:http').createServer((req,res)=>{res.statusCode=503;res.end('not-ready');}).listen(Number(process.env.ERPX_APP_PORT),'127.0.0.1');`);
+  gateway=await startWorkspaceGateway({root,node:process.execPath,port:3104,preview:false,fallback:null,appPorts:new Map([['account',3294]]),environment:{PATH:process.env.PATH,NODE_ENV:'development'},settings:()=>({version:1,activeApps:['account'],maxApps:1,idleMinutes:10,bundlers:{},defaultBundler:'webpack'})});
+  const response=get(3104,new URL(appDefinition('account').origin).host),deadline=Date.now()+3000;
+  while(true){try{if(JSON.parse(await readFile(gateway.leasePath,'utf8')).apps.length)break;}catch{}if(Date.now()>deadline)throw Error('OWNED_STARTUP_NOT_REACHED');await pause(20);}
+  const started=performance.now();await gateway.close();expect(performance.now()-started).toBeLessThan(3000);expect((await response).status).toBe(503);
+  await free(3294);expect(JSON.parse(await readFile(gateway.leasePath,'utf8')).apps).toEqual([]);
+ }finally{await gateway?.close();await rm(root,{recursive:true,force:true});}
+},10_000);
+
 it('deduplicates startup, refuses capacity without interrupting streams, and drains owned apps before closing', async () => {
   for (const port of [3104, 3290, 3291]) await free(port);
   const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-supervisor-')));

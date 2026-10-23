@@ -1747,6 +1747,24 @@
       "file": "tests/e2e/shared.work/product-workspace-hmr.spec.ts",
       "title": "Recruit client edits preserve the requisition draft through twenty measured HMR updates",
       "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/finance/workspace-smoke.spec.ts",
+      "title": "Finance workspace preserves existing module authority through Account SSO and its report drawer without Commercial grants",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/sales/workspace-smoke.spec.ts",
+      "title": "Sales workspace preserves existing module authority through Account SSO and its lead drawer without Commercial grants",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/procurement/workspace-smoke.spec.ts",
+      "title": "Supply workspace preserves existing module authority through Account SSO and its purchase drawer without Commercial grants",
+      "project": "desktop"
     }
   ]
 }
