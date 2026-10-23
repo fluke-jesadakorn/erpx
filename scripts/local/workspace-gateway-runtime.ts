@@ -251,7 +251,15 @@ server.on("upgrade", async (req, downstream, head) => {
     upstream.once("error", () => {releaseHandshake?.();downstream.destroy();}); upstream.end();
   } catch { releaseHandshake?.();downstream.end("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n"); }finally{releaseDemand?.();}
 });
-const idle = setInterval(() => { const limit = settings().idleMinutes * 60_000; for (const app of running.values()) if (Date.now() - app.lastUsed > limit) stopApp(app); }, 30_000); idle.unref();
+const idle = setInterval(() => {
+  let limit:number;
+  try {limit=settings().idleMinutes*60_000;} catch(error) {
+    // Invalid live settings reject requests; they must not crash the supervisor
+    // or choose processes to stop using an unvalidated configuration.
+    console.error(error instanceof Error?error.message:'INVALID_WORKSPACE_SETTINGS');return;
+  }
+  for (const app of running.values()) if (Date.now() - app.lastUsed > limit) stopApp(app);
+}, 30_000); idle.unref();
 let stopped:Promise<void>|undefined;
 function stop() {
  if(stopped)return stopped;
