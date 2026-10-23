@@ -62,3 +62,20 @@ it('refuses unrelated clone roots and never replaces an existing case installati
     expect(await readFile(join(f.target,'node_modules/owned-marker'),'utf8')).toBe('retain');
   }finally{await rm(f.root,{recursive:true,force:true});}
 });
+
+it('keeps Turbopack vendor modules inside each case root and rejects foreign compiler aliases',async()=>{
+ const f=await fixture(),foreign=await fixture();try{
+  const packagePath='.bun/next-fixture/node_modules/next';
+  await mkdir(join(f.template,'node_modules',packagePath),{recursive:true});await writeFile(join(f.template,'node_modules',packagePath,'package.json'),JSON.stringify({name:'next',version:'16.4.0'}));
+  await symlink(packagePath,join(f.template,'node_modules/next'),'dir');
+  await linkBrowserWorkspaceModules(f.template,f.target,'turbopack');
+  expect(await realpath(join(f.target,'node_modules/next'))).toBe(join(f.target,'node_modules',packagePath));
+  expect(await realpath(join(f.target,'node_modules/react'))).toBe(join(f.target,'node_modules/react'));
+  expect(await realpath(join(f.target,'node_modules/@erpx/ui'))).toBe(join(f.target,'packages/ui'));
+  await writeFile(join(f.target,'node_modules/react/index.js'),'case-local vendor bytes');
+  expect(await readFile(join(f.template,'node_modules/react/index.js'),'utf8')).toBe('immutable third-party bytes');
+  await mkdir(join(foreign.root,'foreign-next'));await symlink(join(foreign.root,'foreign-next'),join(foreign.template,'node_modules/next'),'dir');
+  await expect(linkBrowserWorkspaceModules(foreign.template,foreign.target,'turbopack')).rejects.toThrow('CASE_LOCAL_COMPILER_MODULE_REQUIRED');
+  expect(existsSync(join(foreign.target,'node_modules'))).toBe(false);
+ }finally{await rm(f.root,{recursive:true,force:true});await rm(foreign.root,{recursive:true,force:true});}
+});

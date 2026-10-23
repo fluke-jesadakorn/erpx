@@ -1891,6 +1891,16 @@
       "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
       "title": "Manufacturing owner drawer preserves its draft through twenty measured HMR updates",
       "project": "desktop"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/browser-workspace-modules.test.ts",
+      "title": "keeps Turbopack vendor modules inside each case root and rejects foreign compiler aliases"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.test-infrastructure/browser-prerequisites.test.ts",
+      "title": "retains only declared workspace startup logs before teardown and refuses foreign log links"
     }
   ]
 }

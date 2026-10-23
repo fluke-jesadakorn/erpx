@@ -4,7 +4,7 @@ import { clonedFixtureMetadata, isCaseExecutionEvidence, isClonedFixtureDocument
 import { attachmentToolEnvironment } from "../../../scripts/testing/runtime-tooling";
 import { browserChildEnvironment } from "../../../scripts/testing/runner-environment";
 import type { BrowserCase } from "../../../scripts/testing/browser-results";
-import { prepareUatCaseEvidence, retainBrowserFixtureEvidence } from "../../../scripts/testing/browser-evidence";
+import { prepareUatCaseEvidence, retainBrowserFixtureEvidence, retainWorkspaceApplicationLogs } from "../../../scripts/testing/browser-evidence";
 import { appendFile, chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -262,4 +262,18 @@ describe("original native UI evidence leaf capture",()=>{
 
 it("does not downgrade an actual product-host state to unleased loopback UI evidence",async()=>{
  await withOriginalUiLeaves(async f=>{const state=JSON.parse(f.stateBytes.toString());state.productHosts=true;await writeFile(join(f.cohort,"state.json"),JSON.stringify(state),{mode:0o600});await expect(f.capture()).rejects.toThrow("UI_NATIVE_PRODUCT_HOST_LEASE_REQUIRED");});
+});
+
+it('retains only declared workspace startup logs before teardown and refuses foreign log links',async()=>{
+ const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-workspace-log-evidence-'))),run='abcdefabcdef',second='123456123456';
+ try{
+  const source=join(root,'.runtime/browser',run,'app/.scratch/dev/apps'),output=join(root,'.scratch/dev/test-suites/browser','checkpoint',run);
+  await mkdir(source,{recursive:true});await mkdir(output,{recursive:true});await writeFile(join(source,'finance.log'),'owned startup failure');await writeFile(join(source,'credentials.json'),'never retain');
+  await retainWorkspaceApplicationLogs(root,run,output,['finance']);
+  expect(await readFile(join(output,'application-logs/finance.log'),'utf8')).toBe('owned startup failure');expect((await stat(join(output,'application-logs/finance.log'))).mode&0o077).toBe(0);
+  await expect(stat(join(output,'application-logs/credentials.json'))).rejects.toMatchObject({code:'ENOENT'});
+  const other=join(root,'.runtime/browser',second,'app/.scratch/dev/apps'),otherOutput=join(root,'.scratch/dev/test-suites/browser','checkpoint',second),foreign=join(root,'foreign.log');
+  await mkdir(other,{recursive:true});await mkdir(otherOutput,{recursive:true});await writeFile(foreign,'foreign bytes');await symlink(foreign,join(other,'finance.log'));
+  await expect(retainWorkspaceApplicationLogs(root,second,otherOutput,['finance'])).rejects.toThrow('OWNED_WORKSPACE_LOG_FILE_REQUIRED');await expect(stat(join(otherOutput,'application-logs/finance.log'))).rejects.toMatchObject({code:'ENOENT'});
+ }finally{await rm(root,{recursive:true,force:true});}
 });

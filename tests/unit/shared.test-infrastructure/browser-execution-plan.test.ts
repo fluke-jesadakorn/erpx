@@ -102,7 +102,7 @@ it("rejects late fingerprint interruption while retaining completed cleanup and 
       vi.doMock("../../../scripts/assets/prepare-pdf-assets", () => ({ preparePdfAssets: async () => { prepared++; } }));
       vi.doMock("../../../scripts/testing/required-case-inventory", async () => ({ ...await vi.importActual<typeof import("../../../scripts/testing/required-case-inventory")>("../../../scripts/testing/required-case-inventory"), loadRequiredCases: () => [{ runner: "playwright", file: identity.file, title: identity.title, project: identity.project }] }));
       vi.doMock("../../../scripts/testing/browser-prerequisites", () => ({ prepareBrowserCasePrerequisites: async () => ({}) }));
-      vi.doMock("../../../scripts/testing/browser-evidence", () => ({ retainBrowserFixtureEvidence: async (_root: string, run: string) => { retained.push(run); } }));
+      vi.doMock("../../../scripts/testing/browser-evidence", () => ({ retainWorkspaceApplicationLogs:async()=>{},retainBrowserFixtureEvidence: async (_root: string, run: string) => { retained.push(run); } }));
       vi.doMock("node:net", () => ({ createServer: () => {
         const server = { once: () => server, listen: (_port: number, _host: string, done: () => void) => { done(); }, close: (done: () => void) => { done(); } };
         return server;

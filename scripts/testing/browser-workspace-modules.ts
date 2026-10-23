@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, symlink } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join } from 'node:path';
+import { copyWorkspaceSnapshot, workspaceCopyInput } from '../local/workspace-copy-input';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 
 async function workspaces(root: string) {
   const found=new Map<string,string>();
@@ -24,8 +25,17 @@ export async function assertBrowserWorkspaceModules(root: string) {
   }
 }
 
-/** Share third-party installation bytes, but resolve workspace code in this case. */
-export async function linkBrowserWorkspaceModules(template: string, target: string) {
+async function assertCompilerDependencies(root:string) {
+  for (const name of ['next','react','react-dom']) {
+    const dependency=join(root,'node_modules',name);
+    if (existsSync(dependency) && !(await realpath(dependency)).startsWith(root+sep)) throw new Error('CASE_LOCAL_COMPILER_MODULE_REQUIRED');
+  }
+}
+
+/** Workspace aliases always bind to the case. Turbopack also needs vendor
+ * modules inside its root; clone their bytes without broadening that root. */
+export async function linkBrowserWorkspaceModules(template: string, target: string, bundler:'webpack'|'turbopack'='webpack') {
+  if (!['webpack','turbopack'].includes(bundler)) throw new Error('EXPLICIT_BROWSER_WORKSPACE_COMPILER_REQUIRED');
   const parent=dirname(dirname(template));
   const ownedRoots=[template,target].every(path=>/^[a-f0-9]{12}$/.test(basename(dirname(path)))&&existsSync(join(path,'package.json'))&&existsSync(join(path,'packages')));
   if(!isAbsolute(template)||!isAbsolute(target)||template===target||basename(template)!=='app'||basename(target)!=='app'||dirname(dirname(target))!==parent||basename(parent)!=='browser'||basename(dirname(parent))!=='.runtime'||!ownedRoots)throw new Error('OWNED_BROWSER_WORKSPACE_ROOTS_REQUIRED');
@@ -38,8 +48,16 @@ export async function linkBrowserWorkspaceModules(template: string, target: stri
   for(const name of aliases){
     if(!original.has(`@erpx/${name}`)||!cloned.has(`@erpx/${name}`)||await realpath(join(source,'@erpx',name))!==original.get(`@erpx/${name}`))throw new Error('EXACT_BROWSER_WORKSPACE_ALIAS_REQUIRED');
   }
-  await mkdir(destination,{mode:0o700});await mkdir(join(destination,'@erpx'),{mode:0o700});
-  for(const entry of await readdir(source))if(entry!=='@erpx')await symlink(join(source,entry),join(destination,entry));
+  if (bundler==='turbopack') await assertCompilerDependencies(template);
+  await mkdir(destination,{mode:0o700});
+  if (bundler==='turbopack') {
+    await copyWorkspaceSnapshot(source,destination,path=>{
+      const name=relative(source,path);
+      return name!=='@erpx'&&!name.startsWith('@erpx'+sep)&&workspaceCopyInput(template,path);
+    });
+  } else for(const entry of await readdir(source))if(entry!=='@erpx')await symlink(join(source,entry),join(destination,entry));
+  await mkdir(join(destination,'@erpx'),{mode:0o700});
   for(const name of aliases)await symlink(cloned.get(`@erpx/${name}`)!,join(destination,'@erpx',name),'dir');
   await assertBrowserWorkspaceModules(target);
+  if (bundler==='turbopack') await assertCompilerDependencies(target);
 }

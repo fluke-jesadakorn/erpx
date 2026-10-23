@@ -166,7 +166,7 @@ if(mode==='prepare'||diagnostic){
    const relative=path.slice(templateDirectory.length+1);
    return !['state.json','databases.json','databases-jobs.json','databases-migrations.json','server.log','jobs.log','uat-auth','release','provider-fixture.json','provider-fixture.lock'].some(name=>relative===name||relative.startsWith(name+'/'))&&relative!=='app/node_modules'&&!isCaseExecutionEvidence(relative);
   });
-  await linkBrowserWorkspaceModules(join(templateDirectory,'app'),app);
+  await linkBrowserWorkspaceModules(join(templateDirectory,'app'),app,workspaceBundler);
   for(const entry of await readdir(directory))if(entry.endsWith('.json')&&!entry.startsWith('databases')){
    const path=join(directory,entry),content=JSON.parse(await readFile(path,'utf8'));
    // Only metadata is rebound. Emails, IDs, snapshots and hashes still name

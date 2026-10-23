@@ -10,7 +10,7 @@ import { runtimeSourceFingerprint, verificationSourceFingerprint } from "../loca
 import { requiredUatAuthProfiles } from "./uat-auth";
 import { prepareBrowserCasePrerequisites } from "./browser-prerequisites";
 import { localBrowserActorEnvironment } from "./browser-fixture-metadata";
-import { prepareUatCaseEvidence, retainBrowserFixtureEvidence } from "./browser-evidence";
+import { prepareUatCaseEvidence, retainBrowserFixtureEvidence, retainWorkspaceApplicationLogs } from "./browser-evidence";
 import { browserChildEnvironment } from "./runner-environment";
 import { assignedBrowserShard, type BrowserShard, type BrowserInventoryCase, type BrowserCaseIdentity } from "./browser-sharding";
 import { assertBrowserFaultProbeSelection, browserFaultProbeError, isBrowserFaultProbeCase, orderedBrowserExecutionCases, orderedBrowserExecutionGroups, parseBrowserCaseOrder, selectBrowserCaseOrder, triggerBrowserFaultProbe, type BrowserCaseOrder } from "./browser-execution-plan";
@@ -212,6 +212,7 @@ export async function runBrowserSuites(suites: Suite[], options: { mode?: "devel
     try {
       if(uiEvidence)await verifyUiBrowserEvidence(root,uiEvidence,true);
       await retainBrowserFixtureEvidence(root, run, output);
+      if(development&&workspace)await retainWorkspaceApplicationLogs(root,run,output,workspace.apps);
       for (const name of ["server.log", "jobs.log", "state.json", "attachment-baseline.json", "attachment-baseline-error.log", "jobs-enrollment.json", "jobs-pause.json", "jobs-resume.json"]) {
         const path = join(root, ".runtime/browser", run, name);
         if(name==="state.json"&&uiEvidence)continue; // Exact original state was retained and checked before teardown.
