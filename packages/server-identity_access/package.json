@@ -441,7 +441,18 @@
     "./domain/beta-access": "./src/domain/beta-access.ts",
     "./domain/auth": "./src/domain/auth.ts",
     "./domain/mfa": "./src/domain/mfa.ts",
-    "./domain/account-access": "./src/domain/account-access.ts"
+    "./domain/account-access": "./src/domain/account-access.ts",
+    "./application/iam-grants": "./src/application/iam-grants.ts",
+    "./adapters/iam-grants": "./src/adapters/iam-grants.ts",
+    "./adapters/iam-grant-transaction": "./src/adapters/iam-grant-transaction.ts",
+    "./public/iam-grants": "./src/public/iam-grants.ts",
+    "./application/directory-synchronization": "./src/application/directory-synchronization.ts",
+    "./application/directory-lookup": "./src/application/directory-lookup.ts",
+    "./adapters/directory-synchronization": "./src/adapters/directory-synchronization.ts",
+    "./adapters/directory-lookup": "./src/adapters/directory-lookup.ts",
+    "./adapters/directory-transaction": "./src/adapters/directory-transaction.ts",
+    "./public/directory-lookup": "./src/public/directory-lookup.ts",
+    "./public/directory-synchronization": "./src/public/directory-synchronization.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

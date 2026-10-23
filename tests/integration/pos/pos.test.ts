@@ -461,7 +461,7 @@ describe('POS committed business flows',()=>{
   expect((await taxDocumentView(actor,invoiceId)).documents).toEqual(expect.arrayContaining([expect.objectContaining({id:corrected.id,state:'recorded'}),expect.objectContaining({id:replacement.id,state:'voided'}),expect.objectContaining({id:saved.id,state:'voided'})]));
  });
  it('keeps company pilot rollout separate from setup, access, and production evidence',async()=>{
-  const {companyFeatureCatalogue,changeCompanyFeatureRollout,assertProductionFeatureRoute}=await import("@erpx/server-pms/public/hospitality-rollout");
+  const {companyFeatureCatalogue,changeCompanyFeatureRollout}=await import("@erpx/server-pms/public/hospitality-rollout");const {assertProductionFeatureRoute}=await import("@erpx/server-pms/public/feature-availability");
   vi.stubEnv('NODE_ENV','production');
   const initial=await companyFeatureCatalogue(actor);
   expect(initial.find(entry=>entry.id==='pos')).toMatchObject({state:'Coming Soon',rollout:'off',setupReady:true,productionAccepted:false,permitted:true});

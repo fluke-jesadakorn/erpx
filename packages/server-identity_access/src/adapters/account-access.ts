@@ -8,7 +8,8 @@ import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions
 import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { iamActorFromWork } from "@erpx/server-identity_access/public/iam-context";
-import { grantIamAccess, grantInput, revokeIamAssignment, validateIamGrant, proposeIamReview } from "@erpx/server-identity_access/public/iam-service";
+import { grantIamAccess, grantInput, revokeIamAssignment, proposeIamReview } from "@erpx/server-identity_access/public/iam-service";
+import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { organizationGuard } from "@erpx/server-organization/public/organization";
 import { hashPassword, verifyPassword } from "better-auth/crypto";

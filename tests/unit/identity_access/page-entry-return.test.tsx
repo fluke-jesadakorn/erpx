@@ -24,7 +24,7 @@ vi.mock("@erpx/server-work_projection/public/product-launcher", () => ({ product
 vi.mock("@erpx/server-work_projection/public/admin-launcher", () => ({ adminLaunchChoices: reads.admin }));
 vi.mock("@erpx/server-identity_access/public/provider-entry", () => ({ providerEntryOverview: reads.provider }));
 vi.mock("@erpx/server-identity_access/public/account-preference-snapshot", () => ({ preferredAccountLanguage: async () => 'en' }));
-vi.mock("@erpx/server-identity_access/public/iam-directories", () => ({ routedConnection: vi.fn() }));
+vi.mock("@erpx/server-identity_access/public/directory-lookup", () => ({ routedConnection: vi.fn() }));
 vi.mock("@erpx/server-runtime/public/presentation-configuration", () => ({ publicBetaEnabled: async () => false }));
 vi.mock("@erpx/feature-identity_access/lib/auth-client", () => ({ authClient: { signIn: { email: vi.fn() } } }));
 

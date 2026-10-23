@@ -22,36 +22,11 @@ import { z } from "zod";
 import { currentSession,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import {bindIamReviewEvidence,bindIamMigrationEvidence} from "@erpx/server-platform_administration/public/system-evidence";
 import { iamContext } from "@erpx/server-identity_access/public/iam-context";
-import {
-  iamOverview,
-  iamAuditHistory,
-  saveIamRole,
-  roleInput,
-  grantIamAccess,
-  grantInput,
-  validateIamGrant,
-  proposeIamReview,
-  revokeIamAssignment,
-  decideIamReview,
-  reviewInput,
-  accessReviewCampaignInput,
-  accessReviewDecisionInput,
-  startAccessReviewCampaign,
-  decideAccessReviewItem,
-  cancelAccessReviewCampaign,
-} from "@erpx/server-identity_access/public/iam-service";
-import {
-  saveConnection,
-  connectionInput,
-  testConnection,
-  proposeConnectionActivation,
-  disableConnection,
-  connectionById,
-  synchronizeConnection,
-  applyDirectoryReview,
-  proposeMapping,
-  mappingInput,
-} from "@erpx/server-identity_access/public/iam-directories";
+import { iamOverview, iamAuditHistory, saveIamRole, roleInput, grantIamAccess, grantInput, proposeIamReview, revokeIamAssignment, decideIamReview, reviewInput, accessReviewCampaignInput, accessReviewDecisionInput, startAccessReviewCampaign, decideAccessReviewItem, cancelAccessReviewCampaign } from "@erpx/server-identity_access/public/iam-service";
+import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
+import {saveConnection,connectionInput,testConnection,proposeConnectionActivation,disableConnection,applyDirectoryReview,proposeMapping,mappingInput} from "@erpx/server-identity_access/public/iam-directories";
+import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
+import {synchronizeConnection} from '@erpx/server-identity_access/public/directory-synchronization';
 import {
   prepareMigration,
   migrationInput,

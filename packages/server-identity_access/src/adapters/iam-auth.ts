@@ -11,7 +11,7 @@ import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
 async function directoryUser(connectionId: string, externalId: string) {
-    const { routedConnection, synchronizeConnection } = await import('@erpx/server-identity_access/public/iam-directories');
+    const {routedConnection}=await import('@erpx/server-identity_access/public/directory-lookup'); const {synchronizeConnection}=await import('@erpx/server-identity_access/public/directory-synchronization');
     let routed: Awaited<ReturnType<typeof routedConnection>>;
     return createDirectoryUser({ connection: async (id) => (routed = await routedConnection(id)).connection, synchronize: async (connection) => synchronizeConnection(routed!.db, connection), identity: async (connectionId, externalId, cutoff) => {
             const db = routed!.db;
@@ -36,10 +36,10 @@ export function directoryAuthPlugin() {
                 }),
             }, async (ctx) => {
                 let native: {
-                    routedConnection: typeof import("@erpx/server-identity_access/public/iam-directories").routedConnection;
+                    routedConnection: typeof import("@erpx/server-identity_access/public/directory-lookup").routedConnection;
                     verifyLdapPassword: typeof import("@erpx/server-identity_access/public/iam-providers").verifyLdapPassword;
                 };
-                const result = await createDirectorySignIn<ConnectionRow, NonNullable<Awaited<ReturnType<typeof ctx.context.internalAdapter.findUserById>>>, NonNullable<Awaited<ReturnType<typeof ctx.context.internalAdapter.createSession>>>>({ throttle: (connectionId, username) => iamThrottle('directory', connectionId + ':' + username), connection: async (id) => { const { routedConnection } = await import('@erpx/server-identity_access/public/iam-directories'); const { verifyLdapPassword } = await import('@erpx/server-identity_access/public/iam-providers'); native = { routedConnection, verifyLdapPassword }; return (await routedConnection(id)).connection; }, verify: (...args) => native.verifyLdapPassword(...args), approved: directoryUser, user: (id) => ctx.context.internalAdapter.findUserById(id), session: (id) => ctx.context.internalAdapter.createSession(id), error: (code, message) => new APIError(code, { message }) })(ctx.body);
+                const result = await createDirectorySignIn<ConnectionRow, NonNullable<Awaited<ReturnType<typeof ctx.context.internalAdapter.findUserById>>>, NonNullable<Awaited<ReturnType<typeof ctx.context.internalAdapter.createSession>>>>({ throttle: (connectionId, username) => iamThrottle('directory', connectionId + ':' + username), connection: async (id) => { const { routedConnection } = await import('@erpx/server-identity_access/public/directory-lookup'); const { verifyLdapPassword } = await import('@erpx/server-identity_access/public/iam-providers'); native = { routedConnection, verifyLdapPassword }; return (await routedConnection(id)).connection; }, verify: (...args) => native.verifyLdapPassword(...args), approved: directoryUser, user: (id) => ctx.context.internalAdapter.findUserById(id), session: (id) => ctx.context.internalAdapter.createSession(id), error: (code, message) => new APIError(code, { message }) })(ctx.body);
                 await setSessionCookie(ctx, result);
                 return ctx.json({ success: true });
             }),
@@ -49,7 +49,7 @@ export function directoryAuthPlugin() {
 /** Register only the explicitly selected provider. An unavailable corporate issuer
  * must never prevent local sign-in, emergency recovery, or ordinary session reads. */
 export async function directoryOidcConfig(id: string): Promise<GenericOAuthConfig> {
-    const { routedConnection } = await import("@erpx/server-identity_access/public/iam-directories");
+    const { routedConnection } = await import("@erpx/server-identity_access/public/directory-lookup");
     const { directorySecret } = await import("@erpx/server-identity_access/public/iam-providers");
     const { connection } = await routedConnection(id);
     if (connection.status !== "active" || connection.config.mode !== "oidc")

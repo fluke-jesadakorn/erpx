@@ -2,7 +2,8 @@ import {betaManagementPeopleSources} from '@erpx/server-people_payroll/public/be
 import {betaManagementOrganizationSources} from '@erpx/server-organization/public/beta-management-sources';
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
-import { grantInput, validateIamGrant, proposeIamReview } from "@erpx/server-identity_access/public/iam-service";
+import { grantInput, proposeIamReview } from "@erpx/server-identity_access/public/iam-service";
+import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";

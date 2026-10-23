@@ -1,12 +1,17 @@
 import type { WorkspaceGraph } from '../testing/workspace-graph';
 
 const leaves = [
+  'packages/server-identity_access/src/public/iam-grants.ts',
+  'packages/server-identity_access/src/public/directory-lookup.ts',
+  'packages/server-identity_access/src/public/directory-synchronization.ts',
   'packages/server-runtime/src/adapters/runtime/filesystem.ts',
   'packages/server-runtime/src/adapters/runtime/minio.ts',
   'packages/server-pms/src/public/feature-availability.ts',
   'packages/server-platform_administration/src/public/release-predicate.ts',
 ];
 const commandCompositions = new Set([
+  'packages/server-identity_access/src/adapters/iam-service.ts',
+  'packages/server-identity_access/src/adapters/iam-directories.ts',
   'packages/server-workflow/src/adapters/commands.ts',
   'packages/server-legal/src/adapters/retention-execution.ts',
   'packages/server-identity_access/src/adapters/authorization.ts',

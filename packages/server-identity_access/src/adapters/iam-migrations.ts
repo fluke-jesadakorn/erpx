@@ -14,7 +14,8 @@ import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postg
 import { assertCompanyScope, type IamActor } from "@erpx/server-identity_access/public/iam-context";
 import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
-import { insertIamGrant, proposeIamReview, validateIamGrant } from "@erpx/server-identity_access/public/iam-service";
+import { proposeIamReview } from "@erpx/server-identity_access/public/iam-service";
+import {insertIamGrant,validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 export { migrationInput } from '@erpx/server-identity_access/domain/migrations';
 import { migrationInput } from '@erpx/server-identity_access/domain/migrations';
 export async function prepareMigration(db: PostgresDatabase, actor: IamActor, input: z.infer<typeof migrationInput>, key: string) { return migrationService(db).prepareMigration(actor, input, key); }

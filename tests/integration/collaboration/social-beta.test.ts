@@ -1,7 +1,8 @@
 import { sealSecret } from "@erpx/server-identity_access/public/iam-mfa";
 import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
 import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
-import { decideIamReview,validateIamGrant,grantInput } from "@erpx/server-identity_access/public/iam-service";
+import { decideIamReview, grantInput } from "@erpx/server-identity_access/public/iam-service";
+import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 import { iamActorFromWork } from "@erpx/server-identity_access/public/iam-context";
 import { drainSocialAgent, retryAgentReply } from "@erpx/server-collaboration/public/social-agent";
 import { ApiError } from "@erpx/server-runtime/adapters/http";

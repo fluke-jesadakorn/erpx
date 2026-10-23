@@ -37,7 +37,7 @@ async function upgradeEcho(host: string) {
     function finish(error?:Error,result?:{headers:string;body:Buffer}){if(finished)return;finished=true;clearTimeout(timeout);socket.destroy();if(error)reject(error);else done(result!);}
     socket.once('error',error=>finish(error));
     socket.once('connect',()=>{socket.write(Buffer.concat([Buffer.from(`GET /socket HTTP/1.1\r\nHost: ${host}\r\nOrigin: https://${host}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`),head]));setTimeout(()=>{if(!finished)socket.write(tail);},20);});
-    socket.on('data',chunk=>{bytes=Buffer.concat([bytes,chunk]);const end=bytes.indexOf('\r\n\r\n');if(end>=0&&bytes.length-end-4>=expected.length)finish(undefined,{headers:bytes.subarray(0,end).toString(),body:bytes.subarray(end+4)});});
+    socket.on('data',chunk=>{bytes=Buffer.concat([bytes,typeof chunk==='string'?Buffer.from(chunk):chunk]);const end=bytes.indexOf('\r\n\r\n');if(end>=0&&bytes.length-end-4>=expected.length)finish(undefined,{headers:bytes.subarray(0,end).toString(),body:bytes.subarray(end+4)});});
   });
 }
 

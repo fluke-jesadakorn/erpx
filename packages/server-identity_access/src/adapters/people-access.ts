@@ -18,7 +18,8 @@ import { requirePermission } from "@erpx/server-identity_access/public/iam-permi
 import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
-import { validateIamGrant, insertIamGrant, grantInput } from "@erpx/server-identity_access/public/iam-service";
+import { grantInput } from "@erpx/server-identity_access/public/iam-service";
+import {validateIamGrant,insertIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const json = <T,>(value: T | string): T => typeof value === "string" ? JSON.parse(value) : value;

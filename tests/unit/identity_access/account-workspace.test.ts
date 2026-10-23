@@ -4,7 +4,7 @@ const mocks=vi.hoisted(()=>({session:vi.fn(),enabled:true,host:'account-dev-erpx
 vi.mock("@erpx/server-identity_access/adapters/authorization",()=>({currentSession:mocks.session}));
 vi.mock("@erpx/feature-runtime/lib/product-hosts",()=>({configuredProductOrigin:()=>mocks.enabled?'https://account-dev-erpx.jesadakorn.com':null,productHostForHost:(host:string|null)=>mocks.enabled&&host==='account-dev-erpx.jesadakorn.com'?'account':null}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:mocks.host})}));
-vi.mock("@erpx/server-identity_access/public/iam-directories",()=>({routedConnection:vi.fn()}));
+vi.mock("@erpx/server-identity_access/public/directory-lookup",()=>({routedConnection:vi.fn()}));
 vi.mock("@erpx/server-runtime/public/presentation-configuration",()=>({publicBetaEnabled:async()=>false}));
 vi.mock("@erpx/feature-identity_access/lib/auth-client",()=>({authClient:{signIn:{email:vi.fn()}}}));
 import {isValidElement,type ReactNode,type ReactElement} from 'react';

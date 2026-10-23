@@ -1,5 +1,6 @@
 import { InlineNotice } from "@erpx/ui/components/foundation";
-import { routedConnection } from "@erpx/server-identity_access/public/iam-directories";
+
+import {routedConnection} from '@erpx/server-identity_access/public/directory-lookup';
 import { DirectoryLogin } from "@erpx/workplace/routes/login/directory-login";
 import { LoginForm } from "@erpx/workplace/routes/login/login-form";
 import { AuthShell } from "@erpx/workplace/components/auth-shell";

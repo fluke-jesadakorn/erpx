@@ -11,7 +11,8 @@ import {iamDb} from '@erpx/server-identity_access/adapters/iam-db';
 import {iamCommand} from '@erpx/server-identity_access/adapters/iam-transactions';
 import {requirePermission} from '@erpx/server-identity_access/adapters/iam-permissions';
 import {requireFreshMfa} from '@erpx/server-identity_access/public/iam-mfa';
-import {validateIamGrant,insertIamGrant} from '@erpx/server-identity_access/adapters/iam-service';
+
+import {validateIamGrant,insertIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {createUserManagementApplication,type UserManagementStore} from '@erpx/server-identity_access/application/user-management';
