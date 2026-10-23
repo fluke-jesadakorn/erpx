@@ -94,17 +94,6 @@
         "react-dom": "19.3.0",
       },
     },
-    "apps/apps": {
-      "name": "@erpx/app-apps",
-      "version": "0.0.0",
-      "dependencies": {
-        "@erpx/contracts": "workspace:*",
-        "@erpx/workplace": "workspace:*",
-        "next": "16.4.0",
-        "react": "19.3.0",
-        "react-dom": "19.3.0",
-      },
-    },
     "apps/assets": {
       "name": "@erpx/app-assets",
       "version": "0.0.0",
@@ -179,6 +168,17 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-forms": "workspace:*",
+        "@erpx/workplace": "workspace:*",
+        "next": "16.4.0",
+        "react": "19.3.0",
+        "react-dom": "19.3.0",
+      },
+    },
+    "apps/launcher": {
+      "name": "@erpx/app-apps",
+      "version": "0.0.0",
+      "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.0",
         "react": "19.3.0",
@@ -3089,7 +3089,7 @@
 
     "@erpx/app-admin": ["@erpx/app-admin@workspace:apps/admin"],
 
-    "@erpx/app-apps": ["@erpx/app-apps@workspace:apps/apps"],
+    "@erpx/app-apps": ["@erpx/app-apps@workspace:apps/launcher"],
 
     "@erpx/app-assets": ["@erpx/app-assets@workspace:apps/assets"],
 

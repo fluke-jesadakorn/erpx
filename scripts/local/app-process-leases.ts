@@ -1,4 +1,4 @@
-import { appDefinitions } from '@erpx/contracts/apps';
+import { appDefinitions, appDirectory } from '@erpx/contracts/apps';
 
 export type ProcessIdentity = { command: string; cwd: string; started: string };
 export type AppProcessLease = { id: string; pid: number; port: number; identity: ProcessIdentity };
@@ -28,7 +28,7 @@ export async function recoverGatewayApps(input: unknown, root: string, ports: Re
     if (!identity) continue;
     if (!app.identity || identity.cwd !== root || identity.cwd !== app.identity.cwd || identity.started !== app.identity.started ||
       identity.command !== app.identity.command || !identity.command.includes('/next/dist/bin/next dev ') ||
-      !identity.command.includes(`${root}/apps/${app.id} `) || !identity.command.includes(`--port ${port} `))
+      !identity.command.includes(`${root}/${appDirectory(app.id)} `) || !identity.command.includes(`--port ${port} `))
       throw new Error('APP_PROCESS_OWNERSHIP_CHANGED');
     owned.push(app);
   }

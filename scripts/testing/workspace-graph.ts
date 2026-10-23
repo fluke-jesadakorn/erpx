@@ -7,7 +7,7 @@ import { workspaceSourceCache } from "./workspace-source-cache";
 import { appDefinitions, appDefinition } from "@erpx/contracts/apps";
 import { verificationSources, resolveImport, type Suite, repositoryRoot } from "./catalogue";
 
-export type WorkspaceGraph = { sourceCache?: {hits:number;misses:number;persisted:boolean;loaded:boolean}; runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
+export type WorkspaceGraph = { appDirectories?: Map<string,string>; sourceCache?: {hits:number;misses:number;persisted:boolean;loaded:boolean}; runtimeImports: Map<string, Set<string>>; files: Map<string, string>; imports: Map<string, Set<string>>; reverse: Map<string, Set<string>>; apps: Map<string, Set<string>> };
 const resourcePrefix = 'resource-input:';
 export function workspaceInputFile(file: string) { return file.startsWith(resourcePrefix) ? file.slice(resourcePrefix.length) : file; }
 const sourceExtension = /\.(?:[cm]?[jt]sx?|json|css|mjs|md|mdx|yml|yaml|py|sh|plist|toml|html|sql)$/;
@@ -30,6 +30,16 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
   const parsed=new Map<string,WorkspaceSource>();
   const resources=new Map<string,Set<string>>();
   const manifests=new Map<string,{exports?:Record<string,string>}>();
+  // Historical revisions may place a stable app package in a different folder.
+  const appDirectories=new Map<string,string>();
+  for(const [file,text] of files){
+    const directory=/^(apps\/[^/]+)\/package\.json$/.exec(file)?.[1];
+    if(!directory)continue;
+    const name=JSON.parse(text).name;
+    if(typeof name!=='string')continue;
+    if(appDirectories.has(name))throw new Error(`WORKSPACE_APP_IDENTITY_DUPLICATE:${name}`);
+    appDirectories.set(name,directory);
+  }
   for(const [file,text] of files){const owner=/^packages\/([^/]+)\/package\.json$/.exec(file)?.[1];if(owner)manifests.set(owner,JSON.parse(text));}
   const directories = new Map<string, string[]>();
   for (const file of names) {
@@ -111,9 +121,10 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
     }
     runtimeImports.set(file, runtime);
   }
-  const graph: WorkspaceGraph = { files, imports, runtimeImports, reverse, apps: new Map() };
+  const graph: WorkspaceGraph = { files, imports, runtimeImports, reverse, appDirectories, apps: new Map() };
   for (const app of appDefinitions) {
-    const entries = [...names].filter(file => file.startsWith(`${app.directory}/src/`) || file === `${app.directory}/next.config.mjs` || file === `${app.directory}/package.json`);
+    const directory=appDirectories.get(app.package)??app.directory;
+    const entries = [...names].filter(file => file.startsWith(`${directory}/src/`) || file === `${directory}/next.config.mjs` || file === `${directory}/package.json`);
     graph.apps.set(app.id, dependencyClosure(graph, entries));
   }
   return graph;
@@ -166,6 +177,7 @@ export function workspaceFingerprint(graph: WorkspaceGraph, entries: Iterable<st
 }
 export function appRuntimeFingerprint(graph: WorkspaceGraph, id: string) {
   const app = appDefinition(id);
+  const directory=graph.appDirectories?.get(app.package)??app.directory;
   const runtime = { ...graph, imports: graph.runtimeImports, files:new Map(graph.files) };
   // This file is derived from the runtime identity during artifact assembly;
   // including its previous value would make that identity self-referential.
@@ -175,7 +187,7 @@ export function appRuntimeFingerprint(graph: WorkspaceGraph, id: string) {
     if (manifest.scripts) for (const name of Object.keys(manifest.scripts)) if (/^(?:test(?::|$)|lint(?::|$)|typecheck(?::|$))/.test(name)) delete manifest.scripts[name];
     runtime.files.set(file, JSON.stringify(manifest));
   }
-  const entries = [...graph.files.keys()].filter(file => file.startsWith(`${app.directory}/src/`) || file.startsWith(`${app.directory}/`) && /(?:config|package)\./.test(file));
+  const entries = [...graph.files.keys()].filter(file => file.startsWith(`${directory}/src/`) || file.startsWith(`${directory}/`) && /(?:config|package)\./.test(file));
   const source = workspaceFingerprint(runtime, entries, ["scripts/local/app-next-config.ts", "next.config.ts", "postcss.config.mjs", ...[...graph.files.keys()].filter(file => /^(?:public|migrations)\//.test(file))]);
   return createHash("sha256").update(source).update(JSON.stringify(Object.entries(process.env).filter(([key]) => key.startsWith("NEXT_PUBLIC_")).sort(([a],[b]) => a.localeCompare(b)))).digest("hex");
 }

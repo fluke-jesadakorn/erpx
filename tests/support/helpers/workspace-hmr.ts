@@ -49,6 +49,7 @@ export async function workspaceHmrCase(apps: string[]) {
 export async function measureWorkspaceHmr(input: {
   page: Page; info: TestInfo; fixture: Awaited<ReturnType<typeof workspaceHmrCase>>;
   app: string; source: string; needle: string; label: string;
+  replacement?: (label: string) => string;
   locator(label: string): Locator; assertState(label: string): Promise<void>;
   authenticatedRouteAppearanceMs: number; errors: string[]; scope: string;
 }) {
@@ -72,7 +73,8 @@ export async function measureWorkspaceHmr(input: {
     while(changed){changed=false;for(const[pid,parent]of rows)if(owned.has(parent)&&!owned.has(pid)){owned.add(pid);changed=true;}}
     peakAppRssBytes=Math.max(peakAppRssBytes,rows.filter(([pid])=>owned.has(pid)).reduce((sum,[,,rss])=>sum+rss*1024,0));
   }
-  const change=(label:string)=>writeWorkspaceSource(file,original.replace(needle,JSON.stringify(label)));
+  const change=(label:string)=>writeWorkspaceSource(file,original.replace(needle,input.replacement?.(label)??JSON.stringify(label)));
+  let failed=false,failure:unknown;
   try {
     const warmup=input.label+' · HMR warmup';await change(warmup);
     await expect(locator(warmup)).toBeVisible({timeout:30_000});await assertState(warmup);await memory();
@@ -82,10 +84,17 @@ export async function measureWorkspaceHmr(input: {
       expect(await page.evaluate(()=>performance.timeOrigin)).toBe(timeOrigin);
       await assertState(label);await memory();
     }
-  } finally {
-    await writeWorkspaceSource(file,original);await expect(locator(input.label)).toBeVisible({timeout:30_000});
-    page.off('request',navigation);expect(await readFile(file,'utf8')).toBe(original);
-  }
+  } catch(error) {failed=true;failure=error;}
+  try {
+    await writeWorkspaceSource(file,original);expect(await readFile(file,'utf8')).toBe(original);
+    // A failed editor-state assertion must remain the reported cause. Restore
+    // source bytes regardless; require the original UI after successful runs.
+    if(!failed)await expect(locator(input.label)).toBeVisible({timeout:30_000});
+  } catch(cleanup) {
+    if(failed)throw new AggregateError([failure,cleanup],'HMR measurement and source restoration failed');
+    throw cleanup;
+  } finally {page.off('request',navigation);}
+  if(failed)throw failure;
   const sorted=[...samples].sort((a,b)=>a-b),p95Ms=sorted[Math.ceil(sorted.length*0.95)-1];
   const result={scope:input.scope,app,acceptance:false,bundler:runtime.bundler,sourceFingerprint:runtime.sourceFingerprint,componentSha256:createHash('sha256').update(original).digest('hex'),authenticatedRouteAppearanceMs:input.authenticatedRouteAppearanceMs,samples,p95Ms,peakAppRssBytes,reloads,errors,target:p95Ms<=3000};
   const path=info.outputPath('workspace-performance.json');await writeFile(path,JSON.stringify(result,null,2)+'\n');

@@ -77,6 +77,21 @@ async function prewarmHost(host: string, id: string) {
   });
 }
 
+it('launches the stable Apps host and process identity from its launcher directory',async()=>{
+  for(const port of [3104,3292])await free(port);
+  const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-launcher-')));
+  let gateway:Awaited<ReturnType<typeof startWorkspaceGateway>>|undefined;
+  try {
+    await mkdir(join(root,'node_modules/next/dist/bin'),{recursive:true});await mkdir(join(root,'apps/launcher'),{recursive:true});
+    await writeFile(join(root,'package.json'),JSON.stringify({name:'erpx'}));
+    await writeFile(join(root,'node_modules/next/package.json'),JSON.stringify({name:'next',type:'commonjs'}));
+    await writeFile(join(root,'node_modules/next/dist/bin/next'),`const{createServer}=require('node:http'),{join}=require('node:path'),{existsSync}=require('node:fs');if(process.env.ERPX_APP_ID!=='apps'||process.argv[3]!==join(process.cwd(),'apps/launcher')||!existsSync(process.argv[3]))process.exit(2);createServer((req,res)=>{res.setHeader('X-ERPX-App','apps');res.end('apps');}).listen(Number(process.env.ERPX_APP_PORT),'127.0.0.1');`);
+    gateway=await startWorkspaceGateway({root,node:process.execPath,port:3104,preview:false,fallback:null,appPorts:new Map([['apps',3292]]),environment:{NODE_ENV:'development',PATH:process.env.PATH},settings:()=>({version:1,activeApps:['apps'],maxApps:1,idleMinutes:10,bundlers:{},defaultBundler:'turbopack'})});
+    expect(await get(3104,new URL(appDefinition('apps').origin).host)).toEqual({status:200,body:'apps'});
+    const lease=JSON.parse(await readFile(gateway.leasePath,'utf8'));expect(lease.apps[0].id).toBe('apps');expect(lease.apps[0].identity.command).toContain(root+'/apps/launcher ');
+  }finally{await gateway?.close();await rm(root,{recursive:true,force:true});}
+},15_000);
+
 it('deduplicates startup, refuses capacity without interrupting streams, and drains owned apps before closing', async () => {
   for (const port of [3104, 3290, 3291]) await free(port);
   const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-supervisor-')));

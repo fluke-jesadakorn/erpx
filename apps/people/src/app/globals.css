@@ -291,6 +291,7 @@
 @source "../../../../packages/feature-people_payroll/src/components/people-integration-data.ts";
 @source "../../../../packages/feature-people_payroll/src/components/people-move-tray-state.ts";
 @source "../../../../packages/feature-people_payroll/src/components/people-navigation.tsx";
+@source "../../../../packages/feature-people_payroll/src/components/people-organization-detail.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/people-organization-workspace.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/people-structure-workspace.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/people-team-schedule.tsx";

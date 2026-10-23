@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { relative, resolve } from "node:path";
+import { appDefinitions } from "@erpx/contracts/apps";
 
 const root = resolve(import.meta.dirname, "../..");
 const ignored = new Set(["node_modules", ".next", ".build", ".cache", ".turbo"]);
@@ -10,6 +11,12 @@ const walk = (directory) => !existsSync(directory) ? [] : readdirSync(directory,
 const source = (path) => readFileSync(path, "utf8");
 const paths = (directory, pattern) => walk(resolve(root, directory)).filter((path) => pattern.test(path));
 const appRoot = path => relative(root, path).replace(/^(apps\/[^/]+\/src\/app)(?:\/.*)?$/, "$1");
+const appIdentities = new Map([...appDefinitions.map(app => [app.directory, app.id]), ["apps/compat", "compat"]]);
+const appIdentity = path => {
+  const directory = appRoot(path).replace(/\/src\/app$/, ""), id = appIdentities.get(directory);
+  if (!id) throw new Error(`UI_APP_IDENTITY_UNREGISTERED:${directory}`);
+  return id;
+};
 const routeFiles = paths("apps", /\/src\/app\/(?:.*\/)?(?:page|layout|loading|error|not-found)\.tsx$/);
 const components = paths("packages", /\/components\/.*\.tsx$/);
 const styleFiles = paths("packages", /\/components\/.*\.module\.css$/);
@@ -22,9 +29,10 @@ const stateChecks = [
   ["dark", /dark|theme/i], ["long/Thai", /[\u0E00-\u0E7F]|overflow-wrap|text-overflow/i],
 ];
 const states = (text) => stateChecks.filter(([, pattern]) => pattern.test(text)).map(([name]) => name).join(", ") || "baseline only";
-const rows = routeFiles.filter((path) => path.endsWith("/page.tsx")).sort().map((path) => {
+const routeSortKey = path => `${appIdentity(path)}/${relative(resolve(root, appRoot(path)), path)}`;
+const rows = routeFiles.filter((path) => path.endsWith("/page.tsx")).sort((a,b) => routeSortKey(a) < routeSortKey(b) ? -1 : routeSortKey(a) > routeSortKey(b) ? 1 : 0).map((path) => {
   const name = routeName(path);
-  return `| ${appRoot(path).split("/")[1]} | \`${name === "/" ? "/" : `/${name}`}\` | ${states(source(path))} |`;
+  return `| ${appIdentity(path)} | \`${name === "/" ? "/" : `/${name}`}\` | ${states(source(path))} |`;
 });
 const groups = Object.entries(Object.groupBy(components, (path) => relative(resolve(root, "packages"), path).split("/")[0])).sort(([a], [b]) => a.localeCompare(b));
 const componentRows = groups.map(([group, files]) => `| ${group} | ${files.length} | ${files.reduce((sum, path) => sum + source(path).split("\n").length, 0).toLocaleString()} | ${styleFiles.filter((path) => relative(resolve(root, "packages"), path).startsWith(`${group}/`)).length} |`);

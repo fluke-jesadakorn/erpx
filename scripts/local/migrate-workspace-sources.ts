@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFile
 import { dirname, extname, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import ts from "typescript";
-import { appDefinitions, type AppId } from "@erpx/contracts/apps";
+import { appDefinitions, appDirectory, type AppId } from "@erpx/contracts/apps";
 import { productPageAllowed } from "@erpx/feature-runtime/lib/product-route-policy";
 
 const root = resolve(import.meta.dirname, "../..");
@@ -31,7 +31,7 @@ function routePath(file: string): string {
     .map(part => part.replace(/^\(\.\.?\.?\)/, "")).join("/");
 }
 function samples(file: string): string[] {
-  let path = routePath(file).replace(/\[holdingSlug\]/g, "simulation").replace(/\[companySlug\]/g, "simulation")
+  const path = routePath(file).replace(/\[holdingSlug\]/g, "simulation").replace(/\[companySlug\]/g, "simulation")
     .replace(/\[\[\.\.\.[^\]]+\]\]/g, "__tail__").replace(/\[\.\.\.[^\]]+\]/g, "__tail__")
     .replace(/\[[^\]]+\]/g, "item");
   const paths = path.includes("__tail__")
@@ -74,7 +74,6 @@ for (const file of allSource) {
     add(file, own, `routes/${file.slice("src/app/".length)}`);
   }
 }
-const moveByTarget = new Map([...moves.values()].map(move => [move.to, move]));
 const resolveFile = (from: string, specifier: string): string | undefined => {
   if (!specifier.startsWith(".") && !specifier.startsWith("@/")) return;
   const path = specifier.startsWith("@/") ? `src/${specifier.slice(2)}` : slash(relative(root, resolve(root, dirname(from), specifier)));
@@ -174,11 +173,11 @@ for (const [id, selected] of [["compat", entries], ...plan.apps.map(app => [app.
     const parent = dirname(file), ancestor = [...entrySet].some(entry => entry.startsWith(parent + "/"));
     if (!entrySet.has(file) && !(/\/(?:layout|loading|error|global-error|not-found|forbidden|unauthorized|default|template)\./.test(file) && ancestor)
       && !(parent === "src/app" && !/\/(?:page|route)\./.test(file))) continue;
-    const target = resolve(root, `apps/${id}/src/app/${file.slice("src/app/".length)}`);
+    const target = resolve(root, `${appDirectory(id)}/src/app/${file.slice("src/app/".length)}`);
     mkdirSync(dirname(target), { recursive: true }); writeFileSync(target, entryText.get(file)!);
   }
   for (const file of appFiles.filter(file => /\/(?:favicon\.ico|icon\.(?:svg|png)|apple-icon\.png)$/.test(file))) {
-    const target = resolve(root, `apps/${id}/src/app/${file.slice("src/app/".length)}`);
+    const target = resolve(root, `${appDirectory(id)}/src/app/${file.slice("src/app/".length)}`);
     mkdirSync(dirname(target), { recursive: true }); writeFileSync(target, readFileSync(resolve(root, file)));
   }
 }

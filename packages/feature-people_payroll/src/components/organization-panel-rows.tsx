@@ -26,10 +26,8 @@ import {
   type OrganizationSelection,
   type OrganizationExplorerContext,
 } from "@erpx/feature-people_payroll/components/organization-explorer";
-import {
-  PeopleOrganizationDetail,
-  type PeopleOrganizationProps,
-} from "@erpx/feature-people_payroll/components/people-organization-workspace";
+import { PeopleOrganizationDetail } from "@erpx/feature-people_payroll/components/people-organization-detail";
+import type { PeopleOrganizationProps } from "@erpx/feature-people_payroll/components/people-organization-contracts";
 import styles from "@erpx/feature-people_payroll/components/organization-panel-rows.module.css";
 
 type Source = Pick<DraftItem, "kind" | "id">;

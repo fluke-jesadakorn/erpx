@@ -13,12 +13,13 @@ async function measure(page:Page,context:BrowserContext,info:TestInfo,app:PilotP
  const initial=(await context.cookies()).find(cookie=>cookie.name==='__Host-erpx-product'&&cookie.domain===new URL(input.origin).hostname);expect(initial).toBeTruthy();
  const configuration={
   work:{source:'packages/feature-collaboration/src/components/social-home-shell.tsx',needle:'"Today"',label:'Today',locator:(label:string)=>page.getByRole('heading',{name:label,exact:true,includeHidden:true})},
-  people:{source:'packages/feature-people_payroll/src/components/people-organization-workspace.tsx',needle:'editPerson ? "Close editor" : "Edit profile"',label:'Close editor',locator:(label:string)=>page.getByRole('button',{name:label,exact:true})},
+  people:{source:'packages/feature-people_payroll/src/components/people-organization-detail.tsx',needle:'editPerson ? "Close editor" : "Edit profile"',label:'Close editor',replacement:(label:string)=>'editPerson ? '+JSON.stringify(label)+' : "Edit profile"',locator:(label:string)=>page.getByRole('button',{name:label,exact:true})},
   recruit:{source:'packages/feature-talent/src/components/talent-console.tsx',needle:'"Draft requisition"',label:'Draft requisition',locator:(label:string)=>page.getByRole('dialog',{name:label,exact:true})},
  }[app];
  await measureWorkspaceHmr({page,info,fixture:input.fixture,app,...configuration,authenticatedRouteAppearanceMs,errors,
-  scope:`${app} desktop development HMR with a retained unsaved editor; sampled app process-tree RSS; excludes fixture preparation`,assertState:async()=>{
-   if(app==='work')await expect(field).toHaveText(draft);else await expect(field).toHaveValue(draft);
+  scope:`${app} desktop development HMR with a retained unsaved editor; sampled app process-tree RSS; excludes fixture preparation`,assertState:async(label)=>{
+   const currentField=app==='recruit'?page.getByRole('dialog',{name:label,exact:true}).getByRole('textbox',{name:'Job title',exact:true}):field;
+   if(app==='work')await expect(currentField).toHaveText(draft);else await expect(currentField).toHaveValue(draft);
    expect(new URL(page.url()).searchParams.get('workspaceSmoke')).toBe('preserved');
    expect((await context.cookies()).find(cookie=>cookie.name===initial!.name&&cookie.domain===initial!.domain)).toEqual(initial);
   }});

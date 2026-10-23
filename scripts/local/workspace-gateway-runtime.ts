@@ -8,7 +8,7 @@ import { isAbsolute, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { recoverGatewayApps, type ProcessIdentity } from "./app-process-leases";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { appDefinitions, appForHost } from "@erpx/contracts/apps";
+import { appDefinitions, appDirectory, appForHost } from "@erpx/contracts/apps";
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
 
 export type WorkspaceGatewaySettings = { version: number; activeApps: string[]; maxApps: number; idleMinutes: number; bundlers: Record<string, string>; defaultBundler: string };
@@ -107,7 +107,7 @@ async function acquire(id: string, startupAttempt = 0): Promise<RunningApp> {
   const bundler = config.bundlers[id] ?? config.defaultBundler;
   if (!["webpack", "turbopack"].includes(bundler)) throw new Error("INVALID_APP_BUNDLER");
   const log = createWriteStream(resolve(logs, `${id}.log`), { flags: "a", mode: 0o600 });
-  const child = spawn(node!, [resolve(repository, "node_modules/next/dist/bin/next"), "dev", resolve(repository, "apps", id), "--port", String(port), "--hostname", "127.0.0.1", `--${bundler}`], {
+  const child = spawn(node!, [resolve(repository, "node_modules/next/dist/bin/next"), "dev", resolve(repository, appDirectory(id)), "--port", String(port), "--hostname", "127.0.0.1", `--${bundler}`], {
     cwd: repository, stdio: ["ignore", "pipe", "pipe"], env: { ...environment, NODE_ENV: "development",
       ERPX_APP_ID: id, ERPX_APP_PORT: String(port), ERPX_PROCESS_ROLE: "app", ERPX_REPOSITORY_ROOT: repository,
       ERPX_DEV_PG_POOL_MAX: "1", ERPX_CONTROL_PG_POOL_MAX: "2",

@@ -101,6 +101,24 @@ it('updates newly imported sources during a live watch and closes its owned watc
  }finally{watcher.close();await rm(root,{recursive:true,force:true});}
 });
 describe('workspace impact boundaries',()=>{
+ it('preserves historical app identity across a folder rename and a deleted dependency',()=>{
+  const original=sources(),next=sources();
+  original.set('apps/apps/package.json','{"name":"@erpx/app-apps"}');
+  original.set('apps/apps/src/app/page.tsx','import "@erpx/contracts/old-launcher";');
+  original.set('packages/contracts/src/old-launcher.ts','export const label="Apps";');
+  next.set('apps/launcher/package.json','{"name":"@erpx/app-apps"}');
+  next.set('apps/launcher/src/app/page.tsx','export default function Page(){return "Apps";}');
+  const base=createWorkspaceGraph(original),head=createWorkspaceGraph(next);
+  expect(base.apps.get('apps')).toContain('packages/contracts/src/old-launcher.ts');
+  const edited=new Map(original);edited.set('packages/contracts/src/old-launcher.ts','export const label="Changed";');
+  expect(appRuntimeFingerprint(createWorkspaceGraph(edited),'apps')).not.toBe(appRuntimeFingerprint(base,'apps'));
+  expect(head.apps.get('apps')).toContain('apps/launcher/src/app/page.tsx');
+  const selected=selectCandidateSuites(head,base,suites,['packages/contracts/src/old-launcher.ts']);
+  expect(selected.apps).toEqual(['apps']);
+  expect(selected.removed).toEqual(['packages/contracts/src/old-launcher.ts']);
+  next.set('apps/duplicate/package.json','{"name":"@erpx/app-apps"}');
+  expect(()=>createWorkspaceGraph(next)).toThrow('WORKSPACE_APP_IDENTITY_DUPLICATE:@erpx/app-apps');
+ });
  it('selects only the real consumers and does not expand app selection through common helpers',()=>{
   const graph=createWorkspaceGraph(sources());
   expect(selectWorkspaceSuites(graph,suites,{changed:['packages/contracts/src/money.ts']}).suites.map(x=>x.id)).toEqual(['finance']);
@@ -165,6 +183,14 @@ describe('development process ownership',()=>{
  }
  it('recovers a dead gateway only after checking the exact app command, cwd and process birth',async()=>{
   const p=ports();await recoverGatewayApps(lease(),root,p);expect(p.stopped).toEqual([100]);
+ });
+ it('uses the registered launcher directory for Apps recovery and refuses the removed directory without signaling it',async()=>{
+  const current={...identity,command:`node ${root}/node_modules/next/dist/bin/next dev ${root}/apps/launcher --port 3216 --hostname 127.0.0.1 --turbopack`};
+  const value:GatewayProcessLease={version:2,root,gatewayPid:90,apps:[{id:'apps',pid:100,port:3216,identity:current}]};
+  const owned=ports(new Map([[100,current]]));await recoverGatewayApps(value,root,owned);expect(owned.stopped).toEqual([100]);
+  const previous={...current,command:current.command.replace('/apps/launcher ','/apps/apps ')};
+  const foreign=ports(new Map([[100,previous]]));
+  await expect(recoverGatewayApps({...value,apps:[{...value.apps[0],identity:previous}]},root,foreign)).rejects.toThrow('OWNERSHIP_CHANGED');expect(foreign.stopped).toEqual([]);
  });
  it('leaves a live supervisor and all its apps alone',async()=>{
   const p=ports(new Map([[90,identity],[100,identity]]));await expect(recoverGatewayApps(lease(),root,p)).rejects.toThrow('OWNER_STILL_ALIVE');expect(p.stopped).toEqual([]);

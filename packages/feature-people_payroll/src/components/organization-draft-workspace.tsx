@@ -33,7 +33,7 @@ import {
   writeMoveTray,
   type MoveTrayItem,
 } from "@erpx/feature-people_payroll/components/people-move-tray-state";
-import type { PeopleOrganizationProps } from "@erpx/feature-people_payroll/components/people-organization-workspace";
+import type { PeopleOrganizationProps } from "@erpx/feature-people_payroll/components/people-organization-contracts";
 import styles from "@erpx/feature-people_payroll/components/organization-draft-workspace.module.css";
 
 const PeopleMoveWorkImpact = dynamic(() =>

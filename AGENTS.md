@@ -75,7 +75,7 @@ Development browser login credentials are stored locally in ignored `.scratch/de
 
 > Map: `docs/TOC.md` (single hub).
 
-- `apps/<id>/src/app/` owns each Next app's routes/layouts/config/generated types and output. Never import another app's implementation. `apps/compat/` temporarily owns Console/non-product compatibility; product apps must not use it as a backend.
+- `apps/<id>/src/app/` owns each Next app's routes/layouts/config/generated types and output. Never import another app's implementation. `apps/compat/` temporarily owns Console/non-product compatibility; product apps must not use it as a backend. Apps keeps the stable `apps` host/CLI identity in `apps/launcher/`.
 - `packages/` contains explicit contract, UI, feature and server-owner subpaths; business owner code remains in `packages/server-<owner>/src/{domain,application,adapters,public}`. Keep client/server boundaries and assemble typed owner ports at composition roots. `src/workers/` owns the single jobs runtime; `public/` holds shared static assets.
 - `bun run dev` runs the host gateway on3100 and opens apps on demand; `bun run dev -- --app=finance` prewarms one. Only3200–3299 may be used by owned app processes. Development verification and smoke receipts are never acceptance. Full acceptance is deferred during this migration and is an intentional clean-candidate production preparation command only; never invoke it from daily CI, merge hooks or schedules.
 - `migrations/postgres/` active schema tracks; `ops/macos/` native deployment; remaining Wrangler/D1 fixtures serve the historical E2E adapter. Removed Workers/OpenNext tooling is recoverable through `README.md#recovery`.

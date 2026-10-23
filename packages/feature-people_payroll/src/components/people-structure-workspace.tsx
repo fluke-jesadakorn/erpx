@@ -35,10 +35,8 @@ import type { peopleNewPersonData } from "@erpx/server-people_payroll/public/peo
 import type { HoldingPeopleDirectory } from "@erpx/server-organization/public/holding-people-directory";
 import type { OrganizationExplorerContext, OrganizationSelection } from "@erpx/feature-people_payroll/components/organization-explorer";
 import type { PanelControls } from "@erpx/feature-people_payroll/components/organization-panel-rows";
-import {
-  PeopleOrganizationDetail,
-  type PeopleOrganizationProps,
-} from "@erpx/feature-people_payroll/components/people-organization-workspace";
+import { PeopleOrganizationDetail } from "@erpx/feature-people_payroll/components/people-organization-detail";
+import type { PeopleOrganizationProps } from "@erpx/feature-people_payroll/components/people-organization-contracts";
 import { usePeopleIntegrationData } from "@erpx/feature-people_payroll/components/people-integration-data";
 import styles from "@erpx/feature-organization/components/organization-structure.module.css";
 import { organizationLabel as label, organizationCompanyOf as companyOf, organizationLocationPath as locationPath, organizationContextFor as contextFor } from "@erpx/feature-organization/lib/organization-presentation";

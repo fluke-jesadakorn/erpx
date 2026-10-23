@@ -2225,7 +2225,7 @@
     {
       "id": "apps",
       "package": "@erpx/app-apps",
-      "directory": "apps/apps",
+      "directory": "apps/launcher",
       "origin": "https://apps-dev-erpx.jesadakorn.com",
       "port": 3216,
       "entries": [

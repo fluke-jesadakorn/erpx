@@ -45,16 +45,16 @@ export function checkRepositoryLayout(root = repositoryRoot): void {
   }
   if (existsSync(resolve(root, "src/server"))) checkServer("src/server");
   if (existsSync(resolve(root, "apps"))) {
-    const registered = new Map([...appDefinitions.map(app => [app.id, app.package] as const), ["compat", "@erpx/app-compat"]]);
+    const registered = new Map([...appDefinitions.map(app => [app.directory, app.package] as const), ["apps/compat", "@erpx/app-compat"]]);
     for (const entry of readdirSync(resolve(root, "apps"), { withFileTypes: true })) {
       if (!entry.isDirectory()) throw new Error(`UNCATEGORIZED_APP_ROOT:apps/${entry.name}`);
-      if (!registered.has(entry.name)) throw new Error(`UNREGISTERED_APP:apps/${entry.name}`);
+      if (!registered.has(`apps/${entry.name}`)) throw new Error(`UNREGISTERED_APP:apps/${entry.name}`);
     }
-    for (const [id, name] of registered) {
+    for (const [directory, name] of registered) {
       for (const file of ["package.json", "next.config.mjs", "tsconfig.json", "src/app/layout.tsx", "src/app/page.tsx", "src/proxy.ts"])
-        if (!existsSync(resolve(root, "apps", id, file))) throw new Error(`APP_COMPOSITION_FILE_REQUIRED:${id}:${file}`);
-      const manifest = JSON.parse(readFileSync(resolve(root, "apps", id, "package.json"), "utf8"));
-      if (manifest.name !== name || manifest.private !== true) throw new Error(`APP_PACKAGE_IDENTITY_CHANGED:${id}`);
+        if (!existsSync(resolve(root, directory, file))) throw new Error(`APP_COMPOSITION_FILE_REQUIRED:${directory}:${file}`);
+      const manifest = JSON.parse(readFileSync(resolve(root, directory, "package.json"), "utf8"));
+      if (manifest.name !== name || manifest.private !== true) throw new Error(`APP_PACKAGE_IDENTITY_CHANGED:${directory}`);
     }
     for (const entry of readdirSync(resolve(root, "packages"), { withFileTypes: true }).filter(entry => entry.isDirectory())) {
       const directory = resolve(root, "packages", entry.name);

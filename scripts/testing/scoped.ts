@@ -97,7 +97,7 @@ async function watchScoped(options:Options){
   const {graph,plan}=scopedPlan(options);
   watchedInputs=new Set([...dependencyClosure(graph,[...plan.apps.flatMap(id=>[...graph.apps.get(id)!]),...verificationSources(plan.suites)])].map(workspaceInputFile));
  };
- const relevant=(path:string)=>!watchedInputs || watchedInputs.has(path) || options.apps.some(id=>path.startsWith(`apps/${id}/`)) || /^(?:tests\/catalogue|scripts\/(?:testing|architecture|local|assets))\//.test(path);
+ const relevant=(path:string)=>!watchedInputs || watchedInputs.has(path) || options.apps.some(id=>path.startsWith(appDefinition(id).directory+'/')) || /^(?:tests\/catalogue|scripts\/(?:testing|architecture|local|assets))\//.test(path);
  const run=async()=>{if(terminated||running||!pending)return;running=true;pending=false;stopping=false;try{refreshInputs();await runScoped({...options,watch:false});}catch(error){console.error(error instanceof Error?error.message:String(error));}finally{running=false;if(pending&&!terminated)void run();}};
  const changed=()=>{pending=true;if(running)cancel();if(timer)clearTimeout(timer);timer=setTimeout(()=>void run(),300);};
  const watchers=['apps','packages','src','tests','scripts','fixtures','migrations','public','docs','ops','.github'].map(directory=>watch(resolve(root,directory),{recursive:true},(_,name)=>{

@@ -155,7 +155,9 @@
     "./lib/people-draft-import": "./src/lib/people-draft-import.ts",
     "./components/lazy-leave-controls": "./src/components/lazy-leave-controls.tsx",
     "./components/lazy-expense-editor": "./src/components/lazy-expense-editor.tsx",
-    "./components/lazy-people-editor": "./src/components/lazy-people-editor.tsx"
+    "./components/lazy-people-editor": "./src/components/lazy-people-editor.tsx",
+    "./components/people-organization-contracts": "./src/components/people-organization-contracts.ts",
+    "./components/people-organization-detail": "./src/components/people-organization-detail.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

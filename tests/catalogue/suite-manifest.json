@@ -51187,7 +51187,7 @@
         "reason": "Development dependency selection exercises this suite when affected; historical PR metadata is retained only for older receipt readers."
       },
       "serial": {
-        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290\u20133291."
+        "reason": "Owns the exclusive isolated gateway listener3104 and disposable process-fixture app ports3290–3291."
       },
       "verificationInputs": [
         "scripts/local/dev.ts",
