@@ -24,7 +24,7 @@ export function workspaceSourcePaths(root = repositoryRoot): string[] {
   return [...["apps", "packages", "src", "scripts", "tests", "fixtures", "public", "docs", ".github", "ops", "migrations"].flatMap(visit),
     ...["next.config.ts", "tsconfig.base.json", "tsconfig.json", "postcss.config.mjs", "package.json", "bun.lock", "eslint.config.mjs", "README.md", "AGENTS.md", "CONTEXT.md", "CONTRACT_POLICY.md", ".bun-version", ".node-version", "bunfig.toml", "turbo.json", ".gitignore"].filter(file => existsSync(resolve(root, file)))].sort();
 }
-export function createWorkspaceGraph(files: Map<string, string>, parseSource: (file:string,source:string)=>WorkspaceSource = parseWorkspaceSource): WorkspaceGraph {
+export function createWorkspaceGraph(files: Map<string, string>, parseSource: (file:string,source:string)=>WorkspaceSource = parseWorkspaceSource, options:{excludeStyleSources?:boolean}={}): WorkspaceGraph {
   files = new Map(files);
   const names = new Set(files.keys()), imports = new Map<string, Set<string>>(), reverse = new Map<string, Set<string>>();
   const parsed=new Map<string,WorkspaceSource>();
@@ -68,7 +68,7 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
       else if (specifier.startsWith("@erpx/")) throw new Error(`WORKSPACE_EXPORT_UNRESOLVED:${file}:${specifier}`);
       else if (specifier.startsWith(".") || specifier.startsWith("@/")) throw new Error(`WORKSPACE_IMPORT_UNRESOLVED:${file}:${specifier}`);
     }
-    if (file.endsWith('.css')) for (const match of text.matchAll(/@source\s+["']([^"']+)["']/g)) {
+    if (file.endsWith('.css')&&!options.excludeStyleSources) for (const match of text.matchAll(/@source\s+["']([^"']+)["']/g)) {
       const path = posix.normalize(posix.join(posix.dirname(file), match[1])).replace(/\/$/, "");
       const sources = names.has(path) ? [path] : directories.get(path) ?? [];
       if (!sources.length) throw new Error(`WORKSPACE_STYLE_SOURCE_UNRESOLVED:${file}:${match[1]}`);
@@ -118,12 +118,12 @@ export function createWorkspaceGraph(files: Map<string, string>, parseSource: (f
   }
   return graph;
 }
-function graphWithSourceCache(files:Map<string,string>,root:string,cacheRoot=root):WorkspaceGraph{
+function graphWithSourceCache(files:Map<string,string>,root:string,cacheRoot=root,excludeStyleSources=false):WorkspaceGraph{
   const cache=workspaceSourceCache(root,cacheRoot);
-  try{const graph=createWorkspaceGraph(files,cache.parse);cache.flush();graph.sourceCache={...cache.stats};return graph;}catch(error){cache.flush();throw error;}
+  try{const graph=createWorkspaceGraph(files,cache.parse,{excludeStyleSources});cache.flush();graph.sourceCache={...cache.stats};return graph;}catch(error){cache.flush();throw error;}
 }
-export function loadWorkspaceGraph(root = repositoryRoot, options:{cacheRoot?:string}={}): WorkspaceGraph {
-  return graphWithSourceCache(new Map(workspaceSourcePaths(root).map(file => [file, /^(?:public|docs|\.github|ops|migrations)\//.test(file) || /^(?:README|AGENTS|CONTEXT|CONTRACT_POLICY)\.md$/.test(file) ? "resource-sha256:" + createHash("sha256").update(readFileSync(resolve(root, file))).digest("hex") : readFileSync(resolve(root, file), "utf8")])),root,options.cacheRoot);
+export function loadWorkspaceGraph(root = repositoryRoot, options:{cacheRoot?:string;excludeStyleSources?:boolean}={}): WorkspaceGraph {
+  return graphWithSourceCache(new Map(workspaceSourcePaths(root).map(file => [file, /^(?:public|docs|\.github|ops|migrations)\//.test(file) || /^(?:README|AGENTS|CONTEXT|CONTRACT_POLICY)\.md$/.test(file) ? "resource-sha256:" + createHash("sha256").update(readFileSync(resolve(root, file))).digest("hex") : readFileSync(resolve(root, file), "utf8")])),root,options.cacheRoot,options.excludeStyleSources);
 }
 
 export function dependencyClosure(graph: Pick<WorkspaceGraph, "imports">, entries: Iterable<string>): Set<string> {

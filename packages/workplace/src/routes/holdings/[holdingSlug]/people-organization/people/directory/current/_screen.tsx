@@ -9,7 +9,7 @@ import { PeopleNavigation } from "@erpx/feature-people_payroll/components/people
 import { PeopleDirectoryWorkspace } from "@erpx/feature-people_payroll/components/people-directory-workspace";
 import { ListPagination } from "@erpx/ui/components/list-pagination";
 import { PageHeader } from "@erpx/ui/components/primitives";
-import { PeopleEditor } from "@erpx/workplace/components/work-editors";
+import { PeopleEditor } from "@erpx/feature-people_payroll/components/lazy-people-editor";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";

@@ -29,7 +29,9 @@
     "./lib/initial-physical-stock-count-command": "./src/lib/initial-physical-stock-count-command.ts",
     "./lib/count-command-fetch": "./src/lib/count-command-fetch.ts",
     "./lib/pos-initial-physical-stock-count-command": "./src/lib/pos-initial-physical-stock-count-command.ts",
-    "./lib/landed-cost-command-attempt": "./src/lib/landed-cost-command-attempt.ts"
+    "./lib/landed-cost-command-attempt": "./src/lib/landed-cost-command-attempt.ts",
+    "./components/lazy-count-editor": "./src/components/lazy-count-editor.tsx",
+    "./components/lazy-transfer-editor": "./src/components/lazy-transfer-editor.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

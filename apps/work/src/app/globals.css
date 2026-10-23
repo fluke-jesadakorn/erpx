@@ -93,7 +93,6 @@
 @source "../../../../packages/feature-finance/src/components/finance-planning-controls.tsx";
 @source "../../../../packages/feature-finance/src/components/finance-prepare-on.tsx";
 @source "../../../../packages/feature-finance/src/components/intercompany-console.tsx";
-@source "../../../../packages/feature-finance/src/components/invoice-controls.tsx";
 @source "../../../../packages/feature-finance/src/components/invoice-slip-upload.tsx";
 @source "../../../../packages/feature-finance/src/components/money/currency-provider.tsx";
 @source "../../../../packages/feature-finance/src/components/purchase-context.tsx";
@@ -128,6 +127,8 @@
 @source "../../../../packages/feature-inventory/src/components/count-draft-boundary.tsx";
 @source "../../../../packages/feature-inventory/src/components/count-purchase-context.tsx";
 @source "../../../../packages/feature-inventory/src/components/inventory-reorder-console.tsx";
+@source "../../../../packages/feature-inventory/src/components/lazy-count-editor.tsx";
+@source "../../../../packages/feature-inventory/src/components/lazy-transfer-editor.tsx";
 @source "../../../../packages/feature-inventory/src/components/stock-count-controls.tsx";
 @source "../../../../packages/feature-inventory/src/components/stock-transfer-controls.tsx";
 @source "../../../../packages/feature-inventory/src/components/transfer-draft-boundary.tsx";
@@ -176,11 +177,10 @@
 @source "../../../../packages/feature-people_payroll/src/components/expense-editor-content.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/expense-editor.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/expense-purchase-context.tsx";
-@source "../../../../packages/feature-people_payroll/src/components/gpo-status.ts";
+@source "../../../../packages/feature-people_payroll/src/components/lazy-expense-editor.tsx";
+@source "../../../../packages/feature-people_payroll/src/components/lazy-leave-controls.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/leave-controls.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/leave/leave-self-service.tsx";
-@source "../../../../packages/feature-people_payroll/src/components/people-editor.tsx";
-@source "../../../../packages/feature-people_payroll/src/components/people-form-drawer.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/roster-owner-workspace.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/roster-shift-form.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/self-service/home.tsx";
@@ -193,7 +193,6 @@
 @source "../../../../packages/feature-people_payroll/src/components/time/preferred-date-time-field.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/time/time-preference-context.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/use-expense-draft.tsx";
-@source "../../../../packages/feature-people_payroll/src/lib/directory-owner-command.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/employee-services.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/expense-ai.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/expense-draft-create.ts";
@@ -213,14 +212,12 @@
 @source "../../../../packages/feature-people_payroll/src/lib/people-roster-domain.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/people-roster.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/people-route-context.ts";
-@source "../../../../packages/feature-people_payroll/src/lib/purchase-controls.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/retirement.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/roster-editor-draft.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/roster-owner-command.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/thai-payroll-adjustment.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/thai-payroll-pack.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/thai-payroll-rules.ts";
-@source "../../../../packages/feature-people_payroll/src/lib/use-directory-owner-command.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/workforce-command-client.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/workforce-controls.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/workforce-evidence-client.ts";
@@ -1823,7 +1820,6 @@
 @source "../../../../packages/server-finance/src/public/rules/expense-posting-prerequisites-entry.ts";
 @source "../../../../packages/server-finance/src/public/rules/finance-contract-policy.ts";
 @source "../../../../packages/server-finance/src/public/rules/finance-instrument-policy.ts";
-@source "../../../../packages/server-finance/src/public/rules/finance-invoice-lines.ts";
 @source "../../../../packages/server-finance/src/public/rules/payroll-posting-prerequisites-entry.ts";
 @source "../../../../packages/server-finance/src/public/rules/purchase-controls.ts";
 @source "../../../../packages/server-finance/src/public/sales-customer-sources.ts";
@@ -4311,6 +4307,7 @@
 @source "../../../../packages/workplace/src/components/future-features.tsx";
 @source "../../../../packages/workplace/src/components/handbook-controls.tsx";
 @source "../../../../packages/workplace/src/components/handbook-new-article-drawer.tsx";
+@source "../../../../packages/workplace/src/components/lazy-request-editor.tsx";
 @source "../../../../packages/workplace/src/components/navigation-badge.tsx";
 @source "../../../../packages/workplace/src/components/navigation-counts.tsx";
 @source "../../../../packages/workplace/src/components/new-work.tsx";
@@ -4337,7 +4334,6 @@
 @source "../../../../packages/workplace/src/components/work-attention.tsx";
 @source "../../../../packages/workplace/src/components/work-context-boundary.tsx";
 @source "../../../../packages/workplace/src/components/work-dashboard.tsx";
-@source "../../../../packages/workplace/src/components/work-editors.tsx";
 @source "../../../../packages/workplace/src/components/work-flow.tsx";
 @source "../../../../packages/workplace/src/components/work-list.tsx";
 @source "../../../../packages/workplace/src/components/work-return.tsx";

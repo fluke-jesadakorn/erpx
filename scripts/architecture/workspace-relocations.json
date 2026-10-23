@@ -51711,13 +51711,6 @@
       "sha256": "aba580bd4a5f1a5d779f2d479d915d31c0d24e5d1d8d455b1490bc5a9d1fdf76"
     },
     {
-      "from": "src/components/workplace/work-editors.tsx",
-      "to": "packages/workplace/src/components/work-editors.tsx",
-      "package": "@erpx/workplace",
-      "key": "components/work-editors",
-      "sha256": "7178dee4e7fea374de140a97adce8fcbe6a54fe86054d66a37e237e3bdf85dc6"
-    },
-    {
       "from": "src/components/workplace/office-product-menus.module.css",
       "to": "packages/workplace/src/components/office-product-menus.module.css",
       "package": "@erpx/workplace",

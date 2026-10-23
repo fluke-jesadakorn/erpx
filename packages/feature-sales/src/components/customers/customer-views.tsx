@@ -2,7 +2,7 @@ import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-r
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { ActionLink, Button, Field, Select } from "@erpx/ui/components/foundation";
 import { StatusBadge } from "@erpx/ui/components/primitives";
-import { MasterEditor } from "@erpx/workplace/components/work-editors";
+import { MasterEditor } from "@erpx/feature-commerce/components/lazy-master-editor";
 import { CRMIdentityConsole } from "@erpx/feature-crm/components/crm-identity-console";
 import { SupportConsole } from "@erpx/feature-support/components/support-console";
 import { CustomerIdentityConsole } from "@erpx/feature-customer_360/components/customer-identity-console";

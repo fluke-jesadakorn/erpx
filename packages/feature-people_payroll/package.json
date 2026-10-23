@@ -152,7 +152,10 @@
     "./lib/thai-payroll-rules": "./src/lib/thai-payroll-rules.ts",
     "./lib/overtime": "./src/lib/overtime.ts",
     "./lib/hr-settings-navigation": "./src/lib/hr-settings-navigation.ts",
-    "./lib/people-draft-import": "./src/lib/people-draft-import.ts"
+    "./lib/people-draft-import": "./src/lib/people-draft-import.ts",
+    "./components/lazy-leave-controls": "./src/components/lazy-leave-controls.tsx",
+    "./components/lazy-expense-editor": "./src/components/lazy-expense-editor.tsx",
+    "./components/lazy-people-editor": "./src/components/lazy-people-editor.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

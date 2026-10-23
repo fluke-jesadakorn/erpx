@@ -10,7 +10,7 @@ import { CRMConsole } from "@erpx/feature-crm/components/crm-console";
 import { CustomerFollowupForm } from "@erpx/feature-customer_360/components/customer-followups";
 import { SalesPricingConsole } from "@erpx/feature-sales/components/sales-pricing-console";
 import { AnalyticsReport } from "@erpx/feature-runtime/components/executive/analytics-report";
-import { OrderEditor } from "@erpx/workplace/components/work-editors";
+import { OrderEditor } from "@erpx/feature-commerce/components/lazy-order-editor";
 import { queryValue, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";

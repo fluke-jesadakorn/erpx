@@ -69,6 +69,19 @@ it('refreshes style membership for executable edges, additions and deletion whil
  for(const path of ['apps/account/.next/types/routes.ts','packages/ui/node_modules/example/src/ui.tsx','apps/account/src/app/globals.css'])expect(workspaceStyleWatchInput(path)).toBe(false);
 });
 
+it('regenerates style inputs after a rename without weakening normal missing-source validation',()=>{
+ const files=sources();
+ files.set('apps/finance/src/app/page.tsx','import "./globals.css"; import "@erpx/feature-example/renamed";');
+ files.set('apps/finance/src/app/globals.css','@source "../../../../packages/feature-example/src/removed.tsx";');
+ files.set('packages/feature-example/src/renamed.tsx','export const Panel=()=> <div className="p-7"/>;');
+ files.set('packages/workplace/src/routes/globals.css','');
+ expect(()=>createWorkspaceGraph(files)).toThrow('WORKSPACE_STYLE_SOURCE_UNRESOLVED');
+ const derivation=createWorkspaceGraph(files,undefined,{excludeStyleSources:true}),css=workspaceStyleSheet(derivation,'apps/finance');
+ expect(css).toContain('feature-example/src/renamed.tsx');expect(css).not.toContain('removed.tsx');
+ files.set('apps/finance/src/app/globals.css',css);
+ expect(()=>createWorkspaceGraph(files)).not.toThrow();
+});
+
 it('updates newly imported sources during a live watch and closes its owned watchers',async()=>{
  const root=await mkdtemp(join(tmpdir(),'erpx-style-watch-')),file='apps/account/src/panel.tsx',initial='export const Panel=()=> <div className="p-4"/>;',report=vi.fn();
  const inputs=sources();inputs.set(file,initial);inputs.set('packages/ui/src/new.tsx','export const New=()=> <div className="p-7"/>;');

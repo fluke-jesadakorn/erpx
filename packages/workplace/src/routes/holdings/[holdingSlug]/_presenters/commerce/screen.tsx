@@ -19,7 +19,8 @@ import {
 import { MoneyAmount } from "@erpx/feature-finance/components/money/currency-provider";
 import { ListPagination } from "@erpx/ui/components/list-pagination";
 import { StatusBadge } from "@erpx/ui/components/primitives";
-import { MasterEditor, OrderEditor } from "@erpx/workplace/components/work-editors";
+import { MasterEditor } from "@erpx/feature-commerce/components/lazy-master-editor";
+import { OrderEditor } from "@erpx/feature-commerce/components/lazy-order-editor";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workplace-navigation";

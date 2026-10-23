@@ -10,7 +10,11 @@ import { workProjectionPresentationQueries } from "@erpx/server-work_projection/
 import { PageContent } from "@erpx/ui/components/patterns";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 import { PageHeader } from "@erpx/ui/components/primitives";
-import { CountEditor,ExpenseEditor,LeaveControls,RequestEditor,TransferEditor } from "@erpx/workplace/components/work-editors";
+import { CountEditor } from "@erpx/feature-inventory/components/lazy-count-editor";
+import { ExpenseEditor } from "@erpx/feature-people_payroll/components/lazy-expense-editor";
+import { LeaveControls } from "@erpx/feature-people_payroll/components/lazy-leave-controls";
+import { RequestEditor } from "@erpx/workplace/components/lazy-request-editor";
+import { TransferEditor } from "@erpx/feature-inventory/components/lazy-transfer-editor";
 
 import { expenseOptions } from "@erpx/server-people_payroll/public/expenses";
 import { countOptions } from "@erpx/server-inventory/public/inventory-counts";

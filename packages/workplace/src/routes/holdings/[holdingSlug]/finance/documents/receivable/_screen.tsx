@@ -7,7 +7,7 @@ import { FinanceWorkspace, financeStyles as styles } from "@erpx/feature-finance
 import { financeCompanyTools } from "@erpx/server-finance/public/finance-company-tools";
 import { listCharts } from "@erpx/server-finance/public/finance";
 import { ListPagination } from "@erpx/ui/components/list-pagination";
-import { InvoiceEditor } from "@erpx/workplace/components/work-editors";
+import { InvoiceEditor } from "@erpx/feature-finance/components/lazy-invoice-editor";
 import { MoneyAmount } from "@erpx/feature-finance/components/money/currency-provider";
 import { formatMoneyUnits } from "@erpx/feature-finance/lib/company-money";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";

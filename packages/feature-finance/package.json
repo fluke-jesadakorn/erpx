@@ -355,7 +355,8 @@
     "./routes/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/documents/expenses/[id]/page.tsx",
     "./routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/[recordSection]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/[recordSection]/page.tsx",
     "./routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/page": "./src/routes/holdings/[holdingSlug]/@record/finance/reports/statement-packages/[id]/page.tsx",
-    "./routes/api/v1/holdings/[holdingSlug]/finance/route": "./src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts"
+    "./routes/api/v1/holdings/[holdingSlug]/finance/route": "./src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts",
+    "./components/lazy-invoice-editor": "./src/components/lazy-invoice-editor.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

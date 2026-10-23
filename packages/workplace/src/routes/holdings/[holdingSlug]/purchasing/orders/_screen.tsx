@@ -12,7 +12,7 @@ import { FeaturePage, FeatureTabs, FeatureWidget, WidgetGrid } from "@erpx/featu
 import { MoneyAmount } from "@erpx/feature-finance/components/money/currency-provider";
 import { ListPagination } from "@erpx/ui/components/list-pagination";
 import { StatusBadge } from "@erpx/ui/components/primitives";
-import { OrderEditor } from "@erpx/workplace/components/work-editors";
+import { OrderEditor } from "@erpx/feature-commerce/components/lazy-order-editor";
 import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workplace-navigation";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";

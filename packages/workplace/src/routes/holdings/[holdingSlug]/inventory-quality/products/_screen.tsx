@@ -9,7 +9,7 @@ import { Table, TableFrame } from "@erpx/ui/components/foundation";
 import { FeaturePage, FeatureWidget, WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 import { ListPagination } from "@erpx/ui/components/list-pagination";
 import { StatusBadge } from "@erpx/ui/components/primitives";
-import { MasterEditor } from "@erpx/workplace/components/work-editors";
+import { MasterEditor } from "@erpx/feature-commerce/components/lazy-master-editor";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workplace-navigation";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";

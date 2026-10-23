@@ -11,7 +11,7 @@ import {
 } from "@erpx/feature-shared/components/features/feature-page";
 import { ListPagination } from "@erpx/ui/components/list-pagination";
 import { PageHeader, StatusBadge } from "@erpx/ui/components/primitives";
-import { CountEditor } from "@erpx/workplace/components/work-editors";
+import { CountEditor } from "@erpx/feature-inventory/components/lazy-count-editor";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";

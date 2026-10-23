@@ -17,7 +17,6 @@
     "./components/work-dashboard.module.css": "./src/components/work-dashboard.module.css",
     "./components/access-state.module.css": "./src/components/access-state.module.css",
     "./components/login.module.css": "./src/components/login.module.css",
-    "./components/work-editors": "./src/components/work-editors.tsx",
     "./components/office-product-menus.module.css": "./src/components/office-product-menus.module.css",
     "./components/console-ui-utilities": "./src/components/console-ui-utilities.tsx",
     "./components/context-switch-provider": "./src/components/context-switch-provider.tsx",
@@ -729,7 +728,8 @@
     "./routes/login/page": "./src/routes/login/page.tsx",
     "./routes/onboarding/page": "./src/routes/onboarding/page.tsx",
     "./routes/global-error": "./src/routes/global-error.tsx",
-    "./routes/not-found": "./src/routes/not-found.tsx"
+    "./routes/not-found": "./src/routes/not-found.tsx",
+    "./components/lazy-request-editor": "./src/components/lazy-request-editor.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

@@ -17,7 +17,9 @@
     "./lib/commerce-math": "./src/lib/commerce-math.ts",
     "./lib/posting-setup-command": "./src/lib/posting-setup-command.ts",
     "./lib/purchase-controls": "./src/lib/purchase-controls.ts",
-    "./lib/posting-setup-prerequisite-command": "./src/lib/posting-setup-prerequisite-command.ts"
+    "./lib/posting-setup-prerequisite-command": "./src/lib/posting-setup-prerequisite-command.ts",
+    "./components/lazy-order-editor": "./src/components/lazy-order-editor.tsx",
+    "./components/lazy-master-editor": "./src/components/lazy-master-editor.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
