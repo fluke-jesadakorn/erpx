@@ -2,8 +2,22 @@ import { mkdtemp, mkdir, writeFile, readFile, symlink, realpath, rm, cp } from '
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { linkBrowserWorkspaceModules } from '../../../scripts/testing/browser-workspace-modules';
+import {seedWorkspaceProductPackages} from '../../../fixtures/shared/builders/workspace-product-packages';
+import type {PostgresDatabase} from '@erpx/server-runtime/adapters/runtime/postgres';
+import type {EngineeringMoneyPeopleBrowser} from '../../../fixtures/finance/builders/engineering-money-people-browser';
+
+it('refuses product visibility fixtures outside their declared disposable database and profile before SQL',async()=>{
+ const run='aaaaaaaaaaaa',owned=`postgres://erpx_test_admin@127.0.0.1:5432/erpx_browser_${run}_h001_db`,transaction=vi.fn();
+ const cohort={run,companies:{desktop:{companyId:'synthetic-company'}}} as unknown as EngineeringMoneyPeopleBrowser;
+ const attempt=(url:string,apps:string[]=['work'],fixture=cohort)=>seedWorkspaceProductPackages({run,apps,cohort:fixture,db:{pool:{options:{connectionString:url}},transaction} as unknown as PostgresDatabase});
+ for(const url of [owned.replace('127.0.0.1','remote.invalid'),owned.replace('5432','5433'),owned.replace('erpx_test_admin','erpx_admin'),owned.replace(`erpx_browser_${run}_h001_db`,'erpx_h001_db'),owned.replace(run,'bbbbbbbbbbbb'),owned.replace('h001_db','control_db')])await expect(attempt(url)).rejects.toThrow('DISPOSABLE_PRODUCT_WORKSPACE_FIXTURE_REQUIRED');
+ for(const apps of [[],['work','work'],['unregistered']])await expect(attempt(owned,apps)).rejects.toThrow('DISPOSABLE_PRODUCT_WORKSPACE_FIXTURE_REQUIRED');
+ await expect(attempt(owned,['work'],{...cohort,run:'bbbbbbbbbbbb'})).rejects.toThrow('DISPOSABLE_PRODUCT_WORKSPACE_FIXTURE_REQUIRED');
+ await expect(attempt(owned,['work'],{...cohort,companies:{}})).rejects.toThrow('DISPOSABLE_PRODUCT_WORKSPACE_FIXTURE_REQUIRED');
+ expect(transaction).not.toHaveBeenCalled();
+});
 
 async function fixture(){
   const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-workspace-modules-'))),template=join(root,'.runtime/browser/aaaaaaaaaaaa/app'),target=join(root,'.runtime/browser/bbbbbbbbbbbb/app');

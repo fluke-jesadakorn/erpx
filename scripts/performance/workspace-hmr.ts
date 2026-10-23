@@ -11,6 +11,9 @@ const benchmarks={
  account:{suite:'identity_access.workspace-hmr.e2e',apps:['account','apps'],file:'tests/e2e/identity_access/workspace-hmr.spec.ts',title:'Account client edits preserve the profile draft through twenty measured HMR updates',scope:'Account desktop client HMR'},
  apps:{suite:'identity_access.workspace-hmr.e2e',apps:['account','apps'],file:'tests/e2e/identity_access/workspace-hmr.spec.ts',title:'Apps server component edits preserve the session through twenty measured HMR updates',scope:'Apps desktop server component HMR'},
  admin:{suite:'identity_access.workspace-hmr.e2e',apps:['account','apps','admin'],file:'tests/e2e/identity_access/workspace-hmr.spec.ts',title:'Admin server component edits preserve the session through twenty measured HMR updates',scope:'Admin desktop server component HMR'},
+ work:{suite:'shared.work.product-workspace-hmr.e2e',apps:['account','apps','work'],file:'tests/e2e/shared.work/product-workspace-hmr.spec.ts',title:'Work server edits preserve the update draft through twenty measured HMR updates',scope:'Work desktop server component HMR'},
+ people:{suite:'shared.work.product-workspace-hmr.e2e',apps:['account','apps','people'],file:'tests/e2e/shared.work/product-workspace-hmr.spec.ts',title:'People client edits preserve the employee draft through twenty measured HMR updates',scope:'People desktop client HMR'},
+ recruit:{suite:'shared.work.product-workspace-hmr.e2e',apps:['account','apps','recruit'],file:'tests/e2e/shared.work/product-workspace-hmr.spec.ts',title:'Recruit client edits preserve the requisition draft through twenty measured HMR updates',scope:'Recruit desktop client HMR'},
 };
 if(!Object.hasOwn(benchmarks,app))throw new Error('REGISTERED_HMR_APP_REQUIRED');
 const benchmark=benchmarks[app as keyof typeof benchmarks],bundler=workspaceBrowserBundler(raw),suite=loadCatalogue().suites.find(suite=>suite.id===benchmark.suite);

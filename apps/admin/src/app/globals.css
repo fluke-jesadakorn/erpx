@@ -6,6 +6,7 @@
 @source "../../../../packages/contracts/src/apps.ts";
 @source "../../../../packages/contracts/src/product-registry.ts";
 @source "../../../../packages/contracts/src/social-post-entry.ts";
+@source "../../../../packages/contracts/src/work-social-api.ts";
 @source "../../../../packages/contracts/src/workforce-self-service-entry.ts";
 @source "../../../../packages/feature-admin/src/routes/admin/choose-work-role/page.tsx";
 @source "../../../../packages/feature-admin/src/routes/admin/launch/route.ts";

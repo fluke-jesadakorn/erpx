@@ -177,7 +177,8 @@
         "src/app/api/health/route.ts",
         "src/app/api/mcp/executive/route.ts",
         "src/app/page.tsx",
-        "src/app/login/page.tsx"
+        "src/app/login/page.tsx",
+        "src/app/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts"
       ]
     },
     {

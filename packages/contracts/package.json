@@ -11,7 +11,8 @@
     "./next-routes": "./src/next-routes.ts",
     "./social-post-entry": "./src/social-post-entry.ts",
     "./command-flow": "./src/command-flow.ts",
-    "./ownership": "./src/ownership.ts"
+    "./ownership": "./src/ownership.ts",
+    "./work-social-api": "./src/work-social-api.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

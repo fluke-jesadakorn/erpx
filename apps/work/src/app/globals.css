@@ -7,6 +7,7 @@
 @source "../../../../packages/contracts/src/apps.ts";
 @source "../../../../packages/contracts/src/product-registry.ts";
 @source "../../../../packages/contracts/src/social-post-entry.ts";
+@source "../../../../packages/contracts/src/work-social-api.ts";
 @source "../../../../packages/contracts/src/workforce-self-service-entry.ts";
 @source "../../../../packages/feature-agent/src/components/agent-governance-console.tsx";
 @source "../../../../packages/feature-benefits/src/components/benefit-command-feedback.tsx";
@@ -351,6 +352,7 @@
 @source "../../../../packages/feature-talent/src/lib/command.ts";
 @source "../../../../packages/feature-work/src/routes/api/mcp/executive/route.ts";
 @source "../../../../packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/approvals/[[...path]]/route.ts";
+@source "../../../../packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts";
 @source "../../../../packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts";
 @source "../../../../packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/daily-plan/route.ts";
 @source "../../../../packages/feature-work/src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts";

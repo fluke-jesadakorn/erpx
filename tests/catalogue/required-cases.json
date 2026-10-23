@@ -1711,6 +1711,42 @@
       "file": "tests/e2e/identity_access/admin-workspace-smoke.spec.ts",
       "title": "Admin workspace signs in through Account and opens its isolated brand drawer without changing authority",
       "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/operations/workspace-smoke.spec.ts",
+      "title": "Work workspace signs in through Account and opens its isolated drawer without business mutations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/people_payroll/workspace-smoke.spec.ts",
+      "title": "People workspace signs in through Account and opens its isolated drawer without business mutations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/talent/workspace-smoke.spec.ts",
+      "title": "Recruit workspace signs in through Account and opens its isolated drawer without business mutations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/product-workspace-hmr.spec.ts",
+      "title": "Work server edits preserve the update draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/product-workspace-hmr.spec.ts",
+      "title": "People client edits preserve the employee draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.work/product-workspace-hmr.spec.ts",
+      "title": "Recruit client edits preserve the requisition draft through twenty measured HMR updates",
+      "project": "desktop"
     }
   ]
 }

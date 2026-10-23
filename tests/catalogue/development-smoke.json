@@ -90,6 +90,51 @@
         "entryApp": "admin",
         "bundler": "turbopack"
       }
+    },
+    {
+      "suite": "operations.workspace-smoke.e2e",
+      "file": "tests/e2e/operations/workspace-smoke.spec.ts",
+      "title": "Work workspace signs in through Account and opens its isolated drawer without business mutations",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "work"
+        ],
+        "entryApp": "work",
+        "bundler": "webpack"
+      }
+    },
+    {
+      "suite": "people_payroll.workspace-smoke.e2e",
+      "file": "tests/e2e/people_payroll/workspace-smoke.spec.ts",
+      "title": "People workspace signs in through Account and opens its isolated drawer without business mutations",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "people"
+        ],
+        "entryApp": "people",
+        "bundler": "webpack"
+      }
+    },
+    {
+      "suite": "talent.workspace-smoke.e2e",
+      "file": "tests/e2e/talent/workspace-smoke.spec.ts",
+      "title": "Recruit workspace signs in through Account and opens its isolated drawer without business mutations",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "recruit"
+        ],
+        "entryApp": "recruit",
+        "bundler": "webpack"
+      }
     }
   ],
   "deferredSuites": [
@@ -460,6 +505,10 @@
     {
       "suite": "identity_access.workspace-hmr.e2e",
       "reason": "Account/Apps/Admin twenty-edit compiler measurements run only through the explicit workspace-hmr performance command; full acceptance remains deferred."
+    },
+    {
+      "suite": "shared.work.product-workspace-hmr.e2e",
+      "reason": "Work/People/Recruit twenty-edit HMR comparisons run only through the explicit workspace-hmr performance command; full acceptance remains deferred."
     }
   ]
 }

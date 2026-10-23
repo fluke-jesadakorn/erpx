@@ -104,7 +104,8 @@
     "./routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/executive/connections/route": "./src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
-    "./routes/api/mcp/executive/route": "./src/routes/api/mcp/executive/route.ts"
+    "./routes/api/mcp/executive/route": "./src/routes/api/mcp/executive/route.ts",
+    "./routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

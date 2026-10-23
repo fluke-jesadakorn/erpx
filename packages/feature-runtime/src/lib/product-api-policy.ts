@@ -1,4 +1,5 @@
 import { modulePlacement, product, type ProductHostKey } from "@erpx/server-commercial/public/rules/product-registry";
+import {workSocialBetaPathAllowed} from '@erpx/contracts/work-social-api';
 
 const ownerResources: Partial<Record<ProductHostKey, readonly string[]>> = {
   admin: ["agents", "ai-providers", "authority", "beta", "billing", "brand", "branding", "business-readiness", "feature-catalogue", "iam", "technology", "usage"],
@@ -80,6 +81,7 @@ export function officeApiAllowed(host: ProductHostKey, pathname: string, method:
   const resource = holdingResource(pathname);
   if (!resource) return false;
   const [root, second, third] = resource.split("/");
+  if(host==='work'&&root==='beta')return workSocialBetaPathAllowed(resource.split('/').slice(1),method);
   const expenseDecoded=(value:string|undefined)=>{try{return value===undefined?null:decodeURIComponent(value);}catch{return null;}};
   const expenseOwner=expenseDecoded(root),expenseFamily=expenseDecoded(second);
   if(expenseOwner==='finance'&&expenseFamily?.startsWith('expense-setup')){
