@@ -1,6 +1,7 @@
 import type { WorkspaceGraph } from '../testing/workspace-graph';
 
 const leaves = [
+  'packages/server-identity_access/src/public/iam-service-reads.ts',
   'packages/server-identity_access/src/public/iam-grants.ts',
   'packages/server-identity_access/src/public/directory-lookup.ts',
   'packages/server-identity_access/src/public/directory-synchronization.ts',

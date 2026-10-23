@@ -8,7 +8,8 @@ import { technologyData } from "@erpx/server-identity_access/public/technology";
 import { gpoRulesOverview } from "@erpx/server-identity_access/public/gpo-rules";
 import { peopleAccessData } from "@erpx/server-people_payroll/public/people-access";
 import { readManagement } from "@erpx/server-identity_access/public/user-management";
-import { iamOverview } from "@erpx/server-identity_access/public/iam-service";
+
+import {iamOverview} from '@erpx/server-identity_access/public/iam-service-reads';
 import { peopleTemplatesData } from "@erpx/server-people_payroll/public/people-templates";
 
 type ReadArguments<F extends (...args: never[]) => unknown> = Parameters<F> extends [unknown, ...infer Rest] ? Rest : never;

@@ -2,7 +2,8 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { descendants, emptyDirectoryHierarchy, type HierarchyNode, type DirectoryHierarchy } from "@erpx/feature-organization/lib/hierarchy";
 import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
 import type { IamActor } from '@erpx/server-identity_access/public/iam-context';
-import type { iamOverview } from '@erpx/server-identity_access/public/iam-service';
+
+import type {iamOverview} from '@erpx/server-identity_access/public/iam-service-reads';
 import type { AccessEntry } from '@erpx/server-people_payroll/domain/people-access';
 export interface PeopleAccessPorts {
     clock: Clock;

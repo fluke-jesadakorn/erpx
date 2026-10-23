@@ -3,7 +3,8 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { iamActorFromWork } from "@erpx/server-identity_access/public/iam-context";
-import { iamOverview } from "@erpx/server-identity_access/public/iam-service";
+
+import {iamOverview} from '@erpx/server-identity_access/public/iam-service-reads';
 import { leaveAdministration } from "@erpx/server-people_payroll/adapters/leave-self-service";
 import { organizationOverview } from "@erpx/server-organization/public/organization";
 import { peopleLifecycleData } from "@erpx/server-people_payroll/adapters/people-lifecycle";

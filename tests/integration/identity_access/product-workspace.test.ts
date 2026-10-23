@@ -188,7 +188,7 @@ it('Company Admin exposes current Brand, Organization, and IAM owner reads witho
  const {adminWorkspaceTarget}=await import('@erpx/server-identity_access/domain/admin-workspace');
  const {brandIdentityWorkspace}=await import('@erpx/server-brand/public/brand-identity');
  const {organizationAccessData}=await import('@erpx/server-organization/public/organization-access');
- const {iamOverview}=await import('@erpx/server-identity_access/public/iam-service');
+ const {iamOverview}=await import('@erpx/server-identity_access/public/iam-service-reads');
  const {loadIamAuthority}=await import('@erpx/server-identity_access/public/iam-store');
  const assignmentImage=()=>db.prepare('SELECT id,version,role,modules_json,revoked_at FROM assignments WHERE company_id=? ORDER BY id').bind(f.company).all();
  const assignmentsBefore=(await assignmentImage()).results,packagesBefore=await readCompanyPackageGrants(db,f.company);

@@ -14,7 +14,8 @@ import { directoryProviderLabels, iamSections, type AccessDecision, type IamSect
 import { evaluateAccess } from "@erpx/feature-identity_access/lib/permissions";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
-import type { iamOverview } from "@erpx/server-identity_access/public/iam-service";
+
+import type {iamOverview} from '@erpx/server-identity_access/public/iam-service-reads';
 import { Check, CircleHelp, Download, Minus, RefreshCw, Search, ShieldCheck, X } from "lucide-react";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { useSearchParams } from "@erpx/feature-shared/lib/destination-search";

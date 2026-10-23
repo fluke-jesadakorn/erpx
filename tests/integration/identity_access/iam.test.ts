@@ -5,19 +5,8 @@ import { accessComparison, accessDetail, accessEntries, peopleAccessData } from 
 import { emptyDirectoryHierarchy, validateDirectoryHierarchy } from "@erpx/feature-organization/lib/hierarchy";
 import { loadIamAuthority, iamRole, iamRoles } from "@erpx/server-identity_access/public/iam-store";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
-import {
-  iamOverview,
-  iamAuditHistory,
-  saveIamRole,
-  roleInput,
-  decideIamReview,
-  grantIamAccess,
-  grantInput,
-  revokeIamAssignment,
-  startAccessReviewCampaign,
-  decideAccessReviewItem,
-  cancelAccessReviewCampaign,
-} from "@erpx/server-identity_access/public/iam-service";
+import {saveIamRole,roleInput,decideIamReview,grantIamAccess,grantInput,revokeIamAssignment,startAccessReviewCampaign,decideAccessReviewItem,cancelAccessReviewCampaign} from "@erpx/server-identity_access/public/iam-service";
+import {iamOverview,iamAuditHistory} from '@erpx/server-identity_access/public/iam-service-reads';
 import {connectionInput,saveConnection,proposeMapping,mappingInput,applyDirectoryReview} from "@erpx/server-identity_access/public/iam-directories";
 import {connectionById} from '@erpx/server-identity_access/public/directory-lookup';
 import {applyDirectorySnapshot} from '@erpx/server-identity_access/public/directory-synchronization';

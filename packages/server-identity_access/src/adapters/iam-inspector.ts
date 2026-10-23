@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
-import { iamOverview } from "@erpx/server-identity_access/public/iam-service";
+
+import {iamOverview} from '@erpx/server-identity_access/public/iam-service-reads';
 import type { IamActor } from "@erpx/server-identity_access/public/iam-context";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";

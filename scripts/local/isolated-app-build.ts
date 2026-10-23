@@ -47,7 +47,8 @@ export async function buildIsolatedApp(id:string,bundler='webpack'){
   const compilerKeys=new Set(['PATH','HOME','TMPDIR','TMP','TEMP','LANG','LC_ALL','TZ','CI','HTTP_PROXY','HTTPS_PROXY','NO_PROXY','http_proxy','https_proxy','no_proxy','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR','TERM','TERM_PROGRAM','NEXT_TELEMETRY_DISABLED','CODEX_CI','CODEX_SHELL','CODEX_THREAD_ID']);
   const environment={...Object.fromEntries(Object.entries(process.env).filter(([name])=>compilerKeys.has(name)||name.startsWith('NEXT_PUBLIC_'))),NODE_ENV:'production',NODE_OPTIONS:'--max-old-space-size=8192',NEXT_DEPLOYMENT_ID:deploymentId,ERPX_BUILD_DIR:'.build',ERPX_APP_ID:id,ERPX_REPOSITORY_ROOT:snapshot,ERPX_RELEASE_NO_WEBPACK_CACHE:'1',ERPX_NODE_BIN:pinnedNode()};
   let attempts=0,passed=false;
-  while(attempts++<2&&!passed){
+  while(!passed&&attempts<2){
+   attempts++;
    if(interrupted)throw new Error('APP_BUILD_INTERRUPTED');
    child=Bun.spawn([pinnedNode(),join(snapshot,'node_modules/next/dist/bin/next'),'build',join(snapshot,app.directory),`--${bundler}`],{cwd:snapshot,env:environment,stdin:'ignore',stdout:'inherit',stderr:'inherit'});
    passed=await child.exited===0;

@@ -452,7 +452,9 @@
     "./adapters/directory-lookup": "./src/adapters/directory-lookup.ts",
     "./adapters/directory-transaction": "./src/adapters/directory-transaction.ts",
     "./public/directory-lookup": "./src/public/directory-lookup.ts",
-    "./public/directory-synchronization": "./src/public/directory-synchronization.ts"
+    "./public/directory-synchronization": "./src/public/directory-synchronization.ts",
+    "./adapters/iam-service-reads": "./src/adapters/iam-service-reads.ts",
+    "./public/iam-service-reads": "./src/public/iam-service-reads.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
