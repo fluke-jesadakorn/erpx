@@ -1,3 +1,4 @@
+import {applicationRequest} from '@erpx/server-runtime/public/application-request';
 import {beforeEach,expect,it,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 const mocks=vi.hoisted(()=>({session:vi.fn(),enabled:true,host:'account-dev-erpx.jesadakorn.com'}));
@@ -20,11 +21,27 @@ it('admits only three exact self paths and removes callback credentials while pr
 });
 it('repeats actual central account authentication without requiring Company selection or creating role/session authority',async()=>{
  const response=await accountWorkspaceRequest(request('/security?tag=one&tag=two#sessions'));expect(response.status).toBe(303);expect(response.headers.get('location')).toBe(origin+'/security?tag=one&tag=two#sessions');expect(response.headers.get('cache-control')).toBe('private, no-store');expect(response.headers.get('set-cookie')).toBeNull();expect(mocks.session).toHaveBeenCalledTimes(1);
+ for(const protocol of ['http','https']){
+  const transport=new Request(protocol+'://127.0.0.1:3250/account/launch?'+new URLSearchParams({next:'/my-profile?tag=one&tag=two#profile'}),{headers:{host:'account-dev-erpx.jesadakorn.com',origin,cookie:'synthetic-cookie=unchanged','x-forwarded-host':'evil.test'}});
+  const normalized=applicationRequest(transport,origin,'3250');
+  expect(new URL(normalized.url).origin).toBe(origin);expect([...normalized.headers]).toEqual([...transport.headers]);
+  const redirected=await accountWorkspaceRequest(normalized);expect(redirected.status).toBe(303);expect(redirected.headers.get('location')).toBe(origin+'/my-profile?tag=one&tag=two#profile');expect(redirected.headers.get('set-cookie')).toBeNull();
+ }
+ expect(mocks.session).toHaveBeenCalledTimes(3);
 });
 it('preserves the exact clean self target through normal login recovery without an Account child SSO transaction',async()=>{
  for(const error of [new Error('UNAUTHENTICATED'),new ApiError(401,'SESSION_REVOKED','Sign in again')]){mocks.session.mockRejectedValue(error);const response=await accountWorkspaceRequest(request('/my-profile?token=secret&tag=one&tag=two#profile')),login=new URL(response.headers.get('location')!);expect(response.status).toBe(303);expect(login.origin).toBe(origin);expect(login.pathname).toBe('/login');const bridge=new URL(login.searchParams.get('next')!,origin);expect(bridge.pathname).toBe('/account/launch');expect(bridge.searchParams.get('next')).toBe('/my-profile?tag=one&tag=two#profile');expect(response.headers.get('set-cookie')).toBeNull();}
 });
 it('rejects foreign or disabled hosts, duplicate or unknown returns, and mutation requests before authentication',async()=>{
+ const internal=new Request('http://127.0.0.1:3250/account/launch?next=/my-access',{headers:{host:'account-dev-erpx.jesadakorn.com'}});
+ for(const port of [undefined,'3251','3100','3250.0','03250','3250 '])expect(applicationRequest(internal,origin,port)).toBe(internal);
+ expect(applicationRequest(internal,null,'3250')).toBe(internal);
+ for(const url of ['https://evil.test/account/launch?next=/my-access','http://localhost:3250/account/launch?next=/my-access','http://127.0.0.1:3251/account/launch?next=/my-access']){
+  const foreign=new Request(url,{headers:internal.headers});expect(applicationRequest(foreign,origin,'3250')).toBe(foreign);expect((await accountWorkspaceRequest(foreign)).status).toBe(404);
+ }
+ const wrongHost=new Request(internal,{headers:{host:'evil.test','x-forwarded-host':'account-dev-erpx.jesadakorn.com'}});expect(applicationRequest(wrongHost,origin,'3250')).toBe(wrongHost);
+ const post=new Request(internal,{method:'POST',body:'never-forward'});expect(applicationRequest(post,origin,'3250')).toBe(post);
+
  expect((await accountWorkspaceRequest(request('/my-access','admin-dev-erpx.jesadakorn.com'))).status).toBe(404);expect((await accountWorkspaceRequest(new Request('https://evil.test/account/launch?next=/my-access',{headers:{host:'account-dev-erpx.jesadakorn.com'}}))).status).toBe(404);
  for(const search of ['next=/my-access&next=/security','next=/my-access&token=secret','next=/api/v1/account/profile','next=//evil.test/security'])expect((await accountWorkspaceRequest(new Request(origin+'/account/launch?'+search,{headers:{host:'account-dev-erpx.jesadakorn.com'}}))).status).toBe(422);
  const mutation=await accountWorkspaceRequest(new Request(request(),{method:'POST',body:'next=/my-access'}));expect(mutation.status).toBe(405);expect(mutation.headers.get('allow')).toBe('GET');mocks.enabled=false;expect((await accountWorkspaceRequest(request())).status).toBe(404);expect(mocks.session).not.toHaveBeenCalled();

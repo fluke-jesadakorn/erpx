@@ -4,10 +4,12 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "re
 import { useRouter } from "next/navigation";
 import type { AccountProfile } from "@erpx/server-identity_access/public/account-preferences";
 import { contextGeneration, contextIsSwitching, registerUnsavedWork } from "@erpx/feature-work_projection/lib/context-switch";
-import { Button, Field, InlineNotice, Select, Stack, TextInput } from "@erpx/ui/components/foundation";
+import { Stack } from "@erpx/ui/components/foundation";
 import { useHydrated } from "@erpx/ui/components/use-hydrated";
 import {useAccountPreferences} from '@erpx/feature-identity_access/components/account-preferences-context';
 import {accountProfileAcknowledgement,accountProfilePreferenceEvent,accountProfileResponseCurrent,observeAccountProfileWitness,type AccountProfileWitness} from '@erpx/feature-identity_access/lib/account-profile-client';
+
+import {AccountProfileFields} from '@erpx/feature-identity_access/components/account-profile-fields';
 
 const draftOf = (profile: AccountProfile) => ({ name: profile.name, language: profile.preferences.language, appearance: profile.preferences.appearance });
 const unchanged = (draft: ReturnType<typeof draftOf>, baseline: AccountProfile) => JSON.stringify(draft) === JSON.stringify(draftOf(baseline));
@@ -108,23 +110,6 @@ export function AccountProfileForm({ accountKey, initial, language }: { accountK
     }
   }
   return <form onSubmit={submit} data-work-dirty={dirty ? "true" : undefined}><Stack>
-    <Field appearance="standard" label={th ? "ชื่อที่แสดง" : "Display name"} required>
-      <TextInput appearance="standard" autoComplete="name" required maxLength={160} value={state.draft.name} disabled={!hydrated || pending || invalidated} onChange={event => edit({ name: event.target.value })} />
-    </Field>
-    <Field appearance="standard" label={th ? "อีเมล" : "Email"}><TextInput appearance="standard" type="email" autoComplete="email" readOnly value={state.baseline.email} /></Field>
-    <Field appearance="standard" label={th ? "ภาษา" : "Language"}>
-      <Select appearance="standard" value={state.draft.language} disabled={!hydrated || pending || invalidated} onChange={event => edit({ language: event.target.value as "en" | "th" })}>
-        <option value="en">English</option><option value="th">ไทย</option>
-      </Select>
-    </Field>
-    <Field appearance="standard" label={th ? "รูปแบบสี" : "Theme"}>
-      <Select appearance="standard" value={state.draft.appearance} disabled={!hydrated || pending || invalidated} onChange={event => edit({ appearance: event.target.value as "system" | "light" | "dark" })}>
-        <option value="system">{th ? "ตามอุปกรณ์" : "System"}</option><option value="light">{th ? "สว่าง" : "Light"}</option><option value="dark">{th ? "มืด" : "Dark"}</option>
-      </Select>
-    </Field>
-    {error && <InlineNotice tone="danger" role="alert">{error}{" "}<Button appearance="standard" variant="plain" type="button" disabled={pending || invalidated} onClick={() => void loadSaved()}>{th ? "โหลดค่าที่บันทึกไว้" : "Load saved settings"}</Button></InlineNotice>}
-    {saved && <InlineNotice tone="success">{th ? "บันทึกการตั้งค่าบัญชีแล้ว" : "Account settings saved."}</InlineNotice>}
-    {invalidated && <InlineNotice tone="warning">{th ? "บัญชีหรือเซสชันเปลี่ยน โปรดโหลดหน้าใหม่ก่อนทำต่อ" : "Your account or session changed. Reload before continuing."}</InlineNotice>}
-    <div><Button appearance="standard" type="submit" clientManaged pending={pending} disabled={invalidated || !dirty}>{th ? "บันทึกการตั้งค่า" : "Save account settings"}</Button></div>
+    <AccountProfileFields th={th} draft={state.draft} email={state.baseline.email} hydrated={hydrated} pending={pending} invalidated={invalidated} dirty={dirty} error={error} saved={saved} onEdit={edit} onLoadSaved={() => void loadSaved()} />
   </Stack></form>;
 }

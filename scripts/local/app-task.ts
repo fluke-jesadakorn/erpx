@@ -27,13 +27,5 @@ if (import.meta.main) {
     await (await import("./isolated-app-build")).buildIsolatedApp(selected,settings.bundlers[selected]??"webpack");
     process.exit(0);
   }
-  const metadata = selected === "compat" ? { port: 3200 } : appDefinition(selected);
-  const settingsPath = resolve(root, "scripts/local/workspace-settings.json");
-  const settings = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, "utf8")) : { bundlers: {} };
-  const child = Bun.spawn([pinnedNode(), ...appTaskArguments(selected, mode as "dev" | "build", metadata.port, settings.bundlers[selected] ?? "webpack")], {
-    cwd: root, stdin: "inherit", stdout: "inherit", stderr: "inherit",
-    env: { ...process.env, ERPX_APP_ID: selected, ERPX_REPOSITORY_ROOT: root, ...(mode === "build" ? { ERPX_BUILD_DIR: ".build", NODE_OPTIONS: "--max-old-space-size=8192" } : {}) },
-  });
-  for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => child.kill(signal));
-  process.exitCode = await child.exited;
+  throw new Error('DEVELOPMENT_REQUIRES_ROOT_SUPERVISOR:use bun run dev -- --app='+selected);
 }

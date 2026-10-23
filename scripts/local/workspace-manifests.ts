@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, symlinkSync } from "node:fs";
-import { dirname, extname, resolve, relative } from "node:path";
+import { extname, resolve } from "node:path";
 import ts from "typescript";
 import { refreshWorkspaceStyles } from "../assets/workspace-styles";
 import { appDefinitions } from "@erpx/contracts/apps";
@@ -48,7 +48,7 @@ for (const app of [...appDefinitions, { id: "compat", directory: "apps/compat", 
   const directory = app.directory, deps = dependencies(files(`${directory}/src`));
   Object.assign(deps, { next: version("next"), react: version("react"), "react-dom": version("react-dom"), "@erpx/contracts": "workspace:*" });
   writeFileSync(resolve(root, directory, "package.json"), JSON.stringify({ name: app.package, version: "0.0.0", private: true, type: "module", scripts: {
-    dev: `bun ../../scripts/local/app-task.ts dev --app=${app.id}`,
+    dev: app.id === "compat" ? "bun run --cwd ../.. dev" : `bun run --cwd ../.. dev -- --app=${app.id}`,
     build: `bun ../../scripts/local/app-task.ts build --app=${app.id}`,
     typecheck: app.id === "compat" ? "tsc --noEmit --project tsconfig.json" : `bun ../../scripts/testing/app-typecheck.ts --app=${app.id}`, lint: app.id === "compat" ? "eslint src" : `bun ../../scripts/testing/scoped-lint.ts --app=${app.id}`,
   }, dependencies: deps }, null, 2) + "\n");

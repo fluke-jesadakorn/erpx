@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun ../../scripts/local/app-task.ts dev --app=portal",
+    "dev": "bun run --cwd ../.. dev -- --app=portal",
     "build": "bun ../../scripts/local/app-task.ts build --app=portal",
     "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=portal",
     "lint": "bun ../../scripts/testing/scoped-lint.ts --app=portal"

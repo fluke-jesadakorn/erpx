@@ -1,3 +1,5 @@
+import {spawn} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -41,6 +43,17 @@ async function upgradeEcho(host: string) {
   });
 }
 
+async function prewarmHost(host: string, id: string) {
+  return await new Promise<{code:number|null;stdout:string;stderr:string}>((done,reject)=>{
+    const child=spawn(process.execPath,[fileURLToPath(new URL('../../../scripts/local/prewarm-apps.mjs',import.meta.url))],{stdio:['pipe','pipe','pipe']});
+    let stdout='',stderr='';const timeout=setTimeout(()=>{child.kill('SIGTERM');reject(Error('PREWARM_FIXTURE_TIMEOUT'));},5000);
+    child.stdout.on('data',chunk=>stdout+=chunk);child.stderr.on('data',chunk=>stderr+=chunk);
+    child.once('error',error=>{clearTimeout(timeout);reject(error);});
+    child.once('close',code=>{clearTimeout(timeout);done({code,stdout,stderr});});
+    child.stdin.end(JSON.stringify({version:1,port:3104,token:null,apps:[{id,host}]}));
+  });
+}
+
 it('deduplicates startup, refuses capacity without interrupting streams, and drains owned apps before closing', async () => {
   for (const port of [3104, 3290, 3291]) await free(port);
   const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-supervisor-')));
@@ -54,7 +67,7 @@ it('deduplicates startup, refuses capacity without interrupting streams, and dra
     await writeFile(join(root, 'node_modules/next/package.json'), '{"name":"next","type":"commonjs"}');
     // This process fixture speaks HTTP and owns no database or business service.
     await writeFile(join(root, 'node_modules/next/dist/bin/next'), `const{createServer}=require('node:http'),{appendFileSync,existsSync,readFileSync}=require('node:fs');
-if(process.env.ERPX_PROCESS_ROLE!=='app')process.exit(2);const id=process.env.ERPX_APP_ID,port=Number(process.argv[process.argv.indexOf('--port')+1]);const previous=existsSync('starts.log')?readFileSync('starts.log','utf8'):'';appendFileSync('starts.log',id+'\\n');if(!previous.split('\\n').includes(id))setTimeout(()=>process.exit(1),id==='account'?80:800);let held,readyObserved=false;
+if(process.env.ERPX_PROCESS_ROLE!=='app')process.exit(2);const id=process.env.ERPX_APP_ID,port=Number(process.argv[process.argv.indexOf('--port')+1]);if(process.env.ERPX_APP_PORT!==String(port))process.exit(3);const previous=existsSync('starts.log')?readFileSync('starts.log','utf8'):'';appendFileSync('starts.log',id+'\\n');if(!previous.split('\\n').includes(id))setTimeout(()=>process.exit(1),id==='account'?80:800);let held,readyObserved=false;
 const server=createServer((req,res)=>{res.setHeader('X-ERPX-App',id);if(req.url==='/cancelled-upgrade')appendFileSync('cancelled-upgrade.log','forwarded');if(req.url==='/api/health'){res.write('probing');res.once('finish',()=>readyObserved=true);setTimeout(()=>res.end(id),40);return;}if(req.url==='/stream'){held=res;res.writeHead(200,{'Content-Type':'text/event-stream'});res.write('data: held\\n\\n');return;}if(req.url==='/release'){held?.end('data: done\\n\\n');held=undefined;}res.end(readyObserved?id:'health response was cancelled');});
 server.on('upgrade',(req,socket,head)=>{if(req.url==='/cancelled-upgrade')appendFileSync('cancelled-upgrade.log','forwarded');socket.on('error',()=>socket.destroy());socket.on('end',()=>socket.end());const accept=require('node:crypto').createHash('sha1').update(String(req.headers['sec-websocket-key'])+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');socket.write('HTTP/1.1 101 Switching Protocols\\r\\nConnection: Upgrade\\r\\nUpgrade: websocket\\r\\nSec-WebSocket-Accept: '+accept+'\\r\\nX-Source-Host: '+req.headers.host+'\\r\\nX-Source-Origin: '+req.headers.origin+'\\r\\n\\r\\n');if(head.length)socket.write(head);socket.on('data',chunk=>socket.write(chunk));});server.listen(port,'127.0.0.1');`);
     let budget=1;
@@ -70,6 +83,9 @@ server.on('upgrade',(req,socket,head)=>{if(req.url==='/cancelled-upgrade')append
     const first = await Promise.all([get(3104, account), get(3104, account), get(3104, account)]);
     expect(first.map(result => result.body)).toEqual(['account', 'account', 'account']);
     expect((await readFile(join(root, 'starts.log'), 'utf8')).trim().split('\n')).toEqual(['account', 'account']);
+    const warmed=await prewarmHost(account,'account');expect(warmed.code,warmed.stderr).toBe(0);expect(JSON.parse(warmed.stdout).prewarmed).toEqual(['account']);
+    const mismatched=await prewarmHost(account,'learn');expect(mismatched.code).toBe(1);expect(mismatched.stderr).toContain('APP_PREWARM_FAILED:learn');
+    expect((await readFile(join(root,'starts.log'),'utf8')).trim().split('\n')).toEqual(['account','account']);
     streams.push(await stream(account));
     expect((await get(3104, learn)).status).toBe(503);
     expect(JSON.parse(await readFile(gateway.leasePath, 'utf8')).apps.map((app: { id: string }) => app.id)).toEqual(['account']);

@@ -1687,6 +1687,18 @@
       "runner": "vitest",
       "file": "tests/unit/shared.testing/workspace-graph.test.ts",
       "title": "fails configured app selection when a compiler mapping is invalid or removed"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-hmr.spec.ts",
+      "title": "Account client edits preserve the profile draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/identity_access/workspace-hmr.spec.ts",
+      "title": "Apps server component edits preserve the session through twenty measured HMR updates",
+      "project": "desktop"
     }
   ]
 }

@@ -160,7 +160,9 @@
     "./public/runtime/resources": "./src/public/runtime/resources.ts",
     "./public/runtime/types": "./src/public/runtime/types.ts",
     "./public/simulation-only-adapters": "./src/public/simulation-only-adapters.ts",
-    "./public/technology": "./src/public/technology.ts"
+    "./public/technology": "./src/public/technology.ts",
+    "./adapters/application-request": "./src/adapters/application-request.ts",
+    "./public/application-request": "./src/public/application-request.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

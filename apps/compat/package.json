@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun ../../scripts/local/app-task.ts dev --app=compat",
+    "dev": "bun run --cwd ../.. dev",
     "build": "bun ../../scripts/local/app-task.ts build --app=compat",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "lint": "eslint src"

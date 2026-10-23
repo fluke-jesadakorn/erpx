@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun ../../scripts/local/app-task.ts dev --app=legal-portal",
+    "dev": "bun run --cwd ../.. dev -- --app=legal-portal",
     "build": "bun ../../scripts/local/app-task.ts build --app=legal-portal",
     "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=legal-portal",
     "lint": "bun ../../scripts/testing/scoped-lint.ts --app=legal-portal"

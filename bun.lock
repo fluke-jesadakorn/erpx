@@ -73,6 +73,9 @@
       "dependencies": {
         "@erpx/contracts": "workspace:*",
         "@erpx/feature-account": "workspace:*",
+        "@erpx/feature-runtime": "workspace:*",
+        "@erpx/server-identity_access": "workspace:*",
+        "@erpx/server-runtime": "workspace:*",
         "@erpx/workplace": "workspace:*",
         "next": "16.4.0",
         "react": "19.3.0",
@@ -1663,6 +1666,7 @@
       "name": "@erpx/server-commerce",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-commerce": "workspace:*",
         "@erpx/feature-finance": "workspace:*",
         "@erpx/feature-identity_access": "workspace:*",
@@ -2771,6 +2775,7 @@
       "name": "@erpx/server-workflow",
       "version": "0.0.0",
       "dependencies": {
+        "@erpx/contracts": "workspace:*",
         "@erpx/feature-identity_access": "workspace:*",
         "@erpx/feature-organization": "workspace:*",
         "@erpx/feature-people_payroll": "workspace:*",

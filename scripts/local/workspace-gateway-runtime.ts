@@ -102,7 +102,7 @@ async function acquire(id: string, startupAttempt = 0): Promise<RunningApp> {
   const log = createWriteStream(resolve(logs, `${id}.log`), { flags: "a", mode: 0o600 });
   const child = spawn(node!, [resolve(repository, "node_modules/next/dist/bin/next"), "dev", resolve(repository, "apps", id), "--port", String(port), "--hostname", "127.0.0.1", `--${bundler}`], {
     cwd: repository, stdio: ["ignore", "pipe", "pipe"], env: { ...environment, NODE_ENV: "development",
-      ERPX_APP_ID: id, ERPX_PROCESS_ROLE: "app", ERPX_REPOSITORY_ROOT: repository,
+      ERPX_APP_ID: id, ERPX_APP_PORT: String(port), ERPX_PROCESS_ROLE: "app", ERPX_REPOSITORY_ROOT: repository,
       ERPX_DEV_PG_POOL_MAX: "1", ERPX_CONTROL_PG_POOL_MAX: "2",
       NODE_OPTIONS: `--max-old-space-size=${id === "compat" ? "16384" : environment.ERPX_DEV_APP_HEAP_MIB ?? "4096"}` },
   });

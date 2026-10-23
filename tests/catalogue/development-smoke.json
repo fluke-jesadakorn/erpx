@@ -441,6 +441,10 @@
     {
       "suite": "learning.workspace-hmr.e2e",
       "reason": "Twenty-edit HMR measurement runs only via the explicit workspace-hmr performance command; daily smoke retains the separate single forward functional case."
+    },
+    {
+      "suite": "identity_access.workspace-hmr.e2e",
+      "reason": "Account/Apps twenty-edit compiler measurements run only through the explicit workspace-hmr performance command; full acceptance remains deferred."
     }
   ]
 }

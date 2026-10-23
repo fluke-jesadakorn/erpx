@@ -67,7 +67,8 @@
     "./lib/management-workspace-command": "./src/lib/management-workspace-command.ts",
     "./lib/organization-access-command": "./src/lib/organization-access-command.ts",
     "./lib/auth-client": "./src/lib/auth-client.ts",
-    "./lib/account-security": "./src/lib/account-security.ts"
+    "./lib/account-security": "./src/lib/account-security.ts",
+    "./components/account-profile-fields": "./src/components/account-profile-fields.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

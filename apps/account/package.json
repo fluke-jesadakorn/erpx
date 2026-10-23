@@ -4,17 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun ../../scripts/local/app-task.ts dev --app=account",
+    "dev": "bun run --cwd ../.. dev -- --app=account",
     "build": "bun ../../scripts/local/app-task.ts build --app=account",
     "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=account",
     "lint": "bun ../../scripts/testing/scoped-lint.ts --app=account"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-account": "workspace:*",
+    "@erpx/feature-runtime": "workspace:*",
+    "@erpx/server-identity_access": "workspace:*",
+    "@erpx/server-runtime": "workspace:*",
     "@erpx/workplace": "workspace:*",
     "next": "16.4.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "@erpx/contracts": "workspace:*"
+    "react-dom": "19.3.0"
   }
 }

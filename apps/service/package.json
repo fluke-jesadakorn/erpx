@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun ../../scripts/local/app-task.ts dev --app=service",
+    "dev": "bun run --cwd ../.. dev -- --app=service",
     "build": "bun ../../scripts/local/app-task.ts build --app=service",
     "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=service",
     "lint": "bun ../../scripts/testing/scoped-lint.ts --app=service"

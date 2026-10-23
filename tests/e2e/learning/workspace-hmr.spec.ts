@@ -1,3 +1,4 @@
+import {writeWorkspaceSource} from '../../support/helpers/workspace-hmr';
 import { expect, test, type Request } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readFile, realpath, writeFile } from 'node:fs/promises';
@@ -52,12 +53,12 @@ test('Learn client edits preserve the draft through twenty measured HMR updates'
   }
   const samples:number[]=[];
   try{
-    await writeFile(file,original.replace(needle,'<h2>Start course · HMR warmup</h2>'));
+    await writeWorkspaceSource(file,original.replace(needle,'<h2>Start course · HMR warmup</h2>'));
     await expect(page.getByRole('heading',{name:'Start course · HMR warmup',exact:true})).toBeVisible({timeout:30_000});
     await memory();
     for(let index=0;index<20;index++){
       const label=`Start course · HMR ${index+1}`,started=performance.now();
-      await writeFile(file,original.replace(needle,`<h2>${label}</h2>`));
+      await writeWorkspaceSource(file,original.replace(needle,`<h2>${label}</h2>`));
       await expect(page.getByRole('heading',{name:label,exact:true})).toBeVisible({timeout:15_000});
       samples.push(performance.now()-started);
       expect(await page.evaluate(()=>performance.timeOrigin)).toBe(timeOrigin);
@@ -65,7 +66,7 @@ test('Learn client edits preserve the draft through twenty measured HMR updates'
       await memory();
     }
   }finally{
-    await writeFile(file,original);
+    await writeWorkspaceSource(file,original);
     await expect(heading).toBeVisible({timeout:30_000});
     page.off('request',navigation);
     expect(await readFile(file,'utf8')).toBe(original);

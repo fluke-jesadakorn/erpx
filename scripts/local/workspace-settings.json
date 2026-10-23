@@ -8,8 +8,10 @@
   "maxApps": 4,
   "idleMinutes": 10,
   "bundlers": {
-    "learn": "turbopack"
+    "learn": "turbopack",
+    "account": "turbopack",
+    "apps": "turbopack"
   },
   "defaultBundler": "webpack",
-  "bundlerReason": "Webpack remains the default pending each app comparison. Learn uses its measured Turbopack override; receipts are recorded in the production plan."
+  "bundlerReason": "Account, Apps and Learn use measured Turbopack overrides recorded in the production plan. Webpack remains the default until each remaining app completes its comparison."
 }

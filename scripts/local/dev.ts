@@ -31,10 +31,8 @@ if (occupied) {
     const previewFile = resolve(root, ".scratch/dev/apps/preview.json");
     if (!existsSync(previewFile)) throw new Error("EXISTING_DEVELOPMENT_GATEWAY_REQUIRED_FOR_APP_PREWARM");
     const token = JSON.parse(readFileSync(previewFile,"utf8")).token;
-    for (const id of selected) {
-      const response = await fetch("http://127.0.0.1:3100/api/health", { headers: { host: new URL(appDefinition(id).origin).host, "x-erpx-workspace-preview": token }, signal: AbortSignal.timeout(120_000) });
-      if (!response.ok || response.headers.get("x-erpx-app") !== id) throw new Error(`APP_PREWARM_FAILED:${id}`);
-    }
+    execFileSync(pinnedNode(),[resolve(root,'scripts/local/prewarm-apps.mjs')],{cwd:root,
+      input:JSON.stringify({version:1,port:3100,token,apps:[...new Set(selected)].map(id=>({id,host:new URL(appDefinition(id).origin).host}))}),stdio:['pipe','pipe','inherit']});
   }
   console.log("Reusing the existing ERPX development server on 3100."); process.exit(0);
 }

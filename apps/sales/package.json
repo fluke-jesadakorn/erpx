@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun ../../scripts/local/app-task.ts dev --app=sales",
+    "dev": "bun run --cwd ../.. dev -- --app=sales",
     "build": "bun ../../scripts/local/app-task.ts build --app=sales",
     "typecheck": "bun ../../scripts/testing/app-typecheck.ts --app=sales",
     "lint": "bun ../../scripts/testing/scoped-lint.ts --app=sales"
