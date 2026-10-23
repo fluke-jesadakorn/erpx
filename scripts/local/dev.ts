@@ -45,8 +45,11 @@ if (existsSync(lock)) {
   unlinkSync(lock);
 }
 const descriptor = openSync(lock, "wx", 0o600); writeFileSync(descriptor, String(process.pid)); closeSync(descriptor);
+let styleWatcher:ReturnType<typeof import('./workspace-style-watcher').watchWorkspaceStyleSources>|undefined;
 try {
   prepareNextDevelopment(root);
+  const styles=await import('../assets/workspace-styles');
+  styleWatcher=(await import('./workspace-style-watcher')).watchWorkspaceStyleSources(root,styles.refreshWorkspaceStyles().files);
   const bundled = await Bun.build({ entrypoints: [resolve(root, "scripts/local/dev-gateway.ts")], outdir: directory,
     target: "node", format: "esm", naming: "gateway.mjs", env: "disable" });
   if (!bundled.success) throw new Error(bundled.logs.map(log => log.message).join("\n"));
@@ -55,6 +58,9 @@ try {
     env: { ...process.env, ERPX_REPOSITORY_ROOT: root, ERPX_NODE_BIN: node,
       ERPX_DEV_PREWARM: [...new Set(selected)].join(","), PATH: dirname(process.execPath) + ":" + process.env.PATH } });
   writeFileSync(resolve(directory, "gateway.pid"), String(child.pid) + "\n", { mode: 0o600 });
+  // The one-off parser/bundler graph is no longer needed. Keep only the small
+  // watcher text snapshot while the independent Node gateway serves requests.
+  Bun.gc(true);
   for (const signal of ["SIGTERM", "SIGINT"] as const) process.on(signal, () => child.kill(signal));
   process.exitCode = await child.exited;
-} finally { if (existsSync(lock) && readFileSync(lock, "utf8") === String(process.pid)) unlinkSync(lock); }
+} finally { styleWatcher?.close();if (existsSync(lock) && readFileSync(lock, "utf8") === String(process.pid)) unlinkSync(lock); }

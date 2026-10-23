@@ -1,10 +1,14 @@
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
+import {readFileSync} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { runtimeSourceFingerprint } from '../../../scripts/local/source-fingerprint';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createWorkspaceGraph, selectWorkspaceSuites, selectCandidateSuites, appRuntimeFingerprint, workspaceFingerprint } from '../../../scripts/testing/workspace-graph';
 import type { Suite } from '../../../scripts/testing/catalogue';
+import { workspaceStyleSheet } from '../../../scripts/assets/workspace-styles';
+import { Scanner } from '@tailwindcss/oxide';
+import {watchWorkspaceStyleSources,workspaceStyleGraphChanged,workspaceStyleWatchInput} from '../../../scripts/local/workspace-style-watcher';
 const suite=(id:string,app:string,file:string):Suite=>({id,lane:'unit',owner:'shared.testing',modules:['finance'],files:[file],fixture:'none',requires:{jobs:false,scanner:false},apps:[app],packages:['@erpx/contracts']});
 function sources(){return new Map([
  ['apps/finance/src/app/page.tsx','import "@erpx/contracts/finance";'],
@@ -18,6 +22,71 @@ function sources(){return new Map([
  ['public/brand/icon.svg','asset-sha256:one'],
  ['bun.lock','locked'],['tsconfig.base.json','{}']]);}
 const suites=[suite('finance','finance','tests/unit/shared.testing/finance.test.ts'),suite('people','people','tests/unit/shared.testing/people.test.ts')];
+it('keeps CSS invalidation within actual clients even when another app shares their package owner',()=>{
+ const files=sources();
+ files.set('apps/finance/src/app/page.tsx','import "./globals.css"; import "@erpx/feature-example/finance";');
+ files.set('apps/people/src/app/page.tsx','import "./globals.css"; import "@erpx/feature-example/people";');
+ files.set('packages/feature-example/src/finance.tsx','import type {Data} from "./types"; import("./lazy"); export const Panel=()=> <div className="p-4"/>;');
+ files.set('packages/feature-example/src/people.tsx','export const Panel=()=> <div className="p-5"/>;');
+ files.set('packages/feature-example/src/types.ts','export type Data={label:string};');
+ files.set('packages/feature-example/src/lazy.tsx','export const Lazy=()=> <div className="p-6"/>;');
+ files.set('packages/workplace/src/routes/globals.css','');
+ // Empty styles allow deriving the initial executable graph without any broad scan.
+ for(const id of ['finance','people'])files.set(`apps/${id}/src/app/globals.css`,'');
+ const executable=createWorkspaceGraph(files);
+ for(const id of ['finance','people'])files.set(`apps/${id}/src/app/globals.css`,workspaceStyleSheet(executable,`apps/${id}`));
+ const css=files.get('apps/finance/src/app/globals.css')!;
+ expect(css).toContain('feature-example/src/finance.tsx');expect(css).toContain('feature-example/src/lazy.tsx');
+ expect(css).not.toContain('feature-example/src/people.tsx');expect(css).not.toContain('feature-example/src/types.ts');
+ const before=createWorkspaceGraph(files),changed=new Map(files);
+ changed.set('packages/feature-example/src/people.tsx','export const Panel=()=> <div className="p-8"/>;');
+ const after=createWorkspaceGraph(changed);
+ expect(appRuntimeFingerprint(after,'finance')).toBe(appRuntimeFingerprint(before,'finance'));
+ expect(appRuntimeFingerprint(after,'people')).not.toBe(appRuntimeFingerprint(before,'people'));
+ expect(selectCandidateSuites(after,before,suites,['packages/feature-example/src/people.tsx']).apps).toEqual(['people']);
+});
+
+it('scans an exact Next route filename with literal brackets using the installed Tailwind scanner',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'erpx-style-source-'));
+ try{
+  const file=join(root,'routes/[holdingSlug]/page.tsx');await mkdir(dirname(file),{recursive:true});
+  await writeFile(file,'<div className="bg-red-500 p-7"/>');
+  await writeFile(join(root,'routes/unrelated.tsx'),'<div className="bg-blue-500"/>');
+  const scanner=new Scanner({sources:[{base:root,pattern:'routes/[holdingSlug]/page.tsx',negated:false}]}),candidates=scanner.scan();
+  expect(candidates).toContain('bg-red-500');expect(candidates).not.toContain('bg-blue-500');expect(scanner.files).toEqual([await realpath(file)]);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
+it('refreshes style membership for executable edges, additions and deletion while ignoring ordinary HMR edits',()=>{
+ const file='packages/ui/src/panel.tsx';
+ expect(workspaceStyleGraphChanged(file,'import "./button"; const label="Old";','import "./button"; const label="New";')).toBe(false);
+ expect(workspaceStyleGraphChanged(file,'import type {Data} from "./old";','import type {Data} from "./new";')).toBe(false);
+ expect(workspaceStyleGraphChanged(file,'import "./old";','import "./new";')).toBe(true);
+ expect(workspaceStyleGraphChanged(file,'const load=()=>null;','const load=()=>import("./new");')).toBe(true);
+ expect(workspaceStyleGraphChanged(file,undefined,'export const label="New";')).toBe(true);
+ expect(workspaceStyleGraphChanged(file,'export const label="Old";',undefined)).toBe(true);
+ expect(workspaceStyleGraphChanged('packages/ui/package.json','{"exports":{}}','{"exports":{"./new":"./src/new.tsx"}}')).toBe(true);
+ for(const path of ['apps/account/.next/types/routes.ts','packages/ui/node_modules/example/src/ui.tsx','apps/account/src/app/globals.css'])expect(workspaceStyleWatchInput(path)).toBe(false);
+});
+
+it('updates newly imported sources during a live watch and closes its owned watchers',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'erpx-style-watch-')),file='apps/account/src/panel.tsx',initial='export const Panel=()=> <div className="p-4"/>;',report=vi.fn();
+ const inputs=sources();inputs.set(file,initial);inputs.set('packages/ui/src/new.tsx','export const New=()=> <div className="p-7"/>;');
+ let css=workspaceStyleSheet(createWorkspaceGraph(inputs),'apps/account');
+ const refresh=vi.fn(()=>{const current=new Map(inputs);current.set(file,readFileSync(join(root,file),'utf8'));css=workspaceStyleSheet(createWorkspaceGraph(current),'apps/account');});
+ expect(css).not.toContain('packages/ui/src/new.tsx');
+ await mkdir(join(root,'apps/account/src'),{recursive:true});await mkdir(join(root,'packages'),{recursive:true});await writeFile(join(root,file),initial);
+ const watcher=watchWorkspaceStyleSources(root,new Map([[file,initial]]),{refresh,report,delayMs:20});
+ try{
+  await writeFile(join(root,file),initial.replace('p-4','p-8'));
+  await new Promise(done=>setTimeout(done,80));expect(refresh).not.toHaveBeenCalled();
+  await writeFile(join(root,file),'import "@erpx/ui/new";'+initial);
+  await vi.waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1),{timeout:3000});
+  expect(css).toContain('packages/ui/src/new.tsx');
+  watcher.close();await writeFile(join(root,file),'import "./other";'+initial);
+  await new Promise(done=>setTimeout(done,80));expect(refresh).toHaveBeenCalledTimes(1);expect(report).not.toHaveBeenCalled();
+ }finally{watcher.close();await rm(root,{recursive:true,force:true});}
+});
 describe('workspace impact boundaries',()=>{
  it('selects only the real consumers and does not expand app selection through common helpers',()=>{
   const graph=createWorkspaceGraph(sources());

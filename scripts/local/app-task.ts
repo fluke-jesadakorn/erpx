@@ -23,6 +23,7 @@ if (import.meta.main) {
   if (!selected || !["dev", "build"].includes(mode)) throw new Error("EXPLICIT_APP_TASK_REQUIRED");
   if(mode === "build"){
     if(selected === "compat")throw new Error("COMPATIBILITY_RELEASE_REQUIRES_EXPLICIT_REVIEW");
+    (await import('../assets/workspace-styles')).refreshWorkspaceStyles();
     const settings=JSON.parse(readFileSync(resolve(root,"scripts/local/workspace-settings.json"),"utf8"));
     await (await import("./isolated-app-build")).buildIsolatedApp(selected,settings.bundlers[selected]??"webpack");
     process.exit(0);
