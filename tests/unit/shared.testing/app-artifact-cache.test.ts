@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { cp, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, readlink, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { it, expect } from 'vitest';
 import { workspaceCopyInput } from '../../../scripts/local/workspace-copy-input';
 import { verifyAppArtifact } from '../../../scripts/local/app-artifact-cache';
+import { artifactSymbolicLinks, relocateCompilerDependencyAliases } from '../../../scripts/local/standalone-links';
 
 it('requires the exact artifact tree and treats damaged or escaping links as cache misses', async () => {
   const root = await mkdtemp(join(tmpdir(), 'erpx-artifact-')), output = join(root, 'artifact');
@@ -23,6 +24,40 @@ it('requires the exact artifact tree and treats damaged or escaping links as cac
     await rm(join(root, 'outside.js'));
     expect(await verifyAppArtifact(output, receipt)).toBe(false);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+async function compilerAliasFixture(){
+  const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-compiler-alias-'))),modules=join(root,'snapshot/node_modules'),compiled=join(root,'snapshot/apps/learn/.build'),output=join(root,'artifact');
+  for(const path of [join(modules,'pg'),join(compiled,'node_modules'),join(output,'node_modules'),join(output,'standalone/node_modules/pg')])await mkdir(path,{recursive:true});
+  const manifest=JSON.stringify({name:'pg',version:'8.23.1'});
+  for(const path of [join(modules,'pg/package.json'),join(output,'standalone/node_modules/pg/package.json')])await writeFile(path,manifest);
+  await symlink(join(modules,'pg'),join(compiled,'node_modules/pg-hash'),'dir');
+  await symlink(join(modules,'pg'),join(output,'node_modules/pg-hash'),'dir');
+  return{root,modules,compiled,output};
+}
+it('relocates compiler dependency aliases into the exact traced runtime package',async()=>{
+  const f=await compilerAliasFixture();try{
+    expect(await relocateCompilerDependencyAliases(f.compiled,f.output,f.modules)).toBe(1);
+    expect(await realpath(join(f.output,'node_modules/pg-hash'))).toBe(join(f.output,'standalone/node_modules/pg'));
+    expect(await readlink(join(f.output,'node_modules/pg-hash'))).toBe('../standalone/node_modules/pg');
+  }finally{await rm(f.root,{recursive:true,force:true});}
+});
+it('rejects changed traced package identity before mutating any compiler alias',async()=>{
+  const f=await compilerAliasFixture();try{
+    await writeFile(join(f.output,'standalone/node_modules/pg/package.json'),JSON.stringify({name:'pg',version:'different'}));
+    await expect(relocateCompilerDependencyAliases(f.compiled,f.output,f.modules)).rejects.toThrow('COMPILER_ALIAS_PACKAGE_IDENTITY_CHANGED');
+    expect(await readlink(join(f.output,'node_modules/pg-hash'))).toBe(join(f.modules,'pg'));
+  }finally{await rm(f.root,{recursive:true,force:true});}
+});
+it('enumerates aliases without descending into or mutating their foreign targets',async()=>{
+  const f=await compilerAliasFixture();try{
+    const foreign=join(f.root,'foreign');await mkdir(foreign);await writeFile(join(foreign,'keep'),'retain');await symlink('keep',join(foreign,'nested'));
+    await rm(join(f.compiled,'node_modules/pg-hash'));await symlink(foreign,join(f.compiled,'node_modules/pg-hash'),'dir');
+    await rm(join(f.output,'node_modules/pg-hash'));await symlink(foreign,join(f.output,'node_modules/pg-hash'),'dir');
+    expect(await artifactSymbolicLinks(join(f.output,'node_modules'))).toEqual([join(f.output,'node_modules/pg-hash')]);
+    await expect(relocateCompilerDependencyAliases(f.compiled,f.output,f.modules)).rejects.toThrow('COMPILER_ALIAS_SOURCE_OUTSIDE_SNAPSHOT');
+    expect(await readlink(join(foreign,'nested'))).toBe('keep');expect(await readFile(join(foreign,'keep'),'utf8')).toBe('retain');
+  }finally{await rm(f.root,{recursive:true,force:true});}
 });
 
 

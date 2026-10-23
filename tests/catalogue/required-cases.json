@@ -1631,6 +1631,62 @@
       "runner": "vitest",
       "file": "tests/unit/shared.testing/workspace-graph.test.ts",
       "title": "separates type and lint inputs from runtime compiler inputs while retaining their validation dependency"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/learning/workspace-hmr.spec.ts",
+      "title": "Learn client edits preserve the draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/browser-workspace-modules.test.ts",
+      "title": "resolves cloned workspace imports inside the case while retaining shared third-party bytes"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/browser-workspace-modules.test.ts",
+      "title": "rejects a workspace alias escaping the owned template before creating case modules"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/browser-workspace-modules.test.ts",
+      "title": "refuses unrelated clone roots and never replaces an existing case installation"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/app-artifact-cache.test.ts",
+      "title": "requires the exact artifact tree and treats damaged or escaping links as cache misses"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/app-artifact-cache.test.ts",
+      "title": "relocates compiler dependency aliases into the exact traced runtime package"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/app-artifact-cache.test.ts",
+      "title": "rejects changed traced package identity before mutating any compiler alias"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/app-artifact-cache.test.ts",
+      "title": "enumerates aliases without descending into or mutating their foreign targets"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/app-artifact-cache.test.ts",
+      "title": "copies source while excluding private environment and generated state in nested workspaces"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "selects the app whose compiler or host activation changed without expanding an idle-budget edit"
+    },
+    {
+      "runner": "vitest",
+      "file": "tests/unit/shared.testing/workspace-graph.test.ts",
+      "title": "fails configured app selection when a compiler mapping is invalid or removed"
     }
   ]
 }

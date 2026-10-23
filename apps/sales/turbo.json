@@ -18699,6 +18699,7 @@
         "$TURBO_ROOT$/tsconfig.base.json",
         "$TURBO_ROOT$/postcss.config.mjs",
         "$TURBO_ROOT$/scripts/local/app-task.ts",
+        "$TURBO_ROOT$/scripts/local/workspace-settings.json",
         "$TURBO_ROOT$/scripts/local/isolated-app-build.ts",
         "$TURBO_ROOT$/scripts/local/standalone-links.ts",
         "$TURBO_ROOT$/scripts/local/app-artifact-cache.ts",

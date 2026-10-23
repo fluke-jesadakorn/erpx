@@ -13,11 +13,16 @@ export function workspaceBrowserApps(raw: string | undefined) {
   return apps as string[];
 }
 
-export type DevelopmentHostProfile = { apps: string[]; entryApp: string };
+export function workspaceBrowserBundler(raw: string | undefined) {
+  if (raw !== undefined && raw !== 'webpack' && raw !== 'turbopack') throw new Error('EXPLICIT_WORKSPACE_BROWSER_BUNDLER_REQUIRED');
+  return raw ?? 'webpack';
+}
+export type DevelopmentHostProfile = { apps: string[]; entryApp: string; bundler?: 'webpack' | 'turbopack' };
 export function developmentHostProfile(value: DevelopmentHostProfile): DevelopmentHostProfile {
   const apps = workspaceBrowserApps(JSON.stringify(value.apps));
   if (!apps || !apps.includes(value.entryApp)) throw new Error('DEVELOPMENT_HOST_ENTRY_APP_REQUIRED');
-  return { apps, entryApp: value.entryApp };
+  workspaceBrowserBundler(value.bundler);
+  return { apps, entryApp: value.entryApp, ...(value.bundler ? { bundler: value.bundler } : {}) };
 }
 export function developmentHostOrigin(app: string) {
   return app === 'compat' ? 'https://console-dev-erpx.jesadakorn.com' : appDefinition(app).origin;
@@ -42,7 +47,7 @@ export function readDevelopmentHostLease(root: string, environment: NodeJS.Proce
   if (lease.runtime.path !== join(directory, 'workspace-runtime.json') || !lease.certificate.path.startsWith(join(directory, 'workspace-tls-')) || !lease.certificate.path.endsWith('/certificate.pem')) throw new Error('DEVELOPMENT_HOST_RESOURCE_BINDING_REQUIRED');
   for (const binding of [lease.runtime, lease.certificate]) if (createHash('sha256').update(readPrivate(binding.path)).digest('hex') !== binding.sha256) throw new Error('DEVELOPMENT_HOST_BINDING_CHANGED');
   const runtime = JSON.parse(readPrivate(lease.runtime.path).toString());
-  if (runtime.pid !== state.pid || runtime.run !== run || runtime.sourceRoot !== join(directory, 'app') || runtime.sourceFingerprint !== state.sourceFingerprint || JSON.stringify(runtime.apps) !== JSON.stringify(apps)) throw new Error('DEVELOPMENT_HOST_RUNTIME_CHANGED');
+  if (runtime.pid !== state.pid || runtime.run !== run || runtime.sourceRoot !== join(directory, 'app') || runtime.sourceFingerprint !== state.sourceFingerprint || JSON.stringify(runtime.apps) !== JSON.stringify(apps) || (runtime.bundler??'webpack')!==(state.workspaceBundler??'webpack')) throw new Error('DEVELOPMENT_HOST_RUNTIME_CHANGED');
   for (const pid of [lease.pid, runtime.pid]) { if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('DEVELOPMENT_HOST_PROCESS_REQUIRED'); process.kill(pid, 0); }
   return lease as { pid: number; spki: string; origins: string[]; apps: string[] };
 }

@@ -208,12 +208,16 @@ it('retains lazy import and require edges alongside type-only imports of the sam
 });
 
 import { startWorkspaceBrowserRuntime } from '../../../scripts/testing/workspace-browser-runtime';
-import { workspaceBrowserApps } from '../../../scripts/testing/development-host-profile';
+import { developmentHostProfile, workspaceBrowserApps, workspaceBrowserBundler } from '../../../scripts/testing/development-host-profile';
 it('keeps development app profiles explicit and rejects compatibility mixed into product apps', async () => {
   expect(workspaceBrowserApps(undefined)).toBeNull();
   expect(workspaceBrowserApps('["account","apps","learn"]')).toEqual(['account', 'apps', 'learn']);
   expect(workspaceBrowserApps('["compat"]')).toEqual(['compat']);
   for (const value of ['[]', '["compat","learn"]', '["learn","learn"]', '["unknown"]']) expect(() => workspaceBrowserApps(value)).toThrow();
+  expect(workspaceBrowserBundler(undefined)).toBe('webpack');
+  expect(developmentHostProfile({apps:['account','learn'],entryApp:'learn',bundler:'turbopack'})).toEqual({apps:['account','learn'],entryApp:'learn',bundler:'turbopack'});
+  expect(()=>developmentHostProfile({apps:['learn'],entryApp:'learn',bundler:'unknown' as 'webpack'})).toThrow('EXPLICIT_WORKSPACE_BROWSER_BUNDLER_REQUIRED');
+  expect(()=>developmentHostProfile({apps:['learn'],entryApp:'finance'})).toThrow('DEVELOPMENT_HOST_ENTRY_APP_REQUIRED');
   await expect(startWorkspaceBrowserRuntime()).rejects.toThrow('ISOLATED_WORKSPACE_BROWSER_RUNTIME_REQUIRED');
 });
 
@@ -318,5 +322,22 @@ it('separates type and lint inputs from runtime compiler inputs while retaining 
   }
   expect(config.tasks.build.dependsOn).toEqual(['typecheck']);
   expect(config.tasks.build.inputs).toContain('$TURBO_ROOT$/scripts/local/isolated-app-build.ts');
-  expect(config.tasks.build.inputs).not.toContain('$TURBO_ROOT$/scripts/local/workspace-settings.json');
+  expect(config.tasks.build.inputs).toContain('$TURBO_ROOT$/scripts/local/workspace-settings.json');
+});
+
+it('selects the app whose compiler or host activation changed without expanding an idle-budget edit',()=>{
+  const path='scripts/local/workspace-settings.json',files=sources(),settings={version:1,bundlers:{finance:'webpack'},defaultBundler:'webpack',activeApps:[] as string[],idleMinutes:10};
+  files.set(path,JSON.stringify(settings));const base=createWorkspaceGraph(files);
+  files.set(path,JSON.stringify({...settings,bundlers:{finance:'turbopack'},idleMinutes:20}));const head=createWorkspaceGraph(files);
+  const selected=selectCandidateSuites(head,base,suites,[path]);expect(selected.apps).toEqual(['finance']);expect(selected.suites.map(suite=>suite.id)).toEqual(['finance']);
+  files.set(path,JSON.stringify({...settings,bundlers:{finance:'turbopack'},idleMinutes:30}));
+  expect(selectCandidateSuites(createWorkspaceGraph(files),head,suites,[path]).apps).toEqual([]);
+  files.set(path,JSON.stringify({...settings,activeApps:['people']}));
+  expect(selectCandidateSuites(createWorkspaceGraph(files),base,suites,[path]).apps).toEqual(['people']);
+});
+it('fails configured app selection when a compiler mapping is invalid or removed',()=>{
+  const path='scripts/local/workspace-settings.json',files=sources();files.set(path,JSON.stringify({version:1,bundlers:{finance:'unknown'},activeApps:[]}));
+  expect(()=>selectCandidateSuites(createWorkspaceGraph(files),createWorkspaceGraph(sources()),suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
+  files.set(path,JSON.stringify({version:1,bundlers:{},activeApps:[]}));const base=createWorkspaceGraph(files);files.delete(path);
+  expect(()=>selectCandidateSuites(createWorkspaceGraph(files),base,suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
 });

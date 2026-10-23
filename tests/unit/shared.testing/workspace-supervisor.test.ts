@@ -43,8 +43,8 @@ it('deduplicates startup, refuses capacity without interrupting streams, and dra
     await writeFile(join(root, 'node_modules/next/package.json'), '{"name":"next","type":"commonjs"}');
     // This process fixture speaks HTTP and owns no database or business service.
     await writeFile(join(root, 'node_modules/next/dist/bin/next'), `const{createServer}=require('node:http'),{appendFileSync,existsSync,readFileSync}=require('node:fs');
-if(process.env.ERPX_PROCESS_ROLE!=='app')process.exit(2);const id=process.env.ERPX_APP_ID,port=Number(process.argv[process.argv.indexOf('--port')+1]);const previous=existsSync('starts.log')?readFileSync('starts.log','utf8'):'';appendFileSync('starts.log',id+'\\n');if(!previous.split('\\n').includes(id))setTimeout(()=>process.exit(1),id==='account'?80:800);let held;
-createServer((req,res)=>{res.setHeader('X-ERPX-App',id);if(req.url==='/stream'){held=res;res.writeHead(200,{'Content-Type':'text/event-stream'});res.write('data: held\\n\\n');return;}if(req.url==='/release'){held?.end('data: done\\n\\n');held=undefined;}res.end(id);}).listen(port,'127.0.0.1');`);
+if(process.env.ERPX_PROCESS_ROLE!=='app')process.exit(2);const id=process.env.ERPX_APP_ID,port=Number(process.argv[process.argv.indexOf('--port')+1]);const previous=existsSync('starts.log')?readFileSync('starts.log','utf8'):'';appendFileSync('starts.log',id+'\\n');if(!previous.split('\\n').includes(id))setTimeout(()=>process.exit(1),id==='account'?80:800);let held,readyObserved=false;
+createServer((req,res)=>{res.setHeader('X-ERPX-App',id);if(req.url==='/api/health'){res.write('probing');res.once('finish',()=>readyObserved=true);setTimeout(()=>res.end(id),40);return;}if(req.url==='/stream'){held=res;res.writeHead(200,{'Content-Type':'text/event-stream'});res.write('data: held\\n\\n');return;}if(req.url==='/release'){held?.end('data: done\\n\\n');held=undefined;}res.end(readyObserved?id:'health response was cancelled');}).listen(port,'127.0.0.1');`);
     gateway = await startWorkspaceGateway({ root, node: process.execPath, port: 3104, preview: false, fallback: null,
       appPorts: new Map([['account', 3290], ['learn', 3291]]), environment: { NODE_ENV: "development", PATH: process.env.PATH, ERPX_PROCESS_ROLE: "jobs" },
       settings: () => ({ version: 1, activeApps: ['account', 'learn'], maxApps: 1, idleMinutes: 10, bundlers: {}, defaultBundler: 'webpack' }) });
@@ -61,7 +61,7 @@ createServer((req,res)=>{res.setHeader('X-ERPX-App',id);if(req.url==='/stream'){
     expect((await get(3104, learn)).status).toBe(503);
     expect(JSON.parse(await readFile(gateway.leasePath, 'utf8')).apps.map((app: { id: string }) => app.id)).toEqual(['account']);
     streams[0].req.destroy(); streams[0].res.destroy(); await pause(50);
-    await gateway.prewarm('learn');await pause(1000);
+    await gateway.prewarm('learn');
     expect(await get(3104, learn)).toEqual({ status: 200, body: 'learn' });
     expect((await get(3104, new URL(appDefinition('finance').origin).host)).status).toBe(503);
     streams.push(await stream(learn));

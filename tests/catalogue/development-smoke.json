@@ -437,6 +437,10 @@
     {
       "suite": "shared.executive.executive-work-mcp.e2e",
       "reason": "Full workflow, visual matrix, provider, or compiled-artifact coverage remains in the intentional production acceptance profile."
+    },
+    {
+      "suite": "learning.workspace-hmr.e2e",
+      "reason": "Twenty-edit HMR measurement runs only via the explicit workspace-hmr performance command; daily smoke retains the separate single forward functional case."
     }
   ]
 }

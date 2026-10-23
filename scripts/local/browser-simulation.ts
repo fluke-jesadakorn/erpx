@@ -5,7 +5,7 @@
  * ERPX_BROWSER_SIMULATION_PORT=3104 ERPX_BROWSER_SIMULATION_RELEASE_DIR=<release> bun run demo:start <run-id>
  * ERPX_BROWSER_SIMULATION_PORT=3104 bun run demo:destroy <run-id>
  */
-import {mkdir,readFile,writeFile,cp,chmod,open,rm,realpath,readdir,symlink} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,cp,chmod,open,rm,realpath,readdir} from 'node:fs/promises';
 import {existsSync,constants} from 'node:fs';
 import {resolve,join,dirname} from 'node:path';
 import {createHash,randomBytes} from 'node:crypto';
@@ -19,7 +19,8 @@ import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders
 import {runtimeSourceFingerprint} from './source-fingerprint';
 import {copyReleaseArtifact} from './copy-release-artifact';
 import {workspaceCopyInput} from './workspace-copy-input';
-import {workspaceBrowserApps} from '../testing/development-host-profile';
+import {workspaceBrowserApps,workspaceBrowserBundler} from '../testing/development-host-profile';
+import {linkBrowserWorkspaceModules} from '../testing/browser-workspace-modules';
 import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence,moduleBrowserReleaseVerificationCompanyIds} from '../testing/browser-fixture-metadata';
 import {browserChildEnvironment} from '../testing/runner-environment';
 const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=Number(process.env.ERPX_BROWSER_SIMULATION_PORT??'3102');
@@ -39,7 +40,7 @@ const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holdi
 const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?(process.env.ERPX_BROWSER_SIMULATION_RUN_ID??randomBytes(6).toString('hex')):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={executionMode?:"development-smoke";workspaceApps?:string[];run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
+type State={executionMode?:"development-smoke";workspaceApps?:string[];workspaceBundler?:"webpack"|"turbopack";run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
 const productHosts=process.env.ERPX_BROWSER_SIMULATION_PRODUCT_HOSTS==='1';
 if(productHosts&&(port!==3104||!process.env.ERPX_PRODUCT_HOST_PLAN||!process.env.ERPX_PRODUCT_HOST_PLAN_SHA256))throw Error('EXPLICIT_PRODUCT_HOST_ARM_REQUIRED');
 const executiveWorkHosts=process.env.ERPX_BROWSER_SIMULATION_EXECUTIVE_WORK_HOSTS==='1';
@@ -49,6 +50,8 @@ if(formsHosts&&(port!==3104||profile!=='engineering'||!process.env.ERPX_FORMS_HO
 if(!formsHosts&&(process.env.ERPX_FORMS_HOST_PLAN!==undefined||process.env.ERPX_FORMS_HOST_PLAN_SHA256!==undefined))throw Error('FORMS_HOST_PLAN_REQUIRES_FORMS_MODE');
 if([productHosts,executiveWorkHosts,formsHosts].filter(Boolean).length>1)throw Error('BROWSER_HOST_MODES_ARE_EXCLUSIVE');
 const workspaceApps=workspaceBrowserApps(process.env.ERPX_BROWSER_WORKSPACE_APPS);
+const workspaceBundler=workspaceBrowserBundler(process.env.ERPX_BROWSER_WORKSPACE_BUNDLER);
+if(!workspaceApps&&process.env.ERPX_BROWSER_WORKSPACE_BUNDLER!==undefined)throw new Error('WORKSPACE_BUNDLER_REQUIRES_WORKSPACE_PROFILE');
 if(workspaceApps&&(process.env.ERPX_BROWSER_EXECUTION_MODE!=='development-smoke'||port!==3104||productHosts||executiveWorkHosts||formsHosts||process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR||process.env.ERPX_PMS_PROVIDER_FIXTURE==='1'))throw new Error('WORKSPACE_BROWSER_IS_DEVELOPMENT_ONLY');
 const localAttachmentMode=process.env.ERPX_BROWSER_SIMULATION_ATTACHMENTS==='local';
 const localJobsEnabled=process.env.ERPX_BROWSER_SIMULATION_JOBS==='1';
@@ -68,7 +71,7 @@ const safeEnv=(secret:string)=>({
  HOME:process.env.HOME??'',
  TMPDIR:process.env.TMPDIR??'/tmp',
  NODE_ENV:'development' as const,
- ...(workspaceApps?{ERPX_BROWSER_EXECUTION_MODE:'development-smoke',ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspaceApps)}:{}),
+ ...(workspaceApps?{ERPX_BROWSER_EXECUTION_MODE:'development-smoke',ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspaceApps),ERPX_BROWSER_WORKSPACE_BUNDLER:workspaceBundler}:{}),
  // Match workspace dev headroom while compiling the complete route inventory.
  NODE_OPTIONS:'--max-old-space-size=8192',
  ERPX_ENVIRONMENT:'local',
@@ -125,12 +128,12 @@ if(mode==='prepare'||diagnostic){
  const sourceFingerprint=await runtimeSourceFingerprint(root);
  if(process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT&&process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT!==sourceFingerprint)
   throw new Error('BROWSER_FIXTURE_COMPILED_SOURCE_MISMATCH');
- await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={...(process.env.ERPX_BROWSER_EXECUTION_MODE==='development-smoke'?{executionMode:'development-smoke' as const}:{}),...(workspaceApps?{workspaceApps}:{}),run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint,...(productHosts?{productHosts:true}:{}),...(executiveWorkHosts?{executiveWorkHosts:true}:{}),...(formsHosts?{productHosts:false,executiveWorkHosts:false,formsHosts:true}:{})};await writePrivate(statePath,state);
+ await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={...(process.env.ERPX_BROWSER_EXECUTION_MODE==='development-smoke'?{executionMode:'development-smoke' as const}:{}),...(workspaceApps?{workspaceApps,workspaceBundler}:{}),run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint,...(productHosts?{productHosts:true}:{}),...(executiveWorkHosts?{executiveWorkHosts:true}:{}),...(formsHosts?{productHosts:false,executiveWorkHosts:false,formsHosts:true}:{})};await writePrivate(statePath,state);
  const templateRun=process.env.ERPX_BROWSER_SIMULATION_TEMPLATE_RUN;
  if(templateRun){
   if(!/^[a-f0-9]{12}$/.test(templateRun)||templateRun===run)throw new Error('EXACT_BROWSER_TEMPLATE_RUN_REQUIRED');
   const templateDirectory=join(parent,templateRun),template=JSON.parse(await readFile(join(templateDirectory,'state.json'),'utf8')) as State;
-  if(JSON.stringify(template.workspaceApps??null)!==JSON.stringify(workspaceApps)||template.executionMode!==state.executionMode||template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||Boolean(template.productHosts)!==productHosts||Boolean(template.executiveWorkHosts)!==executiveWorkHosts||Boolean(template.formsHosts)!==formsHosts||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
+  if((template.workspaceBundler??"webpack")!==workspaceBundler||JSON.stringify(template.workspaceApps??null)!==JSON.stringify(workspaceApps)||template.executionMode!==state.executionMode||template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||Boolean(template.productHosts)!==productHosts||Boolean(template.executiveWorkHosts)!==executiveWorkHosts||Boolean(template.formsHosts)!==formsHosts||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
   if(Boolean(template.providerFixture)!==pmsProviderFixtureEnabled)throw new Error('FROZEN_PROVIDER_TEMPLATE_SETTING_REQUIRED');
   const templateManifest=JSON.parse(await readFile(join(templateDirectory,'databases.json'),'utf8')) as {version:number;databases:Record<string,string>;slots:Array<{id:string;write:string;read:string;files:string;internal?:boolean}>};
   for(const [binding,value] of Object.entries(templateManifest.databases)){
@@ -159,7 +162,7 @@ if(mode==='prepare'||diagnostic){
    const relative=path.slice(templateDirectory.length+1);
    return !['state.json','databases.json','databases-jobs.json','databases-migrations.json','server.log','jobs.log','uat-auth','release','provider-fixture.json','provider-fixture.lock'].some(name=>relative===name||relative.startsWith(name+'/'))&&relative!=='app/node_modules'&&!isCaseExecutionEvidence(relative);
   }});
-  await symlink(join(templateDirectory,'app/node_modules'),join(app,'node_modules'),'dir');
+  await linkBrowserWorkspaceModules(join(templateDirectory,'app'),app);
   for(const entry of await readdir(directory))if(entry.endsWith('.json')&&!entry.startsWith('databases')){
    const path=join(directory,entry),content=JSON.parse(await readFile(path,'utf8'));
    // Only metadata is rebound. Emails, IDs, snapshots and hashes still name
@@ -501,7 +504,7 @@ if(mode==='prepare'||diagnostic){
  const suppliedRelease=process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR;
  if(Boolean(state.providerFixture)!==pmsProviderFixtureEnabled||pmsProviderFixtureEnabled&&!suppliedRelease)throw new Error('PMS_PROVIDER_FIXTURE_COMPILED_RELEASE_REQUIRED');
  if(workspaceApps){
-  if(state.executionMode!=='development-smoke'||JSON.stringify(state.workspaceApps)!==JSON.stringify(workspaceApps)||state.release)throw new Error('WORKSPACE_BROWSER_STATE_APPS_CHANGED');
+  if(state.executionMode!=='development-smoke'||JSON.stringify(state.workspaceApps)!==JSON.stringify(workspaceApps)||(state.workspaceBundler??'webpack')!==workspaceBundler||state.release)throw new Error('WORKSPACE_BROWSER_STATE_APPS_CHANGED');
   const output=join(app,'.runtime/workspace-gateway');await mkdir(output,{recursive:true});
   const bundle=await Bun.build({entrypoints:[join(app,'scripts/testing/workspace-browser-runtime.ts')],outdir:output,target:'node',format:'esm',naming:'gateway.mjs',env:'disable'});
   if(!bundle.success)throw new Error('WORKSPACE_BROWSER_GATEWAY_BUILD_FAILED');

@@ -1,9 +1,15 @@
 {
   "version": 1,
-  "activeApps": [],
+  "activeApps": [
+    "account",
+    "apps",
+    "learn"
+  ],
   "maxApps": 4,
   "idleMinutes": 10,
-  "bundlers": {},
+  "bundlers": {
+    "learn": "turbopack"
+  },
   "defaultBundler": "webpack",
-  "bundlerReason": "Retain the measured compiler until each workspace passes its scoped Turbopack comparison."
+  "bundlerReason": "Webpack remains the default pending each app comparison. Learn uses its measured Turbopack override; receipts are recorded in the production plan."
 }

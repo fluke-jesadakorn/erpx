@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { appDefinition } from '@erpx/contracts/apps';
 import { appRuntimeFingerprint,loadWorkspaceGraph } from '../testing/workspace-graph';
 import { pinnedNode } from './app-task';
-import { relocateStandaloneLinks } from './standalone-links';
+import { relocateStandaloneLinks, relocateCompilerDependencyAliases, artifactSymbolicLinks } from './standalone-links';
 import { verifyAppArtifact } from './app-artifact-cache';
 import { workspaceCopyInput } from './workspace-copy-input';
 const root=resolve(import.meta.dirname,'../..');
@@ -59,14 +59,15 @@ export async function buildIsolatedApp(id:string,bundler='webpack'){
   await rm(output,{recursive:true,force:true});await cp(compiled,output,{recursive:true,verbatimSymlinks:true,mode:constants.COPYFILE_FICLONE,filter:path=>{const name=relative(compiled,path);return name!=='cache'&&!name.startsWith('cache/');}});
   const standalone=join(output,'standalone'),standaloneApp=join(standalone,app.directory);
   await relocateStandaloneLinks(join(compiled,'standalone'),standalone);
+  await relocateCompilerDependencyAliases(compiled,output,join(snapshot,'node_modules'));
   await cp(join(snapshot,'public'),join(standaloneApp,'public'),{recursive:true,mode:constants.COPYFILE_FICLONE});
   await cp(join(snapshot,'public'),join(standalone,'public'),{recursive:true,mode:constants.COPYFILE_FICLONE});
   await cp(join(snapshot,'migrations/postgres'),join(standalone,'migrations/postgres'),{recursive:true,mode:constants.COPYFILE_FICLONE});
   await writeFile(join(standaloneApp,'entry.mjs'),`import {fileURLToPath} from 'node:url';\nimport {createServer} from 'node:net';\nconst port=Number(process.env.PORT);\nif(!Number.isInteger(port)||port<3200||port>3299)throw Error('EXPLICIT_OWNED_APP_PORT_REQUIRED');\nawait new Promise((done,reject)=>{const probe=createServer();probe.once('error',reject);probe.listen(port,'127.0.0.1',()=>probe.close(done));});\nprocess.env.HOSTNAME='127.0.0.1';\nprocess.env.ERPX_RESOURCE_ROOT??=fileURLToPath(new URL('../../',import.meta.url));\nprocess.env.ERPX_REPOSITORY_ROOT??=process.env.ERPX_RESOURCE_ROOT;\nprocess.env.ERPX_APP_ID=${JSON.stringify(id)};\nawait import('./server.js');\n`);
   await cp(join(compiled,'static'),join(standaloneApp,'.build/static'),{recursive:true,mode:constants.COPYFILE_FICLONE});
   const links:Record<string,string>={};
-  for(const entry of await readdir(output,{recursive:true,withFileTypes:true}))if(entry.isSymbolicLink()){
-   const path=join(entry.parentPath,entry.name);if(!(await realpath(path)).startsWith(output+'/'))throw new Error('APP_ARTIFACT_EXTERNAL_LINK');links[relative(output,path)]=await readlink(path);
+  for(const path of await artifactSymbolicLinks(output)){
+   if(!(await realpath(path)).startsWith(output+'/'))throw new Error('APP_ARTIFACT_EXTERNAL_LINK');links[relative(output,path)]=await readlink(path);
   }
   const hashes:Record<string,string>={};for(const file of(await files(output)).sort())hashes[relative(output,file)]=createHash('sha256').update(await readFile(file)).digest('hex');
   await writeFile(receiptPath,JSON.stringify({schema:'erpx-app-artifact/v2',app:id,runtimeFingerprint:identity.runtime,buildFingerprint:identity.key,node:'26.11.1',bun:'1.4.3',bundler,attempts,acceptance:false,entry:`standalone/${app.directory}/entry.mjs`,softwareVersion:deploymentId,resources:"standalone",files:hashes,links},null,2)+'\n',{mode:0o600});

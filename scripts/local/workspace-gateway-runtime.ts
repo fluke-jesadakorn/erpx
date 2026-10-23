@@ -129,13 +129,16 @@ async function acquire(id: string, startupAttempt = 0): Promise<RunningApp> {
       if (await listenerExists(port)) {
         try {
           const response = await fetch(`http://127.0.0.1:${port}/api/health`, {signal:AbortSignal.timeout(10_000)});
-          healthy = [200,503].includes(response.status) && response.headers.get("x-erpx-app") === id;
-          await response.body?.cancel();
+          const accepted = [200,503].includes(response.status) && response.headers.get("x-erpx-app") === id;
+          await response.arrayBuffer();
+          healthy = accepted;
         } catch { /* The owned listener can still be compiling its first route. */ }
       }
       if (!healthy) await new Promise(done => setTimeout(done, 150));
     }
-    await new Promise(done=>setTimeout(done,500));
+    // The pinned CLI can exit after its first healthy response. Keep the first
+    // request queued through that startup window; never replay its stream.
+    await new Promise(done=>setTimeout(done,startupAttempt===0?2000:500));
     if(child.exitCode!==null || child.signalCode || running.get(id)!==app)throw Object.assign(new Error(`APP_STARTUP_FAILED:${id}`),{startupExited:true});
     app.ready=true;
     console.log(`ERPX app HTTP ready: ${id} at 127.0.0.1:${port}`);

@@ -199,6 +199,23 @@ export function loadRevisionWorkspaceGraph(revision: string, root = repositoryRo
   }
   return graphWithSourceCache(files,root);
 }
+function configuredAppChanges(head: WorkspaceGraph, base: WorkspaceGraph, changed: readonly string[]) {
+  const file='scripts/local/workspace-settings.json';
+  if(!changed.includes(file))return [];
+  function read(graph:WorkspaceGraph,required:boolean){
+    const source=graph.files.get(file);
+    if(source===undefined){if(required)throw new Error('WORKSPACE_SETTINGS_MAPPING_REQUIRED');return{bundlers:{} as Record<string,string>,defaultBundler:'webpack',activeApps:[] as string[]};}
+    let value;try{value=JSON.parse(source);}catch{throw new Error('WORKSPACE_SETTINGS_MAPPING_REQUIRED');}
+    const ids=new Set(['compat',...appDefinitions.map(app=>app.id)]),compilers=new Set(['webpack','turbopack']);
+    if(!value||typeof value!=='object'||value.version!==1||!value.bundlers||typeof value.bundlers!=='object'||Array.isArray(value.bundlers)||Object.entries(value.bundlers).some(([id,bundler])=>!ids.has(id)||!compilers.has(bundler as string))||!compilers.has(value.defaultBundler??'webpack')||!Array.isArray(value.activeApps)||value.activeApps.some((id:unknown)=>typeof id!=='string'||id==='compat'||!ids.has(id)))throw new Error('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
+    return{bundlers:value.bundlers as Record<string,string>,defaultBundler:value.defaultBundler??'webpack',activeApps:value.activeApps as string[]};
+  }
+  const before=read(base,false),after=read(head,true);
+  return appDefinitions.filter(({id})=>
+    (before.bundlers[id]??'webpack')!==(after.bundlers[id]??'webpack')||
+    (before.bundlers[id]??before.defaultBundler)!==(after.bundlers[id]??after.defaultBundler)||
+    before.activeApps.includes(id)!==after.activeApps.includes(id)).map(app=>app.id);
+}
 export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph, suites: readonly Suite[], changed: string[], apps: string[] = []) {
   const known = changed.filter(file => head.files.has(file) || base.files.has(file));
   const missing = changed.filter(file => !head.files.has(file) && !base.files.has(file) && !/^(?:docs|public|migrations|ops|\.github)\//.test(file) && !/^(?:[A-Z][A-Z_.-]*\.md|\.gitignore|\.bun-version|\.node-version|bunfig\.toml|turbo\.json|tsconfig(?:\.[\w-]+)?\.json)$/.test(file));
@@ -207,7 +224,8 @@ export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph
   const b = selectWorkspaceSuites(base, suites, { changed: known });
   const global = changed.some(file => ['bun.lock','package.json','tsconfig.base.json','next.config.ts','postcss.config.mjs'].includes(file));
   const migrations=changed.filter(file=>file.startsWith('migrations/postgres/'));
-  const affectedApps = global || migrations.length ? appDefinitions.map(app => app.id) : [...new Set([...a.apps, ...b.apps])];
+  const configuredApps=configuredAppChanges(head,base,changed);
+  const affectedApps = global || migrations.length ? appDefinitions.map(app => app.id) : [...new Set([...a.apps, ...b.apps,...configuredApps])];
   const selected = new Set([...a.suites, ...b.suites].map(suite => suite.id));
   // App entry points and package/public assets have no test import edge. Their
   // registered owners supply the integration and UI boundary coverage.
@@ -215,7 +233,7 @@ export function selectCandidateSuites(head: WorkspaceGraph, base: WorkspaceGraph
   const tracks=new Set(migrations.map(file=>file.split('/')[2]));
   const track=(slot:string)=>slot==='CONTROL_DB'?'control':slot==='CONTROL_READ_DB'?'control-read':slot.includes('_READ_')?'holding-read':'holding-write';
   for (const suite of suites) if (suite.postgres?.slots.some(slot=>tracks.has(track(slot)))) selected.add(suite.id);
-  const boundaryApps = changed.some(file => /^(?:apps|public)\//.test(file)) ? affectedApps : [];
+  const boundaryApps = changed.some(file => /^(?:apps|public)\//.test(file)) ? affectedApps : configuredApps;
   if (changed.some(file => file.endsWith('.css'))) for (const suite of suites)
     if (['e2e','journeys'].includes(suite.lane) && suite.apps?.some(id => affectedApps.includes(id))) selected.add(suite.id);
   for (const suite of suites) if (suite.apps?.some(id => boundaryApps.includes(id)) && suite.lane !== 'provider' && suite.lane !== 'uat') selected.add(suite.id);

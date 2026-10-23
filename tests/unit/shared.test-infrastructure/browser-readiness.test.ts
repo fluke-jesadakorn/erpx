@@ -22,17 +22,22 @@ async function contract(body: string) {
 describe("pinned Node browser readiness transport", () => {
   it("requires both endpoint successes and drains each response before proceeding", async () => {
     await contract(`
-      const paths = new Set(); let finished = 0;
+      const paths = new Set(), responses = []; let finished = 0, resolved = false, both;
+      const connected = new Promise(done => both = done);
       const server = createServer((req, res) => {
         paths.add(req.url); res.writeHead(200); res.write('private partial body');
-        setTimeout(() => { finished++; res.end('complete'); }, 30);
+        responses.push(res); if (responses.length === 2) both();
       });
       await new Promise(done => server.listen(0, '127.0.0.1', done));
       try {
-        await waitForBrowserReadiness('http://127.0.0.1:' + server.address().port, process.pid, options);
+        const ready = waitForBrowserReadiness('http://127.0.0.1:' + server.address().port, process.pid, { ...options, deadlineMs: 2000, requestMs: 1500 }).then(() => resolved = true);
+        await connected; await new Promise(done => setImmediate(done)); assert.equal(resolved, false);
+        finished++; responses[0].end('complete');
+        await new Promise(done => setImmediate(done)); assert.equal(resolved, false);
+        finished++; responses[1].end('complete'); await ready;
         assert.deepEqual([...paths].sort(), ['/api/health', '/api/ready']);
         assert.equal(finished, 2);
-      } finally { await new Promise(done => server.close(done)); }
+      } finally { server.closeAllConnections(); await new Promise(done => server.close(done)); }
     `);
   });
   it("rejects an unhealthy ready endpoint within the deadline even when health succeeds", async () => {
