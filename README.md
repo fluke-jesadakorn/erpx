@@ -37,11 +37,13 @@ bun run test:ci --base=<sha> --head=<sha>  # clean exact candidate verification
 bun run build:affected                   # independent app build outputs/cache
 ```
 
+Development starts at [ERPX Apps](https://apps-dev-erpx.jesadakorn.com/). All22 hosts use their own app processes; the retired development Console and local Console business surface return410 with an Apps link. Console health remains200 through Account. Production and staging remain unchanged. Installed post-cutover visual verification and the remaining platform/performance gates are tracked in the production plan; full acceptance is deferred.
+
 The rich local dataset and demo personas are documented in [docs/local-seed.md](docs/local-seed.md).
 
 ## Structure
 
-- `apps/<id>/`: app-owned routes, layouts, handlers, config, route types and build output; no imports from another app. `apps/compat` preserves migration-era Console/non-product paths until the authorized cutover. Apps keeps the stable `apps` host/CLI identity in `apps/launcher/`.
+- `apps/<id>/`: app-owned routes, layouts, handlers, config, route types and build output; no imports from another app. `apps/compat` retains non-product compatibility source. The authorized development Console cutover is active; its pages/APIs return410 and health/ready reads use Account. Product hosts use their own applications. Apps keeps the stable `apps` host/CLI identity in `apps/launcher/`.
 - `packages/server-<owner>/src/{domain,application,adapters,public}/`: in-process business owners; consumers use named public exports and typed ports.
 - `packages/feature-<owner>/`, `packages/ui/`, `packages/workplace/`, `packages/front/`: owner presentation, primitives and shells with explicit subpath exports. `packages/contracts/` owns pure host/product metadata and shared contracts.
 - `tests/{unit,integration,e2e,journeys,uat,provider}/<owner>/`: executable suites, assigned from the catalogue rather than filenames. `tests/support/` holds helpers/setup; `tests/catalogue/` holds required-case registers; `tests/config/` holds runner/typecheck configuration.
