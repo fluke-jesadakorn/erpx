@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { recoverGatewayApps, type ProcessIdentity } from "./app-process-leases";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { appDefinitions, appForHost } from "@erpx/contracts/apps";
+import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
 
 export type WorkspaceGatewaySettings = { version: number; activeApps: string[]; maxApps: number; idleMinutes: number; bundlers: Record<string, string>; defaultBundler: string };
 type RunningApp = { id: string; port: number; child: ChildProcess; started: Promise<void>; requests: number; upgraded: Set<Duplex>; lastUsed: number; identity: ProcessIdentity; startupAttempt: number; ready: boolean; servedRequest: boolean; intentionalStop: boolean };
@@ -25,6 +26,8 @@ if(JSON.parse(readFileSync(resolve(repository,"package.json"),"utf8")).name!=="e
 if(options.fallback!==undefined && options.fallback!==null && options.fallback!=="compat")throw new Error("INVALID_GATEWAY_FALLBACK");
 if (process.version !== "v26.11.1" || !node || !node.startsWith("/") || execFileSync(node,["--version"],{encoding:"utf8"}).trim()!=="v26.11.1") throw new Error("PINNED_GATEWAY_RUNTIME_REQUIRED");
 if (![3100,3104].includes(options.port)) throw new Error("OWNED_GATEWAY_PORT_REQUIRED");
+// Fail before lease recovery, file writes or app startup on premature cutover.
+settings();
 const assignedPorts = new Map(options.appPorts ?? [["compat",3200],...appDefinitions.map(app=>[app.id,app.port] as [string,number])]);
 const observedPorts = new Set<number>();
 for (const [id,port] of assignedPorts) {
@@ -63,6 +66,10 @@ function settings(): WorkspaceGatewaySettings {
   if (value.version !== 1 || !Array.isArray(value.activeApps) || value.activeApps.some(id => !appDefinitions.some(app => app.id === id))
     || !Number.isInteger(value.maxApps) || value.maxApps < 1 || value.maxApps > 12 || !Number.isFinite(value.idleMinutes) || value.idleMinutes < 1
     || !["webpack", "turbopack"].includes(value.defaultBundler)) throw new Error("INVALID_WORKSPACE_SETTINGS");
+  if (options.port === 3100 && environment.ERPX_CONSOLE_RETIRED === "enabled") {
+    const blockers = consoleWorkspaceCutoverBlockers(value.activeApps, environment);
+    if (blockers.length) throw new Error("DEVELOPMENT_CONSOLE_CUTOVER_NOT_READY:" + blockers.join("; "));
+  }
   return value;
 }
 function listenerExists(port: number): Promise<boolean> {

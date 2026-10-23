@@ -89,7 +89,8 @@
     "release:acceptance": "bun scripts/testing/release-acceptance.ts",
     "workspaces:catalogue": "bun scripts/testing/workspace-catalogue.ts",
     "workspaces:tasks": "bun scripts/testing/workspace-tasks.ts",
-    "workspaces:styles": "bun scripts/assets/workspace-styles.ts"
+    "workspaces:styles": "bun scripts/assets/workspace-styles.ts",
+    "console:retirement:dev:check": "bun scripts/local/check-console-retirement.ts --development-workspaces"
   },
   "packageManager": "bun@1.4.3",
   "dependencies": {

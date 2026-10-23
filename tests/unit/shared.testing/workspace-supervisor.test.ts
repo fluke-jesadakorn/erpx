@@ -6,10 +6,33 @@ import { join } from 'node:path';
 import { createServer, request, type ClientRequest, type IncomingMessage } from 'node:http';
 import { connect } from 'node:net';
 import { expect, it } from 'vitest';
-import { appDefinition } from '@erpx/contracts/apps';
+import { appDefinition, appIds } from '@erpx/contracts/apps';
+import { consoleWorkspaceCutoverBlockers } from '../../../scripts/local/console-workspace-cutover';
 import { startWorkspaceGateway } from '../../../scripts/local/workspace-gateway-runtime';
 
 const pause = (ms: number) => new Promise(done => setTimeout(done, ms));
+it('requires every app mapping and the exact development environment before Console retirement without requiring Commercial enforcement', () => {
+  const environment = { ERPX_ENVIRONMENT: 'local', ERPX_PRODUCT_ENVIRONMENT: 'development', ERPX_PUBLIC_ORIGIN: 'https://console-dev-erpx.jesadakorn.com', ERPX_PRODUCT_ROUTING: 'enabled', ERPX_PRODUCT_SSO: 'enabled' };
+  expect(consoleWorkspaceCutoverBlockers(appIds, environment)).toEqual([]);
+  const partial = consoleWorkspaceCutoverBlockers(['account', 'apps', 'learn', 'admin'], environment);
+  expect(partial).toHaveLength(18);
+  expect(partial).toContain('Application still uses compatibility mapping: work');
+  expect(consoleWorkspaceCutoverBlockers([...appIds, 'compat'], environment)).toContain('Unknown application mapping: compat');
+  expect(consoleWorkspaceCutoverBlockers([...appIds, 'work'], environment)).toContain('Duplicate active application mappings');
+  for (const patch of [{ ERPX_ENVIRONMENT: 'production' }, { ERPX_PRODUCT_ENVIRONMENT: 'production' }, { ERPX_PUBLIC_ORIGIN: 'https://foreign.invalid' }, { ERPX_PUBLIC_ORIGIN: 'https://console-dev-erpx.jesadakorn.com/other' }, { ERPX_PRODUCT_ROUTING: 'disabled' }, { ERPX_PRODUCT_SSO: 'disabled' }])
+    expect(consoleWorkspaceCutoverBlockers(appIds, { ...environment, ...patch }).length).toBeGreaterThan(0);
+});
+it('refuses premature public Console cutover before writing leases or touching the live gateway listener', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'erpx-cutover-')));
+  try {
+    await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'erpx' }));
+    await expect(startWorkspaceGateway({ root, node: process.execPath, port: 3100,
+      environment: { NODE_ENV: 'development', ERPX_ENVIRONMENT: 'local', ERPX_PRODUCT_ENVIRONMENT: 'development', ERPX_PUBLIC_ORIGIN: 'https://console-dev-erpx.jesadakorn.com', ERPX_PRODUCT_ROUTING: 'enabled', ERPX_PRODUCT_SSO: 'enabled', ERPX_CONSOLE_RETIRED: 'enabled' },
+      settings: () => ({ version: 1, activeApps: ['account', 'apps', 'learn', 'admin'], maxApps: 4, idleMinutes: 10, bundlers: {}, defaultBundler: 'webpack' }),
+    })).rejects.toThrow('DEVELOPMENT_CONSOLE_CUTOVER_NOT_READY');
+    await expect(readFile(join(root, '.scratch/dev/apps/leases.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 async function free(port: number) {
   await new Promise<void>((done, reject) => {
     const socket = connect(port, '127.0.0.1');

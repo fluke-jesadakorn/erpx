@@ -1,4 +1,18 @@
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
+
+const args = process.argv.slice(2);
+if (args.length) {
+  if (args.length !== 1 || args[0] !== "--development-workspaces") throw new Error("UNKNOWN_CONSOLE_RETIREMENT_OPTION");
+  const root = resolve(import.meta.dirname, "../..");
+  const settings = JSON.parse(readFileSync(resolve(root, "scripts/local/workspace-settings.json"), "utf8"));
+  if (settings.version !== 1 || !Array.isArray(settings.activeApps) || settings.activeApps.some((id: unknown) => typeof id !== "string")) throw new Error("INVALID_WORKSPACE_SETTINGS");
+  const blockers = consoleWorkspaceCutoverBlockers(settings.activeApps, process.env);
+  console.log(JSON.stringify({ acceptance: false, scope: "development-console-mapping-preflight", ready: blockers.length === 0, blockers,
+    note: "Read-only mapping preflight. Scoped app/browser verification and explicit activation remain required." }));
+  process.exit(blockers.length ? 1 : 0);
+}
 
 // Necessary activation preflight, not a substitute for the final UI/provider,
 // performance and restore/rollback receipts in docs/production-plan.md.
