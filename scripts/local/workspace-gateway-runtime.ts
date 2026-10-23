@@ -1,7 +1,7 @@
 import { hasPortListener } from "./port-listeners";
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
-import type { Duplex } from "node:stream";
+import { PassThrough, type Duplex } from "node:stream";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, readFileSync, mkdirSync, writeFileSync, renameSync, existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
@@ -53,7 +53,11 @@ if(existsSync(priorLease)) await recoverGatewayApps(JSON.parse(readFileSync(prio
 // A routing preview changes the selected implementation, never host/session authority.
 const preview = randomBytes(24).toString("hex");
 if(options.preview!==false)writeFileSync(resolve(logs, "preview.json"), JSON.stringify({ token: preview, scope: "development-routing-only" }) + "\n", { mode: 0o600 });
-const running = new Map<string, RunningApp>(); let stopping = false;
+const running = new Map<string, RunningApp>(), pendingDemand = new Map<string, number>(); let stopping = false;
+function holdDemand(id: string) {
+ pendingDemand.set(id,(pendingDemand.get(id)??0)+1);let released=false;
+ return()=>{if(released)return;released=true;const remaining=(pendingDemand.get(id)??1)-1;if(remaining)pendingDemand.set(id,remaining);else pendingDemand.delete(id);};
+}
 function settings(): WorkspaceGatewaySettings {
   const value = options.settings ? options.settings() : JSON.parse(readFileSync(resolve(repository, "scripts/local/workspace-settings.json"), "utf8")) as WorkspaceGatewaySettings;
   if (value.version !== 1 || !Array.isArray(value.activeApps) || value.activeApps.some(id => !appDefinitions.some(app => app.id === id))
@@ -75,17 +79,18 @@ function leases() {
   renameSync(temporary, target);
 }
 function stopApp(app: RunningApp) {
-  if (app.requests || app.upgraded.size) return false;
+  if (app.requests || app.upgraded.size || pendingDemand.has(app.id)) return false;
   app.intentionalStop=true; app.child.kill("SIGTERM"); return true;
 }
 async function acquire(id: string, startupAttempt = 0): Promise<RunningApp> {
   if (stopping) throw new Error("DEVELOPMENT_STOPPING");
   const existing = running.get(id);
-  if (existing) { existing.lastUsed = Date.now(); await existing.started; return existing; }
+  if (existing && !existing.intentionalStop && existing.child.exitCode===null && !existing.child.signalCode) { existing.lastUsed = Date.now(); await existing.started; return existing; }
+  if(existing?.intentionalStop && existing.child.exitCode===null && !existing.child.signalCode)await new Promise<void>((done,reject)=>{const timeout=setTimeout(()=>reject(new Error('APP_SHUTDOWN_TIMEOUT')),10_000);existing.child.once('exit',()=>{clearTimeout(timeout);done();});});
   const config = settings(), port = assignedPorts.get(id);
   if (!port) throw new Error("UNKNOWN_GATEWAY_APP");
   if (running.size >= config.maxApps) {
-    const idle = [...running.values()].filter(app => !app.requests && !app.upgraded.size).sort((a, b) => a.lastUsed - b.lastUsed)[0];
+    const idle = [...running.values()].filter(app => !app.requests && !app.upgraded.size && !pendingDemand.has(app.id)).sort((a, b) => a.lastUsed - b.lastUsed)[0];
     if (!idle) throw new Error("DEVELOPMENT_APP_CAPACITY:close an unused app or raise maxApps");
     stopApp(idle);
     await new Promise<void>((done, reject) => { const timeout = setTimeout(() => reject(new Error("APP_SHUTDOWN_TIMEOUT")), 10_000); idle.child.once("exit", () => { clearTimeout(timeout); done(); }); });
@@ -156,6 +161,9 @@ async function acquire(id: string, startupAttempt = 0): Promise<RunningApp> {
 const starting = new Map<string, Promise<RunningApp>>();
 let launchQueue: Promise<unknown> = Promise.resolve();
 async function ensure(id: string, startupAttempt = 0) {
+  if(stopping)throw new Error('DEVELOPMENT_STOPPING');
+  const ready=running.get(id);
+  if(ready?.ready&&!ready.intentionalStop&&ready.child.exitCode===null&&!ready.child.signalCode){ready.lastUsed=Date.now();return ready;}
   const pending = starting.get(id); if (pending) return pending;
   const next = launchQueue.then(async () => {
     try { return await acquire(id,startupAttempt); }
@@ -194,10 +202,11 @@ const server = createServer(async (req, res) => {
     res.writeHead(303,{Location:"/","Cache-Control":"private, no-store","Referrer-Policy":"no-referrer",
       "Set-Cookie":`__Host-erpx-dev-preview=${clear ? "" : preview}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=${clear ? 0 : 3600}`});res.end();return;
   }
-  let app: RunningApp | undefined;
+  let app: RunningApp | undefined, releaseDemand:(()=>void)|undefined;
   try {
-    app = await ensure(target(req)); if (req.destroyed) return;
-    app.requests++; if(!["/api/health","/api/ready"].includes((req.url??"").split("?")[0]))app.servedRequest=true; app.lastUsed = Date.now(); const selected = app;
+    const id=target(req);releaseDemand=holdDemand(id);
+    app = await ensure(id); if (req.destroyed) return;
+    app.requests++;releaseDemand(); if(!["/api/health","/api/ready"].includes((req.url??"").split("?")[0]))app.servedRequest=true; app.lastUsed = Date.now(); const selected = app;
     let finished = false; const finish = () => { if (!finished) { finished = true; selected.requests--; selected.lastUsed = Date.now(); } };
     res.once("finish", finish); res.once("close", finish);
     // A failed upstream is never retried: this stream may be a business mutation.
@@ -208,22 +217,32 @@ const server = createServer(async (req, res) => {
     });
     req.once("aborted", () => upstream.destroy()); upstream.once("error", error => failed(res, error));
     res.once("close", () => { if (!res.writableFinished) upstream.destroy(); }); req.pipe(upstream);
-  } catch (error) { failed(res, error); }
+  } catch (error) { failed(res, error); } finally {releaseDemand?.();}
 });
 server.on("upgrade", async (req, downstream, head) => {
+  let releaseDemand:(()=>void)|undefined, releaseHandshake:(()=>void)|undefined;
+  const waiting=new PassThrough({highWaterMark:64*1024});
+  downstream.once('error',()=>downstream.destroy());downstream.once('end',()=>downstream.destroy());
+  downstream.once('close',()=>{releaseDemand?.();releaseHandshake?.();waiting.destroy();});
+  waiting.once('error',()=>downstream.destroy());downstream.pipe(waiting);
   try {
-    const app = await ensure(target(req)); app.servedRequest=true; app.lastUsed = Date.now();
+    const id=target(req);releaseDemand=holdDemand(id);
+    const app = await ensure(id);if(downstream.destroyed)return;app.requests++;releaseDemand();app.servedRequest=true; app.lastUsed = Date.now();
+    let finished=false;releaseHandshake=()=>{if(finished)return;finished=true;app.requests--;app.lastUsed=Date.now();};
+    downstream.once('close',()=>releaseHandshake?.());
     const headers = { ...req.headers }; delete headers["x-erpx-workspace-preview"];
     const upstream = httpRequest({ host: "127.0.0.1", port: app.port, path: req.url, method: req.method, headers });
+    downstream.once('close',()=>upstream.destroy());
     upstream.once("upgrade", (response, socket, upstreamHead) => {
-      app.upgraded.add(downstream); downstream.once("close", () => { app.upgraded.delete(downstream); socket.destroy(); }); socket.once("close", () => downstream.destroy());
+      if(downstream.destroyed){releaseHandshake?.();socket.destroy();return;}
+      app.upgraded.add(downstream);releaseHandshake?.(); downstream.once("close", () => { app.upgraded.delete(downstream); socket.destroy(); }); socket.once("close", () => downstream.destroy());
       downstream.write(`HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\n` + response.rawHeaders.reduce((text, value, index, values) => index % 2 ? text : text + value + ": " + values[index + 1] + "\r\n", "") + "\r\n");
       if (upstreamHead.length) downstream.write(upstreamHead); if (head.length) socket.write(head);
-      socket.pipe(downstream); downstream.pipe(socket); socket.once("error", () => downstream.destroy()); downstream.once("error", () => socket.destroy());
+      socket.pipe(downstream); waiting.pipe(socket); socket.once("error", () => downstream.destroy()); downstream.once("error", () => socket.destroy());
     });
-    upstream.once("response", response => { downstream.write(`HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\nConnection: close\r\n\r\n`); response.pipe(downstream); });
-    upstream.once("error", () => downstream.destroy()); upstream.end();
-  } catch { downstream.end("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n"); }
+    upstream.once("response", response => { response.once('end',()=>releaseHandshake?.());response.once('error',()=>{releaseHandshake?.();downstream.destroy();});downstream.write(`HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\nConnection: close\r\n\r\n`); response.pipe(downstream); });
+    upstream.once("error", () => {releaseHandshake?.();downstream.destroy();}); upstream.end();
+  } catch { releaseHandshake?.();downstream.end("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n"); }finally{releaseDemand?.();}
 });
 const idle = setInterval(() => { const limit = settings().idleMinutes * 60_000; for (const app of running.values()) if (Date.now() - app.lastUsed > limit) stopApp(app); }, 30_000); idle.unref();
 let stopped:Promise<void>|undefined;
