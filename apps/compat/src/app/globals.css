@@ -2202,6 +2202,7 @@
 @source "../../../../packages/feature-workflow/src/components/approval-history.tsx";
 @source "../../../../packages/front/src/components/front-error.tsx";
 @source "../../../../packages/front/src/components/front-language.tsx";
+@source "../../../../packages/front/src/components/front-sign-in-handoff.tsx";
 @source "../../../../packages/front/src/components/standard-front-access.tsx";
 @source "../../../../packages/front/src/components/standard-front-app-shell.tsx";
 @source "../../../../packages/server-agent/src/adapters/agent-governance.ts";

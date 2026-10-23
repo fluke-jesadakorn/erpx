@@ -1,3 +1,5 @@
+import { FrontSignInHandoff } from "@erpx/front/components/front-sign-in-handoff";
+import { productHostForHost } from "@erpx/feature-runtime/lib/product-hosts";
 import { posMovementSaleForPresentation } from "@erpx/server-pos/public/movement-presentation-query";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
@@ -94,8 +96,11 @@ export default async function StandardPosEntry({ params, searchParams, }: {
         session = (await currentSession()).session;
     }
     catch (error) {
-        if (error instanceof Error && error.message === "UNAUTHENTICATED")
-            redirect("/login?next=" + encodeURIComponent((standalone ? frontVisiblePath(holdingSlug, companySlug, path) : "/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app + "/" + path.map((segment) => encodeURIComponent(segment)).join("/")) + queryString(query)));
+        if (error instanceof Error && error.message === "UNAUTHENTICATED") {
+            const next = (standalone ? frontVisiblePath(holdingSlug, companySlug, path) : "/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app + "/" + path.map((segment) => encodeURIComponent(segment)).join("/")) + queryString(query);
+            if (productHostForHost((await headers()).get("host")) === app) return <FrontSignInHandoff next={next} />;
+            redirect("/login?next=" + encodeURIComponent(next));
+        }
         throw error;
     }
     const entry = await frontCompanyApp(holdingSlug, companySlug, app);

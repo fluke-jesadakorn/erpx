@@ -194,8 +194,15 @@ async function ensure(id: string, startupAttempt = 0) {
   }); launchQueue = next.catch(() => {}); starting.set(id, next);
   try { return await next; } finally { if (starting.get(id) === next) starting.delete(id); }
 }
+// The local gateway origin is the same retired Console surface. Restrict the
+// alias to this listener so a private production or another project port is
+// never treated as a development Console origin.
+function retirementHost(host: string | undefined) {
+  return host && [`127.0.0.1:${options.port}`, `localhost:${options.port}`, `[::1]:${options.port}`].includes(host)
+    ? 'console-dev-erpx.jesadakorn.com' : host;
+}
 function target(req: IncomingMessage) {
-  if(developmentConsoleRetired(environment)&&req.headers.host==='console-dev-erpx.jesadakorn.com'&&['/api/health','/api/ready'].includes((req.url??'').split('?')[0])){
+  if(developmentConsoleRetired(environment)&&retirementHost(req.headers.host)==='console-dev-erpx.jesadakorn.com'&&['/api/health','/api/ready'].includes((req.url??'').split('?')[0])){
     settings();return 'account';
   }
   const app = appForHost(req.headers.host ?? "");
@@ -214,7 +221,7 @@ function failed(res: ServerResponse, error: unknown) {
 }
 const server = createServer(async (req, res) => {
   try{
-    const retired=consoleRetirementResult({host:req.headers.host,method:req.method??'GET',url:req.url??'/',accept:req.headers.accept},environment);
+    const retired=consoleRetirementResult({host:retirementHost(req.headers.host),method:req.method??'GET',url:req.url??'/',accept:req.headers.accept},environment);
     if(retired){settings();res.writeHead(retired.status,retired.headers);res.end(retired.body);return;}
   }catch(error){failed(res,error);return;}
   // A temporary host-only routing preference lets the normal browser review a
@@ -250,7 +257,7 @@ server.on("upgrade", async (req, downstream, head) => {
   downstream.once('close',()=>{releaseDemand?.();releaseHandshake?.();waiting.destroy();});
   waiting.once('error',()=>downstream.destroy());downstream.pipe(waiting);
   try {
-    if(consoleRetirementResult({host:req.headers.host,method:req.method??'GET',url:req.url??'/',accept:req.headers.accept},environment)){
+    if(consoleRetirementResult({host:retirementHost(req.headers.host),method:req.method??'GET',url:req.url??'/',accept:req.headers.accept},environment)){
       settings();downstream.unpipe(waiting);waiting.destroy();downstream.end('HTTP/1.1 410 Gone\r\nConnection: close\r\nCache-Control: private, no-store\r\nContent-Length: 0\r\n\r\n');return;
     }
     const id=target(req);releaseDemand=holdDemand(id);

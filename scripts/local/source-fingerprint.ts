@@ -1,6 +1,6 @@
 import { workspaceCopyInput } from './workspace-copy-input';
 import { createHash } from "node:crypto";
-import { readFile, readdir, access } from "node:fs/promises";
+import { readFile, readdir, access, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 const generatedSourceEntry = (name: string) => name.split(/[\\/]/).includes("__pycache__") ||
@@ -11,8 +11,30 @@ export async function runtimeSourceFingerprint(root: string, environment: NodeJS
   const hash = createHash("sha256").update("erpx-workspace-runtime/v2:node26.11.1:bun1.4.3");
   for (const directory of ["src", "apps", "packages", "public", "scripts/local", "scripts/assets", "migrations/postgres"]) {
     try { await access(join(root,directory)); } catch { continue; }
-    const entries = await readdir(join(root, directory), { recursive: true, withFileTypes: true });
-    const files = entries.filter(entry => entry.isFile()).map(entry => join(entry.parentPath, entry.name))
+    const pending = [{ path: join(root, directory), links: 0 }], inputs: string[] = [];
+    for (let index = 0; index < pending.length; index++) {
+      const current = pending[index];
+      for (const entry of await readdir(current.path, { withFileTypes: true })) {
+        const path = join(current.path, entry.name);
+        if (!workspaceCopyInput(root, path) || entry.name === "node_modules" || entry.name === "__pycache__") continue;
+        if (entry.isDirectory()) pending.push({ path, links: current.links });
+        else if (entry.isFile()) inputs.push(path);
+        else if (entry.isSymbolicLink()) {
+          // Recursive readdir includes children of app public-directory links.
+          // Retain their lexical input names while pruning generated trees.
+          let target;
+          try { target = await stat(path); } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+            throw error;
+          }
+          if (target.isDirectory()) {
+            if (current.links >= 40) throw new Error("RUNTIME_SOURCE_SYMLINK_LOOP");
+            pending.push({ path, links: current.links + 1 });
+          }
+        }
+      }
+    }
+    const files = inputs
       .filter(file => !generatedSourceEntry(relative(root, file)) && !relative(root, file).split(/[\\/]/).includes("node_modules") && workspaceCopyInput(root,file) && !file.endsWith("/next-env.d.ts") && !file.endsWith("/AGENTS.md")).sort();
     for (const file of files) {
       const name = relative(root, file);

@@ -163,8 +163,10 @@ it('keeps generated app outputs and verification edits outside the global runtim
    'apps/finance/src/app/page.tsx'];
   for(const file of files){await mkdir(dirname(join(root,file)),{recursive:true});await writeFile(join(root,file),'initial');}
   await mkdir(join(root,'ops/macos/clamav'),{recursive:true});
+  await mkdir(join(root,'public/brand'),{recursive:true});await writeFile(join(root,'public/brand/icon.svg'),'brand');
+  await symlink('../../public',join(root,'apps/finance/public'));
   const original=await runtimeSourceFingerprint(root,{NODE_ENV:'test'});
-  for(const file of ['apps/finance/.build/server.js','apps/finance/.next/dev/types/routes.d.ts','apps/finance/.cache/typecheck.tsbuildinfo','tests/unit/finance/example.test.ts']){
+  for(const file of ['apps/finance/.build/server.js','apps/finance/.next/dev/types/routes.d.ts','apps/finance/.cache/typecheck.tsbuildinfo','apps/finance/node_modules/vendor/runtime.ts','apps/finance/__pycache__/runtime.ts','apps/finance/.env.local/private.ts','tests/unit/finance/example.test.ts']){
    await mkdir(dirname(join(root,file)),{recursive:true});await writeFile(join(root,file),'new generated or verification input');
   }
   expect(await runtimeSourceFingerprint(root,{NODE_ENV:'test'})).toBe(original);

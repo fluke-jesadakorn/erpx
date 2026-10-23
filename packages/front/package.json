@@ -11,7 +11,8 @@
     "./components/front-app-shell.module.css": "./src/components/front-app-shell.module.css",
     "./components/standard-front-access.module.css": "./src/components/standard-front-access.module.css",
     "./components/standard-front-app-shell": "./src/components/standard-front-app-shell.tsx",
-    "./components/front-error": "./src/components/front-error.tsx"
+    "./components/front-error": "./src/components/front-error.tsx",
+    "./components/front-sign-in-handoff": "./src/components/front-sign-in-handoff.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
