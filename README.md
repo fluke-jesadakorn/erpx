@@ -3,6 +3,7 @@
 Start with the [current production plan](docs/production-plan.md): the in-progress migration to22 independent Next.js apps in Bun workspaces and a scoped development/test platform. [ADR-049](docs/adr/ADR-049-product-app-workspaces-and-development-verification.md) records the architecture; [documentation index](docs/TOC.md) is the single hub. Historical engineering receipts certify only their recorded candidate.
 
 The development gateway serves port3100 and starts apps lazily on owned ports3200–3299. Each host switches only after its scoped checks and browser smoke pass. Installed production and staging are outside this migration. Full acceptance is deferred to an explicitly frozen production candidate and never runs automatically in daily CI.
+Set `ERPX_DEV_MAX_APPS` in ignored `.env.local` only when the machine has room for more concurrent app processes (1–12; default4). Account and Apps share that budget. An app with active requests or HMR connections is never evicted.
 
 ## Recovery
 

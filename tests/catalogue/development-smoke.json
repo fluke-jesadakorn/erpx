@@ -183,6 +183,198 @@
         "bundler": "webpack",
         "consoleRetired": true
       }
+    },
+    {
+      "suite": "assets.workspace-smoke.e2e",
+      "file": "tests/e2e/assets/workspace-smoke.spec.ts",
+      "title": "Assets workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "assets"
+        ],
+        "entryApp": "assets",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "projects.workspace-smoke.e2e",
+      "file": "tests/e2e/projects/workspace-smoke.spec.ts",
+      "title": "Projects workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "projects"
+        ],
+        "entryApp": "projects",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "support.workspace-smoke.e2e",
+      "file": "tests/e2e/support/workspace-smoke.spec.ts",
+      "title": "Support workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "support"
+        ],
+        "entryApp": "support",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "field_service.workspace-smoke.e2e",
+      "file": "tests/e2e/field_service/workspace-smoke.spec.ts",
+      "title": "Service workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "service"
+        ],
+        "entryApp": "service",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "legal.workspace-smoke.e2e",
+      "file": "tests/e2e/legal/workspace-smoke.spec.ts",
+      "title": "Legal workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "legal"
+        ],
+        "entryApp": "legal",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "manufacturing.workspace-smoke.e2e",
+      "file": "tests/e2e/manufacturing/workspace-smoke.spec.ts",
+      "title": "Manufacturing workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "manufacturing"
+        ],
+        "entryApp": "manufacturing",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "pms.pos-workspace-smoke.e2e",
+      "file": "tests/e2e/pms/pos-workspace-smoke.spec.ts",
+      "title": "Pos workspace serves its owned host and normal Account SSO with a Front drawer without business mutations",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "pos"
+        ],
+        "entryApp": "pos",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "pms.pms-workspace-smoke.e2e",
+      "file": "tests/e2e/pms/pms-workspace-smoke.spec.ts",
+      "title": "Pms workspace serves its owned host and normal Account SSO with a Front drawer without business mutations",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "pms"
+        ],
+        "entryApp": "pms",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "pms.booking-workspace-smoke.e2e",
+      "file": "tests/e2e/pms/booking-workspace-smoke.spec.ts",
+      "title": "Booking workspace serves its owned host and public entry and published visitor surface without business mutations",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "booking"
+        ],
+        "entryApp": "booking",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "customer_authority.portal-workspace-smoke.e2e",
+      "file": "tests/e2e/customer_authority/portal-workspace-smoke.spec.ts",
+      "title": "Portal workspace serves its owned host and public entry and published visitor surface without business mutations",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "portal"
+        ],
+        "entryApp": "portal",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "legal.legal-portal-workspace-smoke.e2e",
+      "file": "tests/e2e/legal/legal-portal-workspace-smoke.spec.ts",
+      "title": "Legal-Portal workspace serves its owned host and public entry and published visitor surface without business mutations",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "legal-portal"
+        ],
+        "entryApp": "legal-portal",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
+    },
+    {
+      "suite": "marketing.forms-workspace-smoke.e2e",
+      "file": "tests/e2e/marketing/forms-workspace-smoke.spec.ts",
+      "title": "Forms workspace serves its owned host and public entry and published visitor surface without business mutations",
+      "project": "desktop",
+      "workspace": {
+        "apps": [
+          "account",
+          "apps",
+          "forms"
+        ],
+        "entryApp": "forms",
+        "bundler": "webpack",
+        "consoleRetired": true
+      }
     }
   ],
   "deferredSuites": [
@@ -557,6 +749,10 @@
     {
       "suite": "shared.work.product-workspace-hmr.e2e",
       "reason": "Work/People/Recruit twenty-edit HMR comparisons run only through the explicit workspace-hmr performance command; full acceptance remains deferred."
+    },
+    {
+      "suite": "shared.ui.application-hmr.e2e",
+      "reason": "Explicit development HMR/compiler benchmark; everyday browser smoke executes the bounded owner case instead. Production acceptance remains deferred."
     }
   ]
 }

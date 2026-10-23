@@ -12,6 +12,14 @@ import { appDefinitions, appDirectory, appForHost } from "@erpx/contracts/apps";
 import { consoleWorkspaceCutoverBlockers } from "./console-workspace-cutover";
 import {consoleRetirementResult,developmentConsoleRetired} from '@erpx/contracts/console-retirement';
 
+/** Optional local budget; isolated fixtures always retain their declared cap. */
+export function developmentApplicationBudget(configured:number,override:string|undefined){
+ if(!Number.isInteger(configured)||configured<1||configured>12)throw new Error('INVALID_WORKSPACE_SETTINGS');
+ if(override===undefined)return configured;
+ if(!/^(?:[1-9]|1[0-2])$/.test(override))throw new Error('INVALID_DEVELOPMENT_APP_BUDGET');
+ return Number(override);
+}
+
 export type WorkspaceGatewaySettings = { version: number; activeApps: string[]; maxApps: number; idleMinutes: number; bundlers: Record<string, string>; defaultBundler: string };
 type RunningApp = { id: string; port: number; child: ChildProcess; started: Promise<void>; requests: number; upgraded: Set<Duplex>; lastUsed: number; identity: ProcessIdentity; startupAttempt: number; ready: boolean; servedRequest: boolean; intentionalStop: boolean };
 export type WorkspaceGatewayOptions = {
@@ -63,7 +71,8 @@ function holdDemand(id: string) {
  return()=>{if(released)return;released=true;const remaining=(pendingDemand.get(id)??1)-1;if(remaining)pendingDemand.set(id,remaining);else pendingDemand.delete(id);};
 }
 function settings(): WorkspaceGatewaySettings {
-  const value = options.settings ? options.settings() : JSON.parse(readFileSync(resolve(repository, "scripts/local/workspace-settings.json"), "utf8")) as WorkspaceGatewaySettings;
+  const configured = options.settings ? options.settings() : JSON.parse(readFileSync(resolve(repository, "scripts/local/workspace-settings.json"), "utf8")) as WorkspaceGatewaySettings;
+  const value = options.settings ? configured : {...configured,maxApps:developmentApplicationBudget(configured.maxApps,options.port===3100?environment.ERPX_DEV_MAX_APPS:undefined)};
   if (value.version !== 1 || !Array.isArray(value.activeApps) || value.activeApps.some(id => !appDefinitions.some(app => app.id === id))
     || !Number.isInteger(value.maxApps) || value.maxApps < 1 || value.maxApps > 12 || !Number.isFinite(value.idleMinutes) || value.idleMinutes < 1
     || !["webpack", "turbopack"].includes(value.defaultBundler)) throw new Error("INVALID_WORKSPACE_SETTINGS");
@@ -200,7 +209,7 @@ function target(req: IncomingMessage) {
 }
 function failed(res: ServerResponse, error: unknown) {
   console.error(error instanceof Error ? error.message : "GATEWAY_REQUEST_FAILED");
-  if (!res.headersSent) { res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }); res.end("Development application unavailable. See the owned application log."); }
+  if (!res.headersSent) { res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }); res.end(error instanceof Error&&error.message.startsWith("DEVELOPMENT_APP_CAPACITY:")?"Development app capacity reached. Close an unused development app tab or increase ERPX_DEV_MAX_APPS in your local configuration.":"Development application unavailable. See the owned application log."); }
   else res.destroy();
 }
 const server = createServer(async (req, res) => {

@@ -8,8 +8,13 @@ import { connect } from 'node:net';
 import { expect, it } from 'vitest';
 import { appDefinition, appIds } from '@erpx/contracts/apps';
 import { consoleWorkspaceCutoverBlockers } from '../../../scripts/local/console-workspace-cutover';
-import { startWorkspaceGateway } from '../../../scripts/local/workspace-gateway-runtime';
+import { startWorkspaceGateway, developmentApplicationBudget } from '../../../scripts/local/workspace-gateway-runtime';
 
+it('validates local process budgets without silently increasing resource limits',()=>{
+ expect(developmentApplicationBudget(4,undefined)).toBe(4);expect(developmentApplicationBudget(4,'6')).toBe(6);
+ for(const value of ['', '0','13','04','6.0','+6',' 6','NaN'])expect(()=>developmentApplicationBudget(4,value)).toThrow('INVALID_DEVELOPMENT_APP_BUDGET');
+ for(const value of [0,13,1.5])expect(()=>developmentApplicationBudget(value,'6')).toThrow('INVALID_WORKSPACE_SETTINGS');
+});
 const pause = (ms: number) => new Promise(done => setTimeout(done, ms));
 it('requires every app mapping and the exact development environment before Console retirement without requiring Commercial enforcement', () => {
   const environment = { ERPX_ENVIRONMENT: 'local', ERPX_PRODUCT_ENVIRONMENT: 'development', ERPX_PUBLIC_ORIGIN: 'https://console-dev-erpx.jesadakorn.com', ERPX_PRODUCT_ROUTING: 'enabled', ERPX_PRODUCT_SSO: 'enabled' };
@@ -154,7 +159,7 @@ const server=createServer((req,res)=>{res.setHeader('X-ERPX-App',id);if(req.url=
 server.on('upgrade',(req,socket,head)=>{if(req.url==='/cancelled-upgrade')appendFileSync('cancelled-upgrade.log','forwarded');socket.on('error',()=>socket.destroy());socket.on('end',()=>socket.end());const accept=require('node:crypto').createHash('sha1').update(String(req.headers['sec-websocket-key'])+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');socket.write('HTTP/1.1 101 Switching Protocols\\r\\nConnection: Upgrade\\r\\nUpgrade: websocket\\r\\nSec-WebSocket-Accept: '+accept+'\\r\\nX-Source-Host: '+req.headers.host+'\\r\\nX-Source-Origin: '+req.headers.origin+'\\r\\n\\r\\n');if(head.length)socket.write(head);socket.on('data',chunk=>socket.write(chunk));});server.listen(port,'127.0.0.1');`);
     let budget=1;
     gateway = await startWorkspaceGateway({ root, node: process.execPath, port: 3104, preview: false, fallback: null,
-      appPorts: new Map([['account', 3290], ['learn', 3291]]), environment: { NODE_ENV: "development", PATH: process.env.PATH, ERPX_PROCESS_ROLE: "jobs" },
+      appPorts: new Map([['account', 3290], ['learn', 3291]]), environment: { NODE_ENV: "development", PATH: process.env.PATH, ERPX_PROCESS_ROLE: "jobs", ERPX_DEV_MAX_APPS:"12" },
       settings: () => ({ version: 1, activeApps: ['account', 'learn'], maxApps: budget, idleMinutes: 10, bundlers: {}, defaultBundler: 'webpack' }) });
     const account = new URL(appDefinition('account').origin).host, learn = new URL(appDefinition('learn').origin).host;
     foreign = createServer();

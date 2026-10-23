@@ -7,7 +7,16 @@
     "admin",
     "work",
     "people",
-    "recruit"
+    "recruit",
+    "sales",
+    "supply",
+    "finance",
+    "assets",
+    "projects",
+    "support",
+    "service",
+    "legal",
+    "manufacturing"
   ],
   "maxApps": 4,
   "idleMinutes": 10,

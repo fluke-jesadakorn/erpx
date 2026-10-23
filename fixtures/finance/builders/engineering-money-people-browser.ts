@@ -63,7 +63,10 @@ export async function seedEngineeringMoneyPeopleBrowser(input:Input){
    actor.iam=await loadIamAuthority(input.db,f.company,actor.userId,role);actors[label]=actor;users[label]={key:label,email:actor.email,userId:actor.userId,role,assignmentId:actor.assignmentId,workspaceBase:department?`/holdings/simulation/branches/${f.branch}/departments/${f.department}`:'/holdings/simulation'};return actor;
   }
   const finance=await register('finance-author','finance_preparer'),approver=await register('finance-reviewer','finance_approver');await register('hr','custom_engineering_hr');const academy=await register('academy-author','custom_engineering_academy'),academyReview=await register('academy-reviewer','custom_engineering_academy'),learner=await register('learner','custom_engineering_learner'),talent=await register('talent-author','custom_engineering_talent',true),talentReview=await register('talent-reviewer','custom_engineering_talent',true);
-  if(input.workspaceProducts?.length)await register('workspace-owner','holding_owner');
+  if(input.workspaceProducts?.length){
+   const owner=await register('workspace-owner','holding_owner');
+   if(input.workspaceProducts.includes('legal')){const {legalCommand}=await import('@erpx/server-legal/public/legal/service');await legalCommand(input.db,owner,{action:'settings',enabled:true},key());}
+  }
   const accumulated=String((await createAccount(finance,createAccountSchema.parse({chartId:f.chart,code:'ACCUMULATED',name:'Accumulated depreciation',category:'asset'}),key())).id);
   const reportChart=String((await createChart(finance,createChartSchema.parse({name:'Synthetic NPAEs reporting ledger',baseCurrency:'THB',accountingBasis:'TFRS for NPAEs'}),key())).id),reportAccounts:Record<string,string>={};
   for(const [name,category] of [['cash','asset'],['capital','equity'],['retained','equity'],['revenue','revenue'],['expense','expense']] as const)reportAccounts[name]=String((await createAccount(finance,createAccountSchema.parse({chartId:reportChart,code:name.toUpperCase(),name:`Report ${name}`,category}),key())).id);

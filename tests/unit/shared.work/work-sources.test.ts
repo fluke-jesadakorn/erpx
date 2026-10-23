@@ -98,3 +98,30 @@ it("retains the workspace when one source fails and reports only that source", a
     warning.mockRestore();
   }
 });
+
+it("bounds concurrent owner reads while retaining every result and failed source", async()=>{
+  const actor: WorkContext = {
+    userId: "user",
+    name: "Employee",
+    email: "employee@example.test",
+    assignmentId: "assignment",
+    companyId: "company",
+    holdingId: "h001",
+    holdingSlug: "acme",
+    holdingName: "Acme",
+    branchId: null,
+    departmentId: null,
+    role: "employee",
+    modules: [],
+    assignments: [],
+    workspaces: [],
+    assignmentScope: "holding",
+    inherited: false,
+    scope: { kind: "holding", holdingId: "h001", holdingSlug: "acme", holdingName: "Acme", companyId: "company" },
+  };
+ let active=0,peak=0;const seen:string[]=[];
+ const read=async(name:string)=>{seen.push(name);peak=Math.max(peak,++active);try{await new Promise(done=>setTimeout(done,2));if(name==='legalWork')throw Error('Declared unavailable owner');return [item(name)];}finally{active--;}};
+ const app=createWorkSnapshot({source:async name=>read(name),domain:async(_actor,name)=>read(name),leave:async()=>{await read('leave');return {rows:[],counts:{todo:0,waiting:0,completed:0,all:0}};},enrich:async(_actor,rows)=>rows,enabledModules:async()=>new Set(),production:()=>false,monotonic:()=>0,performanceLog:()=>false,errorStatus:()=>undefined,info:()=>{},warn:()=>{},cached:(_actor,load)=>load()});
+ const snapshot=await app.readWorkSnapshot(actor);expect(peak).toBe(2);expect(active).toBe(0);expect(new Set(seen).size).toBe(seen.length);expect(seen.length).toBeGreaterThan(35);
+ expect(snapshot.unavailableSources).toEqual(['Legal']);expect(snapshot.items.map(row=>row.id).sort()).toEqual(seen.filter(name=>!['legalWork','leave'].includes(name)).sort());
+});

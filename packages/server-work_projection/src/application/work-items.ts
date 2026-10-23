@@ -137,12 +137,23 @@ async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot> {
     for (let index=jobs.length-1;index>=0;index--)
       if (!(sources[jobs[index].label]??[]).some((moduleId)=>enabled.has(moduleId))) jobs.splice(index,1);
   }
-  const settled = await Promise.allSettled(jobs.map(async (j) => {
+  // Bound fan-out before acquiring database connections. A small per-app
+  // pool must not receive every owner query at once and time out in its queue.
+  const settled: PromiseSettledResult<WorkItem[]>[] = new Array(jobs.length);
+  let next=0;
+  await Promise.all(Array.from({length:Math.min(2,jobs.length)},async()=>{
+   for(let index=next++;index<jobs.length;index=next++){
+    const j=jobs[index];
+    try{settled[index]={status:"fulfilled",value:await loadSource(j)};}
+    catch(reason){settled[index]={status:"rejected",reason};}
+   }
+  }));
+  async function loadSource(j:typeof jobs[number]){
     const started = ports.monotonic();
     try { return await ports.enrich(actor,await j.load()); }
     finally { if (ports.performanceLog()) ports.info(JSON.stringify({ event: "work_source", source: j.label, durationMs: ports.monotonic() - started })); }
-  })),
-    rows: WorkItem[] = [],
+  }
+  const rows: WorkItem[] = [],
     unavailable = new Set<string>();
   settled.forEach((result, i) => {
     if (result.status === "fulfilled") rows.push(...result.value);

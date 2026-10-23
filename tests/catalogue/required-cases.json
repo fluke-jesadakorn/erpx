@@ -1765,6 +1765,132 @@
       "file": "tests/e2e/procurement/workspace-smoke.spec.ts",
       "title": "Supply workspace preserves existing module authority through Account SSO and its purchase drawer without Commercial grants",
       "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/assets/workspace-smoke.spec.ts",
+      "title": "Assets workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/projects/workspace-smoke.spec.ts",
+      "title": "Projects workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/support/workspace-smoke.spec.ts",
+      "title": "Support workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/field_service/workspace-smoke.spec.ts",
+      "title": "Service workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/legal/workspace-smoke.spec.ts",
+      "title": "Legal workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/manufacturing/workspace-smoke.spec.ts",
+      "title": "Manufacturing workspace preserves existing module authority through Account SSO and its owner drawer without Commercial grants",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pos-workspace-smoke.spec.ts",
+      "title": "Pos workspace serves its owned host and normal Account SSO with a Front drawer without business mutations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/pms-workspace-smoke.spec.ts",
+      "title": "Pms workspace serves its owned host and normal Account SSO with a Front drawer without business mutations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/pms/booking-workspace-smoke.spec.ts",
+      "title": "Booking workspace serves its owned host and public entry and published visitor surface without business mutations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/customer_authority/portal-workspace-smoke.spec.ts",
+      "title": "Portal workspace serves its owned host and public entry and published visitor surface without business mutations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/legal/legal-portal-workspace-smoke.spec.ts",
+      "title": "Legal-Portal workspace serves its owned host and public entry and published visitor surface without business mutations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/marketing/forms-workspace-smoke.spec.ts",
+      "title": "Forms workspace serves its owned host and public entry and published visitor surface without business mutations",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
+      "title": "Finance owner drawer preserves its draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
+      "title": "Sales owner drawer preserves its draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
+      "title": "Supply owner drawer preserves its draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
+      "title": "Assets owner drawer preserves its draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
+      "title": "Projects owner drawer preserves its draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
+      "title": "Support owner drawer preserves its draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
+      "title": "Service owner drawer preserves its draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
+      "title": "Legal owner drawer preserves its draft through twenty measured HMR updates",
+      "project": "desktop"
+    },
+    {
+      "runner": "playwright",
+      "file": "tests/e2e/shared.ui/application-hmr.spec.ts",
+      "title": "Manufacturing owner drawer preserves its draft through twenty measured HMR updates",
+      "project": "desktop"
     }
   ]
 }

@@ -6,8 +6,8 @@ import {productIds,type ProductId} from "@erpx/contracts/product-registry";
  * ERPX_BROWSER_SIMULATION_PORT=3104 ERPX_BROWSER_SIMULATION_RELEASE_DIR=<release> bun run demo:start <run-id>
  * ERPX_BROWSER_SIMULATION_PORT=3104 bun run demo:destroy <run-id>
  */
-import {mkdir,readFile,writeFile,cp,chmod,open,rm,realpath,readdir} from 'node:fs/promises';
-import {existsSync,constants} from 'node:fs';
+import {mkdir,readFile,writeFile,chmod,open,rm,realpath,readdir} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import {resolve,join,dirname} from 'node:path';
 import {createHash,randomBytes} from 'node:crypto';
 import {spawn} from 'node:child_process';
@@ -19,11 +19,12 @@ import {generalCompanyDemoGuide} from "../../fixtures/shared/builders/general-co
 import {placeScopedBrowserEmployee} from "../../fixtures/people_payroll/builders/scoped-browser-staff";
 import {runtimeSourceFingerprint} from './source-fingerprint';
 import {copyReleaseArtifact} from './copy-release-artifact';
-import {workspaceCopyInput} from './workspace-copy-input';
+import {workspaceCopyInput,copyWorkspaceSnapshot} from './workspace-copy-input';
 import {workspaceBrowserApps,workspaceBrowserBundler} from '../testing/development-host-profile';
 import {linkBrowserWorkspaceModules} from '../testing/browser-workspace-modules';
 import {clonedFixtureMetadata,isolatedAiCredentialEnvironment,isClonedFixtureDocument,isCaseExecutionEvidence,moduleBrowserReleaseVerificationCompanyIds} from '../testing/browser-fixture-metadata';
 import {browserChildEnvironment} from '../testing/runner-environment';
+import {cloneSchemaTemplate,ensureSchemaTemplate,postgresFixtureFingerprint,type DatabaseSlot,type Template} from '../../tests/support/postgres-templates';
 const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=Number(process.env.ERPX_BROWSER_SIMULATION_PORT??'3102');
 if(![3102,3104].includes(port))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_PORT');
 const useWebpack=process.env.ERPX_BROWSER_SIMULATION_WEBPACK==='1';
@@ -161,10 +162,10 @@ if(mode==='prepare'||diagnostic){
     const url=new URL(adminUrl);url.pathname=name;databases[binding]=url.href;
    }
   }finally{await admin.end();}
-  await cp(templateDirectory,directory,{recursive:true,verbatimSymlinks:true,mode:constants.COPYFILE_FICLONE,filter:path=>{
+  await copyWorkspaceSnapshot(templateDirectory,directory,path=>{
    const relative=path.slice(templateDirectory.length+1);
    return !['state.json','databases.json','databases-jobs.json','databases-migrations.json','server.log','jobs.log','uat-auth','release','provider-fixture.json','provider-fixture.lock'].some(name=>relative===name||relative.startsWith(name+'/'))&&relative!=='app/node_modules'&&!isCaseExecutionEvidence(relative);
-  }});
+  });
   await linkBrowserWorkspaceModules(join(templateDirectory,'app'),app);
   for(const entry of await readdir(directory))if(entry.endsWith('.json')&&!entry.startsWith('databases')){
    const path=join(directory,entry),content=JSON.parse(await readFile(path,'utf8'));
@@ -182,7 +183,19 @@ if(mode==='prepare'||diagnostic){
   state.ready=true;await writePrivate(statePath,state);console.log(JSON.stringify({run,templateRun,origin,statePath,ready:true}));process.exit(0);
  }
  const admin=new Pool({connectionString:adminUrl,max:1}),urls:Record<string,string>={};
- try{await assertAdmin(admin);for(const [binding,track] of Object.entries(tracks)){const name=`${prefix}_${binding.toLowerCase()}`;await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);const url=new URL(adminUrl);url.pathname=name;urls[binding]=url.href;const db=new PostgresDatabase({connectionString:url.href,max:1});try{await migrateDatabase(db,track);}finally{await db.close();}}}finally{await admin.end();}
+ const schemaTemplates=new Map<string,Template>();
+ // Compiled acceptance and diagnostic/migration paths retain real migrations.
+ if(workspaceApps&&state.executionMode==='development-smoke'&&!diagnostic){
+  const fixtureFingerprint=await postgresFixtureFingerprint(root);
+  for(const track of new Set(Object.values(tracks)))schemaTemplates.set(track,await ensureSchemaTemplate(root,track,fixtureFingerprint));
+ }
+ try{await assertAdmin(admin);for(const [binding,track] of Object.entries(tracks)){
+  const name=`${prefix}_${binding.toLowerCase()}`,template=schemaTemplates.get(track);
+  if(template)await cloneSchemaTemplate(admin,{database:name,slot:binding as DatabaseSlot},template);
+  else await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
+  const url=new URL(adminUrl);url.pathname=name;urls[binding]=url.href;
+  if(!template){const db=new PostgresDatabase({connectionString:url.href,max:1});try{await migrateDatabase(db,track);}finally{await db.close();}}
+ }}finally{await admin.end();}
  await writePrivate(manifestPath,{version:1,databases:urls,slots:[{id:'h001',write:'H001_DB',read:'H001_READ_DB',files:'H001_FILES'},{id:'h002',write:'H002_DB',read:'H002_READ_DB',files:'H002_FILES'},{id:'h003',write:'H003_DB',read:'H003_READ_DB',files:'H003_FILES',internal:true}]});
  // This is the same restricted disposable owner, never a development or
  // production migration identity. The normal Platform command verifies it
@@ -429,7 +442,7 @@ if(mode==='prepare'||diagnostic){
     state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES,...(workspaceConsoleRetired?{workspaceProducts:workspaceApps!.filter((id):id is ProductId=>productIds.includes(id as ProductId))}:{})});
     // Account/Apps/Admin need the foundation fixture; Learn additionally declares
     // its fictional academy package. Other profiles retain the full cohort.
-    const foundationOnly=workspaceApps?.every(id=>['account','apps','admin'].includes(id));
+    const foundationOnly=workspaceApps?.every(id=>['account','apps','admin','portal','legal-portal','forms'].includes(id));
     const academyOnly=workspaceApps?.includes('learn')&&workspaceApps.every(id=>['account','apps','learn'].includes(id));
     const productApps=workspaceApps?.filter(id=>['work','people','recruit'].includes(id))??[];
     const productOnly=productApps.length>0&&workspaceApps?.every(id=>['account','apps','work','people','recruit'].includes(id))||workspaceConsoleRetired&&workspaceApps?.every(id=>['account','apps',...productIds].includes(id));
@@ -441,6 +454,7 @@ if(mode==='prepare'||diagnostic){
      const {seedWorkspaceProductPackages}=await import('../../fixtures/shared/builders/workspace-product-packages');
      await seedWorkspaceProductPackages({run,db:env.H001_DB as PostgresDatabase,apps:productApps,cohort:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
     }
+    if(workspaceApps?.includes('forms')){const {seedWorkspaceForms}=await import('../../fixtures/marketing/builders/workspace-browser');await seedWorkspaceForms({run,directory,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});}
     if(!foundationOnly&&!academyOnly&&!productOnly){
     state.fixture.engineeringBusiness=await seedEngineeringBusinessBrowser({run,db:env.H001_DB,f});
     state.fixture.engineeringWorkplacePlatform=await seedEngineeringWorkplacePlatformBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h003:env.H003_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES,h003Files:env.H003_FILES});
@@ -473,7 +487,7 @@ if(mode==='prepare'||diagnostic){
   const receipt=JSON.parse(await readFile(join(directory,'attachment-baseline.json'),'utf8'));
   if(receipt.gateReady!==true||receipt.sourceFingerprint!==sourceFingerprint)throw new Error('BROWSER_BASELINE_ATTACHMENT_GATE_NOT_READY');
  }
- await mkdir(app,{recursive:true});for(const name of ['src','apps','packages','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,verbatimSymlinks:true,mode:constants.COPYFILE_FICLONE,filter:path=>workspaceCopyInput(root,path)});
+ await mkdir(app,{recursive:true});for(const name of ['src','apps','packages','public','scripts','fixtures','migrations/postgres','tests/support','tests/catalogue','tests/config','ops/macos/clamav','ops/macos/install-attachment-runtime.py','ops/macos/attachment-rollout.md','ops/macos/erpxctl.py','ops/macos/offsite.py','ops/macos/recovery_status.py','package.json','bun.lock','next.config.ts','tsconfig.json','tsconfig.base.json','next-env.d.ts','postcss.config.mjs','node_modules'])await copyWorkspaceSnapshot(join(root,name),join(app,name),path=>workspaceCopyInput(root,path));
  if(await runtimeSourceFingerprint(root)!==sourceFingerprint||await runtimeSourceFingerprint(app)!==sourceFingerprint)throw new Error('BROWSER_PREPARATION_SOURCE_CHANGED');
  state.softwareVersion=`release-${sourceFingerprint}`;
  await writeFile(join(app,'packages/catalogue/src/release-artifact.json'),JSON.stringify({softwareVersion:state.softwareVersion})+'\n');

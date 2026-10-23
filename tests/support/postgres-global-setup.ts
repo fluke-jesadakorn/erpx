@@ -1,18 +1,9 @@
 import type { TestProject } from "vitest/node";
-import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadCatalogue, repositoryRoot } from "../../scripts/testing/catalogue";
-import { databaseTracks, ensureSchemaTemplate, recoverAbandonedSuiteLeases, type NativeFixturePlan, type DatabaseSlot } from "./postgres-templates";
+import { databaseTracks, ensureSchemaTemplate, postgresFixtureFingerprint, recoverAbandonedSuiteLeases, type NativeFixturePlan, type DatabaseSlot } from "./postgres-templates";
 
-async function fixtureFingerprint(root: string) {
-  const hash = createHash("sha256").update("schema-only-native-fixtures/v1");
-  for (const directory of ["fixtures", "tests/support"]) {
-    const files = (await readdir(join(root, directory), { recursive: true, withFileTypes: true })).filter(entry => entry.isFile()).map(entry => join(entry.parentPath, entry.name)).filter(file => /\.[cm]?[jt]sx?$/.test(file)).sort();
-    for (const file of files) hash.update(file.slice(root.length)).update("\0").update(await readFile(file)).update("\0");
-  }
-  return hash.digest("hex");
-}
 export default async function setup(project: TestProject) {
   const root = repositoryRoot, selected = JSON.parse(process.env.ERPX_SELECTED_TEST_FILES ?? "[]") as string[];
   const suites = loadCatalogue(root).suites.filter(suite => suite.files.some(file => selected.includes(file)));
@@ -31,7 +22,7 @@ export default async function setup(project: TestProject) {
     if (benchmark === 'legacy-raw') for (const file of Object.values(plan.files)) { file.mode='raw'; file.slots=Object.keys(databaseTracks) as DatabaseSlot[]; file.migratedSlots=[]; }
   }
   await recoverAbandonedSuiteLeases(root);
-  const fingerprint = await fixtureFingerprint(root);
+  const fingerprint = await postgresFixtureFingerprint(root);
   for (const track of new Set(Object.values(plan.files).filter(file => file.mode === "template").flatMap(file => file.migratedSlots.map(slot => databaseTracks[slot]))))
     plan.templates[track] = await ensureSchemaTemplate(root, track, fingerprint);
   const directory = join(root, ".scratch/dev/test-suites/native"); await mkdir(directory, { recursive: true, mode: 0o700 });

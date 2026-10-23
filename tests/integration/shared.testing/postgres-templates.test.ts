@@ -6,12 +6,32 @@ import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { Pool } from 'pg';
 import { env, applyMigrations } from '../../support/runtime-env';
-import { ensureSchemaTemplate,createSuiteDatabases,completeSuiteLease,recoverAbandonedSuiteLeases,cleanupSuiteDatabases,schemaFingerprint,testAdministratorUrl } from '../../support/postgres-templates';
+import { ensureSchemaTemplate,cloneSchemaTemplate,createSuiteDatabases,completeSuiteLease,recoverAbandonedSuiteLeases,cleanupSuiteDatabases,schemaFingerprint,postgresFixtureFingerprint,testAdministratorUrl } from '../../support/postgres-templates';
 
 const root=process.cwd(),admin=new Pool({connectionString:testAdministratorUrl(),max:1});
 const prefixes:string[]=[];
 const prefix=()=>{const value='erpx_test_'+randomUUID().replaceAll('-','').slice(0,10);prefixes.push(value);return value;};
 const lease=(value:string)=>join(root,'.scratch/dev/postgres-templates',value+'.lease.json');
+it('shares an immutable migrated schema with browser namespaces while refusing foreign targets and isolating rows',async()=>{
+ const template=await ensureSchemaTemplate(root,'control','browser-shared-schema-probe/v1');
+ expect(await ensureSchemaTemplate(root,'control','browser-shared-schema-probe/v1')).toEqual(template);
+ const left='erpx_browser_'+randomUUID().replaceAll('-','').slice(0,12),right='erpx_browser_'+randomUUID().replaceAll('-','').slice(0,12);
+ for(const value of [left,right]){await cloneSchemaTemplate(admin,{database:value+'_control_db',slot:'CONTROL_DB'},template);prefixes.push(value);}
+ const connect=(value:string)=>{const url=new URL(testAdministratorUrl());url.pathname='/'+value+'_control_db';return new Pool({connectionString:url.href,max:1});};
+ const a=connect(left),b=connect(right);
+ try{
+  expect(Number((await a.query("SELECT count(*) FROM pg_tables WHERE schemaname='public'")).rows[0].count)).toBeGreaterThan(0);
+  await a.query('CREATE TABLE browser_clone_probe(value integer)');await a.query('INSERT INTO browser_clone_probe VALUES(1)');
+  expect((await b.query("SELECT to_regclass('public.browser_clone_probe') object")).rows[0].object).toBeNull();
+  expect((await admin.query("SELECT datallowconn FROM pg_database WHERE datname=$1",[template.database])).rows[0].datallowconn).toBe(false);
+  const publicConnect=await admin.query("SELECT 1 FROM pg_database d,LATERAL aclexplode(coalesce(d.datacl,acldefault('d',d.datdba))) a WHERE d.datname=$1 AND a.grantee=0 AND a.privilege_type='CONNECT'",[left+'_control_db']);
+  expect(publicConnect.rowCount).toBe(0);
+  await expect(cloneSchemaTemplate(admin,{database:'erpx_dev_control',slot:'CONTROL_DB'},template)).rejects.toThrow('EXACT_SCHEMA_TEMPLATE_REQUIRED');
+  await expect(cloneSchemaTemplate(admin,{database:left+'_control_db',slot:'H001_DB'},template)).rejects.toThrow('EXACT_SCHEMA_TEMPLATE_REQUIRED');
+  await expect(cloneSchemaTemplate(admin,{database:left+'_control_db',slot:'CONTROL_DB'},{...template,fingerprint:'a'.repeat(64)})).rejects.toThrow('TEMPLATE_IDENTITY_CHANGED');
+  expect((await a.query('SELECT value FROM browser_clone_probe')).rows).toEqual([{value:1}]);
+ }finally{await a.end();await b.end();}
+});
 afterAll(async()=>{
  for(const value of prefixes){await admin.query(`DROP DATABASE IF EXISTS "${value}_control_db"`);await rm(lease(value),{force:true});}
  await admin.end();
@@ -41,6 +61,11 @@ it('invalidates templates for migration bytes, fixture revision, and PostgreSQL 
   expect(await schemaFingerprint(temporary,'control','18.6:UTC','profile-b')).not.toBe(key);
   expect(await schemaFingerprint(temporary,'control','18.6:Asia/Bangkok','profile-a')).not.toBe(key);
   await writeFile(file,'CREATE TABLE example(id bigint);');expect(await schemaFingerprint(temporary,'control','18.6:UTC','profile-a')).not.toBe(key);
+  const inputs=['fixtures/example.ts','tests/support/helper.ts','scripts/seed/example.ts','packages/server-runtime/src/adapters/runtime/migrations.ts','packages/server-runtime/src/adapters/runtime/postgres.ts','packages/server-runtime/src/adapters/runtime/resources.ts','packages/server-runtime/src/adapters/runtime/read-metrics.ts','bun.lock'];
+  for(const input of inputs){const path=join(temporary,input);await mkdir(join(path,'..'),{recursive:true});await writeFile(path,'original input');}
+  const fixture=await postgresFixtureFingerprint(temporary);
+  for(const input of inputs){const path=join(temporary,input);await writeFile(path,'changed input');expect(await postgresFixtureFingerprint(temporary)).not.toBe(fixture);await writeFile(path,'original input');}
+  expect(await postgresFixtureFingerprint(temporary)).toBe(fixture);
  }finally{await rm(temporary,{recursive:true,force:true});}
 });
 it('recovers only dead owned leases and leaves a live suite alone',async()=>{

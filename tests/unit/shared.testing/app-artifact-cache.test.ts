@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { cp, mkdtemp, mkdir, readFile, readlink, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readlink, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { it, expect } from 'vitest';
-import { workspaceCopyInput } from '../../../scripts/local/workspace-copy-input';
+import { workspaceCopyInput, copyWorkspaceSnapshot } from '../../../scripts/local/workspace-copy-input';
 import { verifyAppArtifact } from '../../../scripts/local/app-artifact-cache';
 import { artifactSymbolicLinks, relocateCompilerDependencyAliases } from '../../../scripts/local/standalone-links';
 
@@ -68,7 +68,10 @@ it('copies source while excluding private environment and generated state in nes
     await writeFile(join(source, 'apps/finance/page.tsx'), 'export default 1;');
     await writeFile(join(source, 'apps/finance/.env.local'), 'FICTIONAL_PRIVATE_CONFIGURATION=omit');
     await writeFile(join(source, 'apps/finance/.cache/state'), 'generated');
-    await cp(source, output, { recursive: true, filter: path => workspaceCopyInput(source, path) });
+    await symlink('page.tsx',join(source,'apps/finance/entry.tsx'));
+    await copyWorkspaceSnapshot(source, output,path => workspaceCopyInput(source, path));
+    expect(await readlink(join(output,'apps/finance/entry.tsx'))).toBe('page.tsx');
+    await expect(copyWorkspaceSnapshot(source,output,path=>workspaceCopyInput(source,path))).rejects.toMatchObject({code:'EEXIST'});
     expect(await readFile(join(output, 'apps/finance/page.tsx'), 'utf8')).toBe('export default 1;');
     await expect(readFile(join(output, 'apps/finance/.env.local'))).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(readFile(join(output, 'apps/finance/.cache/state'))).rejects.toMatchObject({ code: 'ENOENT' });

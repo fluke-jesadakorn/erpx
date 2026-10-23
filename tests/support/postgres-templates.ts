@@ -16,6 +16,17 @@ export type Template = { database: string; track: string; fingerprint: string };
 export type NativeFixturePlan = { version: 1; root: string; pid: number; benchmark?: { mode: "legacy-raw" | "template"; directory: string }; templates: Record<string, Template>; files: Record<string, { mode: "template" | "raw"; slots: DatabaseSlot[]; migratedSlots: DatabaseSlot[] }> };
 const directory = (root: string) => resolve(root, ".scratch/dev/postgres-templates");
 const json = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
+/** Schema templates contain no scenario data. Native and development browser
+ * setup share the same fixture/migration-engine identity and PostgreSQL checks. */
+export async function postgresFixtureFingerprint(root:string){
+ const hash=createHash('sha256').update('schema-only-fixtures/v3');
+ for(const directory of ['fixtures','tests/support','scripts/seed']){
+  const files=(await readdir(join(root,directory),{recursive:true,withFileTypes:true})).filter(entry=>entry.isFile()).map(entry=>join(entry.parentPath,entry.name)).filter(file=>/\.[cm]?[jt]sx?$/.test(file)).sort();
+  for(const file of files)hash.update(file.slice(root.length)).update('\0').update(await readFile(file)).update('\0');
+ }
+ for(const file of ['packages/server-runtime/src/adapters/runtime/migrations.ts','packages/server-runtime/src/adapters/runtime/postgres.ts','packages/server-runtime/src/adapters/runtime/resources.ts','packages/server-runtime/src/adapters/runtime/read-metrics.ts','bun.lock'])hash.update(file).update('\0').update(await readFile(join(root,file))).update('\0');
+ return hash.digest('hex');
+}
 async function atomic(path: string, value: unknown, exclusive=false) {
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
   await writeFile(temporary, json(value), { mode: 0o600, flag:'wx' });
@@ -75,6 +86,18 @@ export async function ensureSchemaTemplate(root: string, track: string, fixtureF
     await admin.end();
   }
 }
+/** Clone only an exact immutable broker template into a new test-owned name.
+ * The caller records its suite/browser lease before allocation and owns cleanup. */
+export async function cloneSchemaTemplate(admin:Pool,target:{database:string;slot:DatabaseSlot},template:Template){
+ const pattern=/^erpx_(?:test_[a-f0-9]{10}|browser_[a-f0-9]{12})_(?:control(?:_read)?|h00[1-3](?:_read)?)_db$/;
+ if(!pattern.test(target.database)||!(target.slot in databaseTracks)||!target.database.endsWith('_'+target.slot.toLowerCase())
+   ||!template||!/^erpx_test_tpl_[a-f0-9]{24}$/.test(template.database)||!/^[a-f0-9]{64}$/.test(template.fingerprint)||template.track!==databaseTracks[target.slot])throw new Error('EXACT_SCHEMA_TEMPLATE_REQUIRED');
+ await assertTestAdministrator(admin);
+ const identity=(await admin.query("SELECT pg_get_userbyid(datdba) owner,datallowconn,shobj_description(oid,'pg_database') description FROM pg_database WHERE datname=$1",[template.database])).rows[0];
+ if(identity?.owner!=='erpx_test_admin'||identity.datallowconn!==false||identity.description!==json(template).trim())throw new Error('TEMPLATE_IDENTITY_CHANGED');
+ await admin.query(`CREATE DATABASE "${target.database}" TEMPLATE "${template.database}"`);
+ await admin.query(`REVOKE CONNECT ON DATABASE "${target.database}" FROM PUBLIC`);
+}
 type SuiteLease = { version: 2; root: string; prefix: string; pid: number; token: string; databases: string[]; completed: boolean };
 const databasePattern = /^erpx_test_[a-f0-9]{10}_(?:control(?:_read)?|h00[1-3](?:_read)?)_db$/;
 const suiteMarker = (lease: SuiteLease) => JSON.stringify({version:2,root:lease.root,prefix:lease.prefix,pid:lease.pid,token:lease.token});
@@ -113,10 +136,7 @@ export async function createSuiteDatabases(root: string, prefix: string, slots: 
     const allocate = async (slot: DatabaseSlot) => {
       const name = `${prefix}_${slot.toLowerCase()}`, template = templates[databaseTracks[slot]];
       if (mode === "template" && migratedSlots.includes(slot)) {
-        if (!template || !/^erpx_test_tpl_[a-f0-9]{24}$/.test(template.database) || template.track !== databaseTracks[slot]) throw new Error("EXACT_SCHEMA_TEMPLATE_REQUIRED");
-        const identity = (await admin.query("SELECT pg_get_userbyid(datdba) owner,datallowconn,shobj_description(oid,'pg_database') description FROM pg_database WHERE datname=$1", [template.database])).rows[0];
-        if (identity?.owner !== "erpx_test_admin" || identity.datallowconn !== false || identity.description !== json(template).trim()) throw new Error("TEMPLATE_IDENTITY_CHANGED");
-        await admin.query(`CREATE DATABASE "${name}" TEMPLATE "${template.database}"`);
+        await cloneSchemaTemplate(admin,{database:name,slot},template);
       } else await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
       created.push(name);
       await admin.query(`COMMENT ON DATABASE "${name}" IS ${sqlLiteral(suiteMarker(lease))}`);
