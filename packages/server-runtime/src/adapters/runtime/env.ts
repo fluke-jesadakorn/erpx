@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
 import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
-import { databasePoolLimits,databasePoolSize } from "@erpx/feature-runtime/lib/database-pool-policy";
+import { databasePoolAcquireTimeout,databasePoolLimits,databasePoolSize } from "@erpx/feature-runtime/lib/database-pool-policy";
 import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem";
 import { MinioFileStore } from "@erpx/server-runtime/adapters/runtime/minio";
 import type { SqlDatabase, FileStore } from "@erpx/server-runtime/adapters/runtime/types";
@@ -100,7 +100,7 @@ export function getRuntime(): RuntimeEnv {
   for (const [binding, connectionString] of Object.entries(manifest.databases)) {
     // Installer provides independently scoped database logins; a separate jobs
     // manifest grants projection writes that the web process cannot perform.
-    env[binding] = new PostgresDatabase({ connectionString, application_name: `erpx-${role}`, max:databasePoolSize(binding,role,process.env.NODE_ENV,poolLimits) });
+    env[binding] = new PostgresDatabase({ connectionString, application_name: `erpx-${role}`, max:databasePoolSize(binding,role,process.env.NODE_ENV,poolLimits),connectionTimeoutMillis:databasePoolAcquireTimeout(role,process.env.NODE_ENV) });
   }
   // Schema migrations use a separately provisioned login. The web process gets
   // these credentials only from the private, sibling migration manifest; app

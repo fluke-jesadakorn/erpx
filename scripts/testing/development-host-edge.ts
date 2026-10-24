@@ -42,7 +42,7 @@ export async function startDevelopmentHostEdge(input: DevelopmentHostEdgeInput) 
   await new Promise<void>((done, reject) => {
     const health = httpRequest({ hostname: '127.0.0.1', port: 3104, path: '/api/health', headers: { Host: new URL(entryOrigin).host }, timeout: 120_000 }, response => {
       response.resume(); response.once('end', () => {
-        if (![200, 503].includes(response.statusCode ?? 0) || response.headers['x-erpx-app'] !== input.entryApp) reject(new Error('DEVELOPMENT_HOST_APP_PROCESS_REQUIRED')); else done();
+        if (![200, 503].includes(response.statusCode ?? 0) || response.headers['x-erpx-app'] !== input.entryApp) reject(new Error(`DEVELOPMENT_HOST_APP_PROCESS_REQUIRED:${response.statusCode}:${response.headers['x-erpx-app']??'missing'}`)); else done();
       }); response.once('error', reject);
     });
     health.once('timeout', () => health.destroy(new Error('DEVELOPMENT_HOST_APP_START_TIMEOUT'))); health.once('error', reject); health.end();

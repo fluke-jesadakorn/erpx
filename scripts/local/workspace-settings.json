@@ -27,15 +27,29 @@
   "maxApps": 4,
   "idleMinutes": 10,
   "bundlers": {
-    "learn": "turbopack",
     "account": "turbopack",
     "apps": "turbopack",
+    "learn": "turbopack",
     "admin": "turbopack",
     "work": "turbopack",
     "people": "turbopack",
     "recruit": "turbopack",
-    "finance": "turbopack"
+    "sales": "turbopack",
+    "supply": "turbopack",
+    "finance": "turbopack",
+    "assets": "turbopack",
+    "projects": "turbopack",
+    "support": "turbopack",
+    "service": "turbopack",
+    "legal": "turbopack",
+    "manufacturing": "turbopack",
+    "pos": "webpack",
+    "pms": "turbopack",
+    "booking": "turbopack",
+    "portal": "turbopack",
+    "legal-portal": "turbopack",
+    "forms": "turbopack"
   },
   "defaultBundler": "webpack",
-  "bundlerReason": "Account, Apps, Learn, Admin, Work, People, Recruit and Finance use measured Turbopack overrides recorded in the production plan. Webpack remains the default until each remaining app completes its comparison."
+  "bundlerReason": "Twenty-one owned apps use Turbopack after their scoped functional/HMR comparisons recorded in the production plan. POS retains Webpack: its Turbopack trial completed HMR updates but failed refresh with a hospitality JavaScript chunk 404. Booking and Portal Webpack baselines retain their failed functional status; only their fully passing Turbopack trials qualify for selection."
 }

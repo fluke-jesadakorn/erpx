@@ -1,39 +1,21 @@
 "use client";
-import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { FormDisclosure } from "@erpx/ui/components/form-disclosure";
 import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
 
-import { createContext, useContext, useEffect, useLayoutEffect, useId, useRef, useState } from "react";
-import { useRouter } from "@erpx/feature-shared/lib/destination-router";
+import { useContext, useLayoutEffect, useId, useRef, useState } from "react";
 import WorkspaceLink from "@erpx/workplace/components/workspace-link";
-import {createFieldServiceCommands,fieldServiceOwner,type FieldServiceSource} from "@erpx/feature-field_service/lib/command";
-import {registerUnsavedWork} from "@erpx/feature-work_projection/lib/context-switch";
+import type {FieldServiceSource} from "@erpx/feature-field_service/lib/command";
+import {useFieldServiceCommand as useCommand} from "@erpx/feature-field_service/components/use-field-service-command";
+import {ServiceEditorContext,ServiceCommandErrorContext,ServiceRecoveryContext} from "@erpx/feature-field_service/components/service-editor-context";
 import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/time/preferred-date-time-field";
 import { decimalToMinor, minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { ServiceSpareForm } from "@erpx/feature-field_service/components/service-spare-form";
 import { ServiceAgreementReferenceFields, ServiceRequestReferenceFields, ServiceOrderReferenceFields, ServiceTechnicianField } from "@erpx/feature-field_service/components/service-reference-fields";
 import type { fieldServiceDetail, fieldServiceWorkspace } from "@erpx/server-field_service/public/field-service";
 import { FormLayout, Card } from "@erpx/ui/components/foundation";
-function useCommand(current:()=>FieldServiceSource|null,rendered:FieldServiceSource) {
-  const router=useRouter(),commands=useRef<ReturnType<typeof createFieldServiceCommands>|null>(null),inFlight=useRef(false);commands.current??=createFieldServiceCommands(current);
-  const [messageOwner,setMessageOwner]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[uncertain,setUncertain]=useState(false),[notice,setNotice]=useState(""),[saved,setSaved]=useState<{owner:string;id:string;href:string;agreement:boolean}|null>(null);
-  useEffect(()=>registerUnsavedWork(()=>busy||uncertain),[busy,uncertain]);
-  async function send(input:unknown,form?:HTMLFormElement,retry=false,displayed?:FieldServiceSource) {
-    if(inFlight.current)return;const source=current();if(!source)return;const capturedOwner=fieldServiceOwner(source);inFlight.current=true;setMessageOwner(capturedOwner);setBusy(true);setError("");setNotice("");
-    try {
-      const outcome=await(retry?commands.current!.retry():commands.current!.submit(input,form?{form,formEditVersion:form.getAttribute('data-erpx-edit-version')}:undefined,displayed)),unchanged=outcome.unchanged();
-      if(!outcome.acknowledge())throw Error("Confirm the original Service request again.");setUncertain(false);
-      const href=canonicalUiHref(`${source.base}/field-service${outcome.agreement?'':`/${encodeURIComponent(outcome.receipt.id)}`}`);setSaved({owner:capturedOwner,id:outcome.receipt.id,href,agreement:outcome.agreement});setNotice(unchanged?"The original Service request was saved.":"The original Service request was saved. Your newer entries remain unsent.");
-      if(unchanged){outcome.completion()?.form.reset();try{router.push(href);router.refresh();}catch{setError("Saved, but navigation failed. Open the saved original record without submitting a replacement request.");}}
-    } catch(cause) {setUncertain(commands.current!.pending());setError(cause instanceof Error?cause.message:"The result is uncertain. Confirm the original Service request.");}
-    finally {inFlight.current=false;setBusy(false);}
-  }
-  const visible=saved&&saved.owner===fieldServiceOwner(rendered)?saved:null;
-  const sameOwner=messageOwner===fieldServiceOwner(rendered);
-  return {send,busy,error:sameOwner?error:"",uncertain,notice:sameOwner?notice:"",saved:visible,retry:()=>send(undefined,undefined,true),clearError:()=>setError(""),fail:(cause:unknown)=>{setMessageOwner(fieldServiceOwner(rendered));setError(cause instanceof Error?cause.message:"Review the form values.");}};
-}
+
 function ServiceConsole({
   base,
   data,
@@ -277,9 +259,7 @@ function ServiceConsole({
 }
 
 type ServiceConsoleProps = { base: string; data?: Awaited<ReturnType<typeof fieldServiceWorkspace>>; detail?: Awaited<ReturnType<typeof fieldServiceDetail>> };
-const ServiceEditorContext = createContext<(id: string, open: boolean) => void>(() => {});
-const ServiceCommandErrorContext = createContext<() => void>(() => {});
-const ServiceRecoveryContext=createContext<ReturnType<typeof useCommand>|null>(null);
+
 function serviceSource(props:ServiceConsoleProps):FieldServiceSource {const source=props.data??props.detail!,targets:FieldServiceSource["targets"]={};for(const row of source.agreements)targets[`agreement:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.orders)targets[`order:${row.id}`]={version:Number(row.version),status:String(row.status)};for(const row of source.tickets)targets[`ticket:${row.id}`]={version:Number(row.version),status:String(row.status)};if(props.detail)targets[`order:${props.detail.order.id}`]={version:Number(props.detail.order.version),status:String(props.detail.order.status)};return {base:props.base,workspaceKey:source.workspaceKey,recordId:props.detail?String(props.detail.order.id):null,targets};}
 export function FieldServiceConsole(props: ServiceConsoleProps) {
   const source = props.data ?? props.detail!;

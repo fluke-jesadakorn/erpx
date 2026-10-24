@@ -15,7 +15,7 @@ type Fixture = {
 };
 type DemoUser={label:string;email:string;role:string;userId:string;roles:string[]};
 
-export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:SqlDatabase;files:Parameters<typeof import("../../expenses/company").seedExpenseCompany>[1];passwordHash:string;run:string;origin:string;menuImages?:boolean}) {
+export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:SqlDatabase;files:Parameters<typeof import("../../expenses/company").seedExpenseCompany>[1];passwordHash:string;run:string;origin:string;menuImages?:boolean;publishBooking?:boolean}) {
   if(!(input.db instanceof PostgresDatabase))throw new Error("ISOLATED_POSTGRES_REQUIRED");
   const db=input.db;
   const fixture=JSON.parse(await readFile(resolve(import.meta.dir,"../../hospitality/pilot-example.json"),"utf8")) as Fixture;
@@ -219,6 +219,7 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   const rates:Record<string,string>={};
   for(const roomType of fixture.property.roomTypes)rates[roomType.name]=String((await pms("rate.save",{name:`${roomType.name} flexible`,typeId:types[roomType.name],from:date,to:nextYear,price:roomType.rateMinor})).id);
   await pms("property.enable");
+  if(input.publishBooking)await pms("booking.save",{published:true,description:"Fictional isolated development hotel",address:"Bangkok",contactEmail:"hotel@example.test",contactPhone:"020000000",cancellationDays:1,cancellationTime:"18:00",rateIds:Object.values(rates),roomContent:Object.entries(types).map(([name,typeId])=>({typeId,description:`Fictional ${name}`}))});
   for(const room of fixture.property.rooms.filter(room=>room.state==="inspected"||room.state==="occupied")) {
     const taskId=String((await pms("task.create",{roomId:rooms[room.number],type:"arrival",date})).id);
     const task=record(await loadPms(input.db,admin,propertyId),"task",taskId);

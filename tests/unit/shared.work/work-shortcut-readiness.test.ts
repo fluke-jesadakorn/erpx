@@ -284,7 +284,7 @@ it('keeps an actual Work purchase request title when product navigation is held 
   if(name.endsWith("@erpx/ui/components/use-recoverable-draft"))return{useRecoverableDraft};
   if(name.endsWith('/guided-intake'))return{clearGuidedIntakeHandoff:vi.fn(),readGuidedIntakeHandoff:()=>null};
   if(name.endsWith("@erpx/feature-people_payroll/components/time/time-preference-context"))return{TimeText:()=>null};
-  if(name.endsWith("@erpx/feature-work_projection/components/staff-work-controls"))return{useStaffCommand:()=>({send,busy:false,error:''})};
+  if(name.endsWith("@erpx/feature-work_projection/components/use-staff-command"))return{useStaffCommand:()=>({send,busy:false,error:''})};
   if(name.endsWith("@erpx/feature-people_payroll/lib/employee-services"))return{serviceCategories:[],requestStateLabels:{}};
   if(name.endsWith('.module.css'))return{default:new Proxy({},{get:(_target,key)=>String(key)})};
   throw Error('Unexpected actual RequestEditor import '+name);

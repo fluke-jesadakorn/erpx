@@ -11,3 +11,8 @@ export function databasePoolSize(binding:string,role:'app'|'jobs',environment:st
  if(role==='jobs')return 1;
  return environment==='development'?limits.development:limits.application;
 }
+
+/** Cold development compilation can queue reads behind a single Holding connection. */
+export function databasePoolAcquireTimeout(role:'app'|'jobs',environment:string|undefined) {
+ return role==='app'&&environment==='development'?20_000:5_000;
+}

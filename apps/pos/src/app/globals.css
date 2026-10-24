@@ -112,6 +112,7 @@
 @source "../../../../packages/feature-manufacturing/src/components/draft-boundary.tsx";
 @source "../../../../packages/feature-manufacturing/src/components/planning-recommendation-reviews.tsx";
 @source "../../../../packages/feature-manufacturing/src/components/production-console.tsx";
+@source "../../../../packages/feature-manufacturing/src/components/production-messages-context.ts";
 @source "../../../../packages/feature-manufacturing/src/components/use-order-command.ts";
 @source "../../../../packages/feature-manufacturing/src/components/use-production-command.ts";
 @source "../../../../packages/feature-manufacturing/src/lib/command-attempt.ts";

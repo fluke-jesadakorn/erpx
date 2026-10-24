@@ -8,16 +8,20 @@ import { workReviewCommand } from "@erpx/feature-work_projection/lib/work-review
 const migrationPorts = vi.hoisted(() => ({ bindings: vi.fn(), workspace: vi.fn(), grants: vi.fn() }));
 vi.mock("@erpx/server-runtime/public/runtime", () => ({ activeHoldingBindings: migrationPorts.bindings }));
 vi.mock("@erpx/server-identity_access/public/authorization", () => ({ firstAuthorizedWorkspace: migrationPorts.workspace }));
-vi.mock("@erpx/server-commercial/public/package-grants", () => ({ companyPackageGrants: migrationPorts.grants }));
+vi.mock("@erpx/server-commercial/public/package-grants", () => ({ readCompanyPurchaseFacts: migrationPorts.grants }));
 
 it("keeps existing workspace recovery scoped to current authority without reading or inventing product grants", async () => {
   vi.stubEnv("ERPX_PUBLIC_ORIGIN", "https://console-dev-erpx.jesadakorn.com");
+  vi.stubEnv("ERPX_PRODUCT_ROUTING", "enabled");vi.stubEnv("ERPX_PRODUCT_ENVIRONMENT", "development");vi.stubEnv("ERPX_CONSOLE_RETIRED", "disabled");
   try {
     migrationPorts.bindings.mockResolvedValue([{ slug: "acme", displayName: "Acme" }, { slug: "denied", displayName: "Other company" }]);
     migrationPorts.workspace.mockImplementation(async (holding: string) => holding === "acme" ? { kind: "branch", holdingSlug: "acme", branchSlug: "main" } : null);
     const { existingWorkspaceLaunchChoices } = await import("@erpx/server-work_projection/public/product-launcher");
     expect(await existingWorkspaceLaunchChoices()).toEqual([{ holding: "Acme", href: "https://console-dev-erpx.jesadakorn.com/holdings/acme/branches/main/home" }]);
     expect(migrationPorts.grants).not.toHaveBeenCalled();
+    const bindingReads=migrationPorts.bindings.mock.calls.length;vi.stubEnv("ERPX_CONSOLE_RETIRED", "enabled");
+    expect(await existingWorkspaceLaunchChoices()).toEqual([]);expect(migrationPorts.bindings).toHaveBeenCalledTimes(bindingReads);
+    vi.stubEnv("ERPX_CONSOLE_RETIRED", "disabled");
     migrationPorts.workspace.mockResolvedValue(null);
     expect(await existingWorkspaceLaunchChoices()).toEqual([]);
     vi.stubEnv("ERPX_PUBLIC_ORIGIN", "");

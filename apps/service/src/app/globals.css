@@ -23,8 +23,10 @@
 @source "../../../../packages/feature-field_service/src/components/initial-physical-stock-count.tsx";
 @source "../../../../packages/feature-field_service/src/components/parts-entry-link.tsx";
 @source "../../../../packages/feature-field_service/src/components/parts-setup.tsx";
+@source "../../../../packages/feature-field_service/src/components/service-editor-context.ts";
 @source "../../../../packages/feature-field_service/src/components/service-reference-fields.tsx";
 @source "../../../../packages/feature-field_service/src/components/service-spare-form.tsx";
+@source "../../../../packages/feature-field_service/src/components/use-field-service-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/command.ts";
 @source "../../../../packages/feature-field_service/src/lib/customer-preparation-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/initial-physical-stock-count-command.ts";

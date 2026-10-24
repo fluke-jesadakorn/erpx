@@ -1,8 +1,7 @@
 import { cookies } from "next/headers";
-import Link from "next/link";
 import { appearancePreference } from "@erpx/feature-shared/lib/appearance-preference";
 import { publicBookingDirectory } from "@erpx/server-pms/public/public-booking-directory";
-import { ActionLink } from "@erpx/ui/components/foundation";
+import { ActionAnchor } from "@erpx/ui/components/foundation";
 import { GuestBookingShell } from "@erpx/feature-pms/components/guest-booking-shell";
 import { BookingCopy } from "@erpx/feature-pms/components/booking-copy";
 import { BookingGallery } from "@erpx/feature-pms/components/booking-gallery";
@@ -22,10 +21,10 @@ export async function PublicBookingDirectory() {
         {hotels.length ? hotels.map(hotel => {
           const path = `/book/${encodeURIComponent(hotel.slug)}`;
           return <article className={styles.offer} key={`${hotel.slug}:${hotel.id}`}>
-            <div><BookingGallery slug={hotel.slug} compact images={hotel.images}/><h3><Link href={`${path}/${encodeURIComponent(hotel.id)}`} prefetch={false}>{hotel.name}</Link></h3><p>{hotel.description}</p><p>{hotel.address}</p>
-              <Link href={`${path}/manage`} prefetch={false}><BookingCopy>Manage booking</BookingCopy></Link>
+            <div><BookingGallery slug={hotel.slug} compact images={hotel.images}/><h3><a href={`${path}/${encodeURIComponent(hotel.id)}`}>{hotel.name}</a></h3><p>{hotel.description}</p><p>{hotel.address}</p>
+              <a href={`${path}/manage`}><BookingCopy>Manage booking</BookingCopy></a>
             </div>
-            <ActionLink appearance="standard" variant="secondary" prefetch={false} href={`${path}/${encodeURIComponent(hotel.id)}`}><BookingCopy>View hotel</BookingCopy></ActionLink>
+            <ActionAnchor appearance="standard" variant="secondary" href={`${path}/${encodeURIComponent(hotel.id)}`}><BookingCopy>View hotel</BookingCopy></ActionAnchor>
           </article>;
         }) : <><BookingCopy as="h2">Online reservations are not open yet</BookingCopy><BookingCopy as="p">Our hotels will appear here when they are ready to accept direct bookings.</BookingCopy></>}
       </section>

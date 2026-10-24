@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button, Card, Field, PageContent, TextInput } from "@erpx/ui/components/foundation";
 
 type Completion = { portalUrl: string };
@@ -21,7 +21,7 @@ function messageFrom(body: unknown) {
 }
 
 export function CustomerPortalEnrollment({verifiedReturn=false}:{verifiedReturn?:boolean}) {
-  const tokenSource=useMemo(()=>createInvitationTokenSource(),[]),token=useSyncExternalStore(tokenSource.subscribe,tokenSource.getSnapshot,tokenSource.getServerSnapshot),[message,setMessage]=useState(""),[busy,setBusy]=useState(false),[completion,setCompletion]=useState<Completion|null>(null),[verificationRetryNeeded,setVerificationRetryNeeded]=useState(false);
+  const [tokenSource]=useState(createInvitationTokenSource),token=useSyncExternalStore(tokenSource.subscribe,tokenSource.getSnapshot,tokenSource.getServerSnapshot),[message,setMessage]=useState(""),[busy,setBusy]=useState(false),[completion,setCompletion]=useState<Completion|null>(null),[verificationRetryNeeded,setVerificationRetryNeeded]=useState(false);
   useEffect(()=>{tokenSource.scrub();},[tokenSource]);
   async function submit(action:"signup"|"accept",values:Record<string,string>={}){
     if(!token){setMessage("Open the complete invitation link from your email.");return;}

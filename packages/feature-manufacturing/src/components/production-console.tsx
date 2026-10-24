@@ -1,4 +1,5 @@
 "use client";
+import {ProductionMessages} from "@erpx/feature-manufacturing/components/production-messages-context";
 import WorkspaceLink from "@erpx/workplace/components/workspace-link";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
@@ -12,14 +13,14 @@ import type {PlanningReviewActor} from "@erpx/feature-manufacturing/lib/planning
 import type {ManufacturingPurchaseControls} from "@erpx/feature-manufacturing/lib/purchase-controls";
 import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
 
-import { Children, isValidElement, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Children, isValidElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { productionDetail, productionWorkspace } from "@erpx/server-manufacturing/public/production";
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
 } from "@erpx/feature-files/components/attachment-panel";
 import { Card } from "@erpx/ui/components/foundation";
-const ProductionMessages=createContext<{error:string;notice:string;uncertain:boolean;busy:boolean;retry:()=>Promise<void>;refreshSaved?:()=>void}|null>(null);
+
 export function ProductionConsole({ recordOnly=false,
   base,
   module,

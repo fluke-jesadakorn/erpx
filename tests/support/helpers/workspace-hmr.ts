@@ -55,6 +55,9 @@ export async function measureWorkspaceHmr(input: {
   replacement?: (label: string) => string;
   locator(label: string): Locator; assertState(label: string): Promise<void>;
   authenticatedRouteAppearanceMs: number; errors: string[]; scope: string;
+  /** Collect timings for a broken baseline, then fail with its original state
+   * error. Never emit a passing measurement for this diagnostic path. */
+  collectFailedBaselineTiming?: boolean;
 }) {
   const {page,info,fixture:{snapshot,runtime},app,needle,locator,assertState,errors}=input;
   expect(input.source).toMatch(/^packages\/[a-z0-9_-]+\/src\/.+\.tsx$/);
@@ -77,16 +80,21 @@ export async function measureWorkspaceHmr(input: {
     peakAppRssBytes=Math.max(peakAppRssBytes,rows.filter(([pid])=>owned.has(pid)).reduce((sum,[,,rss])=>sum+rss*1024,0));
   }
   const change=(label:string)=>writeWorkspaceSource(file,original.replace(needle,input.replacement?.(label)??JSON.stringify(label)));
-  let failed=false,failure:unknown;
+  let failed=false,failure:unknown,stateFailure:unknown;
+  async function checkState(label:string){
+    if(stateFailure)return;
+    try{await assertState(label);}catch(error){if(!input.collectFailedBaselineTiming)throw error;stateFailure=error;}
+  }
   try {
     const warmup=input.label+' · HMR warmup';await change(warmup);
-    await expect(locator(warmup)).toBeVisible({timeout:30_000});await assertState(warmup);await memory();
+    await expect(locator(warmup)).toBeVisible({timeout:30_000});await checkState(warmup);await memory();
     for(let index=0;index<20;index++){
       const label=`${input.label} · HMR ${index+1}`,started=performance.now();await change(label);
       await expect(locator(label)).toBeVisible({timeout:15_000});samples.push(performance.now()-started);
       expect(await page.evaluate(()=>performance.timeOrigin)).toBe(timeOrigin);
-      await assertState(label);await memory();
+      await checkState(label);await memory();
     }
+    if(stateFailure)throw stateFailure;
   } catch(error) {failed=true;failure=error;}
   try {
     await writeWorkspaceSource(file,original);expect(await readFile(file,'utf8')).toBe(original);
@@ -97,7 +105,10 @@ export async function measureWorkspaceHmr(input: {
     if(failed)throw new AggregateError([failure,cleanup],'HMR measurement and source restoration failed');
     throw cleanup;
   } finally {page.off('request',navigation);}
-  if(failed)throw failure;
+  if(failed){
+    await info.attach('workspace HMR failure diagnostics',{body:JSON.stringify({acceptance:false,functional:false,failedBaselineTiming:input.collectFailedBaselineTiming===true,sourceFingerprint:runtime.sourceFingerprint,componentSha256:createHash('sha256').update(original).digest('hex'),app,bundler:runtime.bundler,completedUpdates:samples.length,samples,...(samples.length===20?{p95Ms:[...samples].sort((a,b)=>a-b)[Math.ceil(samples.length*.95)-1]}:{}),reloads,errors,documentTimeOriginUnchanged:await page.evaluate(()=>performance.timeOrigin).catch(()=>null)===timeOrigin}),contentType:'application/json'});
+    throw failure;
+  }
   const sorted=[...samples].sort((a,b)=>a-b),p95Ms=sorted[Math.ceil(sorted.length*0.95)-1];
   const result={scope:input.scope,app,acceptance:false,bundler:runtime.bundler,sourceFingerprint:runtime.sourceFingerprint,componentSha256:createHash('sha256').update(original).digest('hex'),authenticatedRouteAppearanceMs:input.authenticatedRouteAppearanceMs,samples,p95Ms,peakAppRssBytes,reloads,errors,target:p95Ms<=3000};
   const path=info.outputPath('workspace-performance.json');await writeFile(path,JSON.stringify(result,null,2)+'\n');

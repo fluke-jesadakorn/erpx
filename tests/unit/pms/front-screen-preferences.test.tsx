@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { createElement, type ComponentProps } from 'react';
+import { createElement, isValidElement, type ComponentProps } from 'react';
 import { renderToReadableStream } from 'react-dom/server.browser';
 import Loadable from 'next/dist/shared/lib/loadable.shared-runtime';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
@@ -382,11 +382,20 @@ it.each(['pos','pms'] as const)('actual %s notification owner preserves current 
  expect(html).toContain('Notification settings');expect(html).toContain('Loading push settings');expect(html).toContain('data-ui-appearance="standard"');expect(owner.pms).not.toHaveBeenCalled();expect(owner.home).not.toHaveBeenCalled();expect(owner.pos).not.toHaveBeenCalled();expect(fetcher).not.toHaveBeenCalled();
 });
 it.each(['pos','pms'] as const)('actual %s notification login handoff preserves original repeated query and opaque fixture token without reading current owner data',async app=>{
- owner.app=app;owner.session.mockRejectedValueOnce(Error('UNAUTHENTICATED'));
- let failure:unknown;try{await StandardFrontNotificationsEntry({params:Promise.resolve({holdingSlug:actor.holdingSlug,companySlug:company.companySlug,app,path:['branches','original-branch','notifications']}),searchParams:Promise.resolve({tag:['one','two'],token:'fixture-only-original-token'})});}catch(error){failure=error;}
- expect(failure).toHaveProperty('digest');const digest=(failure as {digest:string}).digest;expect(digest).toMatch(/^NEXT_REDIRECT;replace;\/login\?next=/);
- const login=new URL(digest.slice('NEXT_REDIRECT;replace;'.length,-';307;'.length),'https://'+app+'-dev-erpx.jesadakorn.com'),next=new URL(login.searchParams.get('next')!,'https://'+app+'-dev-erpx.jesadakorn.com');
- expect(next.pathname).toBe('/'+actor.holdingSlug+'/'+company.companySlug+'/branches/original-branch/notifications');expect(next.searchParams.getAll('tag')).toEqual(['one','two']);expect(next.searchParams.get('token')).toBe('fixture-only-original-token');expect(owner.role).not.toHaveBeenCalled();expect(owner.work).not.toHaveBeenCalled();expect(fetcher).not.toHaveBeenCalled();
+ const {FrontSignInHandoff}=await import('@erpx/front/components/front-sign-in-handoff');owner.app=app;
+ const origin='https://'+app+'-dev-erpx.jesadakorn.com';
+ const invoke=()=>StandardFrontNotificationsEntry({params:Promise.resolve({holdingSlug:actor.holdingSlug,companySlug:company.companySlug,app,path:['branches','original-branch','notifications']}),searchParams:Promise.resolve({tag:['one','two'],token:'fixture-only-original-token'})});
+ const check=(target:string)=>{const next=new URL(target,origin);expect(next.pathname).toBe('/'+actor.holdingSlug+'/'+company.companySlug+'/branches/original-branch/notifications');expect(next.searchParams.getAll('tag')).toEqual(['one','two']);expect(next.searchParams.get('token')).toBe('fixture-only-original-token');};
+ try{
+  vi.stubEnv('ERPX_PRODUCT_ROUTING','enabled');vi.stubEnv('ERPX_PRODUCT_ENVIRONMENT','development');vi.stubEnv(app==='pos'?'ERPX_FRONT_POS_ORIGIN':'ERPX_FRONT_PMS_ORIGIN',origin);
+  owner.session.mockRejectedValueOnce(Error('UNAUTHENTICATED'));const node=await invoke();
+  if(!isValidElement<ComponentProps<typeof FrontSignInHandoff>>(node))throw Error('The product host must retain its central Account handoff.');expect(node.type).toBe(FrontSignInHandoff);check(node.props.next);
+  vi.stubEnv('ERPX_PRODUCT_ROUTING','disabled');owner.session.mockRejectedValueOnce(Error('UNAUTHENTICATED'));
+  let failure:unknown;try{await invoke();}catch(error){failure=error;}
+  expect(failure).toHaveProperty('digest');const digest=(failure as {digest:string}).digest;expect(digest).toMatch(/^NEXT_REDIRECT;replace;\/login\?next=/);
+  const login=new URL(digest.slice('NEXT_REDIRECT;replace;'.length,-';307;'.length),origin);check(login.searchParams.get('next')!);
+  expect(owner.role).not.toHaveBeenCalled();expect(owner.work).not.toHaveBeenCalled();expect(fetcher).not.toHaveBeenCalled();
+ }finally{vi.unstubAllEnvs();}
 });
 
 const actualBackofficeRoutes=[

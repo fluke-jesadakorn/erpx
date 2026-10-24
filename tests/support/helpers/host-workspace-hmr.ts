@@ -37,7 +37,8 @@ export async function measureSharedWorkspaceHmr(page:Page,info:TestInfo,app:'por
  }
  const draft=app==='booking'?'3':'Retained fictional visitor draft',url=page.url();
  if(field){await expect(field).toBeEditable();original=await field.inputValue();await field.fill(draft);}
- await measureWorkspaceHmr({page,info,app,fixture:await workspaceHmrCase(apps),source,needle,label,replacement,locator,
+ const fixture=await workspaceHmrCase(apps);
+ await measureWorkspaceHmr({page,info,app,fixture,source,needle,label,replacement,locator,collectFailedBaselineTiming:['booking','portal'].includes(app)&&fixture.runtime.bundler==='webpack',
   assertState:async()=>{expect(page.url()).toBe(url);if(field)await expect(field).toHaveValue(draft);if(app==='legal-portal'){const handoff=page.getByText('Continue on ERPX Account',{exact:true});await expect(handoff).toHaveAttribute('aria-disabled','true');await expect(handoff).not.toHaveAttribute('href');}},
   authenticatedRouteAppearanceMs:performance.now()-started,errors,scope:app+' public visitor HMR; '+(field?'retained form draft':'disabled central Account handoff')});
  if(field)await field.fill(original);

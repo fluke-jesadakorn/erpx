@@ -35,6 +35,9 @@ export async function signInProductWorkspace(page:Page,input:ProductWorkspaceCas
  const started=performance.now();
  await page.getByRole('button',{name:'Sign in',exact:true}).click();
  await expect(page.getByRole('heading',{name:input.title,exact:true,includeHidden:true})).toBeVisible({timeout:90_000});
+ await page.waitForLoadState('load',{timeout:120_000});
+ const menus=page.getByRole('navigation',{name:'Product and workspace',exact:true});
+ await expect(menus.getByRole('button')).toHaveCount(2,{timeout:120_000});await expect(menus.getByRole('button').first()).toBeVisible();
  expect(new URL(page.url()).origin).toBe(input.origin);
  expect(new URL(page.url()).searchParams.get('workspaceSmoke')).toBe('preserved');
  for(const key of ['code','state','token','session_token'])expect(new URL(page.url()).searchParams.has(key)).toBe(false);

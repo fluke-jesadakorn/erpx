@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./components/use-field-service-command": "./src/components/use-field-service-command.ts",
+    "./components/service-editor-context": "./src/components/service-editor-context.ts",
     "./components/service-reference-fields": "./src/components/service-reference-fields.tsx",
     "./components/service-spare-form": "./src/components/service-spare-form.tsx",
     "./components/service-navigation": "./src/components/service-navigation.tsx",

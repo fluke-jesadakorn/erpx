@@ -368,9 +368,11 @@
 @source "../../../../packages/feature-field_service/src/components/initial-physical-stock-count.tsx";
 @source "../../../../packages/feature-field_service/src/components/parts-entry-link.tsx";
 @source "../../../../packages/feature-field_service/src/components/parts-setup.tsx";
+@source "../../../../packages/feature-field_service/src/components/service-editor-context.ts";
 @source "../../../../packages/feature-field_service/src/components/service-navigation.tsx";
 @source "../../../../packages/feature-field_service/src/components/service-reference-fields.tsx";
 @source "../../../../packages/feature-field_service/src/components/service-spare-form.tsx";
+@source "../../../../packages/feature-field_service/src/components/use-field-service-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/command.ts";
 @source "../../../../packages/feature-field_service/src/lib/customer-preparation-command.ts";
 @source "../../../../packages/feature-field_service/src/lib/initial-physical-stock-count-command.ts";
@@ -950,6 +952,7 @@
 @source "../../../../packages/feature-manufacturing/src/components/posting-preparation.tsx";
 @source "../../../../packages/feature-manufacturing/src/components/posting-setup.tsx";
 @source "../../../../packages/feature-manufacturing/src/components/production-console.tsx";
+@source "../../../../packages/feature-manufacturing/src/components/production-messages-context.ts";
 @source "../../../../packages/feature-manufacturing/src/components/use-order-command.ts";
 @source "../../../../packages/feature-manufacturing/src/components/use-production-command.ts";
 @source "../../../../packages/feature-manufacturing/src/lib/command-attempt.ts";

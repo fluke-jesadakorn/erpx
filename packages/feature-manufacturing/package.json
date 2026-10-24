@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./components/production-messages-context": "./src/components/production-messages-context.ts",
     "./components/existing-posting-setup": "./src/components/existing-posting-setup.tsx",
     "./components/posting-setup": "./src/components/posting-setup.tsx",
     "./components/production-console": "./src/components/production-console.tsx",

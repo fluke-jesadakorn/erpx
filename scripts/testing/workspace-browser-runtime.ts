@@ -46,11 +46,12 @@ export async function startWorkspaceBrowserRuntime() {
     for(const id of apps){while(port<=3299&&hasPortListener(port))port++;if(port>3299)throw new Error('WORKSPACE_BROWSER_APP_PORT_BUDGET_EXHAUSTED');appPorts.set(id,port++);}
   }
   const compatibilityOnly = apps.length === 1 && apps[0] === 'compat';
+  const compatibilityOrigin='https://console-dev-erpx.jesadakorn.com';
   const gateway = await startWorkspaceGateway({ root, node: process.execPath, port: 3104, appPorts, preview: false,
     fallback: compatibilityOnly ? 'compat' : null,
-    environment: { ...process.env, ...(compatibilityOnly ? {} : { ERPX_PRODUCT_ROUTING: 'enabled', ERPX_PRODUCT_SSO: 'enabled', ERPX_PRODUCT_ENVIRONMENT: 'development' }),...(consoleRetired?{ERPX_CONSOLE_RETIRED:'enabled',ERPX_PUBLIC_ORIGIN:'https://console-dev-erpx.jesadakorn.com'}:{}) },
+    environment: { ...process.env, ...(compatibilityOnly ? {ERPX_PUBLIC_ORIGIN:compatibilityOrigin,BETTER_AUTH_URL:compatibilityOrigin} : { ERPX_PRODUCT_ROUTING: 'enabled', ERPX_PRODUCT_SSO: 'enabled', ERPX_PRODUCT_ENVIRONMENT: 'development' }),...(consoleRetired?{ERPX_CONSOLE_RETIRED:'enabled',ERPX_PUBLIC_ORIGIN:compatibilityOrigin}:{}) },
     settings: () => ({ version: 1, activeApps: apps.filter(id => id !== 'compat'), maxApps: Math.min(4, apps.length), idleMinutes: 10, bundlers: {}, defaultBundler: bundler }) });
-  writeFileSync(runtimePath, JSON.stringify({ schema: 'erpx-development-workspace-runtime/v1', acceptance: false, run, pid: process.pid, gateway: 3104, sourceRoot: root, sourceFingerprint: state.sourceFingerprint, apps, bundler, consoleRetired, fixtureProfile, compatibilityOnly, appPorts: Object.fromEntries(appPorts), origins: compatibilityOnly ? ['https://console-dev-erpx.jesadakorn.com'] : appDefinitions.filter(app => apps.includes(app.id)).map(app => app.origin), leasePath: gateway.leasePath }, null, 2) + '\n', { mode: 0o600 });
+  writeFileSync(runtimePath, JSON.stringify({ schema: 'erpx-development-workspace-runtime/v1', acceptance: false, run, pid: process.pid, gateway: 3104, sourceRoot: root, sourceFingerprint: state.sourceFingerprint, apps, bundler, consoleRetired, fixtureProfile, compatibilityOnly, appPorts: Object.fromEntries(appPorts), origins: compatibilityOnly ? [compatibilityOrigin] : appDefinitions.filter(app => apps.includes(app.id)).map(app => app.origin), leasePath: gateway.leasePath }, null, 2) + '\n', { mode: 0o600 });
   process.on('SIGTERM', () => { void gateway.close(); }); process.on('SIGINT', () => { void gateway.close(); });
   return gateway;
 }

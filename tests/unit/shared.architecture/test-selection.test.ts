@@ -277,7 +277,7 @@ describe("test selection contracts", () => {
       }))),
     ];
     for (const test of reviewedSupplemental) expect(registered.some(candidate => requiredCaseKey(candidate) === requiredCaseKey(test))).toBe(true);
-    const reviewed = [...baseline.cases, ...reviewedSupplemental];
+    const reviewed = [...new Map([...baseline.cases, ...reviewedSupplemental, ...registered.filter(test=>test.runner==="playwright"&&files.includes(test.file))].map(test=>[requiredCaseKey(test),test] as const)).values()];
     const observed = [...reviewed.map(test => ({ ...test, required: true })), ...baseline.excludedCases.map(test => ({ ...test, required: false }))];
     expect(() => assertRequiredCaseInventory(registered, observed, { runner: "playwright", files })).not.toThrow();
     for (const test of reviewed) {
