@@ -4,7 +4,7 @@ import { FeaturePage } from "@erpx/feature-shared/components/features/feature-pa
 import { FinanceWorkspace } from "@erpx/feature-finance/components/finance-workspace";
 import { SalesDefaultsControls } from "@erpx/feature-finance/components/sales-controls";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
-import { salesDefaultsWorkspace } from "@erpx/server-finance/public/sales";
+import {salesDefaultsWorkspace} from '@erpx/server-finance/public/sales';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";

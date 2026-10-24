@@ -11,18 +11,7 @@ import {
   saveLevel,
   staffSettings,
 } from "@erpx/server-operations/public/staff-settings";
-import {
-  listTasks,
-  saveTask,
-  taskActionSchema,
-  taskDelegationRevokeSchema,
-  taskDelegationSchema,
-  taskDetail,
-  taskSchema,
-  delegateTask,
-  revokeTaskDelegation,
-  transitionTask,
-} from "@erpx/server-operations/public/staff-tasks";
+import {listTasks,saveTask,taskActionSchema,taskDelegationRevokeSchema,taskDelegationSchema,taskDetail,taskSchema,delegateTask,revokeTaskDelegation,transitionTask} from '@erpx/server-operations/public/staff-tasks';
 import {
   listProjectMilestones,
   projectMilestoneSchema,

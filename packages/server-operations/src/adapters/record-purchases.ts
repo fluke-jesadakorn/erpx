@@ -1,12 +1,13 @@
+import{visibleTask,authority}from '@erpx/server-operations/adapters/evaluation-source-policy';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
+
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {workPackageEnforcementMode,projectsPackageEnforcementMode,readPurchasedAccess,readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {workTaskSocialPurchasePredicate} from '@erpx/server-collaboration/public/work-task-purchase-source';
+
 import {projectTaskRecordPolicy} from '@erpx/server-operations/adapters/project-task-record-policy';
 import {workTaskPurchaseAccess,workTaskReadScope} from '@erpx/server-operations/adapters/work-task-purchases';
 import {projectTaskReadScope} from '@erpx/server-projects/public/task-purchases';
@@ -15,23 +16,9 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {workTaskSocialReadScope} from '@erpx/server-collaboration/public/work-task-read-policy';
 import {handbookSourceReadScope,requireHandbookWorkspaceRead} from '@erpx/server-collaboration/public/handbook-purchases';
 
-function authority(actor:WorkContext){return currentAssignmentReadScope(actor,'workforce_actor_scope');}
-async function visibleTask(database:SqlDatabase,actor:WorkContext,id:string,company:string){
- const social=await workTaskSocialReadScope(database,actor),current=authority(actor),viewer='work_record_viewer';
- return {where:`EXISTS(WITH ${viewer} AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,${packageClockSql} now_ms)
- SELECT 1 FROM staff_tasks t CROSS JOIN ${viewer} CROSS JOIN LATERAL(SELECT t.company_id,t.branch_id,t.department_id)workforce_actor_scope
- WHERE t.id=${id} AND t.company_id=${company} AND t.project_id IS NULL AND ${current.where} AND ${scheduledFeaturePredicate('t.company_id','operations')}
- AND ${projectTaskRecordPolicy('t.id','t.company_id',viewer)}
- AND ${purchasedCapabilityPredicate('t.company_id','work.actions','history',`${viewer}.now_ms`)}
- AND (t.template_id IS NULL OR ${purchasedCapabilityPredicate('t.company_id','work.advanced-routines','history',`${viewer}.now_ms`)})
- AND (NOT ${workTaskSocialPurchasePredicate()} OR ${purchasedCapabilityPredicate('t.company_id','work.social','history',`${viewer}.now_ms`)}) AND (${social.where}))`,args:[actor.userId,actor.assignmentId,...current.args,...social.args]};
-}
 /** Fixed completed-task reference alias; actual Project tasks use their named
  * Project reader instead of acquiring ordinary Work purchases. */
-export async function evaluationOrdinaryTaskReadScope(database:SqlDatabase,actor:WorkContext){
- const mode=await workPackageEnforcementMode();if(mode!=='enforced'){if(mode==='shadow')await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.actions'});return {where:'TRUE',args:[] as unknown[]};}
- return visibleTask(database,actor,'evaluation_task.id','evaluation_task.company_id');
-}
+
 /** Native identity determines Task ownership. Project foundations continue
  * through their own reader; a source label cannot grant ordinary Work access. */
 export async function workSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:'records'|'staff'|'inbox'){
@@ -65,7 +52,7 @@ export async function filterWorkTaskWork(database:SqlDatabase,actor:WorkContext,
   if(item.type!=='staff_task'){output.push(item);continue;}
   try{
    const access=await workTaskPurchaseAccess(database,actor,item.id);if(!access){output.push(item);continue;}
-   const owner=await import('@erpx/server-operations/public/staff-tasks'),task=await owner.getTask(database,actor,item.id),state=await owner.taskWorkState(database,actor,task);
+   const owner=await import('@erpx/server-operations/public/staff-task-read'),task=await (await import('@erpx/server-operations/public/staff-task-read')).getTask(database,actor,item.id),state=await owner.taskWorkState(database,actor,task);
    if(state.permittedActions.some(action=>['edit','submit','start','save-progress','complete','approve','reject'].includes(action))){output.push(item);continue;}
    output.push({...item,canAct:false,actionKind:'work',queue:item.queue==='completed'?'completed':'waiting',relationships:(item.relationships??[]).filter(value=>!['assigned','approval'].includes(value)),flow:item.flow?{...item.flow,canAct:false,canManage:false}:undefined});
   }catch(error){if(error instanceof ApiError&&[403,404].includes(error.status))continue;throw error;}

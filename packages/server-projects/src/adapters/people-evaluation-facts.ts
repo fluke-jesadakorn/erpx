@@ -2,7 +2,7 @@ import "server-only";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {Row} from '@erpx/server-people_payroll/public/people-evaluation-contract';
-const evaluationProjectReadScope=async(database:SqlDatabase,actor:WorkContext,kind:'project'|'task')=>(await import('@erpx/server-projects/adapters/record-purchases')).evaluationProjectReadScope(database,actor,kind);
+const evaluationProjectReadScope=async(database:SqlDatabase,actor:WorkContext,kind:'project'|'task')=>(await import('@erpx/server-projects/public/evaluation-source-policy')).evaluationProjectReadScope(database,actor,kind);
 export const peopleEvaluationProjectTaskReadScope=(database:SqlDatabase,actor:WorkContext)=>evaluationProjectReadScope(database,actor,'task');
 export function peopleEvaluationProjectSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE staff_projects,staff_project_members IN SHARE ROW EXCLUSIVE MODE')];}
 export async function peopleEvaluationProjectSourceImage(database:SqlDatabase,actor:WorkContext){

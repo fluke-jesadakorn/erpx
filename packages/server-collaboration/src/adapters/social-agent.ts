@@ -13,7 +13,7 @@ import { sha256 } from '@erpx/server-runtime/public/crypto';
 import { socialAgentAssignmentGuard } from '@erpx/server-identity_access/public/collaboration-agent-authority';
 import { captureJobAuthority, requireJobAuthority } from '@erpx/server-identity_access/public/iam-jobs';
 import { iamMutationGuards } from '@erpx/server-identity_access/public/iam-store';
-import { readablePost, sourceSnapshot, sourceGuard } from '@erpx/server-collaboration/public/social-source';
+import {readablePost,sourceSnapshot,sourceGuard} from '@erpx/server-collaboration/public/social-source';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand} from '@erpx/server-workflow/public/commands';
 import { resolveAiProvider, aiSnapshotGuard, aiUsageStatement } from '@erpx/server-agent/public/ai-providers';

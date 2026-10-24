@@ -25,7 +25,8 @@ import {
   type RequestKind,
   type RequestItem,
 } from "@erpx/feature-people_payroll/lib/employee-services";
-import type {EmployeeRequest,employeeRequestDetail} from '@erpx/server-records/public/employee-requests';
+import type {EmployeeRequest} from '@erpx/server-records/public/employee-requests';
+import type {employeeRequestDetail} from '@erpx/server-records/public/employee-requests-read';
 import styles from "@erpx/workplace/components/services.module.css";
 import { Card } from "@erpx/ui/components/foundation";
 export type RequestOptions = {

@@ -4,8 +4,8 @@ import { RecordLink as Link } from "@erpx/feature-records/components/record-link
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-import { incidentWorkspace } from "@erpx/server-support/public/support-incidents";
-import { getSupportTicket, supportRecipients } from "@erpx/server-support/public/support";
+import {incidentWorkspace} from '@erpx/server-support/public/support-incidents';
+import {getSupportTicket,supportRecipients} from '@erpx/server-support/public/support';
 import { SupportIncidentConsole } from "@erpx/feature-support/components/support-incident-console";
 import { PageContent, FormLayout, Card } from "@erpx/ui/components/foundation";
 export const dynamic = "force-dynamic";

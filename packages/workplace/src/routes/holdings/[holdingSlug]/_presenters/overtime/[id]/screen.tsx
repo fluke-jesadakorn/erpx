@@ -6,11 +6,10 @@ import { OvertimeForm } from "@erpx/feature-records/components/loaders/self-serv
 import styles from "@erpx/feature-people_payroll/components/self-service/self-service.module.css";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { getOvertime } from "@erpx/server-people_payroll/public/overtime";
+import {getOvertime} from '@erpx/server-people_payroll/public/overtime-read';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import {workforcePresentationContext} from '@erpx/server-people_payroll/public/workforce-presentation';
 import {workforcePurchaseControls} from '@erpx/server-people_payroll/public/workforce-purchases';
-
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 export default async function OvertimeDetail({params,searchParams}:{params:Promise<{holdingSlug:string;id:string}>;searchParams:Promise<{shift?:string}>}) {

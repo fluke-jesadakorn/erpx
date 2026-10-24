@@ -1,7 +1,7 @@
 import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
+import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import {createCRMLead,changeCRMLead,getCRMLead} from "@erpx/server-crm/public/crm";
 import {changeCRMIdentity} from "@erpx/server-crm/public/crm-identities";
 import {createCustomerNote,changeCustomerNote} from "@erpx/server-sales/public/customer-notes";

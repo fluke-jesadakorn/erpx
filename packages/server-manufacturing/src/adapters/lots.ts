@@ -1,7 +1,7 @@
 import "server-only";
 
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 
 import {ApiError} from "@erpx/server-runtime/public/http";
@@ -18,4 +18,3 @@ export async function prepareManufacturingOutputLots(db: SqlDatabase,a: WorkCont
   key: string; orderId: string; orderVersion: number; warehouseId: string; productId: string; trackingMode: string;
   outputMilli: number; totalMinor: number; entryDate: string; allocations: ManufacturingOutputAllocation[];
 }){return exposed(()=>application(db).prepareManufacturingOutputLots(a,input));}
-

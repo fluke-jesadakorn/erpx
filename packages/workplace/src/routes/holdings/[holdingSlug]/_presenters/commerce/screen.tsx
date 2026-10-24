@@ -7,7 +7,6 @@ import {sectionWorkspaceTopics,workspaceTopicLinks} from "@erpx/feature-work_pro
 import type {RouteSearch} from "@erpx/feature-shared/lib/route-context";
 import { commercePresentationQueries } from "@erpx/server-commerce/public/presentation-queries";
 
-
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 import { Button, Field, Table, TableFrame, TextInput } from "@erpx/ui/components/foundation";
 import {
@@ -26,7 +25,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workplace-navigation";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commercePage, commercePermissions } from "@erpx/server-commerce/public/commerce";
+import {commercePage,commercePermissions} from '@erpx/server-commerce/public/commerce';
 
 import { canApproveCounts, canPrepareCounts, canReadCounts } from "@erpx/server-inventory/public/inventory-counts";
 import { listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";

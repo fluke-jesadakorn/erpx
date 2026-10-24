@@ -1,10 +1,10 @@
 import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
+import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import {createCustomerNote} from "@erpx/server-sales/public/customer-notes";
-import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork,supportWorkspace,supportDetail} from "@erpx/server-support/public/support";
-import {changeSupportIncident,createSupportIncident,incidentWorkspace} from "@erpx/server-support/public/support-incidents";
+import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork,supportWorkspace,supportDetail} from '@erpx/server-support/public/support';
+import {changeSupportIncident,createSupportIncident,incidentWorkspace} from '@erpx/server-support/public/support-incidents';
 import {supportSessionWorkspace} from "@erpx/server-support/public/support-sessions";
 import {createAsset,changeAsset} from "@erpx/server-assets/public/asset-maintenance";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";

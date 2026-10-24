@@ -1481,6 +1481,7 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
         realizedFxMinor: number;
     };
 }) {
+const{getOrder,allowed,scope,orderRow}=createCommerceOrderRead<Effect>(ports);
     async function commerceMoney(write: CommerceUnit<Effect>, actor: WorkContext, input: {
         sourceType: string;
         sourceId: string;
@@ -1493,10 +1494,7 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
             throw ports.error(422, "MONEY_OVERFLOW", "The commerce amount exceeds supported ledger precision.");
         return (await write.snapshotMoney(actor, { ...input, amountUnits: String(input.amountUnits), currencyScale: 2 })).statement;
     }
-    function allowed(actor: WorkContext, kind: keyof typeof roles) {
-        return ports.require(actor, roles[kind]);
-    }
-    function scope(actor: WorkContext) { return { args: [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId] }; }
+
     async function settings(db: CommerceUnit<Effect>, actor: WorkContext) {
         const row = await db.readCommerceSettings1({ companyId: actor.companyId });
         if (!row)
@@ -1512,13 +1510,7 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
     function versionGuard(db: CommerceUnit<Effect>, key: string, table: string, id: string, version: number, states: string[]) {
         return db.guardRule1({ key: key, guardId: `version-${table}`, values: [id, version, ...states], table, states });
     }
-    async function orderRow(db: CommerceUnit<Effect>, actor: WorkContext, id: string) {
-        const s = scope(actor);
-        const row = await db.readCommerceOrders1({ id: id, fact1: s.args });
-        if (!row)
-            throw ports.error(404, "ORDER_NOT_FOUND", "Order not found in this workspace.");
-        return row;
-    }
+
     async function commerceOverview(actor: WorkContext) {
         actor = allowed(actor, "read");
         const write = await ports.forActor(actor);
@@ -1553,56 +1545,7 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
         const write = ownerWrite ?? await ports.forActor(actor), s = scope(actor);
         return (await write.readCommerceOrders3({ fact0: s.args })).results;
     }
-    async function getOrder(actor: WorkContext, id: string, ownerWrite?: CommerceUnit<Effect>) {
-        actor = allowed(actor, "read");
-        const write = ownerWrite ?? await ports.forActor(actor);
-        const order = await orderRow(write, actor, id);
-        // A composed owner command shares one PostgreSQL client. Defer each read
-        // until the prior one completes while normal pooled page reads stay parallel.
-        let readQueue: Promise<unknown> = Promise.resolve();
-        const read = <T>(query: () => Promise<T>): Promise<T> => {
-            if (!ownerWrite)
-                return query();
-            const result = readQueue.then(query);
-            readQueue = result;
-            return result;
-        };
-        const [lines, fulfillments, fulfillmentLines, returns, history, children, reservations, lots, lotAllocations, returnLotAllocations, returnQualityHolds, fulfillmentEvidence, pendingDeliveryEvidence, customerNotifications, customerNotificationSettings] = await Promise.all([
-            read(() => write.readInventoryActiveReservations2({ id: id })),
-            read(() => write.readCommerceFulfillments1({ id: id })),
-            read(() => write.readCommerceReturnLines1({ id: id })),
-            read(() => write.readCommerceReturns1({ id: id })),
-            read(() => write.readHrPeople1({ id: id })),
-            read(() => write.readCommerceOrders4({ id: id })),
-            read(() => write.readInventoryOrderReservations1({ id: id })),
-            read(() => write.readInventoryQualityHolds1({ id: id, warehouse_id: order.warehouse_id })),
-            read(() => write.readCommerceReturnLotAllocations1({ id: id })),
-            read(() => write.readCommerceReturnLotAllocations2({ id: id })),
-            read(() => write.readInventoryQualityHolds2({ id: id })),
-            read(() => write.readCommerceFulfillmentEvidence1({ id: id })),
-            read(() => write.readAttachments1({ id: id })),
-            read(() => write.readCommerceCustomerNotifications1({ id: id })),
-            read(() => write.readCommerceCustomerNotificationSettings1({ companyId: actor.companyId })),
-        ]);
-        return {
-            order,
-            lines: lines.results,
-            fulfillments: fulfillments.results,
-            fulfillmentLines: fulfillmentLines.results,
-            returns: returns.results,
-            history: history.results,
-            children: children.results,
-            reservations: reservations.results,
-            lots: lots.results,
-            lotAllocations: lotAllocations.results,
-            returnLotAllocations: returnLotAllocations.results,
-            returnQualityHolds: returnQualityHolds.results,
-            fulfillmentEvidence: fulfillmentEvidence.results,
-            pendingDeliveryEvidence: pendingDeliveryEvidence.results,
-            customerNotifications: customerNotifications.results,
-            customerNotificationSettings: customerNotificationSettings ?? { company_id: actor.companyId, adapter: 'disabled', version: 0 },
-        };
-    }
+
     async function changeOrderReservation(actor: WorkContext, id: string, raw: unknown, key: string, ownerWrite?: CommerceUnit<Effect>) {
         actor = allowed(actor, 'stock');
         const input = stockReservationSchema.parse(raw);
@@ -2497,3 +2440,67 @@ export function createCommerceApplication<Effect, Context = unknown>(ports: {
     }
     return { commerceOverview, workOrderRows, getOrder, changeOrderReservation, requestCommerceReturn, decideCommerceReturn, completeCommerceReturn, saveOrder, transitionOrder, fulfillOrder, invoiceFulfillment, settleInvoice, prepareInvoiceSettlement, saveMaster, commercePage };
 }
+
+export type CommerceOrderReadUnit<Effect>=Pick<CommerceUnit<Effect>,"readCommerceOrders1"|"readInventoryActiveReservations2"|"readCommerceFulfillments1"|"readCommerceReturnLines1"|"readCommerceReturns1"|"readHrPeople1"|"readCommerceOrders4"|"readInventoryOrderReservations1"|"readInventoryQualityHolds1"|"readCommerceReturnLotAllocations1"|"readCommerceReturnLotAllocations2"|"readInventoryQualityHolds2"|"readCommerceFulfillmentEvidence1"|"readAttachments1"|"readCommerceCustomerNotifications1"|"readCommerceCustomerNotificationSettings1">;
+export function createCommerceOrderRead<Effect>(ports:{require(actor:WorkContext,permission:string):WorkContext;error(status:number,code:string,message:string):Error;forActor(actor:WorkContext):Promise<CommerceOrderReadUnit<Effect>>}){
+function allowed(actor: WorkContext, kind: keyof typeof roles) {
+        return ports.require(actor, roles[kind]);
+    }
+function scope(actor: WorkContext) { return { args: [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId] }; }
+async function orderRow(db: CommerceOrderReadUnit<Effect>, actor: WorkContext, id: string) {
+        const s = scope(actor);
+        const row = await db.readCommerceOrders1({ id: id, fact1: s.args });
+        if (!row)
+            throw ports.error(404, "ORDER_NOT_FOUND", "Order not found in this workspace.");
+        return row;
+    }
+async function getOrder(actor: WorkContext, id: string, ownerWrite?: CommerceOrderReadUnit<Effect>) {
+        actor = allowed(actor, "read");
+        const write = ownerWrite ?? await ports.forActor(actor);
+        const order = await orderRow(write, actor, id);
+        // A composed owner command shares one PostgreSQL client. Defer each read
+        // until the prior one completes while normal pooled page reads stay parallel.
+        let readQueue: Promise<unknown> = Promise.resolve();
+        const read = <T>(query: () => Promise<T>): Promise<T> => {
+            if (!ownerWrite)
+                return query();
+            const result = readQueue.then(query);
+            readQueue = result;
+            return result;
+        };
+        const [lines, fulfillments, fulfillmentLines, returns, history, children, reservations, lots, lotAllocations, returnLotAllocations, returnQualityHolds, fulfillmentEvidence, pendingDeliveryEvidence, customerNotifications, customerNotificationSettings] = await Promise.all([
+            read(() => write.readInventoryActiveReservations2({ id: id })),
+            read(() => write.readCommerceFulfillments1({ id: id })),
+            read(() => write.readCommerceReturnLines1({ id: id })),
+            read(() => write.readCommerceReturns1({ id: id })),
+            read(() => write.readHrPeople1({ id: id })),
+            read(() => write.readCommerceOrders4({ id: id })),
+            read(() => write.readInventoryOrderReservations1({ id: id })),
+            read(() => write.readInventoryQualityHolds1({ id: id, warehouse_id: order.warehouse_id })),
+            read(() => write.readCommerceReturnLotAllocations1({ id: id })),
+            read(() => write.readCommerceReturnLotAllocations2({ id: id })),
+            read(() => write.readInventoryQualityHolds2({ id: id })),
+            read(() => write.readCommerceFulfillmentEvidence1({ id: id })),
+            read(() => write.readAttachments1({ id: id })),
+            read(() => write.readCommerceCustomerNotifications1({ id: id })),
+            read(() => write.readCommerceCustomerNotificationSettings1({ companyId: actor.companyId })),
+        ]);
+        return {
+            order,
+            lines: lines.results,
+            fulfillments: fulfillments.results,
+            fulfillmentLines: fulfillmentLines.results,
+            returns: returns.results,
+            history: history.results,
+            children: children.results,
+            reservations: reservations.results,
+            lots: lots.results,
+            lotAllocations: lotAllocations.results,
+            returnLotAllocations: returnLotAllocations.results,
+            returnQualityHolds: returnQualityHolds.results,
+            fulfillmentEvidence: fulfillmentEvidence.results,
+            pendingDeliveryEvidence: pendingDeliveryEvidence.results,
+            customerNotifications: customerNotifications.results,
+            customerNotificationSettings: customerNotificationSettings ?? { company_id: actor.companyId, adapter: 'disabled', version: 0 },
+        };
+    }return{getOrder,allowed,scope,orderRow};}

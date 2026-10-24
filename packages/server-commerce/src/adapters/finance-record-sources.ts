@@ -1,4 +1,4 @@
-import {financeSalesReceiptOriginalSources} from '@erpx/server-finance/public/sales-receipt-sources';
+import {financeSalesReceiptOriginalSources} from '@erpx/server-finance/public/sales-receipt-read-sources';
 import {supplierPaymentOriginalSources,financePaymentReversalSources} from "@erpx/server-finance/public/supplier-payment-correction-sources";
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";

@@ -8,7 +8,7 @@ import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
-import { finishPosOAuth, oauthUrl } from "@erpx/server-pos/public/pos-stripe";
+import {finishPosOAuth,oauthUrl} from '@erpx/server-pos/public/pos-stripe';
 import { posCustomers,posDayReport } from "@erpx/server-pos/public/pos-daily";
 import { posProductImage,uploadPosProductImage } from "@erpx/server-pos/public/pos-images";
 type Context={params:Promise<{holdingSlug:string;path:string[]}>};

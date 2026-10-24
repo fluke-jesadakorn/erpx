@@ -5,7 +5,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import type { AttachmentOperation, AttachmentPolicy } from "@erpx/server-files/public/attachments/types";
 import { createFinanceAttachmentPolicy, type FinanceAttachmentUnit } from "@erpx/server-files/application/attachments/finance-operations-policy";
-import { getOvertime } from "@erpx/server-people_payroll/public/overtime";
+import {getOvertime} from '@erpx/server-people_payroll/public/overtime-read';
 import { FinanceAttachmentFinanceFacts } from "@erpx/server-finance/public/attachments-finance-facts";
 import { FinanceAttachmentPosFacts } from "@erpx/server-pos/public/attachments-finance-facts";
 import { FinanceAttachmentPmsFacts } from "@erpx/server-pms/public/attachments-finance-facts";

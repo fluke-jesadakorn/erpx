@@ -4,7 +4,7 @@ import "server-only";
 import { type Filters } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import {participantSql} from '@erpx/server-workflow/public/approvals';
+import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
 import { PayrollSummaryEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 function payrollSummaryRows(db: SqlDatabase, actor: WorkContext, filters: Filters, query = "", cursor?: {
     periodEnd: string;

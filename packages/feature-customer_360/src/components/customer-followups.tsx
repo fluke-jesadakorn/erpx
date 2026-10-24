@@ -8,7 +8,7 @@ import {useCRMCommand} from "@erpx/feature-crm/components/use-crm-command";
 import type {FollowupPurchaseControls} from "@erpx/feature-sales/lib/followup-purchases";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import { hubResultHref } from "@erpx/feature-shared/lib/hub-result";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type { customerFollowupDetail } from "@erpx/server-sales/public/customer-followups";
 import { Card } from "@erpx/ui/components/foundation";
 type FollowupProps={base:string;order?:Row|null;recipients:{id:string;name:string}[];detail?:Awaited<ReturnType<typeof customerFollowupDetail>>;purchase?:FollowupPurchaseControls;inlineCreate?:boolean};

@@ -1,6 +1,6 @@
 import type {Clock} from "@erpx/server-shared/index";
 import {BusinessRuleError} from "@erpx/server-shared/index";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {crmActivityCreateSchema,crmActivityChangeSchema,crmActivityWorkspaceView,crmActivityWorkItems,type CRMActivity,type CRMActivityCreate,type CRMActivityChange} from "@erpx/server-crm/domain/activities";
 type Common={id:string;key:string;operation:string;now:number};
 export type CRMActivityMutation=Common&({action:"create";input:CRMActivityCreate;lead:Row}|{action:"change";input:CRMActivityChange;record:CRMActivity;owner:string;due:string;status:string;outcome:string|null});

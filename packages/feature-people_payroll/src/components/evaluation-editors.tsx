@@ -6,7 +6,7 @@ import type {WorkCommandCompletion} from "@erpx/feature-work_projection/lib/work
 import {capturePerformanceForm} from "@erpx/feature-people_payroll/lib/performance-command-fetch";
 import { defaultEvaluationPolicy, emptyAssessment, type AssessmentContent, type DefinitionKind, type EvaluationDefinition } from "@erpx/feature-people_payroll/lib/people-evaluation";
 import { parseEvaluationMarketCsv } from "@erpx/feature-shared/lib/evaluation-market-import";
-import type { EvaluationRow, EvaluationWorkspace, evaluationDetail } from "@erpx/server-people_payroll/public/people-evaluation";
+import type {EvaluationRow,EvaluationWorkspace,evaluationDetail} from '@erpx/server-people_payroll/public/people-evaluation';
 import styles from "@erpx/feature-people_payroll/components/evaluation.module.css";
 
 type Detail = Awaited<ReturnType<typeof evaluationDetail>>;

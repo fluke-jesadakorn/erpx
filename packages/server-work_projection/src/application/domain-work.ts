@@ -1,14 +1,10 @@
 import {manufacturingInitialPhysicalStockCountLanding} from '@erpx/server-inventory/public/rules/manufacturing-initial-physical-stock-count';
 import {initialPhysicalStockCountLanding} from "@erpx/server-inventory/public/rules/initial-physical-stock-count";
 export type DomainWork = import("@erpx/feature-work_projection/lib/work-item").WorkItem;
-import type { listTasks, taskWorkState } from "@erpx/server-operations/public/staff-tasks";
+import type {listTasks} from '@erpx/server-operations/public/staff-tasks';
+import type {taskWorkState} from '@erpx/server-operations/public/staff-task-read';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type {
-  listExpenses,
-  canEditExpense,
-  canReviewExpense,
-  canPostExpenses,
-} from "@erpx/server-people_payroll/public/expenses";
+import type {listExpenses,canEditExpense,canReviewExpense,canPostExpenses} from '@erpx/server-people_payroll/public/expense-read';
 import type {
   listCounts,
   canReadCounts,

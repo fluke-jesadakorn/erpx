@@ -14,7 +14,7 @@ import { metricCatalog, metricCatalogFor, queryMetric as ownerQueryMetric } from
 import { defaultFilters, definitionSchema, emptyDefinition, filtersForMonth, generateSchema, metricIds, monthBounds, sharePreviewSchema, shareSchema, transferOwnershipSchema } from "@erpx/feature-shared/lib/executive/canvas";
 import { executiveCoverage } from "@erpx/feature-shared/lib/executive/coverage";
 import { readExecutiveEvidence, readFinanceEvidence, searchExecutiveEvidence, searchFinanceEvidence } from "@erpx/server-runtime/public/executive/evidence";
-import { saveMaster } from "@erpx/server-commerce/public/commerce";
+import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import { formatMetric } from "@erpx/feature-shared/lib/executive/numbers";
 import {defaultConfig} from "@erpx/server-pms/public/rules/pms-model";
 import { dailyRoomReport } from "@erpx/feature-pms/lib/pms-read";

@@ -1,9 +1,10 @@
-import { fulfillmentSchema } from "@erpx/server-commerce/public/commerce";
+import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
+import {fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";

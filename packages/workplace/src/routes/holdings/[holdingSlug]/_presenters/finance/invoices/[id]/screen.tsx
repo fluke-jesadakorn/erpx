@@ -14,7 +14,7 @@ import { CommerceEnvironment } from "@erpx/feature-commerce/components/purchase-
 import {financeDocumentPresentationAccess,financeDocumentFlow} from "@erpx/server-finance/public/record-presentation";
 import { financePurchaseControls } from "@erpx/server-finance/public/purchases";
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
-import { invoiceSalesCompletion, invoiceCustomerReceipts } from "@erpx/server-finance/public/sales";
+import {invoiceSalesCompletion,invoiceCustomerReceipts} from '@erpx/server-finance/public/sales';
 import { procurementPresentationQueries } from "@erpx/server-procurement/public/presentation-queries";
 import { Table as StandardTable, TableFrame } from "@erpx/ui/components/foundation";
 
@@ -39,8 +39,8 @@ import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commercePermissions } from "@erpx/server-commerce/public/commerce";
-import { getExpense } from "@erpx/server-people_payroll/public/expenses";
+import {commercePermissions} from '@erpx/server-commerce/public/commerce';
+import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
 import {invoiceRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
 
 import { pageError } from "@erpx/server-work_projection/public/page-error";

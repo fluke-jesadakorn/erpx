@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { executeCommand } from "@erpx/server-workflow/public/commands";
-import { snapshotMoney } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import { legalCommand, detail } from "@erpx/server-legal/public/legal/service";
 import { uploadDocument, documentAccess, documentBytes } from "@erpx/server-legal/public/legal/documents";
 import { queueInspection } from "@erpx/server-legal/public/legal/processing";

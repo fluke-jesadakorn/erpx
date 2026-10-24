@@ -1,6 +1,6 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { selfServiceSeed } from "@erpx/server-records/public/self-service";
-import type { homePosts, postView, socialAudienceOptions, socialPresentation } from "@erpx/server-collaboration/public/social-home";
+import type {homePosts,postView,socialAudienceOptions,socialPresentation} from '@erpx/server-collaboration/public/social-home';
 
 export interface SocialPagePorts {
   prepare(): Promise<void>;

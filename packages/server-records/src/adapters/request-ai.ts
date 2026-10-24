@@ -8,7 +8,8 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { BetaEnvironment } from "@erpx/server-manage_erpx/public/beta-config";
 import { resolveAiProvider, aiSnapshotGuard, aiUsageStatement } from "@erpx/server-agent/public/ai-providers";
 import { generateProviderJson, withAiGatewayScope } from "@erpx/server-agent/public/ai-transport";
-import {employeeRequestDetail,requestVersionGuard} from '@erpx/server-records/public/employee-requests';
+import {employeeRequestDetail} from '@erpx/server-records/public/employee-requests-read';
+import {requestVersionGuard} from '@erpx/server-records/public/employee-requests';
 import { serviceAuthoritySnapshot, validateServiceScope } from "@erpx/server-support/public/service-access";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";

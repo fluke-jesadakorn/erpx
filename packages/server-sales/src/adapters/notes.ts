@@ -3,7 +3,8 @@ import { commercialOwnerProjectionSources as financeProjectionSources } from "@e
 import {salesNoteCustomer} from "@erpx/server-finance/public/sales-customer-sources";
 import 'server-only';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {getOrder,type Row} from "@erpx/server-commerce/public/commerce";
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
+import {type Row} from '@erpx/server-commerce/public/commerce';
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -52,4 +53,3 @@ export function customerNotesForOrder(a:WorkContext,id:string){return translated
 export function customerNotesForCustomer(a:WorkContext,id:string){return translated(()=>application(a).forCustomer(id));}
 export function createCustomerNote(a:WorkContext,raw:unknown,key:string){return translated(()=>application(a).create(raw,key));}
 export function changeCustomerNote(a:WorkContext,id:string,raw:unknown,key:string){return translated(()=>application(a).change(id,raw,key));}
-

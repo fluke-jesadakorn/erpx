@@ -12,14 +12,13 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workplace-navigation";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commercePage, commercePermissions } from "@erpx/server-commerce/public/commerce";
+import {commercePage,commercePermissions} from '@erpx/server-commerce/public/commerce';
 import { canApproveCounts, canPrepareCounts, canReadCounts } from "@erpx/server-inventory/public/inventory-counts";
 import { listInventoryReorderPolicies } from "@erpx/server-inventory/public/inventory-reorder-policies";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
-
 
 import { InventoryReorderConsole } from "@erpx/feature-inventory/components/inventory-reorder-console";
 
@@ -62,7 +61,7 @@ export default async function CommercePage({ params, searchParams, }: {
     const requestData = search.request
         ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
         : null;
-    
+
     const reorderPolicies = canReadCounts(actor) ? await listInventoryReorderPolicies(actor) : [];
     const sourceRequest = requestData?.request.kind === "purchase" &&
         requestData.actions.includes("link-order") &&
@@ -74,15 +73,15 @@ export default async function CommercePage({ params, searchParams, }: {
             note: `${requestData.request.title} · ${requestData.request.description}`.slice(0, 2000),
         }
         : undefined;
-    
+
     const tabs = commerceNavigationViews;
     const orders = data.orders.filter((o) => o.kind === view &&
         (!search.q ||
             `${o.number} ${o.party_name} ${o.state}`.toLowerCase().includes(search.q.toLowerCase())));
-    
+
     const area = "Inventory";
     const pageTitle = (tabs.find(([id]) => id === view)?.[1] ?? "Records");
-    
+
     const lotRecords = hasPermission(actor, "inventory.read")
         ? (await (await commercePresentationQueries(actor.holdingId)).commerceEntrypointInventoryFacts().lotRecords(actor.companyId, actor.branchId ?? null)).results
         : [];
@@ -271,4 +270,3 @@ export default async function CommercePage({ params, searchParams, }: {
       </WidgetGrid></SectionWorkspace>
     </FeaturePage>);
 }
-

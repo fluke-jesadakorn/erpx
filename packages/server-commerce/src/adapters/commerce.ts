@@ -1,20 +1,23 @@
-import {commerceOrderReadKinds,requireCommercePurchasedRead,requireCommerceOrderRead,withCommercePurchasedCommand} from "@erpx/server-commerce/adapters/purchase-boundary";
-import { ensureCustomerReceipt } from "@erpx/server-finance/public/sales";
-import { commerceFinalOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/commerce-final-owner-projection-sources";
+import{commercePages,commerceSalesDocuments}from '@erpx/server-commerce/adapters/commerce-pages';
+export{commercePages,commerceSalesDocuments};
+
+import{getOrder,nativeCommerceOrderReadRepository}from '@erpx/server-commerce/adapters/commerce-order-read';
+export{getOrder};
+import { commerceOrderReadKinds, requireCommercePurchasedRead, withCommercePurchasedCommand } from "@erpx/server-commerce/adapters/purchase-boundary";
+import {ensureCustomerReceipt} from '@erpx/server-finance/public/customer-receipt-issue';
+
 import { commerceFinalOwnerProjectionSources as procurementProjectionSources } from "@erpx/server-procurement/public/commerce-final-owner-projection-sources";
 import { commerceFinalOwnerProjectionSources as recordsProjectionSources } from "@erpx/server-records/public/commerce-final-owner-projection-sources";
 import {commerceCommerceStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
-import { commercialOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/commercial-owner-projection-sources";
-import { commercialOwnerProjectionSources as salesProjectionSources } from "@erpx/server-sales/public/commercial-owner-projection-sources";
-import { commercialOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/commercial-owner-projection-sources";
+
 import { commerceExpensePaymentEffects } from "@erpx/server-people_payroll/public/commerce-expense-payment-effects";
 import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce-page-sources";
-import { commerceInventoryPageSources } from "@erpx/server-inventory/public/commerce-page-sources";
+
 import { commerceFinanceJoinedFacts } from "@erpx/server-finance/public/commerce-joined-facts";
 import { commerceInventoryJoinedFacts } from "@erpx/server-inventory/public/commerce-joined-facts";
 import { refundNotifications } from "@erpx/server-finance/public/refund-notifications";
-import { readListPage } from "@erpx/server-work_projection/public/list-page";
+
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { z } from "zod";
@@ -26,10 +29,10 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { attachmentsV2Readable } from "@erpx/server-files/public/attachments/feature";
-import { snapshotMoney, snapshotMoneyReversal } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney,snapshotMoneyReversal} from '@erpx/server-finance/public/company-money';
 import { prepareBusinessEvidence } from "@erpx/server-records/public/business-evidence";
 import { prepareReturnCredit, returnCompletionValues } from "@erpx/server-commerce/public/commerce-return-accounting";
-import {confirmedFunctionalFx,prepareJournal} from '@erpx/server-finance/public/finance';
+import {confirmedFunctionalFx,prepareJournal} from '@erpx/server-finance/public/journal-planning';
 import { prepareReturnGoodsFx } from "@erpx/server-commerce/public/commerce-goods-accounting";
 import { assertControlledThaiTaxPaymentOwner } from "@erpx/server-finance/public/finance-withholding";
 import { createCommerceApplication, type CommerceUnit, type Row } from "@erpx/server-commerce/application/commerce";
@@ -38,7 +41,7 @@ import type { Posting } from "@erpx/server-commerce/application/commerce";
 export type { Row } from "@erpx/server-commerce/application/commerce";
 export { orderSchema, transitionSchema, fulfillmentSchema, invoiceFromDeliverySchema, settlementSchema, returnRequestSchema, returnDecisionSchema, returnCompleteSchema, productSchema, partyMasterSchema, warehouseSchema, stockReservationSchema, commercePermissions } from "@erpx/server-commerce/domain/commerce";
 import { receiptQualityHoldSteps } from "@erpx/server-quality/public/quality";
-import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests';
+import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
 import {prepareRequestOrderHandoff} from '@erpx/server-records/public/employee-requests';
 import { resolveSalesPricing } from "@erpx/server-sales/public/sales-pricing";
 import { prepareRfqOrderHandoff } from "@erpx/server-procurement/public/procurement-rfqs";
@@ -49,60 +52,14 @@ import { CommerceOrganizationFacts } from "@erpx/server-organization/public/comm
 import { CommerceSalesFacts } from "@erpx/server-sales/public/commerce-facts";
 import { CommerceFilesFacts } from "@erpx/server-files/public/commerce-facts";
 import { CommerceProcurementFacts } from "@erpx/server-procurement/public/commerce-facts";
-async function commercePages(write: SqlDatabase, actor: WorkContext, query: {
-    view: string;
-    kind?: string;
-    q?: string;
-    cursor?: string;
-    movementCursor?: string;
-    new?: string;
-    edit?: string;
-    request?: string;
-    status?: string;
-    startDate?: string;
-    endDate?: string;
-}) {
-    const s = { sql: 'o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)', args: [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId] };
-    const search = query.q ?? '', branchArgs = [actor.companyId, actor.branchId, actor.branchId];
-    const partyKind = query.kind === 'customer' || query.kind === 'supplier' ? query.kind : '';
-    const orderView = ['sales', 'quote', 'purchase'].includes(query.view);
-    const lists: Record<string, {
-        sql: string;
-        args: unknown[];
-        descending?: boolean;
-    }> = {
-        orders: { sql: `SELECT o.*,p.name party_name,o.created_at::text page_key FROM commerce_orders o ${commerceFinancePageSources.orderPartyJoin}
-      WHERE ${s.sql} AND o.kind=? AND (?='' OR strpos(lower(o.number||' '||p.name||' '||o.state),lower(?))>0) AND (?='' OR o.state=?) AND (?='' OR o.order_date>=?) AND (?='' OR o.order_date<=?)`, args: [...s.args, query.view, search, search, query.status ?? '', query.status ?? '', query.startDate ?? '', query.startDate ?? '', query.endDate ?? '', query.endDate ?? ''], descending: true },
-        products: { sql: 'SELECT *,sku AS page_key FROM commerce_products WHERE company_id=?', args: [actor.companyId] },
-        parties: commerceFinancePageSources.parties(actor.companyId, partyKind),
-        warehouses: { sql: 'SELECT *,name AS page_key FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?)', args: branchArgs },
-        stock: commerceInventoryPageSources.stock(branchArgs),
-    };
-    const list = orderView ? 'orders' : query.view;
-    const [page, movementPage] = await Promise.all([
-        readListPage<Row & {
-            id: string;
-            page_key: string;
-        }>(write, { ...lists[list], cursor: query.cursor, scope: [actor.companyId, actor.branchId, list, query.view, ...(list === 'parties' ? [partyKind] : []), search, ...(query.status ? [query.status] : []), query.startDate ?? '', query.endDate ?? ''] }),
-        query.view === 'stock' ? readListPage<Row & {
-            id: string;
-            page_key: string;
-        }>(write, commerceInventoryPageSources.movements(branchArgs, query.movementCursor, [actor.companyId, actor.branchId, 'movements'])) : null,
-    ]);
-    return { page, movementPage };
-}
+
 /** Sales lists do not require posting setup; preparing documents still does. */
-export async function commerceSalesDocuments(actor: WorkContext, query: { view: "sales" | "quote"; q?: string; status?: string; startDate?: string; endDate?: string; cursor?: string }) {
-    requirePermission(actor, "commerce.read");
-    const database=(await holdingResources(actor.holdingId)).write;
-    await requireCommercePurchasedRead(database,actor,query.view);
-    return (await commercePages(database, actor, query)).page;
-}
+
 function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
     return {
         readCommerceSettings1: facts => commerceFinanceJoinedFacts(db).readCommerceSettings1(facts),
         readFinancePeriods1: facts => CommerceFinanceFacts(db).readFinancePeriods1(facts),
-        readCommerceOrders1: facts => commerceFinanceJoinedFacts(db).readCommerceOrders1(facts),
+        readCommerceOrders1(...args){return nativeCommerceOrderReadRepository(db).readCommerceOrders1(...args);},
         readCommerceOrders2: async facts => {
             const kinds=actor?await commerceOrderReadKinds(db,actor):null;
             if(kinds===null)return commerceFinanceJoinedFacts(db).readCommerceOrders2(facts);
@@ -128,33 +85,21 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             const access=await (await import("@erpx/server-commerce/adapters/record-purchases")).commerceWorkAccess(db,actor,rows.results.map(row=>String(row.id)));
             return access===null?rows:{...rows,results:rows.results.filter(row=>access.get(String(row.id))?.history)};
         },
-        readInventoryActiveReservations2: facts => CommerceInventoryFacts(db).readInventoryActiveReservations2(facts),
-        readCommerceFulfillments1: facts => commerceFinanceJoinedFacts(db).readCommerceFulfillments1(facts),
-        readCommerceReturnLines1: (facts: {
-            id: string;
-        }) => db.prepare("SELECT fl.*,ol.product_id,ol.item_type,ol.description,p.sku,COALESCE((SELECT SUM(rl.quantity_milli) FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=fl.id AND r.status!='rejected'),0) returned_milli FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id JOIN commerce_fulfillments f ON f.id=fl.fulfillment_id WHERE f.order_id=? ORDER BY f.created_at,ol.ordinal").bind(facts.id).all<Row>(),
-        readCommerceReturns1: facts => commerceFinanceJoinedFacts(db).readCommerceReturns1(facts),
-        readHrPeople1: (facts: {
-            id: string;
-        }) => db.prepare(`SELECT a.action,a.actor_id,COALESCE((SELECT legal_name FROM (${people_payrollProjectionSources.hr_people}) p WHERE p.user_id=a.actor_id),a.actor_id) actor_name,a.created_at,a.record_version FROM (${workflowProjectionSources.audit_events}) a WHERE a.record_id=? ORDER BY a.created_at DESC LIMIT 50`).bind(facts.id).all<Row>(),
-        readCommerceOrders4: (facts: {
-            id: string;
-        }) => db.prepare("SELECT id,number FROM commerce_orders WHERE source_id=?").bind(facts.id).all<Row>(),
-        readInventoryOrderReservations1: facts => CommerceInventoryFacts(db).readInventoryOrderReservations1(facts),
-        readInventoryQualityHolds1: facts => CommerceInventoryFacts(db).readInventoryQualityHolds1(facts),
-        readCommerceReturnLotAllocations1: facts => commerceInventoryJoinedFacts(db).readCommerceReturnLotAllocations1(facts),
-        readCommerceReturnLotAllocations2: facts => commerceInventoryJoinedFacts(db).readCommerceReturnLotAllocations2(facts),
-        readInventoryQualityHolds2: facts => CommerceInventoryFacts(db).readInventoryQualityHolds2(facts),
-        readCommerceFulfillmentEvidence1: (facts: {
-            id: string;
-        }) => db.prepare(`SELECT e.fulfillment_id,a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256 FROM commerce_fulfillment_evidence e JOIN (${filesProjectionSources.attachments}) a ON a.id=e.attachment_id AND a.revoked_at IS NULL JOIN commerce_fulfillments f ON f.id=e.fulfillment_id WHERE f.order_id=? ORDER BY e.linked_at,e.attachment_id`).bind(facts.id).all<Row>(),
-        readAttachments1: facts => CommerceFilesFacts(db).readAttachments1(facts),
-        readCommerceCustomerNotifications1: (facts: {
-            id: string;
-        }) => db.prepare(`SELECT * FROM (${salesProjectionSources.commerce_customer_notifications}) commerce_customer_notifications WHERE order_id=? ORDER BY created_at DESC,id`).bind(facts.id).all<Row>(),
-        readCommerceCustomerNotificationSettings1: (facts: {
-            companyId: string;
-        }) => db.prepare(`SELECT * FROM (${salesProjectionSources.commerce_customer_notification_settings}) commerce_customer_notification_settings WHERE company_id=?`).bind(facts.companyId).first<Row>(),
+        readInventoryActiveReservations2(...args){return nativeCommerceOrderReadRepository(db).readInventoryActiveReservations2(...args);},
+        readCommerceFulfillments1(...args){return nativeCommerceOrderReadRepository(db).readCommerceFulfillments1(...args);},
+        readCommerceReturnLines1(...args){return nativeCommerceOrderReadRepository(db).readCommerceReturnLines1(...args);},
+        readCommerceReturns1(...args){return nativeCommerceOrderReadRepository(db).readCommerceReturns1(...args);},
+        readHrPeople1(...args){return nativeCommerceOrderReadRepository(db).readHrPeople1(...args);},
+        readCommerceOrders4(...args){return nativeCommerceOrderReadRepository(db).readCommerceOrders4(...args);},
+        readInventoryOrderReservations1(...args){return nativeCommerceOrderReadRepository(db).readInventoryOrderReservations1(...args);},
+        readInventoryQualityHolds1(...args){return nativeCommerceOrderReadRepository(db).readInventoryQualityHolds1(...args);},
+        readCommerceReturnLotAllocations1(...args){return nativeCommerceOrderReadRepository(db).readCommerceReturnLotAllocations1(...args);},
+        readCommerceReturnLotAllocations2(...args){return nativeCommerceOrderReadRepository(db).readCommerceReturnLotAllocations2(...args);},
+        readInventoryQualityHolds2(...args){return nativeCommerceOrderReadRepository(db).readInventoryQualityHolds2(...args);},
+        readCommerceFulfillmentEvidence1(...args){return nativeCommerceOrderReadRepository(db).readCommerceFulfillmentEvidence1(...args);},
+        readAttachments1(...args){return nativeCommerceOrderReadRepository(db).readAttachments1(...args);},
+        readCommerceCustomerNotifications1(...args){return nativeCommerceOrderReadRepository(db).readCommerceCustomerNotifications1(...args);},
+        readCommerceCustomerNotificationSettings1(...args){return nativeCommerceOrderReadRepository(db).readCommerceCustomerNotificationSettings1(...args);},
         readCommerceOrderLines1: (facts: {
             lineId: string;
             id: string;
@@ -918,11 +863,7 @@ export async function createManufacturingInitialPhysicalStockMasterInTransaction
 const application = applicationFor();
 export function commerceOverview(actor: WorkContext) { return application.commerceOverview(actor); }
 export async function workOrderRows(actor: WorkContext, provided?: SqlDatabase) { const database=provided??(await holdingResources(actor.holdingId)).write;return application.workOrderRows(actor,unit(database,actor)); }
-export async function getOrder(actor: WorkContext, id: string, ownerWrite?: SqlDatabase) {
- const database=ownerWrite??(await holdingResources(actor.holdingId)).write;
- await requireCommerceOrderRead(database,actor,id);
- return application.getOrder(actor,id,ownerWrite?unit(ownerWrite):undefined);
-}
+
 export function changeOrderReservation(actor: WorkContext, id: string, raw: unknown, key: string, ownerWrite?: SqlDatabase) {
  const input=raw as {action?:string};
  return withCommercePurchasedCommand(actor,{operation:"commerce.stock.reserve",key,target:{type:"order",id},purpose:input?.action==="release"?"settle-existing":"new-work",permissions:["inventory.prepare"],stock:true},database=>applicationFor(database).changeOrderReservation(actor,id,raw,key,unit(database)),ownerWrite);

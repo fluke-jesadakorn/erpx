@@ -14,7 +14,7 @@ import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import { InvoiceSlipUpload, type InvoiceSlipSelection } from "@erpx/feature-finance/components/invoice-slip-upload";
 import { useState } from "react";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import { quantityMilli, lineAmounts } from "@erpx/feature-commerce/lib/commerce-math";
 import { decimalToMinor, minorToDecimal, decimalToUnits, unitsToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { businessDate } from "@erpx/server-pos/public/rules/pos";

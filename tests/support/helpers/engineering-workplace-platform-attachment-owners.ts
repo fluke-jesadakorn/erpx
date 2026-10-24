@@ -9,12 +9,12 @@ import {grantIamAccess,grantInput} from "@erpx/server-identity_access/public/iam
 import {bindIamMigrationEvidence,bindIamReviewEvidence,bindProvisioningEvidence} from "@erpx/server-platform_administration/public/system-evidence";
 import {bindReleaseEvidence} from "@erpx/server-platform_administration/public/release-acceptance";
 import {organizationNodeChangeSchema,saveOrganizationNodeChange,decideOrganizationNodeChange} from '@erpx/server-organization/public/organization';
-import {savePostDraft,publishPost,postDraftSchema} from "@erpx/server-collaboration/public/social-home";
-import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
-import {createSupportTicket} from "@erpx/server-support/public/support";
+import {savePostDraft,publishPost,postDraftSchema} from '@erpx/server-collaboration/public/social-home';
+import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
+import {createSupportTicket} from '@erpx/server-support/public/support';
 import {bindSupportEvidence} from "@erpx/server-support/public/support-evidence";
-import {createSupportIncident,changeSupportIncident} from "@erpx/server-support/public/support-incidents";
-import {createMessagingTeam,sendMessagingMessage,messageSchema} from "@erpx/server-collaboration/public/messaging";
+import {createSupportIncident,changeSupportIncident} from '@erpx/server-support/public/support-incidents';
+import {createMessagingTeam,sendMessagingMessage,messageSchema} from '@erpx/server-collaboration/public/messaging';
 import {legalCommand} from "@erpx/server-legal/public/legal/service";
 import {customerPortalCommand} from "@erpx/server-customer_360/public/customer-portal";
 import {customerPortalWorkContext} from "@erpx/server-customer_360/public/customer-portal-attachments";

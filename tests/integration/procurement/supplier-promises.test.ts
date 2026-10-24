@@ -1,7 +1,8 @@
 import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
+import {fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {recordSupplierPromise,supplierPromiseDetail,supplierPromiseWork} from "@erpx/server-procurement/public/supplier-promises";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";

@@ -20,7 +20,7 @@ import {guestBookingDocument} from "@erpx/server-pms/public/pms/guest-document";
 import {staffBookingChange} from "@erpx/server-pms/public/pms/staff-booking-changes";
 import { publicChangeQuote, confirmBookingChange } from "@erpx/server-pms/public/pms-booking-changes";
 import { createHmac } from "node:crypto";
-import { posStripeWebhook,drainPos } from "@erpx/server-pos/public/pos-stripe";
+import {posStripeWebhook,drainPos} from '@erpx/server-pos/public/pos-stripe';
 import {pmsFinanceOverview} from "@erpx/server-pms/public/pms/finance";
 import {createPmsStripePayment,pmsStripePaymentStatus,reconcilePmsStripePayment,requestPmsStripeRefund,approvePmsStripeRefund,processPmsStripeRefund,recoverPmsStripeRefund} from "@erpx/server-pms/public/pms-stripe";
 import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
@@ -34,7 +34,7 @@ import { pmsCommand, loadPms } from "../../../packages/server-pms/src/public/pms
 import { records, record, pmsAccountKeys, type Config } from "@erpx/server-pms/public/rules/pms";
 import { availability } from "@erpx/feature-pms/lib/pms-engine";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { confirmManualRate } from "@erpx/server-finance/public/company-money";
+import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import { POST as publicBookingPost } from "@erpx/feature-booking/routes/api/public/booking/[holdingSlug]/[action]/route";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", async () => {

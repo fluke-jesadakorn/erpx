@@ -5,12 +5,12 @@ import type { SocialSnapshot, ResolvedSocialProvider, SocialReplyProvider } from
 import type { PostRow } from '@erpx/server-collaboration/domain/social-source';
 import type { StaffActor } from '@erpx/server-operations/public/staff-policy';
 import type { BetaEnvironment } from '@erpx/server-manage_erpx/public/beta-config';
-import type { PostContent } from '@erpx/server-collaboration/public/social-home';
+import type {PostContent} from '@erpx/server-collaboration/public/social-home';
 import { ASSISTANT_ID } from '@erpx/server-collaboration/domain/social-text';
 import { aiMarkdownRichContent, validateRichContent, type RichContent } from "@erpx/feature-shared/lib/home-rich-content";
 import type { requireJobAuthority } from '@erpx/server-identity_access/public/iam-jobs';
 import type { iamMutationGuards } from '@erpx/server-identity_access/public/iam-store';
-import type { sourceGuard } from '@erpx/server-collaboration/public/social-source';
+import type {sourceGuard} from '@erpx/server-collaboration/public/social-source';
 import type { aiSnapshotGuard, aiUsageStatement } from '@erpx/server-agent/public/ai-providers';
 import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { aiRequestQuotaLock } from '@erpx/server-agent/public/ai-quota';

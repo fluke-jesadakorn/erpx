@@ -15,7 +15,7 @@ import type { Metadata } from "next";
 import { frontAppForHost, frontVisibleLocation, frontVisiblePath } from "@erpx/feature-shared/lib/front-host";
 import { frontActionItems } from "@erpx/server-work_projection/public/front-quick-access";
 import { readQuickAccessPreferences } from "@erpx/server-work_projection/public/quick-access-preferences";
-import { moneyContext } from "@erpx/server-finance/public/company-money";
+import {moneyContext} from '@erpx/server-finance/public/company-money';
 import { appsEntryUrl, applicationOrigin } from "@erpx/feature-runtime/lib/application-origins";
 import { preferredAccountAppearance, preferredAccountLanguage } from "@erpx/server-identity_access/public/account-preference-snapshot";
 export const dynamic = "force-dynamic";

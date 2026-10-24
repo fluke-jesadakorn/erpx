@@ -2,13 +2,9 @@ import { mapSpendingOrganization } from "./spending-organization";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { env } from "../runtime-env";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import {
-  saveExpense,
-  getExpense,
-  transitionExpense,
-  expenseUpdateSchema,
-} from "@erpx/server-people_payroll/public/expenses";
-import { saveExpenseAccounting } from "@erpx/server-people_payroll/public/expense-workflow";
+import {saveExpense,transitionExpense,expenseUpdateSchema} from '@erpx/server-people_payroll/public/expenses';
+import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
+import {saveExpenseAccounting} from '@erpx/server-people_payroll/public/expense-workflow';
 export const expenseDb = env.H001_DB,
   key = () => crypto.randomUUID();
 export async function expenseFixture(mapped = true, withMoneyQuote = true, withFinancialReferences = true) {

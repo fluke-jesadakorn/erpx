@@ -2,7 +2,7 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {Row} from '@erpx/server-people_payroll/public/people-evaluation-contract';
-const evaluationLearningReadScope=async(database:SqlDatabase,actor:WorkContext)=>(await import('@erpx/server-learning/adapters/record-purchases')).evaluationLearningReadScope(database,actor);
+const evaluationLearningReadScope=async(database:SqlDatabase,actor:WorkContext)=>(await import('@erpx/server-learning/public/evaluation-source-policy')).evaluationLearningReadScope(database,actor);
 export function peopleEvaluationLearningSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE learning_assignments,learning_courses IN SHARE ROW EXCLUSIVE MODE')];}
 export async function peopleEvaluationLearningSourceImage(database:SqlDatabase,actor:WorkContext){const scope=await evaluationLearningReadScope(database,actor);return database.prepare(`SELECT jsonb_build_object('assignments',(SELECT jsonb_agg(to_jsonb(a)||jsonb_build_object('visible',${scope.where}) ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?),'courses',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM learning_courses c WHERE c.company_id=?))::text image`).bind(...scope.args,actor.companyId,actor.companyId).first<string>('image');}
 export function peopleEvaluationLearningFacts(database:SqlDatabase){return {

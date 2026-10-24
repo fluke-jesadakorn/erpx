@@ -1,11 +1,14 @@
-import {withExpensePurchasedCommand, withExpensePurchasedRead} from "@erpx/server-people_payroll/adapters/expense-purchases";
+import{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase}from '@erpx/server-people_payroll/adapters/expense-payment-read';
+export{paymentDraft,nativeExpensePaymentReader,paymentFromDatabase};
+
+import { withExpensePurchasedCommand } from "@erpx/server-people_payroll/adapters/expense-purchases";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/hospitality-owner-projection-sources";
 import { expenseNativeEffects as filesExpenseEffects } from "@erpx/server-files/public/expense-native-effects";
-import { createExpensePaymentReader } from "@erpx/server-people_payroll/application/expense-projections";
+
 import { createSaveExpensePayment, createRevokePaymentSlip } from "@erpx/server-people_payroll/application/expense-evidence";
 import { createExpensePaymentCommands } from "@erpx/server-people_payroll/application/expense-commands";
 import { expenseCommandPort, expenseMutation } from "@erpx/server-people_payroll/adapters/expense-command-port";
@@ -15,13 +18,14 @@ import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import { expenseFromDatabase, type ExpenseRow } from "@erpx/server-people_payroll/adapters/expenses";
-import { expensePayers } from "@erpx/server-people_payroll/adapters/expense-workflow";
-import { ApiError } from "@erpx/server-runtime/public/http";
+import {expenseFromDatabase} from '@erpx/server-people_payroll/adapters/expense-read';
+import {type ExpenseRow} from '@erpx/server-people_payroll/adapters/expenses';
+import {expensePayers} from '@erpx/server-people_payroll/adapters/expense-workflow-read';
+
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { prepareInvoiceSettlement } from "@erpx/server-commerce/public/commerce";
+import {prepareInvoiceSettlement} from '@erpx/server-commerce/public/commerce';
 import { notification, staffGuard } from "@erpx/server-operations/public/staff-policy";
-import {decimalToMinor} from '@erpx/server-finance/public/finance';
+import {decimalToMinor} from '@erpx/server-finance/public/money-primitives';
 import {
   attachmentsV2Enabled,
   attachmentsV2Readable,
@@ -80,21 +84,7 @@ export const expensePaymentSchema = z.object({
   amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
   reference: z.string().trim().min(2).max(100),
 });
-export async function paymentDraft(actor: WorkContext, id: string, editable = false, provided?: SqlDatabase) {
-  const write = provided ?? (await holdingResources(actor.holdingId)).write;
-  return paymentFromDatabase(write, actor, id, editable);
-}
-export function nativeExpensePaymentReader(write: SqlDatabase) {
-  return createExpensePaymentReader({
-    error: violation => new ApiError(violation.status, violation.code, violation.message),
-    draft: (actor, id) => write.prepare("SELECT * FROM expense_payment_drafts WHERE id=? AND company_id=?").bind(id, actor.companyId).first<ExpenseRow>(),
-    expense: (actor, id) => expenseFromDatabase(write, actor, id),
-    payers: row => expensePayers(write, row),
-  });
-}
-export async function paymentFromDatabase(write: SqlDatabase, actor: WorkContext, id: string, editable = false) {
-  return withExpensePurchasedRead(write, actor, tx => nativeExpensePaymentReader(tx)(actor, id, editable));
-}
+
 export async function createExpensePayment(actor: WorkContext, id: string, expectedVersion: number, key: string) {
   const { write } = await holdingResources(actor.holdingId);
   return withExpensePurchasedCommand(write, actor, {key,purpose:"settle-existing"}, tx => nativeExpensePayments(tx).createExpensePayment(actor, id, expectedVersion, key));

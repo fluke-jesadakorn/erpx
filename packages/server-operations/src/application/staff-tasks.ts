@@ -4,7 +4,7 @@ import type { TaskSource } from "@erpx/server-collaboration/public/social-task";
 import type { RecordScope, StaffActor } from "@erpx/server-operations/public/staff-policy";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { getProject } from "@erpx/server-projects/public/staff-projects";
-import type { readablePost } from "@erpx/server-collaboration/public/social-source";
+import type {readablePost} from '@erpx/server-collaboration/public/social-source';
 import type { taskSourceStatements } from "@erpx/server-collaboration/public/social-task";
 import type {approvalView} from '@erpx/server-workflow/public/approval-planning';
 import type {closeApprovals} from '@erpx/server-workflow/public/approval-planning';
@@ -15,7 +15,7 @@ import type { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import type { staffGuard } from "@erpx/server-operations/public/staff-policy";
 import type { notification } from "@erpx/server-operations/public/staff-policy";
 import type { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import { taskFieldsSchema, taskSchema, taskActionSchema, taskDelegationSchema, taskDelegationRevokeSchema, type TaskRow, isOrdinaryTask, type TaskDetail, canConfigureTask, isActiveDelegate, type TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
+import { taskFieldsSchema, taskSchema, taskActionSchema, taskDelegationSchema, taskDelegationRevokeSchema, type TaskRow, isOrdinaryTask, type TaskDetail, canConfigureTask, canAttachTask, isActiveDelegate, type TaskWorkState } from '@erpx/server-operations/domain/staff-tasks';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { OperationsCommands } from '@erpx/server-operations/domain/commands';
 type Tail<Value extends unknown[]> = Value extends [
@@ -107,17 +107,8 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
         }
         return visible;
     }
-    async function getTask(actor: StaffActor, id: string) {
-        const row = await r.readGetTaskRow(id, actor.companyId, actor.userId, actor.userId, actor.userId, actor.userId, actor.userId, actor.userId, actor.userId, actor.userId);
-        if (!row)
-            throw new BusinessRuleError(404, "TASK_NOT_FOUND", "Task not found.");
-        if (row.source_post_id)
-            await ports.readablePost(actor, row.source_post_id);
-        return row;
-    }
-    function taskSourceReadGuard(actor: StaffActor, id: string, version: number, key: string, step: string) {
-        return r.guard3(key, step, id, version, actor.companyId, Array.from({ length: 8 }, () => actor.userId));
-    }
+    const{getTask,taskSourceReadGuard,taskWorkState}=createStaffTaskRead(ports);
+
     async function delegateTask(actor: StaffActor, id: string, input: z.infer<typeof taskDelegationSchema>, key: string) {
         const prior = await ports.commands.replay<{
             id: string;
@@ -280,42 +271,7 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
             ports.notification(current ?? staff, input.assigneeUserId, "task", recordId, version, revision ? "Task revised; approvals restart" : "Task assigned to you"),
         ], scope(current ?? staff));
     }
-    async function taskWorkState(actor: StaffActor, task: TaskRow): Promise<TaskWorkState> {
-        const approval = await ports.approvalView("task", task.id, actor), manage = canConfigureTask(actor, task), assigned = samePerson(actor, task.assignee_user_id) || isActiveDelegate(actor, task);
-        let blockedReason = approval.blockedReason ?? task.blocked_reason;
-        if (!["completed", "cancelled"].includes(task.state)) {
-            const phases: ("start" | "completion")[] = task.state === "draft"
-                ? ["start", "completion"]
-                : ["ready", "in_progress", "rework", "start_approval"].includes(task.state)
-                    ? ["completion"]
-                    : [];
-            for (const phase of phases) {
-                const route = await ports.taskRoute(task, task.creator_user_id, task.assignee_user_id, phase, JSON.parse(phase === "start"
-                    ? task.start_approvers_json
-                    : task.completion_approvers_json), !!task.source_post_id);
-                blockedReason ??= route.blockedReason;
-            }
-        }
-        const permittedActions = [
-            ...(assigned && task.state === "ready" && isOrdinaryTask(task) && !blockedReason
-                ? ["complete"] : []),
-            ...(manage && task.state === "draft"
-                ? ["edit", ...(!blockedReason ? ["submit"] : [])]
-                : []),
-            ...(manage && !["completed", "cancelled"].includes(task.state)
-                ? ["revise", "cancel"]
-                : []),
-            ...(manage && !["completed", "cancelled"].includes(task.state)
-                ? ["delegate"]
-                : []),
-            ...(assigned && task.state === "ready" && !blockedReason ? ["start"] : []),
-            ...(assigned && ["in_progress", "rework"].includes(task.state)
-                ? ["save-progress", ...(!blockedReason ? ["complete"] : [])]
-                : []),
-            ...(approval.canDecide ? ["approve", "reject"] : []),
-        ];
-        return { approval, permittedActions, blockedReason };
-    }
+
     async function taskDetail(actor: StaffActor, id: string): Promise<TaskDetail> {
         const task = await getTask(actor, id), work = await taskWorkState(actor, task);
         const attachments = (await r.readTaskDetailAttachments(id)).results;
@@ -434,11 +390,54 @@ export function createStaffTasksApplication<Effect>(ports: StaffTasksPorts<Effec
         }
         return ports.commands.commit(actor, key, operation, input, id, input.expectedVersion + 1, { id, state, version: input.expectedVersion + 1, ...(prepared ? { manifest: prepared.manifest } : {}) }, steps, scope(task));
     }
-    function canAttachTask(actor: StaffActor, task: TaskRow) {
-        return ((task.state === "draft" && canConfigureTask(actor, task)) ||
-            ((["in_progress", "rework"].includes(task.state) ||
-                task.state === "ready" && isOrdinaryTask(task)) &&
-                (samePerson(actor, task.assignee_user_id) || isActiveDelegate(actor, task))));
-    }
+
     return { listTasks, getTask, taskSourceReadGuard, canConfigureTask, delegateTask, revokeTaskDelegation, taskVersionGuard, validateTaskConfiguration, configGuards, saveTask, taskWorkState, taskDetail, transitionTask, canAttachTask };
 }
+
+export type StaffTaskReadPorts<Effect>=Pick<StaffTasksPorts<Effect>,'readablePost'|'approvalView'|'taskRoute'>&{repository:Pick<StaffTasksRepository<Effect>,'readGetTaskRow'|'guard3'>};
+export function createStaffTaskRead<Effect>(ports:StaffTaskReadPorts<Effect>){const r=ports.repository;async function getTask(actor: StaffActor, id: string) {
+        const row = await r.readGetTaskRow(id, actor.companyId, actor.userId, actor.userId, actor.userId, actor.userId, actor.userId, actor.userId, actor.userId, actor.userId);
+        if (!row)
+            throw new BusinessRuleError(404, "TASK_NOT_FOUND", "Task not found.");
+        if (row.source_post_id)
+            await ports.readablePost(actor, row.source_post_id);
+        return row;
+    }
+function taskSourceReadGuard(actor: StaffActor, id: string, version: number, key: string, step: string) {
+        return r.guard3(key, step, id, version, actor.companyId, Array.from({ length: 8 }, () => actor.userId));
+    }async function taskWorkState(actor: StaffActor, task: TaskRow): Promise<TaskWorkState> {
+        const approval = await ports.approvalView("task", task.id, actor), manage = canConfigureTask(actor, task), assigned = samePerson(actor, task.assignee_user_id) || isActiveDelegate(actor, task);
+        let blockedReason = approval.blockedReason ?? task.blocked_reason;
+        if (!["completed", "cancelled"].includes(task.state)) {
+            const phases: ("start" | "completion")[] = task.state === "draft"
+                ? ["start", "completion"]
+                : ["ready", "in_progress", "rework", "start_approval"].includes(task.state)
+                    ? ["completion"]
+                    : [];
+            for (const phase of phases) {
+                const route = await ports.taskRoute(task, task.creator_user_id, task.assignee_user_id, phase, JSON.parse(phase === "start"
+                    ? task.start_approvers_json
+                    : task.completion_approvers_json), !!task.source_post_id);
+                blockedReason ??= route.blockedReason;
+            }
+        }
+        const permittedActions = [
+            ...(assigned && task.state === "ready" && isOrdinaryTask(task) && !blockedReason
+                ? ["complete"] : []),
+            ...(manage && task.state === "draft"
+                ? ["edit", ...(!blockedReason ? ["submit"] : [])]
+                : []),
+            ...(manage && !["completed", "cancelled"].includes(task.state)
+                ? ["revise", "cancel"]
+                : []),
+            ...(manage && !["completed", "cancelled"].includes(task.state)
+                ? ["delegate"]
+                : []),
+            ...(assigned && task.state === "ready" && !blockedReason ? ["start"] : []),
+            ...(assigned && ["in_progress", "rework"].includes(task.state)
+                ? ["save-progress", ...(!blockedReason ? ["complete"] : [])]
+                : []),
+            ...(approval.canDecide ? ["approve", "reject"] : []),
+        ];
+        return { approval, permittedActions, blockedReason };
+    }return{getTask,taskSourceReadGuard,taskWorkState};}

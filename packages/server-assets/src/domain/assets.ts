@@ -1,6 +1,6 @@
 import {z} from "zod";
 import {currencyDefinition} from "@erpx/feature-finance/lib/company-money";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 const reason=z.string().trim().min(3).max(2000),version=z.number().int().positive(),date=z.string().date();
 export const createAssetSchema=z.object({branchId:z.string().min(1),departmentId:z.string().nullable().optional(),code:z.string().trim().min(1).max(80),name:z.string().trim().min(2).max(160),category:z.string().trim().min(2).max(80),currency:z.string().length(3).transform(x=>x.toUpperCase()).refine(x=>Boolean(currencyDefinition(x)),'Use a current ISO currency.'),costMinor:z.number().int().safe().nonnegative().optional(),cost:z.string().regex(/^\d+(\.\d{1,12})?$/).optional(),acquiredDate:date,warrantyEnd:date.nullable().optional(),financeAssetId:z.string().min(1).optional(),financeAssetVersion:version.optional()}).refine(i=>(i.costMinor!==undefined)!==(i.cost!==undefined),'Supply one acquisition cost.').refine(i=>Boolean(i.financeAssetId)===Boolean(i.financeAssetVersion),'Use the current Finance asset version.');
 export const assetActionSchema=z.discriminatedUnion('action',[

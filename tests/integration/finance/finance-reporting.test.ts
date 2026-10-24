@@ -12,7 +12,7 @@ import {createAccount,createJournal,createJournalSchema,createPeriod,createParty
 import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-finance/public/accounting-profiles";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {decideStatementPackage,decideYearClosing,prepareStatementPackage,prepareYearClosing,reportingWorkspace,statementPackageDetail,statementPackageExport,statementSourceAccounts} from "@erpx/server-finance/public/finance-reporting";
-import {confirmManualRate} from "@erpx/server-finance/public/company-money";
+import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 afterEach(()=>vi.unstubAllEnvs());

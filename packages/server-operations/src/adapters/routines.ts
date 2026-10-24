@@ -3,7 +3,7 @@ import {operationsRoutineJournalEffects} from '@erpx/server-workflow/public/oper
 import { getProject } from "@erpx/server-projects/public/staff-projects";
 import type { SqlDatabase, SqlStatement, SqlValue } from "@erpx/server-runtime/public/runtime/types";
 import { z } from "zod";
-import { validateTaskConfiguration, configGuards } from "@erpx/server-operations/public/staff-tasks";
+import {validateTaskConfiguration,configGuards} from '@erpx/server-operations/public/staff-tasks';
 import { activeStaff, companyAuthority, staffGuard, notification, type StaffActor } from "@erpx/server-operations/public/staff-policy";
 import {taskRoute,openApproval} from '@erpx/server-workflow/public/approval-planning';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -121,7 +121,7 @@ function application(provided?: SqlDatabase,readScope={where:'TRUE',args:[] as S
         },
         stageGenerateOccurrencesEffect2(...args){return operationsRoutineJournalEffects(database).stageGenerateOccurrencesEffect2(...args);},
         stageGenerateOccurrencesEffect3(...args){return operationsRoutineJournalEffects(database).stageGenerateOccurrencesEffect3(...args);},
-        
+
         stageGenerateOccurrencesEffect4(...args) { return RoutinesWorkflowFacts(database).stageGenerateOccurrencesEffect4(...args); },
         readGenerateOccurrencesLatest(id: string) {
             return database.prepare("SELECT next_occurrence_at,version,state FROM routine_schedules WHERE id=?")

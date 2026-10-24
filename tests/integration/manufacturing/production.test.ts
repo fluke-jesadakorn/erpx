@@ -5,7 +5,7 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import { saveMaster } from "@erpx/server-commerce/public/commerce";
+import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {
   changeManufacturingOrder,
   createPlanningScenario,
@@ -21,7 +21,7 @@ import { escalateInventoryReservations } from "@erpx/server-inventory/public/inv
 import { queryMetric } from "@erpx/server-runtime/public/executive/metrics";
 import { readExecutiveEvidence, searchExecutiveEvidence } from "@erpx/server-runtime/public/executive/evidence";
 import { attachmentBindingState, enableAttachmentV2ForTest, seedAttachmentSet } from "../../support/helpers/attachment-v2";
-import { confirmManualRate } from "@erpx/server-finance/public/company-money";
+import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import { createManufacturingAccountingProfile, reviewManufacturingAccountingProfile } from "@erpx/server-manufacturing/public/production-accounting";
 import { saveProductionResource, saveProductionResourceCalendar } from "@erpx/server-manufacturing/public/production-resources";
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({

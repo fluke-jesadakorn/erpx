@@ -1,7 +1,7 @@
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {env,applyMigrations} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {getProject,projectSchema,saveProject,saveTask,taskSchema,taskActionSchema,transitionTask} from "@erpx/server-operations/public/staff-tasks";
+import {getProject,projectSchema,saveProject,saveTask,taskSchema,taskActionSchema,transitionTask} from '@erpx/server-operations/public/staff-tasks';
 import {projectMilestoneSchema,saveProjectMilestone,transitionProjectMilestone} from "@erpx/server-projects/public/project-milestones";
 import {projectGraph,projectHandoffs,projectHandoffWork,projectStructureCommand} from "@erpx/server-projects/public/project-structure";
 import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
@@ -15,7 +15,8 @@ import {enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers
 import {bindRecordAttachmentSet,attachmentContent} from "@erpx/server-files/public/attachments/service";
 import {listProjects} from "@erpx/server-projects/public/staff-projects";
 import {listProjectCostAllocations} from "@erpx/server-projects/public/project-actuals";
-import {getTask,listTasks,taskDetail,delegateTask} from "@erpx/server-operations/public/staff-tasks";
+import {getTask} from '@erpx/server-operations/public/staff-task-read';
+import {listTasks,taskDetail,delegateTask} from '@erpx/server-operations/public/staff-tasks';
 import {listRecords,recordsPage,getRecord,searchReferences} from "@erpx/server-records/public/records";
 import {publishInboxEvent,inboxPage} from "@erpx/server-collaboration/public/inbox";
 import {getStaffWork} from "@erpx/server-work_projection/public/domain-work";

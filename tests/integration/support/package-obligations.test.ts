@@ -1,10 +1,11 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import { saveMaster, saveOrder, orderSchema } from "@erpx/server-commerce/public/commerce";
+import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import { createCustomerNote } from "@erpx/server-sales/public/customer-notes";
-import { createSupportTicket, changeSupportTicket, getSupportTicket } from "@erpx/server-support/public/support";
-import { createSupportIncident, changeSupportIncident, getSupportIncident } from "@erpx/server-support/public/support-incidents";
+import {createSupportTicket,changeSupportTicket,getSupportTicket} from '@erpx/server-support/public/support';
+import {createSupportIncident,changeSupportIncident} from '@erpx/server-support/public/support-incidents';
+import {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
 import { requestSupportSession, changeSupportSession } from "@erpx/server-support/public/support-sessions";
 import { createSupportPolicy, changeSupportPolicy, attachSupportClock } from "@erpx/server-support/public/support-sla";
 import { drainSupportSla, supportAlerts, acknowledgeSupportAlert } from "@erpx/server-support/public/support-sla-alerts";

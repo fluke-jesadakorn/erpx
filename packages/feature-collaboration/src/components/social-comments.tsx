@@ -15,7 +15,7 @@ import { plainRichContent } from "@erpx/feature-shared/lib/home-rich-content";
 import { SocialTextInput } from "@erpx/feature-collaboration/components/social-text-input";
 import { SocialTextBody } from "@erpx/feature-collaboration/components/social-text-body";
 import { SocialAgentStatus } from "@erpx/feature-collaboration/components/social-agent-status";
-import type { HomePost } from "@erpx/server-collaboration/public/social-home";
+import type {HomePost} from '@erpx/server-collaboration/public/social-home';
 import { useSocialCommand } from "@erpx/feature-collaboration/components/social-command";
 import { ImagePlus, Link2, MoreHorizontal, Pencil, Send, Trash2, X } from "lucide-react";
 import Link from "@erpx/workplace/components/workspace-link";

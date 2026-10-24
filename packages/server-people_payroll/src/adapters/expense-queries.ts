@@ -4,8 +4,9 @@ import { runtimeAppSources } from "@erpx/server-runtime/public/app-native-source
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { holdingResources, runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
-import { expenseDraftSchema } from "@erpx/server-people_payroll/adapters/expense-drafts";
-import { expenseFromDatabase,expenseOptions, getExpense } from "@erpx/server-people_payroll/adapters/expenses";
+import {expenseDraftSchema} from '@erpx/server-people_payroll/adapters/expense-drafts';
+import {expenseFromDatabase,getExpense} from '@erpx/server-people_payroll/adapters/expense-read';
+import {expenseOptions} from '@erpx/server-people_payroll/adapters/expenses';
 import { expenseRoute } from "@erpx/server-people_payroll/adapters/expense-routing";
 import { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import { staffSettings } from "@erpx/server-operations/public/staff-settings";
@@ -16,7 +17,7 @@ import { createExpensePreview } from "@erpx/server-people_payroll/application/ex
 import { createExpensePostingPreview } from "@erpx/server-people_payroll/application/expense-posting-preview";
 import { expenseJournalProjection, expensePostingAccounts } from "@erpx/server-finance/public/expense-posting-projection";
 import { expensePostingConfiguration } from "@erpx/server-commerce/public/expense-posting-configuration";
-import {nativeExpenseOptions,type ExpenseRow} from "@erpx/server-people_payroll/adapters/expenses";
+import {nativeExpenseOptions,type ExpenseRow} from '@erpx/server-people_payroll/adapters/expenses';
 
 export async function expensePostingPreview(actor: WorkContext, expense: ExpenseRow) {
   const {write}=await holdingResources(actor.holdingId);

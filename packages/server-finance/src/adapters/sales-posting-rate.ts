@@ -3,7 +3,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {salesPostingRateSchema} from "@erpx/server-finance/domain/sales-posting-setup";
 import {withSalesPostingCommand} from "@erpx/server-finance/adapters/sales-posting-setup";
-import {confirmPostingRateInTransaction} from "@erpx/server-finance/adapters/company-money";
+import {confirmPostingRateInTransaction} from '@erpx/server-finance/adapters/company-money';
 
 export async function confirmSalesPostingRate(actor:WorkContext,raw:unknown,key:string){
  const request=salesPostingRateSchema.parse(raw);

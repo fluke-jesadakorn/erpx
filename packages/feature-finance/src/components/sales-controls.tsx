@@ -12,7 +12,7 @@ import {captureFinanceForm,markFinanceFormEdited,useFinanceDraftClose,useFinance
 import { businessDate } from "@erpx/server-pos/public/rules/pos";
 import { calculateInvoiceLines } from "@erpx/server-finance/public/rules/finance-invoice-lines";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
-import type { SalesDefaults } from "@erpx/server-finance/public/sales";
+import type {SalesDefaults} from '@erpx/server-finance/public/sales';
 import type {FinanceRow} from '@erpx/server-finance/public/finance';
 import styles from "@erpx/feature-finance/components/sales-workspace.module.css";
 function useSalesCommand(base: string, invoiceForm?: {current:HTMLFormElement|null}, invoiceDestination?:(id:unknown)=>string) {

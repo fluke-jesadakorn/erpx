@@ -3,8 +3,8 @@ import {projectPurchaseControls} from "@erpx/server-projects/public/purchases";
 import "server-only";
 import { staffPage } from "@erpx/server-work_projection/public/staff-page";
 import type {StaffPageOptions} from '@erpx/server-work_projection/public/staff-page';
-import { getProject } from "@erpx/server-operations/public/staff-tasks";
-import { listTasks } from "@erpx/server-operations/public/staff-tasks";
+import {getProject} from '@erpx/server-operations/public/staff-tasks';
+import {listTasks} from '@erpx/server-operations/public/staff-tasks';
 import { listProjectMilestones } from "@erpx/server-projects/public/project-milestones";
 import { listProjectWorkLogs } from "@erpx/server-projects/public/project-actuals";
 import { projectMemberIds } from "@erpx/server-projects/public/people-app-entrypoint-facts";
@@ -13,9 +13,9 @@ import { getTemplate } from "@erpx/server-operations/public/routines";
 import { canEditTemplate } from "@erpx/server-operations/public/routines";
 import { routineTemplateSchedules } from "@erpx/server-operations/public/people-app-entrypoint-facts";
 import { getWorkCapabilities } from "@erpx/server-work_projection/public/work-capabilities";
-import { taskDetail } from "@erpx/server-operations/public/staff-tasks";
+import {taskDetail} from '@erpx/server-operations/public/staff-tasks';
 import { taskSocialOrigin } from "@erpx/server-collaboration/public/people-app-entrypoint-facts";
-import { readablePost } from "@erpx/server-collaboration/public/social-source";
+import {readablePost} from '@erpx/server-collaboration/public/social-source';
 
 type ReadArguments<F extends (...args: never[]) => unknown> = Parameters<F> extends [unknown, ...infer Rest] ? Rest : never;
 

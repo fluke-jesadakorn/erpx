@@ -1,5 +1,5 @@
 import type { Clock } from "@erpx/server-shared/application/ports";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 import { customerAccessRequestSchema, customerAccessChangeSchema, type AccessRow, type AccessRequest, type AccessChange } from "@erpx/server-customer_authority/domain/access";
 import { isCustomerPortalInvitableOrderState } from "@erpx/server-customer_authority/domain/portal-invitation";

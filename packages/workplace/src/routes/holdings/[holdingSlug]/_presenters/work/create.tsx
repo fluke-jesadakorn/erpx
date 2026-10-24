@@ -16,11 +16,9 @@ import { LeaveControls } from "@erpx/feature-people_payroll/components/lazy-leav
 import { RequestEditor } from "@erpx/workplace/components/lazy-request-editor";
 import { TransferEditor } from "@erpx/feature-inventory/components/lazy-transfer-editor";
 
-import { expenseOptions } from "@erpx/server-people_payroll/public/expenses";
+import {expenseOptions} from '@erpx/server-people_payroll/public/expenses';
 import { countOptions } from "@erpx/server-inventory/public/inventory-counts";
 import { transferOptions } from "@erpx/server-inventory/public/inventory-transfers";
-
-
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { notFound,redirect } from "next/navigation";

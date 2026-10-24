@@ -3,9 +3,10 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
-import {createSupportTicket,getSupportTicket,supportDetail} from "@erpx/server-support/public/support";
-import {createSupportIncident,changeSupportIncident,getSupportIncident,incidentDetail,incidentWork,incidentWorkspace} from "@erpx/server-support/public/support-incidents";
+import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
+import {createSupportTicket,getSupportTicket,supportDetail} from '@erpx/server-support/public/support';
+import {createSupportIncident,changeSupportIncident,incidentDetail,incidentWork,incidentWorkspace} from '@erpx/server-support/public/support-incidents';
+import {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:incidentDatabase??env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let incidentDatabase:SqlDatabase|undefined;
 afterEach(()=>{incidentDatabase=undefined;vi.unstubAllEnvs();});

@@ -7,7 +7,7 @@ import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 import {getDomainWork} from "@erpx/server-work_projection/public/domain-work";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {saveMaster,commercePage} from "@erpx/server-commerce/public/commerce";
+import {saveMaster,commercePage} from '@erpx/server-commerce/public/commerce';
 import {saveTransfer,transitionTransfer,transferSchema} from "@erpx/server-inventory/public/inventory-transfers";
 import {getTransit,transitDetail,dispatchTransit,receiveTransit,requestTransitLoss,decideTransitLoss,cancelTransit,transitWork} from "@erpx/server-inventory/public/inventory-transit";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";

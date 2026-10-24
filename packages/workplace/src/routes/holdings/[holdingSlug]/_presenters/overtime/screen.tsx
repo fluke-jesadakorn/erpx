@@ -9,7 +9,7 @@ import { overtimeLabels } from "@erpx/feature-people_payroll/lib/overtime";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { listOvertime } from "@erpx/server-people_payroll/public/overtime";
+import {listOvertime} from '@erpx/server-people_payroll/public/overtime';
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import {workforcePurchaseControls} from "@erpx/server-people_payroll/public/workforce-purchases";

@@ -4,7 +4,7 @@ import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { createAsset, createMaintenanceWork, changeMaintenanceWork, maintenanceDetail } from "@erpx/server-assets/public/asset-maintenance";
-import { saveMaster } from "@erpx/server-commerce/public/commerce";
+import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import JournalPage from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/finance/journals/[id]/screen";
 

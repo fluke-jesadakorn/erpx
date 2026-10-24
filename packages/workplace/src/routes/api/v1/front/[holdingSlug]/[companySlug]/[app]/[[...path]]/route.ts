@@ -24,7 +24,7 @@ import { posProductImage } from "@erpx/server-pos/public/pos-images";
 import {frontTaxDocumentCommand,frontTaxDocumentView} from "@erpx/server-finance/public/hospitality-tax-documents";
 import {taxDocumentRequest} from "@erpx/server-finance/public/hospitality-tax-document-request";
 import {frontPmsAttachmentPaths,frontPmsAttachmentRequest} from "@erpx/server-pms/public/pms/front-attachments";
-import { moneyContext, preferenceSchema, saveCurrencyPreference } from "@erpx/server-finance/public/company-money";
+import {moneyContext,preferenceSchema,saveCurrencyPreference} from '@erpx/server-finance/public/company-money';
 
 export const dynamic = "force-dynamic";
 

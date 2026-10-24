@@ -2,7 +2,7 @@ import { metricIds, breakdowns, filtersSchema } from "@erpx/server-runtime/publi
 import { z } from "zod";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { RecordTarget } from "@erpx/feature-records/lib/record-drawer";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { agentEvidenceRecord } from "@erpx/server-agent/public/agent-governance";
 import type { isFinanceExpansionKind } from "@erpx/server-finance/public/finance-expansion-records";
@@ -19,8 +19,8 @@ import type { pmsControlSources } from "@erpx/server-pms/public/pms/record-detai
 import type { queryMetric } from "@erpx/server-runtime/public/executive/metrics";
 import type { isDomainRecordKind } from "@erpx/server-records/public/record-domain-details";
 import type { recordDomainData } from "@erpx/server-records/public/record-domain-details";
-import type { commerceOverview } from "@erpx/server-commerce/public/commerce";
-import type { commercePermissions } from "@erpx/server-commerce/public/commerce";
+import type {commerceOverview} from '@erpx/server-commerce/public/commerce';
+import type {commercePermissions} from '@erpx/server-commerce/public/commerce';
 import type {bankWorkspace} from '@erpx/server-finance/public/finance';
 import type {bankStatementDetail} from '@erpx/server-finance/public/finance';
 import type {listCharts} from '@erpx/server-finance/public/finance';

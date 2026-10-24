@@ -10,7 +10,7 @@ import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 import { backfillSpecializedAttachments, reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
 import { scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
 import { defaultConfig } from "@erpx/server-pms/public/rules/pms";
-import { snapshotMoneyCarry } from "@erpx/server-finance/public/company-money";
+import {snapshotMoneyCarry} from '@erpx/server-finance/public/company-money';
 
 vi.mock("@erpx/server-files/public/attachments/scanner", () => ({
   attachmentScannerReadiness: async () => ({ enabled: true, ready: true, engine: "Upgrade interface fixture", definitionUpdatedAt: Date.now(), error: null }),

@@ -2,9 +2,9 @@ import { finalRootOwnerProjectionSources as identity_accessProjectionSources } f
 import { supportNotificationEffects } from "@erpx/server-collaboration/public/support-notification-effects";
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { getSupportTicket } from "@erpx/server-support/adapters/support";
+import {getSupportTicket} from '@erpx/server-support/adapters/support';
 import { supportAlerts } from "@erpx/server-support/adapters/support-sla-alerts";
 import { supportRecipientEligibility } from "@erpx/server-support/adapters/support-recipient";
 import { nativeSupportRuntime } from "@erpx/server-support/adapters/command-runtime";

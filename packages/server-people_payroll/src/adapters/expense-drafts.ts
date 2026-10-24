@@ -1,10 +1,12 @@
+import{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements}from '@erpx/server-people_payroll/adapters/expense-requirements';
+export{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements};
+
 import {withExpensePurchasedCommand} from "@erpx/server-people_payroll/adapters/expense-purchases";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
-import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/hospitality-owner-projection-sources";
+
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
-import { hospitalityOwnerProjectionSources as operationsProjectionSources } from "@erpx/server-operations/public/hospitality-owner-projection-sources";
-import { createExpenseRequirements, type ExpenseRequirementsPorts } from "@erpx/server-people_payroll/application/expense-evidence";
+
 import { createSaveExpenseDraft } from "@erpx/server-people_payroll/application/expense-commands";
 import { expenseCommandPort, expenseMutation } from "@erpx/server-people_payroll/adapters/expense-command-port";
 /** Native Expense adapter; preserves legacy persistence and command semantics. */
@@ -18,9 +20,8 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/adapters/expense-routing";
 import { canManagePeople } from "@erpx/server-people_payroll/public/people-directory";
-import {decimalToMinor} from '@erpx/server-finance/public/finance';
-import { expenseFromDatabase, type ExpenseRow } from "@erpx/server-people_payroll/adapters/expenses";
-import { attachmentsV2Readable } from "@erpx/server-files/public/attachments/feature";
+import {decimalToMinor} from '@erpx/server-finance/public/money-primitives';
+import {expenseFromDatabase} from '@erpx/server-people_payroll/adapters/expense-read';
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 const optionalMoney = z
@@ -42,38 +43,6 @@ export const expenseDraftSchema = z.object({
 export const expenseUpdateSchema = expenseDraftSchema.extend({
   expectedVersion: z.number().int().positive(),
 });
-
-export function nativeExpenseEmployment(db: SqlDatabase): ExpenseRequirementsPorts["employment"] {
-  return async row => {
-    try {
-      const staff = await activeStaff(db, String(row.company_id), String(row.claimant_user_id));
-      const level = staff.level_id && await db.prepare(`SELECT 1 FROM (${operationsProjectionSources.staff_levels}) staff_levels WHERE id=? AND company_id=? AND active=1`).bind(staff.level_id, row.company_id).first();
-      return { startDate: staff.start_date, endDate: staff.end_date, activeLevel: Boolean(level) };
-    } catch (error) {
-      if (!(error instanceof ApiError)) throw error;
-      return { unavailable: error.message };
-    }
-  };
-}
-
-export function nativeExpenseRequirements(db: SqlDatabase, readReceipt?: (row:ExpenseRow)=>Promise<boolean>, readEmployment: ExpenseRequirementsPorts["employment"] = nativeExpenseEmployment(db)) {
-  return createExpenseRequirements({
-    employment: readEmployment,
-    async hasReceipt(row) {
-      if (readReceipt) return readReceipt(row);
-      return Boolean(await db.prepare(attachmentsV2Readable()
-        ? `SELECT 1 FROM (${filesProjectionSources.attachments}) a JOIN (${filesProjectionSources.attachment_links}) l ON l.attachment_id=a.id
-             JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
-             WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL
-               AND a.source_state='available' AND l.state='bound'
-               AND s.target_type='expense_claim' AND s.target_id=a.owner_id LIMIT 1`
-        : `SELECT 1 FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL LIMIT 1`).bind(row.id).first());
-    },
-  });
-}
-export async function expenseRequirements(db: SqlDatabase, row: ExpenseRow) {
-  return nativeExpenseRequirements(db)(row);
-}
 
 function originalNativeExpenseDrafts(write: SqlDatabase) {
   return createSaveExpenseDraft({
@@ -157,7 +126,7 @@ function originalNativeExpenseDrafts(write: SqlDatabase) {
           )
           .bind(...values, recordId, actor.companyId, actor.userId, now),
   );
-  
+
       return expenseMutation({ id: recordId, status: "draft", version }, steps);
     },
   });

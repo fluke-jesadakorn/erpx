@@ -2,8 +2,8 @@ import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {AttachmentPolicy,AttachmentOperation} from "@erpx/server-files/domain/attachments/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {readablePost} from "@erpx/server-collaboration/public/social-source";
-import {getSupportIncident} from "@erpx/server-support/public/support-incidents";
+import {readablePost} from '@erpx/server-collaboration/public/social-source';
+import {getSupportIncident} from '@erpx/server-support/public/support-incident-read';
 import {portalAttachmentCustomerAuthorityFacts} from "@erpx/server-customer_authority/public/attachments-portal-facts";
 import {portalAttachmentSupportFacts} from "@erpx/server-support/public/attachments-portal-facts";
 import {portalAttachmentCollaborationFacts} from "@erpx/server-collaboration/public/attachments-portal-facts";

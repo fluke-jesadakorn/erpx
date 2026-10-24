@@ -1,5 +1,5 @@
 import {z} from "zod";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {consumptionLotSchema} from "@erpx/server-shared/index";
 const reason=z.string().trim().min(3).max(2000),version=z.number().int().positive(),date=z.string().date();
 export const createWorkSchema=z.object({assetId:z.string().min(1),assetVersion:version,title:z.string().trim().min(3).max(160),priority:z.enum(['normal','high','critical']),ownerId:z.string().min(1),scheduledAt:z.number().int().positive().nullable().optional(),reason});

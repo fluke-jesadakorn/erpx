@@ -1,5 +1,5 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type { ChannelCommand } from "@erpx/server-ecommerce/domain/channel";
 import { createChannelApplication } from "@erpx/server-ecommerce/application/channel";
 import { listingSchema, cartSchema, lineSchema, checkoutSchema, actionSchema, cartLineCurrent, reviewTransition, type ListingInput, type CartInput, type CartLineInput, type CheckoutInput, type EcommerceAction, type EcommerceRecordKind } from "@erpx/server-ecommerce/domain/commerce";

@@ -4,7 +4,6 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Select } from "@erpx/ui/components/foundation";
 
-
 import { AnnouncementFeed } from "@erpx/feature-work_projection/components/calendar/announcement-feed";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import { useNavigationState } from "@erpx/workplace/components/navigation-counts";
@@ -14,7 +13,7 @@ import { ComposerLauncher, HandoverLauncher } from "@erpx/feature-work_projectio
 import { DeferredRegion } from "@erpx/feature-work_projection/components/home/deferred-region";
 import { lazy, useCallback, useEffect, useRef, useState } from "react";
 import { betaFetch } from "@erpx/feature-shared/lib/beta-client";
-import type { HomePost } from "@erpx/server-collaboration/public/social-home";
+import type {HomePost} from '@erpx/server-collaboration/public/social-home';
 import type { Meta } from "@erpx/feature-collaboration/components/social-types";
 
 import { SocialPost } from "@erpx/feature-collaboration/components/social-post";

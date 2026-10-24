@@ -3,7 +3,8 @@ import type { WorkContext } from '@erpx/server-identity_access/public/authorizat
 import type { FileStore, SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
-import { messagingRoom, messagingGuard } from '@erpx/server-collaboration/public/messaging';
+import {messagingRoom} from '@erpx/server-collaboration/public/messaging-read';
+import {messagingGuard} from '@erpx/server-collaboration/public/messaging';
 import { sha256 } from '@erpx/server-runtime/public/crypto';
 import { executeCommand, replayCommand } from '@erpx/server-workflow/public/commands';
 import { attachmentsV2ReadOnly } from '@erpx/server-files/public/attachments/feature';

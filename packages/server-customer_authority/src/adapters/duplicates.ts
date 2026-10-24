@@ -9,7 +9,7 @@ import { finalRootOwnerProjectionSources as supportProjectionSources } from "@er
 import "server-only";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";

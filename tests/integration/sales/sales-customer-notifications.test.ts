@@ -1,9 +1,10 @@
-import { fulfillmentSchema } from "@erpx/server-commerce/public/commerce";
+import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
+import {fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {deliverCustomerNotification,drainCustomerNotifications,queueDeliveryNotification,retryCustomerNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {packageGrantStore,readCompanyPackageGrants} from '@erpx/server-commercial/public/package-grants';
 import {measureReads} from '@erpx/server-runtime/public/runtime/read-metrics';

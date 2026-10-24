@@ -1,3 +1,5 @@
+import{confirmedFunctionalFx,prepareJournal,ensurePeriod,journalPreparation,journalStatements}from '@erpx/server-finance/adapters/journal-planning';
+import{decimalToMinor}from '@erpx/server-finance/public/money-primitives';
 import {resources,financeReadService}from '@erpx/server-finance/adapters/finance-invoice-read';
 import {serviceCustomerSchema} from '@erpx/server-finance/domain/service-customer-preparation';
 import {withServiceCustomerCommand} from '@erpx/server-finance/adapters/service-customer-preparation';
@@ -23,7 +25,7 @@ import {fieldServiceFinanceRecordSources} from "@erpx/server-field_service/publi
 import type {BankImportInput} from "@erpx/server-finance/application/bank";
 import { financePackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
-import { ensureCustomerReceipt } from "@erpx/server-finance/public/sales";
+import {ensureCustomerReceipt} from '@erpx/server-finance/public/customer-receipt-issue';
 import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
 export type { FinanceRow } from "@erpx/server-finance/domain/finance";
@@ -43,23 +45,16 @@ import { createJournalBatch } from '@erpx/server-finance/application/journal-bat
 import { createJournalReview, type JournalPostPlan } from '@erpx/server-finance/application/journal-review';
 import { createAccountImport } from '@erpx/server-finance/application/account-import';
 import { createOpeningService } from '@erpx/server-finance/application/opening';
-import type { JournalPlan } from '@erpx/server-finance/application/journal';
-import type { JournalInput } from '@erpx/server-finance/domain/finance';
+
 import { createFinanceConfiguration } from '@erpx/server-finance/application/configuration';
 import {withSalesPostingCommand} from '@erpx/server-finance/adapters/sales-posting-setup';
 import {salesPostingChartSchema,salesPostingAccountSchema,salesPostingPeriodSchema} from '@erpx/server-finance/domain/sales-posting-setup';
 import {withSupplyPostingPrerequisiteCommand} from '@erpx/server-finance/adapters/supply-posting-prerequisites';
 import {supplyPostingChartSchema,supplyPostingAccountSchema,supplyPostingPeriodSchema} from '@erpx/server-finance/domain/supply-posting-prerequisites';
-import { createJournalPreparation } from '@erpx/server-finance/application/journal';
-import { createEnsurePeriod } from '@erpx/server-finance/application/period-policy';
-import { createFunctionalFx } from '@erpx/server-finance/application/functional-fx';
-import { createFinancePolicy } from '@erpx/server-finance/domain/finance-policy';
-const { decimalToMinor } = createFinancePolicy((...args) => new ApiError(...args));
-export { decimalToMinor };
+
 import { createJournalSchema, openingTrialBalanceSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, closeProofSchema, reversePaymentSchema, journalBatchSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, cancelCloseSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema, type ReportDates, type CloseReconciliation, type FinanceRow } from '@erpx/server-finance/domain/finance';
 export { moneySchema, createJournalSchema, openingTrialBalanceSchema, createChartSchema, createAccountSchema, changeAccountStatusSchema, createPeriodSchema, closeProofSchema, reversePaymentSchema, journalBatchSchema, reportDateSchema, prepareFxRevaluationSchema, decideFxRevaluationSchema, cancelCloseSchema, partySchema, invoiceSchema, invoicePostingSchema, confirmPaymentSchema, taxCodeSchema, budgetSchema, leaseSchema, loanSchema, revenueContractSchema, revenueObligationSchema } from '@erpx/server-finance/domain/finance';
 export type { JournalLineInput, ReportDates, CloseReconciliation } from '@erpx/server-finance/domain/finance';
-
 
 import { prepareFlowCommand } from "@erpx/server-workflow/public/flow-command-planning";
 import { invoiceHistoryCte } from "@erpx/server-finance/public/finance-history";
@@ -76,14 +71,14 @@ import { holdingResources } from "../../../../packages/server-runtime/src/public
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import { companyRates, snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal } from "@erpx/server-finance/public/company-money";
+
+import {snapshotMoney,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/server-finance/public/company-money';
 import {fieldServiceInvoiceMoneySource} from "@erpx/server-field_service/public/finance-record-sources";
 import { requireFinanceMoneyScale } from "@erpx/server-finance/public/finance-money-policy";
 import {nativeInvoicePosting,prepareInvoiceLineRevision} from '@erpx/server-finance/public/finance-invoice-lines';
 import { readyPaymentWithholding, prepareWithholdingConsumption, prepareWithholdingReversal } from "@erpx/server-finance/public/finance-withholding";
 /** Money crossing an API boundary is a decimal string. Storage uses integer minor units. */
-export { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
-export async function confirmedFunctionalFx(write: SqlDatabase, actor: WorkContext, currency: string, baseCurrency: string, date: string) { return createFunctionalFx({ rates: (companyId) => companyRates(write, companyId), error: (...args) => new ApiError(...args) })(actor, currency, baseCurrency, date); }
+
 async function confirmedFunctionalFxMicros(write: SqlDatabase, actor: WorkContext, currency: string, baseCurrency: string, date: string) {
     return (await confirmedFunctionalFx(write, actor, currency, baseCurrency, date)).micros;
 }
@@ -130,7 +125,7 @@ async function purchasedFinanceReferenceRead<Result>(actor: WorkContext, run: (d
     await requireFinanceReferenceRead(write, actor);
     return run(write);
 }
-async function ensurePeriod(write: SqlDatabase, actor: WorkContext, periodId: string, entryDate: string, allowClosing = false) { return createEnsurePeriod({ error: (...args) => new ApiError(...args), period: (companyId, periodId) => write.prepare('SELECT * FROM finance_periods WHERE id=? AND company_id=?').bind(periodId, companyId).first<FinanceRow>(), coveredDate: async (companyId, date) => !!await write.prepare("SELECT 1 FROM finance_periods WHERE company_id=? AND state IN ('closed','closing') AND ? BETWEEN start_date AND end_date LIMIT 1").bind(companyId, date).first() })(actor, periodId, entryDate, allowClosing); }
+
 export async function listCharts(actor: WorkContext, provided?:SqlDatabase) { return provided ? financeReadService(provided).listCharts(actor) : purchasedFinanceReferenceRead(actor, db => financeReadService(db).listCharts(actor)); }
 export async function createChart(actor: WorkContext, input: z.infer<typeof createChartSchema>, id: string) { return withFinanceConfigurationCommand(actor,{key:id,operation:"finance.chart.create",purpose:"new-work"},tx=>configurationService(tx).createChart(actor,input,id)); }
 export async function createSupplyPostingChart(actor:WorkContext,raw:unknown,key:string){const request=supplyPostingChartSchema.parse(raw);return withSupplyPostingPrerequisiteCommand(actor,'chart',request,key,tx=>configurationService(tx,request).createChart(actor,request.input,key));}
@@ -150,7 +145,7 @@ export async function importAccounts(actor: WorkContext, chartId: string, rows: 
 export async function createPeriod(actor: WorkContext, input: z.infer<typeof createPeriodSchema>, id: string) { return withFinanceConfigurationCommand(actor,{key:id,operation:"finance.period.create",purpose:"new-work"},tx=>configurationService(tx).createPeriod(actor,input,id)); }
 export async function createSupplyPostingPeriod(actor:WorkContext,raw:unknown,key:string){const request=supplyPostingPeriodSchema.parse(raw);return withSupplyPostingPrerequisiteCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
 export async function createSalesPostingPeriod(actor:WorkContext,raw:unknown,key:string){const request=salesPostingPeriodSchema.parse(raw);return withSalesPostingCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
-export async function prepareJournal(write: SqlDatabase, actor: WorkContext, input: z.infer<typeof createJournalSchema>, key: string, status: "draft" | "posted" = "draft") { const plan = await journalPreparation(write)(actor, input, key, status); return journalStatements(write, actor, input, key, status, plan); }
+
 export async function createJournal(actor: WorkContext, input: z.infer<typeof createJournalSchema>, id: string) { return withFinancePurchasedCommand(actor,{key:id,operation:"finance.journal.create",purpose:"new-work"},tx=>openingService(tx).createJournal(actor,input,id)); }
 export async function previewOpeningTrialBalance(actor: WorkContext, input: z.infer<typeof openingTrialBalanceSchema>) { return purchasedFinanceRead(actor,()=>openingService().previewOpeningTrialBalance(actor,input)); }
 export async function importOpeningTrialBalance(actor: WorkContext, input: z.infer<typeof openingTrialBalanceSchema> & {
@@ -348,14 +343,7 @@ export async function invoicesPage(actor: WorkContext, query: {
 }) { return purchasedFinanceRead(actor,db=>financeReadService(db).invoicesPage(actor,query)); }
 /** Read a statement by ID without depending on the current register cursor. */
 export async function bankStatementDetail(actor: WorkContext, id: string, page = 1) { return purchasedFinanceRead(actor,db=>financeReadService(db).bankStatementDetail(actor,id,page),"finance.banking"); }
-function journalPreparation(write: SqlDatabase) {
-    return createJournalPreparation({ error: (...args) => new ApiError(...args), now: Date.now, chart: (companyId, chartId) => write.prepare("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'").bind(chartId, companyId).first<{
-            id: string;
-            base_currency: string;
-        }>(), period: (actor, periodId, date) => ensurePeriod(write, actor, periodId, date), moneyScale: (companyId, currency) => requireFinanceMoneyScale(write, companyId, currency), functionalFx: (actor, currency, baseCurrency, date) => confirmedFunctionalFx(write, actor, currency, baseCurrency, date), accounts: async (companyId, chartId, accountIds) => (await write.prepare(`SELECT id FROM finance_accounts WHERE company_id=? AND chart_id=? AND status='active' AND id IN (${accountIds.map(() => "?").join(",")})`).bind(companyId, chartId, ...accountIds).all<{
-            id: string;
-        }>()).results, openingExists: async (companyId, chartId) => !!await write.prepare("SELECT id FROM finance_journals WHERE company_id=? AND chart_id=? AND is_opening=1 AND status IN ('draft','in_review','posted') LIMIT 1").bind(companyId, chartId).first() });
-}
+
 function configurationService(provided?: SqlDatabase,boundRequest?:unknown) {
     let pending: Promise<SqlDatabase> | undefined;
     const requestIdentity=(input:unknown)=>boundRequest??input;
@@ -414,22 +402,7 @@ function configurationService(provided?: SqlDatabase,boundRequest?:unknown) {
         revenueContract: async (facts) => { const { input, actor } = facts; const write = await db(actor); return !!await write.prepare("SELECT id FROM finance_revenue_contracts WHERE id=? AND company_id=?").bind(input.contractId, actor.companyId).first(); },
         commitCreateRevenueObligation: async (facts) => { const { obligationId, input, actor, id, output } = facts; const write = await db(actor); const pendingStatements: SqlStatement[] = []; pendingStatements.push(write.prepare("INSERT INTO finance_revenue_obligations(id,contract_id,description,allocated_minor,recognition_method,start_date,end_date,revenue_account_id,deferred_account_id) VALUES(?,?,?,?,?,?,?,?,?)").bind(obligationId, input.contractId, input.description, decimalToMinor(input.allocated), input.recognitionMethod, input.startDate, input.endDate ?? null, input.revenueAccountId, input.deferredAccountId)); return saveCommand(write, actor, id, "finance.revenue-obligation.create", input, output, pendingStatements); } });
 }
-function journalStatements(write: SqlDatabase, actor: WorkContext, input: JournalInput, key: string, status: "draft" | "posted", plan: JournalPlan) {
-    const { fx, accountIds, journalId, number, now, values, preparedFxEvidence } = plan;
-    const guards: SqlStatement[] = [
-        assertion(write, key, "posting-period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)", [input.periodId, actor.companyId, input.entryDate, input.entryDate]),
-        assertion(write, key, "posting-chart", "EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active')", [input.chartId, actor.companyId]),
-        ...(input.isOpening ? [assertion(write, key, "opening-balance", "NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND chart_id=? AND is_opening=1 AND status IN ('draft','in_review','posted'))", [actor.companyId, input.chartId])] : []),
-        ...accountIds.map((accountId, index) => assertion(write, key, `posting-account-${index}`, "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND status='active')", [accountId, actor.companyId, input.chartId])),
-    ];
-    const steps: SqlStatement[] = [...guards,
-        write.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,is_opening,status,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(journalId, actor.companyId, input.chartId, input.periodId, number, input.entryDate, input.currency, fx, input.sourceType, input.sourceId ?? null, input.memo, input.isOpening ? 1 : 0, status, actor.userId, status === "posted" ? actor.userId : null, status === "posted" ? now : null, now, now),
-        ...values.map((l, index) => write.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(`${journalId}-${index}`, journalId, l.accountId, l.description ?? "", l.debit, l.credit, l.baseDebit, l.baseCredit, JSON.stringify(l.dimensions ?? {}), index)),
-    ];
-    // Owner adapters consume these exact retained amounts; public journal results
-    // and command receipts keep their existing shape.
-    return { steps, guards, preparedLines: values, preparedFxEvidence, result: plan.result };
-}
+
 function openingService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
     const db = (actor: WorkContext, readOnly = false) => pending ??= financeOwnedDatabase(actor, provided, readOnly);

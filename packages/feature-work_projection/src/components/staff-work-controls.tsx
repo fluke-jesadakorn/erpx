@@ -19,7 +19,7 @@ import { TimeText, useDisplayTimeZone } from "@erpx/feature-people_payroll/compo
 import { useStaffCommand } from "@erpx/feature-work_projection/components/use-staff-command";
 export { useStaffCommand } from "@erpx/feature-work_projection/components/use-staff-command";
 import type { StaffPerson } from "@erpx/server-operations/public/staff-policy";
-import type { TaskDetail, TaskRow, ProjectRow } from "@erpx/server-operations/public/staff-tasks";
+import type {TaskDetail,TaskRow,ProjectRow} from '@erpx/server-operations/public/staff-tasks';
 import type { TemplateRow } from "@erpx/server-operations/public/routines";
 import type {ApprovalView} from '@erpx/server-workflow/public/approvals';
 import {

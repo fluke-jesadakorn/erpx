@@ -7,8 +7,8 @@ import {readPurchasedAccess} from '@erpx/server-commercial/public/purchase-comma
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {projectSocialPurchaseSources} from '@erpx/server-projects/public/social-purchase-sources';
 import {socialPmsSourceFacts} from '@erpx/server-pms/public/social-source-facts';
-import {workSocialProductReadScope} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {sourceAccessSql} from '@erpx/server-collaboration/adapters/social-source';
+import {workSocialProductReadScope} from '@erpx/server-collaboration/public/work-social-read-policy';
+import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 /** Candidate entry reads actual native source/current assignment version. It
  * does not choose a role or construct a session authority from its candidate. */
 export async function socialPostProductSourceEntry(database:SqlDatabase,scope:SocialPostEntryScope,target:SocialPostSourceEntry){

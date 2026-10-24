@@ -1,7 +1,8 @@
+import{nativeEmployeeRequestReadRepository,getEmployeeRequest,requestAttachments,employeeRequestDetail,employeeRequestUpload}from '@erpx/server-records/adapters/employee-requests-read';
+export{getEmployeeRequest,requestAttachments,employeeRequestDetail,employeeRequestUpload};
 import { EmployeeRequestsCommerceOwnedFacts } from '@erpx/server-commerce/public/records-employee-requests-owned-facts';
 import { EmployeeRequestsProcurementOwnedFacts } from '@erpx/server-procurement/public/records-employee-requests-owned-facts';
-import { EmployeeRequestsSupportOwnedFacts } from '@erpx/server-support/public/records-employee-requests-owned-facts';
-import { EmployeeRequestsFilesOwnedFacts } from '@erpx/server-files/public/records-employee-requests-owned-facts';
+
 import { namedRoute } from "@erpx/server-records/public/request-preview";
 import { stageRecordRouteCheck } from "@erpx/server-workflow/public/records-route-checks";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
@@ -24,7 +25,7 @@ import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { employeeRequestSchema, requestActionSchema, type EmployeeRequest, requestOwn as purerequestOwn } from '@erpx/server-records/domain/employee-requests';
 import { createEmployeeRequestsApplication, type EmployeeRequestsRepository } from '@erpx/server-records/application/employee-requests';
 import { BusinessRuleError } from '@erpx/server-shared/index';
-import { requestActorNameSql } from '@erpx/server-people_payroll/public/records-request-person-projection';
+
 import { EmployeeRequestsIdentityAccessFacts } from '@erpx/server-identity_access/public/records-employee-requests-facts';
 export { employeeRequestSchema } from '@erpx/server-records/domain/employee-requests';
 export { requestActionSchema } from '@erpx/server-records/domain/employee-requests';
@@ -35,38 +36,12 @@ function application(provided?: SqlDatabase) {
     const repository: EmployeeRequestsRepository<SqlStatement> = { guard1(key: string, value: "request-version", id: string, company_id: string, version: number, state: string, evidence_version: number) {
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM employee_requests WHERE id=? AND company_id=? AND version=? AND state=? AND evidence_version=?)", [id, company_id, version, state, evidence_version]);
         },
-        readReadRequestForOverrideRow(id: string, companyId: string) { return database.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?").bind(id, companyId).first<EmployeeRequest>(); },
-        readReadEmployeeRequestRow(id: string, companyId: string) {
-            return database.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?")
-                .bind(id, companyId)
-                .first<EmployeeRequest>();
-        },
-        readRequestAttachmentsEffect(...args) { return EmployeeRequestsFilesOwnedFacts(database).readRequestAttachmentsEffect(...args); },
-        readEmployeeRequestDetailEvents(id: string, companyId: string) {
-            return database.prepare(`SELECT e.id,e.action,e.actor_id,${requestActorNameSql} actor_name,e.note,e.evidence_json,e.request_version,e.created_at FROM employee_request_events e WHERE request_id=? AND company_id=? ORDER BY created_at,id LIMIT 250`)
-                .bind(id, companyId)
-                .all<{
-                id: string;
-                action: string;
-                actor_id: string;
-                actor_name: string;
-                note: string;
-                evidence_json: string;
-                request_version: number;
-                created_at: number;
-            }>();
-        },
-        readEmployeeRequestDetailTeam(...args) { return EmployeeRequestsSupportOwnedFacts(database).readEmployeeRequestDetailTeam(...args); },
-        readEmployeeRequestDetailChildren(id: string, companyId: string) {
-            return database.prepare("SELECT id,title,kind,state FROM employee_requests WHERE parent_request_id=? AND company_id=? ORDER BY created_at LIMIT 50")
-                .bind(id, companyId)
-                .all<{
-                id: string;
-                title: string;
-                kind: string;
-                state: string;
-            }>();
-        },
+        readReadRequestForOverrideRow(...args){return nativeEmployeeRequestReadRepository(database).readReadRequestForOverrideRow(...args);},
+        readReadEmployeeRequestRow(...args){return nativeEmployeeRequestReadRepository(database).readReadEmployeeRequestRow(...args);},
+        readRequestAttachmentsEffect(...args){return nativeEmployeeRequestReadRepository(database).readRequestAttachmentsEffect(...args);},
+        readEmployeeRequestDetailEvents(...args){return nativeEmployeeRequestReadRepository(database).readEmployeeRequestDetailEvents(...args);},
+        readEmployeeRequestDetailTeam(...args){return nativeEmployeeRequestReadRepository(database).readEmployeeRequestDetailTeam(...args);},
+        readEmployeeRequestDetailChildren(...args){return nativeEmployeeRequestReadRepository(database).readEmployeeRequestDetailChildren(...args);},
         stageEventEffect(value: string, company_id: string, id: string, version: number, action: string, userId: string, note: string, value2: string, now: number) {
             return database.prepare("INSERT INTO employee_request_events(id,company_id,request_id,request_version,action,actor_id,note,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
                 .bind(value, company_id, id, version, action, userId, note, value2, now);
@@ -139,15 +114,11 @@ function invokeSync<Result>(run: () => Result) {
 export function requestVersionGuard(db: SqlDatabase, key: string, row: EmployeeRequest) { return invokeSync(() => application(db).requestVersionGuard(key, row)); }
 export function requestOwn(actor: WorkContext, row: EmployeeRequest) { return invokeSync(() => purerequestOwn(actor, row)); }
 
-
-export async function getEmployeeRequest(db: SqlDatabase, actor: WorkContext, id: string, override = false) { return invoke(() => application(db).getEmployeeRequest(actor, id, override)); }
-export async function requestAttachments(db: SqlDatabase, id: string) { return invoke(() => application(db).requestAttachments(id)); }
-export async function employeeRequestDetail(db: SqlDatabase, actor: WorkContext, id: string, includeEvidence = true, override = false) { return invoke(() => application(db).employeeRequestDetail(actor, id, includeEvidence, override)); }
 export async function saveEmployeeRequest(db: SqlDatabase, actor: WorkContext, id: string | null, input: z.infer<typeof employeeRequestSchema>, key: string) { return invoke(() => application(db).saveEmployeeRequest(actor, id, input, key)); }
 export async function actOnEmployeeRequest(db: SqlDatabase, actor: WorkContext, id: string, input: z.infer<typeof requestActionSchema>, key: string) { return invoke(() => application(db).actOnEmployeeRequest(actor, id, input, key)); }
 export async function listEmployeeRequests(db: SqlDatabase, actor: WorkContext) { return invoke(() => application(db).listEmployeeRequests(actor)); }
 export async function employeeRequestWork(db: SqlDatabase, actor: WorkContext): Promise<WorkItem[]> { return invoke(() => application(db).employeeRequestWork(actor)); }
-export async function employeeRequestUpload(db: SqlDatabase, actor: WorkContext, id: string, purpose?: string) { return invoke(() => application(db).employeeRequestUpload(actor, id, purpose)); }
+
 export async function prepareRequestOrderHandoff(db: SqlDatabase, actor: WorkContext, requestId: string, orderId: string, key: string, expectedVersion?: number, editing = false, rfqId?: string) { return invoke(() => application(db).prepareRequestOrderHandoff(actor, requestId, orderId, key, expectedVersion, editing, rfqId)); }
 export async function requestQuotationSource(db: SqlDatabase, actor: WorkContext, id: string) { return invoke(() => application(db).requestQuotationSource(actor, id)); }
 export async function previewEmployeeRequest(db: SqlDatabase, actor: WorkContext, input: z.infer<typeof employeeRequestSchema>, id?: string) { return invoke(() => application(db).previewEmployeeRequest(actor, input, id)); }

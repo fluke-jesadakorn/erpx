@@ -1,0 +1,5 @@
+import type{WorkContext}from '@erpx/server-identity_access/public/authorization';
+import{finalRootOwnerProjectionSources as identity_accessProjectionSources}from '@erpx/server-identity_access/public/final-root-owner-projection-sources';
+import{supportRecipientEligibility}from '@erpx/server-support/adapters/support-recipient';
+export const scope = "t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?)", args = (a: WorkContext) => [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId], eligible = supportRecipientEligibility();
+export const reviewers = `(SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE m.company_id=t.company_id AND m.user_id<>t.owner_id AND m.user_id IS DISTINCT FROM t.resolved_by AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(m.role,m.company_id,'support.manage') AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=t.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=t.department_id)) AND ${eligible.replaceAll('t.owner_id', 'm.user_id')})`;

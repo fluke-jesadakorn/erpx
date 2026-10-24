@@ -57,11 +57,10 @@ import {
   requireWorkContext,
 } from "@erpx/server-identity_access/public/authorization";
 
-
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 
 import { listWorkspaceCompanyPresentationFacts } from "@erpx/server-identity_access/public/workspace-company-presentation";
-import { moneyContext } from "@erpx/server-finance/public/company-money";
+import {moneyContext} from '@erpx/server-finance/public/company-money';
 import { companyFeatureCatalogue } from "@erpx/server-pms/public/hospitality-rollout";
 import { availableNavigationAppIds } from "@erpx/feature-work_projection/lib/workplace-catalogue";
 import { workspaceChoices } from "@erpx/server-organization/public/workspace-choices";

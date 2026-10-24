@@ -1,7 +1,7 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {payrollOtherRemittanceTables,type PayrollOtherSource} from '@erpx/server-people_payroll/public/finance-other-remittance-sources';
+import {payrollOtherRemittanceTables,type PayrollOtherSource} from '@erpx/server-people_payroll/public/payroll-other-remittance-read-sources';
 export const payrollOtherBankMarker='__payrollOtherLiabilityBankEvidence';
 export type NativeRow=Record<string,unknown>;
 export function payrollOtherFinanceLeases(database:SqlDatabase,write:boolean){return [database.prepare('LOCK TABLE finance_charts IN SHARE MODE'),database.prepare(`LOCK TABLE finance_accounts,finance_bank_statements,finance_bank_transactions,finance_journals,finance_journal_lines,finance_financial_events,finance_book_postings,money_transaction_snapshots IN ${write?'SHARE ROW EXCLUSIVE':'SHARE'} MODE`),database.prepare('LOCK TABLE finance_periods,finance_book_rules,finance_book_account_mappings,company_money_settings,company_currency_scales,company_fx_rates IN SHARE MODE')];}

@@ -2,7 +2,7 @@ import {commerceProductionCommandSourcesStockEffects} from '@erpx/server-invento
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import { productionReadProjection as productioninventoryProjection } from '@erpx/server-inventory/public/production-read-projections';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import type { Row } from '@erpx/server-commerce/public/commerce';
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 export function productionCommandSources(db: SqlDatabase) {
     return { async availableStock(warehouseId: string, product_id: string | number | null) {

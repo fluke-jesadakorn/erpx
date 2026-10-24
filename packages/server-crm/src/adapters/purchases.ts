@@ -16,7 +16,7 @@ import {crmFinanceCustomerSources,crmFinanceSourceReadLocks} from "@erpx/server-
 import {crmCommerceOrderSources,crmCommerceSourceReadLocks} from "@erpx/server-commerce/public/crm-purchase-sources";
 import {crmHotelGuestSources,crmHotelReservationSources,crmHotelSourceReadLocks} from "@erpx/server-pms/public/crm-purchase-sources";
 import {crmMarketingCandidateSources,crmMarketingCampaignSources,crmMarketingSourceReadLocks,marketingCandidateLeadInput,marketingActionSchema} from "@erpx/server-marketing/public/crm-purchase-sources";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {crmLeadSchema,type CRMLeadInput} from "@erpx/server-crm/domain/leads";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
 

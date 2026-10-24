@@ -1,10 +1,11 @@
 import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
-import { fulfillmentSchema } from "@erpx/server-commerce/public/commerce";
+import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {afterEach,beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {changeOrderReservation,fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
+import {changeOrderReservation,fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {escalateInventoryReservations} from "@erpx/server-inventory/public/inventory-reservation-alerts";
 import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));

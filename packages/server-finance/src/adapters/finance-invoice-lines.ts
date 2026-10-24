@@ -4,7 +4,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import { snapshotMoney } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import { createInvoiceLineRevision } from '@erpx/server-finance/application/invoice-line-revision';
 import type { InvoiceHeader as Header, InvoiceAccount as Account } from '@erpx/server-finance/domain/invoice-line-revision';
 export type { PersistedInvoiceLine } from '@erpx/server-finance/domain/invoice-line-revision';

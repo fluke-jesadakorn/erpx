@@ -21,11 +21,11 @@ import { calculateThaiHotelPayrollFixture, isThaiHotelPayrollMockEnabled, thaiHo
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { directoryPerson, canReadCompensation, canManagePeople } from "@erpx/server-people_payroll/adapters/people-directory";
-import {prepareJournal} from '@erpx/server-finance/public/finance';
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 import { type PayrollPostingItem } from "@erpx/server-people_payroll/adapters/payroll-accounting";
 import { assertPayrollSourceFresh, payrollSourceGuards } from "@erpx/server-people_payroll/adapters/payroll-readiness";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import { snapshotMoney } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import { assertStatutoryRunReady, recognizedThaiPack, thaiEvidenceForEmployee, thaiEvidenceGuards, thaiPackForRun, type PayrollStatutoryRun } from "@erpx/server-people_payroll/adapters/payroll-statutory";
 import { preparePayslipIssue } from "@erpx/server-people_payroll/adapters/payroll-payslips";
 import { calculatePayrollAdjustmentRun } from "@erpx/server-people_payroll/adapters/payroll-adjustments";
@@ -515,7 +515,7 @@ function context(provided?: SqlDatabase): PeoplePayrollPorts<SqlStatement> {
         guard165(key: string, value: "run-evidence", run_id: string | number | null, companyId: string, run_version: string | number | null, run_revision: string | number | null, input_digest: string | number | null) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='approved' AND version=? AND revision=? AND input_digest=?)", [run_id, companyId, run_version, run_revision, input_digest]); },
         stageDecidePayrollCorrectionStatements(status: "approved" | "rejected" | "cancelled", userId: string, reason: string, now: number, now2: number, correctionId: string) { return database.prepare("UPDATE hr_payroll_corrections SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=?,updated_at=? WHERE id=?").bind(status, userId, reason, now, now2, correctionId); },
         stageDecidePayrollCorrectionStatements2(value: string, correctionId: string, run_id: string | number | null, companyId: string, status: "approved" | "rejected" | "cancelled", userId: string, run_version: string | number | null, value2: string, now: number) { return database.prepare("INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(value, correctionId, run_id, companyId, status, userId, run_version, value2, now); },
-        
+
         stageDecidePayrollCorrectionEffect(value: string, now: number, run_id: string | number | null) { return database.prepare("UPDATE hr_payroll_runs SET status='calculating',approved_by=NULL,version=version+1,error_message=?,updated_at=? WHERE id=?").bind(value, now, run_id); },
         readPayrollCorrectionAlertTargetEffect(...args) { return payrollIdentityFacts(database).readPayrollCorrectionAlertTargetEffect(...args); },
         readExportPayrollReviewRun(runId: string, companyId: string) {

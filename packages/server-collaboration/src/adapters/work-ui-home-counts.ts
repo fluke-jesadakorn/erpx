@@ -1,6 +1,6 @@
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {sourceAccessSql} from "@erpx/server-collaboration/public/social-source";
+import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 import {homeReadCursorProjection} from "@erpx/server-work_projection/public/home-cursor-projection";
 export async function frontUnreadHomeCount(db:SqlDatabase, actor:WorkContext, base:string, now:number) {
   // Match the unfiltered Home feed's audience; count all posts, including older pages.

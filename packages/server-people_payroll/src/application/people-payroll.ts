@@ -10,10 +10,10 @@ import type {organizationGuard} from '@erpx/server-organization/public/organizat
 import type {validateStaffOrganization} from '@erpx/server-organization/public/organization';
 import type { calculateThaiHotelPayrollFixture, isThaiHotelPayrollMockEnabled } from "@erpx/server-runtime/public/simulation-only-adapters";
 import type { directoryPerson, canReadCompensation, canManagePeople } from "@erpx/server-people_payroll/public/people-directory";
-import type {prepareJournal} from '@erpx/server-finance/public/finance';
+import type {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 import type { assertPayrollSourceFresh, payrollSourceGuards } from "@erpx/server-people_payroll/public/payroll-readiness";
 import type { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import type { snapshotMoney } from "@erpx/server-finance/public/company-money";
+import type {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import type { assertStatutoryRunReady, recognizedThaiPack, thaiEvidenceForEmployee, thaiEvidenceGuards, thaiPackForRun, PayrollStatutoryRun } from "@erpx/server-people_payroll/public/payroll-statutory";
 import type { preparePayslipIssue } from "@erpx/server-people_payroll/public/payroll-payslips";
 import type { calculatePayrollAdjustmentRun } from "@erpx/server-people_payroll/public/payroll-adjustments";

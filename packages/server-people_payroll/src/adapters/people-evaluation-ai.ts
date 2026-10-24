@@ -5,7 +5,8 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { BetaEnvironment } from "@erpx/server-manage_erpx/public/beta-config";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import { evaluationAuthority, evaluationDetail, readEvaluationEvidence, evaluationQuerySchema, evaluationWorkspace, type EvaluationQuery } from "@erpx/server-people_payroll/public/people-evaluation";
+import {evaluationAuthority} from '@erpx/server-people_payroll/public/people-evaluation-read';
+import {evaluationDetail,readEvaluationEvidence,evaluationQuerySchema,evaluationWorkspace,type EvaluationQuery} from '@erpx/server-people_payroll/public/people-evaluation';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { captureJobAuthority, requireJobAuthority } from "@erpx/server-identity_access/public/iam-jobs";

@@ -1,6 +1,7 @@
+import{nativeEvaluationReadRepository}from '@erpx/server-people_payroll/adapters/people-evaluation-read';
 import {requirePerformanceHistory,withPerformancePurchasedRead,performanceDefinitionPurpose,withPerformancePurchasedCommand,performancePurchaseControls} from '@erpx/server-people_payroll/adapters/performance-purchases';
-import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-final-owner-projections";
-const organizationFinalSources=organizationFinalOwnerProjections();
+
+
 import {peopleEvaluationStaffWorkFacts} from '@erpx/server-operations/public/people-evaluation-work-facts';
 import "server-only";
 import { type Compensation, type DefinitionKind } from "@erpx/feature-people_payroll/lib/people-evaluation";
@@ -13,7 +14,7 @@ import { requirePermission } from "@erpx/server-identity_access/public/iam-permi
 import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import { snapshotMoney } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import { attachmentLinkStatus } from '@erpx/server-files/public/attachments/service';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { type Row, type AssessmentRow, type EvaluationEmployee, createEvaluationQuerySchema } from '@erpx/server-people_payroll/domain/people-evaluation';
@@ -31,28 +32,9 @@ import { peopleEvaluationLearningFacts } from '@erpx/server-learning/public/peop
 export const evaluationQuerySchema = createEvaluationQuerySchema(new Date().getUTCFullYear());
 function application(provided?: SqlDatabase) {
     let database = provided!;
-    const repository: PeopleEvaluationRepository<SqlStatement> = { stageEvaluationAuthorityEffect(...args) { return peopleEvaluationWorkflowFacts(database).stageEvaluationAuthorityEffect(...args); },
-        readEvaluationEmployeesRows(companyId: string, userId: string, companyId2: string, companyId3: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null, role: string) {
-            return database.prepare(`WITH RECURSIVE team AS (
-    SELECT e.person_id FROM hr_engagements e JOIN hr_people manager ON manager.id=e.manager_person_id AND manager.company_id=e.company_id WHERE e.company_id=? AND manager.user_id=? AND e.status IN ('active','suspended','ended')
-    UNION SELECT e.person_id FROM hr_engagements e JOIN team t ON t.person_id=e.manager_person_id WHERE e.company_id=? AND e.status IN ('active','suspended','ended')
-  ) SELECT e.id,e.person_id,p.legal_name,p.user_id,e.position_id,e.level_id,e.job_title,e.branch_id,e.department_id,n.display_name department,e.currency,e.start_date,e.end_date,e.version
-    FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id LEFT ${organizationFinalSources.people_evaluation_organization_nodes_n_join} ON n.id=e.department_id AND n.company_id=e.company_id
-    WHERE e.company_id=? AND p.merged_into_id IS NULL AND e.worker_type='employee' AND e.status IN ('active','suspended','ended')
-    AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)
-    AND (?<>'people_manager' OR e.person_id IN (SELECT person_id FROM team)) ORDER BY p.legal_name,e.id`)
-                .bind(companyId, userId, companyId2, companyId3, branchId, branchId2, departmentId, departmentId2, role).all<Row>();
-        },
-        readEvaluationDefinitionRow(id: string, kind: "skill" | "benchmark" | "policy" | "role" | "band" | "cycle", companyId: string, value: number[], v: number | undefined) {
-            return database.prepare(v ? "SELECT id,kind,version,payload_json,created_at updated_at FROM hr_evaluation_definition_history WHERE id=? AND kind=? AND company_id=? AND version=?" : "SELECT id,kind,version,payload_json,updated_at FROM hr_evaluation_definitions WHERE id=? AND kind=? AND company_id=?")
-                .bind(id, kind, companyId, ...value).first<{
-                id: string;
-                kind: DefinitionKind;
-                version: number;
-                payload_json: string;
-                updated_at: number;
-            }>();
-        },
+    const repository: PeopleEvaluationRepository<SqlStatement> = { stageEvaluationAuthorityEffect(...args){return nativeEvaluationReadRepository(database).stageEvaluationAuthorityEffect(...args);},
+        readEvaluationEmployeesRows(...args){return nativeEvaluationReadRepository(database).readEvaluationEmployeesRows(...args);},
+        readEvaluationDefinitionRow(...args){return nativeEvaluationReadRepository(database).readEvaluationDefinitionRow(...args);},
         readEvaluationTodayGroup(engagementId: string) {
             return database.prepare("SELECT g.timezone FROM hr_engagements e JOIN hr_pay_groups g ON g.id=e.pay_group_id AND g.company_id=e.company_id WHERE e.id=?").bind(engagementId).first<{
                 timezone: string;
@@ -86,7 +68,7 @@ function application(provided?: SqlDatabase) {
         readEvaluationWorkspaceLevels(...args) { return peopleEvaluationOrganizationFacts(database).readEvaluationWorkspaceLevels(...args); },
         readImportEvaluationMarketLevels(...args) { return peopleEvaluationOrganizationFacts(database).readImportEvaluationMarketLevels(...args); },
         stageImportEvaluationMarketEffect(value: string, companyId: string, value2: string, userId: string, userId2: string, reason: string, now: number, now2: number) { return database.prepare("INSERT INTO hr_evaluation_definitions(id,company_id,kind,payload_json,created_by,updated_by,reason,created_at,updated_at) VALUES(?,?,'benchmark',?,?,?,?,?,?)").bind(value, companyId, value2, userId, userId2, reason, now, now2); },
-        readEvaluationAssessmentRow(assessmentId: string, companyId: string) { return database.prepare("SELECT * FROM hr_evaluation_assessments WHERE id=? AND company_id=?").bind(assessmentId, companyId).first<AssessmentRow>(); },
+        readEvaluationAssessmentRow(...args){return nativeEvaluationReadRepository(database).readEvaluationAssessmentRow(...args);},
         readValidateEvaluationRolePeriodHistory(...args) { return peopleEvaluationOperationsFacts(database).readValidateEvaluationRolePeriodHistory(...args); },
         readValidateEvaluationRolePeriodZone(id: string) {
             return database.prepare("SELECT g.timezone FROM hr_engagements e JOIN hr_pay_groups g ON g.id=e.pay_group_id AND g.company_id=e.company_id WHERE e.id=?").bind(id).first<{
@@ -224,14 +206,11 @@ async function invoke<Result>(run: () => Promise<Result>) {
         throw error;
     }
 }
-export async function evaluationAuthority(db: SqlDatabase, actor: WorkContext, permission = "people.read") { return invoke(() => application(db).evaluationAuthority(actor, permission)); }
-export async function evaluationEmployees(db: SqlDatabase, actor: WorkContext) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationEmployees(actor)),db); }
-export async function evaluationEmployee(db: SqlDatabase, actor: WorkContext, engagementId: string) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationEmployee(actor, engagementId)),db); }
-export async function evaluationDefinition(db: SqlDatabase, actor: WorkContext, id: string, kind: DefinitionKind, v?: number) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationDefinition(actor, id, kind, v)),db); }
+
 export async function saveEvaluationDefinition(actor: WorkContext, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.criteria.save',purpose:database=>performanceDefinitionPurpose(database,actor,raw)},(database,current)=>invoke(()=>application(database).saveEvaluationDefinition(current, raw, key))); }
 export async function evaluationWorkspace(actor: WorkContext, raw: unknown = {},provided?:SqlDatabase):Promise<EvaluationWorkspace> { return withPerformancePurchasedRead(actor,async database=>{const workspace=await invoke(()=>application(database).evaluationWorkspace(actor, raw)),purchase=await performancePurchaseControls(actor,database);return purchase?{...workspace,purchase}:workspace;},provided); }
 export async function importEvaluationMarket(actor: WorkContext, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.market.import',purpose:'new-work'},(database,current)=>invoke(()=>application(database).importEvaluationMarket(current, raw, key))); }
-export async function evaluationAssessment(db: SqlDatabase, actor: WorkContext, assessmentId: string) { return withPerformancePurchasedRead(actor,database=>invoke(()=>application(database).evaluationAssessment(actor, assessmentId)),db); }
+
 export async function createEvaluationAssessment(actor: WorkContext, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.assessment.create',purpose:'new-work'},(database,current)=>invoke(()=>application(database).createEvaluationAssessment(current, raw, key))); }
 export async function saveEvaluationAssessment(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.assessment.save',purpose:'new-work'},(database,current)=>invoke(()=>application(database).saveEvaluationAssessment(current, assessmentId, raw, key))); }
 export async function transitionEvaluationAssessment(actor: WorkContext, assessmentId: string, raw: unknown, key: string) { return withPerformancePurchasedCommand(actor,{key,operation:'people.evaluation.assessment.transition',purpose:raw&&typeof raw==='object'&&'action' in raw&&raw.action==='reopen'?'new-work':'settle-existing'},(database,current)=>invoke(()=>application(database).transitionEvaluationAssessment(current, assessmentId, raw, key))); }

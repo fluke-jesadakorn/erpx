@@ -6,7 +6,8 @@ import { finalRootOwnerProjectionSources as legalProjectionSources } from "@erpx
 import { finalRootOwnerProjectionSources as salesProjectionSources } from "@erpx/server-sales/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as supportProjectionSources } from "@erpx/server-support/public/final-root-owner-projection-sources";
 import 'server-only';
-import { supportWorkspacePurchaseAccess, supportTicketReadPredicate } from '@erpx/server-support/public/support';
+import {supportWorkspacePurchaseAccess} from '@erpx/server-support/public/support';
+import {supportTicketReadPredicate} from '@erpx/server-support/public/support-ticket-read';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {z} from 'zod';
 import { createCustomerTimeline } from '@erpx/server-customer_360/application/timeline';

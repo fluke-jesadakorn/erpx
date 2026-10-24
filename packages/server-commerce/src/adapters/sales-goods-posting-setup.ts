@@ -1,3 +1,5 @@
+import{salesGoodsPostingFulfillmentSources}from '@erpx/server-commerce/public/sales-goods-posting-sources';
+export{salesGoodsPostingFulfillmentSources};
 import 'server-only';
 import {createHash,randomUUID} from 'node:crypto';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
@@ -18,7 +20,6 @@ import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/adapte
 import {salesGoodsPostingSetupSchema,type SalesGoodsPostingSetupInput,type SalesGoodsPostingSetupResult,type SalesGoodsPostingSetupView} from '@erpx/server-commerce/domain/sales-goods-posting-setup';
 import type {CommercePostingSetupConfiguration} from '@erpx/server-commerce/domain/posting-setup';
 
-export const salesGoodsPostingFulfillmentSources="SELECT f.id,f.invoice_id,o.company_id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id WHERE o.kind='sales'";
 const operation='commerce.sales-goods-posting-setup.initialize';
 const capabilities=['sales.orders','inventory.stock-core','finance.sales-posting'] as const;
 const columns={chartId:'chart_id',currency:'currency',receivableAccountId:'receivable_account_id',payableAccountId:'payable_account_id',revenueAccountId:'revenue_account_id',inventoryAccountId:'inventory_account_id',clearingAccountId:'clearing_account_id',cogsAccountId:'cogs_account_id',inputTaxAccountId:'input_tax_account_id',outputTaxAccountId:'output_tax_account_id',cashAccountId:'cash_account_id'} as const;

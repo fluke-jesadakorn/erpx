@@ -1,7 +1,7 @@
 import 'server-only';
 
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {hasModuleAccess} from '@erpx/catalogue/module-access';

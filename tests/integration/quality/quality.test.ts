@@ -3,7 +3,7 @@ import type {FileStore,SqlDatabase} from '@erpx/server-runtime/public/runtime/ty
 import { qualityInspectionSchema } from "@erpx/server-quality/public/quality";
 import { qualityDispositionSchema } from "@erpx/server-quality/public/quality";
 import { countActionSchema } from "@erpx/server-inventory/public/inventory-counts";
-import { fulfillmentSchema } from "@erpx/server-commerce/public/commerce";
+import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {beforeAll,beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
@@ -11,7 +11,8 @@ import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
 import {createQualityHold,getQualityHold,inspectQualityHold,releaseQualityHold,createQualityScrapDisposition,saveQualitySpec,transitionQualitySpec,qualityDetail,qualityWorkspace,qualityWork} from "@erpx/server-quality/public/quality";
 import {countDetail,transitionCount} from "@erpx/server-inventory/public/inventory-counts";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {commercePage,changeOrderReservation,fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
+import {commercePage,changeOrderReservation,fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 import {mergeWorkItems} from "@erpx/server-work_projection/public/work-items";
 import {filterWork} from "@erpx/feature-work_projection/lib/work-item";

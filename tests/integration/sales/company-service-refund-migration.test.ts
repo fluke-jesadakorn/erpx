@@ -14,7 +14,8 @@ import {migrateDatabase} from '@erpx/server-runtime/public/runtime/migrations';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {withFinanceFlowAssignment} from '@erpx/server-finance/public/document-purchases';
 import {postInvoice,postJournal} from '@erpx/server-finance/public/finance';
-import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,getOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
+import {completeCommerceReturn,decideCommerceReturn,fulfillOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,returnRequestSchema,saveMaster,saveOrder,settleInvoice,transitionOrder,fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 
 let db:PostgresDatabase,files:LocalFileStore;

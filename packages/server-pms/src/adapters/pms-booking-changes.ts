@@ -4,7 +4,7 @@ import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
 import { authorizedBooking, bookingSummary, bookingSnapshot, persist, queueMail, bookingCheckout, type BookingEnv, type BookingPaymentRow } from "@erpx/server-pms/public/pms-booking";
 import { requestBookingRefund } from "@erpx/server-pms/public/pms-booking-refunds";
 import { effects, persistPmsRecords } from "../../../../packages/server-pms/src/public/pms";
-import { snapshotMoney } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";

@@ -1,5 +1,5 @@
 import {z} from "zod";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
 const text=z.string().trim().min(3).max(2000),version=z.number().int().positive(),id=z.string().min(1);
 export const crmActivityCreateSchema=z.object({leadId:id,expectedVersion:version,activityType:z.enum(['call','email','meeting','task']),subject:z.string().trim().min(3).max(200),details:text,ownerId:id,dueDate:z.iso.date()});

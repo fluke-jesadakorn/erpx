@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
 import { bookingSnapshot, persist, queueMail, bookingEnv, type BookingPaymentRow } from "@erpx/server-pms/public/pms-booking";
 import { effects } from "../../../../packages/server-pms/src/public/pms";
-import { stripeCall } from "@erpx/server-pos/public/pos-stripe";
+import {stripeCall} from '@erpx/server-pos/public/stripe-provider';
 import { verifiedStripePaymentTime } from "@erpx/server-pos/public/stripe-payment-time";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";

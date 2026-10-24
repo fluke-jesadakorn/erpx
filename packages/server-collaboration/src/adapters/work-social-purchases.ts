@@ -1,113 +1,61 @@
+import{current,actualSources,capabilities,requireWorkSocialDraftRead,type Source,type Command}from '@erpx/server-collaboration/adapters/work-social-draft-policy';
+export{current,actualSources,capabilities,requireWorkSocialDraftRead};
+export type{Source,Command};
+import { actorScope, projectRead, purchasedReadWhere, pmsRead, socialOwnerModes, requireWorkSocialRead, actorKey, clock } from '@erpx/server-collaboration/adapters/work-social-read-policy';
+import{units,type SocialUnit}from '@erpx/server-collaboration/adapters/work-social-unit-state';
 import 'server-only';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import {socialUploadCleanupFileLocks,beginSocialUploadCleanupFiles,assertSocialUploadCleanupFiles} from '@erpx/server-files/public/social-upload-cleanup';
-import {randomUUID,createHash} from 'node:crypto';
-import type {SqlDatabase,SqlValue} from '@erpx/server-runtime/public/runtime/types';
+import { randomUUID } from 'node:crypto';
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {isTransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import {workOperationsSettlementSources,lockWorkOperationsSettlementSources} from '@erpx/server-operations/public/work-package-obligation-sources';
-import {projectTaskRecordPolicy} from '@erpx/server-operations/public/project-task-record-policy';
-import {projectSocialPurchaseSources,projectSocialSourceReadPolicy,projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-purchase-sources';
-import {socialProjectAudienceSource,socialProjectAudienceReadPredicate} from '@erpx/server-projects/public/collaboration-home-sources';
+
+import { projectSocialPurchaseSources, projectSocialSourceReadLocks } from '@erpx/server-projects/public/social-purchase-sources';
+import { socialProjectAudienceSource } from '@erpx/server-projects/public/collaboration-home-sources';
 import {socialPmsSourceFacts,socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
-import {pmsSocialSourcePurchasePredicate,pmsSocialSourcePurchaseScopes} from '@erpx/server-pms/public/social-source-purchases';
+import { pmsSocialSourcePurchaseScopes } from '@erpx/server-pms/public/social-source-purchases';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
+
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
-import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
-import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
+
 import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
-import {workPackageEnforcementMode,projectsPackageEnforcementMode,pmsPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
-import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
-import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
-import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operationalHandoverReceiptPredicate,operationalHandoverBindings} from '@erpx/server-collaboration/adapters/work-social-source';
+import { checkPurchasedCapability, companyPurchaseReadLocks, purchaseCommandBoundary, purchaseCommandFailure } from '@erpx/server-commercial/public/purchase-command-boundary';
+
+import { operationalHandoverReceiptPredicate } from '@erpx/server-collaboration/adapters/work-social-source';
 import {workTaskSocialFileSourceRows,workTaskSocialAudienceSourceLocks} from '@erpx/server-collaboration/adapters/work-task-purchase-source';
-import {sourceAccessSql,readablePost} from '@erpx/server-collaboration/adapters/social-source';
+import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
+import {readablePost} from '@erpx/server-collaboration/adapters/social-source';
 import {queuedSocialReplyAuthorityPredicate} from '@erpx/server-identity_access/public/queued-social-source-authority';
 import {socialAiProviderSourceReadLocks,socialAiProviderSourceWitness} from '@erpx/server-agent/public/social-ai-source-locks';
 import {aiSnapshotGuard} from '@erpx/server-agent/public/ai-providers';
 import {socialAgentImageSource,socialAgentImageSourceReadLocks} from '@erpx/server-files/public/social-agent-image-sources';
 import type {Reply} from '@erpx/server-collaboration/domain/social-agent';
 
-type Reader=Pick<StaffActor,'companyId'|'userId'>&Partial<StaffActor>;
-type Source={kind:'staff_task'|'staff_project'|'pms_record';id:string};
-type Command={key:string;operation:string;purpose:CapabilityPurpose;type:'post'|'draft'|'story';id?:string;sources?:Source[];audienceProjectId?:string|null;publishedDraftReplay?:boolean;privateImages?:true;providerSources?:true};
-type ReadScope={prefix:string;where:string;args:SqlValue[]};
-type Handover={key:string;id:string;sources:Source[]};
-type SocialUnit={providerLeased:boolean;imagesLeased:boolean;companyId:string;actorKey:string;checks:Array<()=>Promise<void>>;images:Array<{read:()=>Promise<string|null>;completed:string|null}>;handover?:Handover};
-const units=new WeakMap<SqlDatabase,SocialUnit>();
-const actorKey=(actor:StaffActor)=>JSON.stringify([actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam??null]);
-const clock=packageClockSql;
-function selected(actor:Reader):actor is StaffActor{return typeof actor.assignmentId==='string'&&typeof actor.role==='string'&&'branchId' in actor&&'departmentId' in actor;}
-function actorScope(actor:Reader){
- if(selected(actor)){const current=currentAssignmentReadScope(actor,'workforce_actor_scope');return {prefix:`WITH social_purchase_actor AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,?::text role,?::text company_id,${clock} now_ms WHERE EXISTS(SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${current.where})) `,args:[actor.userId,actor.assignmentId,actor.role,actor.companyId,actor.companyId,actor.branchId,actor.departmentId,...current.args] as SqlValue[]};}
- // Recipient visibility probes keep their original existential current account
- // policy. No replacement acting role or queued authority is selected here.
- return {prefix:`WITH social_purchase_actor AS MATERIALIZED(SELECT g.user_id,g.id assignment_id,g.role,g.company_id,${clock} now_ms FROM assignments g WHERE g.user_id=? AND g.company_id=? AND (?::text IS NULL OR g.id=?) AND iam_assignment_active(g.id,${clock}) AND iam_principal_active(g.user_id,g.company_id,${clock})) `,args:[actor.userId,actor.companyId,actor.assignmentId??null,actor.assignmentId??null] as SqlValue[]};
-}
-const sourceRows=`SELECT ps.source_kind kind,ps.source_id id FROM social_post_sources ps WHERE ps.post_id=p.id`;
-function projectRead(purpose:CapabilityPurpose,enforced:boolean){return `NOT EXISTS(SELECT 1 FROM (${sourceRows}) source JOIN (${projectSocialPurchaseSources}) social_project_source ON social_project_source.source_kind=source.kind AND social_project_source.source_id=source.id AND social_project_source.company_id=p.company_id WHERE NOT (${projectSocialSourceReadPolicy()} AND ${enforced?`${scheduledFeaturePredicate('p.company_id','projects')} AND (source.kind<>'staff_task' OR ${scheduledFeaturePredicate('p.company_id','operations')}) AND iam_role_allows(social_purchase_actor.role,p.company_id,'records.read') AND ${purchasedCapabilityPredicate('p.company_id','projects.wbs',purpose,'social_purchase_actor.now_ms')} AND (source.kind<>'staff_task' OR ${purchasedCapabilityPredicate('p.company_id','projects.tasks',purpose,'social_purchase_actor.now_ms')})`:'TRUE'})) AND ${enforced?socialProjectAudienceReadPredicate():'TRUE'}`;}
-function operationalRead(purpose:CapabilityPurpose){return `NOT EXISTS(SELECT 1 FROM (${sourceRows}) source JOIN (${workOperationsSettlementSources.tasks}) t ON source.kind='staff_task' AND t.id=source.id AND t.company_id=p.company_id WHERE t.project_id IS NULL AND NOT (${projectTaskRecordPolicy('t.id','t.company_id','social_purchase_actor')} AND ${purchasedCapabilityPredicate('t.company_id','work.actions',purpose,'social_purchase_actor.now_ms')} AND (t.template_id IS NULL OR ${purchasedCapabilityPredicate('t.company_id','work.advanced-routines',purpose,'social_purchase_actor.now_ms')})))`;}
-function purchasedReadWhere(project:boolean,stories:boolean,typed=operationalHandoverReceiptPredicate('p'),purpose:CapabilityPurpose='history'){
- const purchased=purchasedCapabilityPredicate(stories?'social_stories.company_id':'p.company_id','work.social',purpose,'social_purchase_actor.now_ms');
- return `EXISTS(SELECT 1 FROM social_purchase_actor WHERE ${scheduledFeaturePredicate('social_purchase_actor.company_id','collaboration')} AND ${stories?purchased:`CASE WHEN ${typed} THEN ${operationalRead(purpose)} AND ${projectRead(purpose,project)} ELSE (${purchased} OR NOT (${workSocialNativePostPredicate('p')}) AND NOT (${workSocialUnresolvedPostPredicate()}) AND ${projectRead(purpose,project)}) END`})`;
-}
-const projectOnlyReadWhere=()=>`EXISTS(SELECT 1 FROM social_purchase_actor WHERE ${projectRead('history',true)})`;
-function pmsRead(purpose:CapabilityPurpose){return `EXISTS(SELECT 1 FROM social_purchase_actor WHERE NOT EXISTS(SELECT 1 FROM (${sourceRows}) source WHERE source.kind='pms_record' AND NOT EXISTS(SELECT 1 FROM (${socialPmsSourceFacts}) social_pms_source WHERE social_pms_source.id=source.id AND social_pms_source.company_id=p.company_id AND ${pmsSocialSourcePurchasePredicate(purpose)})))`;}
-async function socialOwnerModes(){const [work,project,pms]=await Promise.all([workPackageEnforcementMode(),projectsPackageEnforcementMode(),pmsPackageEnforcementMode()]);return {work,project,pms,disabled:work==='disabled'&&project==='disabled'&&pms==='disabled'};}
+
+
+
+
+
 /** The exact current actor and actual source purchase decision live in each
  * owner SELECT before its native LIMIT/cursor. Callers retain sourceAccessSql. */
-export function workSocialReadScope(database:SqlDatabase,actor:Reader,stories=false):Promise<ReadScope>{return socialReadScope(database,actor,stories);}
+
 /** Product entry always checks actual purchases even during legacy shadow or
  * disabled command rollout; this is not an enforcement-mode mutation. */
-export function workSocialProductReadScope(database:SqlDatabase,actor:Reader):Promise<ReadScope>{return socialReadScope(database,actor,false,true);}
-async function socialReadScope(database:SqlDatabase,actor:Reader,stories=false,strict=false):Promise<ReadScope>{
- const {work:mode,project,pms}=strict?{work:'enforced' as const,project:'enforced' as const,pms:'enforced' as const}:await socialOwnerModes();if(mode==='shadow')await readPurchasedAccesses(database,mode,actor.companyId,['work.social']);if(mode!=='enforced'){if(stories||project!=='enforced'&&pms!=='enforced')return {prefix:'',where:'TRUE',args:[]};const scope=actorScope(actor);return {...scope,where:[project==='enforced'?projectOnlyReadWhere():'TRUE',pms==='enforced'?pmsRead('history'):'TRUE'].join(' AND ')};}
- const scope=actorScope(actor),handover=units.get(database)?.handover;
- let typed=operationalHandoverReceiptPredicate('p');if(handover){scope.prefix=scope.prefix.trimEnd()+`,social_operational_handover AS MATERIALIZED(SELECT ?::text post_id,?::jsonb sources) `;scope.args.push(handover.id,JSON.stringify(handover.sources));typed=`(${typed} OR EXISTS(SELECT 1 FROM social_operational_handover temporary WHERE p.id=temporary.post_id AND ${operationalHandoverBindings('p')}=temporary.sources))`;}
- // Paid Social keeps the original audience/linked-preview policy. Included
- // Project/PMS text additionally needs its actual source owner; it cannot
- // become free general Social merely by naming a business record.
- return {...scope,where:`(${purchasedReadWhere(project==='enforced',stories,typed)}) AND ${!stories&&project==='enforced'?`EXISTS(SELECT 1 FROM social_purchase_actor WHERE ${projectRead('history',true)})`:'TRUE'} AND ${!stories&&pms==='enforced'?pmsRead('history'):'TRUE'}`};
-}
+
 /** Minimal presentation flags use the same native source classifier. These
  * are advisory controls; every command repeats its original current guards. */
-export async function workSocialPresentation(database:SqlDatabase,actor:StaffActor,ids:readonly string[]=[]){
- const {work:mode,project,pms}=await socialOwnerModes();
- const context=createHash('sha256').update(actorKey(actor)).digest('hex');
- if(mode!=='enforced'&&project!=='enforced'&&pms!=='enforced')return {context,purchase:undefined,posts:undefined};
- const accesses=await readPurchasedAccesses(database,mode,actor.companyId,['work.social','work.actions']);
- const actualRevision=mode==='disabled'?(await readPurchasedAccesses(database,'enforced',actor.companyId,['pms.front-desk']))['pms.front-desk'].revision:accesses['work.social'].revision;
- const scope=actorScope(actor),revision=createHash('sha256').update(JSON.stringify([actualRevision,context])).digest('hex');
- const base=mode==='enforced'?`EXISTS(SELECT 1 FROM social_purchase_actor WHERE ${scheduledFeaturePredicate('social_purchase_actor.company_id','collaboration')})`:'TRUE';
- const taskReady=Boolean(await database.prepare(`${scope.prefix}SELECT 1 FROM social_purchase_actor WHERE ${scheduledFeaturePredicate('social_purchase_actor.company_id','operations')}`).bind(...scope.args).first());
- const active=Boolean(await database.prepare(`${scope.prefix}SELECT 1 WHERE ${base}`).bind(...scope.args).first());
- const minimal=(value:typeof accesses[string])=>({newWork:active&&value.newWork,settleExisting:active&&value.settleExisting,history:active&&value.history,revision});
- const purchase=mode==='enforced'?minimal(accesses['work.social']):undefined;
- if(!ids.length)return {context,purchase,posts:undefined};
- const ownerDecision=(purpose:CapabilityPurpose)=>mode==='enforced'?`(${purchasedReadWhere(project==='enforced',false,operationalHandoverReceiptPredicate('p'),purpose)}) AND EXISTS(SELECT 1 FROM social_purchase_actor WHERE NOT (${operationalHandoverReceiptPredicate('p')}) OR ${project!=='enforced'?'TRUE':`NOT EXISTS(SELECT 1 FROM (${sourceRows}) source JOIN (${projectSocialPurchaseSources}) social_project_source ON social_project_source.source_kind=source.kind AND social_project_source.source_id=source.id AND social_project_source.company_id=p.company_id WHERE NOT (${purchasedCapabilityPredicate('p.company_id','projects.handover',purpose,'social_purchase_actor.now_ms')}))`})`:project==='enforced'?`EXISTS(SELECT 1 FROM social_purchase_actor WHERE ${projectRead(purpose,true)})`:'TRUE';
- const decision=(purpose:CapabilityPurpose)=>`(${ownerDecision(purpose)}) AND ${project==='enforced'?`EXISTS(SELECT 1 FROM social_purchase_actor WHERE ${projectRead(purpose,true)})`:'TRUE'} AND ${pms==='enforced'?pmsRead(purpose):'TRUE'}`;
- const rows=(await database.prepare(`${scope.prefix}SELECT p.id,(${decision('new-work')}) new_work,(${decision('settle-existing')}) settle_existing,(${decision('history')}) history FROM social_posts p WHERE p.id IN(SELECT jsonb_array_elements_text(?::jsonb)) AND p.company_id=? AND p.state='published' AND ${sourceAccessSql('p','?::text')}`).bind(...scope.args,JSON.stringify(ids),actor.companyId,actor.userId,Date.now(),Date.now(),actor.assignmentId).all<{id:string;new_work:boolean;settle_existing:boolean;history:boolean}>()).results;
- return {context,purchase,posts:Object.fromEntries(rows.map(row=>[row.id,{newWork:row.new_work,settleExisting:row.settle_existing,history:row.history,revision,createTask:row.new_work&&taskReady&&accesses['work.actions'].newWork}]))};
-}
-export async function requireWorkSocialRead(database:SqlDatabase,actor:Reader,id:string){
- const scope=await workSocialReadScope(database,actor);if(!scope.prefix)return;
- if(!await database.prepare(`${scope.prefix}SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${scope.where}`).bind(...scope.args,id,actor.companyId).first())throw new ApiError(404,'POST_NOT_FOUND','This post is unavailable.');
-}
-async function current(database:SqlDatabase,actor:StaffActor,key:string){const scope=actorScope(actor);if(!await database.prepare(`${scope.prefix}SELECT 1 FROM social_purchase_actor WHERE ${scheduledFeaturePredicate('company_id','collaboration')}`).bind(...scope.args).first())throw new ApiError(403,'WORK_SOCIAL_AUTHORITY_CHANGED','The original current Social account or role changed.');await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),database.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(key)]);}
+
 async function locks(database:SqlDatabase,companyId:string,privateImages=false,providerSources=false,uploadCleanup=false){
  await database.batch([companyPurchaseReadLocks(database,companyId)[0]]);await lockWorkOperationsSettlementSources(database);
  await database.batch([database.prepare('LOCK TABLE social_posts,social_comments,social_post_sources,social_post_revisions,social_task_origins,social_post_drafts,social_post_participants,social_handover_acknowledgements,social_stories,social_reactions,social_follows,social_reports,social_mentions,social_topics,social_post_topics,social_comment_topics,social_ai_drafts,social_ai_usage,social_agent_replies IN SHARE ROW EXCLUSIVE MODE'),workTaskSocialAudienceSourceLocks(database),projectSocialSourceReadLocks(database),socialPmsSourceReadLocks(database)]);if(providerSources)await socialAiProviderSourceReadLocks(database).run();if(privateImages)await socialAgentImageSourceReadLocks(database).run();if(uploadCleanup)await socialUploadCleanupFileLocks(database).run();await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(companyPurchaseReadLocks(database,companyId).slice(1));
 }
 async function target(database:SqlDatabase,actor:Pick<StaffActor,'companyId'>,command:Command){if(!command.id)return null;const table=command.type==='post'?'social_posts':command.type==='draft'?'social_post_drafts':'social_stories';return database.prepare(`SELECT to_jsonb(row)::text image FROM ${table} row WHERE id=? AND company_id=?`).bind(command.id,actor.companyId).first<string>('image');}
-async function actualSources(database:SqlDatabase,actor:Pick<StaffActor,'companyId'>,command:Command):Promise<Source[]>{
- const rows:Source[]=[];if(command.id&&command.type==='post')rows.push(...(await database.prepare('SELECT source_kind kind,source_id id FROM social_post_sources s JOIN social_posts p ON p.id=s.post_id WHERE p.id=? AND p.company_id=? ORDER BY s.ordinal').bind(command.id,actor.companyId).all<Source>()).results);
- if(command.id&&command.type==='draft'){const draft=await database.prepare('SELECT sources_json,COALESCE(comment_parent_post_id,edit_post_id,published_post_id) post_id FROM social_post_drafts WHERE id=? AND company_id=?').bind(command.id,actor.companyId).first<{sources_json:string;post_id:string|null}>();if(draft){rows.push(...JSON.parse(draft.sources_json) as Source[]);if(draft.post_id)rows.push(...(await database.prepare('SELECT source_kind kind,source_id id FROM social_post_sources s JOIN social_posts p ON p.id=s.post_id WHERE p.id=? AND p.company_id=? ORDER BY s.ordinal').bind(draft.post_id,actor.companyId).all<Source>()).results);}}
- rows.push(...command.sources??[]);return [...new Map(rows.map(row=>[`${row.kind}:${row.id}`,row])).values()];
-}
+
 async function actualAudienceProjects(database:SqlDatabase,actor:StaffActor,command:Command){
  if(command.audienceProjectId!==undefined)return command.audienceProjectId?[command.audienceProjectId]:[];
  if(!command.id||command.type==='story')return [];
@@ -115,21 +63,7 @@ async function actualAudienceProjects(database:SqlDatabase,actor:StaffActor,comm
  return [...new Set(rows.results.map(row=>row.id))];
 }
 async function sourceFacts(database:SqlDatabase,companyId:string,sources:Source[]){return database.prepare(`WITH requested AS(SELECT kind,id FROM jsonb_to_recordset(?::jsonb) AS r(kind text,id text)) SELECT jsonb_build_object('project',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.source_kind,p.source_id) FROM (${projectSocialPurchaseSources}) p JOIN requested r ON r.kind=p.source_kind AND r.id=p.source_id WHERE p.company_id=?),'pms',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM (${socialPmsSourceFacts}) p JOIN requested r ON r.kind='pms_record' AND r.id=p.id WHERE p.company_id=?),'tasks',(SELECT jsonb_agg(jsonb_build_object('task',to_jsonb(t),'social',social.image,'delegations',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM (${workOperationsSettlementSources.delegations}) d WHERE d.task_id=t.id AND d.company_id=t.company_id)) ORDER BY t.id) FROM (${workOperationsSettlementSources.tasks}) t JOIN requested r ON r.kind='staff_task' AND r.id=t.id LEFT JOIN (${workTaskSocialFileSourceRows}) social ON social.id=t.id AND social.company_id=t.company_id WHERE t.company_id=?))::text image`).bind(JSON.stringify(sources),companyId,companyId,companyId).first<string>('image');}
-async function capabilities(database:SqlDatabase,actor:StaffActor,command:Command,sources:Source[],purpose:CapabilityPurpose){
- const rows=(await database.prepare(`WITH requested AS(SELECT kind,id FROM jsonb_to_recordset(?::jsonb) AS r(kind text,id text)) SELECT r.kind,r.id,p.project_id,(r.kind='pms_record' AND EXISTS(SELECT 1 FROM (${socialPmsSourceFacts}) s WHERE s.id=r.id AND s.company_id=?)) pms,t.id task_id,t.template_id FROM requested r LEFT JOIN (${projectSocialPurchaseSources}) p ON p.source_kind=r.kind AND p.source_id=r.id AND p.company_id=? LEFT JOIN (${workOperationsSettlementSources.tasks}) t ON r.kind='staff_task' AND t.id=r.id AND t.company_id=?`).bind(JSON.stringify(sources),actor.companyId,actor.companyId,actor.companyId).all<{kind:string;id:string;project_id:string|null;pms:boolean;task_id:string|null;template_id:string|null}>()).results;
- const handover=units.get(database)?.handover,typedUnit=handover&&(command.operation==='work.handover.publish'&&command.key===`${handover.key}-operations`||command.operation==='social.draft.save'&&command.key===handover.key&&command.id===`post-draft-${handover.key}`||command.operation==='social.post.publish'&&command.key===`${handover.key}-publish`&&command.id===`post-draft-${handover.key}`),typedPost=command.type==='post'&&command.id?await database.prepare(`SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${operationalHandoverReceiptPredicate('p')}`).bind(command.id,actor.companyId).first():null;
- const codes=new Set<string>(),project=await projectsPackageEnforcementMode(),social=(await readPurchasedAccesses(database,await workPackageEnforcementMode(),actor.companyId,['work.social']))['work.social'],socialAllowed=purpose==='new-work'?social.newWork:purpose==='settle-existing'?social.settleExisting:social.history;
- if(typedUnit||typedPost){for(const row of rows){if(row.kind==='staff_task'&&row.task_id&&!row.project_id){codes.add('work.actions');if(row.template_id)codes.add('work.advanced-routines');}else if(row.project_id&&project==='enforced'){codes.add('projects.wbs');codes.add('projects.handover');if(row.kind==='staff_task')codes.add('projects.tasks');}else if(!row.pms&&!row.project_id)codes.add('work.social');}return [...codes];}
- if(socialAllowed||!rows.length||rows.some(row=>!row.project_id&&!row.pms))codes.add('work.social');
- // System posts are original owner projections rather than human freeform.
- if(command.type==='post'&&command.id&&await database.prepare("SELECT 1 FROM social_posts WHERE id=? AND company_id=? AND kind='system'").bind(command.id,actor.companyId).first())codes.delete('work.social');
- for(const row of rows)if(row.project_id&&project==='enforced'){codes.add('projects.wbs');if(row.kind==='staff_task')codes.add('projects.tasks');}
- return [...codes];
-}
-export async function requireWorkSocialDraftRead(database:SqlDatabase,actor:StaffActor,id:string,edit=false){
- const {work:mode,project,disabled}=await socialOwnerModes();if(disabled)return;const row=await database.prepare('SELECT comment_parent_post_id,edit_post_id,published_post_id FROM social_post_drafts WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{comment_parent_post_id:string|null;edit_post_id:string|null;published_post_id:string|null}>();if(!row)throw new ApiError(404,'DRAFT_NOT_FOUND','Draft unavailable.');
- const command:Command={key:'read',operation:'read',type:'draft',id,purpose:edit?row.comment_parent_post_id?'settle-existing':'new-work':'history'},sources=await actualSources(database,actor,command);await current(database,actor,`work-social-draft:${randomUUID()}`);for(const capability of await capabilities(database,actor,command,sources,command.purpose))await checkPurchasedCapability(database,capability.startsWith('projects.')?project:mode,{companyId:actor.companyId,capability,purpose:command.purpose});await pmsSocialSourcePurchaseScopes(database,actor,sources.filter(source=>source.kind==='pms_record').map(source=>source.id),command.purpose);const post=row.comment_parent_post_id??row.edit_post_id??row.published_post_id;if(post)await requireWorkSocialRead(database,actor,post);
-}
+
 async function image(database:SqlDatabase,actor:Pick<StaffActor,'companyId'>,command:Command,id?:string){
  const sourceId=id??command.id;if(!sourceId)return null;const postId=command.type==='post'?sourceId:command.type==='draft'?await database.prepare('SELECT COALESCE(published_post_id,comment_parent_post_id,edit_post_id) id FROM social_post_drafts WHERE id=? AND company_id=?').bind(sourceId,actor.companyId).first<string>('id'):null;
  return database.prepare(`SELECT jsonb_build_object('target',?::text,'post',(SELECT to_jsonb(p) FROM social_posts p WHERE p.id=? AND p.company_id=?),'comments',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM social_comments c WHERE c.post_id=?),'sources',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.ordinal) FROM social_post_sources s WHERE s.post_id=?),'participants',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.user_id) FROM social_post_participants p WHERE p.post_id=?),'revisions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_post_revisions r WHERE r.post_id=?),'reactions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.principal_id) FROM social_reactions r WHERE r.post_id=?),'follows',(SELECT jsonb_agg(to_jsonb(f) ORDER BY f.principal_id) FROM social_follows f WHERE f.target_type='post' AND f.target_id=?),'drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_post_drafts d WHERE d.company_id=? AND (d.published_post_id=? OR d.comment_parent_post_id=? OR d.edit_post_id=?)),'acknowledgements',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.user_id) FROM social_handover_acknowledgements a WHERE a.post_id=?),'ai_drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM social_ai_drafts d WHERE d.post_id=?),'ai_usage',(SELECT jsonb_agg(to_jsonb(u) ORDER BY u.id) FROM social_ai_usage u JOIN social_ai_drafts d ON d.id=u.id WHERE d.post_id=?),'agent_replies',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_agent_replies r WHERE r.post_id=?))::text image`).bind(await target(database,actor,{...command,id:sourceId}),postId,actor.companyId,postId,postId,postId,postId,postId,postId,actor.companyId,postId,postId,postId,postId,postId,postId,postId).first<string>('image');
@@ -267,7 +201,6 @@ export async function workSocialAttachmentSourceImage(database:SqlDatabase,compa
  COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'id',id) ORDER BY kind,id) FROM native_sources),'[]'::jsonb)::text sources`).bind(id,companyId,id,companyId,type,id,type,companyId,companyId).first<{image:string;sources:string}>();
  if(!row)return null;return JSON.stringify([row.image,await sourceFacts(database,companyId,JSON.parse(row.sources) as Source[])]);
 }
-
 
 /** Closing only an original creator's still-unconsumed private upload grants
  * no parent read, Project membership, byte access, publication or new work. */

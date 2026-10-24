@@ -2,8 +2,8 @@ import { translationRate, translateMinor } from '@erpx/server-finance/domain/gro
 import { z } from "zod";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type {decimalToMinor} from '@erpx/server-finance/public/finance';
-import type {minorToDecimal} from '@erpx/server-finance/public/finance';
+import type {decimalToMinor} from '@erpx/server-finance/public/money-primitives';
+import type {minorToDecimal} from '@erpx/server-finance/public/money-primitives';
 import { type EntityPeriod, type ConsolidationRun, type ConsolidationElimination, type ConsolidationAccount, consolidationRunSchema, consolidationDecisionSchema, consolidationEliminationSchema, consolidationEliminationDecisionSchema, type EliminationAction, eliminationTransition, transition } from '@erpx/server-finance/domain/finance-consolidation';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { GroupCommands } from '@erpx/server-finance/domain/group-command-ports';
@@ -338,5 +338,3 @@ export function createFinanceConsolidationApplication<Effect>(ports: FinanceCons
     }
     return { consolidationRunWorkspace, createConsolidationElimination, decideConsolidationElimination, createConsolidationRun, decideConsolidationRun, consolidationDetail, consolidationEliminationDetail, internal: { consolidationRunWorkspace, holdingActor, digest, entityPeriods, translationRate, translateMinor, snapshot, consolidationAccounts, consolidationRun, createConsolidationElimination, decideConsolidationElimination, createConsolidationRun, decideConsolidationRun, consolidationDetail, consolidationEliminationDetail } };
 }
-
-

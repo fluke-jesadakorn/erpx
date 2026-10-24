@@ -6,7 +6,7 @@ import {createPerformanceCommandFetch, performanceCommandPurpose, performanceFor
 import {EvaluationConsole} from "@erpx/feature-people_payroll/components/evaluation-console";
 import {DefinitionEditor} from "@erpx/feature-people_payroll/components/evaluation-editors";
 import {EmbeddedRecord} from "@erpx/ui/components/record-context";
-import type {EvaluationWorkspace} from "@erpx/server-people_payroll/public/people-evaluation";
+import type {EvaluationWorkspace} from '@erpx/server-people_payroll/public/people-evaluation';
 import {defaultEvaluationPolicy} from "@erpx/feature-people_payroll/lib/people-evaluation";
 import {createElement,type ComponentProps} from "react";
 import {renderToStaticMarkup} from "react-dom/server";

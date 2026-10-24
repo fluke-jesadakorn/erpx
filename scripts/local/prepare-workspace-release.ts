@@ -34,6 +34,7 @@ async function vendorPackage(snapshot:string,output:string,name:string,seen=new 
  for(const dependency of Object.keys(manifest.dependencies??{}))await vendorPackage(snapshot,output,dependency,seen);
 }
 export async function buildWorkspaceReleaseTool(snapshot:string,output:string,role:'gateway'|'jobs',sourceFingerprint:string){
+ if(typeof Bun==='undefined'||Bun.version!=='1.4.3')throw new Error('BUN_1_4_3_REQUIRED');
  await mkdir(dirname(output),{recursive:true,mode:0o700});await mkdir(output,{mode:0o700});
  const bundle=await Bun.build({entrypoints:[join(snapshot,`scripts/local/workspace-release-${role}.ts`)],outdir:output,naming:'entry.mjs',target:'node',format:'esm',conditions:['react-server','production'],external:['pg'],env:'disable',define:{'process.env.NODE_ENV':JSON.stringify('production')},plugins:[{name:'next-server-navigation',setup(build){build.onResolve({filter:/^next\/navigation$/},()=>({path:join(snapshot,'node_modules/next/dist/client/components/navigation.react-server.js')}));}}]});
  if(!bundle.success)throw new Error(bundle.logs.map(log=>log.message).join('\n'));
@@ -47,6 +48,7 @@ export async function buildWorkspaceReleaseTool(snapshot:string,output:string,ro
 }
 
 if(import.meta.main){
+if(Bun.version!=='1.4.3')throw new Error('BUN_1_4_3_REQUIRED');
 const args=process.argv.slice(2),verify=args.find(arg=>arg.startsWith('--verify='))?.slice(9);
 if(verify){
  if(args.length!==1||!isAbsolute(verify))throw new Error('ABSOLUTE_RELEASE_VERIFICATION_PATH_REQUIRED');

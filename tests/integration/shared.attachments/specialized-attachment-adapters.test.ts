@@ -56,13 +56,8 @@ import {
   attachmentBindingState,
   seedAttachmentSet,
 } from "../../support/helpers/attachment-v2";
-import {
-  createMessagingTeam,
-  messageSchema,
-  messagingFile,
-  messagingRoom,
-  sendMessagingMessage,
-} from "@erpx/server-collaboration/public/messaging";
+import {createMessagingTeam,messageSchema,messagingFile,sendMessagingMessage} from '@erpx/server-collaboration/public/messaging';
+import {messagingRoom} from '@erpx/server-collaboration/public/messaging-read';
 import {
   attachmentContent,
   bindRecordAttachmentSet,
@@ -70,8 +65,8 @@ import {
 import {
   attachmentPolicy,
 } from "@erpx/server-files/public/attachments/policy";
-import { getExpense } from "@erpx/server-people_payroll/public/expenses";
-import { expenseRequirements } from "@erpx/server-people_payroll/public/expense-drafts";
+import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
+import {expenseRequirements} from '@erpx/server-people_payroll/adapters/expense-requirements';
 import { legalCommand, detail as legalDetail } from "@erpx/server-legal/public/legal/service";
 import { access as legalAccess } from "@erpx/server-legal/public/legal/access";
 import { portalUpload } from "@erpx/server-legal/public/legal/portal";

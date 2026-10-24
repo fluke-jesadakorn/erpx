@@ -1,4 +1,4 @@
-import { evaluationAuthority, evaluationAssessment, evaluationDefinition } from "@erpx/server-people_payroll/public/people-evaluation";
+import {evaluationAuthority,evaluationAssessment,evaluationDefinition} from '@erpx/server-people_payroll/public/people-evaluation-read';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";

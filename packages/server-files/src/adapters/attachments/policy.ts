@@ -1,3 +1,8 @@
+import{createNativeSupportTicketRead}from '@erpx/server-support/public/support-ticket-read';
+import{createNativeSupportEvidencePlanner}from '@erpx/server-support/public/support-evidence-planning';
+import{readSourceRecord,visibleSourceRecord,sourceRecordGuards}from '@erpx/server-records/public/source-record-policy';
+const sources={read:readSourceRecord,visible:visibleSourceRecord,guards:sourceRecordGuards};
+const supportTicketRead=createNativeSupportTicketRead(sources),supportEvidencePlanning=createNativeSupportEvidencePlanner(sources);
 import {authorizeMessagingAttachmentPurchase} from "@erpx/server-collaboration/public/messaging-attachment-purchases";
 import {authorizeEcommerceAttachmentPurchase} from "@erpx/server-ecommerce/public/attachment-purchases";
 import {authorizeWorkTaskAttachmentPurchase} from "@erpx/server-operations/public/task-attachment-purchases";
@@ -96,19 +101,19 @@ function unit(db: SqlDatabase): AttachmentPolicyUnit {
         authorizeSensitiveAttachmentTarget: (...args) => authorizeSensitiveAttachmentTarget(db, ...args),
         authorizeFinanceOperationsAttachmentTarget: (...args) => authorizeFinanceOperationsAttachmentTarget(db, ...args),
         authorizeRemainingOperationalAttachmentTarget: (...args) => authorizeRemainingOperationalAttachmentTarget(db, ...args),
-        messagingRoom: async (actor, id) => await (await import("@erpx/server-collaboration/public/messaging")).messagingRoom(db, actor, id) as unknown as Record<string, unknown>,
+        messagingRoom: async (actor, id) => await (await import("@erpx/server-collaboration/public/messaging-read")).messagingRoom(db, actor, id) as unknown as Record<string, unknown>,
         legalAccess: async (actor, id, permission) => await (await import("@erpx/server-legal/public/legal/access")).access(db, actor, id, permission) as unknown as Record<string, unknown>,
-        leaveAccess: async (actor, input) => { const service = await import("@erpx/server-people_payroll/public/leave"); if (!service.assertLeaveAttachmentAccess)
+        leaveAccess: async (actor, input) => { const service = await import("@erpx/server-people_payroll/public/leave-evidence"); if (!service.assertLeaveAttachmentAccess)
             throw new ApiError(503, "LEAVE_ATTACHMENT_ADAPTER_UNAVAILABLE", "Leave evidence access is not ready."); return service.assertLeaveAttachmentAccess(db, actor, input); },
-        supportTicket: async (actor, id) => await (await import("@erpx/server-support/public/support")).getSupportTicket(actor, id, db),
-        supportEvidenceGuard: async (actor, id, version, key) => await (await import("@erpx/server-support/public/support-evidence")).supportEvidenceGuard(db, actor, id, version, key),
-        employeeRequest: async (actor, id) => await (await import("@erpx/server-records/public/employee-requests")).getEmployeeRequest(db, actor, id),
-        employeeRequestUpload: async (actor, id, purpose) => await (await import("@erpx/server-records/public/employee-requests")).employeeRequestUpload(db, actor, id, purpose),
-        expenseOwner: async (actor, id) => { const service = await import("@erpx/server-people_payroll/public/expenses"), row = await service.getExpense(actor, id, db); return { row, canEdit: service.canEditExpense(actor, row) }; },
-        expensePayment: async (actor, id, editable) => await (await import("@erpx/server-people_payroll/public/expense-payments")).paymentDraft(actor, id, editable, db),
+        supportTicket: async (actor, id) => await supportTicketRead.getSupportTicket(actor, id, db),
+        supportEvidenceGuard: async (actor, id, version, key) => await supportEvidencePlanning.supportEvidenceGuard(db, actor, id, version, key),
+        employeeRequest: async (actor, id) => await (await import("@erpx/server-records/public/employee-requests-read")).getEmployeeRequest(db, actor, id),
+        employeeRequestUpload: async (actor, id, purpose) => await (await import("@erpx/server-records/public/employee-requests-read")).employeeRequestUpload(db, actor, id, purpose),
+        expenseOwner: async (actor, id) => { const service = await import("@erpx/server-people_payroll/public/expense-read"), row = await service.getExpense(actor, id, db); return { row, canEdit: service.canEditExpense(actor, row) }; },
+        expensePayment: async (actor, id, editable) => await (await import("@erpx/server-people_payroll/public/expense-payment-read")).paymentDraft(actor, id, editable, db),
         invoicePaymentOwner: async (actor, id, editable) => await (await import("@erpx/server-finance/public/invoice-payment-evidence")).invoicePaymentOwner(db, actor, id, editable),
-        taskOwner: async (actor, id) => { const service = await import("@erpx/server-operations/public/staff-tasks"), row = await service.getTask(db, actor, id); return { row, canAttach: service.canAttachTask(actor, row) }; },
-        socialUploadOwner: async (actor, id, editable) => await (await import("@erpx/server-collaboration/public/social-home")).socialUploadOwner(db, actor, id, editable),
+        taskOwner: async (actor, id) => { const service = await import("@erpx/server-operations/public/staff-task-read"), row = await (await import("@erpx/server-operations/public/staff-task-read")).getTask(db, actor, id); return { row, canAttach: service.canAttachTask(actor, row) }; },
+        socialUploadOwner: async (actor, id, editable) => await (await import("@erpx/server-collaboration/public/social-home-read")).socialUploadOwner(db, actor, id, editable),
         requireBrandManagement: async (actor, type, id) => await (await import("@erpx/server-brand/public/branding")).requireBrandManagement(db, actor, type, id) };
 }
 const service = createAttachmentPolicy({ clock: { now: () => Date.now() }, error: (status, code, message) => new ApiError(status, code, message) });

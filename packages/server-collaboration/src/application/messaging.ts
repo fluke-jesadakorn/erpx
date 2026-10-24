@@ -93,6 +93,7 @@ export interface MessagingPorts<Effect> {
     }>;
 }
 export function createMessagingApplication<Effect>(ports: MessagingPorts<Effect>) {
+const{messagingRoom}=createMessagingRead(ports);
     const r = ports.repository;
     function messagingGuard(actor: WorkContext, key: string, roomId: string) {
         return r.guardAccess(key, "messaging-access", roomId, actor.companyId, accessArgs(actor));
@@ -100,10 +101,7 @@ export function createMessagingApplication<Effect>(ports: MessagingPorts<Effect>
     function missing(): never {
         throw new BusinessRuleError(404, "CHAT_NOT_FOUND", "This conversation is unavailable.");
     }
-    async function messagingRoom(actor: WorkContext, id: string) {
-        const room = await r.room(id, actor.companyId, accessArgs(actor));
-        return room ?? missing();
-    }
+
     async function team(actor: WorkContext, id: string, owner = false) {
         const row = await r.team(id, actor.companyId, actor.userId, actor.userId);
         if (!row)
@@ -291,3 +289,10 @@ export function createMessagingApplication<Effect>(ports: MessagingPorts<Effect>
     }
     return { messagingGuard, messagingRoom, messagingPeople, createMessagingRoom, createMessagingTeam, createMessagingChannel, messagingMembers, manageMessaging, messagingOverview, messagingHistory, sendMessagingMessage, readMessaging, messagingFile };
 }
+
+export type createMessagingReadPorts<Effect>=Pick<MessagingPorts<Effect>,never>&{repository:Pick<MessagingRepository<Effect>,"room">};
+export function createMessagingRead<Effect>(ports:createMessagingReadPorts<Effect>){const r=ports.repository;function missing():never{throw new BusinessRuleError(404,'CHAT_NOT_FOUND','This conversation is unavailable.');}
+async function messagingRoom(actor: WorkContext, id: string) {
+        const room = await r.room(id, actor.companyId, accessArgs(actor));
+        return room ?? missing();
+    }return{messagingRoom};}

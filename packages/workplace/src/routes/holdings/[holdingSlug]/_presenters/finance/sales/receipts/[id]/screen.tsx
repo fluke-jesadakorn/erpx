@@ -4,7 +4,7 @@ import { FeaturePage } from "@erpx/feature-shared/components/features/feature-pa
 import { PrintReceipt } from "@erpx/feature-finance/components/sales-controls";
 import { Table, TableFrame, InlineNotice } from "@erpx/ui/components/foundation";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
-import { customerReceiptDetail } from "@erpx/server-finance/public/sales";
+import {customerReceiptDetail} from '@erpx/server-finance/public/sales';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";

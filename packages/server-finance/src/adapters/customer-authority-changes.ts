@@ -1,6 +1,6 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type {CustomerIdentity} from "@erpx/server-customer_authority/public/identity-contract";
 export function prepareCustomerAuthorityFinanceReferences(write:SqlDatabase,canonical:string,loser:string) { return [
  write.prepare('UPDATE finance_invoices SET party_id=? WHERE party_id=?').bind(canonical,loser),

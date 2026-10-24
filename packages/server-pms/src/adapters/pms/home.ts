@@ -6,7 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { readListPage } from "@erpx/server-work_projection/public/list-page";
-import { homePosts, postView } from "@erpx/server-collaboration/public/social-home";
+import {homePosts,postView} from '@erpx/server-collaboration/public/social-home';
 import { readablePmsHomePosts } from "@erpx/server-collaboration/public/pms-home-read-facts";
 import { pmsSourceRecipients } from "@erpx/server-pms/adapters/pms/source";
 import { pmsSourcesSql, pmsSourceReadableSql } from "@erpx/server-pms/adapters/pms/source-policy";

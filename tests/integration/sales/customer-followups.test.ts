@@ -1,7 +1,7 @@
 import {afterEach,beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
+import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
 import {createCustomerFollowup,changeCustomerFollowup,customerFollowupDetail,customerFollowupWork,customerFollowupWorkspace,getCustomerFollowup} from "@erpx/server-sales/public/customer-followups";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 let followupDatabase:SqlDatabase|undefined;

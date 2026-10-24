@@ -3,7 +3,7 @@ import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/desti
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
-import { getLeave } from "@erpx/server-people_payroll/public/leave";
+import {getLeave} from '@erpx/server-people_payroll/public/leave-read';
 import { previewLeave } from "@erpx/server-people_payroll/public/leave-self-service";
 import { leavePreviewSchema } from "@erpx/feature-people_payroll/lib/leave-self-service";
 

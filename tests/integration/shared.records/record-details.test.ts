@@ -2,7 +2,7 @@ import {requiredFact,recordField} from "../../support/helpers/required-fact";
 import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,commercePage} from "@erpx/server-commerce/public/commerce";
+import {saveMaster,commercePage} from '@erpx/server-commerce/public/commerce';
 import {recordSupplementData} from "@erpx/server-records/public/record-details";
 import {createJournal,createJournalSchema,postJournal,importBankStatement,trialBalance} from '@erpx/server-finance/public/finance';
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));

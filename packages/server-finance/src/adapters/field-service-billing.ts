@@ -2,7 +2,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { snapshotMoney } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 
 /** A draft receivable and its immutable money snapshot commit with the Field Service command. */
 export async function prepareFieldServiceInvoice(db: SqlDatabase, actor: WorkContext, input: { key: string; orderId: string; customerId: string; currency: string; amountMinor: number; invoiceDate: string; dueDate: string; now: number }) {

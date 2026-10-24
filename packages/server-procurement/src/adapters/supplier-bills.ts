@@ -8,9 +8,9 @@ import { platformOwnerProjectionSources as people_payrollPlatformSources } from 
 import "server-only";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
-import type {invoiceFromDeliverySchema} from "@erpx/server-commerce/public/commerce";
+import type {invoiceFromDeliverySchema} from '@erpx/server-commerce/public/commerce';
 import type {z} from "zod";
-import {getOrder} from "@erpx/server-commerce/public/commerce";
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierBillReceiptVersion,stageSupplierBillReceiptLinks} from "@erpx/server-commerce/public/supplier-bill-receipts";
 import {stageSupplierBillDraftVoid} from "@erpx/server-finance/public/supplier-bill-draft-void";
 import {stageSupplierBillNotifications} from "@erpx/server-collaboration/public/supplier-bill-notifications";

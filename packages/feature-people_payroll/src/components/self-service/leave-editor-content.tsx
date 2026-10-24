@@ -19,7 +19,7 @@ import { ReviewDecisionForm } from "@erpx/workplace/components/review-decision";
 import type { ReviewDecision } from "@erpx/feature-work_projection/lib/work-review";
 import { useRecoverableDraft } from "@erpx/ui/components/use-recoverable-draft";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import type { LeaveRequest } from "@erpx/server-people_payroll/public/leave";
+import type {LeaveRequest} from '@erpx/server-people_payroll/public/leave';
 import type { leaveSummary, previewLeave } from "@erpx/server-people_payroll/public/leave-self-service";
 import type { LeaveSegment } from "@erpx/feature-people_payroll/lib/leave-self-service";
 import styles from "@erpx/feature-people_payroll/components/leave/leave-flow.module.css";

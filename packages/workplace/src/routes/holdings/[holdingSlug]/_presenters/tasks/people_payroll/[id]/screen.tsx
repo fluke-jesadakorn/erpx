@@ -8,7 +8,7 @@ import { publicScope, requireWorkContext } from "@erpx/server-identity_access/pu
 import type {ApprovalView} from '@erpx/server-workflow/public/approvals';
 import { ApprovalHistory } from "@erpx/feature-workflow/components/approval-history";
 import { OperationSummary } from "@erpx/workplace/components/operation-summary";
-import { getLeave } from "@erpx/server-people_payroll/public/leave";
+import {getLeave} from '@erpx/server-people_payroll/public/leave-read';
 import { leaveSummary } from "@erpx/server-people_payroll/public/leave-self-service";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { getLeaveEvidence } from "@erpx/server-work_projection/public/work";
@@ -148,7 +148,6 @@ export default async function LeaveTaskPage({
       )}
 
       <LeaveDecisions key={"decisions:" + workContext + ":" + id} base={base} record={request} workContext={workContext} purchase={request.purchase} />
-
 
       </RecordSections>
     </div>

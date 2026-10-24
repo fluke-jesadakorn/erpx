@@ -1,3 +1,5 @@
+import{createNativeSupportTicketRead,supportTicketReadPredicate}from '@erpx/server-support/public/support-ticket-read';
+import{scope,args,eligible,reviewers}from '@erpx/server-support/adapters/support-ticket-read-sources';
 import { finalRootOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
@@ -6,30 +8,19 @@ import { finalRootOwnerProjectionSources as salesProjectionSources } from "@erpx
 import { supportNotificationEffects } from "@erpx/server-collaboration/public/support-notification-effects";
 import 'server-only';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { supportRecipientEligibility } from "@erpx/server-support/adapters/support-recipient";
+
 import { readSourceRecord, visibleSourceRecord, sourceRecordGuards } from "@erpx/server-records/public/source-record-policy";
-import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { nativeSupportRuntime } from "@erpx/server-support/adapters/command-runtime";
-import { createGetSupportTicket, createSupportWorkspace, createSupportDetail, createSupportTicket as createSupportTicketUsecase, createChangeSupportTicket, createSupportWork, createSupportRecipients, createSupportTicketSourceGuards } from "@erpx/server-support/application/support";
+import { createSupportWorkspace, createSupportDetail, createSupportTicket as createSupportTicketUsecase, createChangeSupportTicket, createSupportWork, createSupportRecipients } from "@erpx/server-support/application/support";
 import type { SupportCommand, SupportRow as RowType } from "@erpx/server-support/application/command";
 import type { SupportClock } from "@erpx/server-support/domain/support-clock";
 import type { SupportCreate, SupportChange } from "@erpx/server-support/domain/support";
 import type { AuthorizedSourceRecord } from "@erpx/server-records/public/source-record-policy";
 export { supportCreateSchema, supportChangeSchema } from "@erpx/server-support/domain/support";
-const scope = "t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?)", args = (a: WorkContext) => [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId], eligible = supportRecipientEligibility();
-const reviewers = `(SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE m.company_id=t.company_id AND m.user_id<>t.owner_id AND m.user_id IS DISTINCT FROM t.resolved_by AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(m.role,m.company_id,'support.manage') AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=t.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=t.department_id)) AND ${eligible.replaceAll('t.owner_id', 'm.user_id')})`;
-export function supportTicketReadPredicate(a: WorkContext, alias = 't') {
-    return { sql: `EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=${alias}.company_id
-   AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
-   AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=${alias}.branch_id OR g.scope_kind='department' AND g.scope_node_id=${alias}.department_id)
-   AND (iam_role_allows(g.role,g.company_id,'support.read') OR ${alias}.source_kind<>'sales_order' AND ${alias}.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read')))`, bindings: [a.assignmentId, a.userId, a.role] };
-}
-async function sourceVisible(a: WorkContext, row: Row, provided?:SqlDatabase):Promise<boolean> { if (!row.source_record_json)
-    return true; const input = JSON.parse(String(row.source_record_json)); return Boolean(await visibleSourceRecord(a, { kind: input.kind, id: input.id },provided)); }
-export async function supportTicketSourceGuards(db: SqlDatabase, a: WorkContext, key: string, id: string, version: number, step: string):Promise<SqlStatement[]> { const mutation = await createSupportTicketSourceGuards({ ticket: (actor,id)=>getSupportTicket(actor,id,db), current: async (a, id, version, key, step) => { const access = supportTicketReadPredicate(a); return { native: [db.prepare('SELECT id FROM support_tickets WHERE id=? AND company_id=? FOR SHARE').bind(id, a.companyId), assertion(db, key, step, `EXISTS(SELECT 1 FROM support_tickets t WHERE t.id=? AND t.version=? AND t.company_id=? AND ${access.sql})`, [id, version, a.companyId, ...access.bindings])] }; }, source: async (a, input) => readSourceRecord(a, input, db), origin: async (a, key, source, step) => ({ native: await sourceRecordGuards(db, a, key, source, step) }), combine: (current, origin) => ({ native: [...current.native as SqlStatement[], ...origin.native as SqlStatement[]] }) })(a, key, id, version, step); return mutation.native as SqlStatement[]; }
-export async function getSupportTicket(a: WorkContext, id: string, provided?:SqlDatabase):Promise<Row> { const runtime = nativeSupportRuntime(a,provided); await runtime.requirePurchase("support.tickets"); return createGetSupportTicket({ ...runtime, ticket: async (a, id) => { const write = await runtime.database(), access = supportTicketReadPredicate(a); return await write.prepare(`SELECT t.*,o.number order_number,p.name customer_name,(SELECT legal_name FROM (${people_payrollProjectionSources.hr_people}) hr_people WHERE company_id=t.company_id AND user_id=t.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible,${reviewers} reviewer_count FROM support_tickets t LEFT JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=t.order_id AND o.company_id=t.company_id LEFT JOIN (${financeProjectionSources.finance_parties}) p ON p.id=t.customer_id AND p.company_id=t.company_id WHERE t.id=? AND ${scope} AND ${access.sql}`).bind(id, ...args(a), ...access.bindings).first<Row>(); }, sourceVisible:(a,row)=>sourceVisible(a,row,provided) })(a, id); }
+
 /** Purchase metadata only; callers retain their own authority and record gates. */
 export function supportWorkspacePurchaseAccess(a: WorkContext, provided?: SqlDatabase) { return nativeSupportRuntime(a, provided).purchase("support.tickets"); }
 export async function supportWorkspace(a: WorkContext) { const runtime = nativeSupportRuntime(a), access = await runtime.requirePurchase("support.tickets"); const data = await createSupportWorkspace({ ...runtime, tickets: async (a) => { const write = await runtime.database(), access = supportTicketReadPredicate(a); return (await write.prepare(`SELECT t.id,t.title,t.status,t.due_date,t.owner_id,t.version,t.updated_at,t.source_kind,t.source_record_json FROM support_tickets t WHERE ${scope} AND ${access.sql} ORDER BY t.updated_at DESC,t.id LIMIT 200`).bind(...args(a), ...access.bindings).all<Row>()).results; }, sourceVisible, orderSources: async (a) => { const write = await runtime.database(); return (await write.prepare(`SELECT t.id,t.number,t.version,p.name customer_name FROM (${commerceProjectionSources.commerce_orders}) t JOIN (${financeProjectionSources.finance_parties}) p ON p.id=t.party_id WHERE ${scope} AND t.kind IN ('sales','quote') AND p.kind='customer' ORDER BY t.updated_at DESC LIMIT 200`).bind(...args(a)).all<Row>()).results; } })(a); return { ...data, canCreate: data.canCreate && access.newWork, canCreateOrder: data.canCreateOrder && access.newWork, sources: access.newWork ? data.sources : [] }; }
@@ -114,3 +105,6 @@ export async function changeSupportTicket(a: WorkContext, id: string, raw: unkno
         } })(a, id, raw, key);
 }
 export async function supportWork(a: WorkContext) { const runtime = nativeSupportRuntime(a), access = await runtime.purchase("support.tickets"); if (!access.history) return []; const items = await createSupportWork({ tickets: async (a) => { const write = await runtime.database(), access = supportTicketReadPredicate(a); return (await write.prepare(`SELECT t.*,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible,${reviewers} reviewer_count FROM support_tickets t WHERE ${scope} AND ${access.sql} AND t.source_kind<>'field_service' ORDER BY t.updated_at DESC`).bind(...args(a), ...access.bindings).all<Row>()).results; }, sourceVisible })(a); return items.map(item => ({ ...item, canAct: item.canAct && access.settleExisting, queue: item.queue === "todo" && !access.settleExisting ? "waiting" as const : item.queue })); }
+
+const{getSupportTicket,supportTicketSourceGuards,sourceVisible}=createNativeSupportTicketRead({read:readSourceRecord,visible:visibleSourceRecord,guards:sourceRecordGuards});
+export{getSupportTicket,supportTicketSourceGuards};

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { betaFetch } from "@erpx/feature-shared/lib/beta-client";
 import { Button, InlineNotice } from "@erpx/ui/components/foundation";
-import type { HomePost } from "@erpx/server-collaboration/public/social-home";
+import type {HomePost} from '@erpx/server-collaboration/public/social-home';
 import { SystemMilestones } from "@erpx/feature-collaboration/components/system-milestones";
 export function HomeMilestones({ base, query, revision }: { base: string; query: string; revision: number }) {
   const [posts, setPosts] = useState<HomePost[] | null>(null);

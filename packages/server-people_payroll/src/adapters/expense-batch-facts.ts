@@ -8,8 +8,8 @@ import {hospitalityOwnerProjectionSources as filesSources} from "@erpx/server-fi
 import {expenseApprovalReadBatch} from '@erpx/server-workflow/public/approval-planning';
 import {type ApprovalView} from '@erpx/server-workflow/public/approvals';
 import {attachmentsV2Readable} from "@erpx/server-files/public/attachments/feature";
-import {nativeExpenseEmployment, nativeExpenseRequirements} from "@erpx/server-people_payroll/adapters/expense-drafts";
-import type {ExpenseRow} from "@erpx/server-people_payroll/adapters/expenses";
+import {nativeExpenseEmployment,nativeExpenseRequirements} from '@erpx/server-people_payroll/adapters/expense-requirements';
+import type {ExpenseRow} from '@erpx/server-people_payroll/adapters/expenses';
 
 export interface ExpenseBatchFacts {
   auditReader(actor:StaffActor,row:ExpenseRow):Promise<boolean>;

@@ -1,3 +1,5 @@
+import{nativeOvertimeReadRepository}from '@erpx/server-people_payroll/adapters/overtime-read';
+import type{getOvertime}from '@erpx/server-people_payroll/public/overtime-read';
 import {workforcePurchaseControls,withWorkforcePurchasedRead,withWorkforcePurchasedCommand} from "@erpx/server-people_payroll/adapters/workforce-purchases";
 import "server-only";
 import { z } from "zod";
@@ -7,7 +9,7 @@ import { holdingResources } from "../../../../packages/server-runtime/src/public
 import { activeStaff, requireCompanyAuthority } from "@erpx/server-operations/public/staff-policy";
 import {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
 import {approvalView,openApproval,prepareDecision,closeApprovals} from '@erpx/server-workflow/public/approval-planning';
-import {participantSql} from '@erpx/server-workflow/public/approvals';
+import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
 import { executeCommand, replayCommand } from "@erpx/server-workflow/public/commands";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { overtimeCommandSchema, type OvertimeDetails } from "@erpx/feature-people_payroll/lib/overtime";
@@ -44,8 +46,8 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): OvertimePor
                 legal_name: string;
             }>();
         },
-        readGetOvertimeRow(id: string, companyId: string, userId: string, userId2: string, assignmentId: string) { return database.prepare(`SELECT o.* FROM overtime_requests o WHERE o.id=? AND o.company_id=? AND (o.created_by=? OR ${participantSql('overtime', 'o', '?', '?')})`).bind(id, companyId, userId, userId2, assignmentId).first<OvertimeRow>(); },
-        readGetOvertimeHandoff(id: string, companyId: string) { return database.prepare('SELECT * FROM overtime_payroll_handoffs WHERE request_id=? AND company_id=?').bind(id, companyId).first(); },
+        readGetOvertimeRow(...args){return nativeOvertimeReadRepository(database).readGetOvertimeRow(...args);},
+        readGetOvertimeHandoff(...args){return nativeOvertimeReadRepository(database).readGetOvertimeHandoff(...args);},
         readListOvertimeRows(companyId: string, userId: string, userId2: string, assignmentId: string) {
             return database.prepare(`SELECT o.id FROM overtime_requests o WHERE o.company_id=? AND (o.created_by=? OR ${participantSql('overtime', 'o', '?', '?')}) ORDER BY o.updated_at DESC LIMIT 100`).bind(companyId, userId, userId2, assignmentId).all<{
                 id: string;
@@ -101,7 +103,7 @@ async function invoke<Result>(run: () => Promise<Result>) {
 }
 export async function overtimeSetup(db: SqlDatabase, actor: WorkContext) { return withWorkforcePurchasedRead(actor,tx=>invoke(() => createOvertimeApplication(serviceContext(tx)).overtimeSetup(actor)),db); }
 export async function previewOvertime(actor: WorkContext, raw: OvertimeDetails, actual = false, excludeId: string | null = null, database?: SqlDatabase) { return withWorkforcePurchasedRead(actor,tx=>invoke(() => createOvertimeApplication(serviceContext(tx)).previewOvertime(actor,raw,actual,excludeId)),database); }
-export async function getOvertime(actor: WorkContext, id: string, database?: SqlDatabase) { return withWorkforcePurchasedRead(actor,async tx=>{const data=await invoke(() => createOvertimeApplication(serviceContext(tx)).getOvertime(actor,id)),purchase=await workforcePurchaseControls(actor,tx);return {...data,...(purchase?{purchase}:{})};},database); }
+
 export async function listOvertime(actor: WorkContext) { return withWorkforcePurchasedRead(actor,tx=>invoke(() => createOvertimeApplication(serviceContext(tx)).listOvertime(actor))); }
 export async function createOvertime(actor: WorkContext, raw: OvertimeDetails, key: string) { return withWorkforcePurchasedCommand(actor,{key,operation:"overtime.create",purpose:"new-work",resultKind:"overtime"},tx=>invoke(() => createOvertimeApplication(serviceContext(tx,Boolean(tx))).createOvertime(actor,raw,key))); }
 export async function commandOvertime(actor: WorkContext, id: string, raw: z.infer<typeof overtimeCommandSchema>, key: string) { return withWorkforcePurchasedCommand(actor,{key,operation:`overtime.${raw.action}`,purpose:["save","submit"].includes(raw.action)?"new-work":"settle-existing",target:{kind:"overtime",id}},tx=>invoke(() => createOvertimeApplication(serviceContext(tx,Boolean(tx))).commandOvertime(actor,id,raw,key))); }

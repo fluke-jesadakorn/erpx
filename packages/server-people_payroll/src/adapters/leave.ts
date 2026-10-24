@@ -1,4 +1,6 @@
-import {workforcePurchaseControls,withWorkforcePurchasedRead,withWorkforcePurchasedCommand} from "@erpx/server-people_payroll/adapters/workforce-purchases";
+import{nativeLeaveReadRepository,getLeave}from '@erpx/server-people_payroll/adapters/leave-read';
+export{getLeave};
+import { withWorkforcePurchasedCommand } from "@erpx/server-people_payroll/adapters/workforce-purchases";
 import { leaveReviewEvidenceFacts } from '@erpx/server-files/public/leave-review-evidence-facts';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
@@ -12,7 +14,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { activeStaff, staffGuard } from "@erpx/server-operations/public/staff-policy";
 import {approvalView,openApproval,prepareDecision,closeApprovals} from '@erpx/server-workflow/public/approval-planning';
-import {participantSql} from '@erpx/server-workflow/public/approvals';
+
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { availableLeaveEvidence, leaveEvidenceManifest, pendingLeaveEvidenceCount, type LeaveEvidencePurpose } from "@erpx/server-people_payroll/public/leave-evidence";
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
@@ -25,16 +27,8 @@ export { leaveDraftSchema, leaveDecisionSchema, newLeaveSchema, leaveLifecycleSc
 export { assertLeaveAttachmentAccess } from '@erpx/server-people_payroll/public/leave-evidence';
 function application(provided?: SqlDatabase) {
     let database = provided!;
-    const repository: LeaveRepository<SqlStatement> = { readGetLeaveLegacy(id: string, companyId: string) {
-            return database.prepare("SELECT id FROM leave_requests WHERE id=? AND company_id=? AND state='pending_approval'")
-                .bind(id, companyId)
-                .first();
-        },
-        readGetLeaveRow(id: string, companyId: string, userId: string, userId2: string, userId3: string, assignmentId: string, userId4: string, assignmentId2: string, evidenceReader: boolean) {
-            return database.prepare(`SELECT l.*,t.name leave_type_name FROM leave_requests l LEFT JOIN leave_types t ON t.id=l.leave_type_id AND t.company_id=l.company_id WHERE l.id=? AND l.company_id=? AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l", "?", "?")} OR ${participantSql("leave_cancellation", "l", "?", "?")} OR ?::boolean)`)
-                .bind(id, companyId, userId, userId2, userId3, assignmentId, userId4, assignmentId2, evidenceReader)
-                .first<Omit<LeaveRequest, "approval" | "permittedActions">>();
-        },
+    const repository: LeaveRepository<SqlStatement> = { readGetLeaveLegacy(...args){return nativeLeaveReadRepository(database).readGetLeaveLegacy(...args);},
+        readGetLeaveRow(...args){return nativeLeaveReadRepository(database).readGetLeaveRow(...args);},
         readCreateLeaveEmployee(...args) { return leaveLegacyEmployeeFacts(database).readCreateLeaveEmployee(...args); },
         stageCreateLeaveEffect(...args) { return leaveLegacyEmployeeFacts(database).stageCreateLeaveEffect(...args); },
         stageCreateLeaveEffect2(...args) { return leaveLegacyEmployeeFacts(database).stageCreateLeaveEffect2(...args); },
@@ -116,7 +110,7 @@ catch (error) {
         throw new ApiError(error.status, error.code, error.message);
     throw error;
 } }
-export async function getLeave(holdingId: string, id: string, context: WorkContext, provided?: SqlDatabase) { return withWorkforcePurchasedRead(context,async tx=>{const data=await invoke(() => application(tx).getLeave(holdingId,id,context)),purchase=await workforcePurchaseControls(context,tx);return {...data,...(purchase?{purchase}:{})};},provided); }
+
 export async function createLeave(context: WorkContext, input: z.infer<typeof newLeaveSchema>, key: string) { return withWorkforcePurchasedCommand(context,{key,operation:"leave.create",purpose:"new-work",resultKind:"leave"},tx=>invoke(() => application(tx).createLeave(context,input,key))); }
 export async function submitLeave(holdingId: string, id: string, input: z.infer<typeof leaveDraftSchema>, key: string, context: WorkContext) { return withWorkforcePurchasedCommand(context,{key,operation:input.saveOnly?"leave.save":"leave.submit",purpose:"new-work",target:{kind:"leave",id}},tx=>invoke(() => application(tx).submitLeave(holdingId,id,input,key,context))); }
 export async function approveLeave(_holdingId: string, id: string, input: z.infer<typeof leaveDecisionSchema>, key: string, context: WorkContext) { return withWorkforcePurchasedCommand(context,{key,operation:"leave.approve",purpose:"settle-existing",target:{kind:"leave",id}},tx=>invoke(() => application(tx).approveLeave(_holdingId,id,input,key,context))); }

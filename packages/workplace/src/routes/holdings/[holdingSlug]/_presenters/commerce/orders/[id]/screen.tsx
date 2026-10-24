@@ -5,7 +5,6 @@ import { CommerceEnvironment, CommercePurchaseProvider } from "@erpx/feature-com
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { commercePresentationQueries } from "@erpx/server-commerce/public/presentation-queries";
 
-
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 import { Table, TableFrame } from "@erpx/ui/components/foundation";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
@@ -25,9 +24,9 @@ import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commerceOverview, commercePermissions, getOrder } from "@erpx/server-commerce/public/commerce";
+import {commerceOverview,commercePermissions} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {salesEditorOptions,type SalesEditorOptions} from "@erpx/server-commerce/public/sales-editor";
-
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { supplierPromiseDetail } from "@erpx/server-procurement/public/supplier-promises";

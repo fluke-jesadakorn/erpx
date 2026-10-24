@@ -1,5 +1,5 @@
 import {z} from "zod";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive();

@@ -4,8 +4,8 @@ import { nativeSupportRuntime } from "@erpx/server-support/adapters/command-runt
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { supportTicketReadPredicate } from "@erpx/server-support/adapters/support";
-import { supportIncidentReadPredicate } from "@erpx/server-support/adapters/support-incidents";
+import {supportTicketReadPredicate} from '@erpx/server-support/public/support-ticket-read';
+import {supportIncidentReadPredicate} from '@erpx/server-support/public/support-incident-read';
 export function calendarSupportSupportFacts(db: SqlDatabase) {
     return { read1: async (facts: {
             value1: string;

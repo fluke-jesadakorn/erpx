@@ -14,14 +14,11 @@ import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workplace-navigation";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commercePage, commercePermissions } from "@erpx/server-commerce/public/commerce";
+import {commercePage,commercePermissions} from '@erpx/server-commerce/public/commerce';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
-
-
-
 
 import { RecordDocumentPanel } from "@erpx/feature-files/components/record-document-panel";
 import { MediaPublicationPanel } from "@erpx/feature-files/components/media-publication-panel";
@@ -48,7 +45,7 @@ export default async function CommercePage({ params, searchParams, }: {
     const { holdingSlug } = await params;
     const actor = await requireWorkContext(holdingSlug);
     const base = workspaceBase(publicScope(actor));
-    
+
     const permissions = commercePermissions(actor);
     const search = await searchParams;
     const view = "products"!;
@@ -62,8 +59,7 @@ export default async function CommercePage({ params, searchParams, }: {
     const requestData = search.request
         ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
         : null;
-    
-    
+
     const sourceRequest = requestData?.request.kind === "purchase" &&
         requestData.actions.includes("link-order") &&
         !requestData.request.purchase_order_id
@@ -74,7 +70,7 @@ export default async function CommercePage({ params, searchParams, }: {
             note: `${requestData.request.title} · ${requestData.request.description}`.slice(0, 2000),
         }
         : undefined;
-    
+
     const tabs = commerceNavigationViews;
     const orders = data.orders.filter((o) => o.kind === view &&
         (!search.q ||
@@ -85,8 +81,7 @@ export default async function CommercePage({ params, searchParams, }: {
     const selectedProduct = search.files
         ? data.products.find((row) => String(row.id) === search.files)
         : null;
-    
-    
+
     return (<FeaturePage className="ui-page-content" data-source="live">
       <header className="ui-section-header">
         <div>
@@ -190,4 +185,3 @@ export default async function CommercePage({ params, searchParams, }: {
       </WidgetGrid></SectionWorkspace>
     </FeaturePage>);
 }
-

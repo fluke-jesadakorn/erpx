@@ -1,9 +1,10 @@
+import{companyRates}from '@erpx/server-finance/public/company-money-rates';
 import { withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { createCompanyMoney } from '@erpx/server-finance/application/company-money';
 import type { CarrySource, SnapshotSource, SnapshotInput } from '@erpx/server-finance/domain/company-money';
 import "server-only";
 import { z } from "zod";
-import { type ManualRate } from "@erpx/feature-finance/lib/company-money";
+
 import { executeCommand } from "@erpx/server-workflow/public/commands";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
@@ -12,27 +13,11 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
 export { preferenceSchema, manualRateSchema, currencyScaleSchema, conversionSchema } from '@erpx/server-finance/domain/company-money';
 import { preferenceSchema, manualRateSchema, currencyScaleSchema, conversionSchema } from '@erpx/server-finance/domain/company-money';
-type RateRow = {
-    id: string;
-    currency: string;
-    effective_date: string;
-    currency_per_usd: string;
-    confirmed_at: number;
-};
-function rate(row: RateRow): ManualRate {
-    const quote = String(row.currency_per_usd);
-    return { id: row.id, currency: row.currency, effectiveDate: String(row.effective_date).slice(0, 10),
-        currencyPerUsd: quote.includes(".") ? quote.replace(/0+$/, "").replace(/\.$/, "") : quote, confirmedAt: Number(row.confirmed_at) };
-}
-export async function companyRates(db: SqlDatabase, companyId: string): Promise<ManualRate[]> {
-    return (await db.prepare("SELECT id,currency,effective_date,currency_per_usd::text AS currency_per_usd,confirmed_at FROM company_fx_rates WHERE company_id=? ORDER BY effective_date DESC,confirmed_at DESC,id DESC")
-        .bind(companyId).all<RateRow>()).results.map(rate);
-}
+
 export async function quoteMoneyConversion(actor: WorkContext, input: z.infer<typeof conversionSchema>) { return moneyService().quoteMoneyConversion(actor, input); }
 export async function moneyContext(actor: WorkContext) { return moneyService().moneyContext(actor); }
 export async function saveCurrencyPreference(actor: WorkContext, input: z.infer<typeof preferenceSchema>, key: string) { return moneyService().saveCurrencyPreference(actor, input, key); }
 export async function confirmManualRate(actor: WorkContext, input: z.infer<typeof manualRateSchema>, key: string) { return withFinanceConfigurationCommand(actor,{key,operation:"money.rate.confirm",purpose:"new-work"},tx=>moneyService(tx).confirmManualRate(actor,input,key)); }
-
 
 export async function configureCurrencyScale(actor: WorkContext, input: z.infer<typeof currencyScaleSchema>, key: string) { return withFinanceConfigurationCommand(actor,{key,operation:"money.scale.configure",purpose:"new-work"},tx=>moneyService(tx).configureCurrencyScale(actor,input,key)); }
 export async function snapshotMoney(db: SqlDatabase, actor: Pick<WorkContext, "companyId">, input: {
@@ -156,15 +141,3 @@ function moneyService(provided?: SqlDatabase,boundRequest?:unknown) {
                     .bind(actor.companyId, input.currency, input.scale, actor.userId, now)]);
         } });
 }
-
-
-
-
-
-
-
-
-
-
-
-

@@ -18,7 +18,7 @@ import {
 } from "@erpx/feature-collaboration/lib/social-post-editor-state";
 import type { RichContent } from "@erpx/feature-shared/lib/home-rich-content";
 import type { Mention } from "@erpx/server-collaboration/public/rules/social-text";
-import type { PostContent } from "@erpx/server-collaboration/public/social-home";
+import type {PostContent} from '@erpx/server-collaboration/public/social-home';
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { PenLine, ChevronDown } from "lucide-react";
 import { betaFetch } from "@erpx/feature-shared/lib/beta-client";

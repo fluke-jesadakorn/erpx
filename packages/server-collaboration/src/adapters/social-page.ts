@@ -4,7 +4,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { selfServiceSeed } from "@erpx/server-records/public/self-service";
 import { companyAuthority } from "@erpx/server-operations/public/staff-policy";
-import { homePosts, postView, socialAudienceOptions, socialPresentation } from "@erpx/server-collaboration/public/social-home";
+import {homePosts,postView,socialAudienceOptions,socialPresentation} from '@erpx/server-collaboration/public/social-home';
 import { createSocialPageQuery } from "@erpx/server-collaboration/application/social-page";
 
 export function socialPageData(actor: WorkContext, input: { postId?: string; tag?: string; skipDay?: boolean; skipMilestones?: boolean; sourceOnly?: boolean }) {

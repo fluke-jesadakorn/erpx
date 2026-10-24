@@ -1,6 +1,6 @@
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { socialPostScope } from "@erpx/server-collaboration/public/social-source";
+import {socialPostScope} from '@erpx/server-collaboration/public/social-source-policy';
 export type { SocialActivityEvent } from '@erpx/server-collaboration/domain/social-activity';
 /** Exposes only authorized activity metadata; post and reply bodies never enter Executive data. */
 export function socialActivityEvents(actor: WorkContext) {

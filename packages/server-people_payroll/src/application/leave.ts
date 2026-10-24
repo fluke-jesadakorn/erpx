@@ -82,41 +82,7 @@ export interface LeavePorts<Effect> {
 }
 export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
     const repository = ports.repository;
-    async function getLeave(holdingId: string, id: string, context: WorkContext): Promise<LeaveRequest> {
-        await ports.prepare(holdingId);
-        // Initialize legacy routing before checking named participant access.
-        const legacy = await repository.readGetLeaveLegacy(id, context.companyId);
-        if (legacy)
-            await ports.approvalView("leave", id, context);
-        const evidenceReader = hasPermission(context, "leave.evidence.read");
-        const row = await repository.readGetLeaveRow(id, context.companyId, context.userId, context.userId, context.userId, context.assignmentId, context.userId, context.assignmentId, evidenceReader);
-        if (!row)
-            throw new BusinessRuleError(404, "NOT_FOUND", "Leave request not found.");
-        const approval = await ports.approvalView("leave", id, context);
-        if (["draft", "rejected"].includes(row.state))
-            approval.blockedReason = (await ports.peopleRequestRoute(context.companyId, row.created_by)).blockedReason;
-        const cancellationApproval = row.cancellation_state === "pending_review" ? await ports.approvalView("leave_cancellation", id, context) : undefined;
-        const own = row.created_by === context.userId;
-        return {
-            ...row,
-            branch_id: row.branch_id || null,
-            approval,
-            cancellationApproval,
-            permittedActions: [
-                ...(cancellationApproval?.canDecide ? ["approve_cancellation", "reject_cancellation"] : []),
-                ...(own && ["draft", "rejected"].includes(row.state)
-                    ? ["save", ...(!approval.blockedReason ? ["submit"] : [])]
-                    : []),
-                ...(own && ["draft", "rejected", "pending_approval", "approved"].includes(row.state) && row.cancellation_state !== "pending_review"
-                    ? ["cancel"]
-                    : []),
-                ...(approval.canDecide && row.state === "pending_approval"
-                    ? ["approve", "reject"]
-                    : []),
-                ...(approval.canOverride && row.state === "pending_approval" ? ["override_approve", "override_reject"] : []),
-            ],
-        };
-    }
+    const{getLeave}=createLeaveRead(ports);
     async function createLeave(context: WorkContext, input: z.infer<typeof newLeaveSchema>, key: string) {
         await ports.prepare(context.holdingId);
         const id = `leave-${key}`;
@@ -348,3 +314,40 @@ export function createLeaveApplication<Effect>(ports: LeavePorts<Effect>) {
     }
     return { getLeave, createLeave, submitLeave, approveLeave, transitionLeave, decideLeaveCancellation };
 }
+
+export type LeaveReadPorts<Effect>=Pick<LeavePorts<Effect>,'prepare'|'approvalView'|'peopleRequestRoute'>&{repository:Pick<LeaveRepository<Effect>,'readGetLeaveLegacy'|'readGetLeaveRow'>};
+export function createLeaveRead<Effect>(ports:LeaveReadPorts<Effect>){const repository=ports.repository;async function getLeave(holdingId: string, id: string, context: WorkContext): Promise<LeaveRequest> {
+        await ports.prepare(holdingId);
+        // Initialize legacy routing before checking named participant access.
+        const legacy = await repository.readGetLeaveLegacy(id, context.companyId);
+        if (legacy)
+            await ports.approvalView("leave", id, context);
+        const evidenceReader = hasPermission(context, "leave.evidence.read");
+        const row = await repository.readGetLeaveRow(id, context.companyId, context.userId, context.userId, context.userId, context.assignmentId, context.userId, context.assignmentId, evidenceReader);
+        if (!row)
+            throw new BusinessRuleError(404, "NOT_FOUND", "Leave request not found.");
+        const approval = await ports.approvalView("leave", id, context);
+        if (["draft", "rejected"].includes(row.state))
+            approval.blockedReason = (await ports.peopleRequestRoute(context.companyId, row.created_by)).blockedReason;
+        const cancellationApproval = row.cancellation_state === "pending_review" ? await ports.approvalView("leave_cancellation", id, context) : undefined;
+        const own = row.created_by === context.userId;
+        return {
+            ...row,
+            branch_id: row.branch_id || null,
+            approval,
+            cancellationApproval,
+            permittedActions: [
+                ...(cancellationApproval?.canDecide ? ["approve_cancellation", "reject_cancellation"] : []),
+                ...(own && ["draft", "rejected"].includes(row.state)
+                    ? ["save", ...(!approval.blockedReason ? ["submit"] : [])]
+                    : []),
+                ...(own && ["draft", "rejected", "pending_approval", "approved"].includes(row.state) && row.cancellation_state !== "pending_review"
+                    ? ["cancel"]
+                    : []),
+                ...(approval.canDecide && row.state === "pending_approval"
+                    ? ["approve", "reject"]
+                    : []),
+                ...(approval.canOverride && row.state === "pending_approval" ? ["override_approve", "override_reject"] : []),
+            ],
+        };
+    }return{getLeave};}

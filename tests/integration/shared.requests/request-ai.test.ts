@@ -6,7 +6,8 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {employeeRequestSchema,getEmployeeRequest,saveEmployeeRequest} from '@erpx/server-records/public/employee-requests';
+import {employeeRequestSchema,saveEmployeeRequest} from '@erpx/server-records/public/employee-requests';
+import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
 import {
   queueRequestAi,
   runRequestAi,

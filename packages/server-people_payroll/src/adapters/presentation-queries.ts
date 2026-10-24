@@ -1,6 +1,6 @@
 import "server-only";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import { overtimeSetup } from "@erpx/server-people_payroll/public/overtime";
+import {overtimeSetup} from '@erpx/server-people_payroll/public/overtime';
 import { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import { overtimeRosterShift } from "@erpx/server-people_payroll/public/people-app-entrypoint-facts";
 import { staffSettings } from "@erpx/server-operations/public/staff-settings";

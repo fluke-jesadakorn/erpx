@@ -1,0 +1,16 @@
+import{readFile,readdir,writeFile}from 'node:fs/promises';
+import{join}from 'node:path';
+import{runBrowserSuites}from '../testing/browser-runner';
+import{loadCatalogue}from '../testing/catalogue';
+import{firstRouteCompile}from './route-compile-metrics';
+const args=process.argv.slice(2),app=args.find(arg=>arg.startsWith('--app='))?.slice(6),layout=args.find(arg=>arg.startsWith('--layout='))?.slice(9),bundler=args.find(arg=>arg.startsWith('--bundler='))?.slice(10);
+if(Bun.version!=='1.4.3'||args.length!==3||!['finance','people','work'].includes(app!)||!['monolith','apps'].includes(layout!)||!['webpack','turbopack'].includes(bundler!)||new Set(args.map(arg=>arg.split('=')[0])).size!==3)throw new Error('EXPLICIT_REPRESENTATIVE_ROUTE_VARIANT_REQUIRED');
+const suite=loadCatalogue().suites.find(value=>value.id==='shared.ui.application-hmr.e2e');if(!suite)throw new Error('REGISTERED_ROUTE_SUITE_REQUIRED');
+const result=await runBrowserSuites([suite],{mode:'development-smoke',projects:['desktop'],caseOrder:'forward',workspace:{apps:layout==='monolith'?['compat']:['account','apps',app!],entryApp:layout==='monolith'?'compat':app!,bundler:bundler as 'webpack'|'turbopack'},caseSelection:[{suite:suite.id,file:'tests/e2e/shared.ui/application-hmr.spec.ts',project:'desktop',title:app+' representative cold route uses normal fictional sign-in on its declared runtime'}]});
+const files=await readdir(result.evidenceDirectory,{recursive:true,withFileTypes:true}),measurements=files.filter(file=>file.isFile()&&file.name==='route-performance.json');if(measurements.length!==1)throw new Error('EXACT_ROUTE_MEASUREMENT_REQUIRED');
+const sample=JSON.parse(await readFile(join(measurements[0].parentPath,measurements[0].name),'utf8'));
+if(sample.acceptance!==false||sample.app!==app||sample.layout!==layout||sample.bundler!==bundler||sample.sourceFingerprint!==result.runtimeFingerprint)throw new Error('ROUTE_MEASUREMENT_BINDING_FAILED');
+const logs=files.filter(file=>file.isFile()&&file.name===sample.processApp+'.log'&&file.parentPath.endsWith('/application-logs'));if(logs.length!==1)throw new Error('EXACT_APP_COMPILE_LOG_REQUIRED');
+const coldCompile=firstRouteCompile(await readFile(join(logs[0].parentPath,logs[0].name),'utf8'),sample.route),receipt=join(result.evidenceDirectory,'route-performance.json');
+await writeFile(receipt,JSON.stringify({...result,acceptance:false,scope:'same-source isolated development route/owned process-tree RSS; no production acceptance',measurement:sample,coldCompile},null,2)+'\n',{mode:0o600});
+console.log(JSON.stringify({receipt,app,layout,bundler,coldCompileMs:coldCompile.compileMs,sampledPeakAppRssBytes:sample.sampledPeakAppRssBytes,acceptance:false}));

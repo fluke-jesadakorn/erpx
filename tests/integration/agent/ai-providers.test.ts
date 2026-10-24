@@ -39,7 +39,7 @@ import {
   expenseAiStatus,
 } from "@erpx/server-people_payroll/public/expense-ai";
 import { saveDocumentPage } from "@erpx/server-files/public/document-derivatives";
-import { getExpense } from "@erpx/server-people_payroll/public/expenses";
+import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,

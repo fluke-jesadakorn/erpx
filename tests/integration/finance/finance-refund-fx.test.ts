@@ -6,7 +6,7 @@ import {beforeAll,beforeEach,describe,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {approvePayment,confirmPayment,createInvoice,createJournal,createParty,createPayment,importBankStatement,postInvoice,postJournal,releasePayment} from '@erpx/server-finance/public/finance';
-import {confirmManualRate} from "@erpx/server-finance/public/company-money";
+import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {approveRefund,confirmRefundInstruction,exportRefundInstructions,prepareRefundInstruction,recoverRefundExport,refundConfirmationSchema,refundInstructionSchema,refundWorkspace,refundWork,listRefunds} from "@erpx/server-finance/public/refunds";
 import {invoiceHistoryCte} from "@erpx/server-finance/public/finance-history";

@@ -12,18 +12,12 @@ import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env, type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import {actOnEmployeeRequest,employeeRequestSchema,getEmployeeRequest,requestActionSchema,saveEmployeeRequest} from '@erpx/server-records/public/employee-requests';
+import {actOnEmployeeRequest,employeeRequestSchema,requestActionSchema,saveEmployeeRequest} from '@erpx/server-records/public/employee-requests';
+import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
 import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
 import { actRfq, createRfq, rfqDetail } from "@erpx/server-procurement/public/procurement-rfqs";
-import {
-  fulfillOrder,
-  getOrder,
-  invoiceFulfillment,
-  orderSchema,
-  saveMaster,
-  saveOrder,
-  transitionOrder,
-} from "@erpx/server-commerce/public/commerce";
+import {fulfillOrder,invoiceFulfillment,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {importBankStatement,postInvoice,postJournal} from '@erpx/server-finance/public/finance';
 import { captureSupplierBill, decideSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";

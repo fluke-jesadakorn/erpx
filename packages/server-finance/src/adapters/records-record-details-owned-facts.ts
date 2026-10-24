@@ -1,7 +1,7 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { fiscalCloseSourceSql } from "@erpx/server-finance/public/finance-fiscal-close-source";
 import "server-only";
-import { type Row } from "@erpx/server-commerce/public/commerce";
+import {type Row} from '@erpx/server-commerce/public/commerce';
 export function RecordDetailsFinanceOwnedFacts(database: SqlDatabase) {
     return { readCommerceMasterDetailRow2(id: string, companyId: string) { return database.prepare("SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind IN ('customer','supplier') AND person_id IS NULL").bind(id, companyId).first<Row>(); },
         readRecordSupplementDataAccount(id: string, companyId: string) { return database.prepare("SELECT a.*,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.id=? AND a.company_id=?").bind(id, companyId).first<Row>(); },

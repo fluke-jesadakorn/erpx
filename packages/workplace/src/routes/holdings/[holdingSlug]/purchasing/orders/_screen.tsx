@@ -16,14 +16,11 @@ import { OrderEditor } from "@erpx/feature-commerce/components/lazy-order-editor
 import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workplace-navigation";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commercePage, commercePermissions } from "@erpx/server-commerce/public/commerce";
+import {commercePage,commercePermissions} from '@erpx/server-commerce/public/commerce';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
-
-
-
 
 import { Card, FilterBar } from "@erpx/ui/components/foundation";
 import {CommercePostingSetupRecovery} from "@erpx/feature-commerce/components/commerce-posting-setup";
@@ -49,7 +46,7 @@ export default async function CommercePage({ params, searchParams, }: {
     const { holdingSlug } = await params;
     const actor = await requireWorkContext(holdingSlug);
     const base = workspaceBase(publicScope(actor));
-    
+
     const permissions = commercePermissions(actor);
     const search = await searchParams;
     const view = "purchase"!;
@@ -67,8 +64,7 @@ export default async function CommercePage({ params, searchParams, }: {
     const requestData = search.request
         ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
         : null;
-    
-    
+
     const sourceRequest = requestData?.request.kind === "purchase" &&
         requestData.actions.includes("link-order") &&
         !requestData.request.purchase_order_id
@@ -91,12 +87,10 @@ export default async function CommercePage({ params, searchParams, }: {
     const orders = data.orders.filter((o) => o.kind === view &&
         (!search.q ||
             `${o.number} ${o.party_name} ${o.state}`.toLowerCase().includes(search.q.toLowerCase())));
-    
+
     const area = "Procurement";
     const pageTitle = (tabs.find(([id]) => id === view)?.[1] ?? "Records");
-    
-    
-    
+
     const purchase = await commercePurchaseControls(actor,{type:"kind",kind:"purchase"});
     return (<CommerceEnvironment purchase={purchase}><FeaturePage className="ui-page-content" data-source="live">
       <header className="ui-section-header">
@@ -194,4 +188,3 @@ export default async function CommercePage({ params, searchParams, }: {
       </WidgetGrid></SectionWorkspace>
     </FeaturePage></CommerceEnvironment>);
 }
-

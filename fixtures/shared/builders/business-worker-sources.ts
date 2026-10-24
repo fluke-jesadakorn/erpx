@@ -9,10 +9,11 @@ import {mapSpendingOrganization} from "../../../tests/support/helpers/spending-o
 import {deliveryEvidence} from "../../../tests/support/helpers/delivery-evidence";
 import {moduleRegistry} from "@erpx/catalogue/module-registry";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {changeOrderReservation,fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
+import {changeOrderReservation,fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {createQualityHold} from "@erpx/server-quality/public/quality";
 import {changeManufacturingOrder,createPlanningScenario,createSpecification,reviewPlanningRecommendation,reviewSpecification} from "@erpx/server-manufacturing/public/production";
-import {createSupportTicket} from "@erpx/server-support/public/support";
+import {createSupportTicket} from '@erpx/server-support/public/support';
 import {changeAgreement,changeServiceOrder,createAgreement,createServiceOrder} from "@erpx/server-field_service/public/field-service";
 import {queueDeliveryNotification,updateCustomerNotificationSettings} from "@erpx/server-sales/public/sales-customer-notifications";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans} from "@erpx/server-files/public/attachments/service";

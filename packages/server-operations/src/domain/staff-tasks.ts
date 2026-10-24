@@ -139,3 +139,10 @@ export function isActiveDelegate(actor: StaffActor, task: TaskRow) {
         samePerson(actor, task.active_delegate_user_id));
 }
 export type TaskWorkState = Pick<TaskDetail, "approval" | "permittedActions" | "blockedReason">;
+
+export function canAttachTask(actor: StaffActor, task: TaskRow) {
+        return ((task.state === "draft" && canConfigureTask(actor, task)) ||
+            ((["in_progress", "rework"].includes(task.state) ||
+                task.state === "ready" && isOrdinaryTask(task)) &&
+                (samePerson(actor, task.assignee_user_id) || isActiveDelegate(actor, task))));
+    }

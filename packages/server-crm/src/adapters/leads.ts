@@ -13,7 +13,7 @@ import 'server-only';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -78,10 +78,10 @@ case "opportunity":{const input=m.input,r=m.record,opportunityId=m.opportunityId
  if(input.action==='link-quote'){
   steps.push(assertion(write,key,'approved-quote',`EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE id=? AND company_id=? AND branch_id=? AND department_id IS NOT DISTINCT FROM ?::text AND party_id=? AND currency=? AND kind='quote' AND state='confirmed' AND version=?)`,[input.quoteId,a.companyId,r.branch_id,r.department_id,r.customer_id,r.currency,input.quoteVersion]),write.prepare(`UPDATE crm_opportunities SET quote_id=?,quote_version=?,expected_minor=(SELECT subtotal_minor FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE id=?),stage='proposal',version=version+1,updated_at=? WHERE id=?`).bind(input.quoteId,input.quoteVersion,input.quoteId,now,opportunityId));
  }else if(input.action==='win'){
-  
+
   steps.push(assertion(write,key,'confirmed-sale',`EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_orders}) s JOIN (${commerceProjectionSources.commerce_orders}) q ON q.id=s.source_id WHERE s.id=? AND s.version=? AND s.company_id=? AND s.branch_id=? AND s.department_id IS NOT DISTINCT FROM ?::text AND s.party_id=? AND s.currency=? AND s.kind='sales' AND s.state IN ('confirmed','partially_fulfilled','fulfilled') AND q.id=? AND q.state='converted')`,[input.salesId,input.salesVersion,a.companyId,r.branch_id,r.department_id,r.customer_id,r.currency,r.quote_id]),write.prepare(`UPDATE crm_opportunities SET sales_id=?,win_source='sales',won_at=?,expected_minor=(SELECT subtotal_minor FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE id=?),stage='won',version=version+1,updated_at=? WHERE id=?`).bind(input.salesId,now,input.salesId,now,opportunityId));
  }else if(input.action==='win-pms'){
-  
+
   steps.push(assertion(write,key,'confirmed-reservation',`EXISTS(SELECT 1 FROM (${pmsProjectionSources.pms_records}) r JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=r.property_id JOIN crm_guest_links g ON g.guest_id=r.data_json::jsonb->>'guestId' AND g.property_id=p.id AND g.company_id=p.company_id WHERE r.id=? AND r.kind='reservation' AND r.property_id=? AND r.data_json::jsonb->>'state'='confirmed' AND p.company_id=? AND p.branch_id=? AND g.sharing_state='granted' AND g.contact_id=?)`,[input.reservationId,input.propertyId,a.companyId,r.branch_id,r.contact_id]),write.prepare(`UPDATE crm_opportunities SET reservation_id=?,win_source='pms',won_at=?,expected_minor=COALESCE((SELECT SUM((price->>'net')::bigint) FROM (${pmsProjectionSources.pms_records}) s CROSS JOIN LATERAL jsonb_array_elements(s.data_json::jsonb->'prices') price WHERE s.kind='stay' AND s.data_json::jsonb->>'reservationId'=?),0),stage='won',version=version+1,updated_at=? WHERE id=?`).bind(input.reservationId,now,input.reservationId,now,opportunityId),prepareCrmReservationTouch(write,a,{id,key,reservationId:input.reservationId}));
  }else{
   if(input.action==='negotiate'){steps.push(assertion(write,key,'quote-current',`EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE id=? AND state='confirmed' AND version=?)`,[r.quote_id,r.quote_version]));}

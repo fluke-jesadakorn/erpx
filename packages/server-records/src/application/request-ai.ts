@@ -12,7 +12,7 @@ import type { aiSnapshotGuard } from "@erpx/server-agent/public/ai-providers";
 import type { aiUsageStatement } from "@erpx/server-agent/public/ai-providers";
 import type { generateProviderJson } from "@erpx/server-agent/public/ai-transport";
 import type { withAiGatewayScope } from "@erpx/server-agent/public/ai-transport";
-import type {employeeRequestDetail} from '@erpx/server-records/public/employee-requests';
+import type {employeeRequestDetail} from '@erpx/server-records/public/employee-requests-read';
 import type {requestVersionGuard} from '@erpx/server-records/public/employee-requests';
 import type { serviceAuthoritySnapshot } from "@erpx/server-support/public/service-access";
 import type { validateServiceScope } from "@erpx/server-support/public/service-access";

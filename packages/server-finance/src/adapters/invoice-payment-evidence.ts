@@ -1,7 +1,10 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
-import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import {createNativeFlowReader}from '@erpx/server-workflow/public/flow-reader';
+// getInvoice retains the invoice's source/history gate. The existing invoice
+// workflow branch has no additional History or decoration step.
+const invoiceFlow=createNativeFlowReader('invoice',{requireHistory:async()=>{},decorate:view=>view});
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";
@@ -10,7 +13,7 @@ export async function invoicePaymentOwner(db:SqlDatabase,actor:WorkContext,id:st
   const {invoice}=await getInvoice(actor,id,db);
   if(invoice.kind!=="payable")throw new ApiError(422,"PAYABLE_REQUIRED","Payment slips belong to supplier bills.");
   if(editable){
-    const flow=await resolveFlow(db,actor,"invoice",id);
+    const flow=await invoiceFlow(db,actor,id);
     if(!["posted","partially_paid"].includes(String(invoice.status))||!flow.canAct)throw new ApiError(403,"TREASURY_REQUIRED",flow.blocker??"The independent assigned Finance payer must attach payment evidence.");
   }
   return invoice;

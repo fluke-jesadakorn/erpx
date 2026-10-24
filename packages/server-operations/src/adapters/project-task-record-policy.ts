@@ -1,5 +1,5 @@
-import {participantSql} from '@erpx/server-workflow/public/approvals';
-import {sourceAccessSql} from "@erpx/server-collaboration/public/social-source";
+import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
+import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 
 /** SQL counterpart of the original task reader's participant and social-source
  * policy, for consumers that must apply source policy before their own LIMIT. */

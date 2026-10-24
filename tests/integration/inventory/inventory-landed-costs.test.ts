@@ -1,11 +1,12 @@
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
-import { fulfillmentSchema } from "@erpx/server-commerce/public/commerce";
+import {fulfillmentSchema} from '@erpx/server-commerce/public/commerce';
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
-import {fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
+import {fulfillOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {postJournal} from '@erpx/server-finance/public/finance';
 import {createLandedCost,landedCostDetail,transitionLandedCost} from "@erpx/server-inventory/public/inventory-landed-costs";
 

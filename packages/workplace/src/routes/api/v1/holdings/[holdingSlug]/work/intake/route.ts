@@ -1,6 +1,6 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { expenseOptions } from "@erpx/server-people_payroll/public/expenses";
+import {expenseOptions} from '@erpx/server-people_payroll/public/expenses';
 import { leaveSummary } from "@erpx/server-people_payroll/public/leave-self-service";
 import { workforcePresentationContext } from "@erpx/server-people_payroll/public/workforce-presentation";
 import { requestPageOptions } from "@erpx/server-records/public/request-page";

@@ -6,7 +6,7 @@ import { finalRootOwnerProjectionSources as people_payrollProjectionSources } fr
 import { supportNotificationEffects } from "@erpx/server-collaboration/public/support-notification-effects";
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { supportRecipientEligibility } from "@erpx/server-support/adapters/support-recipient";

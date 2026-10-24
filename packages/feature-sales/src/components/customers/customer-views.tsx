@@ -11,12 +11,12 @@ import { CustomerAccessConsole } from "@erpx/feature-customer_360/components/cus
 import { customerReviews, hubHref, queryValue, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commerceOverview } from "@erpx/server-commerce/public/commerce";
+import {commerceOverview} from '@erpx/server-commerce/public/commerce';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { editedCustomerParty } from "@erpx/server-finance/public/document-posting-preview";
 import { customerWorkspaceDirectory } from "@erpx/server-sales/public/sales-customers";
 import { crmIdentities } from "@erpx/server-crm/public/crm-identities";
-import { supportWorkspace, supportRecipients } from "@erpx/server-support/public/support";
+import {supportWorkspace,supportRecipients} from '@erpx/server-support/public/support';
 import { readSourceRecord } from "@erpx/server-records/public/source-record-policy";
 import { customerIdentityWorkspace } from "@erpx/server-customer_authority/public/customer-identity-changes";
 import { customerDuplicateWorkspace } from "@erpx/server-customer_authority/public/customer-duplicates";

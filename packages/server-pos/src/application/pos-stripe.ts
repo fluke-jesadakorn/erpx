@@ -1,3 +1,4 @@
+import{createStripeCalls,objectSchema,type StripeObject}from '@erpx/server-pos/application/stripe-calls';
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { Clock } from "@erpx/server-shared/application/ports";
@@ -475,11 +476,8 @@ export function createPosStripe(ports: {
             return false;
         return signingSecrets.some(secret => values.some(value => /^[a-f0-9]{64}$/.test(value) && ports.signing.equal(secret, `${timestamp}.${raw}`, value)));
     }
-    const objectSchema = z.object({ id: z.string() }).passthrough();
-    type StripeObject = z.infer<typeof objectSchema>;
     const hasCompanyStripePermission = (actor: WorkContext) => hasPermission(actor, 'pos.payments.configure') || hasPermission(actor, 'finance.approve');
-    async function stripeCall(live: boolean, path: string, options: StripeOptions = {}): Promise<StripeObject> { return objectSchema.parse(await ports.provider.request(live, path, options)); }
-    async function stripeListCall(live: boolean, path: string, options: StripeOptions = {}) { return z.object({ object: z.literal('list'), data: z.array(z.record(z.string(), z.unknown())), has_more: z.boolean() }).parse(await ports.provider.request(live, path, options)); }
+    const{stripeCall,stripeListCall}=createStripeCalls(ports.provider);
     async function promptPayIntent(p: PosRow, saleNumber: string) {
         const base = { amount: String(p.amount_minor), currency: 'thb', 'payment_method_types[0]': 'promptpay', 'payment_method_data[type]': 'promptpay', confirm: 'true', description: saleNumber, 'metadata[pos_payment_id]': str(p, 'id') };
         const body = { ...base, 'payment_method_data[billing_details][email]': String(p.payer_email), receipt_email: String(p.payer_email) };

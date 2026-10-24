@@ -7,7 +7,7 @@ import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/
 import { useRef, useState } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import type { incidentDetail } from "@erpx/server-support/public/support-incidents";
+import type {incidentDetail} from '@erpx/server-support/public/support-incidents';
 import {
   AttachmentPanel,
   type AttachmentPanelChange,

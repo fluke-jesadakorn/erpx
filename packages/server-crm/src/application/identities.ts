@@ -1,6 +1,6 @@
 import type {Clock} from "@erpx/server-shared/index";
 import {BusinessRuleError} from "@erpx/server-shared/index";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {crmIdentityCommand,type CRMIdentityInput} from "@erpx/server-crm/domain/identities";
 export type CRMIdentityMutation={input:CRMIdentityInput;key:string;recordId:string;operation:string;version:number;now:number};
 export interface CRMIdentityPorts{
@@ -24,4 +24,3 @@ export function createCRMIdentityApplication(ports:CRMIdentityPorts){return {
   if(!contact)throw new BusinessRuleError(404,"CRM_CONTACT_NOT_FOUND","Contact not found.");const rows=await ports.stays(contactId);return {contact,stays:rows.slice(0,200),hasMore:rows.length>200};
  },
 };}
-

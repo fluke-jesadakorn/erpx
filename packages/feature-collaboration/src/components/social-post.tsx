@@ -38,7 +38,7 @@ import {
   Trash2,
   ArrowUpRight,
 } from "lucide-react";
-import type { HomePost } from "@erpx/server-collaboration/public/social-home";
+import type {HomePost} from '@erpx/server-collaboration/public/social-home';
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
 import { useSocialCommand } from "@erpx/feature-collaboration/components/social-command";
 import { SocialComments } from "@erpx/feature-collaboration/components/social-comments";

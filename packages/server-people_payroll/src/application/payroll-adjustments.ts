@@ -5,7 +5,7 @@ import { calculateThaiPayrollAdjustment, type ThaiPayrollAdjustmentInput } from 
 import { thaiPayroll2026Pack, thaiPayrollAdapterId } from "@erpx/feature-people_payroll/lib/thai-payroll-pack";
 import { ThaiPayrollRuleError, type ThaiPayrollCalculation } from "@erpx/feature-people_payroll/lib/thai-payroll-rules";
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
-import type { snapshotMoney } from '@erpx/server-finance/public/company-money';
+import type {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import type { thaiEvidenceForEmployee, thaiPackForRun, PayrollStatutoryRun, ThaiPayrollEvidence } from '@erpx/server-people_payroll/public/payroll-statutory';
 import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
 import type { PayrollStatutoryCommands } from '@erpx/server-people_payroll/application/payroll-statutory';

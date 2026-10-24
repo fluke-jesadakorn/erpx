@@ -1,4 +1,4 @@
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type { Clock } from "@erpx/server-shared/application/ports";
 import { createWorkSchema, workActionSchema, maintenanceState, maintenanceStates, type Work, type MaintenanceWork, type MaintenanceState, type MaintenanceCreateInput, type MaintenanceAction, type MaintenanceDowntimeEvidenceRow } from "@erpx/server-maintenance/domain/work";
 import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";

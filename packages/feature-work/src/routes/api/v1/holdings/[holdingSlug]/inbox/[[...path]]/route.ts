@@ -6,7 +6,7 @@ import { errorResponse, ApiError } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { inboxPage, inboxSummary, sendNotice, changeInboxState } from "@erpx/server-collaboration/public/inbox";
-import { messagingPeople } from "@erpx/server-collaboration/public/messaging";
+import {messagingPeople} from '@erpx/server-collaboration/public/messaging';
 
 export const dynamic = "force-dynamic";
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};

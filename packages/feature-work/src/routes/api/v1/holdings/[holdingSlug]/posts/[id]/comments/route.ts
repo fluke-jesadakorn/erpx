@@ -1,7 +1,7 @@
 import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { holdingResources } from "../../../../../../../../../../../packages/server-runtime/src/public/runtime";
-import { postComments } from "@erpx/server-collaboration/public/social-home";
+import {postComments} from '@erpx/server-collaboration/public/social-home';
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { createComment, createCommentSchema } from "@erpx/server-collaboration/public/social";

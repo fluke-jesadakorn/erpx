@@ -5,7 +5,7 @@ import type {listStaffNotifications} from "@erpx/server-collaboration/public/sta
 import type {} from "@erpx/server-identity_access/public/authorization";
 import type {staffPeople,activeStaff,companyAuthority} from "@erpx/server-operations/public/staff-policy";
 import type {assignLevel,headSchema,levelAssignmentSchema,levelSchema,saveLevel,staffSettings} from "@erpx/server-operations/public/staff-settings";
-import type {listTasks,saveTask,taskActionSchema,taskDelegationRevokeSchema,taskDelegationSchema,taskDetail,taskSchema,delegateTask,revokeTaskDelegation,transitionTask} from "@erpx/server-operations/public/staff-tasks";
+import type {listTasks,saveTask,taskActionSchema,taskDelegationRevokeSchema,taskDelegationSchema,taskDetail,taskSchema,delegateTask,revokeTaskDelegation,transitionTask} from '@erpx/server-operations/public/staff-tasks';
 import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema,saveProjectMilestone,transitionProjectMilestone} from "@erpx/server-projects/public/project-milestones";
 import type {decideProjectWorkLog,listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema,saveProjectWorkLog} from "@erpx/server-projects/public/project-actuals";
 import type {canEditTemplate,changeScheduleState,endSchedule,getTemplate,listTemplates,runTemplate,saveSchedule,saveTemplate,scheduleSchema,templateSchema,ScheduleRow} from "@erpx/server-operations/public/routines";

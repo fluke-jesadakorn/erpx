@@ -7,7 +7,7 @@ import {taskParticipantReadPolicy} from '@erpx/server-operations/public/project-
 import {workApprovalSettlementSources as approvals} from '@erpx/server-workflow/public/work-package-obligation-sources';
 import {projectSocialPurchaseSources,projectSocialSourceReadPolicy} from '@erpx/server-projects/public/social-purchase-sources';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import {sourceAccessSql} from '@erpx/server-collaboration/adapters/social-source';
+import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operationalHandoverReceiptPredicate} from '@erpx/server-collaboration/adapters/work-social-source';
 /** Closed original queued Task aliases. Facts are materialized only for this
  * statement: Company grants once, native sources once, and source rights once

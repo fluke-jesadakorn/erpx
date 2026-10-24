@@ -13,7 +13,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createAgreementApplication, type AgreementPorts} from "@erpx/server-field_service/application/agreement";
-import {snapshotMoney} from "@erpx/server-finance/public/company-money";
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import {withServicePurchasedCommand} from "@erpx/server-field_service/adapters/purchases";
 import {createAgreementSchema} from "@erpx/server-field_service/domain/agreement";
 export async function createAgreement(a:WorkContext,raw:unknown,key:string){

@@ -1,7 +1,8 @@
 import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder} from "@erpx/server-commerce/public/commerce";
+import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {pricingWorkspace,decidePriceList,savePriceList,updatePriceList} from "@erpx/server-sales/public/sales-pricing";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {recordSupplementData} from '@erpx/server-records/public/record-details';

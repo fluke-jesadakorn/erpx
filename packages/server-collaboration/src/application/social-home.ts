@@ -8,12 +8,12 @@ import { plainRichContent, validateRichContent, type RichContent, type RichNode 
 import { postContentSchema, postDraftSchema, postSourceSchema, contentBody, contentImages, storedContent, selectedAudience, audienceScope, commentView, type Actor, type PostAudience, type PostSource, type PostDraft, type PostContent, type PostPurpose, type CommentRow } from '@erpx/server-collaboration/domain/social-home';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { ListPage } from '@erpx/server-work_projection/public/list-page';
-import type { getTask } from '@erpx/server-operations/public/staff-tasks';
+import type {getTask} from '@erpx/server-operations/public/staff-task-read';
 import type { getProject } from '@erpx/server-projects/public/staff-projects';
 import type { readablePmsSource } from '@erpx/server-pms/public/pms/source';
 import type { pmsSourceLink } from '@erpx/server-pms/public/pms/source';
-import type { readablePost } from '@erpx/server-collaboration/public/social-source';
-import type { sourceGuard } from '@erpx/server-collaboration/public/social-source';
+import type {readablePost} from '@erpx/server-collaboration/public/social-source';
+import type {sourceGuard} from '@erpx/server-collaboration/public/social-source';
 import type { notification } from '@erpx/server-operations/public/staff-policy';
 import type { authorityGuard } from '@erpx/server-operations/public/staff-policy';
 import type { requireCompanyAuthority } from '@erpx/server-operations/public/staff-policy';
@@ -255,6 +255,7 @@ export interface SocialHomePorts<Effect> {
     textStatements(...args: Tail<Parameters<typeof textStatements>>): Promise<Effect[]>;
 }
 export function createSocialHomeApplication<Effect>(ports: SocialHomePorts<Effect>) {
+const{socialUploadOwner}=createSocialUploadRead(ports);
     const r = ports.repository;
     function pmsSourceAssertions(key: string, actor: Actor, audience: PostAudience | null, sources: PostSource[]) {
         return sources.filter(source => source.kind === "pms_record").flatMap((source, index) => {
@@ -308,44 +309,7 @@ export function createSocialHomeApplication<Effect>(ports: SocialHomePorts<Effec
                 await ports.getProject(actor, source.id);
         }
     }
-    async function socialUploadOwner(actor: StaffActor, id: string, edit = false) {
-        const draft = await r.draft(id, actor.companyId);
-        if (!draft)
-            throw new BusinessRuleError(404, "DRAFT_NOT_FOUND", "Draft unavailable.");
-        if (draft.cancelled_at)
-            throw new BusinessRuleError(404, "DRAFT_NOT_FOUND", "Upload draft unavailable.");
-        if (draft.edit_post_id) {
-            const post = await ports.readablePost(actor, draft.edit_post_id);
-            if (edit && (draft.author_id !== actor.userId || draft.edit_saved_version !== null ||
-                post.author_id !== actor.userId || post.kind !== "team" || post.linked_module))
-                throw new BusinessRuleError(403, "POST_AUTHOR_REQUIRED", "Only the author can attach images to this post edit.");
-            if (edit && post.version !== draft.edit_post_version)
-                throw new BusinessRuleError(409, "POST_CHANGED", "This post changed. Reload it before attaching images.");
-            return draft;
-        }
-        if (draft.comment_parent_post_id) {
-            if (edit) {
-                if (draft.author_id !== actor.userId || draft.published_comment_id)
-                    throw new BusinessRuleError(403, "DRAFT_LOCKED", "This comment no longer accepts images.");
-                await ports.readablePost(actor, draft.comment_parent_post_id);
-            }
-            else if (draft.published_comment_id) {
-                await ports.readablePost(actor, draft.comment_parent_post_id);
-                if (!await r.publishedComment(draft.published_comment_id, draft.comment_parent_post_id))
-                    throw new BusinessRuleError(404, "COMMENT_UNAVAILABLE", "This image is no longer available.");
-            }
-            else if (draft.author_id !== actor.userId)
-                throw new BusinessRuleError(404, "DRAFT_NOT_FOUND", "Upload draft unavailable.");
-            return draft;
-        }
-        if (edit || !draft.published_post_id) {
-            if (draft.author_id !== actor.userId || draft.published_post_id)
-                throw new BusinessRuleError(403, "DRAFT_LOCKED", "Only the author can edit an unpublished draft.");
-        }
-        else
-            await ports.readablePost(actor, draft.published_post_id);
-        return draft;
-    }
+
     async function createCommentUploadDraft(actor: StaffActor, postId: string, key: string) {
         const post = await ports.readablePost(actor, postId), id = `comment-upload-${key}`, now = ports.clock.now();
         return ports.commands.commit(actor, key, "social.comment.upload.create", { postId }, id, 1, { id }, [
@@ -884,3 +848,44 @@ export function createSocialHomeApplication<Effect>(ports: SocialHomePorts<Effec
     }
     return { socialAudienceOptions, socialUploadOwner, createCommentUploadDraft, cancelCommentUploadDraft, createPostEditUploadDraft, cancelPostEditUploadDraft, savePostDraft, publishPost, postComments, postViews, postView, homePosts, postRevisionHistory, postAction };
 }
+
+export type createSocialUploadReadPorts<Effect>=Pick<SocialHomePorts<Effect>,"readablePost">&{repository:Pick<SocialHomeRepository<Effect>,"draft"|"publishedComment">};
+export function createSocialUploadRead<Effect>(ports:createSocialUploadReadPorts<Effect>){const r=ports.repository;
+async function socialUploadOwner(actor: StaffActor, id: string, edit = false) {
+        const draft = await r.draft(id, actor.companyId);
+        if (!draft)
+            throw new BusinessRuleError(404, "DRAFT_NOT_FOUND", "Draft unavailable.");
+        if (draft.cancelled_at)
+            throw new BusinessRuleError(404, "DRAFT_NOT_FOUND", "Upload draft unavailable.");
+        if (draft.edit_post_id) {
+            const post = await ports.readablePost(actor, draft.edit_post_id);
+            if (edit && (draft.author_id !== actor.userId || draft.edit_saved_version !== null ||
+                post.author_id !== actor.userId || post.kind !== "team" || post.linked_module))
+                throw new BusinessRuleError(403, "POST_AUTHOR_REQUIRED", "Only the author can attach images to this post edit.");
+            if (edit && post.version !== draft.edit_post_version)
+                throw new BusinessRuleError(409, "POST_CHANGED", "This post changed. Reload it before attaching images.");
+            return draft;
+        }
+        if (draft.comment_parent_post_id) {
+            if (edit) {
+                if (draft.author_id !== actor.userId || draft.published_comment_id)
+                    throw new BusinessRuleError(403, "DRAFT_LOCKED", "This comment no longer accepts images.");
+                await ports.readablePost(actor, draft.comment_parent_post_id);
+            }
+            else if (draft.published_comment_id) {
+                await ports.readablePost(actor, draft.comment_parent_post_id);
+                if (!await r.publishedComment(draft.published_comment_id, draft.comment_parent_post_id))
+                    throw new BusinessRuleError(404, "COMMENT_UNAVAILABLE", "This image is no longer available.");
+            }
+            else if (draft.author_id !== actor.userId)
+                throw new BusinessRuleError(404, "DRAFT_NOT_FOUND", "Upload draft unavailable.");
+            return draft;
+        }
+        if (edit || !draft.published_post_id) {
+            if (draft.author_id !== actor.userId || draft.published_post_id)
+                throw new BusinessRuleError(403, "DRAFT_LOCKED", "Only the author can edit an unpublished draft.");
+        }
+        else
+            await ports.readablePost(actor, draft.published_post_id);
+        return draft;
+    }return{socialUploadOwner};}

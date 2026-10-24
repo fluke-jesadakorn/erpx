@@ -8,14 +8,11 @@ import type {SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 
-
-
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import {prepareJournal} from '@erpx/server-finance/public/finance';
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 import {sha256} from "@erpx/server-runtime/public/crypto";
 import {ApiError} from "@erpx/server-runtime/public/http";
-
 
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {BusinessRuleError} from '@erpx/server-shared/index';import {createInventoryLandedCostApplication,type InventoryLandedCostRepository} from '@erpx/server-inventory/application/landed-costs';import {landedCostCreateSchema,landedCostActionSchema,type LandedCostRow} from '@erpx/server-inventory/domain/landed-costs';export {landedCostCreateSchema,landedCostActionSchema} from '@erpx/server-inventory/domain/landed-costs';export type {LandedCostRow} from '@erpx/server-inventory/domain/landed-costs';
 import {inventoryLandedCostSources as owner0} from '@erpx/server-collaboration/public/inventory-landed-costs-sources';
@@ -51,4 +48,3 @@ export async function landedCostOptions(a:WorkContext,fulfillmentId:string){cons
 export async function createLandedCost(a:WorkContext,input:z.infer<typeof landedCostCreateSchema>,key:string){const {write}=await holdingResources(a.holdingId);return withLandedCostPurchasedCommand(write,a,{key,operation:"inventory.landed_cost.create",id:`landed-${key}`,purpose:"new-work",permission:"finance.write",fulfillmentId:input.fulfillmentId},tx=>exposed(()=>application(tx).createLandedCost(a,input,key)));}
 export async function transitionLandedCost(a:WorkContext,id:string,action:'approve'|'reject'|'cancel'|'post',input:z.infer<typeof landedCostActionSchema>,key:string){const {write}=await holdingResources(a.holdingId);return withLandedCostPurchasedCommand(write,a,{key,operation:`inventory.landed_cost.${action}`,id,purpose:"settle-existing",permission:action==="cancel"?"finance.write":"finance.approve",financial:action==="post",existing:true},tx=>exposed(()=>application(tx).transitionLandedCost(a,id,action,input,key)));}
 export async function landedCostWork(a:WorkContext){if(a.departmentId||!hasPermission(a,"finance.read"))return [];const {write}=await holdingResources(a.holdingId);const access=await landedCostSourceAccess(write,a);if(access&&!access.history)return [];const rows=await exposed(()=>application(write).landedCostWork(a));return !access||access.settleExisting?rows:rows.map(item=>({...item,canAct:false,actionKind:"work" as const,queue:item.queue==="completed"?"completed" as const:"waiting" as const,relationships:(item.relationships??[]).filter(value=>!["assigned","approval"].includes(value))}));}
-

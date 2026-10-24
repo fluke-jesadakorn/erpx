@@ -5,7 +5,7 @@ import { EvaluationConsole } from "@erpx/feature-people_payroll/components/evalu
 import { PageHeader } from "@erpx/ui/components/primitives";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { evaluationWorkspace } from "@erpx/server-people_payroll/public/people-evaluation";
+import {evaluationWorkspace} from '@erpx/server-people_payroll/public/people-evaluation';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 
 export const dynamic = "force-dynamic";

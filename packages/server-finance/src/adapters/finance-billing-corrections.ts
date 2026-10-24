@@ -17,9 +17,10 @@ import { financeTransaction } from "@erpx/server-finance/public/finance-transact
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { businessContractConfiguration, prepareBusinessBilling } from "@erpx/server-finance/public/finance-business-contracts";
-import {prepareJournal,postInvoice} from '@erpx/server-finance/public/finance';
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
+import {postInvoice} from '@erpx/server-finance/public/finance';
 import { prepareOwnedJournalReversal } from "@erpx/server-finance/public/finance-owned-reversal";
-import { snapshotMoneyReversal } from "@erpx/server-finance/public/company-money";
+import {snapshotMoneyReversal} from '@erpx/server-finance/public/company-money';
 import { refundNotifications } from "@erpx/server-finance/public/refund-notifications";
 export { billingCorrectionSchema, billingCorrectionDecisionSchema } from '@erpx/server-finance/domain/billing-corrections';
 export async function prepareBillingCorrection(actor: WorkContext, billId: string, raw: z.input<typeof billingCorrectionSchema>, key: string) { return withFinancePurchasedCommand(actor,{key,operation:"finance.billing-correction.prepare",purpose:"settle-existing"},tx=>correctionService(tx,Boolean(tx)).prepareBillingCorrection(actor,billId,raw,key)); }

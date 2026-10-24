@@ -25,7 +25,7 @@ import { betaFetch } from "@erpx/feature-shared/lib/beta-client";
 import { bangkokToday } from "@erpx/feature-shared/lib/handover";
 import type { Mention } from "@erpx/server-collaboration/public/rules/social-text";
 import type { RichNode } from "@erpx/feature-shared/lib/home-rich-content";
-import type { HomePost } from "@erpx/server-collaboration/public/social-home";
+import type {HomePost} from '@erpx/server-collaboration/public/social-home';
 import type { PmsHome, PmsHomeTask, PmsHomeView } from "@erpx/server-pms/public/pms/home";
 import { scheduleWorkRefresh } from "@erpx/feature-work_projection/lib/work-refresh";
 import styles from "@erpx/feature-pms/components/home.module.css";

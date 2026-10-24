@@ -12,7 +12,7 @@ import type { Metadata } from "next";
 import { frontAppForHost, frontVisibleLocation, frontVisiblePath } from "@erpx/feature-shared/lib/front-host";
 import { frontActionItems } from "@erpx/server-work_projection/public/front-quick-access";
 import { readQuickAccessPreferences } from "@erpx/server-work_projection/public/quick-access-preferences";
-import { moneyContext } from "@erpx/server-finance/public/company-money";
+import {moneyContext} from '@erpx/server-finance/public/company-money';
 import { PushSettings } from "@erpx/feature-platform_administration/components/settings/push-settings";
 import Link from "@erpx/workplace/components/workspace-link";
 import { Card } from "@erpx/ui/components/foundation";

@@ -172,178 +172,13 @@ export interface EmployeeRequestsPorts<Effect> {
     teamHandlers(...args: Tail<Parameters<typeof teamHandlers>>): PortResult<ReturnType<typeof teamHandlers>, Effect>;
 }
 export function createEmployeeRequestsApplication<Effect>(ports: EmployeeRequestsPorts<Effect>) {
+const{requestAccess,getEmployeeRequest,requestAttachments,employeeRequestDetail,employeeRequestUpload}=createEmployeeRequestRead(ports);
     const r = ports.repository;
     function requestVersionGuard(key: string, row: EmployeeRequest) {
         return r.guard1(key, "request-version", row.id, row.company_id, row.version, row.state, row.evidence_version);
     }
     const {canOverrideEmployeeRequest,readRequestForOverride}=createRequestOverrideRead(ports);
 
-    async function requestAccess(actor: WorkContext, row: EmployeeRequest, override = false) {
-        const saved = JSON.parse(row.approval_json) as SavedApproval;
-        const current = saved.route?.steps[saved.currentStep ?? 0];
-        const designated = !!current?.snapshot?.departmentPolicyVersion && samePerson(actor, current.userId)
-            && await ports.departmentStepEligible(row.company_id, actor.userId, current.snapshot);
-        const superior = override && await canOverrideEmployeeRequest(actor, row);
-        if (!designated && !superior && (!ports.inServiceWorkspace(actor, row) ||
-            !(await ports.serviceMember(row, actor.userId))))
-            throw new BusinessRuleError(404, "REQUEST_NOT_FOUND", "This request is outside your current workspace.");
-        const owner = await ports.serviceOwner(actor), handlers = await ports.teamHandlers(row, row.team_id), member = handlers.find((h) => h.user_id === actor.userId);
-        let route: ApprovalRoute | null = null, pool: string[] = [];
-        if (row.state === "awaiting_approval") {
-            if (saved.route?.steps.some(s => s.snapshot?.spendingPolicy || s.snapshot?.departmentPolicyVersion !== undefined)) {
-                route = saved.route;
-                const step = route.steps[saved.currentStep ?? 0];
-                pool = step ? await ports.spendingStepCandidates(row, row.requester_user_id, [row.created_by], { ...step, candidateUserIds: saved.pool }, (saved.decisions ?? []).map(d => d.userId)) : [];
-            }
-            else {
-                route = await ports.resourceRequestRoute(row.company_id, row.requester_user_id, row.created_by);
-                pool = (route.steps[0]?.candidateUserIds ?? []).filter(id => saved.pool?.includes(id));
-            }
-        }
-        if (superior)
-            pool = [actor.userId];
-        const own = requestOwn(actor, row), approver = !!superior || pool.some(id => samePerson(actor, id)) && (route?.steps[saved.currentStep ?? 0]?.snapshot?.departmentPolicyVersion !== undefined || hasWorkflowPermission(actor, route?.steps[saved.currentStep ?? 0]?.requiredRole ?? "people_manager"));
-        if (!own &&
-            !owner &&
-            !member &&
-            !approver &&
-            !saved.decisions?.some(d => samePerson(actor, d.userId)) && !samePerson(actor, saved.decidedBy))
-            throw new BusinessRuleError(404, "REQUEST_NOT_FOUND", "This request is not available to you.");
-        return { owner, own, member, handlers, pool, route, approver, saved };
-    }
-    async function readEmployeeRequest(actor: WorkContext, id: string) {
-        const row = await r.readReadEmployeeRequestRow(id, actor.companyId);
-        if (!row)
-            throw new BusinessRuleError(404, "REQUEST_NOT_FOUND", "Request not found.");
-        return row;
-    }
-    async function getEmployeeRequest(actor: WorkContext, id: string, override = false) {
-        const row = await readEmployeeRequest(actor, id);
-        await requestAccess(actor, row, override);
-        return row;
-    }
-    async function requestAttachments(id: string) {
-        return (await r.readRequestAttachmentsEffect(id)).results;
-    }
-    async function employeeRequestDetail(actor: WorkContext, id: string, includeEvidence = true, override = false) {
-        const row = await readEmployeeRequest(actor, id), access = await requestAccess(actor, row, override);
-        const blocked = row.state === "awaiting_approval" && !access.pool.length
-            ? (access.route?.blockedReason ??
-                "The independent approver is unavailable. Resolve the approval issue.")
-            : row.team_id &&
-                !terminal.includes(row.state) &&
-                !editable.includes(row.state) &&
-                row.state !== "awaiting_approval" &&
-                (!access.handlers.some((h) => h.responsibility === "lead") ||
-                    (row.assignee_user_id &&
-                        !access.handlers.some((h) => h.user_id === row.assignee_user_id)))
-                ? "The assigned team or handler is unavailable. Reassign this request in Administration."
-                : row.blocked_reason;
-        const actions: string[] = [];
-        if (access.own && editable.includes(row.state))
-            actions.push("edit", "submit", "cancel");
-        if (access.own && row.state === "blocked")
-            actions.push("cancel");
-        if (access.approver)
-            actions.push("approve", "return", "reject");
-        if (access.member?.responsibility === "lead" &&
-            ["queued", "in_progress", "waiting_requester"].includes(row.state))
-            actions.push("assign");
-        if (!terminal.includes(row.state) && !editable.includes(row.state))
-            actions.push("comment");
-        const handler = !!access.member && samePerson(actor, row.assignee_user_id);
-        if (handler && row.state === "queued")
-            actions.push("start");
-        if (handler && row.state === "in_progress")
-            actions.push("ask", "resolve", ...(row.kind === "purchase" ? ["link-order"] : []));
-        if (access.own && row.state === "waiting_requester")
-            actions.push("reply");
-        if (actor.userId === row.requester_user_id &&
-            ["resolved", "fulfilled"].includes(row.state))
-            actions.push("confirm", "reopen");
-        if (access.owner &&
-            !terminal.includes(row.state) &&
-            !editable.includes(row.state))
-            actions.push("repair");
-        if (access.member && row.kind === "service" && !terminal.includes(row.state))
-            actions.push("resource-request");
-        const events = includeEvidence
-            ? (await r.readEmployeeRequestDetailEvents(id, actor.companyId)).results
-            : [];
-        const team = row.team_id
-            ? await r.readEmployeeRequestDetailTeam(row.team_id, actor.companyId)
-            : null;
-        const children = includeEvidence
-            ? (await r.readEmployeeRequestDetailChildren(id, actor.companyId)).results
-            : [];
-        const visibleChildren = [];
-        for (const child of children) {
-            try {
-                await getEmployeeRequest(actor, child.id);
-                visibleChildren.push(child);
-            }
-            catch (e) {
-                if (!(e instanceof BusinessRuleError) || e.status !== 404)
-                    throw e;
-            }
-        }
-        const approvalStage = access.saved.route?.steps[access.saved.currentStep ?? 0]?.stage;
-        const approvalLabel = approvalStage === "accounts_review" ? "Accounting preparation" : approvalStage === "accounts_approval" ? "Accounting approval (Level 1–4)" : "Supervisor approval";
-        const responsible = row.state === "awaiting_approval"
-            ? approvalLabel
-            : row.state === "waiting_requester" ||
-                ["resolved", "fulfilled"].includes(row.state)
-                ? "Requester"
-                : editable.includes(row.state)
-                    ? "Requester"
-                    : (team?.name ?? "Service setup");
-        const next = blocked
-            ? "Resolve routing issue"
-            : row.state === "awaiting_approval"
-                ? approvalStage === "accounts_review" ? "Prepare planned spending details" : approvalStage === "accounts_approval" ? "Approve planned spending before ordering" : "Review purpose and requested resources"
-                : row.state === "queued"
-                    ? row.assignee_user_id
-                        ? "Start work"
-                        : "Assign a handler"
-                    : row.state === "in_progress"
-                        ? row.kind === "purchase"
-                            ? "Prepare the purchase order and record fulfillment"
-                            : row.kind === "equipment"
-                                ? "Record the equipment handover"
-                                : "Resolve the issue"
-                        : row.state === "waiting_requester"
-                            ? "Reply to the team"
-                            : row.state === "resolved" || row.state === "fulfilled"
-                                ? "Confirm completion or reopen"
-                                : editable.includes(row.state)
-                                    ? "Complete and submit your request"
-                                    : terminal.includes(row.state)
-                                        ? "No further action"
-                                        : "Resolve routing issue";
-        return {
-            request: row,
-            items: JSON.parse(row.items_json) as RequestItem[],
-            actions,
-            blockedReason: blocked,
-            responsibleQueue: responsible,
-            assigneeName: row.assignee_user_id
-                ? (access.handlers.find((h) => h.user_id === row.assignee_user_id)
-                    ?.name ?? "Assigned handler unavailable")
-                : null,
-            nextAction: next,
-            handlers: access.member || access.owner ? access.handlers : [],
-            approvers: access.owner ? access.pool : [],
-            events,
-            attachments: includeEvidence ? await requestAttachments(id) : [],
-            children: visibleChildren,
-            relationship: {
-                own: access.own,
-                assigned: handler,
-                approval: access.approver,
-                team: !!access.member,
-            },
-        };
-    }
     function event(row: EmployeeRequest, actor: WorkContext, action: string, note: string, evidence: unknown = {}) {
         return r.stageEventEffect(ports.identifiers.next(), row.company_id, row.id, row.version, action, actor.userId, note, JSON.stringify(evidence), ports.clock.now());
     }
@@ -810,18 +645,7 @@ export function createEmployeeRequestsApplication<Effect>(ports: EmployeeRequest
         }
         return items;
     }
-    async function employeeRequestUpload(actor: WorkContext, id: string, purpose?: string) {
-        const row = await getEmployeeRequest(actor, id), detail = await employeeRequestDetail(actor, id);
-        const canEdit = detail.actions.includes("edit"), canWork = detail.relationship.assigned &&
-            ["queued", "in_progress", "waiting_requester"].includes(row.state), canReply = detail.relationship.own && row.state === "waiting_requester";
-        if (!canEdit && !canWork && !canReply)
-            throw new BusinessRuleError(403, "REQUEST_EVIDENCE_LOCKED", "Files can be added while preparing the request or carrying out the assigned work.");
-        const allowedPurpose = canEdit ? "request_evidence" : "fulfillment";
-        const allowedPurposes = canEdit && row.category === "it" ? ["request_evidence", "it_request_evidence"] : [allowedPurpose];
-        if (purpose && !allowedPurposes.includes(purpose))
-            throw new BusinessRuleError(422, "EVIDENCE_PURPOSE_INVALID", `Use ${allowedPurpose.replaceAll("_", " ")} for this stage.`);
-        return row;
-    }
+
     async function prepareRequestOrderHandoff(actor: WorkContext, requestId: string, orderId: string, key: string, expectedVersion?: number, editing = false, rfqId?: string) {
         if (actor.beta)
             throw new BusinessRuleError(403, "BETA_CAPABILITY_UNAVAILABLE", "Purchasing execution is unavailable in beta.");
@@ -927,3 +751,184 @@ async function readRequestForOverride(companyId: string, id: string) {
             throw new BusinessRuleError(404, "REQUEST_NOT_FOUND", "Request not found.");
         return row;
     }return{canOverrideEmployeeRequest,readRequestForOverride};}
+
+export type createEmployeeRequestReadPorts<Effect>=Pick<EmployeeRequestsPorts<Effect>,"canOverrideStaffStep"|"departmentStepEligible"|"inServiceWorkspace"|"serviceMember"|"serviceOwner"|"teamHandlers"|"spendingStepCandidates"|"resourceRequestRoute">&{repository:Pick<EmployeeRequestsRepository<Effect>,"readReadRequestForOverrideRow"|"readReadEmployeeRequestRow"|"readRequestAttachmentsEffect"|"readEmployeeRequestDetailEvents"|"readEmployeeRequestDetailTeam"|"readEmployeeRequestDetailChildren">};
+export function createEmployeeRequestRead<Effect>(ports:createEmployeeRequestReadPorts<Effect>){const r=ports.repository;const{canOverrideEmployeeRequest}=createRequestOverrideRead(ports);
+async function requestAccess(actor: WorkContext, row: EmployeeRequest, override = false) {
+        const saved = JSON.parse(row.approval_json) as SavedApproval;
+        const current = saved.route?.steps[saved.currentStep ?? 0];
+        const designated = !!current?.snapshot?.departmentPolicyVersion && samePerson(actor, current.userId)
+            && await ports.departmentStepEligible(row.company_id, actor.userId, current.snapshot);
+        const superior = override && await canOverrideEmployeeRequest(actor, row);
+        if (!designated && !superior && (!ports.inServiceWorkspace(actor, row) ||
+            !(await ports.serviceMember(row, actor.userId))))
+            throw new BusinessRuleError(404, "REQUEST_NOT_FOUND", "This request is outside your current workspace.");
+        const owner = await ports.serviceOwner(actor), handlers = await ports.teamHandlers(row, row.team_id), member = handlers.find((h) => h.user_id === actor.userId);
+        let route: ApprovalRoute | null = null, pool: string[] = [];
+        if (row.state === "awaiting_approval") {
+            if (saved.route?.steps.some(s => s.snapshot?.spendingPolicy || s.snapshot?.departmentPolicyVersion !== undefined)) {
+                route = saved.route;
+                const step = route.steps[saved.currentStep ?? 0];
+                pool = step ? await ports.spendingStepCandidates(row, row.requester_user_id, [row.created_by], { ...step, candidateUserIds: saved.pool }, (saved.decisions ?? []).map(d => d.userId)) : [];
+            }
+            else {
+                route = await ports.resourceRequestRoute(row.company_id, row.requester_user_id, row.created_by);
+                pool = (route.steps[0]?.candidateUserIds ?? []).filter(id => saved.pool?.includes(id));
+            }
+        }
+        if (superior)
+            pool = [actor.userId];
+        const own = requestOwn(actor, row), approver = !!superior || pool.some(id => samePerson(actor, id)) && (route?.steps[saved.currentStep ?? 0]?.snapshot?.departmentPolicyVersion !== undefined || hasWorkflowPermission(actor, route?.steps[saved.currentStep ?? 0]?.requiredRole ?? "people_manager"));
+        if (!own &&
+            !owner &&
+            !member &&
+            !approver &&
+            !saved.decisions?.some(d => samePerson(actor, d.userId)) && !samePerson(actor, saved.decidedBy))
+            throw new BusinessRuleError(404, "REQUEST_NOT_FOUND", "This request is not available to you.");
+        return { owner, own, member, handlers, pool, route, approver, saved };
+    }
+async function readEmployeeRequest(actor: WorkContext, id: string) {
+        const row = await r.readReadEmployeeRequestRow(id, actor.companyId);
+        if (!row)
+            throw new BusinessRuleError(404, "REQUEST_NOT_FOUND", "Request not found.");
+        return row;
+    }
+async function getEmployeeRequest(actor: WorkContext, id: string, override = false) {
+        const row = await readEmployeeRequest(actor, id);
+        await requestAccess(actor, row, override);
+        return row;
+    }
+async function requestAttachments(id: string) {
+        return (await r.readRequestAttachmentsEffect(id)).results;
+    }
+async function employeeRequestDetail(actor: WorkContext, id: string, includeEvidence = true, override = false) {
+        const row = await readEmployeeRequest(actor, id), access = await requestAccess(actor, row, override);
+        const blocked = row.state === "awaiting_approval" && !access.pool.length
+            ? (access.route?.blockedReason ??
+                "The independent approver is unavailable. Resolve the approval issue.")
+            : row.team_id &&
+                !terminal.includes(row.state) &&
+                !editable.includes(row.state) &&
+                row.state !== "awaiting_approval" &&
+                (!access.handlers.some((h) => h.responsibility === "lead") ||
+                    (row.assignee_user_id &&
+                        !access.handlers.some((h) => h.user_id === row.assignee_user_id)))
+                ? "The assigned team or handler is unavailable. Reassign this request in Administration."
+                : row.blocked_reason;
+        const actions: string[] = [];
+        if (access.own && editable.includes(row.state))
+            actions.push("edit", "submit", "cancel");
+        if (access.own && row.state === "blocked")
+            actions.push("cancel");
+        if (access.approver)
+            actions.push("approve", "return", "reject");
+        if (access.member?.responsibility === "lead" &&
+            ["queued", "in_progress", "waiting_requester"].includes(row.state))
+            actions.push("assign");
+        if (!terminal.includes(row.state) && !editable.includes(row.state))
+            actions.push("comment");
+        const handler = !!access.member && samePerson(actor, row.assignee_user_id);
+        if (handler && row.state === "queued")
+            actions.push("start");
+        if (handler && row.state === "in_progress")
+            actions.push("ask", "resolve", ...(row.kind === "purchase" ? ["link-order"] : []));
+        if (access.own && row.state === "waiting_requester")
+            actions.push("reply");
+        if (actor.userId === row.requester_user_id &&
+            ["resolved", "fulfilled"].includes(row.state))
+            actions.push("confirm", "reopen");
+        if (access.owner &&
+            !terminal.includes(row.state) &&
+            !editable.includes(row.state))
+            actions.push("repair");
+        if (access.member && row.kind === "service" && !terminal.includes(row.state))
+            actions.push("resource-request");
+        const events = includeEvidence
+            ? (await r.readEmployeeRequestDetailEvents(id, actor.companyId)).results
+            : [];
+        const team = row.team_id
+            ? await r.readEmployeeRequestDetailTeam(row.team_id, actor.companyId)
+            : null;
+        const children = includeEvidence
+            ? (await r.readEmployeeRequestDetailChildren(id, actor.companyId)).results
+            : [];
+        const visibleChildren = [];
+        for (const child of children) {
+            try {
+                await getEmployeeRequest(actor, child.id);
+                visibleChildren.push(child);
+            }
+            catch (e) {
+                if (!(e instanceof BusinessRuleError) || e.status !== 404)
+                    throw e;
+            }
+        }
+        const approvalStage = access.saved.route?.steps[access.saved.currentStep ?? 0]?.stage;
+        const approvalLabel = approvalStage === "accounts_review" ? "Accounting preparation" : approvalStage === "accounts_approval" ? "Accounting approval (Level 1–4)" : "Supervisor approval";
+        const responsible = row.state === "awaiting_approval"
+            ? approvalLabel
+            : row.state === "waiting_requester" ||
+                ["resolved", "fulfilled"].includes(row.state)
+                ? "Requester"
+                : editable.includes(row.state)
+                    ? "Requester"
+                    : (team?.name ?? "Service setup");
+        const next = blocked
+            ? "Resolve routing issue"
+            : row.state === "awaiting_approval"
+                ? approvalStage === "accounts_review" ? "Prepare planned spending details" : approvalStage === "accounts_approval" ? "Approve planned spending before ordering" : "Review purpose and requested resources"
+                : row.state === "queued"
+                    ? row.assignee_user_id
+                        ? "Start work"
+                        : "Assign a handler"
+                    : row.state === "in_progress"
+                        ? row.kind === "purchase"
+                            ? "Prepare the purchase order and record fulfillment"
+                            : row.kind === "equipment"
+                                ? "Record the equipment handover"
+                                : "Resolve the issue"
+                        : row.state === "waiting_requester"
+                            ? "Reply to the team"
+                            : row.state === "resolved" || row.state === "fulfilled"
+                                ? "Confirm completion or reopen"
+                                : editable.includes(row.state)
+                                    ? "Complete and submit your request"
+                                    : terminal.includes(row.state)
+                                        ? "No further action"
+                                        : "Resolve routing issue";
+        return {
+            request: row,
+            items: JSON.parse(row.items_json) as RequestItem[],
+            actions,
+            blockedReason: blocked,
+            responsibleQueue: responsible,
+            assigneeName: row.assignee_user_id
+                ? (access.handlers.find((h) => h.user_id === row.assignee_user_id)
+                    ?.name ?? "Assigned handler unavailable")
+                : null,
+            nextAction: next,
+            handlers: access.member || access.owner ? access.handlers : [],
+            approvers: access.owner ? access.pool : [],
+            events,
+            attachments: includeEvidence ? await requestAttachments(id) : [],
+            children: visibleChildren,
+            relationship: {
+                own: access.own,
+                assigned: handler,
+                approval: access.approver,
+                team: !!access.member,
+            },
+        };
+    }
+async function employeeRequestUpload(actor: WorkContext, id: string, purpose?: string) {
+        const row = await getEmployeeRequest(actor, id), detail = await employeeRequestDetail(actor, id);
+        const canEdit = detail.actions.includes("edit"), canWork = detail.relationship.assigned &&
+            ["queued", "in_progress", "waiting_requester"].includes(row.state), canReply = detail.relationship.own && row.state === "waiting_requester";
+        if (!canEdit && !canWork && !canReply)
+            throw new BusinessRuleError(403, "REQUEST_EVIDENCE_LOCKED", "Files can be added while preparing the request or carrying out the assigned work.");
+        const allowedPurpose = canEdit ? "request_evidence" : "fulfillment";
+        const allowedPurposes = canEdit && row.category === "it" ? ["request_evidence", "it_request_evidence"] : [allowedPurpose];
+        if (purpose && !allowedPurposes.includes(purpose))
+            throw new BusinessRuleError(422, "EVIDENCE_PURPOSE_INVALID", `Use ${allowedPurpose.replaceAll("_", " ")} for this stage.`);
+        return row;
+    }return{requestAccess,readEmployeeRequest,getEmployeeRequest,requestAttachments,employeeRequestDetail,employeeRequestUpload};}

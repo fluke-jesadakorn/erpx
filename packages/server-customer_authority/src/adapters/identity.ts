@@ -4,7 +4,7 @@ import { finalRootOwnerProjectionSources as people_payrollProjectionSources } fr
 import "server-only";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -13,10 +13,6 @@ import {executeCommand,replayCommand} from "@erpx/server-workflow/public/command
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {prepareCustomerIdentityNotice1,prepareCustomerIdentityNotice2} from "@erpx/server-collaboration/public/customer-authority-notifications";
 import {prepareCustomerAuthorityIdentityChange,customerAuthorityIdentitySource,customerAuthorityCandidates} from "@erpx/server-finance/public/customer-authority-changes";
-
-
-
-
 
 import {createCustomerIdentityApplication,type IdentityRepository} from "@erpx/server-customer_authority/application/identity";
 const manager=`EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) a JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=a.user_id AND p.company_id=a.company_id JOIN (${people_payrollProjectionSources.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE a.company_id=c.company_id AND a.user_id=? AND a.scope_kind='holding' AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'commerce.approve') AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`;

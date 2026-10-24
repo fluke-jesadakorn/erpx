@@ -1,6 +1,6 @@
 import type {Clock} from "@erpx/server-shared/index";
 import {BusinessRuleError} from "@erpx/server-shared/index";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {crmForecast} from "@erpx/server-crm/domain/crm-forecast";
 import {crmLeadSchema,crmLeadChangeSchema,crmOpportunitySchema,crmLeadWorkItems,type CRMLeadInput,type CRMLeadChange,type CRMOpportunityChange} from "@erpx/server-crm/domain/leads";
 type Common={id:string;key:string;operation:string;now:number};
@@ -53,4 +53,3 @@ export function createCRMApplication(ports:{actorId:string;canRead:boolean;canSa
   async work(){if(!ports.canRead)return [];const repository=await ports.repository();ports.authorize("commerce.read");return [...crmLeadWorkItems(await repository.records(),ports.actorId,ports.canSales),...await ports.activityWork()];},
  };
 }
-

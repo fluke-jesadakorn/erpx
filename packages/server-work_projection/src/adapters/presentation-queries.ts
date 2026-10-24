@@ -7,7 +7,7 @@ import { resolveWorkspaceBrand } from "@erpx/server-brand/public/branding";
 import { getWorkCapabilities } from "@erpx/server-work_projection/public/work-capabilities";
 import { executiveVisible } from "@erpx/server-runtime/public/executive/access";
 import { activeCompanyName } from "@erpx/server-organization/public/people-app-entrypoint-facts";
-import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests';
+import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
 import { requestPageOptions } from "@erpx/server-records/public/request-page";
 import {messagingPeople} from '@erpx/server-collaboration/public/messaging';
 

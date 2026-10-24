@@ -1,6 +1,7 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commandOvertime, createOvertime, getOvertime, listOvertime, previewOvertime, setOvertimeEligibility } from "@erpx/server-people_payroll/public/overtime";
+import {commandOvertime,createOvertime,listOvertime,previewOvertime,setOvertimeEligibility} from '@erpx/server-people_payroll/public/overtime';
+import {getOvertime} from '@erpx/server-people_payroll/public/overtime-read';
 import { overtimeCommandSchema, overtimeDetailsSchema } from "@erpx/feature-people_payroll/lib/overtime";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";

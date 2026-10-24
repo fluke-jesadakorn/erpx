@@ -6,7 +6,7 @@ import { captureJobAuthority } from '@erpx/server-identity_access/public/iam-job
 import { getRecord, searchReferences } from '@erpx/server-records/public/records';
 import { runtimeEnv } from '../../../../packages/server-runtime/src/public/runtime';
 import { ApiError } from '@erpx/server-runtime/public/http';
-import { sourceAccessSql } from '@erpx/server-collaboration/public/social-source';
+import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { createSocialTextApplication, type SocialTextRepository } from '@erpx/server-collaboration/application/social-text';
 import { collaborationMentionPrincipals } from '@erpx/server-identity_access/public/collaboration-mention-principals';

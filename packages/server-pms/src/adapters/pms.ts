@@ -18,10 +18,10 @@ import { hospitalityDayControls } from "@erpx/server-pms/public/hospitality-day-
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { executeCommand, replayCommand } from "@erpx/server-workflow/public/commands";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import {prepareJournal} from '@erpx/server-finance/public/finance';
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { snapshotMoney, snapshotMoneyBatch, snapshotMoneyCarry, snapshotMoneyReversal } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney,snapshotMoneyBatch,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/server-finance/public/company-money';
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { readPmsInventoryCommand, readAllPmsRecords, readPmsCalendar, readPmsDashboard, readPmsDetail, readPmsSetupFacts, readPmsOperationsList, readPmsConfiguration, readPmsChoices } from "@erpx/server-pms/public/pms/read-repository";
 import { type PmsReadSelection } from "@erpx/feature-pms/lib/pms-read-selection";

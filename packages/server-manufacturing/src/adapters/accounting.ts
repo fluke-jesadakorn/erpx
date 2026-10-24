@@ -3,16 +3,16 @@ import {withManufacturingPostingProfileCommand} from '@erpx/server-manufacturing
 import "server-only";
 
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {prepareJournal} from '@erpx/server-finance/public/finance';
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 
-import {snapshotMoney} from "@erpx/server-finance/public/company-money";
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import {BusinessRuleError} from '@erpx/server-shared/index';import {createManufacturingAccountingApplication,type ManufacturingAccountingRepository} from '@erpx/server-manufacturing/application/accounting';import {manufacturingAccountingSources as owner0} from '@erpx/server-commerce/public/manufacturing-accounting-sources';
 import {manufacturingAccountingSources as owner1} from '@erpx/server-finance/public/manufacturing-accounting-sources';async function inward<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}}
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
@@ -38,7 +38,6 @@ export async function prepareManufacturingPosting(db: SqlDatabase,a: WorkContext
   key: string; orderId: string; orderVersion: number; phase: "issue" | "report" | "output" | "scrap";
   entryDate: string; material?: number; labor?: number; overhead?: number; output?: number; quantityMilli?: number;
 }){return exposed(()=>application(db).prepareManufacturingPosting(a,input));}
-
 
 import {profileSchema,reviewSchema} from "@erpx/server-manufacturing/domain/accounting";
 import {withManufacturingPurchasedCommand} from "@erpx/server-manufacturing/public/purchases";

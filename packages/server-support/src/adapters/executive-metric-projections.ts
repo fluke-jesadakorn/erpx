@@ -1,6 +1,6 @@
 import { nativeSupportRuntime } from "@erpx/server-support/adapters/command-runtime";
-import { supportTicketReadPredicate } from "@erpx/server-support/adapters/support";
-import { supportIncidentReadPredicate } from "@erpx/server-support/adapters/support-incidents";
+import {supportTicketReadPredicate} from '@erpx/server-support/public/support-ticket-read';
+import {supportIncidentReadPredicate} from '@erpx/server-support/public/support-incident-read';
 import { supportTicketSourceReadPredicate } from "@erpx/server-support/adapters/ticket-source-read-policy";
 
 const metricCapabilities = { "open-support-tickets": "support.tickets", "overdue-support-sla": "support.sla", "active-support-incidents": "support.incidents" } as const;

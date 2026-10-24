@@ -30,7 +30,7 @@ export async function requireExpenseWorkspaceRecordRead(database:SqlDatabase,act
  const row=await database.prepare(`SELECT claim.id FROM (SELECT ?::text id,?::text company_id) expense_input CROSS JOIN LATERAL (${actual('expense_input.id','expense_input.company_id')}) claim`).bind(id,actor.companyId).first<string>('id');
  if(!row)return;
  await requireExpensePurchasedHistory(database,actor);
- const {expenseFromDatabase}=await import('@erpx/server-people_payroll/adapters/expenses');await expenseFromDatabase(database,actor,row);
+ const {expenseFromDatabase}=await import('@erpx/server-people_payroll/public/expense-read');await expenseFromDatabase(database,actor,row);
 }
 
 /** The native current-reviewer policy is asynchronous. Its permitted IDs are
@@ -66,7 +66,7 @@ export async function withExpenseWorkspaceRecordRead<Result>(database:SqlDatabas
   const actorImage=recordActor(actor),readCandidates=()=>transaction.prepare(recordCandidatesSql).bind(actor.companyId).all<RecordCandidate>();
   const access=await readPurchasedAccess(transaction,mode,{companyId:actor.companyId,capability:'people.expenses'});
   const authorityImage=access.history?await expenseCurrentAuthorityImage(transaction,actor):null,routingAuthority=access.history?await expenseAuthoritySnapshot(transaction,actor.companyId):null;
-  const {expenseVisibleRecordIds}=await import('@erpx/server-people_payroll/adapters/expenses'),initial=(await readCandidates()).results,expenseIds=[...new Set(initial.map(row=>row.expense_id))];
+  const {expenseVisibleRecordIds}=await import('@erpx/server-people_payroll/public/expense-read'),initial=(await readCandidates()).results,expenseIds=[...new Set(initial.map(row=>row.expense_id))];
   const visible=access.history?await expenseVisibleRecordIds(transaction,actor,expenseIds):new Set<string>();
   const permitted=initial.filter(row=>visible.has(row.expense_id)).map(row=>row.record_id),sourceImage=JSON.stringify((await readCandidates()).results);
   recordReadUnits.set(transaction,{actor:actorImage,companyId:actor.companyId,ids:permitted});

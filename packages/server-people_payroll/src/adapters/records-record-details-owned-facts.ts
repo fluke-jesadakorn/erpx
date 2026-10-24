@@ -1,4 +1,4 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
-import { type Row } from "@erpx/server-commerce/public/commerce";
+import {type Row} from '@erpx/server-commerce/public/commerce';
 export function RecordDetailsPeoplePayrollOwnedFacts(database: SqlDatabase) { return { readRecordSupplementDataRows4(companyId: string, id: string, currency: string, offset: number) { return database.prepare(`SELECT r.id,r.period_start,r.period_end,r.pay_date,r.currency,r.status,COUNT(i.id) headcount,SUM(i.gross_minor) gross_minor,SUM(i.deductions_minor) deductions_minor,SUM(i.net_minor) net_minor FROM hr_payroll_runs r JOIN hr_payroll_items i ON i.run_id=r.id WHERE r.company_id=? AND r.status='posted' AND substring(r.pay_date FROM 1 FOR 7)=? AND r.currency=? GROUP BY r.id ORDER BY r.pay_date DESC,r.id LIMIT 31 OFFSET ?`).bind(companyId, id, currency, offset).all<Row>(); } }; }

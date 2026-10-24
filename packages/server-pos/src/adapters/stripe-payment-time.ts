@@ -1,5 +1,5 @@
 import "server-only";
-import { stripeListCall } from "@erpx/server-pos/public/pos-stripe";
+import {stripeListCall} from '@erpx/server-pos/public/stripe-provider';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { createVerifiedStripePaymentTime } from "@erpx/server-pos/application/stripe-payment-time";
 // Read fixture mode per invocation, preserving process-local sandbox opt-in.

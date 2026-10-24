@@ -7,7 +7,7 @@ import {assertPayrollOtherRemittanceUnit} from '@erpx/server-people_payroll/publ
 import type {PayrollOtherRemittanceInput,PayrollOtherRemittanceResult} from '@erpx/server-people_payroll/public/payroll-other-remittance-contract';
 import {payrollOtherFinanceState,payrollOtherJournalImage,payrollOtherReferencesUnchanged,type PayrollOtherFinanceState} from '@erpx/server-finance/adapters/payroll-other-remittance-facts';
 import {payrollOtherLiabilityBalances,payrollOtherRetainedBankEvidence} from '@erpx/server-finance/adapters/payroll-other-bank-evidence';
-import {prepareJournal} from '@erpx/server-finance/adapters/finance';
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 import {snapshotMoney} from '@erpx/server-finance/adapters/company-money';
 import {minorToDecimal} from '@erpx/feature-finance/lib/finance-money';
 const changed=()=>new ApiError(409,'PAYROLL_REMITTANCE_SOURCE_CHANGED','The original Payroll liability, bank observation or posted settlement changed.');

@@ -4,11 +4,12 @@ import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';
 import {invitationSchema} from '@erpx/server-manage_erpx/domain/team';
 import type {mentionsSchema,textSuggestions} from "@erpx/server-collaboration/public/social-text";
 import type {retryAgentReply} from "@erpx/server-collaboration/public/social-agent";
-import type {homePosts,postAction,postDraftSchema,postView,postContentSchema,publishPost,savePostDraft,socialAudienceOptions,createCommentUploadDraft,cancelCommentUploadDraft,createPostEditUploadDraft,cancelPostEditUploadDraft} from "@erpx/server-collaboration/public/social-home";
-import type {sourceSnapshot,readablePost} from "@erpx/server-collaboration/public/social-source";
+import type {homePosts,postAction,postDraftSchema,postView,postContentSchema,publishPost,savePostDraft,socialAudienceOptions,createCommentUploadDraft,cancelCommentUploadDraft,createPostEditUploadDraft,cancelPostEditUploadDraft} from '@erpx/server-collaboration/public/social-home';
+import type {sourceSnapshot,readablePost} from '@erpx/server-collaboration/public/social-source';
 import type {aiRequestSchema} from "@erpx/server-collaboration/public/social-ai";
 import type {taskSourceSchema} from "@erpx/server-collaboration/public/social-task";
-import type {getTask,saveTask,taskSchema,listTasks} from "@erpx/server-operations/public/staff-tasks";
+import type {getTask} from '@erpx/server-operations/public/staff-task-read';
+import type {saveTask,taskSchema,listTasks} from '@erpx/server-operations/public/staff-tasks';
 import type {staffPeople} from "@erpx/server-operations/public/staff-policy";
 import type {addBetaBranch,inviteMember} from "@erpx/server-manage_erpx/public/beta-team";
 type WithoutDatabase<F> = F extends (...args:infer Args)=>infer Result ? Args extends [unknown,...infer Rest] ? (...args:Rest)=>Result : never : never;
@@ -47,7 +48,7 @@ staffPeople:WithoutDatabase<typeof staffPeople>;
 addBetaBranch:WithoutDatabase<typeof addBetaBranch>;
 inviteMember:WithoutDatabase<typeof inviteMember>;};workspaceBase(actor:WorkContext):string;action(name:string):void;requireCompanyAuthority(actor:WorkContext,roles:string[]):Promise<void>;invitationToken(actor:WorkContext,key:string):Promise<string>;invitationUrl(holdingSlug:string,token:string):string;email(to:string,subject:string,url:string,key:string):Promise<string|null>;billingLink(holdingId:string,slug:string,email:string,action:'checkout'|'portal'):Promise<unknown>;createAiDraft(actor:WorkContext,id:string,input:z.infer<typeof aiRequestSchema>,key:string):Promise<unknown>;}
 export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){const r=ports.repository;return {async handle(actor:WorkContext,resource:string,path:string[],id:string|undefined,holdingSlug:string,method:string,query:URLSearchParams,input:Record<string,unknown>,key:string){let data: unknown;
-      
+
       if (method === "GET") {
         if (resource === "post") data = await ports.services.postView(actor, id!);
         else if (resource === "task-source")
@@ -110,7 +111,7 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
           };
         } else throw new BusinessRuleError(404, "NOT_FOUND", "Resource unavailable.");
       } else {
-        
+
         if (!/^[a-zA-Z0-9:_.-]{8,120}$/.test(key))
           throw new BusinessRuleError(
             422,
@@ -249,5 +250,5 @@ export function createBetaApiApplication<Effect>(ports:BetaApiPorts<Effect>){con
           );
         } else throw new BusinessRuleError(404, "NOT_FOUND", "Action unavailable.");
       }
-      
+
 return data;}};}

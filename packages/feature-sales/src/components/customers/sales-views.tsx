@@ -14,7 +14,9 @@ import { OrderEditor } from "@erpx/feature-commerce/components/lazy-order-editor
 import { queryValue, type HubQuery } from "@erpx/server-sales/public/rules/navigation";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commerceSalesDocuments, getOrder, workOrderRows } from "@erpx/server-commerce/public/commerce";
+import {commerceSalesDocuments} from '@erpx/server-commerce/public/commerce-pages';
+import {workOrderRows} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {salesEditorOptions,type SalesEditorOptions} from "@erpx/server-commerce/public/sales-editor";
 import {salesPostingDocumentReadiness} from "@erpx/server-finance/public/sales-posting-setup";
 import { crmWorkspace } from "@erpx/server-crm/public/crm";

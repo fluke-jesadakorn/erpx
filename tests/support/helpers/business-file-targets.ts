@@ -3,7 +3,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/adapters/runtime/types";
 import type {AttachmentPolicy,AttachmentComponentKind} from "@erpx/server-files/public/attachments/types";
 import {expect} from 'vitest';
 import {actRfq} from "@erpx/server-procurement/public/procurement-rfqs";
-import {fulfillOrder,requestCommerceReturn,decideCommerceReturn} from "@erpx/server-commerce/public/commerce";
+import {fulfillOrder,requestCommerceReturn,decideCommerceReturn} from '@erpx/server-commerce/public/commerce';
 import {recordSupplierPromise} from "@erpx/server-procurement/public/supplier-promises";
 import {transitionCount} from "@erpx/server-inventory/public/inventory-counts";
 import {transitionTransfer} from "@erpx/server-inventory/public/inventory-transfers";

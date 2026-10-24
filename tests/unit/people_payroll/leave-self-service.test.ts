@@ -78,7 +78,7 @@ import {LeaveEditor,LeaveDecisions} from '@erpx/feature-people_payroll/component
 import {OvertimeForm} from '@erpx/feature-people_payroll/components/self-service/overtime';
 import {TimeEntryEditor} from '@erpx/feature-people_payroll/components/self-service/time-entry-editor';
 import {LeaveControls} from '@erpx/feature-people_payroll/components/leave-controls';
-import type {getLeave} from '@erpx/server-people_payroll/public/leave';
+import type {getLeave} from '@erpx/server-people_payroll/public/leave-read';
 import type {OvertimeDetail} from '@erpx/server-people_payroll/public/overtime';
 vi.mock('next/navigation',()=>({useRouter:()=>({push:vi.fn(),replace:vi.fn(),refresh:vi.fn()}),usePathname:()=>'/holdings/test/leave',useSearchParams:()=>new URLSearchParams()}));
 const activeWorkforce:WorkforcePurchase={newWork:true,settleExisting:true,history:true,revision:'minimal-workforce'};

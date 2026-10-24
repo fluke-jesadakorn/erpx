@@ -6,7 +6,7 @@ import {Pool} from 'pg';
 import {PostgresDatabase} from "@erpx/server-runtime/adapters/runtime/postgres";
 import {LocalFileStore} from "@erpx/server-runtime/adapters/runtime/filesystem";
 import {applyMigrations,env} from "../../support/runtime-env";
-import {saveMaster} from "@erpx/server-commerce/public/commerce";
+import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {qualityWork} from "@erpx/server-quality/public/quality";
 import {acknowledgeQualityAlert,drainQualityAlerts,qualityAlertWork} from "@erpx/server-quality/public/quality-alerts";
 import {escalateInventoryReservations} from "@erpx/server-inventory/public/inventory-reservation-alerts";

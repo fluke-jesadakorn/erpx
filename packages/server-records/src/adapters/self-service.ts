@@ -6,7 +6,7 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import { leaveSummary } from "@erpx/server-people_payroll/public/leave-self-service";
-import { overtimeSetup } from "@erpx/server-people_payroll/public/overtime";
+import {overtimeSetup} from '@erpx/server-people_payroll/public/overtime';
 import { workSnapshot } from "@erpx/server-work_projection/public/work-items";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';

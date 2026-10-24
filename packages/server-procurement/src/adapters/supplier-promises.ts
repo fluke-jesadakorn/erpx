@@ -7,7 +7,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
-import {getOrder} from "@erpx/server-commerce/public/commerce";
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierPromiseOrderVersion} from "@erpx/server-commerce/public/supplier-promise-version";
 import {stageSupplierPromiseNotifications} from "@erpx/server-collaboration/public/supplier-promise-notifications";
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";

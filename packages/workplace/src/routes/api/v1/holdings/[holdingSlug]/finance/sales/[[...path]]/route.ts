@@ -4,7 +4,7 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
-import { salesWorkspace, salesDefaultsWorkspace, prepareSalesDefaults, decideSalesDefaults, createSalesInvoiceDraft, issueCustomerReceipt, customerReceiptDetail, customerReceiptExport } from "@erpx/server-finance/public/sales";
+import {salesWorkspace,salesDefaultsWorkspace,prepareSalesDefaults,decideSalesDefaults,createSalesInvoiceDraft,issueCustomerReceipt,customerReceiptDetail,customerReceiptExport} from '@erpx/server-finance/public/sales';
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(request: Request, context: Context) {

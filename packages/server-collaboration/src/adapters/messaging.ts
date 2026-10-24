@@ -1,3 +1,5 @@
+import{nativeMessagingReadRepository,messagingRoom}from '@erpx/server-collaboration/adapters/messaging-read';
+export{messagingRoom};
 import { messagingCurrentAccountSql, activeMessagingPeople } from '@erpx/server-identity_access/public/collaboration-messaging-authorization';
 import { messagingManagedTeamSql } from '@erpx/server-organization/public/collaboration-messaging-projections';
 import 'server-only';
@@ -43,12 +45,7 @@ const access=messagingRoomAccessSql();
 function application(db: SqlDatabase,allowProvision=true) {
     const repository: MessagingRepository<SqlStatement> = { guardAccess(key: string, value: "messaging-access", roomId: string, companyId: string, value2: string[]) {
             return assertion(db, key, value, `EXISTS(SELECT 1 FROM messaging_rooms r WHERE r.id=? AND r.company_id=? AND ${access})`, [roomId, companyId, ...value2]);
-        }, async room(id: string, companyId: string, value: string[]) {
-            return db
-                .prepare(`SELECT r.* FROM messaging_rooms r WHERE r.id=? AND r.company_id=? AND ${access}`)
-                .bind(id, companyId, ...value)
-                .first<MessagingRoom>();
-        }, async team(id: string, companyId: string, userId: string, userId2: string) {
+        }, room(...args){return nativeMessagingReadRepository(db).room(...args);}, async team(id: string, companyId: string, userId: string, userId2: string) {
             return db
                 .prepare(`SELECT t.* FROM messaging_teams t WHERE t.id=? AND t.company_id=? AND ((NOT t.organization_managed AND EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)) OR (t.organization_managed AND ${messagingManagedTeamSql("t", "?")}))`)
                 .bind(id, companyId, userId, userId2)
@@ -174,7 +171,7 @@ function application(db: SqlDatabase,allowProvision=true) {
     return createMessagingApplication({ repository, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, clock: { now: () => Date.now() }, digest: sha256, accountNames: async (ids) => messagingAccountNames((await runtimeEnv()).CONTROL_DB, ids), ensureOrganizationChannels: company => allowProvision?ensureOrganizationChannels(db, company):Promise.resolve(), memberBinding(kind, id, user) { const table = kind === 'room' ? 'messaging_room_members' : 'messaging_team_members', column = kind === 'room' ? 'room_id' : 'team_id'; return db.prepare(`INSERT INTO ${table}(${column},user_id) VALUES(?,?) ON CONFLICT DO NOTHING`).bind(id, user); }, prepareAttachmentBinding: (...args) => inward(() => prepareAttachmentBinding(db, ...args)) });
 }
 export function messagingGuard(db: SqlDatabase, actor: WorkContext, key: string, roomId: string) { return application(db).messagingGuard(actor, key, roomId); }
-export async function messagingRoom(db:SqlDatabase,actor:WorkContext,id:string){await requireMessagingPurchase(db,actor,'history');return exposed(()=>application(db).messagingRoom(actor,id));}
+
 /** This original active-account picker is also Calendar's independent account
  * foundation. Only a requested Messages team brings the add-on dependency. */
 export async function messagingPeople(db:SqlDatabase,actor:WorkContext,query='',teamId?:string){await requireMessagingCurrentAccount(db,actor);if(teamId)await requireMessagingPurchase(db,actor,'history');return exposed(()=>application(db).messagingPeople(actor,query,teamId));}

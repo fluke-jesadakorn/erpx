@@ -6,9 +6,8 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {prepareJournal} from '@erpx/server-finance/public/finance';
-import {snapshotMoney} from "@erpx/server-finance/public/company-money";
-
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 
 import {BusinessRuleError} from '@erpx/server-shared/index';import {createInventoryConsumptionApplication,type InventoryConsumptionRepository} from '@erpx/server-inventory/application/consumption';import type {ConsumptionInput} from '@erpx/server-inventory/domain/consumption-input';import {inventoryConsumptionSources as commerceSources} from '@erpx/server-commerce/public/inventory-consumption-sources';import {inventoryConsumptionSources as financeSources} from '@erpx/server-finance/public/inventory-consumption-sources';
 export {consumptionLotSchema} from '@erpx/server-inventory/domain/consumption';

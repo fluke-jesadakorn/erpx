@@ -2,8 +2,8 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import type {HandoverAcknowledgement} from '@erpx/server-operations/public/handover';
-import {workSocialReadScope} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {sourceAccessSql} from '@erpx/server-collaboration/adapters/social-source';
+import {workSocialReadScope} from '@erpx/server-collaboration/public/work-social-read-policy';
+import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 /** Batch projection of exactly the native recipient/acknowledgement rows used
  * by Operations. Current source visibility remains in this one SELECT. */
 export async function readableHandoverReceipts(database:SqlDatabase,actor:StaffActor,ids:readonly string[]):Promise<HandoverAcknowledgement[]>{

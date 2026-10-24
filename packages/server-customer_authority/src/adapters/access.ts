@@ -4,7 +4,7 @@ import { finalRootOwnerProjectionSources as identity_accessProjectionSources } f
 import "server-only";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -12,7 +12,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {prepareCustomerAccessNotice1,prepareCustomerAccessNotice2} from "@erpx/server-collaboration/public/customer-authority-notifications";
-import {getOrder} from "@erpx/server-commerce/public/commerce";
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
 import {createCustomerAccessApplication,type AccessRepository} from "@erpx/server-customer_authority/application/access";
 import {customerAccessRequestSchema,customerAccessChangeSchema} from '@erpx/server-customer_authority/domain/access';

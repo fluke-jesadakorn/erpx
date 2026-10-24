@@ -17,6 +17,7 @@
     "./adapters/portal-snapshot-read": "./src/adapters/portal-snapshot-read.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/runtime-minio-preservation-authority": "./src/adapters/runtime-minio-preservation-authority.ts",
+    "./adapters/attachment-read-state": "./src/adapters/attachment-read-state.ts",
     "./adapters/attachment-purchases": "./src/adapters/attachment-purchases.ts",
     "./adapters/evidence-attachment-read": "./src/adapters/evidence-attachment-read.ts",
     "./adapters/hospitality-owner-projection-sources": "./src/adapters/hospitality-owner-projection-sources.ts",

@@ -25,7 +25,7 @@ import {posCommand} from '@erpx/server-pos/public/pos-core';
 import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
 import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney,businessDate } from "@erpx/server-pos/public/rules/pos";
 import { defaultConfig,pmsAccountKeys } from "@erpx/server-pms/public/rules/pms";
-import { drainPos,posStripeWebhook,verifyPosStripeSignature } from "@erpx/server-pos/public/pos-stripe";
+import {drainPos,posStripeWebhook,verifyPosStripeSignature} from '@erpx/server-pos/public/pos-stripe';
 import type { PermissionActor } from "@erpx/feature-identity_access/lib/iam";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {posCustomers,posDayReport} from "@erpx/server-pos/public/pos-daily";

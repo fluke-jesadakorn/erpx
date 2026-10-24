@@ -1,7 +1,6 @@
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import { recordsPresentationQueries } from "@erpx/server-records/public/presentation-queries";
 
-
 import { RecordSections } from "@erpx/feature-records/components/loaders/workplace--record-sections";
 import { InlineNotice } from "@erpx/ui/components/foundation";
 
@@ -18,11 +17,9 @@ import { approvalAdminHref } from "@erpx/feature-shared/lib/administration";
 import { categoryLabel,requestKinds } from "@erpx/feature-people_payroll/lib/employee-services";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commercePermissions } from "@erpx/server-commerce/public/commerce";
-
+import {commercePermissions} from '@erpx/server-commerce/public/commerce';
 
 import { pageError } from "@erpx/server-work_projection/public/page-error";
-
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { Card } from "@erpx/ui/components/foundation";

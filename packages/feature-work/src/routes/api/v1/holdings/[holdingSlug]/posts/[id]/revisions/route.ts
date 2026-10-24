@@ -3,7 +3,7 @@ import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/desti
 import { holdingResources } from "../../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { errorResponse } from "@erpx/server-runtime/public/http";
-import { postRevisionHistory } from "@erpx/server-collaboration/public/social-home";
+import {postRevisionHistory} from '@erpx/server-collaboration/public/social-home';
 
 export async function GET(
   _request: Request,

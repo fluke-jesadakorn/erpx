@@ -1,7 +1,7 @@
 import type {MarketingCostSource} from "@erpx/server-marketing/domain/campaigns";
 import type {Clock} from "@erpx/server-shared/index";
 import {BusinessRuleError} from "@erpx/server-shared/index";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {formRequiresConsent} from "@erpx/server-marketing/domain/asset";
 import {marketingCandidateSchema,marketingActionSchema,marketingWorkItems,marketingCandidateLeadInput,type MarketingCandidateInput,type MarketingAction,type MarketingExecutiveEvidenceMetric} from "@erpx/server-marketing/domain/marketing";
 type Common={key:string;id:string;operation:string;now:number};

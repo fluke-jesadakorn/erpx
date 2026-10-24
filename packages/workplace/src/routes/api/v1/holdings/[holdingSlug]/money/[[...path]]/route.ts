@@ -2,7 +2,7 @@ import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/desti
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import { configureCurrencyScale, confirmManualRate, conversionSchema, currencyScaleSchema, manualRateSchema, moneyContext, preferenceSchema, quoteMoneyConversion, saveCurrencyPreference } from "@erpx/server-finance/public/company-money";
+import {configureCurrencyScale,confirmManualRate,conversionSchema,currencyScaleSchema,manualRateSchema,moneyContext,preferenceSchema,quoteMoneyConversion,saveCurrencyPreference} from '@erpx/server-finance/public/company-money';
 
 export const dynamic = "force-dynamic";
 type MoneyRoute = { params: Promise<{ holdingSlug: string; path?: string[] }> };

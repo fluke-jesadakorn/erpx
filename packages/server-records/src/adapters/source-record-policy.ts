@@ -10,9 +10,11 @@ import { requirePermission } from '@erpx/server-identity_access/public/iam-permi
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { pmsSourceReadableSql, pmsSourcesSql } from '@erpx/server-pms/public/pms/source-policy';
 import { readablePmsSource, pmsSourceLink } from '@erpx/server-pms/public/pms/source';
-import { getTask, taskSourceReadGuard } from '@erpx/server-operations/public/staff-tasks';
-import { readablePost, sourceGuard } from '@erpx/server-collaboration/public/social-source';
-import { getSupportTicket, supportTicketSourceGuards } from '@erpx/server-support/public/support';
+import {getTask,taskSourceReadGuard} from '@erpx/server-operations/public/staff-task-read';
+import {readablePost,sourceGuard} from '@erpx/server-collaboration/public/social-source';
+import{createNativeSupportTicketRead}from '@erpx/server-support/public/support-ticket-read';
+// The owner read callbacks preserve recursive source references on the same DB.
+const{getSupportTicket,supportTicketSourceGuards}=createNativeSupportTicketRead({read:readSourceRecord,visible:visibleSourceRecord,guards:sourceRecordGuards});
 import { createSourceRecordApplication } from '@erpx/server-records/application/source-record-policy';
 import { sourceRecordInput, type AuthorizedSourceRecord } from '@erpx/server-records/domain/source-record-policy';
 export { sourceRecordKind, sourceRecordInput, type AuthorizedSourceRecord } from '@erpx/server-records/domain/source-record-policy';

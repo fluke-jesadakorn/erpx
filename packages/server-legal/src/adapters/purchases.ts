@@ -1,3 +1,5 @@
+import{units,requireLegalAttachmentReadPreparation,deferLegalAttachmentReadCheck}from '@erpx/server-legal/adapters/attachment-read-state';
+export{requireLegalAttachmentReadPreparation,deferLegalAttachmentReadCheck};
 import 'server-only';
 import {randomUUID} from 'node:crypto';
 import {featureSpecs} from '@erpx/feature-legal/lib/legal/features';
@@ -37,7 +39,7 @@ const fileCommands=new WeakMap<SqlDatabase,{id:string;userId:string;purpose:Capa
 export function legalOwnedAttachmentPurpose(database:SqlDatabase,actor:WorkContext,id:string){const command=fileCommands.get(database);return command?.id===id&&command.userId===actor.userId?command.purpose:null;}
 type ConfigurationSource={table:"legal_settings"|"legal_intake_forms"|"legal_retention_policies";id:string};
 async function configurationSource(database:SqlDatabase,actor:WorkContext,target:ConfigurationSource){return database.prepare(`SELECT to_jsonb(configuration)::text image FROM ${target.table} configuration WHERE ${target.table==='legal_settings'?'company_id':'id'}=? AND company_id=?`).bind(target.id,actor.companyId).first<string>("image");}
-type Unit={companyId:string;checks:(()=>Promise<void>)[];attachmentReadPreparing?:boolean};const units=new WeakMap<SqlDatabase,Unit>();
+
 async function inLegalUnit<Result>(owner:SqlDatabase,companyId:string,run:(database:SqlDatabase)=>Promise<Result>,beforeSnapshot:((database:SqlDatabase)=>Promise<void>)|undefined,mapError:boolean){
  if(units.get(owner)?.companyId===companyId){if(beforeSnapshot)throw new ApiError(503,"LEGAL_FRESH_OWNER_UNIT_REQUIRED","This Legal operation requires its own fresh transaction.");return run(owner);}
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'LEGAL_TRANSACTION_REQUIRED','Legal requires its complete owned Holding transaction.');
@@ -84,11 +86,4 @@ export function inLegalCanonicalDocumentReadUnit<Result>(owner:SqlDatabase,actor
   try{const canonical=await import('@erpx/server-legal/adapters/canonical-attachment-read');await canonical.prepareLegalCanonicalAttachmentParentRead(database,actor);await canonical.prepareLegalCanonicalAttachmentSharedSources(database);}
   finally{unit.attachmentReadPreparing=false;}
  });
-}
-export function requireLegalAttachmentReadPreparation(database:SqlDatabase,companyId:string){
- const unit=units.get(database);if(unit?.companyId!==companyId||!unit.attachmentReadPreparing)throw new ApiError(503,'LEGAL_ATTACHMENT_READ_PREPARATION_REQUIRED','Task evidence requires the original fresh Legal preservation constructor.');
-}
-export function deferLegalAttachmentReadCheck(database:SqlDatabase,companyId:string,check:()=>Promise<void>){
- const unit=units.get(database);if(unit?.companyId!==companyId||unit.attachmentReadPreparing)throw new ApiError(503,'LEGAL_ATTACHMENT_READ_PARENT_REQUIRED','The original complete Legal preservation transaction is required.');
- unit.checks.push(check);
 }

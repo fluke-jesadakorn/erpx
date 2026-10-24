@@ -123,16 +123,7 @@ export function createOvertimeApplication<Effect>(ports: OvertimePorts<Effect>) 
         const reviewers = await Promise.all(route.steps.map(async (step) => ({ stage: step.authority === 'hr_admin' ? 'Independent HR approval' : 'Reporting manager', userId: step.userId, name: (await repository.readPreviewOvertimeReviewers(actor.companyId, step.userId))?.legal_name ?? 'Assigned reviewer' })));
         return { ...input, startsAt: time!.starts_at, endsAt: time!.ends_at, minutes, hours: minutes / 60, blockers, canSubmit: !blockers.length, reviewers };
     }
-    async function getOvertime(actor: WorkContext, id: string) {
-        await ports.prepare(actor.holdingId);
-        const row = await repository.readGetOvertimeRow(id, actor.companyId, actor.userId, actor.userId, actor.assignmentId);
-        if (!row)
-            return fail('NOT_FOUND', 'Overtime request not found.', 404);
-        const approval = await ports.approvalView('overtime', id, actor), own = row.created_by === actor.userId;
-        const actions = [...(own && ['draft', 'rejected'].includes(row.state) ? ['save', 'submit'] : []), ...(own && ['authorized', 'returned'].includes(row.state) ? ['save', 'actuals'] : []), ...(own && !['approved', 'withdrawn'].includes(row.state) ? ['withdraw'] : []), ...(approval.canDecide ? row.state === 'pending_authorization' ? ['authorize', 'reject'] : row.state === 'pending_verification' ? ['verify', 'return'] : row.state === 'pending_hr' ? ['approve', 'return'] : [] : [])];
-        const handoff = await repository.readGetOvertimeHandoff(id, actor.companyId);
-        return { ...row, approval, permittedActions: actions, handoff, details: detailsOf(row) };
-    }
+    const getOvertime=createOvertimeRead(ports).getOvertime;
     async function listOvertime(actor: WorkContext) {
         await ports.prepare(actor.holdingId);
         const rows = (await repository.readListOvertimeRows(actor.companyId, actor.userId, actor.userId, actor.assignmentId)).results;
@@ -263,3 +254,15 @@ export function createOvertimeApplication<Effect>(ports: OvertimePorts<Effect>) 
     return { overtimeSetup, previewOvertime, getOvertime, listOvertime, createOvertime, commandOvertime, overtimeWork, setOvertimeEligibility, applyCreate, applyCommand, applyEligibility };
 }
 export type OvertimeDetail = Awaited<ReturnType<ReturnType<typeof createOvertimeApplication>['getOvertime']>>;
+
+export type OvertimeReadPorts<Effect>=Pick<OvertimePorts<Effect>,'prepare'|'approvalView'>&{repository:Pick<OvertimeRepository<Effect>,'readGetOvertimeRow'|'readGetOvertimeHandoff'>};
+export function createOvertimeRead<Effect>(ports:OvertimeReadPorts<Effect>){const repository=ports.repository;async function getOvertime(actor: WorkContext, id: string) {
+        await ports.prepare(actor.holdingId);
+        const row = await repository.readGetOvertimeRow(id, actor.companyId, actor.userId, actor.userId, actor.assignmentId);
+        if (!row)
+            return fail('NOT_FOUND', 'Overtime request not found.', 404);
+        const approval = await ports.approvalView('overtime', id, actor), own = row.created_by === actor.userId;
+        const actions = [...(own && ['draft', 'rejected'].includes(row.state) ? ['save', 'submit'] : []), ...(own && ['authorized', 'returned'].includes(row.state) ? ['save', 'actuals'] : []), ...(own && !['approved', 'withdrawn'].includes(row.state) ? ['withdraw'] : []), ...(approval.canDecide ? row.state === 'pending_authorization' ? ['authorize', 'reject'] : row.state === 'pending_verification' ? ['verify', 'return'] : row.state === 'pending_hr' ? ['approve', 'return'] : [] : [])];
+        const handoff = await repository.readGetOvertimeHandoff(id, actor.companyId);
+        return { ...row, approval, permittedActions: actions, handoff, details: detailsOf(row) };
+    }return{getOvertime};}

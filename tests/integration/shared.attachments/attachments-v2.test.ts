@@ -16,7 +16,7 @@ vi.mock("@erpx/server-files/public/attachments/preview",()=>({
 
 import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload,withdrawAttachmentLink } from "@erpx/server-files/public/attachments/service";
 import { attachmentPolicy } from "@erpx/server-files/public/attachments/policy";
-import {postView,publishPost,savePostDraft,type PostContent} from "@erpx/server-collaboration/public/social-home";
+import {postView,publishPost,savePostDraft,type PostContent} from '@erpx/server-collaboration/public/social-home';
 import { listBrandProfiles } from "@erpx/server-brand/public/branding";
 import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
 import { sha256 } from "@erpx/server-runtime/adapters/crypto";

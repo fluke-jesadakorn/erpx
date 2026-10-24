@@ -1,6 +1,6 @@
 import { finalRootOwnerProjectionSources as collaborationProjectionSources } from "@erpx/server-collaboration/public/final-root-owner-projection-sources";
 import {projectTaskOwnerSql,projectTaskMemberSql,projectHandoverSourceSql} from "@erpx/server-projects/public/project-read-projections";
-import {participantSql} from '@erpx/server-workflow/public/approvals';
+import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
 
 /** Same task-participant categories used by task reads, with an SQL user expression. */
 export function handoverTaskAccessSql(task: string, user: string) {

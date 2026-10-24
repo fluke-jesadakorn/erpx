@@ -10,7 +10,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import { hubResultHref } from "@erpx/feature-shared/lib/hub-result";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import type { supportDetail, supportWorkspace } from "@erpx/server-support/public/support";
+import type {supportDetail,supportWorkspace} from '@erpx/server-support/public/support';
 import { FormLayout } from "@erpx/ui/components/foundation";
 function SupportDecisionForm({
   label,

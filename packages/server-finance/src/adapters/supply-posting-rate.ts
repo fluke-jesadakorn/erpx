@@ -3,7 +3,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {supplyPostingRateSchema} from "@erpx/server-finance/domain/supply-posting-prerequisites";
 import {withSupplyPostingPrerequisiteCommand} from "@erpx/server-finance/adapters/supply-posting-prerequisites";
-import {confirmPostingRateInTransaction} from "@erpx/server-finance/adapters/company-money";
+import {confirmPostingRateInTransaction} from '@erpx/server-finance/adapters/company-money';
 
 export async function confirmSupplyPostingRate(actor:WorkContext,raw:unknown,key:string){
  const request=supplyPostingRateSchema.parse(raw);

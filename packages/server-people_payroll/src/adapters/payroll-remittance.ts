@@ -8,7 +8,7 @@ import { holdingResources, runtimeEnv } from "../../../../packages/server-runtim
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import {prepareJournal} from '@erpx/server-finance/public/finance';
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 import { assertStatutoryRunReady } from "@erpx/server-people_payroll/adapters/payroll-statutory";
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { BusinessRuleError } from '@erpx/server-shared/index';

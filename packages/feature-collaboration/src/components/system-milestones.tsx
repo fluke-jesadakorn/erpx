@@ -1,6 +1,6 @@
 import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-registry";
 import Link from "@erpx/workplace/components/workspace-link";
-import type { HomePost } from "@erpx/server-collaboration/public/social-home";
+import type {HomePost} from '@erpx/server-collaboration/public/social-home';
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
 import styles from "@erpx/feature-collaboration/components/social.module.css";
 

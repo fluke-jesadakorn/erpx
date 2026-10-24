@@ -7,7 +7,7 @@ import { FormDrawer } from "@erpx/ui/components/dialog";
 import { RecordDocumentPanel } from "@erpx/feature-files/components/record-document-panel";
 import { AssessmentEditor, Choice, DefinitionEditor, InputField, MarketImportEditor, Notes, StartAssessmentEditor, Tick, definitionLabels, type EvaluationCommand } from "@erpx/feature-people_payroll/components/evaluation-editors";
 import type { DefinitionKind, EvaluationDefinition } from "@erpx/feature-people_payroll/lib/people-evaluation";
-import type { EvaluationRow, EvaluationWorkspace, evaluationDetail } from "@erpx/server-people_payroll/public/people-evaluation";
+import type {EvaluationRow,EvaluationWorkspace,evaluationDetail} from '@erpx/server-people_payroll/public/people-evaluation';
 import type { EvaluationAiResult } from "@erpx/server-people_payroll/public/people-evaluation-ai";
 import styles from "@erpx/feature-people_payroll/components/evaluation.module.css";
 import {PerformanceDraftBoundary, PerformanceForm, PerformanceFormDrawer} from "@erpx/feature-people_payroll/components/performance-draft-boundary";

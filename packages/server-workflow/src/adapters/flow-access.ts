@@ -8,10 +8,10 @@ export async function requireFlowAccess(actor:WorkContext,kind:FlowKind,id:strin
  let write=provided!;
  await createFlowAccessApplication({prepare:async holding=>{if(!provided)write=(await holdingResources(holding)).write;},ownerRead:async(actor,kind,id)=>{
   switch(kind){
-   case 'expense':await (await import('@erpx/server-people_payroll/public/expenses')).getExpense(actor,id,write);break;
-   case 'leave':await (await import('@erpx/server-people_payroll/public/leave')).getLeave(actor.holdingId,id,actor,write);break;
+   case 'expense':await (await import("@erpx/server-people_payroll/public/expense-read")).getExpense(actor,id,write);break;
+   case 'leave':await (await import("@erpx/server-people_payroll/public/leave-read")).getLeave(actor.holdingId,id,actor,write);break;
    case 'staff_task':await (await import('@erpx/server-operations/public/staff-tasks')).taskDetail(write,actor,id);break;
-   case 'request':await (await import('@erpx/server-records/public/employee-requests')).getEmployeeRequest(write,actor,id);break;
+   case 'request':await (await import("@erpx/server-records/public/employee-requests-read")).getEmployeeRequest(write,actor,id);break;
    case 'stock_count':await (await import('@erpx/server-inventory/public/inventory-counts')).getCount(actor,id,write);break;
    case 'transfer':await (await import('@erpx/server-inventory/public/inventory-transfers')).getTransfer(actor,id,write);break;
    case 'order':await (await import('@erpx/server-commerce/public/commerce')).getOrder(actor,id,write);break;

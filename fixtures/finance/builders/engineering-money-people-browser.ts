@@ -12,7 +12,7 @@ import {product,type ProductId} from '@erpx/contracts/product-registry';
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import {createAccount,createAccountSchema,createChart,createChartSchema,createJournal,createJournalSchema,createPeriod,createPeriodSchema,postJournalBatch,createParty,createPayment,importBankStatement} from '@erpx/server-finance/public/finance';
 import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-finance/public/accounting-profiles";
-import {confirmManualRate} from "@erpx/server-finance/public/company-money";
+import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import {createPayGroup,payGroupSchema} from "@erpx/server-people_payroll/public/people-payroll";
 import {createTalentRequisition,createTalentCandidate,createTalentApplication,createTalentProposal,createTalentOffer,changeTalentRecord,talentDetail} from "@erpx/server-talent/public/talent";
 import {createLearningCourse,createLearningAssignment,changeLearningCourse} from "@erpx/server-learning/public/learning";

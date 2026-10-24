@@ -1,7 +1,7 @@
 import "server-only";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import {approvalView} from '@erpx/server-workflow/public/approval-planning';
-import { getLeave } from "@erpx/server-people_payroll/public/leave";
+import {getLeave} from '@erpx/server-people_payroll/public/leave-read';
 import { assertLeaveAttachmentAccess } from "@erpx/server-people_payroll/public/leave-evidence";
 import { attachmentsV2Readable } from "@erpx/server-files/public/attachments/feature";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";

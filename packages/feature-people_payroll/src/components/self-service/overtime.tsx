@@ -16,7 +16,7 @@ import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import Link from "@erpx/workplace/components/workspace-link";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import { overtimeLabels, type OvertimeDetails } from "@erpx/feature-people_payroll/lib/overtime";
-import type { OvertimeDetail, previewOvertime } from "@erpx/server-people_payroll/public/overtime";
+import type {OvertimeDetail,previewOvertime} from '@erpx/server-people_payroll/public/overtime';
 import { ApprovalHistory } from "@erpx/feature-workflow/components/approval-history";
 import {
   AttachmentPanel,

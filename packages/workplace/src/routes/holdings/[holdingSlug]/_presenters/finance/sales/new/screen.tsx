@@ -8,10 +8,10 @@ import { SalesInvoiceEditor } from "@erpx/feature-finance/components/sales-contr
 import { OrderEditor } from "@erpx/feature-commerce/components/commerce-controls";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import { salesDefaultsWorkspace } from "@erpx/server-finance/public/sales";
+import {salesDefaultsWorkspace} from '@erpx/server-finance/public/sales';
 import { financePurchaseControls } from "@erpx/server-finance/public/purchases";
 import { financeSalesInvoiceNewWorkAllowed } from "@erpx/server-finance/public/rules/purchase-controls";
-import { commerceOverview } from "@erpx/server-commerce/public/commerce";
+import {commerceOverview} from '@erpx/server-commerce/public/commerce';
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { firstPageSearchValues, type PageSearchParams } from "@erpx/feature-shared/lib/page-search-params";
 import { ApiError } from "@erpx/server-runtime/public/http";

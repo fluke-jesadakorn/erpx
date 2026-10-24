@@ -1,3 +1,5 @@
+import{nativeSocialUploadReadRepository,socialUploadOwner}from '@erpx/server-collaboration/adapters/social-home-read';
+export{socialUploadOwner};
 import { cachedHomeRead } from "@erpx/server-work_projection/public/home-cache";
 import 'server-only';
 import { socialOrganizationAudienceName } from '@erpx/server-organization/public/collaboration-home-projections';
@@ -13,8 +15,9 @@ import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runt
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
 import { pmsSourcesSql } from '@erpx/server-pms/public/pms/source-policy';
-import { sourceAccessSql, readablePost, sourceGuard } from '@erpx/server-collaboration/public/social-source';
-import { getTask } from '@erpx/server-operations/public/staff-tasks';
+import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
+import {readablePost,sourceGuard} from '@erpx/server-collaboration/public/social-source';
+import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import { getProject } from '@erpx/server-projects/public/staff-projects';
 import { readablePmsSource, pmsSourceLink } from '@erpx/server-pms/public/pms/source';
 import { notification, authorityGuard, requireCompanyAuthority } from '@erpx/server-operations/public/staff-policy';
@@ -31,7 +34,8 @@ import { collaborationHomeSources as files } from '@erpx/server-files/public/col
 import { collaborationHomeSources as agent } from '@erpx/server-agent/public/collaboration-home-sources';
 import { collaborationHomeSources as operations } from '@erpx/server-operations/public/collaboration-home-sources';
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
-import {workSocialReadScope,requireWorkSocialDraftRead,withWorkSocialCommand,withWorkSocialUploadCleanup,workSocialPresentation} from '@erpx/server-collaboration/adapters/work-social-purchases';
+import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
+import {withWorkSocialCommand,withWorkSocialUploadCleanup} from '@erpx/server-collaboration/adapters/work-social-purchases';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -62,12 +66,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             }>();
         }, guardTeamAudience(key: string, value: "audience-team", id: string, companyId: string, userId: string) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM messaging_teams t JOIN messaging_team_members m ON m.team_id=t.id WHERE t.id=? AND t.company_id=? AND NOT t.organization_managed AND m.user_id=?)", [id, companyId, userId]);
-        }, async draft(id: string, companyId: string) {
-            return db
-                .prepare("SELECT * FROM social_post_drafts WHERE id=? AND company_id=?")
-                .bind(id, companyId)
-                .first<PostDraft>();
-        }, async publishedComment(published_comment_id: string, comment_parent_post_id: string) { return db.prepare("SELECT 1 FROM social_comments WHERE id=? AND post_id=? AND state='published'").bind(published_comment_id, comment_parent_post_id).first(); }, prepareCommentDraft(id: string, userId: string, companyId: string, branch_id: string | null, now: number, now2: number, postId: string) {
+        }, draft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, publishedComment(...args){return nativeSocialUploadReadRepository(db).publishedComment(...args);}, prepareCommentDraft(id: string, userId: string, companyId: string, branch_id: string | null, now: number, now2: number, postId: string) {
             return db.prepare("INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,comment_parent_post_id) VALUES(?,?,?,?, '',?,?,?)")
                 .bind(id, userId, companyId, branch_id, now, now2, postId);
         }, guardCommentDraft(key: string, value: "draft", id: string, userId: string) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND published_comment_id IS NULL AND cancelled_at IS NULL)", [id, userId]); }, cancelCommentDraft(now: number, now2: number, id: string) { return db.prepare("UPDATE social_post_drafts SET cancelled_at=?,version=version+1,updated_at=? WHERE id=?").bind(now, now2, id); }, prepareEditDraft(id: string, userId: string, companyId: string, branch_id: string | null, now: number, now2: number, postId: string, expectedVersion: number) {
@@ -347,7 +346,7 @@ export async function socialAudienceOptions(db: SqlDatabase, actor: Actor) {
     () => exposed(() => application(db,undefined,audienceProjects).socialAudienceOptions(actor)),
     { complete: value => Array.isArray(value.audiences) && Array.isArray(value.branches) });
 }
-export async function socialUploadOwner(db: SqlDatabase, actor: StaffActor, id: string, edit = false) { const result=await exposed(() => application(db).socialUploadOwner(actor, id, edit));await requireWorkSocialDraftRead(db,actor,id,edit);return result; }
+
 export function createCommentUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.comment.upload.create',type:'post',id:postId,purpose:'settle-existing'},tx=>exposed(() => application(tx).createCommentUploadDraft(actor, postId, key))); }
 export function cancelCommentUploadDraft(db: SqlDatabase, actor: StaffActor, id: string, key: string) { return withWorkSocialUploadCleanup(db,actor,{key,id,kind:'comment'},tx=>exposed(() => application(tx).cancelCommentUploadDraft(actor, id, key))); }
 export function createPostEditUploadDraft(db: SqlDatabase, actor: StaffActor, postId: string, expectedVersion: number, key: string) { return withWorkSocialCommand(db,actor,{key,operation:'social.post.edit-upload.create',type:'post',id:postId,purpose:'new-work'},tx=>exposed(() => application(tx).createPostEditUploadDraft(actor, postId, expectedVersion, key))); }

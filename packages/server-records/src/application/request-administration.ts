@@ -1,4 +1,5 @@
-import type {EmployeeRequest,employeeRequestDetail,listEmployeeRequests} from '@erpx/server-records/public/employee-requests';
+import type {EmployeeRequest,listEmployeeRequests} from '@erpx/server-records/public/employee-requests';
+import type {employeeRequestDetail} from '@erpx/server-records/public/employee-requests-read';
 import type { resourceRequestRoute } from "@erpx/server-people_payroll/public/expense-routing";
 
 export interface RequestAdministrationPorts {

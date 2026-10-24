@@ -1,7 +1,7 @@
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { newLeaveSchema } from "@erpx/server-people_payroll/public/leave";
+import {newLeaveSchema} from '@erpx/server-people_payroll/public/leave';
 import { ApiError,errorResponse } from "@erpx/server-runtime/public/http";
 import { createSelfServiceLeave, listOwnLeave, listOwnLeavePage, normalizeLegacyLeave } from "@erpx/server-people_payroll/public/leave-self-service";
 import { leaveCreateSchema } from "@erpx/feature-people_payroll/lib/leave-self-service";

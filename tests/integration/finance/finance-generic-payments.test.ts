@@ -15,7 +15,7 @@ import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expens
 import {approvePayment,bankWorkspace,calculateCloseReconciliations,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,invoicesPage,postInvoice,releasePayment,reversePayment,workInvoiceRows,createJournal,createJournalSchema,listCharts,listAccounts,getPayment} from '@erpx/server-finance/public/finance';
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import { packageGrantStore,readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
-import { confirmManualRate } from "@erpx/server-finance/public/company-money";
+import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 
 vi.mock("server-only",()=>({}));

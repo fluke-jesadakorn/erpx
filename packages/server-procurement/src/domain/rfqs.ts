@@ -5,7 +5,7 @@ import {decimalToMinor} from "@erpx/feature-finance/lib/finance-money";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {exactConversion} from "@erpx/server-procurement/domain/quantity-conversion";
 import type {requestQuotationSource} from '@erpx/server-records/public/employee-requests';
-import type {orderSchema} from "@erpx/server-commerce/public/commerce";
+import type {orderSchema} from '@erpx/server-commerce/public/commerce';
 export type RfqRow=Record<string,string|number|null>;
 export type RfqSource=Awaited<ReturnType<typeof requestQuotationSource>>;
 export type RfqOrderInput=z.infer<typeof orderSchema>;

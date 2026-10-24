@@ -3,7 +3,7 @@ import { commercialOwnerProjectionSources as salesProjectionSources } from "@erp
 import 'server-only';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
-import type { Row } from '@erpx/server-commerce/public/commerce';
+import type {Row} from '@erpx/server-commerce/public/commerce';
 function orderScope(actor: WorkContext, alias = 'o') { return { sql: `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, args: [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId] }; }
 export function salesPricingCurrency(write: SqlDatabase, actor: WorkContext) { return write.prepare('SELECT currency FROM commerce_settings WHERE company_id=?').bind(actor.companyId).first<Row>(); }
 export function salesPricingProducts(write: SqlDatabase, actor: WorkContext) { return write.prepare("SELECT id,sku,name,tax_bps FROM commerce_products WHERE company_id=? AND status='active' ORDER BY sku").bind(actor.companyId).all<Row>(); }

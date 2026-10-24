@@ -13,14 +13,11 @@ import { MasterEditor } from "@erpx/feature-commerce/components/lazy-master-edit
 import { commerceNavigationViews } from "@erpx/feature-work_projection/lib/workplace-navigation";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { commercePage, commercePermissions } from "@erpx/server-commerce/public/commerce";
+import {commercePage,commercePermissions} from '@erpx/server-commerce/public/commerce';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { redirect } from "next/navigation";
 import { salesCustomerLegacyDestination } from "@erpx/server-sales/public/rules/navigation";
-
-
-
 
 import { Card } from "@erpx/ui/components/foundation";
 
@@ -44,7 +41,7 @@ export default async function CommercePage({ params, searchParams, }: {
     const { holdingSlug } = await params;
     const actor = await requireWorkContext(holdingSlug);
     const base = workspaceBase(publicScope(actor));
-    
+
     const permissions = commercePermissions(actor);
     const search = await searchParams;
     const view = "warehouses"!;
@@ -58,8 +55,7 @@ export default async function CommercePage({ params, searchParams, }: {
     const requestData = search.request
         ? await (await commercePresentationQueries(actor.holdingId)).employeeRequestDetail(actor, search.request).catch((error) => pageError(error, holdingSlug))
         : null;
-    
-    
+
     const sourceRequest = requestData?.request.kind === "purchase" &&
         requestData.actions.includes("link-order") &&
         !requestData.request.purchase_order_id
@@ -70,7 +66,7 @@ export default async function CommercePage({ params, searchParams, }: {
             note: `${requestData.request.title} · ${requestData.request.description}`.slice(0, 2000),
         }
         : undefined;
-    
+
     const tabs = commerceNavigationViews;
     const orders = data.orders.filter((o) => o.kind === view &&
         (!search.q ||
@@ -78,9 +74,7 @@ export default async function CommercePage({ params, searchParams, }: {
     const canCreateMaster = permissions.stock;
     const area = "Inventory";
     const pageTitle = (tabs.find(([id]) => id === view)?.[1] ?? "Records");
-    
-    
-    
+
     return (<FeaturePage className="ui-page-content" data-source="live">
       <header className="ui-section-header">
         <div>
@@ -166,4 +160,3 @@ export default async function CommercePage({ params, searchParams, }: {
       </WidgetGrid></SectionWorkspace>
     </FeaturePage>);
 }
-

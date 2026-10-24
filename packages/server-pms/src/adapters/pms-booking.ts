@@ -6,10 +6,10 @@ import { createHash, createHmac, randomUUID, randomBytes, createCipheriv, create
 import { type BookingSearch } from "@erpx/feature-pms/lib/pms-booking";
 import { type Kind, type Property, type Snapshot } from "@erpx/server-pms/public/rules/pms";
 import { effects as persistPmsEffects, persistPmsRecords } from "../../../../packages/server-pms/src/public/pms";
-import { stripeCall } from "@erpx/server-pos/public/pos-stripe";
+import {stripeCall} from '@erpx/server-pos/public/stripe-provider';
 import { verifiedStripePaymentTime } from "@erpx/server-pos/public/stripe-payment-time";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { snapshotMoney } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { holdingBindingBySlug, holdingResources, runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";

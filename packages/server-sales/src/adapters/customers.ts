@@ -1,11 +1,11 @@
 import {followupProjectionScope,followupPurchasedAccess} from "@erpx/server-sales/adapters/followup-purchases";
-import { supportWorkspacePurchaseAccess } from "@erpx/server-support/public/support";
+import {supportWorkspacePurchaseAccess} from '@erpx/server-support/public/support';
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import {salesOrderCounts,salesCustomerOpenOrders,salesSupportOrderSource,salesOrderWorkRows} from "@erpx/server-commerce/public/sales-order-sources";
 import {salesCustomerProfile,salesCustomerDirectory} from "@erpx/server-finance/public/sales-customer-sources";
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { legacyModuleCompatibility } from "@erpx/server-identity_access/public/rules/legacy-module-compatibility";
@@ -20,7 +20,6 @@ import { customerFollowupWorkspace, customerFollowupWork } from "@erpx/server-sa
 import { customerTimeline } from "@erpx/server-customer_360/public/customer-timeline";
 import { customerNotesForCustomer } from "@erpx/server-sales/public/customer-notes";
 import { ApiError } from "@erpx/server-runtime/public/http";
-
 
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {createSalesCustomerApplication,type SalesCustomerRepository} from '@erpx/server-sales/application/customers';
@@ -62,4 +61,3 @@ export function customerWorkspaceDirectory(actor:WorkContext,query:HubQuery){ret
 export function customerWorkspaceProfile(actor:WorkContext,id:string,query:HubQuery={}){return translated(async()=>(await application(actor)).profile(id,query));}
 export function customerReviewCounts(actor:WorkContext){return translated(async()=>(await application(actor)).reviews());}
 export function salesToday(actor:WorkContext,query:HubQuery){return translated(async()=>(await application(actor)).today(query));}
-

@@ -6,7 +6,7 @@ import {activeHoldingProfileMember} from "@erpx/server-identity_access/public/pr
 import {memberProfileAccount} from "@erpx/server-identity_access/public/profile-account";
 import {memberProfileWork} from "@erpx/server-people_payroll/public/profile-work";
 import {memberProfilePostIds} from "@erpx/server-collaboration/public/profile-posts";
-import {postViews} from "@erpx/server-collaboration/public/social-home";
+import {postViews} from '@erpx/server-collaboration/public/social-home';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {ApiError} from "@erpx/server-runtime/public/http";

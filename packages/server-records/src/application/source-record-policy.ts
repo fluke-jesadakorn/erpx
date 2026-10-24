@@ -93,3 +93,9 @@ export function createSourceRecordApplication<Effect>(ports: SourceRecordPorts<E
     }
     return { readSourceRecord, visibleSourceRecord, sourceRecordGuards };
 }
+
+export interface SourceRecordReadServices<Actor,Database,Effect>{
+ read(actor:Actor,input:{kind:SourceKind;id:string},database?:Database):Promise<AuthorizedSourceRecord>;
+ visible(actor:Actor,input:{kind:SourceKind;id:string},database?:Database):Promise<AuthorizedSourceRecord|null>;
+ guards(database:Database,actor:Actor,key:string,source:AuthorizedSourceRecord,step?:string):Promise<Effect[]>;
+}

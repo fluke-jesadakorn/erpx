@@ -1,3 +1,5 @@
+import{firstRouteCompile}from '../../../scripts/performance/route-compile-metrics';
+import{runtimeOwnerCycles}from '../../../scripts/architecture/owner-cycles';
 import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import {readFileSync} from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -452,4 +454,44 @@ it('fails configured app selection when a compiler mapping is invalid or removed
   expect(()=>selectCandidateSuites(createWorkspaceGraph(files),createWorkspaceGraph(sources()),suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
   files.set(path,JSON.stringify({version:1,bundlers:{},activeApps:[]}));const base=createWorkspaceGraph(files);files.delete(path);
   expect(()=>selectCandidateSuites(createWorkspaceGraph(files),base,suites,[path])).toThrow('WORKSPACE_SETTINGS_MAPPING_REQUIRED');
+});
+
+
+describe('runtime owner composition cycles', () => {
+ it('rejects an owner loop through public exports and a composition helper', () => {
+  const graph={runtimeImports:new Map([
+   ['packages/server-records/src/adapters/read.ts',new Set(['packages/server-support/src/public/read.ts'])],
+   ['packages/server-support/src/public/read.ts',new Set(['packages/server-support/src/adapters/read.ts'])],
+   ['packages/server-support/src/adapters/read.ts',new Set(['scripts/local/composition.ts'])],
+   ['scripts/local/composition.ts',new Set(['packages/server-records/src/adapters/read.ts'])],
+  ])};
+  expect(runtimeOwnerCycles(graph)).toEqual([{owners:['server-records','server-support'],files:[...graph.runtimeImports.keys()].sort()}]);
+ });
+ it('allows explicit ports with reciprocal package usage on independent subpaths', () => {
+  const graph={runtimeImports:new Map([
+   ['packages/server-records/src/adapters/composition.ts',new Set(['packages/server-support/src/public/read-factory.ts'])],
+   ['packages/server-support/src/public/read-factory.ts',new Set(['packages/server-records/src/domain/source.ts'])],
+   ['packages/server-records/src/domain/source.ts',new Set<string>()],
+  ])};
+  expect(runtimeOwnerCycles(graph)).toEqual([]);
+ });
+ it('does not merge independent same-owner cycles into a cross-owner cycle', () => {
+  const graph={runtimeImports:new Map([
+   ['packages/server-records/src/adapters/a.ts',new Set(['packages/server-records/src/adapters/b.ts'])],
+   ['packages/server-records/src/adapters/b.ts',new Set(['packages/server-records/src/adapters/a.ts','packages/server-support/src/adapters/a.ts'])],
+   ['packages/server-support/src/adapters/a.ts',new Set(['packages/server-support/src/adapters/b.ts'])],
+   ['packages/server-support/src/adapters/b.ts',new Set(['packages/server-support/src/adapters/a.ts'])],
+  ])};
+  expect(runtimeOwnerCycles(graph)).toEqual([]);
+ });
+});
+
+
+describe('observed cold route compile metrics',()=>{
+ it('retains the first redirect compilation rather than a later warm authenticated render',()=>{
+  expect(firstRouteCompile('GET /other 200 in 10s (compile: 9s, render: 1s)\nGET /target?person=fixture 307 in 6.2s (compile: 5.1s, proxy: 2ms, render: 1s)\nGET /target 200 in 800ms (compile: 12ms, render: 788ms)','/target')).toEqual({route:'/target',status:307,requestMs:6200,compileMs:5100});
+ });
+ it('refuses route appearance without an observed compiler duration',()=>{
+  expect(()=>firstRouteCompile('GET /target-child 200 in 20ms (compile: 2ms, render: 18ms)\nGET /target 200 in 20ms','/target')).toThrow('FIRST_COLD_ROUTE_COMPILATION_NOT_OBSERVED');
+ });
 });

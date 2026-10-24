@@ -4,24 +4,7 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
-import {
-  channelSchema,
-  createMessagingChannel,
-  createMessagingRoom,
-  createMessagingTeam,
-  manageMessaging,
-  manageSchema,
-  messageSchema,
-  messagingFile,
-  messagingHistory,
-  messagingMembers,
-  messagingOverview,
-  messagingPeople,
-  readMessaging,
-  roomSchema,
-  sendMessagingMessage,
-  teamSchema,
-} from "@erpx/server-collaboration/public/messaging";
+import {channelSchema,createMessagingChannel,createMessagingRoom,createMessagingTeam,manageMessaging,manageSchema,messageSchema,messagingFile,messagingHistory,messagingMembers,messagingOverview,messagingPeople,readMessaging,roomSchema,sendMessagingMessage,teamSchema} from '@erpx/server-collaboration/public/messaging';
 import { uploadMessagingFile,discardMessagingFile } from "@erpx/server-collaboration/public/messaging-files";
 import { attachmentContent } from "@erpx/server-files/public/attachments/service";
 

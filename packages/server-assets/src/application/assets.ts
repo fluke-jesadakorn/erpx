@@ -1,6 +1,6 @@
 import type { Asset, AssetState } from "@erpx/server-assets/domain/assets";
 import { assetActionSchema } from "@erpx/server-assets/domain/assets";
-import type { Row } from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import type { Clock } from "@erpx/server-shared/application/ports";
 
 export type AssetCommand = { key: string; operation: string; id: string; input: ReturnType<typeof assetActionSchema.parse> };

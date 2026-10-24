@@ -9,7 +9,8 @@ import {
 import type { WorkContext, WorkAssignment } from "@erpx/server-identity_access/public/authorization";
 import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
 import {resolveServiceTeam} from '@erpx/server-support/public/service-team-reads';
-import {actOnEmployeeRequest,employeeRequestDetail,employeeRequestSchema,getEmployeeRequest,requestActionSchema,saveEmployeeRequest,prepareRequestOrderHandoff,employeeRequestWork} from '@erpx/server-records/public/employee-requests';
+import {actOnEmployeeRequest,employeeRequestSchema,requestActionSchema,saveEmployeeRequest,prepareRequestOrderHandoff,employeeRequestWork} from '@erpx/server-records/public/employee-requests';
+import {employeeRequestDetail,getEmployeeRequest} from '@erpx/server-records/public/employee-requests-read';
 import { executeCommand } from "@erpx/server-workflow/public/commands";
 import { serviceAuthoritySnapshot } from "@erpx/server-support/public/service-access";
 import {
@@ -24,7 +25,7 @@ import {
   responsibilityContext,
   responsibilityRoles,
 } from "@erpx/feature-organization/lib/responsibilities";
-import { commercePermissions } from "@erpx/server-commerce/public/commerce";
+import {commercePermissions} from '@erpx/server-commerce/public/commerce';
 import { resourceRequestRoute } from "@erpx/server-people_payroll/public/expense-routing";
 
 vi.mock("server-only", () => ({}));

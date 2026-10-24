@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { BetaEnvironment } from "@erpx/server-manage_erpx/public/beta-config";
-import type { evaluationAuthority, evaluationDetail, readEvaluationEvidence, evaluationWorkspace, EvaluationQuery } from "@erpx/server-people_payroll/public/people-evaluation";
+import type {evaluationAuthority} from '@erpx/server-people_payroll/public/people-evaluation-read';
+import type {evaluationDetail,readEvaluationEvidence,evaluationWorkspace,EvaluationQuery} from '@erpx/server-people_payroll/public/people-evaluation';
 import type { requireJobAuthority } from "@erpx/server-identity_access/public/iam-jobs";
 import type { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
 import type { resolveAiProvider, aiSnapshotGuard, aiUsageStatement } from "@erpx/server-agent/public/ai-providers";

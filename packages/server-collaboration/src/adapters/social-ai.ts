@@ -8,7 +8,7 @@ import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runt
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { sha256 } from '@erpx/server-runtime/public/crypto';
-import { sourceSnapshot, sourceGuard, readablePost } from '@erpx/server-collaboration/public/social-source';
+import {sourceSnapshot,sourceGuard,readablePost} from '@erpx/server-collaboration/public/social-source';
 import { staffPeople } from '@erpx/server-operations/public/staff-policy';
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import { aiRequestQuotaLock } from '@erpx/server-agent/public/ai-quota';

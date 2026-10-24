@@ -17,27 +17,11 @@ import {
   memberStatements,
   branchStatements,
 } from "@erpx/server-manage_erpx/public/beta-onboarding";
-import {
-  postView,
-  postComments,
-  homePosts,
-  savePostDraft,
-  publishPost,
-  postAction,
-  postRevisionHistory,
-  socialUploadOwner,
-  createCommentUploadDraft,
-  createPostEditUploadDraft,
-  type PostContent,
-} from "@erpx/server-collaboration/public/social-home";
-import { sourceSnapshot, readablePost } from "@erpx/server-collaboration/public/social-source";
+import {postView,postComments,homePosts,savePostDraft,publishPost,postAction,postRevisionHistory,createCommentUploadDraft,createPostEditUploadDraft,type PostContent} from '@erpx/server-collaboration/public/social-home';
+import {socialUploadOwner} from '@erpx/server-collaboration/public/social-home-read';
+import {sourceSnapshot,readablePost} from '@erpx/server-collaboration/public/social-source';
 import { createAiDraft, aiResultSchema, callAi } from "@erpx/server-collaboration/public/social-ai";
-import {
-  saveTask,
-  taskSchema,
-  taskDetail,
-  transitionTask,
-} from "@erpx/server-operations/public/staff-tasks";
+import {saveTask,taskSchema,taskDetail,transitionTask} from '@erpx/server-operations/public/staff-tasks';
 import { betaDestinationAllowed } from "@erpx/server-identity_access/public/beta-access";
 import {
   addBetaBranch,

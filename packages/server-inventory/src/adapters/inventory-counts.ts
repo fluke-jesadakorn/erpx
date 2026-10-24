@@ -16,7 +16,6 @@ import {inventoryReadProjection as inventorypeople_payrollProjection} from '@erp
 import {readListPage} from "@erpx/server-work_projection/public/list-page";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 
-
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
 import {z} from "zod";
@@ -24,8 +23,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import {prepareJournal} from '@erpx/server-finance/public/finance';
-
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 
 import {sha256} from "@erpx/server-runtime/public/crypto";
 import {ApiError} from "@erpx/server-runtime/public/http";
@@ -91,8 +89,6 @@ prepareAdjustmentLotMove(value:string,result_lot_id:string | number | null,wareh
 prepareScrappedLot(lot_id:string | number,lot_id2:string | number){return db.prepare("UPDATE inventory_lots SET status='scrapped' WHERE id=? AND NOT EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND quantity_milli>0)").bind(lot_id,lot_id2);},
 prepareCountDecision(status:"submitted" | "posted" | "approved" | "rejected" | "cancelled",value:string | null,action:"submit" | "reject" | "cancel" | "approve" | "post",userId:string,action2:"submit" | "reject" | "cancel" | "approve" | "post",now:number,action3:"submit" | "reject" | "cancel" | "approve" | "post",now2:number,journalId:string | null,now3:number,id:string){return db.prepare("UPDATE inventory_counts SET status=?,review_reason=?,approved_by=CASE WHEN ?='approve' THEN ? ELSE approved_by END,submitted_at=CASE WHEN ?='submit' THEN ? ELSE submitted_at END,posted_at=CASE WHEN ?='post' THEN ? ELSE posted_at END,journal_id=COALESCE(?,journal_id),version=version+1,updated_at=? WHERE id=?").bind(status,value,action,userId,action2,now,action3,now2,journalId,now3,id);},
 
-
-
 prepareDecisionHistory(value:string,id:string,key:string,action:"reject" | "cancel" | "approve" | "post",userId:string,expectedVersion:number,reason:string | undefined,now:number){return db.prepare("INSERT INTO inventory_count_decisions(id,count_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(value,id,key,action,userId,expectedVersion,reason,now);},...owner0(db),...owner1(db),...owner2(db),...owner3(db)};return createInventoryCountApplication({repository,clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},hash:sha256,requirePermission:(...args)=>{try{return requirePermission(...args);}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}},commands:{replay:async<Result>(actor:WorkContext,key:string,operation:string,id:string,input:unknown)=>{const value=await inward(()=>replayCommand<Result&Record<string,unknown>>(db,actor,key,operation,id,initial&&operation==='inventory.count.create'?initial.input:input));if(value&&initial){const {[initial.marker??"_initialPhysicalStockCount"]:privateSource,...publicResult}=value;void privateSource;return publicResult as Result;}return value;},commit:async<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:SqlStatement[])=>{if(initial&&operation==='inventory.count.create'){await inward(()=>executeCommand(db,actor,key,operation,initial.input,id,version,{...result,[initial.marker??"_initialPhysicalStockCount"]:initial.proof},effects));return result;}return inward(()=>executeCommand(db,actor,key,operation,input,id,version,result,effects));}},prepareJournal:(...args)=>inward(()=>prepareJournal(db,...args)),prepareEvidence:(...args)=>inward(()=>prepareBusinessEvidence(db,...args))});}
 export async function listCounts(actor:WorkContext){const {write}=await holdingResources(actor.holdingId);await requireCountListHistory(write,actor);return exposed(()=>inventoryCountApplication(write,actor).listCounts(actor));}
 export async function countsPage(actor:WorkContext,query:{q?:string;status?:string;cursor?:string}){const {write}=await holdingResources(actor.holdingId);await requireCountListHistory(write,actor);return exposed(()=>inventoryCountApplication(write,actor).countsPage(actor,query));}
@@ -101,4 +97,3 @@ export async function countDetail(actor:WorkContext,id:string){const {write}=awa
 export async function countOptions(actor:WorkContext){const {write}=await holdingResources(actor.holdingId);await requireCountPurchasedRead(write,actor);return exposed(()=>inventoryCountApplication(write).countOptions(actor));}
 export async function saveCount(actor:WorkContext,id:string|null,input:z.infer<typeof countSchema>,key:string){const {write}=await holdingResources(actor.holdingId);return withCountPurchasedCommand(write,actor,{key,operation:id?"inventory.count.update":"inventory.count.create",id:id??`count-${key}`,purpose:"new-work",permission:"inventory.prepare",existing:!!id},tx=>exposed(()=>inventoryCountApplication(tx).saveCount(actor,id,input,key)));}
 export async function transitionCount(actor:WorkContext,id:string,action:"submit"|"reject"|"cancel"|"approve"|"post",input:z.infer<typeof countActionSchema>,key:string){const {write}=await holdingResources(actor.holdingId);return withCountPurchasedCommand(write,actor,{key,operation:`inventory.count.${action}`,id,purpose:action==="submit"?"new-work":"settle-existing",permission:["post","approve","reject"].includes(action)?"inventory.approve":"inventory.prepare",financial:action==="post",existing:true},tx=>exposed(()=>inventoryCountApplication(tx).transitionCount(actor,id,action,input,key)));}
-

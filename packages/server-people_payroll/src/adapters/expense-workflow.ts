@@ -1,3 +1,6 @@
+import{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields}from '@erpx/server-people_payroll/adapters/expense-workflow-read';
+export{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields};
+
 import {withExpensePurchasedCommand} from "@erpx/server-people_payroll/adapters/expense-purchases";
 import {peoplePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
@@ -5,7 +8,7 @@ import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@er
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/hospitality-owner-projection-sources";
-import { createExpensePayers, createExpenseWorkflowFields } from "@erpx/server-people_payroll/application/expense-projections";
+
 import { createSaveExpenseAccounting, createTransitionExpenseV2 } from "@erpx/server-people_payroll/application/expense-commands";
 import { expenseCommandPort, expenseMutation } from "@erpx/server-people_payroll/adapters/expense-command-port";
 /** Native Expense adapter; preserves legacy persistence and command semantics. */
@@ -16,16 +19,13 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {approvalView,closeApprovals,openApproval,prepareDecision} from '@erpx/server-workflow/public/approval-planning';
 import { activeStaff, notification, staffGuard } from "@erpx/server-operations/public/staff-policy";
-import {
-  expenseRoute,
-  expenseRoleUsers,
-  expenseAuthoritySnapshot,
-} from "@erpx/server-people_payroll/adapters/expense-routing";
-import { expenseRequirements } from "@erpx/server-people_payroll/adapters/expense-drafts";
-import { expenseFromDatabase, type ExpenseRow } from "@erpx/server-people_payroll/adapters/expenses";
+import { expenseRoute, expenseAuthoritySnapshot } from "@erpx/server-people_payroll/adapters/expense-routing";
+import {expenseRequirements} from '@erpx/server-people_payroll/adapters/expense-requirements';
+import {expenseFromDatabase} from '@erpx/server-people_payroll/adapters/expense-read';
+import {type ExpenseRow} from '@erpx/server-people_payroll/adapters/expenses';
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import {decimalToMinor} from '@erpx/server-finance/public/finance';
-import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import {decimalToMinor} from '@erpx/server-finance/public/money-primitives';
+
 import { attachmentsV2Readable } from "@erpx/server-files/public/attachments/feature";
 
 export const expenseAccountingSchema = z.object({
@@ -39,28 +39,6 @@ export const expenseAccountingSchema = z.object({
 
 const scope = (row: ExpenseRow) => ({ company_id: String(row.company_id), branch_id: row.branch_id ? String(row.branch_id) : null, department_id: row.department_id ? String(row.department_id) : null });
 
-export function nativeExpensePayers(db: SqlDatabase) {
-  return createExpensePayers({
-    async approvedPeople(row) { const history = await db
-    .prepare(
-      `SELECT DISTINCT s.approver_user_id FROM (${workflowProjectionSources.approval_steps}) s JOIN (${workflowProjectionSources.approval_instances}) i ON i.id=s.instance_id WHERE i.record_type='expense' AND i.record_id=? AND i.company_id=? AND s.state='approved' AND i.cycle=(SELECT MAX(cycle) FROM (${workflowProjectionSources.approval_instances}) approval_instances WHERE record_type='expense' AND record_id=?)`,
-    )
-    .bind(row.id, row.company_id, row.id)
-    .all<{ approver_user_id: string }>(); return history.results.map(row => row.approver_user_id); },
-    roleUsers: (scope, role) => expenseRoleUsers(db, scope, role),
-  });
-}
-export async function expensePayers(db: SqlDatabase, row: ExpenseRow) { return nativeExpensePayers(db)(row); }
-export function nativeExpenseWorkflowFields(db: SqlDatabase, readApproval?: (actor:WorkContext,id:string)=>ReturnType<typeof approvalView>) {
-  return createExpenseWorkflowFields({
-    approval: readApproval ?? ((actor, id) => approvalView(db, "expense", id, actor)),
-    payers: row => expensePayers(db, row),
-    flow: (actor, id) => resolveFlow(db, actor, "expense", id),
-  });
-}
-export async function expenseWorkflowFields(db: SqlDatabase, actor: WorkContext, row: ExpenseRow, readApproval?: (actor:WorkContext,id:string)=>ReturnType<typeof approvalView>): Promise<ExpenseRow> {
-  return nativeExpenseWorkflowFields(db, readApproval)(actor, row);
-}
 function originalNativeExpenseAccounting(write: SqlDatabase) {
   return createSaveExpenseAccounting({
     ...expenseCommandPort(write),
@@ -216,7 +194,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
       ]);
     },
     async prepareCancel(actor, key, id, input, _row, now) {
-      
+
       return expenseMutation({ id, status: "cancelled", version: input.expectedVersion + 1 }, [
         assertion(
           write,
@@ -243,7 +221,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
       ]);
     },
     async prepareGlReturn(actor, key, id, input, row, now) {
-      
+
       return expenseMutation({id,status:"rejected",stage:"draft",version:input.expectedVersion+1}, [
       assertion(write,key,"expense-version","EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='approved' AND workflow_stage='gl_posting' AND journal_id IS NULL)",[id,actor.companyId,input.expectedVersion]),
       write.prepare("UPDATE finance_expenses SET status='rejected',workflow_stage='draft',accounting_json='{}',approved_by=NULL,rejection_reason=?,version=version+1,updated_at=? WHERE id=?").bind(input.reason,now,id),

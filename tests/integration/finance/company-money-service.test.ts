@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { companyRates, configureCurrencyScale, confirmManualRate, quoteMoneyConversion, saveCurrencyPreference, snapshotMoney, snapshotMoneyBatch, snapshotMoneyCarry, snapshotMoneyReversal } from "@erpx/server-finance/public/company-money";
+import {companyRates} from '@erpx/server-finance/public/company-money-rates';
+import {configureCurrencyScale,confirmManualRate,quoteMoneyConversion,saveCurrencyPreference,snapshotMoney,snapshotMoneyBatch,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/server-finance/public/company-money';
 import { executeCommand } from "@erpx/server-workflow/public/commands";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", async () => {

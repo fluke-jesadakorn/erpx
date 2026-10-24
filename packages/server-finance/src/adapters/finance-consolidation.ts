@@ -7,7 +7,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import {decimalToMinor,minorToDecimal} from '@erpx/server-finance/public/finance';
+import {decimalToMinor,minorToDecimal} from '@erpx/server-finance/public/money-primitives';
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';

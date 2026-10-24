@@ -1,5 +1,5 @@
 import 'server-only';
-import {payrollOtherRemittanceTables as people} from '@erpx/server-people_payroll/public/finance-other-remittance-sources';
+import {payrollOtherRemittanceTables as people} from '@erpx/server-people_payroll/public/payroll-other-remittance-read-sources';
 /** Embedded only in the two actual People/Payroll owner queries, after their
  * query-free native source leases. Original statutory facts are unchanged.
  * These predicates use existing columns/JSON so pre1066 history remains valid. */

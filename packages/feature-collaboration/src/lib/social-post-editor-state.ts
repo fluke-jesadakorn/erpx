@@ -1,7 +1,7 @@
 import type { JSONContent } from "@tiptap/core";
 import { plainRichContent, type RichContent, type RichNode } from "@erpx/feature-shared/lib/home-rich-content";
 import type { Mention } from "@erpx/server-collaboration/public/rules/social-text";
-import type { PostContent } from "@erpx/server-collaboration/public/social-home";
+import type {PostContent} from '@erpx/server-collaboration/public/social-home';
 
 export type PostTextBlock = {
   type: "text";

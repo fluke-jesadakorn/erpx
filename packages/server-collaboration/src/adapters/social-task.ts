@@ -3,7 +3,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { aiSnapshotGuard } from '@erpx/server-agent/public/ai-providers';
-import { readablePost, sourceSnapshot, sourceGuard } from '@erpx/server-collaboration/public/social-source';
+import {readablePost,sourceSnapshot,sourceGuard} from '@erpx/server-collaboration/public/social-source';
 import type { StaffActor } from '@erpx/server-operations/public/staff-policy';
 import { createSocialTaskApplication } from '@erpx/server-collaboration/application/social-task';
 import type { TaskSource } from '@erpx/server-collaboration/domain/social-task';

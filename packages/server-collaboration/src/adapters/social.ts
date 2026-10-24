@@ -8,15 +8,16 @@ import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runt
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { getRecord } from '@erpx/server-records/public/records';
-import { getLeave } from '@erpx/server-people_payroll/public/leave';
+import {getLeave} from '@erpx/server-people_payroll/public/leave-read';
 import { collaborationMentionPrincipals } from '@erpx/server-identity_access/public/collaboration-mention-principals';
 import { collaborationSocialSources as identity } from '@erpx/server-identity_access/public/collaboration-social-sources';
 import { collaborationSocialSources as workflow } from '@erpx/server-workflow/public/collaboration-social-sources';
-import { socialPostScope } from '@erpx/server-collaboration/public/social-source';
+import {socialPostScope} from '@erpx/server-collaboration/public/social-source-policy';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { FeedFilter } from '@erpx/server-collaboration/domain/social';
 import { createSocialApplication, type SocialRepository } from '@erpx/server-collaboration/application/social';
-import {workSocialReadScope,withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
+import {workSocialReadScope} from '@erpx/server-collaboration/public/work-social-read-policy';
+import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
 async function inward<T>(action: () => Promise<T>) { try {
     return await action();
 }

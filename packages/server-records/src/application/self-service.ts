@@ -3,7 +3,7 @@ import { selfServiceActions } from "@erpx/feature-work_projection/lib/self-servi
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import type { leaveSummary } from "@erpx/server-people_payroll/public/leave-self-service";
-import type { overtimeSetup } from "@erpx/server-people_payroll/public/overtime";
+import type {overtimeSetup} from '@erpx/server-people_payroll/public/overtime';
 import type { workSnapshot } from "@erpx/server-work_projection/public/work-items";
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 

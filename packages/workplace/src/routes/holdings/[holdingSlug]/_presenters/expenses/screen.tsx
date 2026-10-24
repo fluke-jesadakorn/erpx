@@ -18,7 +18,7 @@ import { EmptyState, PageHeader, StatusBadge } from "@erpx/ui/components/primiti
 import { MoneyAmount } from "@erpx/feature-finance/components/money/currency-provider";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { listExpenses } from "@erpx/server-people_payroll/public/expenses";
+import {listExpenses} from '@erpx/server-people_payroll/public/expense-read';
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { FilterBar } from "@erpx/ui/components/foundation";
 export const dynamic = "force-dynamic";

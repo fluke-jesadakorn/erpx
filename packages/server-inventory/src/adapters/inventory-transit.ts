@@ -7,16 +7,12 @@ import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {TransferRow as Row} from "@erpx/server-inventory/public/inventory-transfers";
 
-
-
-
-
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import {prepareJournal} from '@erpx/server-finance/public/finance';
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {prepareBusinessEvidence} from "@erpx/server-records/public/business-evidence";
 import {BusinessRuleError} from '@erpx/server-shared/index';import {createInventoryTransitApplication,type InventoryTransitRepository} from '@erpx/server-inventory/application/transit';import {transitDispatchSchema,transitReceiveSchema,transitLossSchema,transitLossDecisionSchema,transitCancelSchema,transitWorkItem} from '@erpx/server-inventory/domain/transit';export {transitDispatchSchema,transitReceiveSchema,transitLossSchema,transitLossDecisionSchema,transitCancelSchema,transitWorkItem} from '@erpx/server-inventory/domain/transit';

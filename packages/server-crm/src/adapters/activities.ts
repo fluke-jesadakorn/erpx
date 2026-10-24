@@ -5,7 +5,7 @@ import 'server-only';
 
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
@@ -26,7 +26,6 @@ export {crmActivityCreateSchema,crmActivityChangeSchema} from "@erpx/server-crm/
 const scope="l.company_id=? AND (?::text IS NULL OR l.branch_id=?) AND (?::text IS NULL OR l.department_id=?)";
 const args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 const eligible=salesRecipientEligibility('l','l.owner_id');
-
 
 async function lead(db:SqlDatabase,a:WorkContext,leadId:string){
  const row=await db.prepare(`SELECT l.id,l.company_id,l.branch_id,l.department_id,l.title,l.status,l.version,v.stage FROM crm_leads l LEFT JOIN crm_opportunities v ON v.lead_id=l.id WHERE l.id=? AND ${scope} AND ${await crmNativeReadFilter('lead','l')}`).bind(leadId,...args(a)).first<Row>();

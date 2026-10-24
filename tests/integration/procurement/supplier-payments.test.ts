@@ -5,7 +5,7 @@ import {reviewedFinanceGrant} from "../../support/helpers/finance-purchase-fixtu
 import { beforeAll,beforeEach,expect,it,vi } from 'vitest';
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
-import { settleInvoice } from "@erpx/server-commerce/public/commerce";
+import {settleInvoice} from '@erpx/server-commerce/public/commerce';
 import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-notifications";
 import {createInvoice,invoiceSchema,postInvoice,importBankStatement,beginClose} from '@erpx/server-finance/public/finance';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';

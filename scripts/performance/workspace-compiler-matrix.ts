@@ -1,0 +1,16 @@
+import{readFile,readdir,writeFile}from 'node:fs/promises';
+import{join}from 'node:path';
+import{runBrowserSuites}from '../testing/browser-runner';
+import{loadCatalogue}from '../testing/catalogue';
+const args=process.argv.slice(2),group=args.find(arg=>arg.startsWith('--group='))?.slice(8),bundler=args.find(arg=>arg.startsWith('--bundler='))?.slice(10);
+const groups={office:['sales','supply','assets','projects','support','service','legal','manufacturing'],front:['pos','pms'],public:['booking','portal','legal-portal','forms']}as const;
+if(Bun.version!=='1.4.3'||args.length!==2||!Object.hasOwn(groups,group!)||!['webpack','turbopack'].includes(bundler!)||new Set(args.map(arg=>arg.split('=')[0])).size!==2)throw new Error('EXPLICIT_COMPILER_MATRIX_GROUP_REQUIRED');
+const apps=groups[group as keyof typeof groups],suite=loadCatalogue().suites.find(value=>value.id==='shared.ui.application-hmr.e2e');if(!suite)throw new Error('REGISTERED_HMR_SUITE_REQUIRED');
+const titles:Record<string,string>={sales:'Sales',supply:'Supply',assets:'Assets',projects:'Projects',support:'Support',service:'Service',legal:'Legal',manufacturing:'Manufacturing'};
+const result=await runBrowserSuites([suite],{mode:'development-smoke',projects:['desktop'],caseOrder:'forward',workspace:{apps:['account','apps',...apps],entryApp:apps[0],bundler:bundler as 'webpack'|'turbopack',consoleRetired:true},caseSelection:apps.map(app=>({suite:suite.id,file:'tests/e2e/shared.ui/application-hmr.spec.ts',project:'desktop',title:group==='office'?titles[app]+' owner drawer preserves its draft through twenty measured HMR updates':app+' owned host preserves its functional state through twenty measured HMR updates'}))});
+const files=(await readdir(result.evidenceDirectory,{recursive:true,withFileTypes:true})).filter(file=>file.isFile()&&file.name==='workspace-performance.json');
+if(files.length!==apps.length)throw new Error('EXACT_HMR_MATRIX_MEASUREMENTS_REQUIRED');
+const measurements=await Promise.all(files.map(async file=>JSON.parse(await readFile(join(file.parentPath,file.name),'utf8'))));
+if(new Set(measurements.map(sample=>sample.app)).size!==apps.length||measurements.some(sample=>!apps.includes(sample.app as never)||sample.acceptance!==false||sample.sourceFingerprint!==result.runtimeFingerprint||sample.bundler!==bundler||sample.samples.length!==20||sample.reloads||sample.errors.length))throw new Error('HMR_MATRIX_BINDING_FAILED');
+const receipt=join(result.evidenceDirectory,'compiler-matrix.json');await writeFile(receipt,JSON.stringify({...result,acceptance:false,scope:'explicit forward development compiler measurements; no production acceptance',group,bundler,measurements},null,2)+'\n',{mode:0o600});
+console.log(JSON.stringify({receipt,acceptance:false,measurements:measurements.map(sample=>({app:sample.app,p95Ms:sample.p95Ms,sampledPeakAppRssBytes:sample.peakAppRssBytes,target:sample.target}))}));

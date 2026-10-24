@@ -1,7 +1,7 @@
 import { portalCollaborationAttachmentPolicies } from "@erpx/server-files/domain/attachments/portal-collaboration-policy";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { PostRow } from "@erpx/server-collaboration/public/social-source";
+import type {PostRow} from '@erpx/server-collaboration/public/social-source';
 import type { Clock } from "@erpx/server-shared/application/ports";
 import type { AttachmentOperation, AttachmentPolicy, AttachmentTargetScope } from "@erpx/server-files/domain/attachments/types";
 export type PortalAttachmentUnit<Effect> = {

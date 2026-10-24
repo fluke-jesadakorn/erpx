@@ -11,7 +11,7 @@ import {executeCommand,replayCommand} from "@erpx/server-workflow/public/command
 import { financeTransaction, financeOwnedTransaction } from "@erpx/server-finance/public/finance-transactions";
 import { requireFinanceTool } from "@erpx/server-finance/public/finance-company-tools";
 import { requireFinanceMoneyScale } from "@erpx/server-finance/public/finance-money-policy";
-import {prepareJournal} from '@erpx/server-finance/public/finance';
+import {prepareJournal} from '@erpx/server-finance/public/journal-planning';
 import { prepareOwnedJournalReversal } from "@erpx/server-finance/public/finance-owned-reversal";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { ApiError } from "@erpx/server-runtime/public/http";

@@ -9,7 +9,7 @@ import {seedAttachmentSet,attachmentBindingState} from "../../support/helpers/at
 import {bindRecordAttachmentSet,attachmentContent} from "@erpx/server-files/public/attachments/service";
 import {createCRMLead,getCRMLead,changeCRMLead} from "@erpx/server-crm/public/crm";
 import {changeCRMIdentity} from "@erpx/server-crm/public/crm-identities";
-import {saveMaster} from "@erpx/server-commerce/public/commerce";
+import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {createMarketingAsset} from "@erpx/server-marketing/public/marketing";
 import {changeMarketingCampaign} from "@erpx/server-marketing/public/marketing-campaigns";
 import {measureReads} from "@erpx/server-runtime/public/runtime/read-metrics";

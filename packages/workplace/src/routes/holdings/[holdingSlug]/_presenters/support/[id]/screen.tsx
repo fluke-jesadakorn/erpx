@@ -10,7 +10,7 @@ import { RecordLink as Link } from "@erpx/feature-records/components/record-link
 import {requireWorkContext,publicScope} from "@erpx/server-identity_access/public/authorization";
 import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
 import {pageError} from "@erpx/server-work_projection/public/page-error";
-import {supportDetail} from "@erpx/server-support/public/support";
+import {supportDetail} from '@erpx/server-support/public/support';
 import { SupportSlaConsole } from "@erpx/feature-records/components/loaders/modules--support-sla-console";
 import { SupportConsole } from "@erpx/feature-records/components/loaders/modules--support-console";
 import { PageContent, Card } from "@erpx/ui/components/foundation";

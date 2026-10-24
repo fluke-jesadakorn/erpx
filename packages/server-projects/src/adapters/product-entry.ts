@@ -46,6 +46,6 @@ export async function projectTaskSourceRecordBackdrop(actor:WorkContext,target:P
   return {kind:'task',title:source.title,status:source.status};
  }
  const source=await database.prepare('SELECT project_id FROM staff_tasks WHERE id=? AND company_id=?').bind(target.id,actor.companyId).first<{project_id:string|null}>();if(!source?.project_id)return null;
- const {getTask}=await import('@erpx/server-operations/public/staff-tasks'),task=await getTask(database,actor,target.id);
+ const {getTask}=await import('@erpx/server-operations/public/staff-task-read'),task=await getTask(database,actor,target.id);
  return {kind:'task',title:task.title,status:task.state};
 }

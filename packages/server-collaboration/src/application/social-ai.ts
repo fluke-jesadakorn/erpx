@@ -6,7 +6,7 @@ import type { BetaEnvironment } from '@erpx/server-manage_erpx/public/beta-confi
 import type { AiEndpoint } from '@erpx/server-agent/public/transport-contract';
 import type { SocialSnapshot, ResolvedSocialProvider, SocialReplyProvider, SocialDraftProvider, SocialAiDraft } from '@erpx/server-collaboration/domain/ai-contracts';
 import type { PostRow } from '@erpx/server-collaboration/domain/social-source';
-import type { sourceGuard } from '@erpx/server-collaboration/public/social-source';
+import type {sourceGuard} from '@erpx/server-collaboration/public/social-source';
 import type {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import type { aiRequestQuotaLock } from '@erpx/server-agent/public/ai-quota';
 import type { aiSnapshotGuard, aiUsageStatement } from '@erpx/server-agent/public/ai-providers';

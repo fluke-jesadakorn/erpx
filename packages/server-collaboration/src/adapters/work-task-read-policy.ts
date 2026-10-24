@@ -1,8 +1,8 @@
 import 'server-only';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {workSocialReadScope} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {sourceAccessSql} from '@erpx/server-collaboration/adapters/social-source';
+import {workSocialReadScope} from '@erpx/server-collaboration/public/work-social-read-policy';
+import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 
 /** A Task consumer repeats the included conversation source gate, including
  * generic updates whose native audience permits a linked preview. Paid Social
@@ -23,4 +23,3 @@ async function scopeFor(database:SqlDatabase,actor:StaffActor,taskId?:string){
  * in the consuming SELECT, before its LIMIT. No caller SQL is accepted. */
 export function workTaskSocialReadScope(database:SqlDatabase,actor:StaffActor){return scopeFor(database,actor);}
 export function workTaskSocialReadPolicy(database:SqlDatabase,actor:StaffActor,taskId:string){return scopeFor(database,actor,taskId);}
-

@@ -21,24 +21,21 @@ import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {aiProviderOverview,aiSnapshotGuard,aiUsageStatement,resolveAiProvider} from "@erpx/server-agent/adapters/ai-providers";
 import {generateProviderJson,withAiGatewayScope} from "@erpx/server-agent/adapters/ai-transport";
-import {employeeRequestDetail} from '@erpx/server-records/public/employee-requests';
-import {getExpense} from "@erpx/server-people_payroll/public/expenses";
-import {getTask} from "@erpx/server-operations/public/staff-tasks";
+import {employeeRequestDetail} from '@erpx/server-records/public/employee-requests-read';
+import {getExpense} from '@erpx/server-people_payroll/public/expense-read';
+import {getTask} from '@erpx/server-operations/public/staff-task-read';
 import {handbookArticle} from "@erpx/server-runtime/public/handbook";
 import {runtimeEnv} from "../../../../packages/server-runtime/src/public/runtime";
 import {assistantGovernanceContext,assistantGovernanceGuards,validateAssistantGovernance,recordAssistantInvocation} from "@erpx/server-agent/adapters/agent-governance";
 import {pmsWorkspace} from "../../../../packages/server-pms/src/public/pms";
 import {posWorkspace} from "@erpx/server-pos/public/pos";
-import {commercePage} from "@erpx/server-commerce/public/commerce";
+import {commercePage} from '@erpx/server-commerce/public/commerce';
 import {financeOverviewCounts} from '@erpx/server-finance/public/finance';
 import {closeWorkspace} from "@erpx/server-finance/public/finance-workspace";
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {getWorkPage} from "@erpx/server-work_projection/public/work-summary";
-import {homePosts,postView} from "@erpx/server-collaboration/public/social-home";
-import {getLeave} from "@erpx/server-people_payroll/public/leave";
-
-
-
+import {homePosts,postView} from '@erpx/server-collaboration/public/social-home';
+import {getLeave} from '@erpx/server-people_payroll/public/leave-read';
 
 import type {SqlStatement} from '@erpx/server-runtime/public/runtime/types';
 import {BusinessRuleError} from '@erpx/server-shared/index';
@@ -68,4 +65,3 @@ function application(db:SqlDatabase,env?:BetaEnvironment,generate=generateProvid
 export async function assistantSources(db:SqlDatabase,actor:WorkContext,path:string){return exposed(()=>application(db).assistantSources(actor,path));}
 export async function assistantView(db:SqlDatabase,actor:WorkContext,env:BetaEnvironment,path:string,mode:"page"|"workspace"){return exposed(()=>application(db,env).assistantView(actor,path,mode));}
 export async function askAssistant(db:SqlDatabase,actor:WorkContext,env:BetaEnvironment,input:z.infer<typeof assistantAskSchema>,id:string,generate=generateProviderJson){return exposed(()=>application(db,env,generate).askAssistant(actor,input,id));}
-

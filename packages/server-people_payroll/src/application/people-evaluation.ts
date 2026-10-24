@@ -3,7 +3,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { assessmentContentSchema, bandSchema, basisSchema, benchmarkSchema, compensationMetrics, cycleSchema, defaultEvaluationPolicy, definitionSchemas, emptyAssessment, evaluationDate, evaluationMetrics, monthlyFtePay, policySchema, roleSchema, type Compensation, type DefinitionKind, type RoleProfile } from "@erpx/feature-people_payroll/lib/people-evaluation";
 import { decimalToMinor } from "@erpx/feature-finance/lib/finance-money";
 import type { iamMutationGuards } from '@erpx/server-identity_access/public/iam-store';
-import type { snapshotMoney } from '@erpx/server-finance/public/company-money';
+import type {snapshotMoney} from '@erpx/server-finance/public/company-money';
 import type { attachmentLinkStatus } from '@erpx/server-files/public/attachments/service';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { BusinessRuleError, type Clock } from '@erpx/server-shared/index';
@@ -231,36 +231,8 @@ export interface PeopleEvaluationPorts<Effect> {
 }
 export function createPeopleEvaluationApplication<Effect>(ports: PeopleEvaluationPorts<Effect>) {
     const repository = ports.repository;
-    async function evaluationAuthority(actor: WorkContext, permission = "people.read") {
-        await ports.purchasedHistory?.(actor);
-        if (!actor.iam?.queuedAssignmentVersion)
-            actor = await ports.captureAuthority(actor);
-        ports.authorize(actor, permission);
-        const key = ports.ids.newId();
-        try {
-            await ports.batch([...ports.authorityGuards(actor, key), repository.stageEvaluationAuthorityEffect(key)]);
-        }
-        catch {
-            throw new BusinessRuleError(403, "EVALUATION_ACCESS_CHANGED", "Your evaluation access changed. Reload your work role.");
-        }
-        return actor;
-    }
-    async function evaluationEmployees(actor: WorkContext) {
-        const rows = (await repository.readEvaluationEmployeesRows(actor.companyId, actor.userId, actor.companyId, actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor.role)).results;
-        return rows.map(r => ({ id: String(r.id), personId: String(r.person_id), name: String(r.legal_name), userId: r.user_id ? String(r.user_id) : null, positionId: r.position_id ? String(r.position_id) : null, levelId: r.level_id ? String(r.level_id) : null, jobTitle: String(r.job_title), branchId: r.branch_id ? String(r.branch_id) : null, departmentId: r.department_id ? String(r.department_id) : null, department: r.department ? String(r.department) : null, currency: String(r.currency), startDate: String(r.start_date), endDate: r.end_date ? String(r.end_date) : null, version: Number(r.version) })) as EvaluationEmployee[];
-    }
-    async function evaluationEmployee(actor: WorkContext, engagementId: string) {
-        const employee = (await evaluationEmployees(actor)).find(e => e.id === engagementId);
-        if (!employee)
-            throw new BusinessRuleError(404, "EVALUATION_EMPLOYEE_NOT_FOUND", "Employee not found in your evaluation scope.");
-        return employee;
-    }
-    async function evaluationDefinition(actor: WorkContext, id: string, kind: DefinitionKind, v?: number) {
-        const row = await repository.readEvaluationDefinitionRow(id, kind, actor.companyId, (v ? [v] : []), v);
-        if (!row)
-            throw new BusinessRuleError(404, "EVALUATION_DEFINITION_NOT_FOUND", "Evaluation criteria are unavailable in this Company.");
-        return { id: row.id, kind: row.kind, version: Number(row.version), data: definitionSchemas[kind].parse(JSON.parse(row.payload_json)) as Record<string, unknown>, updatedAt: Number(row.updated_at) };
-    }
+    const{evaluationAuthority,evaluationEmployees,evaluationEmployee,evaluationDefinition,evaluationAssessment}=createPeopleEvaluationRead(ports);
+
     async function frozenPolicy(actor: WorkContext, cycleId: string) {
         const cycle = await evaluationDefinition(actor, cycleId, "cycle"), data = cycleSchema.parse(cycle.data);
         const policy = await evaluationDefinition(actor, data.policy.id, "policy", data.policy.version);
@@ -413,13 +385,7 @@ export function createPeopleEvaluationApplication<Effect>(ports: PeopleEvaluatio
         const now = ports.clock.now();
         return ports.commands.commit(actor, key, op, input, id, 1, { id, imported: input.rows.length, confirmed: false }, input.rows.map((row, i) => repository.stageImportEvaluationMarketEffect(`${id}-${i}`, actor.companyId, JSON.stringify({ ...row, confirmed: false }), actor.userId, actor.userId, input.reason, now, now)));
     }
-    async function evaluationAssessment(actor: WorkContext, assessmentId: string) {
-        const row = await repository.readEvaluationAssessmentRow(assessmentId, actor.companyId);
-        if (!row)
-            throw new BusinessRuleError(404, "ASSESSMENT_NOT_FOUND", "Assessment not found.");
-        const employee = await evaluationEmployee(actor, row.engagement_id);
-        return { row, employee };
-    }
+
     async function validateEvaluationRolePeriod(actor: WorkContext, employee: EvaluationEmployee, role: RoleProfile, periodStart: string, periodEnd: string) {
         // Respect dated changes in position/level, independently of profile revisions and actual-work evidence.
         const history = (await repository.readValidateEvaluationRolePeriodHistory(actor.companyId, employee.id)).results;
@@ -719,3 +685,42 @@ export function createPeopleEvaluationApplication<Effect>(ports: PeopleEvaluatio
     return { evaluationAuthority, evaluationEmployees, evaluationEmployee, evaluationDefinition, saveEvaluationDefinition, evaluationWorkspace, importEvaluationMarket, evaluationAssessment, createEvaluationAssessment, saveEvaluationAssessment, transitionEvaluationAssessment, evaluationDetail, evaluationEvidenceSources, addEvaluationEvidence, readEvaluationEvidence, confirmEvaluationPayBasis, createEvaluationCompensationDraft, approveEvaluationCompensation, cancelEvaluationCompensation };
 }
 export type EvaluationWorkspace = Awaited<ReturnType<ReturnType<typeof createPeopleEvaluationApplication>['evaluationWorkspace']>>;
+
+export type PeopleEvaluationReadPorts<Effect>=Pick<PeopleEvaluationPorts<Effect>,'purchasedHistory'|'captureAuthority'|'authorize'|'ids'|'batch'|'authorityGuards'>&{repository:Pick<PeopleEvaluationRepository<Effect>,"stageEvaluationAuthorityEffect"|"readEvaluationEmployeesRows"|"readEvaluationDefinitionRow"|"readEvaluationAssessmentRow">};
+export function createPeopleEvaluationRead<Effect>(ports:PeopleEvaluationReadPorts<Effect>){const repository=ports.repository;async function evaluationAuthority(actor: WorkContext, permission = "people.read") {
+        await ports.purchasedHistory?.(actor);
+        if (!actor.iam?.queuedAssignmentVersion)
+            actor = await ports.captureAuthority(actor);
+        ports.authorize(actor, permission);
+        const key = ports.ids.newId();
+        try {
+            await ports.batch([...ports.authorityGuards(actor, key), repository.stageEvaluationAuthorityEffect(key)]);
+        }
+        catch {
+            throw new BusinessRuleError(403, "EVALUATION_ACCESS_CHANGED", "Your evaluation access changed. Reload your work role.");
+        }
+        return actor;
+    }
+async function evaluationEmployees(actor: WorkContext) {
+        const rows = (await repository.readEvaluationEmployeesRows(actor.companyId, actor.userId, actor.companyId, actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor.role)).results;
+        return rows.map(r => ({ id: String(r.id), personId: String(r.person_id), name: String(r.legal_name), userId: r.user_id ? String(r.user_id) : null, positionId: r.position_id ? String(r.position_id) : null, levelId: r.level_id ? String(r.level_id) : null, jobTitle: String(r.job_title), branchId: r.branch_id ? String(r.branch_id) : null, departmentId: r.department_id ? String(r.department_id) : null, department: r.department ? String(r.department) : null, currency: String(r.currency), startDate: String(r.start_date), endDate: r.end_date ? String(r.end_date) : null, version: Number(r.version) })) as EvaluationEmployee[];
+    }
+async function evaluationEmployee(actor: WorkContext, engagementId: string) {
+        const employee = (await evaluationEmployees(actor)).find(e => e.id === engagementId);
+        if (!employee)
+            throw new BusinessRuleError(404, "EVALUATION_EMPLOYEE_NOT_FOUND", "Employee not found in your evaluation scope.");
+        return employee;
+    }
+async function evaluationDefinition(actor: WorkContext, id: string, kind: DefinitionKind, v?: number) {
+        const row = await repository.readEvaluationDefinitionRow(id, kind, actor.companyId, (v ? [v] : []), v);
+        if (!row)
+            throw new BusinessRuleError(404, "EVALUATION_DEFINITION_NOT_FOUND", "Evaluation criteria are unavailable in this Company.");
+        return { id: row.id, kind: row.kind, version: Number(row.version), data: definitionSchemas[kind].parse(JSON.parse(row.payload_json)) as Record<string, unknown>, updatedAt: Number(row.updated_at) };
+    }
+async function evaluationAssessment(actor: WorkContext, assessmentId: string) {
+        const row = await repository.readEvaluationAssessmentRow(assessmentId, actor.companyId);
+        if (!row)
+            throw new BusinessRuleError(404, "ASSESSMENT_NOT_FOUND", "Assessment not found.");
+        const employee = await evaluationEmployee(actor, row.engagement_id);
+        return { row, employee };
+    }return{evaluationAuthority,evaluationEmployees,evaluationEmployee,evaluationDefinition,evaluationAssessment};}

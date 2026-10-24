@@ -8,7 +8,7 @@ import {useRef,useState,useEffect} from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import Link from "@erpx/workplace/components/workspace-link";
 import { LockKeyhole, Sparkles } from "lucide-react";
-import type { HomePost } from "@erpx/server-collaboration/public/social-home";
+import type {HomePost} from '@erpx/server-collaboration/public/social-home';
 import type { AiResult } from "@erpx/server-collaboration/public/social-ai";
 import type { TaskSource } from "@erpx/server-collaboration/public/social-task";
 import { betaFetch } from "@erpx/feature-shared/lib/beta-client";

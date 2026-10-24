@@ -1,7 +1,7 @@
 import {beforeAll,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {saveMaster} from "@erpx/server-commerce/public/commerce";
+import {saveMaster} from '@erpx/server-commerce/public/commerce';
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {readStockSnapshot,reconcileStockSnapshots} from "../../../fixtures/inventory/builders/engineering-stock-continuity";

@@ -1,7 +1,8 @@
 import {packageGrantStore} from "@erpx/server-commercial/public/package-grants";
 import { afterEach } from "vitest";
 import { reviewedFinanceGrant } from "../../support/helpers/finance-purchase-fixture";
-import {saveMaster,saveOrder,orderSchema,transitionOrder,fulfillOrder,fulfillmentSchema,getOrder,invoiceFulfillment} from "@erpx/server-commerce/public/commerce";
+import {saveMaster,saveOrder,orderSchema,transitionOrder,fulfillOrder,fulfillmentSchema,invoiceFulfillment} from '@erpx/server-commerce/public/commerce';
+import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import type {FinanceRow} from '@erpx/server-finance/public/finance';
 import {beforeAll,beforeEach,afterAll,describe,expect,it,vi} from "vitest";
 import {createHash} from "node:crypto";

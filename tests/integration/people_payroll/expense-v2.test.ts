@@ -6,33 +6,20 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {
-  saveExpense,
-  canEditExpense,
-  canReviewExpense,
-  canPostExpenses,
-  getExpense,
-  transitionExpense,
-  postExpense,
-  expenseDetail,
-  revokeExpenseAttachment,
-  expenseUpdateSchema,
-} from "@erpx/server-people_payroll/public/expenses";
+import {saveExpense,transitionExpense,postExpense,expenseDetail,revokeExpenseAttachment,expenseUpdateSchema} from '@erpx/server-people_payroll/public/expenses';
+import {canEditExpense,canReviewExpense,canPostExpenses,getExpense} from '@erpx/server-people_payroll/public/expense-read';
 import {
   expenseRoute,
   expenseAuthoritySnapshot,
 } from "@erpx/server-people_payroll/public/expense-routing";
-import { saveExpenseAccounting } from "@erpx/server-people_payroll/public/expense-workflow";
+import {saveExpenseAccounting} from '@erpx/server-people_payroll/public/expense-workflow';
 import {approvalView,prepareDecision} from '@erpx/server-workflow/public/approval-planning';
 import {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import { executeCommand } from "@erpx/server-workflow/public/commands";
-import {
-  createExpensePayment,
-  confirmExpensePayment,
-} from "@erpx/server-people_payroll/public/expense-payments";
-import { settleInvoice } from "@erpx/server-commerce/public/commerce";
+import {createExpensePayment,confirmExpensePayment} from '@erpx/server-people_payroll/public/expense-payments';
+import {settleInvoice} from '@erpx/server-commerce/public/commerce';
 import { bindRecordAttachmentSet } from "@erpx/server-files/public/attachments/service";
-import {nativeExpenseReads} from "@erpx/server-people_payroll/adapters/expenses";
+import {nativeExpenseReads} from '@erpx/server-people_payroll/adapters/expense-read';
 import {createDomainWork} from "@erpx/server-work_projection/application/domain-work";
 import {measureReads} from "@erpx/server-runtime/adapters/runtime/read-metrics";
 import {withPolicyReadSnapshot} from "@erpx/server-identity_access/public/iam-read-snapshot";
@@ -737,7 +724,7 @@ async function expenseBoundaryImage(){return db.prepare(`SELECT jsonb_build_obje
  'assignments',(SELECT COALESCE(jsonb_agg(to_jsonb(a) ORDER BY a.id),'[]') FROM assignments a WHERE a.company_id=?)
  )::text image`).bind(...Array(10).fill(f.company)).first<string>('image');}
 it('requires the actual Expenses addon for native commands reads and Files while disabled and shadow retain original behavior',async()=>{
- const {listExpenses,expenseOptions}=await import('@erpx/server-people_payroll/public/expenses'),{nativeExpenseDrafts}=await import('@erpx/server-people_payroll/adapters/expense-drafts'),{createAttachmentSet}=await import('@erpx/server-files/public/attachments/service');
+ const {listExpenses}=await import('@erpx/server-people_payroll/public/expense-read'),{expenseOptions}=await import('@erpx/server-people_payroll/public/expenses'),{nativeExpenseDrafts}=await import('@erpx/server-people_payroll/adapters/expense-drafts'),{createAttachmentSet}=await import('@erpx/server-files/public/attachments/service');
  const original=await f.claim(),input=expenseBoundaryInput(),file={targetType:'expense_claim',targetId:original,componentKind:'record' as const,purposeKey:'receipt',expectedTargetVersion:1};
  await expenseBoundaryGrant('people');vi.stubEnv('ERPX_PEOPLE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_ATTACHMENTS_V2','true');
  try{

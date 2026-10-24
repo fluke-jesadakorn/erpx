@@ -1,7 +1,8 @@
 import type { RouteContext } from "@erpx/contracts/next-routes";
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { getLeave, leaveDraftSchema } from "@erpx/server-people_payroll/public/leave";
+import {getLeave} from '@erpx/server-people_payroll/public/leave-read';
+import {leaveDraftSchema} from '@erpx/server-people_payroll/public/leave';
 import { editSelfServiceLeave, leaveEditSchema, normalizeLegacyLeave } from "@erpx/server-people_payroll/public/leave-self-service";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";

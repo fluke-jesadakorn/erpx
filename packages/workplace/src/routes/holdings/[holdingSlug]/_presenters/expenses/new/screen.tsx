@@ -7,7 +7,7 @@ import { ExpenseEditor } from "@erpx/feature-people_payroll/components/expense-c
 import { PageHeader } from "@erpx/ui/components/primitives";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { expenseOptions } from "@erpx/server-people_payroll/public/expenses";
+import {expenseOptions} from '@erpx/server-people_payroll/public/expenses';
 
 export const dynamic = "force-dynamic";
 

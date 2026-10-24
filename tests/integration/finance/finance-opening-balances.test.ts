@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { confirmManualRate } from "@erpx/server-finance/public/company-money";
+import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import {aging,approvePayment,changeAccountStatus,confirmPayment,createPayment,importBankStatement,importOpeningTrialBalance,postJournal,previewOpeningTrialBalance,releasePayment,reverseJournal} from '@erpx/server-finance/public/finance';
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({

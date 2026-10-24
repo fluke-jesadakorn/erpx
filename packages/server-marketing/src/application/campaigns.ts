@@ -1,5 +1,5 @@
 import type {Clock} from "@erpx/server-shared/index";
-import type {Row} from "@erpx/server-commerce/public/commerce";
+import type {Row} from '@erpx/server-commerce/public/commerce';
 import {marketingCampaignCommand,type MarketingCampaignInput,type MarketingCostSource} from "@erpx/server-marketing/domain/campaigns";
 export type MarketingCampaignMutation={input:MarketingCampaignInput;id:string;key:string;operation:string;now:number};
 export function createMarketingCampaignApplication(ports:{clock:Clock;authorize(write?:boolean):void;authorizeFinance():void;campaigns():Promise<Row[]>;costSources():Promise<MarketingCostSource[]>;replay<Result=Record<string,unknown>>(key:string,operation:string,id:string,input:unknown):Promise<Result|null>;commit<Result>(mutation:MarketingCampaignMutation,result:Result):Promise<Result>}){

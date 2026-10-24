@@ -1,3 +1,5 @@
+import{requestedHoldingScope}from '@erpx/server-identity_access/public/requested-holding-scope';
+export{requestedHoldingScope};
 import {providerContextSelectedAssignment} from '@erpx/server-identity_access/adapters/provider-context-selection';
 import {productHostForHost} from '@erpx/feature-runtime/lib/product-hosts';
 import { accountAuthoritySnapshot } from '@erpx/server-identity_access/adapters/account-authority-snapshot';
@@ -25,7 +27,7 @@ import { runtimeEnv, holdingBindingBySlug, holdingResources, type HoldingId } fr
 export type { AssignmentScopeKind, ResolvedWorkspaceScope, WorkContext, AuthorizedWorkspace, PlatformContext, WorkAssignment, WorkspaceCompany, WorkspaceResolutionOptions, AccountAccessContext } from "@erpx/server-identity_access/domain/authorization";
 export { publicScope } from "@erpx/server-identity_access/domain/authorization";
 import type { WorkspaceGrantFact, WorkContext, AuthorizedWorkspace, PlatformContext, WorkAssignment, OrganizationNode, WorkspaceCompany, WorkspaceResolutionOptions, AccountAccessContext } from "@erpx/server-identity_access/domain/authorization";
-import { createValidateNodeLineage, createResolveWorkspaceScope, createAssertFrontCompany, createWorkspaceCompanies, createRequestedHoldingScope, createAccountAccess, createWorkContext, createAuthorizedWorkspaces, createIdentitySession, createPlatformContext, createCanEnterManageErpx, createManageErpxContext, createFirstAuthorizedWorkspace } from "@erpx/server-identity_access/application/authorization";
+import { createValidateNodeLineage, createResolveWorkspaceScope, createAssertFrontCompany, createWorkspaceCompanies, createAccountAccess, createWorkContext, createAuthorizedWorkspaces, createIdentitySession, createPlatformContext, createCanEnterManageErpx, createManageErpxContext, createFirstAuthorizedWorkspace } from "@erpx/server-identity_access/application/authorization";
 const identityError = (status: number, code: string, message: string) => new ApiError(status, code, message);
 const sessionMemoKey = Symbol.for("erpx.identity.session");
 export const currentSession = cache(() => memoizeInRequest(sessionMemoKey, () => measureReadPhase('session', readCurrentSession)));
@@ -91,7 +93,7 @@ async function assertFrontCompany(database: SqlDatabase, companyId: string) {
             .bind(companyId, requestedSlug)
             .first()), error: identityError })(companyId);
 }
-export async function requestedHoldingScope(holdingSlug: string) { return createRequestedHoldingScope({ headers })(holdingSlug); }
+
 async function listAuthorizedWorkspaces(database: SqlDatabase, holdingSlug: string, assignments: WorkAssignment[]): Promise<AuthorizedWorkspace[]> {
     return createAuthorizedWorkspaces({ nodes: async (companyId) => (await database
             .prepare(`SELECT n.id,n.kind,n.slug,n.display_name,n.parent_id,n.branch_id,b.slug AS branch_slug

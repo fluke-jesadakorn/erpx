@@ -9,7 +9,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {readPurchasedAccess} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
-import {expenseVisibleRecordIds} from '@erpx/server-people_payroll/adapters/expenses';
+import {expenseVisibleRecordIds} from '@erpx/server-people_payroll/adapters/expense-read';
 import {peopleFinancialPresentationAllowed,type PeopleFinancialEntry} from '@erpx/server-people_payroll/domain/financial-product-entry';
 export type PeopleFinancialProductScope={companyId:string;branchId:string|null;departmentId:string|null;userId:string;assignmentId:string;assignmentVersion:number;role:string;sessionId:string;beta?:boolean};
 /** Read-only candidate proof before Work selection. The original IAM, actual

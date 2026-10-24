@@ -1,9 +1,10 @@
 import {ApiError} from "@erpx/server-runtime/public/http";
 import "server-only";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import { listTasks, taskWorkState } from "@erpx/server-operations/public/staff-tasks";
+import {listTasks} from '@erpx/server-operations/public/staff-tasks';
+import {taskWorkState} from '@erpx/server-operations/public/staff-task-read';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { listExpenses, canEditExpense, canReviewExpense, canPostExpenses } from "@erpx/server-people_payroll/public/expenses";
+import {listExpenses,canEditExpense,canReviewExpense,canPostExpenses} from '@erpx/server-people_payroll/public/expense-read';
 import { listCounts, canReadCounts, canEditCount, canReviewCount } from "@erpx/server-inventory/public/inventory-counts";
 import {countSourceAccess} from "@erpx/server-inventory/public/count-purchases";
 import {transferSourceAccess} from "@erpx/server-inventory/public/transfer-purchases";

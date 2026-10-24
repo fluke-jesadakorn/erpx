@@ -5,20 +5,8 @@ import {
   expenseDb as db,
   key,
 } from "../../support/helpers/expense-fixture";
-import {
-  createMessagingRoom,
-  createMessagingTeam,
-  createMessagingChannel,
-  manageMessaging,
-  messagingHistory,
-  messagingOverview,
-  messagingPeople,
-  messagingFile,
-  messagingRoom,
-  readMessaging,
-  sendMessagingMessage,
-  messageSchema,
-} from "@erpx/server-collaboration/public/messaging";
+import {createMessagingRoom,createMessagingTeam,createMessagingChannel,manageMessaging,messagingHistory,messagingOverview,messagingPeople,messagingFile,readMessaging,sendMessagingMessage,messageSchema} from '@erpx/server-collaboration/public/messaging';
+import {messagingRoom} from '@erpx/server-collaboration/public/messaging-read';
 import {attachmentContent,createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,scanAttachmentNow,withdrawAttachmentLink} from '@erpx/server-files/public/attachments/service';
 import type {FileStore} from '@erpx/server-runtime/public/runtime/types';
 import { uploadMessagingFile,discardMessagingFile } from "@erpx/server-collaboration/public/messaging-files";

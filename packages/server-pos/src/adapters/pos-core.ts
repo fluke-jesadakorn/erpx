@@ -14,7 +14,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { applyPosRoomCharge, reversePosRoomCharge } from "../../../../packages/server-pms/src/public/pms";
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import { snapshotMoney, snapshotMoneyCarry, snapshotMoneyReversal } from "@erpx/server-finance/public/company-money";
+import {snapshotMoney,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/server-finance/public/company-money';
 import { capturePosReceipt, createPosCustomer, posDayCommand, assertPosDayWritable } from "@erpx/server-pos/public/pos-daily";
 import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { createPosApplication, type PosUnit, type PosRepository, type PosRow } from "@erpx/server-pos/application/pos-core";
