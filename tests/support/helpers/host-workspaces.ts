@@ -40,7 +40,7 @@ export async function verifyFrontWorkspace(page:Page,context:BrowserContext,info
   const drawer=page.getByRole('dialog',{name:app==='pos'?/^Customer · /:'Write a post',exact:app!=='pos'});await expect(drawer).toBeVisible();
   const box=await drawer.boundingBox(),viewport=page.viewportSize()!;expect(box).not.toBeNull();expect(Math.abs(box!.x+box!.width-viewport.width)).toBeLessThan(2);
   if(hmr)await measureFrontWorkspaceHmr(page,info,app,fixture.runtime.apps,ready,observed.errors,started);
-  await info.attach(`${app} owned Front workspace drawer`,{body:await page.screenshot(),contentType:'image/png'});await drawer.getByRole('button',{name:'Close dialog',exact:true}).click();await expect(drawer).toBeHidden();
+  await info.attach(`${app} owned Front workspace drawer`,{body:await page.screenshot(),contentType:'image/png'});await drawer.getByRole('button',{name:'Close dialog',exact:true}).click();if(hmr){const confirmation=page.getByRole('dialog',{name:/^(?:Discard changes\?|Discard unsaved changes\?|Unsaved changes)$/});if(await confirmation.isVisible())await confirmation.getByRole('button',{name:/^(?:Discard changes|Discard draft|Close without saving)$/}).click();}await expect(drawer).toBeHidden();
   expect(ssoStarts).toEqual(['document']);await refresh(page,app);
   // A first visit to the Front root must also use one document handoff, with
   // the existing normal Account session and no manufactured product cookie.

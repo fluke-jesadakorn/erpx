@@ -17,7 +17,7 @@ import { localMinuteAt } from "@erpx/feature-work_projection/lib/calendar-timeli
 import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/time/preferred-date-time-field";
 import { TimeText, useDisplayTimeZone } from "@erpx/feature-people_payroll/components/time/time-preference-context";
 import { useStaffCommand } from "@erpx/feature-work_projection/components/use-staff-command";
-export { useStaffCommand } from "@erpx/feature-work_projection/components/use-staff-command";
+
 import type { StaffPerson } from "@erpx/server-operations/public/staff-policy";
 import type {TaskDetail,TaskRow,ProjectRow} from '@erpx/server-operations/public/staff-tasks';
 import type { TemplateRow } from "@erpx/server-operations/public/routines";

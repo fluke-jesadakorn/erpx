@@ -144,11 +144,6 @@
 @source "../../../../packages/feature-manufacturing/src/lib/order-command.ts";
 @source "../../../../packages/feature-manufacturing/src/lib/planning-review-command.ts";
 @source "../../../../packages/feature-manufacturing/src/lib/purchase-controls.ts";
-@source "../../../../packages/feature-operations/src/components/routine-command-feedback.tsx";
-@source "../../../../packages/feature-operations/src/components/routine-editor.tsx";
-@source "../../../../packages/feature-operations/src/components/routine-schedule-controls.tsx";
-@source "../../../../packages/feature-operations/src/components/use-routine-command.ts";
-@source "../../../../packages/feature-operations/src/lib/routine-command.ts";
 @source "../../../../packages/feature-organization/src/lib/gpo-rules.ts";
 @source "../../../../packages/feature-organization/src/lib/hierarchy.ts";
 @source "../../../../packages/feature-organization/src/lib/organization-domain.ts";
@@ -207,11 +202,6 @@
 @source "../../../../packages/feature-procurement/src/components/use-supplier-bill-command.ts";
 @source "../../../../packages/feature-procurement/src/lib/command.ts";
 @source "../../../../packages/feature-procurement/src/lib/supplier-bill-command.ts";
-@source "../../../../packages/feature-projects/src/components/project-editor-boundary.tsx";
-@source "../../../../packages/feature-projects/src/components/purchase-context.tsx";
-@source "../../../../packages/feature-projects/src/components/use-project-editor-command.ts";
-@source "../../../../packages/feature-projects/src/lib/project-editor-command.ts";
-@source "../../../../packages/feature-projects/src/lib/purchase-controls.ts";
 @source "../../../../packages/feature-quality/src/components/quality-console.tsx";
 @source "../../../../packages/feature-quality/src/components/quality-draft-boundary.tsx";
 @source "../../../../packages/feature-quality/src/components/quality-purchase-context.tsx";
@@ -288,7 +278,6 @@
 @source "../../../../packages/feature-shared/src/lib/administration.ts";
 @source "../../../../packages/feature-shared/src/lib/ai-draft.ts";
 @source "../../../../packages/feature-shared/src/lib/ai/guided-intake.ts";
-@source "../../../../packages/feature-shared/src/lib/ai/prepared-work.ts";
 @source "../../../../packages/feature-shared/src/lib/ai/providers.ts";
 @source "../../../../packages/feature-shared/src/lib/appearance-preference.ts";
 @source "../../../../packages/feature-shared/src/lib/business-time.ts";
@@ -396,7 +385,6 @@
 @source "../../../../packages/feature-talent/src/lib/command.ts";
 @source "../../../../packages/feature-work_projection/src/components/quick-access/shelf.tsx";
 @source "../../../../packages/feature-work_projection/src/components/quick-access/use-local-preference.ts";
-@source "../../../../packages/feature-work_projection/src/components/staff-work-controls.tsx";
 @source "../../../../packages/feature-work_projection/src/components/today/start-actions.tsx";
 @source "../../../../packages/feature-work_projection/src/components/today/start-prompt.tsx";
 @source "../../../../packages/feature-work_projection/src/components/use-staff-command.ts";
@@ -2414,7 +2402,6 @@
 @source "../../../../packages/server-operations/src/domain/operations-exceptions.ts";
 @source "../../../../packages/server-operations/src/domain/queue-policy.ts";
 @source "../../../../packages/server-operations/src/domain/responsibilities.ts";
-@source "../../../../packages/server-operations/src/domain/routines.ts";
 @source "../../../../packages/server-operations/src/domain/staff-policy.ts";
 @source "../../../../packages/server-operations/src/domain/staff-settings.ts";
 @source "../../../../packages/server-operations/src/domain/staff-tasks.ts";
@@ -2445,7 +2432,6 @@
 @source "../../../../packages/server-operations/src/public/project-task-record-policy.ts";
 @source "../../../../packages/server-operations/src/public/record-purchases.ts";
 @source "../../../../packages/server-operations/src/public/responsibilities.ts";
-@source "../../../../packages/server-operations/src/public/rules/editor-command-inputs.ts";
 @source "../../../../packages/server-operations/src/public/rules/guided-intake.ts";
 @source "../../../../packages/server-operations/src/public/staff-facts.ts";
 @source "../../../../packages/server-operations/src/public/staff-policy.ts";
@@ -3289,7 +3275,6 @@
 @source "../../../../packages/server-projects/src/public/project-structure-sources.ts";
 @source "../../../../packages/server-projects/src/public/project-structure.ts";
 @source "../../../../packages/server-projects/src/public/record-purchases.ts";
-@source "../../../../packages/server-projects/src/public/rules/editor-command-inputs.ts";
 @source "../../../../packages/server-projects/src/public/rules/product-entry.ts";
 @source "../../../../packages/server-projects/src/public/social-purchase-sources.ts";
 @source "../../../../packages/server-projects/src/public/staff-projects.ts";

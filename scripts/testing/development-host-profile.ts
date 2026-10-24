@@ -17,14 +17,24 @@ export function workspaceBrowserBundler(raw: string | undefined) {
   if (raw !== undefined && raw !== 'webpack' && raw !== 'turbopack') throw new Error('EXPLICIT_WORKSPACE_BROWSER_BUNDLER_REQUIRED');
   return raw ?? 'webpack';
 }
-export type DevelopmentHostProfile = { apps: string[]; entryApp: string; bundler?: 'webpack' | 'turbopack'; consoleRetired?:true };
+export type WorkspaceFixtureProfile='money-people'|'public-hosts';
+export function workspaceBrowserFixtureProfile(raw:string|undefined,apps:readonly string[]|null,consoleRetired:boolean):WorkspaceFixtureProfile|undefined{
+ if(raw===undefined)return undefined;
+ if(!apps?.length)throw new Error('WORKSPACE_FIXTURE_PROFILE_REQUIRES_WORKSPACE');
+ if(raw!=='money-people'&&raw!=='public-hosts')throw new Error('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
+ const permitted=raw==='money-people'?['compat','account','apps','finance','people','work']:raw==='public-hosts'?['account','apps','booking','portal','legal-portal','forms']:null;
+ if(!permitted||apps.some(app=>!permitted.includes(app))||raw==='money-people'&&consoleRetired||raw==='public-hosts'&&!consoleRetired)throw new Error('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
+ return raw;
+}
+export type DevelopmentHostProfile = { apps: string[]; entryApp: string; bundler?: 'webpack' | 'turbopack'; consoleRetired?:true; fixtureProfile?:WorkspaceFixtureProfile };
 export function developmentHostProfile(value: DevelopmentHostProfile): DevelopmentHostProfile {
   const apps = workspaceBrowserApps(JSON.stringify(value.apps));
   if (!apps || !apps.includes(value.entryApp)) throw new Error('DEVELOPMENT_HOST_ENTRY_APP_REQUIRED');
   workspaceBrowserBundler(value.bundler);
   if(value.consoleRetired!==undefined&&value.consoleRetired!==true)throw new Error('EXPLICIT_DEVELOPMENT_CONSOLE_PROFILE_REQUIRED');
   if(value.consoleRetired&&apps.includes('compat'))throw new Error('RETIRED_CONSOLE_PROFILE_REQUIRES_PRODUCT_HOSTS');
-  return { apps, entryApp: value.entryApp, ...(value.bundler ? { bundler: value.bundler } : {}),...(value.consoleRetired?{consoleRetired:true as const}:{}) };
+  const fixtureProfile=workspaceBrowserFixtureProfile(value.fixtureProfile,apps,!!value.consoleRetired);
+  return { apps, entryApp: value.entryApp, ...(fixtureProfile?{fixtureProfile}:{}), ...(value.bundler ? { bundler: value.bundler } : {}),...(value.consoleRetired?{consoleRetired:true as const}:{}) };
 }
 export function developmentHostOrigin(app: string) {
   return app === 'compat' ? 'https://console-dev-erpx.jesadakorn.com' : appDefinition(app).origin;
@@ -46,6 +56,8 @@ export function readDevelopmentHostLease(root: string, environment: NodeJS.Proce
   if(Boolean(lease.consoleRetired)!==Boolean(state.workspaceConsoleRetired))throw new Error('DEVELOPMENT_CONSOLE_PROFILE_CHANGED');
   if (lease.schema !== 'erpx-development-host-edge/v1' || lease.acceptance !== false || lease.run !== run || lease.port !== 3102 || lease.upstream !== 3104 || !/^[a-f0-9]{64}$/.test(lease.spki) || state.run !== run || state.executionMode !== 'development-smoke' || !state.ready || state.release || state.diagnostic || state.port !== 3104 || state.sourceFingerprint !== lease.sourceFingerprint) throw new Error('ISOLATED_DEVELOPMENT_HOST_LEASE_REQUIRED');
   const apps = workspaceBrowserApps(JSON.stringify(state.workspaceApps));
+  const fixtureProfile=workspaceBrowserFixtureProfile(environment.ERPX_BROWSER_WORKSPACE_FIXTURE_PROFILE,apps,Boolean(state.workspaceConsoleRetired));
+  if((state.workspaceFixtureProfile??null)!==(fixtureProfile??null)||(lease.fixtureProfile??null)!==(fixtureProfile??null))throw new Error('WORKSPACE_FIXTURE_PROFILE_CHANGED');
   if (!apps || JSON.stringify(lease.apps) !== JSON.stringify(apps) || JSON.stringify([...lease.origins].sort()) !== JSON.stringify(apps.map(developmentHostOrigin).sort()) || !lease.origins.includes(environment.ERPX_E2E_BASE_URL)) throw new Error('DEVELOPMENT_HOST_ORIGIN_BINDING_REQUIRED');
   if (lease.runtime.path !== join(directory, 'workspace-runtime.json') || !lease.certificate.path.startsWith(join(directory, 'workspace-tls-')) || !lease.certificate.path.endsWith('/certificate.pem')) throw new Error('DEVELOPMENT_HOST_RESOURCE_BINDING_REQUIRED');
   for (const binding of [lease.runtime, lease.certificate]) if (createHash('sha256').update(readPrivate(binding.path)).digest('hex') !== binding.sha256) throw new Error('DEVELOPMENT_HOST_BINDING_CHANGED');

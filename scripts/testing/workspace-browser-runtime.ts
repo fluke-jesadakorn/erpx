@@ -1,3 +1,4 @@
+import{workspaceBrowserFixtureProfile}from './development-host-profile';
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import { appDefinitions } from '@erpx/contracts/apps';
@@ -13,6 +14,7 @@ export async function startWorkspaceBrowserRuntime() {
   const apps = workspaceBrowserApps(process.env.ERPX_BROWSER_WORKSPACE_APPS);
   const bundler = workspaceBrowserBundler(process.env.ERPX_BROWSER_WORKSPACE_BUNDLER);
   const consoleRetired=process.env.ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED==='1';
+  const fixtureProfile=workspaceBrowserFixtureProfile(process.env.ERPX_BROWSER_WORKSPACE_FIXTURE_PROFILE,apps,consoleRetired);
   const root = process.env.ERPX_REPOSITORY_ROOT, run = process.env.ERPX_BROWSER_SIMULATION_RUN_ID;
   if (process.version !== 'v26.11.1' || process.env.ERPX_BROWSER_EXECUTION_MODE !== 'development-smoke' || !apps || !root || !isAbsolute(root) || !run || !/^[a-f0-9]{12}$/.test(run) || !root.endsWith(`/.runtime/browser/${run}/app`) || process.env.ERPX_DATA_DIR !== dirname(root)) throw new Error('ISOLATED_WORKSPACE_BROWSER_RUNTIME_REQUIRED');
   await assertBrowserWorkspaceModules(root);
@@ -26,6 +28,7 @@ export async function startWorkspaceBrowserRuntime() {
     return url.hostname !== '127.0.0.1' || url.port !== '5432' || url.username !== 'erpx_test_admin' || url.pathname !== `/erpx_browser_${run}_${binding.toLowerCase()}`;
   })) throw new Error('WORKSPACE_BROWSER_DATABASE_OWNERSHIP_REQUIRED');
   const state = JSON.parse(readFileSync(join(dirname(root), 'state.json'), 'utf8'));
+  if((state.workspaceFixtureProfile??null)!==(fixtureProfile??null))throw new Error('WORKSPACE_FIXTURE_PROFILE_CHANGED');
   if(Boolean(state.workspaceConsoleRetired)!==consoleRetired)throw new Error('DEVELOPMENT_CONSOLE_PROFILE_CHANGED');
   if (state.run !== run || state.port !== 3104 || !state.ready || state.diagnostic || state.release || state.executionMode !== 'development-smoke' || JSON.stringify(state.workspaceApps) !== JSON.stringify(apps) || (state.workspaceBundler??'webpack')!==bundler) throw new Error('WORKSPACE_BROWSER_DEVELOPMENT_STATE_REQUIRED');
   if (hasPortListener(3104)) throw new Error('WORKSPACE_BROWSER_GATEWAY_PORT_OCCUPIED');
@@ -33,6 +36,7 @@ export async function startWorkspaceBrowserRuntime() {
   let appPorts:Map<string,number>;
   if(existsSync(runtimePath)) {
     const prior=JSON.parse(readFileSync(runtimePath,'utf8'));
+    if((prior.fixtureProfile??null)!==(fixtureProfile??null))throw new Error('WORKSPACE_FIXTURE_PROFILE_CHANGED');
     if(Boolean(prior.consoleRetired)!==consoleRetired)throw new Error('DEVELOPMENT_CONSOLE_PROFILE_CHANGED');
     if(prior.schema!=='erpx-development-workspace-runtime/v1'||prior.acceptance!==false||prior.run!==run||prior.sourceRoot!==root||prior.sourceFingerprint!==state.sourceFingerprint||JSON.stringify(prior.apps)!==JSON.stringify(apps)||(prior.bundler??'webpack')!==bundler)throw new Error('WORKSPACE_BROWSER_RUNTIME_IDENTITY_CHANGED');
     appPorts=new Map(Object.entries(prior.appPorts) as [string,number][]);
@@ -46,7 +50,7 @@ export async function startWorkspaceBrowserRuntime() {
     fallback: compatibilityOnly ? 'compat' : null,
     environment: { ...process.env, ...(compatibilityOnly ? {} : { ERPX_PRODUCT_ROUTING: 'enabled', ERPX_PRODUCT_SSO: 'enabled', ERPX_PRODUCT_ENVIRONMENT: 'development' }),...(consoleRetired?{ERPX_CONSOLE_RETIRED:'enabled',ERPX_PUBLIC_ORIGIN:'https://console-dev-erpx.jesadakorn.com'}:{}) },
     settings: () => ({ version: 1, activeApps: apps.filter(id => id !== 'compat'), maxApps: Math.min(4, apps.length), idleMinutes: 10, bundlers: {}, defaultBundler: bundler }) });
-  writeFileSync(runtimePath, JSON.stringify({ schema: 'erpx-development-workspace-runtime/v1', acceptance: false, run, pid: process.pid, gateway: 3104, sourceRoot: root, sourceFingerprint: state.sourceFingerprint, apps, bundler, consoleRetired, compatibilityOnly, appPorts: Object.fromEntries(appPorts), origins: compatibilityOnly ? ['https://console-dev-erpx.jesadakorn.com'] : appDefinitions.filter(app => apps.includes(app.id)).map(app => app.origin), leasePath: gateway.leasePath }, null, 2) + '\n', { mode: 0o600 });
+  writeFileSync(runtimePath, JSON.stringify({ schema: 'erpx-development-workspace-runtime/v1', acceptance: false, run, pid: process.pid, gateway: 3104, sourceRoot: root, sourceFingerprint: state.sourceFingerprint, apps, bundler, consoleRetired, fixtureProfile, compatibilityOnly, appPorts: Object.fromEntries(appPorts), origins: compatibilityOnly ? ['https://console-dev-erpx.jesadakorn.com'] : appDefinitions.filter(app => apps.includes(app.id)).map(app => app.origin), leasePath: gateway.leasePath }, null, 2) + '\n', { mode: 0o600 });
   process.on('SIGTERM', () => { void gateway.close(); }); process.on('SIGINT', () => { void gateway.close(); });
   return gateway;
 }

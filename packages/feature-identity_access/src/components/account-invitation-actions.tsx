@@ -3,7 +3,7 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button } from "@erpx/ui/components/foundation";
 
-import { useStaffCommand } from "@erpx/feature-work_projection/components/staff-work-controls";
+import {useStaffCommand} from '@erpx/feature-work_projection/components/use-staff-command';
 
 export function AccountInvitationActions({
   base,

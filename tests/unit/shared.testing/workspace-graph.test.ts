@@ -1,4 +1,5 @@
-import{firstRouteCompile}from '../../../scripts/performance/route-compile-metrics';
+import{workspaceBrowserFixtureProfile}from '../../../scripts/testing/development-host-profile';
+import{firstRouteCompile,firstRouteEnsure}from '../../../scripts/performance/route-compile-metrics';
 import{runtimeOwnerCycles}from '../../../scripts/architecture/owner-cycles';
 import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import {readFileSync} from 'node:fs';
@@ -494,4 +495,24 @@ describe('observed cold route compile metrics',()=>{
  it('refuses route appearance without an observed compiler duration',()=>{
   expect(()=>firstRouteCompile('GET /target-child 200 in 20ms (compile: 2ms, render: 18ms)\nGET /target 200 in 20ms','/target')).toThrow('FIRST_COLD_ROUTE_COMPILATION_NOT_OBSERVED');
  });
+});
+
+
+it('binds the first ensure-page compiler span to the exact route rather than nearby paths or warm entries',()=>{
+ expect(firstRouteEnsure([
+  {inputPage:'/holdings/[holdingSlug]/home/child/page',timestamp:1,duration:900000},
+  {inputPage:'/holdings/[holdingSlug]/home/page',timestamp:2,duration:3456000},
+  {inputPage:'/holdings/[holdingSlug]/home/page',timestamp:3,duration:1000},
+ ],'/holdings/simulation/home')).toMatchObject({inputPage:'/holdings/[holdingSlug]/home/page',ensurePageMs:3456});
+ expect(()=>firstRouteEnsure([],'/missing')).toThrow('COLD_ROUTE_ENSURE_PAGE_SPAN_REQUIRED');
+});
+
+
+it('binds minimal fictional cohorts to declared development hosts without changing runtime authority',()=>{
+ expect(workspaceBrowserFixtureProfile('money-people',['compat'],false)).toBe('money-people');
+ expect(workspaceBrowserFixtureProfile('money-people',['account','apps','finance'],false)).toBe('money-people');
+ expect(workspaceBrowserFixtureProfile('public-hosts',['account','apps','booking','forms'],true)).toBe('public-hosts');
+ expect(()=>workspaceBrowserFixtureProfile('money-people',['account','apps','legal'],false)).toThrow('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
+ expect(()=>workspaceBrowserFixtureProfile('public-hosts',['compat'],false)).toThrow('EXPLICIT_WORKSPACE_FIXTURE_PROFILE_REQUIRED');
+ expect(()=>workspaceBrowserFixtureProfile('anything',null,false)).toThrow('WORKSPACE_FIXTURE_PROFILE_REQUIRES_WORKSPACE');
 });

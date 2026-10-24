@@ -1,3 +1,4 @@
+import{workspaceBrowserFixtureProfile,type WorkspaceFixtureProfile}from '../testing/development-host-profile';
 import {productIds,type ProductId} from "@erpx/contracts/product-registry";
 /** Disposable browser acceptance workspace. Never reuses development/production databases or sessions.
  * ERPX_BROWSER_SIMULATION_PORT=3104 bun run demo:prepare
@@ -42,7 +43,7 @@ const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holdi
 const mode=process.argv[2],diagnostic=mode==='prepare-diagnostic',run=mode==='prepare'||diagnostic?(process.env.ERPX_BROWSER_SIMULATION_RUN_ID??randomBytes(6).toString('hex')):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={executionMode?:"development-smoke";workspaceApps?:string[];workspaceBundler?:"webpack"|"turbopack";workspaceConsoleRetired?:boolean;run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
+type State={workspaceFixtureProfile?:WorkspaceFixtureProfile;executionMode?:"development-smoke";workspaceApps?:string[];workspaceBundler?:"webpack"|"turbopack";workspaceConsoleRetired?:boolean;run:string;prefix:string;createdAt:string;origin:string;port?:number;profile?:string;providerFixture?:boolean;templateRun?:string;ready?:boolean;diagnostic?:boolean;pid?:number;applicationPoolMax?:number;controlPoolMax?:number;jobsPid?:number|null;jobsStartedAt?:string;jobsPaused?:boolean;sourceFingerprint?:string;softwareVersion?:string;webEntrypoint?:string;jobsEntrypoint?:string;productHosts?:boolean;executiveWorkHosts?:boolean;formsHosts?:boolean;release?:{id:string;fileManifestSha256:string};fixture?:Record<string,unknown>};
 const productHosts=process.env.ERPX_BROWSER_SIMULATION_PRODUCT_HOSTS==='1';
 if(productHosts&&(port!==3104||!process.env.ERPX_PRODUCT_HOST_PLAN||!process.env.ERPX_PRODUCT_HOST_PLAN_SHA256))throw Error('EXPLICIT_PRODUCT_HOST_ARM_REQUIRED');
 const executiveWorkHosts=process.env.ERPX_BROWSER_SIMULATION_EXECUTIVE_WORK_HOSTS==='1';
@@ -54,6 +55,7 @@ if([productHosts,executiveWorkHosts,formsHosts].filter(Boolean).length>1)throw E
 const workspaceApps=workspaceBrowserApps(process.env.ERPX_BROWSER_WORKSPACE_APPS);
 const workspaceBundler=workspaceBrowserBundler(process.env.ERPX_BROWSER_WORKSPACE_BUNDLER);
 const workspaceConsoleRetired=process.env.ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED==='1';
+const workspaceFixtureProfile=workspaceBrowserFixtureProfile(process.env.ERPX_BROWSER_WORKSPACE_FIXTURE_PROFILE,workspaceApps,workspaceConsoleRetired);
 if(process.env.ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED!==undefined&&(!workspaceApps||!workspaceConsoleRetired||workspaceApps.includes('compat')))throw new Error('EXPLICIT_DEVELOPMENT_CONSOLE_PROFILE_REQUIRED');
 if(!workspaceApps&&process.env.ERPX_BROWSER_WORKSPACE_BUNDLER!==undefined)throw new Error('WORKSPACE_BUNDLER_REQUIRES_WORKSPACE_PROFILE');
 if(workspaceApps&&(process.env.ERPX_BROWSER_EXECUTION_MODE!=='development-smoke'||port!==3104||productHosts||executiveWorkHosts||formsHosts||process.env.ERPX_BROWSER_SIMULATION_RELEASE_DIR||process.env.ERPX_PMS_PROVIDER_FIXTURE==='1'))throw new Error('WORKSPACE_BROWSER_IS_DEVELOPMENT_ONLY');
@@ -75,7 +77,7 @@ const safeEnv=(secret:string)=>({
  HOME:process.env.HOME??'',
  TMPDIR:process.env.TMPDIR??'/tmp',
  NODE_ENV:'development' as const,
- ...(workspaceApps?{ERPX_BROWSER_EXECUTION_MODE:'development-smoke',ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspaceApps),ERPX_BROWSER_WORKSPACE_BUNDLER:workspaceBundler,...(workspaceConsoleRetired?{ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED:'1'}:{})}:{}),
+ ...(workspaceApps?{ERPX_BROWSER_EXECUTION_MODE:'development-smoke',...(workspaceFixtureProfile?{ERPX_BROWSER_WORKSPACE_FIXTURE_PROFILE:workspaceFixtureProfile}:{}),ERPX_BROWSER_WORKSPACE_APPS:JSON.stringify(workspaceApps),ERPX_BROWSER_WORKSPACE_BUNDLER:workspaceBundler,...(workspaceConsoleRetired?{ERPX_BROWSER_WORKSPACE_CONSOLE_RETIRED:'1'}:{})}:{}),
  // Match workspace dev headroom while compiling the complete route inventory.
  NODE_OPTIONS:'--max-old-space-size=8192',
  ERPX_ENVIRONMENT:'local',
@@ -132,12 +134,12 @@ if(mode==='prepare'||diagnostic){
  const sourceFingerprint=await runtimeSourceFingerprint(root);
  if(process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT&&process.env.ERPX_SERVER_SCRIPT_SOURCE_FINGERPRINT!==sourceFingerprint)
   throw new Error('BROWSER_FIXTURE_COMPILED_SOURCE_MISMATCH');
- await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={...(process.env.ERPX_BROWSER_EXECUTION_MODE==='development-smoke'?{executionMode:'development-smoke' as const}:{}),...(workspaceApps?{workspaceApps,workspaceBundler,workspaceConsoleRetired}:{}),run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint,...(productHosts?{productHosts:true}:{}),...(executiveWorkHosts?{executiveWorkHosts:true}:{}),...(formsHosts?{productHosts:false,executiveWorkHosts:false,formsHosts:true}:{})};await writePrivate(statePath,state);
+ await freePort();if(existsSync(directory))throw new Error('BROWSER_RUN_ALREADY_EXISTS');await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={...(process.env.ERPX_BROWSER_EXECUTION_MODE==='development-smoke'?{executionMode:'development-smoke' as const}:{}),...(workspaceApps?{workspaceApps,workspaceBundler,workspaceConsoleRetired,workspaceFixtureProfile}:{}),run,prefix,createdAt:new Date().toISOString(),origin,port,profile,sourceFingerprint,...(productHosts?{productHosts:true}:{}),...(executiveWorkHosts?{executiveWorkHosts:true}:{}),...(formsHosts?{productHosts:false,executiveWorkHosts:false,formsHosts:true}:{})};await writePrivate(statePath,state);
  const templateRun=process.env.ERPX_BROWSER_SIMULATION_TEMPLATE_RUN;
  if(templateRun){
   if(!/^[a-f0-9]{12}$/.test(templateRun)||templateRun===run)throw new Error('EXACT_BROWSER_TEMPLATE_RUN_REQUIRED');
   const templateDirectory=join(parent,templateRun),template=JSON.parse(await readFile(join(templateDirectory,'state.json'),'utf8')) as State;
-  if(Boolean(template.workspaceConsoleRetired)!==workspaceConsoleRetired||(template.workspaceBundler??"webpack")!==workspaceBundler||JSON.stringify(template.workspaceApps??null)!==JSON.stringify(workspaceApps)||template.executionMode!==state.executionMode||template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||Boolean(template.productHosts)!==productHosts||Boolean(template.executiveWorkHosts)!==executiveWorkHosts||Boolean(template.formsHosts)!==formsHosts||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
+  if((template.workspaceFixtureProfile??null)!==(workspaceFixtureProfile??null)||Boolean(template.workspaceConsoleRetired)!==workspaceConsoleRetired||(template.workspaceBundler??"webpack")!==workspaceBundler||JSON.stringify(template.workspaceApps??null)!==JSON.stringify(workspaceApps)||template.executionMode!==state.executionMode||template.run!==templateRun||template.prefix!==`erpx_browser_${templateRun}`||template.profile!==profile||Boolean(template.productHosts)!==productHosts||Boolean(template.executiveWorkHosts)!==executiveWorkHosts||Boolean(template.formsHosts)!==formsHosts||template.port!==port||template.origin!==origin||!template.ready||template.diagnostic||template.pid||template.jobsPid||template.release||template.sourceFingerprint!==sourceFingerprint||await runtimeSourceFingerprint(join(templateDirectory,'app'))!==sourceFingerprint)throw new Error('FROZEN_BROWSER_TEMPLATE_REQUIRED');
   if(Boolean(template.providerFixture)!==pmsProviderFixtureEnabled)throw new Error('FROZEN_PROVIDER_TEMPLATE_SETTING_REQUIRED');
   const templateManifest=JSON.parse(await readFile(join(templateDirectory,'databases.json'),'utf8')) as {version:number;databases:Record<string,string>;slots:Array<{id:string;write:string;read:string;files:string;internal?:boolean}>};
   for(const [binding,value] of Object.entries(templateManifest.databases)){
@@ -439,7 +441,7 @@ if(mode==='prepare'||diagnostic){
     const {seedEngineeringThaiPayrollBrowser}=await import("../../fixtures/people_payroll/builders/engineering-thai-payroll-browser");
     const {seedEngineeringFinanceCloseBrowser}=await import("../../fixtures/finance/builders/engineering-finance-close-browser");
     const {createEngineeringShowcaseGuide}=await import("../../fixtures/shared/builders/engineering-showcase-guide");
-    state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES,...(workspaceConsoleRetired?{workspaceProducts:workspaceApps!.filter((id):id is ProductId=>productIds.includes(id as ProductId))}:{})});
+    state.fixture.engineeringMoneyPeople=await seedEngineeringMoneyPeopleBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES,...(workspaceFixtureProfile==='money-people'?{workspaceProducts:['finance','people','work'] as ProductId[]}:workspaceConsoleRetired?{workspaceProducts:workspaceApps!.filter((id):id is ProductId=>productIds.includes(id as ProductId))}:{})});
     // Account/Apps/Admin need the foundation fixture; Learn additionally declares
     // its fictional academy package. Other profiles retain the full cohort.
     const foundationOnly=workspaceApps?.every(id=>['account','apps','admin','portal','legal-portal','forms'].includes(id));
@@ -450,12 +452,16 @@ if(mode==='prepare'||diagnostic){
      const {seedLearningWorkspacePackages}=await import('../../fixtures/learning/builders/workspace-browser');
      await seedLearningWorkspacePackages({run,db:env.H001_DB as PostgresDatabase,academy:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
     }
-    if(productOnly&&!workspaceConsoleRetired){
+    if(workspaceFixtureProfile==='money-people'){
+     const {seedWorkspaceProductPackages}=await import('../../fixtures/shared/builders/workspace-product-packages');
+     await seedWorkspaceProductPackages({run,db:env.H001_DB as PostgresDatabase,apps:['work','people','finance'],cohort:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
+    }
+    if(productOnly&&!workspaceConsoleRetired&&workspaceFixtureProfile!=='money-people'){
      const {seedWorkspaceProductPackages}=await import('../../fixtures/shared/builders/workspace-product-packages');
      await seedWorkspaceProductPackages({run,db:env.H001_DB as PostgresDatabase,apps:productApps,cohort:JSON.parse(await readFile(join(directory,'engineering-money-people.json'),'utf8'))});
     }
     if(workspaceApps?.includes('forms')){const {seedWorkspaceForms}=await import('../../fixtures/marketing/builders/workspace-browser');await seedWorkspaceForms({run,directory,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});}
-    if(!foundationOnly&&!academyOnly&&!productOnly){
+    if(!foundationOnly&&!academyOnly&&!productOnly&&!workspaceFixtureProfile){
     state.fixture.engineeringBusiness=await seedEngineeringBusinessBrowser({run,db:env.H001_DB,f});
     state.fixture.engineeringWorkplacePlatform=await seedEngineeringWorkplacePlatformBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h003:env.H003_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES,h003Files:env.H003_FILES});
     state.fixture.engineeringThaiPayroll=await seedEngineeringThaiPayrollBrowser({run,directory,control:env.CONTROL_DB as PostgresDatabase,db:env.H001_DB as PostgresDatabase,files:env.H001_FILES});

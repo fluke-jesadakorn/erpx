@@ -6,7 +6,7 @@ import { Button } from "@erpx/ui/components/foundation";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import { useEffect, useState } from "react";
 import { useHydrated } from "@erpx/ui/components/use-hydrated";
-import { useStaffCommand } from "@erpx/feature-work_projection/components/staff-work-controls";
+import {useStaffCommand} from '@erpx/feature-work_projection/components/use-staff-command';
 import type { requestAiStatus } from "@erpx/server-records/public/request-ai";
 import styles from "@erpx/workplace/components/services.module.css";
 type Status = Awaited<ReturnType<typeof requestAiStatus>>;

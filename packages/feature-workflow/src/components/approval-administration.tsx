@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { approvalAdministrationData } from "@erpx/server-workflow/public/approval-administration";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { approvalAdminHref } from "@erpx/feature-shared/lib/administration";
-import { RerouteControl } from "@erpx/feature-work_projection/components/staff-work-controls";
+import {RerouteControl} from '@erpx/feature-work_projection/components/staff-work-controls';
 import { Card } from "@erpx/ui/components/foundation";
 
 export async function ApprovalAdministration({

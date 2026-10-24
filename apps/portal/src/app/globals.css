@@ -43,11 +43,6 @@
 @source "../../../../packages/feature-legal/src/lib/legal/features-domain.ts";
 @source "../../../../packages/feature-legal/src/lib/legal/features.ts";
 @source "../../../../packages/feature-legal/src/lib/workspace-snapshot.ts";
-@source "../../../../packages/feature-operations/src/components/routine-command-feedback.tsx";
-@source "../../../../packages/feature-operations/src/components/routine-editor.tsx";
-@source "../../../../packages/feature-operations/src/components/routine-schedule-controls.tsx";
-@source "../../../../packages/feature-operations/src/components/use-routine-command.ts";
-@source "../../../../packages/feature-operations/src/lib/routine-command.ts";
 @source "../../../../packages/feature-organization/src/lib/hierarchy.ts";
 @source "../../../../packages/feature-organization/src/lib/organization-domain.ts";
 @source "../../../../packages/feature-organization/src/lib/organization.ts";
@@ -59,7 +54,6 @@
 @source "../../../../packages/feature-people_payroll/src/components/self-service/leave-editor.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/self-service/use-workforce-command.ts";
 @source "../../../../packages/feature-people_payroll/src/components/self-service/workforce-draft-boundary.tsx";
-@source "../../../../packages/feature-people_payroll/src/components/time/preferred-date-time-field.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/time/time-preference-context.tsx";
 @source "../../../../packages/feature-people_payroll/src/components/use-expense-draft.tsx";
 @source "../../../../packages/feature-people_payroll/src/lib/employee-services.ts";
@@ -73,7 +67,6 @@
 @source "../../../../packages/feature-people_payroll/src/lib/payroll-math.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/people-evaluation.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/people-iam-navigation.ts";
-@source "../../../../packages/feature-people_payroll/src/lib/people-roster-domain.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/retirement.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/workforce-command-client.ts";
 @source "../../../../packages/feature-people_payroll/src/lib/workforce-controls.ts";
@@ -88,12 +81,6 @@
 @source "../../../../packages/feature-portal/src/routes/customer-portal/[holdingSlug]/page.tsx";
 @source "../../../../packages/feature-portal/src/routes/customer-portal/[holdingSlug]/tickets/page.tsx";
 @source "../../../../packages/feature-portal/src/routes/customer-portal/enroll/page.tsx";
-@source "../../../../packages/feature-procurement/src/lib/command.ts";
-@source "../../../../packages/feature-projects/src/components/project-editor-boundary.tsx";
-@source "../../../../packages/feature-projects/src/components/purchase-context.tsx";
-@source "../../../../packages/feature-projects/src/components/use-project-editor-command.ts";
-@source "../../../../packages/feature-projects/src/lib/project-editor-command.ts";
-@source "../../../../packages/feature-projects/src/lib/purchase-controls.ts";
 @source "../../../../packages/feature-records/src/components/collection-record-link.tsx";
 @source "../../../../packages/feature-records/src/components/record-link.tsx";
 @source "../../../../packages/feature-records/src/lib/record-drawer.ts";
@@ -111,7 +98,6 @@
 @source "../../../../packages/feature-shared/src/lib/administration.ts";
 @source "../../../../packages/feature-shared/src/lib/ai-draft.ts";
 @source "../../../../packages/feature-shared/src/lib/ai/guided-intake.ts";
-@source "../../../../packages/feature-shared/src/lib/ai/prepared-work.ts";
 @source "../../../../packages/feature-shared/src/lib/ai/providers.ts";
 @source "../../../../packages/feature-shared/src/lib/appearance-preference.ts";
 @source "../../../../packages/feature-shared/src/lib/business-time.ts";
@@ -127,13 +113,10 @@
 @source "../../../../packages/feature-shared/src/lib/ui-format.ts";
 @source "../../../../packages/feature-work_projection/src/components/quick-access/shelf.tsx";
 @source "../../../../packages/feature-work_projection/src/components/quick-access/use-local-preference.ts";
-@source "../../../../packages/feature-work_projection/src/components/staff-work-controls.tsx";
 @source "../../../../packages/feature-work_projection/src/components/today/start-actions.tsx";
 @source "../../../../packages/feature-work_projection/src/components/today/start-prompt.tsx";
 @source "../../../../packages/feature-work_projection/src/components/use-staff-command.ts";
-@source "../../../../packages/feature-work_projection/src/lib/calendar-timeline.ts";
 @source "../../../../packages/feature-work_projection/src/lib/command-completion.ts";
-@source "../../../../packages/feature-work_projection/src/lib/command-context.ts";
 @source "../../../../packages/feature-work_projection/src/lib/context-switch.ts";
 @source "../../../../packages/feature-work_projection/src/lib/destination-access.ts";
 @source "../../../../packages/feature-work_projection/src/lib/destination-links.ts";
@@ -1021,7 +1004,6 @@
 @source "../../../../packages/server-operations/src/application/staff-policy.ts";
 @source "../../../../packages/server-operations/src/application/staff-tasks.ts";
 @source "../../../../packages/server-operations/src/domain/intake-contracts.ts";
-@source "../../../../packages/server-operations/src/domain/routines.ts";
 @source "../../../../packages/server-operations/src/domain/staff-policy.ts";
 @source "../../../../packages/server-operations/src/domain/staff-tasks.ts";
 @source "../../../../packages/server-operations/src/public/attachments-service-facts.ts";
@@ -1031,7 +1013,6 @@
 @source "../../../../packages/server-operations/src/public/people-evaluation-work-facts.ts";
 @source "../../../../packages/server-operations/src/public/project-source-locks.ts";
 @source "../../../../packages/server-operations/src/public/project-task-record-policy.ts";
-@source "../../../../packages/server-operations/src/public/rules/editor-command-inputs.ts";
 @source "../../../../packages/server-operations/src/public/rules/guided-intake.ts";
 @source "../../../../packages/server-operations/src/public/staff-facts.ts";
 @source "../../../../packages/server-operations/src/public/staff-policy.ts";
@@ -1217,7 +1198,6 @@
 @source "../../../../packages/server-people_payroll/src/public/queued-command-authority.ts";
 @source "../../../../packages/server-people_payroll/src/public/records-request-person-projection.ts";
 @source "../../../../packages/server-people_payroll/src/public/retirement-clearance-policy.ts";
-@source "../../../../packages/server-people_payroll/src/public/rules/people-roster-domain.ts";
 @source "../../../../packages/server-people_payroll/src/public/rules/self-service-product-entry.ts";
 @source "../../../../packages/server-people_payroll/src/public/spending-template-read.ts";
 @source "../../../../packages/server-people_payroll/src/public/workflow-approval-effects.ts";
@@ -1327,7 +1307,6 @@
 @source "../../../../packages/server-projects/src/adapters/purchases.ts";
 @source "../../../../packages/server-projects/src/adapters/social-purchase-sources.ts";
 @source "../../../../packages/server-projects/src/adapters/task-purchases.ts";
-@source "../../../../packages/server-projects/src/domain/staff-projects.ts";
 @source "../../../../packages/server-projects/src/public/attachment-purchases.ts";
 @source "../../../../packages/server-projects/src/public/attachment-read.ts";
 @source "../../../../packages/server-projects/src/public/attachments-policy-facts.ts";
@@ -1336,7 +1315,6 @@
 @source "../../../../packages/server-projects/src/public/evaluation-source-policy.ts";
 @source "../../../../packages/server-projects/src/public/people-evaluation-facts.ts";
 @source "../../../../packages/server-projects/src/public/project-read-projections.ts";
-@source "../../../../packages/server-projects/src/public/rules/editor-command-inputs.ts";
 @source "../../../../packages/server-projects/src/public/social-purchase-sources.ts";
 @source "../../../../packages/server-projects/src/public/task-purchases.ts";
 @source "../../../../packages/server-quality/src/adapters/attachment-purchases.ts";

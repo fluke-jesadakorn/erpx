@@ -8,7 +8,7 @@ vi.mock("@erpx/server-runtime/public/administration",()=>({administrationAccess:
 vi.mock("next/navigation", () => ({ notFound: () => { throw Error("NOT_FOUND"); }, forbidden: () => { throw Error("FORBIDDEN"); }, redirect: (href: string) => { throw Error("REDIRECT:" + href); }, unstable_rethrow: () => {}, useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/holdings/acme/work", useSearchParams: () => new URLSearchParams() }));
 import NewTask from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/staff-tasks/new/screen";
 import Task from "@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/staff-tasks/[id]/screen";
-import { StaffPicker } from "@erpx/feature-work_projection/components/staff-work-controls";
+import {StaffPicker} from '@erpx/feature-work_projection/components/staff-work-controls';
 import Routines from '@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/routine-templates/screen';
 import Routine from '@erpx/workplace/routes/holdings/[holdingSlug]/_presenters/routine-templates/[id]/screen';
 

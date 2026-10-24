@@ -10,7 +10,7 @@ import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import type {previewServiceTeam} from '@erpx/server-support/public/service-teams';
 import { Dialog } from "@erpx/ui/components/dialog";
 import { useHydrated } from "@erpx/ui/components/use-hydrated";
-import { useStaffCommand } from "@erpx/feature-work_projection/components/staff-work-controls";
+import {useStaffCommand} from '@erpx/feature-work_projection/components/use-staff-command';
 import { useRecoverableDraft } from "@erpx/ui/components/use-recoverable-draft";
 import { serviceCategories, categoryLabel } from "@erpx/feature-people_payroll/lib/employee-services";
 import type { serviceTeamOptions } from "@erpx/server-support/public/service-team-options";

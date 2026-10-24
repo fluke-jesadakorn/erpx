@@ -10,3 +10,18 @@ export function firstRouteCompile(log:string,route:string){
  }
  throw new Error('FIRST_COLD_ROUTE_COMPILATION_NOT_OBSERVED');
 }
+
+export type RouteEnsureSpan={inputPage:string;timestamp:number;duration:number};
+/** Next16.4 labels request internals `next.js`, which also includes framework
+ * work. Its ensure-page trace is the actual lazy compiler/entry wait boundary,
+ * in microseconds, before application rendering. Do not relabel request time. */
+export function firstRouteEnsure(spans:RouteEnsureSpan[],route:string){
+ const matches=(input:string)=>{
+  const parts=input.replace(/\/page$/,'').split('/').filter(part=>part&&!/^\([^)]+\)$/.test(part));
+  const pattern=parts.map(part=>/^\[\[\.\.\.[^\]]+\]\]$/.test(part)?'(?:/.*)?':/^\[\.\.\.[^\]]+\]$/.test(part)?'/.+':/^\[[^\]]+\]$/.test(part)?'/[^/]+':'/'+part.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('');
+  return new RegExp('^'+pattern+'/?$').test(route);
+ };
+ const sample=spans.filter(span=>Number.isFinite(span.duration)&&span.duration>=0&&Number.isFinite(span.timestamp)&&matches(span.inputPage)).sort((a,b)=>a.timestamp-b.timestamp)[0];
+ if(!sample)throw new Error('COLD_ROUTE_ENSURE_PAGE_SPAN_REQUIRED');
+ return{route,inputPage:sample.inputPage,ensurePageMs:sample.duration/1000,metric:'Next ensure-page lazy compilation/entry preparation; excludes application render'};
+}

@@ -4,9 +4,7 @@ import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-r
 import { staffPresentationQueries } from "@erpx/server-work_projection/public/presentation-context-queries";
 import { FeaturePage, FeatureWidget,WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 import { ServiceNavigation } from "@erpx/feature-field_service/components/service-navigation";
-import {
-StaffTaskLinks,
-} from "@erpx/feature-work_projection/components/staff-work-controls";
+import {StaffTaskLinks} from '@erpx/feature-work_projection/components/staff-work-controls';
 import { ListFilters } from "@erpx/ui/components/list-filters";
 import { EmptyState,PageHeader } from "@erpx/ui/components/primitives";
 import { administrationAccess } from "@erpx/server-runtime/public/administration";

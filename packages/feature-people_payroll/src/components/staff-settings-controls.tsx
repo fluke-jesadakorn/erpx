@@ -5,7 +5,8 @@ import { FormDisclosure } from "@erpx/ui/components/form-disclosure";
 import { Button, Field, Select, TextInput } from "@erpx/ui/components/foundation";
 
 import { useState } from "react";
-import { StaffPicker, useStaffCommand, type StaffOptions } from "@erpx/feature-work_projection/components/staff-work-controls";
+import {StaffPicker,type StaffOptions} from '@erpx/feature-work_projection/components/staff-work-controls';
+import {useStaffCommand} from '@erpx/feature-work_projection/components/use-staff-command';
 import { Card, FormLayout } from "@erpx/ui/components/foundation";
 export function StaffSettingsControls({ base, options }: { base: string; options: StaffOptions }) {
   const { send, busy, error } = useStaffCommand(base),

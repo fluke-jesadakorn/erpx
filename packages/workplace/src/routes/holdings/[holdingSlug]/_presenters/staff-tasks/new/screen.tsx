@@ -5,7 +5,7 @@ import { staffPresentationQueries } from "@erpx/server-work_projection/public/pr
 
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 import { FeaturePage } from "@erpx/feature-shared/components/features/feature-page";
-import { TaskEditor } from "@erpx/feature-work_projection/components/staff-work-controls";
+import {TaskEditor} from '@erpx/feature-work_projection/components/staff-work-controls';
 
 
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";

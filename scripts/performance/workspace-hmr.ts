@@ -33,7 +33,7 @@ const benchmarks={
 if(!Object.hasOwn(benchmarks,app))throw new Error('REGISTERED_HMR_APP_REQUIRED');
 const benchmark=benchmarks[app as keyof typeof benchmarks],bundler=workspaceBrowserBundler(raw),suite=loadCatalogue().suites.find(suite=>suite.id===benchmark.suite);
 if(!suite)throw new Error('REGISTERED_HMR_SUITE_REQUIRED');
-const result=await runBrowserSuites([suite],{mode:'development-smoke',projects:['desktop'],caseOrder:'forward',workspace:{apps:benchmark.apps,entryApp:app,bundler,...('consoleRetired' in benchmark&&benchmark.consoleRetired?{consoleRetired:true as const}:{})},caseSelection:[{suite:suite.id,file:benchmark.file,project:'desktop',title:benchmark.title}]});
+const result=await runBrowserSuites([suite],{mode:'development-smoke',projects:['desktop'],caseOrder:'forward',workspace:{...(['booking','portal','legal-portal','forms'].includes(app)?{fixtureProfile:'public-hosts' as const}:{}),apps:benchmark.apps,entryApp:app,bundler,...('consoleRetired' in benchmark&&benchmark.consoleRetired?{consoleRetired:true as const}:{})},caseSelection:[{suite:suite.id,file:benchmark.file,project:'desktop',title:benchmark.title}]});
 const files=(await readdir(result.evidenceDirectory,{recursive:true,withFileTypes:true})).filter(file=>file.isFile()&&file.name==='workspace-performance.json');
 if(files.length!==1)throw new Error('EXACT_HMR_MEASUREMENT_REQUIRED');
 const sample=JSON.parse(await readFile(join(files[0].parentPath,files[0].name),'utf8'));

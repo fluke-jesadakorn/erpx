@@ -3,7 +3,8 @@ import { InlineNotice } from "@erpx/ui/components/foundation";
 
 import { Button, Field, Select, TextInput } from "@erpx/ui/components/foundation";
 
-import { useStaffCommand, type StaffOptions } from "@erpx/feature-work_projection/components/staff-work-controls";
+import {useStaffCommand} from '@erpx/feature-work_projection/components/use-staff-command';
+import {type StaffOptions} from '@erpx/feature-work_projection/components/staff-work-controls';
 import { FormLayout } from "@erpx/ui/components/foundation";
 export function LevelAssignmentEditor({
   base,

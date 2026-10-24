@@ -9,7 +9,7 @@ import { canonicalUiHref } from "@erpx/feature-work_projection/lib/destination-r
 import {SectionWorkspace} from "@erpx/workplace/components/section-workspace";
 import {RecordLink as Link} from "@erpx/feature-records/components/record-link";
 import {ListFilters} from "@erpx/ui/components/list-filters";
-import {ProjectEditor} from "@erpx/feature-work_projection/components/staff-work-controls";
+import {ProjectEditor} from '@erpx/feature-work_projection/components/staff-work-controls';
 import {staffPresentationQueries} from "@erpx/server-work_projection/public/presentation-context-queries";
 import {routeContextHref,type RouteSearch} from "@erpx/feature-shared/lib/route-context";
 import {workspaceSearchContext} from "@erpx/feature-work_projection/lib/section-workspaces";
