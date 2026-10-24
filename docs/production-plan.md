@@ -3,6 +3,8 @@
 
 ## Current verification checkpoint — 2026-10-25
 
+Resource-completeness correction: the first clean candidate `0aa955ac` passes inventories and basic CSS/brand probes but omits ignored generated PDF runtime assets, so it is **not a complete current runtime release**. Its earlier receipts retain that limited scope. Release and isolated builders now prepare pinned PDF assets before fingerprinting; expanded direct probes require worker, cmap, font and WASM bytes. A fresh complete22-app assembly is pending at this correction (`release-resource-gap-589.json`).
+
 This checkpoint supersedes the pending benchmark statements in the earlier delivery log below. All evidence in this section is **development verification, acceptance:false**. Full acceptance remains deferred; no staging or installed production configuration/service is changed.
 
 Cross-server-owner runtime dependency cycles are zero, enforced by the architecture check. Internal owner components and the coarse reciprocal package-manifest type/UI dependencies remain visible: the latter still produce Turborepo's package-graph warning. Explicit app tasks and their source-derived cache inputs execute successfully; this is not a claim of an acyclic package manifest graph.

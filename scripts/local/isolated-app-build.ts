@@ -8,6 +8,7 @@ import { pinnedNode } from './app-task';
 import { relocateStandaloneLinks, relocateCompilerDependencyAliases, artifactSymbolicLinks } from './standalone-links';
 import { verifyAppArtifact } from './app-artifact-cache';
 import { workspaceCopyInput } from './workspace-copy-input';
+import { preparePdfAssets } from '../assets/prepare-pdf-assets';
 const root=resolve(import.meta.dirname,'../..');
 const copyOptions={recursive:true,verbatimSymlinks:true,mode:constants.COPYFILE_FICLONE,filter:(path:string)=>workspaceCopyInput(root,path)};
 async function files(directory:string):Promise<string[]>{
@@ -22,6 +23,7 @@ async function keyFor(id:string,bundler:string){
 /** Build from a private source copy: Next may rewrite next-env and route types. */
 export async function buildIsolatedApp(id:string,bundler='webpack'){
  if(!['webpack','turbopack'].includes(bundler))throw new Error('UNKNOWN_APP_BUNDLER');
+ await preparePdfAssets();
  const app=appDefinition(id),identity=await keyFor(id,bundler),directory=join(root,'.scratch/dev/workspace-builds',id,identity.key),snapshot=join(directory,'source');
  await mkdir(directory,{recursive:true,mode:0o700});const lock=join(directory,'build.lock');let handle;
  try{handle=await open(lock,'wx',0o600);}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;const owner=JSON.parse(await readFile(lock,'utf8'));if(owner.root!==root||owner.id!==id||owner.key!==identity.key)throw new Error('APP_BUILD_LOCK_IDENTITY_CHANGED');try{process.kill(owner.pid,0);throw new Error('APP_BUILD_ALREADY_RUNNING');}catch(error){if((error as NodeJS.ErrnoException).code!=='ESRCH')throw error;}await rm(lock);handle=await open(lock,'wx',0o600);}

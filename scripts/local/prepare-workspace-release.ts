@@ -11,6 +11,7 @@ import { runtimeSourceFingerprint } from './source-fingerprint';
 import { appRuntimeFingerprint, loadWorkspaceGraph } from '../testing/workspace-graph';
 import { copyWorkspaceSnapshot, workspaceCopyInput } from './workspace-copy-input';
 import { releaseArtifactReference, verifyWorkspaceRelease, type WorkspaceReleaseManifest } from './workspace-release-manifest';
+import { preparePdfAssets } from '../assets/prepare-pdf-assets';
 
 const root=resolve(import.meta.dirname,'../..');
 const git=(...args:string[])=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
@@ -60,6 +61,7 @@ if(verify){
  if(candidate!==git('rev-parse','HEAD'))throw new Error('RELEASE_CANDIDATE_MUST_BE_HEAD');
  if(!development&&git('status','--porcelain','--untracked-files=normal'))throw new Error('RELEASE_REQUIRES_CLEAN_FROZEN_CANDIDATE');
  pinnedNode();
+ await preparePdfAssets();
  const sourceFingerprint=await runtimeSourceFingerprint(root),id=development?`development-${Date.now()}-${sourceFingerprint.slice(0,12)}`:candidate;
  const release=join(root,'.runtime/workspace-releases',id),snapshot=join(root,'.scratch/dev/workspace-release-source',id);
  if(existsSync(release)||existsSync(snapshot))throw new Error('RELEASE_DESTINATION_ALREADY_EXISTS');
