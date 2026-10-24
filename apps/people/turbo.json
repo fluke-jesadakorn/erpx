@@ -14280,6 +14280,7 @@
         "$TURBO_ROOT$/scripts/local/standalone-links.ts",
         "$TURBO_ROOT$/scripts/local/app-artifact-cache.ts",
         "$TURBO_ROOT$/scripts/local/workspace-copy-input.ts",
+        "$TURBO_ROOT$/scripts/assets/prepare-pdf-assets.ts",
         "$TURBO_ROOT$/migrations/control-read/0001_control_read.sql",
         "$TURBO_ROOT$/migrations/control/0001_control.sql",
         "$TURBO_ROOT$/migrations/control/0002_account_issuer.sql",

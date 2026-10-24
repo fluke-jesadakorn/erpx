@@ -437,6 +437,7 @@ it('separates type and lint inputs from runtime compiler inputs while retaining 
   }
   expect(config.tasks.build.dependsOn).toEqual(['typecheck']);
   expect(config.tasks.build.inputs).toContain('$TURBO_ROOT$/scripts/local/isolated-app-build.ts');
+  expect(config.tasks.build.inputs).toContain('$TURBO_ROOT$/scripts/assets/prepare-pdf-assets.ts');
   expect(config.tasks.build.inputs).toContain('$TURBO_ROOT$/scripts/local/workspace-settings.json');
 });
 
