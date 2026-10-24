@@ -1,10 +1,10 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { assignFlowPrimary, resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { saveExpenseAccounting } from "@erpx/server-people_payroll/public/expense-workflow";
 import { postExpense, getExpense } from "@erpx/server-people_payroll/public/expenses";
-import { createAccount, createAccountSchema, createInvoice, invoiceSchema, postInvoice } from "@erpx/server-finance/public/finance";
+import {createAccount,createAccountSchema,createInvoice,invoiceSchema,postInvoice} from '@erpx/server-finance/public/finance';
 import { settleInvoice } from "@erpx/server-commerce/public/commerce";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
@@ -228,7 +228,7 @@ it("keeps batched Work equal to detail-authorized flows across roles and scopes"
   const { otherFlowWork } = await import("@erpx/server-workflow/public/flow-work");
   const { withPolicyReadSnapshot } = await import("@erpx/server-identity_access/public/iam-read-snapshot");
   const { workOrderRows, getOrder } = await import("@erpx/server-commerce/public/commerce");
-  const { workInvoiceRows, getInvoice } = await import("@erpx/server-finance/public/finance");
+  const {workInvoiceRows}=await import('@erpx/server-finance/public/finance'),{getInvoice}=await import('@erpx/server-finance/public/finance-invoice-read');
   const { workJournalRows, journalDetail } = await import("@erpx/server-finance/public/ledger");
   const { workPayrollRows, getPayrollRun } = await import("@erpx/server-people_payroll/public/people-payroll");
   const party = `party-${key()}`;

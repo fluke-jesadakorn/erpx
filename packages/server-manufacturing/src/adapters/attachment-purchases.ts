@@ -4,7 +4,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards} from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {manufacturingPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary,observePurchaseResults,companyPurchaseReadLocks} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {financeDeferredEffectStatements} from "@erpx/server-finance/public/finance-transactions";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";

@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { levelChangeStatements } from "@erpx/server-operations/public/staff-settings";
 import type { requireCompanyAuthority, authorityGuard } from "@erpx/server-operations/public/staff-policy";
-import type { organizationGuard, validateStaffOrganization } from "@erpx/server-organization/public/organization";
+import type {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
+import type {validateStaffOrganization} from '@erpx/server-organization/public/organization';
 import type { rosterPositionExitStatements } from "@erpx/server-people_payroll/public/roster-position-exit";
 import type { recommendationStatements } from "@erpx/server-organization/public/staff-defaults";
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';

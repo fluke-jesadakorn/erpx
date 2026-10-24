@@ -7,7 +7,7 @@ import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
-import { participantSql } from "@erpx/server-workflow/public/approvals";
+import {participantSql} from '@erpx/server-workflow/public/approvals';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {

@@ -15,7 +15,7 @@ import { currencyScale, resolveRate } from "@erpx/feature-finance/lib/company-mo
 import { useCurrency } from "@erpx/feature-finance/components/money/currency-provider";
 import { AttachmentPanel,type AttachmentPanelChange } from "@erpx/feature-files/components/attachment-panel";
 import { calculateInvoiceLines, type InvoiceLineInput } from "@erpx/server-finance/public/rules/finance-invoice-lines";
-import type { PersistedInvoiceLine } from "@erpx/server-finance/public/finance-invoice-lines";
+import type {PersistedInvoiceLine} from '@erpx/server-finance/public/finance-invoice-lines';
 import { Card, Stack, FormLayout } from "@erpx/ui/components/foundation";
 import { useFinanceActionAllowed } from "@erpx/feature-finance/components/purchase-context";
 import {financeDocumentCommandAllowed, financeDocumentCommandContext, financeDocumentFormUnchanged, type FinanceDocumentPostControl} from "@erpx/feature-finance/lib/document-post-control";

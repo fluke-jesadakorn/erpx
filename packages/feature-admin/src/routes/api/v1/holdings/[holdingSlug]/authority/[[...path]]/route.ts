@@ -3,7 +3,8 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { holdingResources } from "../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
-import { appointmentOverview, changeAppointment, publishDepartmentFlow } from "@erpx/server-organization/public/department-authority";
+import {appointmentOverview} from '@erpx/server-organization/public/department-authority-reads';
+import {changeAppointment,publishDepartmentFlow} from '@erpx/server-organization/public/department-authority';
 import { decideDepartmentOverride } from "@erpx/server-organization/public/department-decisions";
 
 type Context={params:Promise<{holdingSlug:string;path?:string[]}>};

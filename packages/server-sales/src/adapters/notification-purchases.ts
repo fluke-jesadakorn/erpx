@@ -10,7 +10,7 @@ import {commercePackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCa
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import type {CustomerMail,CustomerNotification,CustomerNotificationRetry,CustomerNotificationSettings} from '@erpx/server-sales/domain/notifications';
 type Command={key:string}&({kind:'settings';input:CustomerNotificationSettings}|{kind:'queue';id:string;input:CustomerNotification}|{kind:'retry';id:string;input:CustomerNotificationRetry});

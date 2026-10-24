@@ -5,11 +5,7 @@ import {
   expenseDb as raw,
   key,
 } from "../../support/helpers/expense-fixture";
-import {
-  installStaffLevels,
-  savePosition,
-  positionSchema,
-} from "@erpx/server-organization/public/organization";
+import {installStaffLevels,savePosition,positionSchema} from '@erpx/server-organization/public/organization';
 import {
   peopleLifecycleData,
   previewPackage,
@@ -42,7 +38,7 @@ import { setDirectoryStatus } from "@erpx/server-people_payroll/public/people-di
 import { transitionEngagement } from "@erpx/server-people_payroll/public/people-payroll";
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 import { companyMembers } from "@erpx/server-organization/public/member-directory";
-import { changeAppointment } from "@erpx/server-organization/public/department-authority";
+import {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import { enrichFlowWork } from "@erpx/server-workflow/public/flow-work";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {

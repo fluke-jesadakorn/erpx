@@ -9,8 +9,8 @@ import type {listTasks,saveTask,taskActionSchema,taskDelegationRevokeSchema,task
 import type {listProjectMilestones,projectMilestoneSchema,projectMilestoneTransitionSchema,saveProjectMilestone,transitionProjectMilestone} from "@erpx/server-projects/public/project-milestones";
 import type {decideProjectWorkLog,listProjectWorkLogs,projectWorkLogDecisionSchema,projectWorkLogSchema,saveProjectWorkLog} from "@erpx/server-projects/public/project-actuals";
 import type {canEditTemplate,changeScheduleState,endSchedule,getTemplate,listTemplates,runTemplate,saveSchedule,saveTemplate,scheduleSchema,templateSchema,ScheduleRow} from "@erpx/server-operations/public/routines";
-import type {rerouteApproval} from "@erpx/server-workflow/public/approvals";
-import type {changeAppointment} from "@erpx/server-organization/public/department-authority";
+import type {rerouteApproval} from '@erpx/server-workflow/public/approvals';
+import type {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import type {getProject,listProjects,projectSchema,saveProject} from "@erpx/server-projects/public/staff-projects";
 import type {StaffResource,StaffRequestContext} from "@erpx/server-work_projection/domain/staff-api";
 type WithoutDatabase<F> = F extends (...args:infer A)=>infer R ? A extends [unknown,...infer Tail] ? (...args:Tail)=>R:never:never;

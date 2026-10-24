@@ -4,7 +4,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
-import {workContextGuards} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {workPackageEnforcementMode,readPurchasedAccess,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';

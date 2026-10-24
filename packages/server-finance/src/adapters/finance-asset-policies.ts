@@ -10,7 +10,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { financeTransaction, financeOwnedTransaction } from "@erpx/server-finance/public/finance-transactions";
 import { requireFinanceTool } from "@erpx/server-finance/public/finance-company-tools";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import { prepareOwnedJournalReversal } from "@erpx/server-finance/public/finance-owned-reversal";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { ApiError } from "@erpx/server-runtime/public/http";

@@ -17,7 +17,8 @@ import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commerc
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public/owner-source-locks';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import { assertProductionModuleEnabled, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import {financialConstraintError,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
+import {replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import {commercePostingFinanceReferences} from '@erpx/server-finance/adapters/commerce-posting-setup';
 import {commerceFinanceJoinedFacts} from '@erpx/server-finance/adapters/commerce-joined-facts';

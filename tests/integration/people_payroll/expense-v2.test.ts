@@ -23,11 +23,8 @@ import {
   expenseAuthoritySnapshot,
 } from "@erpx/server-people_payroll/public/expense-routing";
 import { saveExpenseAccounting } from "@erpx/server-people_payroll/public/expense-workflow";
-import {
-  approvalView,
-  prepareDecision,
-  rerouteApproval,
-} from "@erpx/server-workflow/public/approvals";
+import {approvalView,prepareDecision} from '@erpx/server-workflow/public/approval-planning';
+import {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import { executeCommand } from "@erpx/server-workflow/public/commands";
 import {
   createExpensePayment,

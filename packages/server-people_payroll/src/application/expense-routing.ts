@@ -1,6 +1,6 @@
 import type { OrganizationPerson } from "@erpx/server-organization/public/profile-facts";
 import type { RecordScope, RouteStep, StaffPerson } from "@erpx/server-operations/public/staff-policy";
-import type { ApprovalInstance, ApprovalStep } from "@erpx/server-workflow/public/approvals";
+import type {ApprovalInstance,ApprovalStep} from '@erpx/server-workflow/public/approvals';
 import type { SpendingKind, SpendingTemplate } from "@erpx/feature-shared/lib/spending";
 import { hasIndependentSpendingTeam, independentAccountingCandidates, selectSpendingException } from "@erpx/server-people_payroll/domain/expense-routing-rules";
 import type { ExpenseCommandPort } from "@erpx/server-people_payroll/application/expense-commands";

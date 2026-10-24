@@ -5,10 +5,7 @@ import { holdingResources } from "../../../../../../../../../../packages/server-
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { serviceCommandBody } from "@erpx/server-support/public/service-http";
 import { requireServiceOwner } from "@erpx/server-support/public/service-access";
-import {
-  saveServiceTeam,
-  serviceTeamSchema,
-} from "@erpx/server-support/public/service-teams";
+import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export async function GET(_request: Request, context: Context) {
   try {

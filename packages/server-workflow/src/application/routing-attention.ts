@@ -1,10 +1,10 @@
 import type { FlowKind } from "@erpx/feature-shared/lib/flow";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { companyAuthority } from "@erpx/server-operations/public/staff-policy";
-import type { resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import type {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { routingQuerySchema } from '@erpx/server-workflow/domain/routing-attention';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { OwnerCommands } from '@erpx/server-workflow/domain/owner-command-ports';
+
 type Tail<Value extends unknown[]> = Value extends [
     unknown,
     ...infer Rest
@@ -34,7 +34,7 @@ export interface RoutingAttentionPorts<Effect> {
     repository: RoutingAttentionRepository;
     clock: Clock;
     identifiers: IdentifierSource;
-    commands: OwnerCommands<Effect>;
+
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     batch(effects: Effect[]): Promise<unknown>;

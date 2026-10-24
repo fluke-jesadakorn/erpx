@@ -18,7 +18,7 @@ import { hospitalityDayControls } from "@erpx/server-pms/public/hospitality-day-
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { executeCommand, replayCommand } from "@erpx/server-workflow/public/commands";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { snapshotMoney, snapshotMoneyBatch, snapshotMoneyCarry, snapshotMoneyReversal } from "@erpx/server-finance/public/company-money";

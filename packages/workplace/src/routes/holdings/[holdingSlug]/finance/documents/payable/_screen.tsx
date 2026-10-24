@@ -5,7 +5,7 @@ import { Button, Field, Select, Table, TableFrame, TextInput } from "@erpx/ui/co
 import { FeaturePage, FeatureWidget, WidgetGrid } from "@erpx/feature-shared/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@erpx/feature-finance/components/finance-workspace";
 import { financeCompanyTools } from "@erpx/server-finance/public/finance-company-tools";
-import { listCharts } from "@erpx/server-finance/public/finance";
+import {listCharts} from '@erpx/server-finance/public/finance';
 import { ListPagination } from "@erpx/ui/components/list-pagination";
 import { InvoiceEditor } from "@erpx/feature-finance/components/lazy-invoice-editor";
 import { MoneyAmount } from "@erpx/feature-finance/components/money/currency-provider";
@@ -13,7 +13,7 @@ import { formatMoneyUnits } from "@erpx/feature-finance/lib/company-money";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { aging, invoiceWorkspace, invoicesPage } from "@erpx/server-finance/public/finance";
+import {aging,invoiceWorkspace,invoicesPage} from '@erpx/server-finance/public/finance';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { Card } from "@erpx/ui/components/foundation";

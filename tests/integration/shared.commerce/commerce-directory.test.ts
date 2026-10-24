@@ -1,4 +1,4 @@
-import {resolveFlow,assignFlowPrimary} from "@erpx/server-workflow/public/flow-routing";
+import {resolveFlow,assignFlowPrimary} from '@erpx/server-workflow/public/flow-routing';
 import { afterEach,beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";

@@ -10,7 +10,7 @@ import type {AttachmentOperation,AttachmentPolicy} from '@erpx/server-files/publ
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {commercePackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary,observePurchaseResults,companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finance-transactions';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {hasModuleAccess} from '@erpx/catalogue/module-access';

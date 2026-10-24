@@ -3,7 +3,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { administrationAccess } from "@erpx/server-runtime/public/administration";
-import { appointmentOverview } from "@erpx/server-organization/public/department-authority";
+import {appointmentOverview} from '@erpx/server-organization/public/department-authority-reads';
 import { departmentFlowSettingsHistory } from "@erpx/server-organization/public/flow-settings-facts";
 import { draftCompanyName } from "@erpx/server-organization/public/people-app-entrypoint-facts";
 import { companyAuthority } from "@erpx/server-operations/public/staff-policy";

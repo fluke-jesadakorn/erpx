@@ -8,7 +8,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { requirePosImageSource } from "@erpx/server-pos/public/pos-image-source";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import { workContextGuards } from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { applyPosRoomCharge, reversePosRoomCharge } from "../../../../packages/server-pms/src/public/pms";
@@ -20,9 +20,7 @@ import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { createPosApplication, type PosUnit, type PosRepository, type PosRow } from "@erpx/server-pos/application/pos-core";
 import { withPosPurchasedCommand, posPackageEnforcementMode } from "@erpx/server-pos/adapters/purchase-boundary";
 export type { PosRow } from "@erpx/server-pos/application/pos-core";
-export async function one(db: SqlDatabase, sql: string, ...args: unknown[]) { return db.prepare(sql).bind(...args).first<PosRow>(); }
-export async function all(db: SqlDatabase, sql: string, ...args: unknown[]) { return (await db.prepare(sql).bind(...args).all<PosRow>()).results; }
-export async function run(db: SqlDatabase, sql: string, ...args: unknown[]) { return db.prepare(sql).bind(...args).run(); }
+import {one,all,run}from '@erpx/server-runtime/public/runtime/sql';
 import { posCoreFinanceFacts } from "@erpx/server-finance/public/pos-core-facts";
 import { posCoreCommerceFacts } from "@erpx/server-commerce/public/pos-core-facts";
 import { posCoreInventoryFacts } from "@erpx/server-inventory/public/pos-core-facts";

@@ -1,6 +1,6 @@
 import 'server-only';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {captureJobAuthority} from '@erpx/server-identity_access/public/iam-jobs';

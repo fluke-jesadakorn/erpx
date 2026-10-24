@@ -1,4 +1,4 @@
-import {expenseCompanyHistoryScope} from "@erpx/server-people_payroll/adapters/expense-record-purchases";
+import {expenseCompanyHistoryScope} from '@erpx/server-people_payroll/public/expense-company-history-scope';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {Row} from '@erpx/server-workflow/public/flow-routing-contract';
 const tables={'expense':'finance_expenses','leave':'leave_requests','payroll':'hr_payroll_runs'};

@@ -3,7 +3,7 @@ import 'server-only';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { createCommerceReturnsApplication, type CommerceReturnsUnit } from "@erpx/server-commerce/application/commerce-return-accounting";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";

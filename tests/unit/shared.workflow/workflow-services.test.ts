@@ -1,4 +1,6 @@
 import {describe,expect,test,vi} from 'vitest';
+import {createWorkflowCommandGuards,type WorkflowAssertionPort} from '@erpx/server-identity_access/public/workflow-command-authority';
+import type {SqlDatabase,SqlStatement} from '@erpx/server-runtime/public/runtime/types';
 import {createCommandApplication,type CommandPorts,type CommandRepository} from "@erpx/server-workflow/application/commands";
 import {createCommandPolicyApplication,type CommandPolicyPorts} from "@erpx/server-workflow/application/command-policies";
 import {createJobProjectorApplication,type JobProjectorPorts} from "@erpx/server-workflow/application/job-projector";
@@ -15,6 +17,27 @@ import type {CommandActor} from "@erpx/server-workflow/domain/commands";
 import type {FlowView,FlowStep} from "@erpx/feature-shared/lib/flow";
 import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[]};
+describe('Workflow authority assertion composition',()=>{
+ const db={prepare:()=>({bind:()=>({}) as SqlStatement})} as unknown as SqlDatabase;
+ test('requires an explicit assertion port and keeps independently composed callers isolated',()=>{
+  expect(()=>createWorkflowCommandGuards(undefined as unknown as WorkflowAssertionPort)).toThrow('WORKFLOW_ASSERTION_PORT_REQUIRED');
+  const a=vi.fn<WorkflowAssertionPort>(()=>({}) as SqlStatement),b=vi.fn<WorkflowAssertionPort>(()=>({}) as SqlStatement),first=createWorkflowCommandGuards(a),second=createWorkflowCommandGuards(b);
+  first.workflowAssignmentGuard(db,actor,'first');second.workflowAssignmentGuard(db,{...actor,userId:'other'},'second');
+  expect(a).toHaveBeenCalledTimes(1);expect(b).toHaveBeenCalledTimes(1);
+  expect(a.mock.calls[0].slice(0,3)).toEqual([db,'first','assignment']);expect(b.mock.calls[0].slice(0,3)).toEqual([db,'second','assignment']);
+  expect(a.mock.calls[0][4]).toEqual(['assignment','owner','holding_owner','company',null,null]);expect(b.mock.calls[0][4]?.[1]).toBe('other');
+ });
+ test('emits fresh captured session/revision/version guards through the supplied port without retaining actor state',()=>{
+  const assertion=vi.fn<WorkflowAssertionPort>(()=>({}) as SqlStatement),guards=createWorkflowCommandGuards(assertion);
+  expect(guards.workflowWorkContextGuards(db,actor,'legacy')).toEqual([]);expect(assertion).not.toHaveBeenCalled();
+  const current={...actor,authority:{sessionId:'session',revision:4,assignmentVersion:7}};
+  expect(guards.workflowWorkContextGuards(db,current,'one')).toHaveLength(4);
+  expect(assertion.mock.calls[0][4]).toEqual(['session','company','owner','assignment',4,7]);
+  expect(assertion.mock.calls[1][3]).toContain('a.revoked_at IS NULL');expect(assertion.mock.calls[1][3]).toContain('clock_timestamp()');
+  guards.workflowWorkContextGuards(db,{...current,authority:{...current.authority,revision:5,assignmentVersion:8}},'two');
+  expect(assertion.mock.calls[2][4]).toEqual(['session','company','owner','assignment',5,8]);expect(assertion.mock.calls[2][1]).toBe('two');
+ });
+});
 function administration(overrides:Partial<ApprovalAdministrationPorts>={}) {
  const order:string[]=[];
  const queue=vi.fn<ApprovalAdministrationPorts['queue']>(async()=>[]);

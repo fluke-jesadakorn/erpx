@@ -3,13 +3,13 @@ import type {WorkContext,publicScope} from "@erpx/server-identity_access/public/
 import {workspaceBase} from "@erpx/feature-work_projection/lib/workspace";
 import {sourceRecordLabel} from "@erpx/feature-records/lib/source-record";
 import type {WorkReview,WorkReviewKind,ReviewDecision} from "@erpx/feature-work_projection/lib/work-review";
-import type {SavedApproval,employeeRequestDetail} from "@erpx/server-records/public/employee-requests";
+import type {SavedApproval,employeeRequestDetail} from '@erpx/server-records/public/employee-requests';
 import type {expenseDetail} from "@erpx/server-people_payroll/public/expenses";
 import type {getLeave} from "@erpx/server-people_payroll/public/leave";
 import type {getLeaveEvidence} from "@erpx/server-work_projection/public/work";
 import type {taskDetail} from "@erpx/server-operations/public/staff-tasks";
-import type {resolveFlow} from "@erpx/server-workflow/public/flow-routing";
-import type {ApprovalView} from "@erpx/server-workflow/public/approvals";
+import type {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import type {ApprovalView} from '@erpx/server-workflow/public/approvals';
 import type {attachmentContentUrl} from "@erpx/feature-files/lib/attachment-client";
 import {minorToDecimal} from "@erpx/feature-finance/lib/finance-money";
 export type WorkReviewUnit={

@@ -7,9 +7,9 @@ import type {seedExpenseCompany} from "../../expenses/company";
 import {saveProject,projectSchema,saveTask,taskSchema} from "@erpx/server-operations/public/staff-tasks";
 import {saveProjectMilestone,projectMilestoneSchema} from "@erpx/server-projects/public/project-milestones";
 import {createProjectCostAllocation,decideProjectCostAllocation,projectCostAllocationSchema,projectCostAllocationDecisionSchema} from "@erpx/server-projects/public/project-actuals";
-import {createAccount,createAccountSchema,createJournal,createJournalSchema,postJournal,importBankStatement} from "@erpx/server-finance/public/finance";
+import {createAccount,createAccountSchema,createJournal,createJournalSchema,postJournal,importBankStatement} from '@erpx/server-finance/public/finance';
 import {saveMaster,saveOrder,orderSchema,transitionOrder} from "@erpx/server-commerce/public/commerce";
-import {assignFlowPrimary,resolveFlow} from "@erpx/server-workflow/public/flow-routing";
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
 import {createAsset} from "@erpx/server-assets/public/asset-maintenance";
 import {savePreventivePlan} from "@erpx/server-maintenance/public/maintenance-preventive";
@@ -19,7 +19,7 @@ import {createManufacturingAccountingProfile,reviewManufacturingAccountingProfil
 import {createChannel,createListing,createCart,addCartLine,changeEcommerce} from "@erpx/server-ecommerce/public/ecommerce";
 import {createSupportTicket} from "@erpx/server-support/public/support";
 import {createAgreement,changeAgreement,createServiceOrder} from "@erpx/server-field_service/public/field-service";
-import {posCommand} from "@erpx/server-pos/public/pos-core";
+import {posCommand} from '@erpx/server-pos/public/pos-core';
 import {requestCustomerAccess} from "@erpx/server-customer_authority/public/customer-access";
 
 type Fixture=Awaited<ReturnType<typeof seedExpenseCompany>>;

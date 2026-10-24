@@ -1,4 +1,4 @@
-import {participantSql} from "@erpx/server-workflow/public/approvals";
+import {participantSql} from '@erpx/server-workflow/public/approvals';
 import {sourceAccessSql} from "@erpx/server-collaboration/public/social-source";
 
 /** SQL counterpart of the original task reader's participant and social-source

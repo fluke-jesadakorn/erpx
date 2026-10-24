@@ -2,7 +2,7 @@ import { runtimeResourcePath } from "@erpx/server-runtime/public/runtime/resourc
 import "server-only";
 import {readFile,mkdtemp,writeFile,rm,readdir} from "node:fs/promises";
 import {tmpdir} from "node:os";
-import {join,resolve} from "node:path";
+import {join} from "node:path";
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
 import {Document,Paragraph,TextRun,Packer} from "docx";
@@ -96,7 +96,7 @@ export function legalDocumentProvider(db:SqlDatabase,companyId:string,error:(sta
                 process.env.ERPX_OCR_LANGUAGES ?? "eng+tha",
                 "--tessdata-dir",
                 process.env.ERPX_TESSDATA_DIR ??
-                  resolve(".runtime/legal-ocr/tessdata"),
+                  runtimeResourcePath(".runtime/legal-ocr/tessdata"),
               ],
               { timeout: 45000, maxBuffer: 2 * 1024 * 1024 },
             )
@@ -110,7 +110,7 @@ export function legalDocumentProvider(db:SqlDatabase,companyId:string,error:(sta
               process.execPath,
               [
                 "--max-old-space-size=256",
-                resolve("scripts/legal/extract_docx.mjs"),
+                runtimeResourcePath("scripts/legal/extract_docx.mjs"),
                 path,
               ],
               { timeout: 30000, maxBuffer: 1024 * 1024 },
@@ -159,7 +159,7 @@ export function legalDocumentProvider(db:SqlDatabase,companyId:string,error:(sta
                     process.env.ERPX_OCR_LANGUAGES ?? "eng+tha",
                     "--tessdata-dir",
                     process.env.ERPX_TESSDATA_DIR ??
-                      resolve(".runtime/legal-ocr/tessdata"),
+                      runtimeResourcePath(".runtime/legal-ocr/tessdata"),
                   ],
                   { timeout: 20000, maxBuffer: 1000000 },
                 )

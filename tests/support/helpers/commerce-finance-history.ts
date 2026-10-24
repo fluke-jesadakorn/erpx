@@ -9,7 +9,8 @@ import {readCompanyPurchaseFacts} from "@erpx/server-commercial/public/package-g
 import {financeProductDocumentEntry,financeDocumentPostAccess} from "@erpx/server-finance/public/document-purchases";
 import {invoiceRecordWorkspace,journalRecordWorkspace,financeDocumentPresentationAccess,financeSourceDocumentBackdrop} from "@erpx/server-finance/public/record-presentation";
 import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";
-import {createJournal,createJournalSchema,importBankStatement,getInvoice,getPayment,postJournal} from "@erpx/server-finance/public/finance";
+import {createJournal,createJournalSchema,importBankStatement,getPayment,postJournal} from '@erpx/server-finance/public/finance';
+import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import {bookRuleSchema,prepareBookRule,decideBookRule} from "@erpx/server-finance/public/finance-books";
 import {getRefund,approveRefund,prepareRefundInstruction,exportRefundInstructions,confirmRefundInstruction,recordRefundException,recoverRefundExport,refundWorkspace,refundWork,listRefunds} from "@erpx/server-finance/public/refunds";
 import {ApiError} from "@erpx/server-runtime/public/http";

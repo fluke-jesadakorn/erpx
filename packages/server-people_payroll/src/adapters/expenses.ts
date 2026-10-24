@@ -28,19 +28,14 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { canManagePeople } from "@erpx/server-people_payroll/public/people-directory";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { departmentRoute } from "@erpx/server-organization/public/department-authority";
+import {departmentRoute} from '@erpx/server-organization/public/department-authority-reads';
 import type {StaffActor} from "@erpx/server-operations/public/staff-policy";
 import { staffGuard } from "@erpx/server-operations/public/staff-policy";
-import {
-  approvalView,
-  openApproval,
-  prepareDecision,
-  closeApprovals,
-  participantSql,
-} from "@erpx/server-workflow/public/approvals";
+import {approvalView,openApproval,prepareDecision,closeApprovals} from '@erpx/server-workflow/public/approval-planning';
+import {participantSql} from '@erpx/server-workflow/public/approvals';
 import { expenseRequirements } from "@erpx/server-people_payroll/adapters/expense-drafts";
 import { expenseWorkflowFields, nativeExpenseTransitions, expensePayers } from "@erpx/server-people_payroll/adapters/expense-workflow";
 import {

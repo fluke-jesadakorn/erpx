@@ -4,7 +4,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards,financialConstraintError} from "@erpx/server-workflow/public/commands";
+import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/public/runtime/types";

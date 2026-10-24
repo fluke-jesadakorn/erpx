@@ -14,7 +14,7 @@ import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/re
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {iamMutationGuards,loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {workTaskApprovalSourceLocks,workApprovalSettlementSources as journals} from '@erpx/server-workflow/public/work-package-obligation-sources';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";

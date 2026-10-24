@@ -5,7 +5,7 @@ import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 import { Button, Field, Table, TableFrame, TextInput } from "@erpx/ui/components/foundation";
 
 
-import { listCharts } from "@erpx/server-finance/public/finance";
+import {listCharts} from '@erpx/server-finance/public/finance';
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";

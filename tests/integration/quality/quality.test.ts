@@ -10,7 +10,7 @@ import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
 import {createQualityHold,getQualityHold,inspectQualityHold,releaseQualityHold,createQualityScrapDisposition,saveQualitySpec,transitionQualitySpec,qualityDetail,qualityWorkspace,qualityWork} from "@erpx/server-quality/public/quality";
 import {countDetail,transitionCount} from "@erpx/server-inventory/public/inventory-counts";
-import {assignFlowPrimary,resolveFlow} from "@erpx/server-workflow/public/flow-routing";
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {commercePage,changeOrderReservation,fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
 import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "../../support/helpers/attachment-v2";
 import {mergeWorkItems} from "@erpx/server-work_projection/public/work-items";

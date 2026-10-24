@@ -22,17 +22,7 @@ import {
   decideBillingCorrection,
 } from "@erpx/server-finance/public/finance-billing-corrections";
 import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
-import {
-  postInvoice,
-  trialBalance,
-  createPayment,
-  approvePayment,
-  releasePayment,
-  confirmPayment,
-  importBankStatement,
-  reverseJournal,
-  reversePayment,
-} from "@erpx/server-finance/public/finance";
+import {postInvoice,trialBalance,createPayment,approvePayment,releasePayment,confirmPayment,importBankStatement,reverseJournal,reversePayment} from '@erpx/server-finance/public/finance';
 import {
   approveRefund,
   prepareRefundInstruction,

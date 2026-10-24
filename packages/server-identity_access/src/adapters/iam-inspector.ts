@@ -7,8 +7,8 @@ import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postg
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requireFlowAccess } from "@erpx/server-workflow/public/flow-access";
-import { resolveFlow } from "@erpx/server-workflow/public/flow-routing";
-import { flowRecord } from "@erpx/server-workflow/public/flow-routing";
+import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import {flowRecord} from '@erpx/server-workflow/public/flow-record';
 import { createIamInspector } from '@erpx/server-identity_access/application/inspector';
 import { inspectorInput } from '@erpx/server-identity_access/domain/inspector';
 export { inspectorInput } from '@erpx/server-identity_access/domain/inspector';

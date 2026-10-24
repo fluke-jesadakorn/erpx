@@ -82,6 +82,7 @@
     "./components/platform-role-switcher": "./src/components/platform-role-switcher.tsx",
     "./components/for-me": "./src/components/for-me.tsx",
     "./components/purchase-request-progress": "./src/components/purchase-request-progress.tsx",
+    "./components/lazy-request-editor": "./src/components/lazy-request-editor.tsx",
     "./components/pilot-feature-rollout": "./src/components/pilot-feature-rollout.tsx",
     "./components/product-shell.module.css": "./src/components/product-shell.module.css",
     "./components/flow-panel": "./src/components/flow-panel.tsx",
@@ -728,8 +729,7 @@
     "./routes/login/page": "./src/routes/login/page.tsx",
     "./routes/onboarding/page": "./src/routes/onboarding/page.tsx",
     "./routes/global-error": "./src/routes/global-error.tsx",
-    "./routes/not-found": "./src/routes/not-found.tsx",
-    "./components/lazy-request-editor": "./src/components/lazy-request-editor.tsx"
+    "./routes/not-found": "./src/routes/not-found.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

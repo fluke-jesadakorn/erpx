@@ -37,7 +37,7 @@ import {
   scheduleFinanceDraft,
   drainFinanceDueDrafts,
 } from "@erpx/server-finance/public/finance-due-drafts";
-import { trialBalance } from "@erpx/server-finance/public/finance";
+import {trialBalance} from '@erpx/server-finance/public/finance';
 import { financeExpansionClosePending } from "@erpx/server-finance/public/finance-expansion-close";
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),

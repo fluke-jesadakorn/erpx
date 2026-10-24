@@ -8,7 +8,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {clearancePermissions,type ClearanceKind} from "@erpx/feature-people_payroll/lib/retirement";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards} from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {checkPurchasedCapability,peoplePackageEnforcementMode,purchaseCommandBoundary,observePurchaseResults} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {financeDeferredEffectStatements} from "@erpx/server-finance/public/finance-transactions";

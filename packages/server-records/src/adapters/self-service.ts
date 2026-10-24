@@ -10,17 +10,17 @@ import { overtimeSetup } from "@erpx/server-people_payroll/public/overtime";
 import { workSnapshot } from "@erpx/server-work_projection/public/work-items";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
-import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
+
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { createSelfServiceApplication, type SelfServiceRepository } from '@erpx/server-records/application/self-service';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 function application(provided?: SqlDatabase) {
     let database = provided!;
     const repository: SelfServiceRepository = { readSelfServiceSummarySources(...args) { return SelfServicePeoplePayrollOwnedFacts(database).readSelfServiceSummarySources(...args); } };
-    return createSelfServiceApplication<SqlStatement>({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
+    return createSelfServiceApplication<SqlStatement>({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), leaveSummary: (...args) => fromNative(() => leaveSummary(...args)), overtimeSetup: (...args) => fromNative(() => overtimeSetup(database, ...args)), workSnapshot: (...args) => fromNative(() => workSnapshot(...args)) });
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), leaveSummary: (...args) => fromNative(() => leaveSummary(...args)), overtimeSetup: (...args) => fromNative(() => overtimeSetup(database, ...args)), workSnapshot: (...args) => fromNative(() => workSnapshot(...args))});
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {

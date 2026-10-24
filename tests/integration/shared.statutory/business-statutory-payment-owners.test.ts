@@ -1,12 +1,12 @@
 import {beforeAll,beforeEach,afterAll,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createInvoice,invoiceSchema,postInvoice,importBankStatement} from "@erpx/server-finance/public/finance";
+import {createInvoice,invoiceSchema,postInvoice,importBankStatement} from '@erpx/server-finance/public/finance';
 import {settleInvoice} from "@erpx/server-commerce/public/commerce";
 import {createSupplierBatch,decideSupplierBatch,exportSupplierBatch,confirmSupplierInstruction,supplierBatchWorkspace} from "@erpx/server-procurement/public/supplier-payments";
 import {prepareTaxIdentity,decideTaxIdentity,taxIdentitySchema} from "@erpx/server-finance/public/finance-tax-identities";
 import {thaiFinanceTaxPack} from "@erpx/feature-finance/lib/thai-finance-tax-pack";
-import {assignFlowPrimary,resolveFlow} from "@erpx/server-workflow/public/flow-routing";
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet} from "@erpx/server-files/public/attachments/service";
 

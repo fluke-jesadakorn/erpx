@@ -25,11 +25,7 @@ import {
   snapshotFinancialReport,
   exportFinancialReport,
 } from "@erpx/server-finance/public/finance-planning";
-import {
-  createJournal,
-  createJournalSchema,
-  postJournal,
-} from "@erpx/server-finance/public/finance";
+import {createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
 import { financeCsvRows,financeCsv } from "@erpx/feature-finance/lib/finance-csv";
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),

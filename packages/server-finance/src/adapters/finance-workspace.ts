@@ -6,7 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import { calculateCloseReconciliations } from "@erpx/server-finance/public/finance";
+import {calculateCloseReconciliations} from '@erpx/server-finance/public/finance';
 import { intercompanyWorkspace } from "@erpx/server-finance/public/finance-intercompany";
 import { consolidationRunWorkspace } from "@erpx/server-finance/public/finance-consolidation";
 import { pendingVatReviewSql } from "@erpx/server-finance/public/finance-tax-register";

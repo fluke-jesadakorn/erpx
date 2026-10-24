@@ -2,7 +2,7 @@ import {workforcePurchasedHistorySql} from "@erpx/server-people_payroll/adapters
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
-import { participantSql } from "@erpx/server-workflow/public/approvals";
+import {participantSql} from '@erpx/server-workflow/public/approvals';
 export function calendarLeavePeoplePayrollFacts(db: SqlDatabase) {
     return { read1: async(facts: {
             value1: string;

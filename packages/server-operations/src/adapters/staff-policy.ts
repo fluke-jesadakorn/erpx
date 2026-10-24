@@ -4,7 +4,7 @@ import { finalRootOwnerProjectionSources as people_payrollProjectionSources } fr
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
-import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
+
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { type StaffActor, type RecordScope, type StaffPerson, scopeActor as purescopeActor, type ApprovalRoute, reportingChain as purereportingChain } from '@erpx/server-operations/domain/staff-policy';
 import { createStaffPolicyApplication, type StaffPolicyRepository } from '@erpx/server-operations/application/staff-policy';
@@ -48,10 +48,10 @@ function application(provided?: SqlDatabase) {
         readRequestRouteEffect(...args) { return StaffPolicyIdentityAccessFacts(database).readRequestRouteEffect(...args); },
         readRequestRouteHead(...args) { return StaffPolicyOrganizationFacts(database).readRequestRouteHead(...args); },
         stageNotificationEffect(...args) { return StaffPolicyCollaborationFacts(database).stageNotificationEffect(...args); } };
-    return createStaffPolicyApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
+    return createStaffPolicyApplication({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, routeChecks: (people, companyId, head) => [...(head ? [{ query: `EXISTS(SELECT 1 FROM (${organizationProjectionSources.department_heads}) h JOIN (${organizationProjectionSources.organization_nodes}) n ON n.id=h.department_id WHERE h.department_id=? AND h.company_id=? AND h.version=? AND n.status='active')`, args: [head.departmentId, companyId, head.version] }] : []), ...people.map(person => ({ query: `EXISTS(SELECT 1 FROM (${people_payrollProjectionSources.hr_engagements}) hr_engagements WHERE id=? AND company_id=? AND version=? AND status='active')`, args: [person.engagement_id, companyId, person.engagement_version] }))], });
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, routeChecks: (people, companyId, head) => [...(head ? [{ query: `EXISTS(SELECT 1 FROM (${organizationProjectionSources.department_heads}) h JOIN (${organizationProjectionSources.organization_nodes}) n ON n.id=h.department_id WHERE h.department_id=? AND h.company_id=? AND h.version=? AND n.status='active')`, args: [head.departmentId, companyId, head.version] }] : []), ...people.map(person => ({ query: `EXISTS(SELECT 1 FROM (${people_payrollProjectionSources.hr_engagements}) hr_engagements WHERE id=? AND company_id=? AND version=? AND status='active')`, args: [person.engagement_id, companyId, person.engagement_version] }))]});
 }
 async function invoke<Result>(run: () => Promise<Result>) {
     try {

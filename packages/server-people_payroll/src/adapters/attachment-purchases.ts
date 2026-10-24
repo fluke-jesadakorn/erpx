@@ -4,7 +4,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {AttachmentOperation} from "@erpx/server-files/public/attachments/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards} from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {checkPurchasedCapability,peoplePackageEnforcementMode,purchaseCommandBoundary,observePurchaseResults} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";

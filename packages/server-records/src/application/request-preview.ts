@@ -2,7 +2,7 @@ import type { RequestPreview } from "@erpx/feature-work_projection/lib/request-p
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { ApprovalRoute } from "@erpx/server-operations/public/staff-policy";
 import { type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { RecordsCommands } from '@erpx/server-records/domain/commands';
+
 export interface RequestPreviewRepository {
     readNamedRoutePeople(companyId: string, ids: string[]): Promise<{
         results: ({
@@ -15,7 +15,7 @@ export interface RequestPreviewPorts<Effect> {
     repository: RequestPreviewRepository;
     clock: Clock;
     identifiers: IdentifierSource;
-    commands: RecordsCommands<Effect>;
+
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     batch(effects: Effect[]): Promise<unknown>;

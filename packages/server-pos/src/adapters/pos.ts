@@ -7,7 +7,7 @@ import 'server-only';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import { all, one } from "@erpx/server-pos/public/pos-core";
+import {all,one} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { readPurchasedAccesses, posPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";

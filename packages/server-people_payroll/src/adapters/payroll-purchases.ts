@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
-import { workContextGuards, financialConstraintError } from "@erpx/server-workflow/public/commands";
+import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { isTransactionalSqlDatabase, type SqlDatabase } from "@erpx/server-runtime/public/runtime/types";

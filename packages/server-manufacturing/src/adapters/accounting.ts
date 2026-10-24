@@ -10,7 +10,7 @@ import {requirePermission} from "@erpx/server-identity_access/public/iam-permiss
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {prepareJournal} from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 
 import {snapshotMoney} from "@erpx/server-finance/public/company-money";
 import {BusinessRuleError} from '@erpx/server-shared/index';import {createManufacturingAccountingApplication,type ManufacturingAccountingRepository} from '@erpx/server-manufacturing/application/accounting';import {manufacturingAccountingSources as owner0} from '@erpx/server-commerce/public/manufacturing-accounting-sources';

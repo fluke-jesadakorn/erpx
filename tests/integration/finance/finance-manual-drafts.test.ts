@@ -6,12 +6,7 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {
-  createJournal,
-  createJournalSchema,
-  postJournal,
-  trialBalance,
-} from "@erpx/server-finance/public/finance";
+import {createJournal,createJournalSchema,postJournal,trialBalance} from '@erpx/server-finance/public/finance';
 import {
   editManualDraft,
   manualDraftEditSchema,

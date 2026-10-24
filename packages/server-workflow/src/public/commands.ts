@@ -1,2 +1,2 @@
-/** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { assertion, replayCommand, workContextGuards, executeCommand, financialConstraintError } from "@erpx/server-workflow/adapters/commands";
+/** Command execution composition; primitive readers use their own public subpaths. */
+export { replayCommand, executeCommand } from "@erpx/server-workflow/adapters/commands";

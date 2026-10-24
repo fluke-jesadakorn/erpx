@@ -1,6 +1,7 @@
 import "server-only";
+import { runtimeResourcePath } from "@erpx/server-runtime/public/runtime/resources";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { X509Certificate } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -27,8 +28,8 @@ export async function validateSignedPdf(db:SqlDatabase,companyId:string,input:st
 },validate:async()=>{
     const { stdout } = await exec(
       process.env.ERPX_LEGAL_PYTHON ??
-        resolve(".runtime/legal-python/bin/python"),
-      [resolve("scripts/legal/validate_pdf.py"), input, trust],
+        runtimeResourcePath(".runtime/legal-python/bin/python"),
+      [runtimeResourcePath("scripts/legal/validate_pdf.py"), input, trust],
       {
         timeout: 90000,
         maxBuffer: 2 * 1024 * 1024,

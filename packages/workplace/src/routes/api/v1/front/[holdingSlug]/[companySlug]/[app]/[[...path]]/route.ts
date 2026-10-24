@@ -9,7 +9,7 @@ import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { holdingResources } from "../../../../../../../../../../../packages/server-runtime/src/public/runtime";
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { posWorkspace } from "@erpx/server-pos/public/pos";
-import { posCommand } from "@erpx/server-pos/public/pos-core";
+import {posCommand} from '@erpx/server-pos/public/pos-core';
 import {staffBookingChange} from "@erpx/server-pms/public/pms/staff-booking-changes";
 import { pmsWorkspace, pmsCommand } from "../../../../../../../../../../../packages/server-pms/src/public/pms";
 import { pmsReadSelectionFromSearch } from "@erpx/server-pms/public/rules/pms-read-selection";

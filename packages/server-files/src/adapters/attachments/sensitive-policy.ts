@@ -2,7 +2,7 @@ import { evaluationAuthority, evaluationAssessment, evaluationDefinition } from 
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { canCompleteClearance, canReadClearanceEvidence } from "@erpx/server-people_payroll/public/retirement-clearance";
+import {canCompleteClearance,canReadClearanceEvidence} from '@erpx/server-people_payroll/public/retirement-clearance-policy';
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import type { AttachmentOperation, AttachmentPolicy } from "@erpx/server-files/public/attachments/types";
 import { createSensitiveAttachmentPolicy, type SensitiveAttachmentUnit } from "@erpx/server-files/application/attachments/sensitive-policy";

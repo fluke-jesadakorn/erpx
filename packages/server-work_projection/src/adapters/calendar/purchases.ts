@@ -7,7 +7,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {lockQueuedCommandAuthority,requireQueuedAccountAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
-import {workContextGuards} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {workPackageEnforcementMode,companyPurchaseReadLocks,readPurchasedAccess,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';

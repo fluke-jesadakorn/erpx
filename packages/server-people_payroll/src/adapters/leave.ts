@@ -7,11 +7,12 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { peopleRequestRoute } from "@erpx/server-organization/public/department-authority";
+import {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { activeStaff, staffGuard } from "@erpx/server-operations/public/staff-policy";
-import { approvalView, openApproval, prepareDecision, closeApprovals, participantSql } from "@erpx/server-workflow/public/approvals";
+import {approvalView,openApproval,prepareDecision,closeApprovals} from '@erpx/server-workflow/public/approval-planning';
+import {participantSql} from '@erpx/server-workflow/public/approvals';
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { availableLeaveEvidence, leaveEvidenceManifest, pendingLeaveEvidenceCount, type LeaveEvidencePurpose } from "@erpx/server-people_payroll/public/leave-evidence";
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';

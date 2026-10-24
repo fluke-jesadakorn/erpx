@@ -8,7 +8,7 @@ import { Button as UiButton } from "@erpx/ui/components/foundation";
 import { usePosController } from "@erpx/feature-pos/components/pos-controller";
 import type { PosInitialRead } from "@erpx/feature-pos/lib/pos-read-identity";
 import type { PosWorkspace } from "@erpx/server-pos/public/pos";
-import type { PosRow } from "@erpx/server-pos/public/pos-core";
+import type {PosRow} from '@erpx/server-pos/public/pos-core';
 import { useState, type ReactNode } from "react";
 import styles from "@erpx/feature-pos/components/pos.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@erpx/front/components/front-language";

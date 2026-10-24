@@ -1,10 +1,10 @@
 import "server-only";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { commerceEntrypointFinanceFacts } from "@erpx/server-finance/public/commerce-entrypoint-facts";
-import { employeeRequestDetail } from "@erpx/server-records/public/employee-requests";
+import {employeeRequestDetail} from '@erpx/server-records/public/employee-requests';
 import { commerceEntrypointInventoryFacts } from "@erpx/server-inventory/public/commerce-entrypoint-facts";
 import { commerceEntrypointRecordFacts } from "@erpx/server-records/public/commerce-entrypoint-facts";
-import { getEmployeeRequest } from "@erpx/server-records/public/employee-requests";
+import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests';
 
 type ReadArguments<F extends (...args: never[]) => unknown> = Parameters<F> extends [unknown, ...infer Rest] ? Rest : never;
 

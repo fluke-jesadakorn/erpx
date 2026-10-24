@@ -6,7 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { BetaEnvironment } from "@erpx/server-manage_erpx/public/beta-config";
 import type { aiRequestQuotaLock } from "@erpx/server-agent/public/ai-quota";
 import type { sha256 } from "@erpx/server-runtime/public/crypto";
-import type { workContextGuards } from "@erpx/server-workflow/public/commands";
+import type {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import type { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
 import type { aiSnapshotGuard } from "@erpx/server-agent/public/ai-providers";
 import type { aiUsageStatement } from "@erpx/server-agent/public/ai-providers";

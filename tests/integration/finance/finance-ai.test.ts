@@ -2,7 +2,7 @@ import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env,type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
 import { activateAiConnection,aiConnectionSchema,aiSelectionSchema,saveAiConnection,selectAiProviders,testAiConnection } from "@erpx/server-agent/public/ai-providers";
-import { createInvoice,createParty,invoiceSchema } from "@erpx/server-finance/public/finance";
+import {createInvoice,createParty,invoiceSchema} from '@erpx/server-finance/public/finance';
 import { applyFinanceAiDraft,dismissFinanceAi,financeAiWorkspace,queueFinanceAi,runFinanceAi,saveFinanceAiPolicy,scanFinanceAi } from "@erpx/server-finance/public/finance-ai";
 import { financeAiSnapshot,validateFinanceAiResult,type FinanceAiSnapshot } from "@erpx/server-finance/public/finance-ai-source";
 import { financeAiDate,financeAiPolicySchema } from "@erpx/feature-finance/lib/finance-ai";

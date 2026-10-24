@@ -26,5 +26,4 @@ catch (error) {
         throw new ApiError(error.status, error.code, error.message);
     throw error;
 } }
-export function spendingTemplate(db: SqlDatabase, companyId: string) { return invoke(() => application(db).spendingTemplate(companyId)); }
 export function saveSpendingTemplate(db: SqlDatabase, actor: WorkContext, input: SpendingTemplateInput, key: string) { return invoke(() => application(db).saveSpendingTemplate(actor, input, key)); }

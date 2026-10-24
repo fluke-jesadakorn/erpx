@@ -64,6 +64,9 @@ export async function buildIsolatedApp(id:string,bundler='webpack'){
   await cp(join(snapshot,'public'),join(standaloneApp,'public'),{recursive:true,mode:constants.COPYFILE_FICLONE});
   await cp(join(snapshot,'public'),join(standalone,'public'),{recursive:true,mode:constants.COPYFILE_FICLONE});
   await cp(join(snapshot,'migrations/postgres'),join(standalone,'migrations/postgres'),{recursive:true,mode:constants.COPYFILE_FICLONE});
+  await cp(join(snapshot,'scripts/legal'),join(standalone,'scripts/legal'),{recursive:true,mode:constants.COPYFILE_FICLONE});
+  const extractor=await Bun.build({entrypoints:[join(snapshot,'scripts/legal/extract_docx.mjs')],outdir:join(standalone,'scripts/legal'),target:'node',format:'esm',naming:'extract_docx.mjs',env:'disable',define:{'process.env.NODE_ENV':JSON.stringify('production')}});
+  if(!extractor.success)throw new Error('APP_LEGAL_EXTRACTOR_BUILD_FAILED');
   await writeFile(join(standaloneApp,'entry.mjs'),`import {fileURLToPath} from 'node:url';\nimport {createServer} from 'node:net';\nconst port=Number(process.env.PORT);\nif(!Number.isInteger(port)||port<3200||port>3299)throw Error('EXPLICIT_OWNED_APP_PORT_REQUIRED');\nawait new Promise((done,reject)=>{const probe=createServer();probe.once('error',reject);probe.listen(port,'127.0.0.1',()=>probe.close(done));});\nprocess.env.HOSTNAME='127.0.0.1';\nprocess.env.ERPX_RESOURCE_ROOT??=fileURLToPath(new URL('../../',import.meta.url));\nprocess.env.ERPX_REPOSITORY_ROOT??=process.env.ERPX_RESOURCE_ROOT;\nprocess.env.ERPX_APP_ID=${JSON.stringify(id)};\nprocess.env.ERPX_APP_PORT=String(port);\nawait import('./server.js');\n`);
   await cp(join(compiled,'static'),join(standaloneApp,'.build/static'),{recursive:true,mode:constants.COPYFILE_FICLONE});
   const links:Record<string,string>={};

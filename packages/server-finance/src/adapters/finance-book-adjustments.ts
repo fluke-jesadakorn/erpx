@@ -7,7 +7,7 @@ import { requirePermission } from "@erpx/server-identity_access/public/iam-permi
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import { prepareOwnedJournalReversal } from "@erpx/server-finance/public/finance-owned-reversal";
 import { financeReviewSchema } from "@erpx/server-finance/public/finance-books";
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";

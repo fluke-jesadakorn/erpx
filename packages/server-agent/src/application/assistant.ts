@@ -10,14 +10,14 @@ import type {AiProviderSnapshot,AiProviderOverview} from '@erpx/server-agent/dom
 import type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
 import {agentSourceAllowed} from '@erpx/server-agent/domain/source-policy';
 import {page,scopeKey,conversation,pick,sourceReference,type Row} from '@erpx/server-agent/domain/assistant';
-import type {employeeRequestDetail} from "@erpx/server-records/public/employee-requests";
+import type {employeeRequestDetail} from '@erpx/server-records/public/employee-requests';
 import type {getExpense} from "@erpx/server-people_payroll/public/expenses";
 import type {getTask} from "@erpx/server-operations/public/staff-tasks";
 import type {handbookArticle} from "@erpx/server-runtime/public/handbook";
 import type {pmsWorkspace} from "../../../../packages/server-pms/src/public/pms";
 import type {posWorkspace} from "@erpx/server-pos/public/pos";
 import type {commercePage} from "@erpx/server-commerce/public/commerce";
-import type {financeOverviewCounts} from "@erpx/server-finance/public/finance";
+import type {financeOverviewCounts} from '@erpx/server-finance/public/finance';
 import type {closeWorkspace} from "@erpx/server-finance/public/finance-workspace";
 import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type {getWorkPage} from "@erpx/server-work_projection/public/work-summary";

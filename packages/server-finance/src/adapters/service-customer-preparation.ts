@@ -12,7 +12,8 @@ import {companyPurchaseReadLocks,readPurchasedAccesses,checkPurchasedCapability,
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
-import {replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';

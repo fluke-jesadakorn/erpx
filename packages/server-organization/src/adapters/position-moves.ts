@@ -14,7 +14,7 @@ import {executeCommand,replayCommand} from '@erpx/server-workflow/public/command
 import {appendOrganizationPositionMoveEvents} from '@erpx/server-workflow/public/organization-position-move-events';
 import {applyOrganizationPositionMoveHolder,organizationPositionMoveMembers,organizationPositionMovePlacements,organizationPositionMoveLeave} from '@erpx/server-people_payroll/public/organization-position-moves';
 import {BusinessRuleError} from '@erpx/server-shared/index';
-import {organizationRoster} from '@erpx/server-organization/adapters/organization';
+import {organizationRoster} from '@erpx/server-organization/public/organization-roster-read';
 import {recommendationStatements} from '@erpx/server-organization/adapters/staff-defaults';
 import {positionMoveDate,type PositionMoveInput,type PositionMoveRecord} from "@erpx/feature-people_payroll/lib/position-moves";
 import {createPositionMoveApplication,type PositionMovePorts,type ClaimedPositionMove} from '@erpx/server-organization/application/position-moves';

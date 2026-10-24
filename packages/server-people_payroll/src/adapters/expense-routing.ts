@@ -9,7 +9,7 @@ import {personIdentityIds} from "@erpx/server-identity_access/public/iam-person"
 import { reportingRosterFacts, activeDepartmentFact } from "@erpx/server-organization/public/profile-facts";
 import { workflowStaffRoleUsers } from "@erpx/server-identity_access/public/workflow-role-facts";
 import { activeStaffLevelRanks } from "@erpx/server-operations/public/staff-facts";
-import { spendingTemplate } from "@erpx/server-people_payroll/public/spending-templates";
+import {spendingTemplate} from '@erpx/server-people_payroll/public/spending-template-read';
 import type { SpendingKind } from "@erpx/feature-shared/lib/spending";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -20,7 +20,7 @@ import {
   type ApprovalRoute,
   type RecordScope,
 } from "@erpx/server-operations/public/staff-policy";
-import type { ApprovalInstance, ApprovalStep } from "@erpx/server-workflow/public/approvals";
+import type {ApprovalInstance,ApprovalStep} from '@erpx/server-workflow/public/approvals';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 
 // Capture before eligibility reads, then compare inside the committing batch.
@@ -82,10 +82,10 @@ export function nativeExpenseRoutingPorts(db: SqlDatabase): ExpenseRoutingPorts 
     today: () => new Date().toISOString().slice(0, 10),
     template: companyId => spendingTemplate(db, companyId),
     async department(companyId, userId, excluded) {
-      const native = await (await import("@erpx/server-organization/public/department-authority")).departmentRoute(db, companyId, userId, excluded);
+      const native = await (await import("@erpx/server-organization/public/department-authority-reads")).departmentRoute(db, companyId, userId, excluded);
       return { scope: native.scope, steps: native.steps, blockedReason: native.blockedReason ?? null, guards: native.checks?.map(check => ({ native: check })) };
     },
-    departmentEligible: async (companyId, userId, snapshot) => (await import("@erpx/server-organization/public/department-authority")).departmentStepEligible(db, companyId, userId, snapshot),
+    departmentEligible: async (companyId, userId, snapshot) => (await import("@erpx/server-organization/public/department-authority-reads")).departmentStepEligible(db, companyId, userId, snapshot),
     spendingUsers: (scope, role) => spendingUsers(db, scope, role),
     claim: instance => db.prepare("SELECT prepared_by,claimant_user_id,accounting_json FROM finance_expenses WHERE id=? AND company_id=? AND workflow_version=2").bind(instance.record_id, instance.company_id).first<{ prepared_by: string; claimant_user_id: string; accounting_json: string }>(),
   };

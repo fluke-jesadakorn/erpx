@@ -12,6 +12,7 @@
     "./adapters/collaboration-reply-rollout": "./src/adapters/collaboration-reply-rollout.ts",
     "./adapters/presentation-queries": "./src/adapters/presentation-queries.ts",
     "./adapters/operations": "./src/adapters/operations.ts",
+    "./adapters/release-predicate": "./src/adapters/release-predicate.ts",
     "./adapters/system-evidence": "./src/adapters/system-evidence.ts",
     "./adapters/release-acceptance": "./src/adapters/release-acceptance.ts",
     "./adapters/executive-generation-source-lock": "./src/adapters/executive-generation-source-lock.ts",
@@ -25,6 +26,7 @@
     "./public/pms-rollout-guards": "./src/public/pms-rollout-guards.ts",
     "./public/collaboration-reply-rollout": "./src/public/collaboration-reply-rollout.ts",
     "./public/presentation-queries": "./src/public/presentation-queries.ts",
+    "./public/release-predicate": "./src/public/release-predicate.ts",
     "./public/system-evidence": "./src/public/system-evidence.ts",
     "./public/release-acceptance": "./src/public/release-acceptance.ts",
     "./public/executive-generation-source-lock": "./src/public/executive-generation-source-lock.ts",
@@ -43,9 +45,7 @@
     "./domain/system-evidence": "./src/domain/system-evidence.ts",
     "./domain/operations-summary": "./src/domain/operations-summary.ts",
     "./domain/release-acceptance": "./src/domain/release-acceptance.ts",
-    "./domain/engineering-verification": "./src/domain/engineering-verification.ts",
-    "./public/release-predicate": "./src/public/release-predicate.ts",
-    "./adapters/release-predicate": "./src/adapters/release-predicate.ts"
+    "./domain/engineering-verification": "./src/domain/engineering-verification.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

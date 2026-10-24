@@ -5,7 +5,7 @@ import type { OrganizationAccessData } from "@erpx/feature-organization/lib/orga
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { organizationRoster } from "@erpx/server-organization/public/organization";
+import {organizationRoster} from '@erpx/server-organization/public/organization-roster-read';
 import { BusinessRuleError } from "@erpx/server-shared/index";
 import { createOrganizationAccessApplication } from "@erpx/server-organization/application/access";
 

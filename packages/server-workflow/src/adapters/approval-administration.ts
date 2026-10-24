@@ -6,7 +6,7 @@ import { getTask } from "@erpx/server-operations/public/staff-tasks";
 import { getLeave } from "@erpx/server-people_payroll/public/leave";
 import { getExpense } from "@erpx/server-people_payroll/public/expenses";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { approvalView } from "@erpx/server-workflow/adapters/approvals";
+import {approvalView} from '@erpx/server-workflow/public/approval-planning';
 import { createApprovalAdministrationApplication, type ApprovalAdministrationRecord } from "@erpx/server-workflow/application/approval-administration";
 
 export async function approvalAdministrationData(actor: WorkContext, kind?: string, record?: string, provided?: SqlDatabase) {

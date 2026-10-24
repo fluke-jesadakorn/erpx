@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
-import {workContextGuards} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';

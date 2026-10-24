@@ -12,7 +12,8 @@ import {lockPackageSettlementSources} from '@erpx/server-commercial/public/packa
 import {posStartupCommerceReadLocks} from '@erpx/server-commerce/adapters/pos-posting-setup-sources';
 import {companyPurchaseReadLocks,readPurchasedAccesses,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {executeCommand,replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {requirePosStartupFinanceAuthority,posStartupFinanceReadLocks,posStartupFinanceState,validatePosStartupFinanceState,posStartupEffectiveService} from '@erpx/server-finance/public/pos-posting-setup';
 import {posStartupSourceReadLocks,posStartupSourceState} from '@erpx/server-pos/public/startup-sources';

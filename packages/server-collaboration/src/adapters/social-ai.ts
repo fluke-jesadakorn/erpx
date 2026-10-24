@@ -10,7 +10,7 @@ import { BusinessRuleError } from '@erpx/server-shared/index';
 import { sha256 } from '@erpx/server-runtime/public/crypto';
 import { sourceSnapshot, sourceGuard, readablePost } from '@erpx/server-collaboration/public/social-source';
 import { staffPeople } from '@erpx/server-operations/public/staff-policy';
-import { workContextGuards } from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import { aiRequestQuotaLock } from '@erpx/server-agent/public/ai-quota';
 import { resolveAiProvider, aiSnapshotGuard, aiUsageStatement } from '@erpx/server-agent/public/ai-providers';
 import { generateProviderJson, withAiGatewayScope } from '@erpx/server-agent/public/ai-transport';

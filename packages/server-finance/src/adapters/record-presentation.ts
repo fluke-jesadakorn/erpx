@@ -12,7 +12,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {getInvoice} from "@erpx/server-finance/adapters/finance";
+import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import {journalDetail} from "@erpx/server-finance/adapters/ledger";
 import {getRefund} from "@erpx/server-finance/adapters/refunds";
 import type {LedgerRow} from "@erpx/server-finance/domain/ledger";

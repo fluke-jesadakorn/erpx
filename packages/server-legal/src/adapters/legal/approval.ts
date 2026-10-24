@@ -11,7 +11,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {legalEvidenceSamePerson} from "@erpx/server-identity_access/public/legal-evidence-identity";
 import {legalApprovalFacts} from "@erpx/server-workflow/public/legal-approval-facts";
 import {legalApprovalNotifications} from "@erpx/server-collaboration/public/legal-approval-notifications";
-import {openApproval,currentApproval} from "@erpx/server-workflow/public/approvals";
+import {openApproval,currentApproval} from '@erpx/server-workflow/public/approval-planning';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {access,guards,eligible,personGuard} from "@erpx/server-legal/adapters/legal/access";

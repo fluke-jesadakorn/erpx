@@ -4,7 +4,7 @@ import { FeaturePage } from "@erpx/feature-shared/components/features/feature-pa
 import { FinanceWorkspace, financeStyles as styles } from "@erpx/feature-finance/components/finance-workspace";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { reportDateSchema } from "@erpx/server-finance/public/finance";
+import {reportDateSchema} from '@erpx/server-finance/public/finance';
 import { ledgerWorkspace } from "@erpx/server-finance/public/ledger";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { StandardFinanceReportingConsole } from "@erpx/feature-finance/components/standard-finance-reporting-console";

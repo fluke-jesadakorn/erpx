@@ -6,7 +6,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {projectsPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {workContextGuards} from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {deferProjectOwnerCheck,inProjectOwnerUnit,projectPurchaseControls,requireProjectPurchasedRead,withProjectPurchasedCommand} from "@erpx/server-projects/adapters/purchases";

@@ -10,7 +10,7 @@ import {seedExpenseCompany} from "../../expenses/company";
 import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
 import {product,type ProductId} from '@erpx/contracts/product-registry';
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
-import {createAccount,createAccountSchema,createChart,createChartSchema,createJournal,createJournalSchema,createPeriod,createPeriodSchema,postJournalBatch,createParty,createPayment,importBankStatement} from "@erpx/server-finance/public/finance";
+import {createAccount,createAccountSchema,createChart,createChartSchema,createJournal,createJournalSchema,createPeriod,createPeriodSchema,postJournalBatch,createParty,createPayment,importBankStatement} from '@erpx/server-finance/public/finance';
 import {prepareAccountingProfile,decideAccountingProfile} from "@erpx/server-finance/public/accounting-profiles";
 import {confirmManualRate} from "@erpx/server-finance/public/company-money";
 import {createPayGroup,payGroupSchema} from "@erpx/server-people_payroll/public/people-payroll";

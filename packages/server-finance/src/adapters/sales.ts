@@ -18,7 +18,7 @@ import { commerceSalesDocuments } from "@erpx/server-commerce/public/commerce";
 import { readListPage } from "@erpx/server-work_projection/public/list-page";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import { createInvoice } from "@erpx/server-finance/public/finance";
+import {createInvoice} from '@erpx/server-finance/public/finance';
 import {withSalesCustomerReceiptRead,withSalesCustomerReceiptIssue} from '@erpx/server-finance/adapters/sales-customer-receipts';
 import {salesDefaultsReferences,withSalesPostingCommand} from '@erpx/server-finance/adapters/sales-posting-setup';
 import { withFinancePurchasedCommand } from '@erpx/server-finance/adapters/purchase-boundary';

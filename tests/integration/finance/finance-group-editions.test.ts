@@ -16,15 +16,7 @@ import {
   expenseFixture,
   key,
 } from "../../support/helpers/expense-fixture";
-import {
-  createJournal,
-  createJournalSchema,
-  postJournal,
-  reverseJournal,
-  createPeriod,
-  beginClose,
-  closePeriod,
-} from "@erpx/server-finance/public/finance";
+import {createJournal,createJournalSchema,postJournal,reverseJournal,createPeriod,beginClose,closePeriod} from '@erpx/server-finance/public/finance';
 import {
   prepareGroupReportEdition,
   groupReportEditionWorkspace,

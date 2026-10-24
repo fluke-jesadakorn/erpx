@@ -13,7 +13,8 @@ mock.module('next/navigation',()=>({forbidden:()=>{throw new Error('CLI_PAGE_FOR
 const {pmsAccountCategory,pmsAccountCode}=await import("@erpx/server-finance/public/hospitality-accounting");
 import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 const { pmsCommand, loadPms, drainPms }=await import("../../packages/server-pms/src/public/pms");
-const { posCommand, one }=await import("@erpx/server-pos/public/pos-core");
+const {posCommand}=await import("@erpx/server-pos/public/pos-core");
+const {one}=await import("@erpx/server-runtime/public/runtime/sql");
 const { saveMaster }=await import("@erpx/server-commerce/public/commerce");
 const { countSchema, saveCount, transitionCount }=await import("@erpx/server-inventory/public/inventory-counts");
 const { importBankStatement }=await import("@erpx/server-finance/public/finance");

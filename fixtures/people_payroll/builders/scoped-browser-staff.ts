@@ -1,6 +1,6 @@
 import type { seedExpenseCompany } from "../../expenses/company";
 import { directoryPerson, directoryUpdateSchema, saveDirectoryPerson } from "@erpx/server-people_payroll/public/people-directory";
-import { positionSchema, savePosition } from "@erpx/server-organization/public/organization";
+import {positionSchema,savePosition} from '@erpx/server-organization/public/organization';
 
 type Fixture = Awaited<ReturnType<typeof seedExpenseCompany>>;
 type Placement = { userId: string; assignmentId: string; scope: "branch" | "department"; nodeId: string; parentNodeId?: string };

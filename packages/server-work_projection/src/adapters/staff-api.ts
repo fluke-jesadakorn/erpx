@@ -49,8 +49,8 @@ import {
   scheduleSchema,
   templateSchema,
 } from "@erpx/server-operations/public/routines";
-import { rerouteApproval } from "@erpx/server-workflow/public/approvals";
-import { changeAppointment } from "@erpx/server-organization/public/department-authority";
+import {rerouteApproval} from '@erpx/server-workflow/public/approvals';
+import {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import {getProject,listProjects,projectSchema,saveProject} from "@erpx/server-projects/public/staff-projects";
 import {z} from "zod";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";

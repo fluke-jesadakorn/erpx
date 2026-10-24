@@ -6,7 +6,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {prepareJournal} from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import {snapshotMoney} from "@erpx/server-finance/public/company-money";
 
 

@@ -1,6 +1,6 @@
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { approvalView } from "@erpx/server-workflow/public/approvals";
+import {approvalView} from '@erpx/server-workflow/public/approval-planning';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { attachmentsV2Enabled } from "@erpx/server-files/public/attachments/feature";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";

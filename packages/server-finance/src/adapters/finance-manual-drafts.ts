@@ -6,7 +6,7 @@ import { requirePermission } from "@erpx/server-identity_access/public/iam-permi
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';

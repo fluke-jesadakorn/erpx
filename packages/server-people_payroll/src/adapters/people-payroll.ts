@@ -8,7 +8,8 @@ const organizationFinalSources=organizationFinalOwnerProjections();
 import {payrollDecisionNotificationEffects} from '@erpx/server-collaboration/public/payroll-decision-notification-effects';
 import { readListPage } from "@erpx/server-work_projection/public/list-page";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import { organizationGuard, validateStaffOrganization } from "@erpx/server-organization/public/organization";
+import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
+import {validateStaffOrganization} from '@erpx/server-organization/public/organization';
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import "server-only";
 import { z } from "zod";
@@ -20,7 +21,7 @@ import { calculateThaiHotelPayrollFixture, isThaiHotelPayrollMockEnabled, thaiHo
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { directoryPerson, canReadCompensation, canManagePeople } from "@erpx/server-people_payroll/adapters/people-directory";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import { type PayrollPostingItem } from "@erpx/server-people_payroll/adapters/payroll-accounting";
 import { assertPayrollSourceFresh, payrollSourceGuards } from "@erpx/server-people_payroll/adapters/payroll-readiness";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";

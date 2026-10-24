@@ -1,7 +1,7 @@
 import { expect } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/adapters/runtime/types";
-import { importBankStatement } from "@erpx/server-finance/public/finance";
+import {importBankStatement} from '@erpx/server-finance/public/finance';
 import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
 import {
   bankAutomationWorkspace,

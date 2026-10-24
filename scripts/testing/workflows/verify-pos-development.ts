@@ -15,7 +15,8 @@ const flag=(name:string)=>process.argv.find(arg=>arg.startsWith(`--${name}=`))?.
 const numbers=[flag('room-sale'),flag('retail-sale')];if(numbers.some(number=>!number))throw new Error('PASS_BROWSER_ROOM_AND_RETAIL_BILL_NUMBERS');
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
 const {closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
-const {posCommand,one,all}=await import("@erpx/server-pos/public/pos-core");
+const {posCommand}=await import("@erpx/server-pos/public/pos-core");
+const {one,all}=await import("@erpx/server-runtime/public/runtime/sql");
 const {posDayReport}=await import("@erpx/server-pos/public/pos-daily");
 const db=new PostgresDatabase({connectionString:jobs.databases.H001_DB,max:2});
 const actor=(label:'manager'|'finance')=>({userId:`pos-thb-v1-${label}`,assignmentId:`pos-thb-v1-${label}-access`,role:label==='manager'?'pos_manager':'finance_approver',companyId:company,branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'acme',holdingName:'ACME',name:label,email:`${label}@pos-thb-v1.example`,assignmentScope:'holding',inherited:false,modules:[...businessRoles[label==='manager'?'pos_manager':'finance_approver']],assignments:[],workspaces:[],scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'ACME',companyId:company}} as WorkContext);

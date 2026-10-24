@@ -12,7 +12,7 @@ import {holdingResources} from "../../../../packages/server-runtime/src/public/r
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import {requestQuotationSource,requestVersionGuard} from "@erpx/server-records/public/employee-requests";
+import {requestQuotationSource,requestVersionGuard} from '@erpx/server-records/public/employee-requests';
 import {serviceAuthoritySnapshot} from "@erpx/server-support/public/service-access";
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";
 import {stageRfqNotifications} from "@erpx/server-collaboration/public/rfq-notifications";

@@ -13,7 +13,8 @@ assertHospitalityDevelopmentTarget(app,process.env.ERPX_ENVIRONMENT);assertHospi
 if(!process.env.POS_STRIPE_TEST_SECRET_KEY?.startsWith('sk_test_'))throw new Error('STRIPE_TEST_KEYS_REQUIRED');
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
 const {closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
-const {posCommand,one,all}=await import("@erpx/server-pos/public/pos-core");
+const {posCommand}=await import("@erpx/server-pos/public/pos-core");
+const {one,all}=await import("@erpx/server-runtime/public/runtime/sql");
 const {drainPos,stripeCall}=await import("@erpx/server-pos/public/pos-stripe");
 const db=new PostgresDatabase({connectionString:jobs.databases.H001_DB,max:2});
 const actor={userId:'pos-thb-v1-admin',assignmentId:'pos-thb-v1-admin-access',role:'holding_owner',companyId:company,branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'acme',holdingName:'ACME',name:'POS demo administrator',email:'admin@pos-thb-v1.example',assignmentScope:'holding',inherited:false,modules:['pos','finance'],assignments:[],workspaces:[],scope:{kind:'holding',holdingId:'h001',holdingSlug:'acme',holdingName:'ACME',companyId:company}} as WorkContext;

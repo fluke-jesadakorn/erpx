@@ -6,7 +6,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
-import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
+
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { type StaffTaskAlertResult, type TaskAlertRow } from '@erpx/server-operations/domain/staff-task-alerts';
 import { createStaffTaskAlertsApplication, type StaffTaskAlertsRepository } from '@erpx/server-operations/application/staff-task-alerts';
@@ -38,8 +38,8 @@ function application(provided?: SqlDatabase) {
         async stageEscalateStaffTasksResult(value,companyId,userId,recordType,id,version,message,now,releaseArgs,source) {
           return await withWorkTaskAlert(database,source,{id,companyId,userId,version},transaction=>StaffTaskAlertsCollaborationFacts(transaction).stageEscalateStaffTasksResult(value,companyId,userId,recordType,id,version,message,now,releaseArgs))??{success:true,meta:{changes:0,duration:0}};
         } };
-    return createStaffTaskAlertsApplication<SqlStatement>({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => { if (!provided)
-            database = (await nativeHoldingResources(holding)).write; }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, });
+    return createStaffTaskAlertsApplication<SqlStatement>({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => { if (!provided)
+            database = (await nativeHoldingResources(holding)).write; }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow});
 }
 async function invoke<Result>(run: () => Promise<Result>) { try {
     return await run();

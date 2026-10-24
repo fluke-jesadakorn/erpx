@@ -11,7 +11,7 @@ import { iamActorFromWork } from "@erpx/server-identity_access/public/iam-contex
 import { grantIamAccess, grantInput, revokeIamAssignment, proposeIamReview } from "@erpx/server-identity_access/public/iam-service";
 import {validateIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import { organizationGuard } from "@erpx/server-organization/public/organization";
+import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import { hashPassword, verifyPassword } from "better-auth/crypto";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { runtimeEnv, holdingResources } from "../../../../packages/server-runtime/src/public/runtime";

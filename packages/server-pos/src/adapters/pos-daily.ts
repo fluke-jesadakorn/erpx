@@ -4,7 +4,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { all, one, run } from "@erpx/server-pos/public/pos-core";
+import {all,one,run} from '@erpx/server-runtime/public/runtime/sql';
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { createPosDay, type PosDayUnit, type PosReceiptSnapshot } from "@erpx/server-pos/application/pos-daily";

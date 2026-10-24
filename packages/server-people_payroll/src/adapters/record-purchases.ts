@@ -1,4 +1,4 @@
-import {expenseSourceReadScope, requireExpenseWorkspaceRecordRead} from "@erpx/server-people_payroll/adapters/expense-record-purchases";
+import {expenseSourceReadScope,requireExpenseWorkspaceRecordRead} from '@erpx/server-people_payroll/adapters/expense-record-purchases';
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";

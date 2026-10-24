@@ -3,7 +3,8 @@ import { listStaffNotifications } from "@erpx/server-collaboration/public/staff-
 import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import { organizationOverview,installStaffLevels,savePosition,positionSchema,saveOrganizationTemplate,applyOrganizationTemplate,organizationGuard,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange } from "@erpx/server-organization/public/organization";
+import {organizationOverview,installStaffLevels,savePosition,positionSchema,saveOrganizationTemplate,applyOrganizationTemplate,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange} from '@erpx/server-organization/public/organization';
+import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import { directoryUpdateSchema,saveDirectoryPerson,setDirectoryStatus } from "@erpx/server-people_payroll/public/people-directory";
 import { grantPersonAccess,revokePersonAccess } from "@erpx/server-identity_access/public/account-access";
 import { companyBusinessAcceptance, companyBusinessAcceptanceWork, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "@erpx/server-organization/public/company-business-acceptance";
@@ -14,7 +15,7 @@ import { localSeedLevels } from "../../../fixtures/organization/builders/local-s
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 import {listPeople,getPerson,peopleSummary} from "@erpx/server-people_payroll/public/people-payroll";
 import {peopleReferenceRows} from "@erpx/server-people_payroll/public/people-purchases";
-import {changeAppointment} from "@erpx/server-organization/public/department-authority";
+import {changeAppointment} from '@erpx/server-organization/public/department-authority';
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,ceo:string,staffPosition:string,hr:WorkContext;
 const level=(n:number)=>`org-level-${f.company}-${n}`;

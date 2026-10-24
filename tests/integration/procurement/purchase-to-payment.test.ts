@@ -3,7 +3,8 @@ import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercia
 import {reviewedSecondaryBook} from "../../support/helpers/finance-book-fixture";
 import {enableAttachmentV2ForTest,seedAttachmentSet,attachmentBindingState} from "../../support/helpers/attachment-v2";
 import {attachmentContent,createAttachmentSet} from "@erpx/server-files/public/attachments/service";
-import {getPayment,createInvoice,invoiceSchema,getInvoice} from "@erpx/server-finance/public/finance";
+import {getPayment,createInvoice,invoiceSchema} from '@erpx/server-finance/public/finance';
+import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import {financePurchaseControls} from "@erpx/server-finance/public/purchases";
 import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
 import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
@@ -11,14 +12,8 @@ import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env, type TestMigration } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import {
-  actOnEmployeeRequest,
-  employeeRequestSchema,
-  getEmployeeRequest,
-  requestActionSchema,
-  saveEmployeeRequest,
-} from "@erpx/server-records/public/employee-requests";
-import { saveServiceTeam, serviceTeamSchema } from "@erpx/server-support/public/service-teams";
+import {actOnEmployeeRequest,employeeRequestSchema,getEmployeeRequest,requestActionSchema,saveEmployeeRequest} from '@erpx/server-records/public/employee-requests';
+import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
 import { actRfq, createRfq, rfqDetail } from "@erpx/server-procurement/public/procurement-rfqs";
 import {
   fulfillOrder,
@@ -29,8 +24,8 @@ import {
   saveOrder,
   transitionOrder,
 } from "@erpx/server-commerce/public/commerce";
-import { assignFlowPrimary, resolveFlow } from "@erpx/server-workflow/public/flow-routing";
-import { importBankStatement, postInvoice, postJournal } from "@erpx/server-finance/public/finance";
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import {importBankStatement,postInvoice,postJournal} from '@erpx/server-finance/public/finance';
 import { captureSupplierBill, decideSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
 import {
   confirmSupplierInstruction,

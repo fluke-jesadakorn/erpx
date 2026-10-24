@@ -11,7 +11,7 @@ import { requirePermission } from "@erpx/server-identity_access/public/iam-permi
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import { snapshotMoney } from "@erpx/server-finance/public/company-money";
 import { createFinanceReporting } from "@erpx/server-finance/application/reporting";
 import { statementPackageSchema, reportingDecisionSchema, yearClosingSchema, type Chart, type Profile, type Account, type Package } from "@erpx/server-finance/domain/reporting";

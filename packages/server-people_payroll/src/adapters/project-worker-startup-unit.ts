@@ -14,7 +14,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {projectWorkerOrganizationSourceLocks} from '@erpx/server-organization/public/project-worker-startup-sources';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {registerProjectWorkerUnit,projectWorkerOwnedSelfDirectory,projectWorkerSelfDirectoryImage} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {workerStartupSourcePolicy,type WorkerStartupConsumer} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 export const projectWorkerSourceChanged=(consumer:WorkerStartupConsumer='projects')=>new ApiError(409,workerStartupSourcePolicy(consumer).errorPrefix+'SOURCE_CHANGED','The selected Company account, worker or reviewed placement changed. Reload this worker preparation.');

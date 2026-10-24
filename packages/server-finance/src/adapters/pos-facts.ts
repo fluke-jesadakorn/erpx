@@ -1,5 +1,5 @@
 import "server-only";
-import {all} from "@erpx/server-pos/public/pos-core";
+import {all} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 export function PosReadFinanceFacts(db:SqlDatabase){return {
 readFinanceAccounts1:(facts:{company:string;})=>all(db,"SELECT id,code,name,chart_id,currency,control_kind FROM finance_accounts WHERE company_id=? AND category='asset' AND control_kind='bank' AND status='active' ORDER BY code",facts.company),

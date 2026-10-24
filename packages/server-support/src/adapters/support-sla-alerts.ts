@@ -58,9 +58,3 @@ export async function acknowledgeSupportAlert(a: WorkContext, id: string, raw: u
         } })(a, id, raw, key);
 }
 export async function supportAlertWork(a: WorkContext) { const runtime = nativeSupportRuntime(a), access = await runtime.purchase("support.sla"); if (!access.history) return []; const items = await createSupportAlertWork({ alerts: supportAlerts })(a); return items.map(item => ({ ...item, canAct: item.canAct && access.settleExisting, queue: item.queue === "todo" && !access.settleExisting ? "waiting" as const : item.queue })); }
-
-export function slaBreachedNotificationSource(purchased = "TRUE"){return `
-   SELECT DISTINCT s.id||':'||m.user_id,t.company_id,m.user_id,'support_sla_alert',s.id,s.version,
-    'Resolution target breached: take responsibility for follow-up',?::bigint
-   FROM support_sla_alerts s JOIN support_tickets t ON t.id=s.ticket_id JOIN (${identity_accessProjectionSources.assignments}) m ON ${recipient}
-   WHERE s.acknowledged_by IS NULL AND ${scheduledFeaturePredicate('t.company_id', 'support')} AND ${purchased}`;}

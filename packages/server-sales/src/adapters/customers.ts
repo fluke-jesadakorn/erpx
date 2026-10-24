@@ -14,7 +14,7 @@ import { availableNavigationAppIds } from "@erpx/feature-work_projection/lib/wor
 import { companyFeatureCatalogue } from "@erpx/server-pms/public/hospitality-rollout";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
-import { resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { crmWork } from "@erpx/server-crm/public/crm";
 import { customerFollowupWorkspace, customerFollowupWork } from "@erpx/server-sales/adapters/followups";
 import { customerTimeline } from "@erpx/server-customer_360/public/customer-timeline";

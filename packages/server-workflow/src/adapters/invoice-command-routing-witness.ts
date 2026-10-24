@@ -4,7 +4,8 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {expenseAuthoritySnapshot} from '@erpx/server-people_payroll/public/expense-routing';
 import {invoiceRoutingOrganizationSourceReadLocks} from '@erpx/server-organization/public/invoice-routing-source-locks';
-import {flowRecord,prepareFlowCommand} from '@erpx/server-workflow/adapters/flow-routing';
+import {flowRecord} from '@erpx/server-workflow/public/flow-record';
+import {prepareFlowCommand} from '@erpx/server-workflow/public/flow-command-planning';
 import {scopeFor} from '@erpx/server-workflow/domain/flow-routing';
 
 type NativeRoute={company_id:string;kind:string;record_id:string;version:number;defaults_revision:number;steps_json:string;created_at:number};

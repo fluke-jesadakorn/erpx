@@ -5,7 +5,7 @@ import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/qu
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {privateFileDenialAuthorityWitness,privateFileDenialAuthoritySourceLocks} from '@erpx/server-identity_access/public/private-file-denial-authority';
-import {workContextGuards} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {workTaskApprovalSourceLocks} from '@erpx/server-workflow/public/work-package-obligation-sources';
 import {workTaskSocialFileSourceRows,workTaskSocialSourceLocks,workTaskSocialAudienceSourceLocks} from '@erpx/server-collaboration/public/work-task-purchase-source';
 import {projectSocialSourceReadLocks,projectTaskAttachmentReadSources} from '@erpx/server-projects/public/social-purchase-sources';

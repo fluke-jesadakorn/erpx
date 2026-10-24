@@ -5,7 +5,7 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import { resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";

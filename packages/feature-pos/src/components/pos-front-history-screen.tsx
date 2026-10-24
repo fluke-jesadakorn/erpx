@@ -1,7 +1,7 @@
 "use client";
 import { ActionLink as UiActionLink } from "@erpx/ui/components/foundation";
 import { Button as UiButton, Field, Table, TableFrame, TextInput } from "@erpx/ui/components/foundation";
-import type { PosRow } from "@erpx/server-pos/public/pos-core";
+import type {PosRow} from '@erpx/server-pos/public/pos-core';
 import { type FormEvent, type ReactNode } from "react";
 import styles from "@erpx/feature-pos/components/pos.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@erpx/front/components/front-language";

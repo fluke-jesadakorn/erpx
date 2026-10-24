@@ -1,5 +1,5 @@
 import "server-only";
-import {one} from "@erpx/server-pos/public/pos-core";
+import {one} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 export function posCoreOrganizationFacts(db:SqlDatabase){return {
 readOrganizationNodes1:(facts:{company:string;})=>one(db,"SELECT id FROM organization_nodes WHERE id=? AND kind='company' FOR UPDATE",facts.company),

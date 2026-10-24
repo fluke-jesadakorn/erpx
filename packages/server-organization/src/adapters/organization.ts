@@ -1,8 +1,8 @@
-import {policyRead} from "@erpx/server-identity_access/public/iam-read-snapshot";
+
 import { platformOwnerProjectionSources as commercePlatformSources } from "@erpx/server-commerce/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "@erpx/server-people_payroll/public/platform-owner-projection-sources";
-import {organizationGraphSnapshotSources} from '@erpx/server-people_payroll/public/organization-graph-snapshot-sources';
+
 import "server-only";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
@@ -14,14 +14,14 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {sha256} from '@erpx/server-runtime/public/crypto';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
-import {spendingTemplate} from '@erpx/server-people_payroll/public/spending-templates';
+import {spendingTemplate} from '@erpx/server-people_payroll/public/spending-template-read';
 import {rosterPositionExitStatements} from '@erpx/server-people_payroll/public/roster-position-exit';
 import {stageOrganizationDepartmentPeople} from '@erpx/server-people_payroll/public/organization-department-relocation';
-import {organizationRosterPeople,organizationRosterExitEngagementIds,organizationMonthlyPayGroups} from '@erpx/server-people_payroll/public/organization-roster-facts';
+import { organizationRosterExitEngagementIds, organizationMonthlyPayGroups } from '@erpx/server-people_payroll/public/organization-roster-facts';
 import {stageOrganizationNodeChannels} from '@erpx/server-collaboration/public/organization-node-channels';
 import {prepareAttachmentBinding} from '@erpx/server-files/public/attachments/service';
 import {attachmentPurposeFacts} from '@erpx/server-files/public/attachment-purpose-facts';
-import type {OrganizationPerson,OrganizationPosition,OrganizationNode,OrganizationNodeChange} from "@erpx/feature-organization/lib/organization";
+import type { OrganizationPerson, OrganizationNode, OrganizationNodeChange } from "@erpx/feature-organization/lib/organization";
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {canReadOrganizationChanges,organizationChangeNotice} from '@erpx/server-organization/adapters/organization-work';
 import {organizationMemberSql} from '@erpx/server-organization/adapters/organization-channels';
@@ -29,27 +29,8 @@ import {canSeeDefaultPay,defaultCatalog} from '@erpx/server-organization/adapter
 import {createOrganizationApplication,type OrganizationPorts,type RelocationAuthority} from '@erpx/server-organization/application/organization';
 import type {ChangeFilters,NodeChangeInput,NodeDecisionInput,PositionInput,TemplateInput,ApplyTemplateInput} from '@erpx/server-organization/domain/organization';
 export {positionSchema,organizationTemplateSchema,applyOrganizationTemplateSchema,organizationNodeChangeSchema,organizationNodeDecisionSchema} from '@erpx/server-organization/domain/organization';
-const graphSql = `SELECT jsonb_build_object(
- 'people',(SELECT jsonb_agg(p.snapshot ORDER BY p.id) FROM (${organizationGraphSnapshotSources.people}) p WHERE p.company_id=?),
- 'engagements',(SELECT jsonb_agg(e.snapshot ORDER BY e.id) FROM (${organizationGraphSnapshotSources.engagements}) e WHERE e.company_id=?),
- 'positions',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM organization_positions p WHERE p.company_id=?),
- 'levels',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM staff_levels l WHERE l.company_id=?),
- 'nodes',(SELECT jsonb_agg(to_jsonb(n) ORDER BY n.id) FROM organization_nodes n WHERE n.company_id=?)
-)::text snapshot`;
-export async function organizationGuard(db: SqlDatabase, companyId: string, key: string) {
-  const args = Array(5).fill(companyId) as string[];
-  const row = await db.prepare(graphSql).bind(...args).first<{snapshot:string}>();
-  return assertion(db,key,"organization-snapshot",`((${graphSql})::jsonb = ?::jsonb)`,[...args,row!.snapshot]);
-}
-export async function organizationRoster(db: SqlDatabase, companyId: string) {
-  return structuredClone(await policyRead(db,JSON.stringify(["organization-roster",companyId]),async () => {
-  const [people, positions] = await Promise.all([
-organizationRosterPeople(db,companyId),
-    db.prepare("SELECT p.*,l.level_number FROM organization_positions p JOIN staff_levels l ON l.id=p.level_id AND l.company_id=p.company_id WHERE p.company_id=? ORDER BY l.level_number,p.title,p.id").bind(companyId).all<OrganizationPosition>(),
-  ]);
-  return {people:people.results,positions:positions.results};
-  }));
-}
+import {organizationGuard}from '@erpx/server-organization/public/organization-graph-guard';
+import {organizationRoster}from '@erpx/server-organization/public/organization-roster-read';
 const nodeImpactSql=`SELECT
  (SELECT count(*) FROM organization_nodes WHERE company_id=? AND parent_id=? AND status='active') child_nodes,
  (SELECT count(*) FROM (${people_payrollPlatformSources.hr_engagements}) hr_engagements WHERE company_id=? AND status='active' AND (branch_id=? OR department_id=?)) staff,

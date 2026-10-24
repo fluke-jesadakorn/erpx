@@ -6,11 +6,11 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { getProject } from "@erpx/server-projects/public/staff-projects";
 import type { readablePost } from "@erpx/server-collaboration/public/social-source";
 import type { taskSourceStatements } from "@erpx/server-collaboration/public/social-task";
-import type { approvalView } from "@erpx/server-workflow/public/approvals";
-import type { closeApprovals } from "@erpx/server-workflow/public/approvals";
-import type { openApproval } from "@erpx/server-workflow/public/approvals";
-import type { prepareDecision } from "@erpx/server-workflow/public/approvals";
-import type { taskRoute } from "@erpx/server-workflow/public/approvals";
+import type {approvalView} from '@erpx/server-workflow/public/approval-planning';
+import type {closeApprovals} from '@erpx/server-workflow/public/approval-planning';
+import type {openApproval} from '@erpx/server-workflow/public/approval-planning';
+import type {prepareDecision} from '@erpx/server-workflow/public/approval-planning';
+import type {taskRoute} from '@erpx/server-workflow/public/approval-planning';
 import type { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import type { staffGuard } from "@erpx/server-operations/public/staff-policy";
 import type { notification } from "@erpx/server-operations/public/staff-policy";

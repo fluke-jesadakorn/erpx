@@ -5,8 +5,9 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { activeStaff, requireCompanyAuthority } from "@erpx/server-operations/public/staff-policy";
-import { peopleRequestRoute } from "@erpx/server-organization/public/department-authority";
-import { approvalView, openApproval, prepareDecision, closeApprovals, participantSql } from "@erpx/server-workflow/public/approvals";
+import {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
+import {approvalView,openApproval,prepareDecision,closeApprovals} from '@erpx/server-workflow/public/approval-planning';
+import {participantSql} from '@erpx/server-workflow/public/approvals';
 import { executeCommand, replayCommand } from "@erpx/server-workflow/public/commands";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { overtimeCommandSchema, type OvertimeDetails } from "@erpx/feature-people_payroll/lib/overtime";

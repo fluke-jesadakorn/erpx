@@ -1,8 +1,8 @@
 import "server-only";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
-import { appointmentOverview } from "@erpx/server-organization/public/department-authority";
-import { organizationRoster } from "@erpx/server-organization/public/organization";
+import {appointmentOverview} from '@erpx/server-organization/public/department-authority-reads';
+import {organizationRoster} from '@erpx/server-organization/public/organization-roster-read';
 import { draftCompanyName } from "@erpx/server-organization/public/people-app-entrypoint-facts";
 
 type ReadArguments<F extends (...args: never[]) => unknown> = Parameters<F> extends [unknown, ...infer Rest] ? Rest : never;

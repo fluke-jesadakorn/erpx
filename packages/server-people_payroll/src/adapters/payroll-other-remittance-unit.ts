@@ -12,7 +12,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {payrollOtherFinanceLeases,payrollOtherFinanceState} from '@erpx/server-finance/public/payroll-other-remittance-facts';
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {payrollOtherSource,payrollOtherSourceLeases,payrollOtherRemittanceTables,type PayrollOtherSource} from '@erpx/server-people_payroll/adapters/payroll-other-remittance-sources';
 export {payrollOtherSource,payrollOtherRemittanceTables};
 type Kind='read'|'remit'|'bank-import'|'bank-ignore';

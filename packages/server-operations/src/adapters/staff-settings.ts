@@ -1,5 +1,6 @@
 import {operationsLevelHistoryEffects} from "@erpx/server-organization/public/operations-level-history-effects";
-import { organizationGuard, validateStaffOrganization } from "@erpx/server-organization/public/organization";
+import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
+import {validateStaffOrganization} from '@erpx/server-organization/public/organization';
 import { recommendationStatements } from "@erpx/server-organization/public/staff-defaults";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { z } from "zod";

@@ -14,7 +14,8 @@ import {peopleHireHandoffFacts} from '@erpx/server-talent/public/people-hire-han
 import type {Source} from '@erpx/server-people_payroll/domain/people-handoffs';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
-import {financialConstraintError,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
+import {replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import type {HireHandoffPayGroupInput} from '@erpx/server-people_payroll/domain/hire-handoff-pay-group';
 const capability='recruit.offers',operation='people.pay-group.create';

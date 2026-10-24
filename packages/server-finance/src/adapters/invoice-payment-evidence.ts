@@ -1,7 +1,7 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { getInvoice } from "@erpx/server-finance/public/finance";
-import { resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
+import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";

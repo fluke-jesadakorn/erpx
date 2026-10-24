@@ -4,7 +4,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { serviceOwner } from "@erpx/server-support/public/service-access";
 import { resourceRequestRoute } from "@erpx/server-people_payroll/public/expense-routing";
-import { listEmployeeRequests, employeeRequestDetail } from "@erpx/server-records/public/employee-requests";
+import {listEmployeeRequests,employeeRequestDetail} from '@erpx/server-records/public/employee-requests';
 import { createRequestAdministrationQuery } from "@erpx/server-records/application/request-administration";
 
 export function requestAdministrationData(actor: WorkContext, record?: string) {

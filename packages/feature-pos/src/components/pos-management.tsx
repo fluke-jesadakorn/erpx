@@ -8,7 +8,7 @@ import { accountKeys, type PosAccounts } from "@erpx/server-pos/public/rules/pos
 import { posCommerceAccountDefaults, posGeneratedAccountSpecs } from "@erpx/feature-pos/lib/pos-bootstrap";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import type { PosWorkspace } from "@erpx/server-pos/public/pos";
-import type { PosRow } from "@erpx/server-pos/public/pos-core";
+import type {PosRow} from '@erpx/server-pos/public/pos-core';
 import Link from "@erpx/workplace/components/workspace-link";
 import { useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
 import styles from "@erpx/feature-pos/components/pos.module.css";

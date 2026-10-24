@@ -3,7 +3,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { AttachmentBindingContract } from "@erpx/server-files/public/attachments/types";
 import type { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { RecordsCommands } from '@erpx/server-records/domain/commands';
+
 type Tail<Value extends unknown[]> = Value extends [
     unknown,
     ...infer Rest
@@ -27,7 +27,7 @@ export interface BusinessEvidencePorts<Effect> {
     repository: BusinessEvidenceRepository;
     clock: Clock;
     identifiers: IdentifierSource;
-    commands: RecordsCommands<Effect>;
+
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     batch(effects: Effect[]): Promise<unknown>;

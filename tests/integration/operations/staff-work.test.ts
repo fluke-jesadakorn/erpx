@@ -11,12 +11,8 @@ import {
   saveLevel,
   setDepartmentHead,
 } from "@erpx/server-operations/public/staff-settings";
-import {
-  approvalView,
-  prepareDecision,
-  rerouteApproval,
-  openApproval,
-} from "@erpx/server-workflow/public/approvals";
+import {approvalView,prepareDecision,openApproval} from '@erpx/server-workflow/public/approval-planning';
+import {rerouteApproval} from '@erpx/server-workflow/public/approvals';
 import {
   projectSchema,
   saveProject,

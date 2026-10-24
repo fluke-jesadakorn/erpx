@@ -8,7 +8,7 @@ import type { benefitsWorkspace } from "@erpx/server-benefits/public/benefits";
 import type { talentWorkspace } from "@erpx/server-talent/public/talent";
 import { type DomainRecordKind, isDomainRecordKind } from '@erpx/server-records/domain/record-domain-details';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { RecordsCommands } from '@erpx/server-records/domain/commands';
+
 type PortResult<Value, Effect> = Value extends Promise<infer Result> ? Promise<PortResult<Result, Effect>> : Value extends {
     bind(...args: never[]): unknown;
     run(): unknown;
@@ -22,7 +22,7 @@ export interface RecordDomainDetailsPorts<Effect> {
     repository: RecordDomainDetailsRepository<Effect>;
     clock: Clock;
     identifiers: IdentifierSource;
-    commands: RecordsCommands<Effect>;
+
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     batch(effects: Effect[]): Promise<unknown>;

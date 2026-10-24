@@ -10,7 +10,7 @@ import {workFetch} from "@erpx/feature-work_projection/lib/work-fetch";
 import {createLatestRead} from "@erpx/feature-shared/lib/latest-read";
 import {createPosSeedReadGate, isLivePosTab, posReadKey, type PosInitialRead} from "@erpx/feature-pos/lib/pos-read-identity";
 import type {PosWorkspace} from "@erpx/server-pos/public/pos";
-import type {PosRow} from "@erpx/server-pos/public/pos-core";
+import type {PosRow} from '@erpx/server-pos/public/pos-core';
 import {posCommandPurchases} from "@erpx/server-pos/public/rules/package-commands";
 import {createPosDeviceDraftCommands,type PosDeviceDraftReference,type PosDeviceSource} from '@erpx/feature-pos/lib/device-cart-command';
 import type {PosWorkspaceCommandSource,PosWorkspaceCompletion} from '@erpx/feature-pos/lib/workspace-command';

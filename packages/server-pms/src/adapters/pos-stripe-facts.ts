@@ -1,5 +1,5 @@
 import "server-only";
-import {one,run} from "@erpx/server-pos/public/pos-core";
+import {one,run} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 export function posStripePmsFacts(db:SqlDatabase){return {
 readPmsStripePayments1:(facts:{counterId:string;company_id:string | number | boolean | null;account_id:string | number | boolean | null;livemode:string | number | boolean | null;})=>one(db,'SELECT id FROM pms_stripe_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=?',facts.counterId,facts.company_id,facts.account_id,facts.livemode),

@@ -7,7 +7,7 @@ import { TimeText } from "@erpx/feature-people_payroll/components/time/time-pref
 import { useState } from "react";
 import { Combobox } from "@erpx/ui/components/popups";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import type { previewServiceTeam } from "@erpx/server-support/public/service-teams";
+import type {previewServiceTeam} from '@erpx/server-support/public/service-teams';
 import { Dialog } from "@erpx/ui/components/dialog";
 import { useHydrated } from "@erpx/ui/components/use-hydrated";
 import { useStaffCommand } from "@erpx/feature-work_projection/components/staff-work-controls";

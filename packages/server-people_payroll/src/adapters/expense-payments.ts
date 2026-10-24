@@ -21,7 +21,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { prepareInvoiceSettlement } from "@erpx/server-commerce/public/commerce";
 import { notification, staffGuard } from "@erpx/server-operations/public/staff-policy";
-import { decimalToMinor } from "@erpx/server-finance/public/finance";
+import {decimalToMinor} from '@erpx/server-finance/public/finance';
 import {
   attachmentsV2Enabled,
   attachmentsV2Readable,

@@ -6,7 +6,7 @@ import type { leaveSummary } from "@erpx/server-people_payroll/public/leave-self
 import type { overtimeSetup } from "@erpx/server-people_payroll/public/overtime";
 import type { workSnapshot } from "@erpx/server-work_projection/public/work-items";
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { RecordsCommands } from '@erpx/server-records/domain/commands';
+
 type Tail<Value extends unknown[]> = Value extends [
     unknown,
     ...infer Rest
@@ -35,7 +35,7 @@ export interface SelfServicePorts<Effect> {
     repository: SelfServiceRepository;
     clock: Clock;
     identifiers: IdentifierSource;
-    commands: RecordsCommands<Effect>;
+
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     batch(effects: Effect[]): Promise<unknown>;

@@ -10,7 +10,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
 type BindingSource={id:string;company_id:string;branch_id:string;department_id:string|null;created_by:string;version:number;source_state:string;identity:string;image:string};
 async function source(database:SqlDatabase,actor:WorkContext,id:string){

@@ -9,7 +9,7 @@ import {readCompanyPurchaseFacts} from "@erpx/server-commercial/public/package-g
 import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
 import {financeDocumentFlow,financeDocumentPresentationAccess,financeSourceDocumentBackdrop,journalRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
 import {bookRuleSchema,prepareBookRule,decideBookRule} from "@erpx/server-finance/public/finance-books";
-import {createJournal,createJournalSchema,importBankStatement} from "@erpx/server-finance/public/finance";
+import {createJournal,createJournalSchema,importBankStatement} from '@erpx/server-finance/public/finance';
 import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {attachmentContent,bindRecordAttachmentSet} from "@erpx/server-files/public/attachments/service";

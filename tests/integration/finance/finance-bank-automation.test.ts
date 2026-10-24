@@ -24,13 +24,7 @@ import {
   collectionWorkspace,
   cashDueForecast,
 } from "@erpx/server-finance/public/finance-collections";
-import {
-  createJournal,
-  createJournalSchema,
-  importBankStatement,
-  postJournal,
-  reconcileBankTransaction,
-} from "@erpx/server-finance/public/finance";
+import {createJournal,createJournalSchema,importBankStatement,postJournal,reconcileBankTransaction} from '@erpx/server-finance/public/finance';
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,

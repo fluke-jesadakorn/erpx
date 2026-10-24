@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
-import type { peopleRequestRoute } from "@erpx/server-organization/public/department-authority";
+import type {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
 import type { activeStaff, staffGuard } from "@erpx/server-operations/public/staff-policy";
-import type { approvalView, openApproval, prepareDecision, closeApprovals } from "@erpx/server-workflow/public/approvals";
+import type {approvalView,openApproval,prepareDecision,closeApprovals} from '@erpx/server-workflow/public/approval-planning';
 import type { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import type { availableLeaveEvidence, leaveEvidenceManifest, pendingLeaveEvidenceCount } from "@erpx/server-people_payroll/public/leave-evidence";
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';

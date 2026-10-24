@@ -5,7 +5,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { BetaEnvironment } from "@erpx/server-manage_erpx/public/beta-config";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
-import { workContextGuards } from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
 import { aiSnapshotGuard, aiUsageStatement, resolveAiProvider } from "@erpx/server-agent/public/ai-providers";
 import { generateProviderJson, withAiGatewayScope } from "@erpx/server-agent/public/ai-transport";

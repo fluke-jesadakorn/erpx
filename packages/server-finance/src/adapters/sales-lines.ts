@@ -1,6 +1,6 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { commerceInvoiceSalesLines } from "@erpx/server-commerce/public/finance-sales-sources";
-import { currentInvoiceLines } from "@erpx/server-finance/public/finance-invoice-lines";
+import {currentInvoiceLines} from '@erpx/server-finance/public/invoice-line-read';
 import type { PersistedInvoiceLine } from "@erpx/server-finance/domain/invoice-line-revision";
 /** Native invoice revisions take precedence; Commerce retains delivered quantities and amounts. */
 export async function salesInvoiceLines(db: SqlDatabase, companyId: string, invoiceId: string, revision: number): Promise<PersistedInvoiceLine[]> {

@@ -10,8 +10,8 @@ import {transitionTransfer} from "@erpx/server-inventory/public/inventory-transf
 import {dispatchTransit,receiveTransit,requestTransitLoss} from "@erpx/server-inventory/public/inventory-transit";
 import {inspectQualityHold,createQualityScrapDisposition} from "@erpx/server-quality/public/quality";
 import {changeManufacturingOrder} from "@erpx/server-manufacturing/public/production";
-import {createInvoice,invoiceSchema,postInvoice} from "@erpx/server-finance/public/finance";
-import {assignFlowPrimary,resolveFlow} from "@erpx/server-workflow/public/flow-routing";
+import {createInvoice,invoiceSchema,postInvoice} from '@erpx/server-finance/public/finance';
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 export const businessFileOwners=[
  'procurement_rfq','purchase_order','purchase_receipt','supplier_bill','supplier_bill_match','landed_cost','stock_count','inventory_stock_count','stock_transfer','inventory_transfer','inventory_transit','product','inventory_lot','quality_hold','inventory_quality_hold','inventory_quality_spec','commerce_order','commerce_order_delivery','commerce_fulfillment','commerce_return','crm_account','crm_opportunity','marketing_campaign','marketing_asset','asset','maintenance_work','field_service_visit','production_run','planning_scenario','manufacturing_spec','project','ecommerce_listing',
 ] as const;

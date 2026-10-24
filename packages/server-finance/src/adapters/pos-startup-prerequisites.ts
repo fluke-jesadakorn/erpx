@@ -14,7 +14,8 @@ import {posStartupSourceReadLocks,posStartupSourceState} from '@erpx/server-pos/
 import {posStartupInventorySourceLocks,posStartupInventoryState} from '@erpx/server-inventory/public/pos-startup-sources';
 import {requirePosStartupFinanceAuthority,posStartupFinanceReadLocks,posStartupFinanceState} from '@erpx/server-finance/adapters/pos-posting-setup';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {financialConstraintError,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
+import {replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import {commercePostingFinanceReferences} from '@erpx/server-finance/adapters/commerce-posting-setup';
 import type {PosStartupPrerequisitesView} from '@erpx/server-finance/domain/pos-startup-prerequisites';

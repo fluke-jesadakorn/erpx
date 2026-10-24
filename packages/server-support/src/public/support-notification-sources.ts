@@ -1,11 +1,5 @@
-export { incidentUpdatedNotificationSource } from "@erpx/server-support/adapters/support-incidents";
-export { ticketReopenedNotificationSource } from "@erpx/server-support/adapters/support";
-export { ticketCreatedNotificationSource } from "@erpx/server-support/adapters/support";
-export { ticketUpdatedNotificationSource } from "@erpx/server-support/adapters/support";
-export { ticketReviewersNotificationSource } from "@erpx/server-support/adapters/support";
-export { slaBreachedNotificationSource } from "@erpx/server-support/adapters/support-sla-alerts";
-export { sessionReviewersNotificationSource } from "@erpx/server-support/adapters/support-sessions";
-export { sessionUpdatedNotificationSource } from "@erpx/server-support/adapters/support-sessions";
-export { policyReviewersNotificationSource } from "@erpx/server-support/adapters/support-sla";
-export { policyUpdatedNotificationSource } from "@erpx/server-support/adapters/support-sla";
-export { ticketClockAttachedNotificationSource } from "@erpx/server-support/adapters/support-sla";
+export {ticketReopenedNotificationSource,ticketCreatedNotificationSource,ticketUpdatedNotificationSource,ticketReviewersNotificationSource}from '@erpx/server-support/adapters/support-notification-sources';
+export {incidentUpdatedNotificationSource}from '@erpx/server-support/adapters/support-incidents-notification-sources';
+export {policyReviewersNotificationSource,policyUpdatedNotificationSource,ticketClockAttachedNotificationSource}from '@erpx/server-support/adapters/support-sla-notification-sources';
+export {slaBreachedNotificationSource}from '@erpx/server-support/adapters/support-sla-alerts-notification-sources';
+export {sessionReviewersNotificationSource,sessionUpdatedNotificationSource}from '@erpx/server-support/adapters/support-sessions-notification-sources';

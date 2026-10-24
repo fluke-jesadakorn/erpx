@@ -3,6 +3,7 @@ import { existsSync,readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { repositoryRoot as root } from './catalogue';
 import { appDefinitions } from '@erpx/contracts/apps';
+import { verifyWorkspaceRelease } from '../local/workspace-release-manifest';
 // This entry is deliberately separate from dev/CI selection and is never invoked there.
 const args=process.argv.slice(2),candidate=args.find(arg=>arg.startsWith('--candidate='))?.slice(12);
 if(!candidate||args.length!==1||candidate.startsWith('-'))throw new Error('EXPLICIT_ACCEPTANCE_CANDIDATE_REQUIRED');
@@ -12,6 +13,7 @@ const path=resolve(root,'.runtime/workspace-releases',sha,'release.json');
 if(!existsSync(path))throw new Error('COMBINED_CANDIDATE_RELEASE_REQUIRED:build and review all app, gateway and jobs artifacts first');
 const manifest=JSON.parse(readFileSync(path,'utf8'));
 if(manifest.schema!=='erpx-workspace-release/v2'||manifest.candidate!==sha||manifest.acceptance!==false||appDefinitions.some(app=>!manifest.apps?.[app.id])||!manifest.gateway||!manifest.jobs)throw new Error('EXACT_COMBINED_RELEASE_REQUIRED');
+await verifyWorkspaceRelease(resolve(root,'.runtime/workspace-releases',sha),{candidate:sha,frozen:true});
 // Keep old full receipts and their single-artifact scope immutable. A v2
 // production acceptance adapter must consume this complete candidate manifest.
 if(manifest.acceptanceAdapter!=='workspace-v2')throw new Error('WORKSPACE_V2_ACCEPTANCE_ADAPTER_REQUIRED');

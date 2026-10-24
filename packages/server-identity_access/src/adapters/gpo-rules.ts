@@ -11,7 +11,7 @@ import type {SqlDatabase,SqlStatement} from '@erpx/server-runtime/public/runtime
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
 import {requireFreshMfa} from '@erpx/server-identity_access/public/iam-mfa';
 import {readAutomationInventory} from '@erpx/server-identity_access/public/directory-provider';
-import {organizationGuard} from '@erpx/server-organization/public/organization';
+import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {ProviderConnection} from '@erpx/server-identity_access/public/iam-providers';
 

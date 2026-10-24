@@ -10,7 +10,7 @@ import { benefitsWorkspace } from "@erpx/server-benefits/public/benefits";
 import { talentWorkspace } from "@erpx/server-talent/public/talent";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
-import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
+
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { type DomainRecordKind, isDomainRecordKind as pureisDomainRecordKind } from '@erpx/server-records/domain/record-domain-details';
 import { createRecordDomainDetailsApplication, type RecordDomainDetailsRepository } from '@erpx/server-records/application/record-domain-details';
@@ -21,10 +21,10 @@ export type { DomainRecordKind } from '@erpx/server-records/domain/record-domain
 function application(provided?: SqlDatabase) {
     let database = provided!;
     const repository: RecordDomainDetailsRepository<SqlStatement> = {};
-    return createRecordDomainDetailsApplication<SqlStatement>({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
+    return createRecordDomainDetailsApplication<SqlStatement>({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, brandIdentityWorkspace: (...args) => fromNative(() => brandIdentityWorkspace(...args)), agentWorkspace: (...args) => fromNative(() => agentWorkspace(...args)), productionWorkspace: (...args) => fromNative(() => productionWorkspace(...args)), ecommerceWorkspace: (...args) => fromNative(() => ecommerceWorkspace(...args)), learningWorkspace: (...args) => fromNative(() => learningWorkspace(...args)), benefitsWorkspace: (...args) => fromNative(() => benefitsWorkspace(...args)), talentWorkspace: (...args) => fromNative(() => talentWorkspace(...args)) });
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, brandIdentityWorkspace: (...args) => fromNative(() => brandIdentityWorkspace(...args)), agentWorkspace: (...args) => fromNative(() => agentWorkspace(...args)), productionWorkspace: (...args) => fromNative(() => productionWorkspace(...args)), ecommerceWorkspace: (...args) => fromNative(() => ecommerceWorkspace(...args)), learningWorkspace: (...args) => fromNative(() => learningWorkspace(...args)), benefitsWorkspace: (...args) => fromNative(() => benefitsWorkspace(...args)), talentWorkspace: (...args) => fromNative(() => talentWorkspace(...args))});
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {

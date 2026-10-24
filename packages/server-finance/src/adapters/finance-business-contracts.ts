@@ -16,7 +16,7 @@ import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { financeTransaction, financeOwnedTransaction } from "@erpx/server-finance/public/finance-transactions";
 import { requireFinanceTool } from "@erpx/server-finance/public/finance-company-tools";
 import { requireFinanceMoneyScale } from "@erpx/server-finance/public/finance-money-policy";
-import { createInvoice, prepareJournal } from "@erpx/server-finance/public/finance";
+import {createInvoice,prepareJournal} from '@erpx/server-finance/public/finance';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { financeBusinessContractEffects } from '@erpx/server-workflow/public/finance-business-contract-effects';

@@ -6,7 +6,7 @@ import type {WorkContext} from '@erpx/server-identity_access/public/authorizatio
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';

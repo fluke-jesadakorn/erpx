@@ -11,7 +11,8 @@ import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAcc
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {executeCommand,replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import type {CustomerPortalSessionActor} from '@erpx/server-customer_360/public/portal-contract';
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
 import {portalSupportInstalled,portalSupportSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-support-sources';

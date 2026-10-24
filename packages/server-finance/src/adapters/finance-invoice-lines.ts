@@ -1,3 +1,4 @@
+import{currentInvoiceLines}from '@erpx/server-finance/public/invoice-line-read';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -5,7 +6,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { snapshotMoney } from "@erpx/server-finance/public/company-money";
 import { createInvoiceLineRevision } from '@erpx/server-finance/application/invoice-line-revision';
-import type { InvoiceHeader as Header, InvoiceAccount as Account, PersistedInvoiceLine } from '@erpx/server-finance/domain/invoice-line-revision';
+import type { InvoiceHeader as Header, InvoiceAccount as Account } from '@erpx/server-finance/domain/invoice-line-revision';
 export type { PersistedInvoiceLine } from '@erpx/server-finance/domain/invoice-line-revision';
 export async function prepareInvoiceLineRevision(db: SqlDatabase, actor: WorkContext, input: Header, invoiceId: string, revision: number, amounts: {
     subtotal: number;
@@ -21,9 +22,7 @@ export async function prepareInvoiceLineRevision(db: SqlDatabase, actor: WorkCon
     steps.push(snapshot.statement);
     return { guards, steps, mode: plan.mode, revision, count: rows.length };
 }
-export async function currentInvoiceLines(db: SqlDatabase, companyId: string, invoiceId: string, revision: number) {
-    return (await db.prepare("SELECT * FROM finance_invoice_line_versions WHERE invoice_id=? AND company_id=? AND source_version=? ORDER BY ordinal").bind(invoiceId, companyId, revision).all<PersistedInvoiceLine>()).results;
-}
+
 export async function nativeInvoicePosting(db: SqlDatabase, actor: WorkContext, invoice: Record<string, string | number | null>, commandId: string) {
     const plan = await invoiceLineService(db).posting(actor, invoice);
     if (!plan)

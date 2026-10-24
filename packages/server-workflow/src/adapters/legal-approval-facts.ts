@@ -1,6 +1,6 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import type {ApprovalStep} from "@erpx/server-workflow/public/approvals";
+import type {ApprovalStep} from '@erpx/server-workflow/public/approvals';
 export function legalApprovalFacts(db:SqlDatabase){return {
 routeSteps:(facts:{instanceId:string;})=>db.prepare("SELECT * FROM approval_steps WHERE instance_id=? ORDER BY ordinal").bind(facts.instanceId).all(),
 decisionHistory:(facts:{id:string;companyId:string;})=>db.prepare("SELECT d.* FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id WHERE i.record_type='legal' AND i.record_id=? AND i.company_id=? ORDER BY d.insertion_order").bind(facts.id,facts.companyId).all(),

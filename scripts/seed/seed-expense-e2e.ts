@@ -1,4 +1,4 @@
-import { changeAppointment } from "@erpx/server-organization/public/department-authority";
+import {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import { getLocalProxy } from "../local/fixtures";
 import { hashPassword } from "better-auth/crypto";
 import { mkdir } from "node:fs/promises";

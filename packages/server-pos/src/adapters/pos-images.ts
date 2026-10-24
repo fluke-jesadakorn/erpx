@@ -6,7 +6,8 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
-import { one, run, posCommand } from "@erpx/server-pos/public/pos-core";
+import {one,run} from '@erpx/server-runtime/public/runtime/sql';
+import {posCommand} from '@erpx/server-pos/public/pos-core';
 import { readBoundedUploadBody } from "@erpx/server-files/public/attachments/upload";
 import { createAttachmentSet, reserveAttachmentFile, completeAttachmentUpload, scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
 import { requirePosImageSource } from "@erpx/server-pos/public/pos-image-source";

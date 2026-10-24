@@ -9,7 +9,8 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {companyPurchaseReadLocks,readPurchasedAccesses,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
-import {replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {manufacturingPostingCommerceReadLocks} from '@erpx/server-commerce/public/manufacturing-posting-setup-sources';
 import {manufacturingPostingInventorySourceLocks} from '@erpx/server-inventory/public/manufacturing-posting-setup-sources';
 import {requireManufacturingPostingFinanceAuthority,manufacturingPostingFinanceReadLocks,manufacturingPostingProfileReferenceSnapshot} from '@erpx/server-finance/public/manufacturing-posting-setup';

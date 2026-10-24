@@ -232,6 +232,7 @@
   },
   "dependencies": {
     "@erpx/catalogue": "workspace:*",
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-files": "workspace:*",
     "@erpx/feature-finance": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",

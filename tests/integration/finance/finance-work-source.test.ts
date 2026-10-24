@@ -1,7 +1,7 @@
 import {beforeAll,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {createInvoice,createParty,invoiceSchema} from "@erpx/server-finance/public/finance";
+import {createInvoice,createParty,invoiceSchema} from '@erpx/server-finance/public/finance';
 import {readWorkSnapshot} from "@erpx/server-work_projection/public/work-items";
 vi.mock("server-only",()=>({}));
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>({})}));

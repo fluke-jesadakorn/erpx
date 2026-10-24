@@ -1,7 +1,7 @@
 import { permissionForRoles } from "@erpx/feature-identity_access/lib/permissions";
 import { type StaffActor, type RecordScope, type StaffPerson, scopeActor, type RouteStep, type ApprovalRoute, reportingChain } from '@erpx/server-operations/domain/staff-policy';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { OperationsCommands } from '@erpx/server-operations/domain/commands';
+
 export interface StaffPolicyRepository<Effect> {
     readStaffPeopleResults(companyId: string, now: number, now2: number, value: string | null, value2: string | null, value3: string | null, value4: string | null, value5: string | null): Promise<{
         results: (StaffPerson)[];
@@ -31,7 +31,7 @@ export interface StaffPolicyPorts<Effect> {
     repository: StaffPolicyRepository<Effect>;
     clock: Clock;
     identifiers: IdentifierSource;
-    commands: OperationsCommands<Effect>;
+
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     batch(effects: Effect[]): Promise<unknown>;

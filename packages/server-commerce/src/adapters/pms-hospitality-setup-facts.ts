@@ -3,7 +3,7 @@ import { commercialOwnerProjectionSources as financeProjectionSources } from "@e
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { all, one } from "@erpx/server-pos/public/pos-core";
+import {all,one} from '@erpx/server-runtime/public/runtime/sql';
 export function pmsHospitalitySetupCommerceFacts(db: SqlDatabase) {
     return {
         commerce: (facts: {

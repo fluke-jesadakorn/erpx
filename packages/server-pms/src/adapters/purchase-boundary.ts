@@ -2,7 +2,7 @@ import { flushFinanceDeferredEffects } from "@erpx/server-finance/public/finance
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
-import { workContextGuards } from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import type { SqlDatabase, TransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { companyPurchaseReadLocks, checkPurchasedCapability, purchaseCommandBoundary, purchaseCommandFailure,
   pmsPackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";

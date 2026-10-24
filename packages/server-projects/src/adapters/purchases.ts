@@ -11,7 +11,7 @@ import {lockQueuedCommandAuthority} from "@erpx/server-identity_access/public/qu
 import {StaffPolicyIdentityAccessFacts} from "@erpx/server-identity_access/public/operations-staff-policy-facts";
 import {projectWorkerReferenceSourceReadLocks,projectWorkerReferenceWitness} from "@erpx/server-people_payroll/public/project-worker-references";
 import {projectTaskSourceReadLocks} from "@erpx/server-operations/public/project-source-locks";
-import {workContextGuards,financialConstraintError} from "@erpx/server-workflow/public/commands";
+import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {projectsPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";

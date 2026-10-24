@@ -7,7 +7,7 @@ import type { AiEndpoint } from '@erpx/server-agent/public/transport-contract';
 import type { SocialSnapshot, ResolvedSocialProvider, SocialReplyProvider, SocialDraftProvider, SocialAiDraft } from '@erpx/server-collaboration/domain/ai-contracts';
 import type { PostRow } from '@erpx/server-collaboration/domain/social-source';
 import type { sourceGuard } from '@erpx/server-collaboration/public/social-source';
-import type { workContextGuards } from '@erpx/server-workflow/public/commands';
+import type {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import type { aiRequestQuotaLock } from '@erpx/server-agent/public/ai-quota';
 import type { aiSnapshotGuard, aiUsageStatement } from '@erpx/server-agent/public/ai-providers';
 import { aiRequestSchema, aiResultSchema, jsonSchema, type AiResult } from '@erpx/server-collaboration/domain/social-ai';

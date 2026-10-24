@@ -1,6 +1,6 @@
 import { InlineNotice } from "@erpx/ui/components/foundation";
 import { TimeText } from "@erpx/feature-people_payroll/components/time/time-preference-context";
-import type { ApprovalView } from "@erpx/server-workflow/public/approvals";
+import type {ApprovalView} from '@erpx/server-workflow/public/approvals';
 import { Card } from "@erpx/ui/components/foundation";
 function source(snapshotText: string | null | undefined) {
   if (!snapshotText) return null;

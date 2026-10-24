@@ -209,3 +209,69 @@ server.on('upgrade',(req,socket,head)=>{if(req.url==='/cancelled-upgrade')append
     await gateway?.close(); await rm(root, { recursive: true, force: true });
   }
 }, 30_000);
+
+function compiledRouting(){
+ return{schema:'erpx-compiled-routing/v1' as const,hosts:Object.fromEntries(appIds.map(id=>[`${id}.fixture.invalid`,id])),ports:Object.fromEntries(appIds.map((id,index)=>[id,id==='finance'?3298:3200+index]))};
+}
+it('requires complete unique compiled app routing and rejects reserved ports before listening',async()=>{
+ const {validateCompiledRouting,startCompiledWorkspaceGateway}=await import('../../../scripts/local/compiled-workspace-gateway');
+ const routing=compiledRouting();expect(Object.keys(validateCompiledRouting(routing).ports)).toHaveLength(22);
+ expect(()=>validateCompiledRouting({...routing,ports:{...routing.ports,finance:3000}})).toThrow('INVALID_COMPILED_APP_PORT');
+ expect(()=>validateCompiledRouting({...routing,hosts:{...routing.hosts,'outside.invalid':'compat'}})).toThrow('INVALID_COMPILED_HOST');
+ expect(()=>validateCompiledRouting({...routing,hosts:{}})).toThrow('EXACT_COMPILED_ROUTING_REQUIRED');
+ for(const port of [3000,3001,8080,3298])await expect(startCompiledWorkspaceGateway(routing,port)).rejects.toThrow('EXPLICIT_GATEWAY_PORT_REQUIRED');
+});
+it('compiled gateway preserves streaming, cookies, mutation bytes and upgraded head/tail without request replay',async()=>{
+ await free(3104);await free(3298);
+ const {startCompiledWorkspaceGateway}=await import('../../../scripts/local/compiled-workspace-gateway');
+ const observed:Array<{url:string;host:string;origin:string;body:Buffer}>=[];
+ let mutations=0,releaseStream=()=>{};
+ const streamGate=new Promise<void>(done=>{releaseStream=done;});
+ const upstream=createServer(async(req,res)=>{
+  const chunks:Buffer[]=[];for await(const chunk of req)chunks.push(Buffer.from(chunk));
+  observed.push({url:req.url!,host:req.headers.host!,origin:req.headers.origin!,body:Buffer.concat(chunks)});
+  if(req.url==='/fail'){mutations++;res.destroy();return;}
+  res.setHeader('Set-Cookie',['__Host-one=1; Secure; Path=/','__Host-two=2; Secure; Path=/']);
+  if(req.url==='/stream'){res.setHeader('Content-Type','text/event-stream');res.write('data: first\n\n');await streamGate;res.end('data: last\n\n');return;}
+  res.setHeader('Content-Type','text/x-component');res.end(Buffer.concat(chunks));
+ });
+ upstream.on('upgrade',(req,socket,head)=>{
+  observed.push({url:req.url!,host:req.headers.host!,origin:req.headers.origin!,body:head});
+  socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSet-Cookie: first=1\r\nSet-Cookie: second=2\r\n\r\n');
+  if(head.length)socket.write(head);socket.on('data',chunk=>socket.write(chunk));socket.once('end',()=>socket.destroy());socket.once('error',()=>socket.destroy());
+ });
+ await new Promise<void>((done,reject)=>{upstream.once('error',reject);upstream.listen(3298,'127.0.0.1',()=>done());});
+ const gateway=await startCompiledWorkspaceGateway(compiledRouting(),3104);
+ try{
+  const body=Buffer.from([0,255,1,13,10,128]);
+  const result=await new Promise<{body:Buffer;cookies:string[]|undefined;type:string|undefined}>((done,reject)=>{
+   const req=request({host:'127.0.0.1',port:3104,path:'/api/write?value=a%2Fb&value=c',method:'POST',headers:{Host:'finance.fixture.invalid',Origin:'https://finance.fixture.invalid','Content-Type':'multipart/form-data; boundary=fixture','Content-Length':body.length},agent:false},res=>{
+    const chunks:Buffer[]=[];res.on('data',chunk=>chunks.push(Buffer.from(chunk)));res.once('end',()=>done({body:Buffer.concat(chunks),cookies:res.headers['set-cookie'],type:res.headers['content-type']}));
+   });req.once('error',reject);req.end(body);
+  });
+  expect(result.body).toEqual(body);expect(result.cookies).toHaveLength(2);expect(result.type).toBe('text/x-component');
+  expect(observed[0]).toEqual({url:'/api/write?value=a%2Fb&value=c',host:'finance.fixture.invalid',origin:'https://finance.fixture.invalid',body});
+  const streamed=await new Promise<{first:string;end:Promise<string>}>((done,reject)=>{
+   const req=request({host:'127.0.0.1',port:3104,path:'/stream',headers:{Host:'finance.fixture.invalid'},agent:false},res=>{
+    let all='';const end=new Promise<string>((finish,fail)=>{res.on('data',chunk=>all+=chunk);res.once('end',()=>finish(all));res.once('error',fail);});
+    res.once('data',chunk=>done({first:chunk.toString(),end}));
+   });req.once('error',reject);req.end();
+  });expect(streamed.first).toBe('data: first\n\n');releaseStream();expect(await streamed.end).toBe('data: first\n\ndata: last\n\n');
+  expect((await get(3104,'outside.fixture.invalid')).status).toBe(421);
+  expect((await get(3104,'finance.fixture.invalid','/fail')).status).toBe(503);expect(mutations).toBe(1);
+  const echoed=await new Promise<Buffer>((done,reject)=>{
+   const socket=connect(3104,'127.0.0.1');let bytes=Buffer.alloc(0),tailSent=false;
+   const timeout=setTimeout(()=>{socket.destroy();reject(new Error('COMPILED_UPGRADE_TIMEOUT'));},5000);
+   socket.once('error',reject);socket.once('connect',()=>socket.write(Buffer.concat([Buffer.from('GET /hmr?key=a%2Fb HTTP/1.1\r\nHost: finance.fixture.invalid\r\nOrigin: https://finance.fixture.invalid\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n'),body])));
+   socket.on('data',chunk=>{
+    bytes=Buffer.concat([bytes,Buffer.from(chunk)]);const index=bytes.indexOf('\r\n\r\n');
+    if(index<0)return;
+    if(!tailSent){tailSent=true;socket.write(body);}
+    if(bytes.length-index-4===body.length*2){clearTimeout(timeout);socket.destroy();done(bytes);}
+   });
+  });
+  const boundary=echoed.indexOf('\r\n\r\n');expect(echoed.subarray(boundary+4)).toEqual(Buffer.concat([body,body]));
+  expect(echoed.subarray(0,boundary).toString()).toContain('Set-Cookie: first=1\r\nSet-Cookie: second=2');
+  expect(observed.at(-1)?.url).toBe('/hmr?key=a%2Fb');expect(observed.at(-1)?.origin).toBe('https://finance.fixture.invalid');
+ }finally{releaseStream();await gateway.close();await new Promise<void>(done=>upstream.close(()=>done()));}
+},20000);

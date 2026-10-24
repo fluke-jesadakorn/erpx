@@ -14,7 +14,7 @@ import {getPayslip,getPayslipExport,listPayslips} from "@erpx/server-people_payr
 import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,recognizePayrollRecovery,payrollRecoveryAgreement,payrollRecoveryPage,payrollRecoveryRequestSchema,payrollRecoveryPolicy} from "@erpx/server-people_payroll/public/payroll-recoveries";
 import { cancelPayrollRun } from "@erpx/server-people_payroll/public/payroll-cancellation";
 import { payrollReadiness,submitPayrollReview } from "@erpx/server-people_payroll/public/payroll-readiness";
-import {importBankStatement} from "@erpx/server-finance/public/finance";
+import {importBankStatement} from '@erpx/server-finance/public/finance';
 import {calendarCommand} from "@erpx/server-work_projection/public/calendar/commands";
 import { packageGrantStore, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";
 import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";

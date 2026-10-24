@@ -5,8 +5,8 @@ import { afterEach,beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "../../support/runtime-env";
 import { expenseDb as db,expenseFixture,key } from "../../support/helpers/expense-fixture";
 import { deliveryEvidence } from "../../support/helpers/delivery-evidence";
-import { assignFlowPrimary,resolveFlow } from "@erpx/server-workflow/public/flow-routing";
-import { aging,calculateCloseReconciliations,postInvoice,postJournal } from "@erpx/server-finance/public/finance";
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
+import {aging,calculateCloseReconciliations,postInvoice,postJournal} from '@erpx/server-finance/public/finance';
 import { completeCommerceReturn,decideCommerceReturn,fulfillOrder,getOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,settleInvoice,transitionOrder } from "@erpx/server-commerce/public/commerce";
 import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from "../../support/helpers/attachment-v2";
 import {withFinanceFlowAssignment} from "@erpx/server-finance/public/document-purchases";
@@ -1001,7 +1001,7 @@ it('two actual same-context new keys create exactly one initial physical Stock C
 it('ordinary Sales journal Files retain the captured native owner through deferred source loss and exact-key retry',async()=>{
   // Reuse the declared legacy goods/Stock fixture. This proves the included
   // Finance/File fence, not normal initial Stock acquisition or zero-ledger setup.
-  const source=await paidReturn('sales'),{requireFinanceDocumentHistory}=await import('@erpx/server-finance/public/document-purchases'),{getInvoice}=await import('@erpx/server-finance/public/finance'),{bindRecordAttachmentSet,attachmentContent}=await import('@erpx/server-files/public/attachments/service');
+  const source=await paidReturn('sales'),{requireFinanceDocumentHistory}=await import('@erpx/server-finance/public/document-purchases'),{getInvoice}=await import('@erpx/server-finance/public/finance-invoice-read'),{bindRecordAttachmentSet,attachmentContent}=await import('@erpx/server-files/public/attachments/service');
   const grant={companyId:f.company,packageId:'sales',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Actual ordinary Sales journal retained Files source',evidence:'test:ordinary-sales-source-finality'},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-ordinary-sales-files-provider'}),obligations:async()=>{throw Error('ONLY_REAL_OWNER_REVIEW_CAN_INACTIVATE');}});
   await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:'draining',version:2}});vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
   const invoice=await getInvoice(f.owner,source.invoiceId),journalId=String(invoice.invoice.journal_id),version=Number(await db.prepare('SELECT version FROM finance_journals WHERE id=?').bind(journalId).first('version'));
@@ -1022,7 +1022,7 @@ it('ordinary Sales journal Files retain the captured native owner through deferr
 it('ordinary Purchase journal Files retain the captured native owner through deferred source loss and exact-key retry',async()=>{
   // Reuse the declared legacy goods/Stock fixture. This proves the included
   // Finance/File fence, not normal initial Stock acquisition or zero-ledger setup.
-  const source=await paidReturn('purchase'),{requireFinanceDocumentHistory}=await import('@erpx/server-finance/public/document-purchases'),{getInvoice}=await import('@erpx/server-finance/public/finance'),{bindRecordAttachmentSet,attachmentContent}=await import('@erpx/server-files/public/attachments/service');
+  const source=await paidReturn('purchase'),{requireFinanceDocumentHistory}=await import('@erpx/server-finance/public/document-purchases'),{getInvoice}=await import('@erpx/server-finance/public/finance-invoice-read'),{bindRecordAttachmentSet,attachmentContent}=await import('@erpx/server-files/public/attachments/service');
   const grant={companyId:f.company,packageId:'supply',packageVersion:1,state:'active' as const,startsAt:0,endsAt:null,version:1,reason:'Actual ordinary Purchase journal retained Files source',evidence:'test:ordinary-purchase-source-finality'},store=packageGrantStore(db,{authorize:async()=>({userId:'isolated-ordinary-purchase-files-provider'}),obligations:async()=>{throw Error('ONLY_REAL_OWNER_REVIEW_CAN_INACTIVATE');}});
   await store.apply({expectedVersion:0,idempotencyKey:key(),grant});await store.apply({expectedVersion:1,idempotencyKey:key(),grant:{...grant,state:'draining',version:2}});vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');vi.stubEnv('ERPX_FINANCE_PACKAGE_ENFORCEMENT','enforced');
   const invoice=await getInvoice(f.owner,source.invoiceId),journalId=String(invoice.invoice.journal_id),version=Number(await db.prepare('SELECT version FROM finance_journals WHERE id=?').bind(journalId).first('version'));

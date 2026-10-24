@@ -7,7 +7,7 @@ import {
   key,
 } from "../../support/helpers/expense-fixture";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
-import { changeAppointment } from "@erpx/server-organization/public/department-authority";
+import {changeAppointment} from '@erpx/server-organization/public/department-authority';
 import { iamActorFromWork, type IamActor } from "@erpx/server-identity_access/public/iam-context";
 import { selectWorkRole } from "@erpx/server-work_projection/public/work-role-store";
 import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";

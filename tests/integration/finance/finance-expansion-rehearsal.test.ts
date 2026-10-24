@@ -1,7 +1,7 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { seedFinanceExpansionRehearsal } from "../../../fixtures/finance/expansion";
-import { statements } from "@erpx/server-finance/public/finance";
+import {statements} from '@erpx/server-finance/public/finance';
 import { key } from "../../support/helpers/expense-fixture";
 import { prepareFinancialReport, financialReportSchema, decideFinancePlan, snapshotFinancialReport, exportFinancialReport, prepareBudgetEdition, budgetEditionSchema, budgetActuals, budgetSourceRecords, financialReportSourceRecords } from "@erpx/server-finance/public/finance-planning";
 import { prepareGroupReportEdition, groupReportEditionSchema, decideGroupReportEdition, groupReportEditionExport, groupEditionAccountSources } from "@erpx/server-finance/public/finance-group-editions";

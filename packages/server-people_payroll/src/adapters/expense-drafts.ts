@@ -18,7 +18,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/adapters/expense-routing";
 import { canManagePeople } from "@erpx/server-people_payroll/public/people-directory";
-import { decimalToMinor } from "@erpx/server-finance/public/finance";
+import {decimalToMinor} from '@erpx/server-finance/public/finance';
 import { expenseFromDatabase, type ExpenseRow } from "@erpx/server-people_payroll/adapters/expenses";
 import { attachmentsV2Readable } from "@erpx/server-files/public/attachments/feature";
 

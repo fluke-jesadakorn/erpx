@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, symlinkSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import ts from "typescript";
+import { ensureWorkspaceProxySource } from "./workspace-proxy-source";
 import { refreshWorkspaceStyles } from "../assets/workspace-styles";
 import { appDefinitions } from "@erpx/contracts/apps";
 
@@ -58,7 +59,7 @@ for (const app of [...appDefinitions, { id: "compat", directory: "apps/compat", 
   writeFileSync(resolve(root, directory, "tsconfig.json"), JSON.stringify({ extends: "../../tsconfig.base.json", compilerOptions: { incremental: true, plugins: [{ name: "next" }], tsBuildInfoFile: ".cache/typecheck.tsbuildinfo" }, include: ["next-env.d.ts", "src/**/*.ts", "src/**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"], exclude: ["node_modules"] }, null, 2) + "\n");
   if (!existsSync(resolve(root, directory, "public"))) symlinkSync("../../public", resolve(root, directory, "public"), "dir");
   mkdirSync(resolve(root, directory, "src"), { recursive: true });
-  writeFileSync(resolve(root, directory, "src/proxy.ts"), `import { appProxy } from "../../../scripts/local/app-proxy";\nexport const proxy = appProxy(${JSON.stringify(app.id)});\nexport const config = { matcher: ["/:path*"] };\n`);
+  ensureWorkspaceProxySource(root,app.id);
 
 }
 refreshWorkspaceStyles();

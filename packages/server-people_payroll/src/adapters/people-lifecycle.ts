@@ -8,7 +8,7 @@ import {peopleLifecycleNotificationEffects} from '@erpx/server-collaboration/pub
 import {peopleLifecycleAuditEffects} from '@erpx/server-workflow/public/people-lifecycle-audit-effects';
 import {peoplePayrollFinalOwnerProjections as identityaccessFinalOwnerProjections} from "@erpx/server-identity_access/public/people-payroll-final-owner-projections";
 const identityaccessFinalSources=identityaccessFinalOwnerProjections();
-import { eligibleClearanceOwner } from "@erpx/server-people_payroll/public/retirement-clearance";
+import {eligibleClearanceOwner} from '@erpx/server-people_payroll/public/retirement-clearance';
 import { effectiveGpoRules } from "@erpx/server-identity_access/public/gpo-rules";
 import "server-only";
 import { calendarCommand } from "@erpx/server-work_projection/public/calendar/commands";
@@ -28,7 +28,8 @@ import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
 import { grantInput, proposeIamReview } from "@erpx/server-identity_access/public/iam-service";
 import {validateIamGrant,insertIamGrant} from '@erpx/server-identity_access/public/iam-grants';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { organizationGuard, validateStaffOrganization } from "@erpx/server-organization/public/organization";
+import {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
+import {validateStaffOrganization} from '@erpx/server-organization/public/organization';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { lifecycleSettingsInput, rehireInput, type LifecycleGrantFact, type LifecyclePackageRevisionFact, type LifecyclePersonFact } from '@erpx/server-people_payroll/domain/people-lifecycle';
 import { createPeopleLifecycleApplication, type PeopleLifecycleRepository, type PeopleLifecyclePorts } from '@erpx/server-people_payroll/application/people-lifecycle';

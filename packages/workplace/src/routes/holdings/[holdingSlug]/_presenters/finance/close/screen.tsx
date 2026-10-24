@@ -12,7 +12,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { closeWorkspace } from "@erpx/server-finance/public/finance-workspace";
-import { fxRevaluationWorkspace } from "@erpx/server-finance/public/finance";
+import {fxRevaluationWorkspace} from '@erpx/server-finance/public/finance';
 import { Card } from "@erpx/ui/components/foundation";
 
 export const dynamic = "force-dynamic";

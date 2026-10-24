@@ -9,7 +9,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {seedExpenseCompany} from "../../expenses/company";
 import {businessRoles} from "@erpx/feature-identity_access/lib/business-roles";
 import {loadIamAuthority} from "@erpx/server-identity_access/public/iam-store";
-import {createAccount,createAccountSchema,createJournal,createJournalSchema,postJournalBatch} from "@erpx/server-finance/public/finance";
+import {createAccount,createAccountSchema,createJournal,createJournalSchema,postJournalBatch} from '@erpx/server-finance/public/finance';
 import {thaiPayroll2026Pack} from "@erpx/feature-people_payroll/lib/thai-payroll-pack";
 import {assignPayGroup,approvePayrollAccountMapping,approveTimeEntry,compensationSchema,createCompensation,createCountryPack,createPayGroup,createTimeEntry,countryPackTransitionSchema,payGroupSchema,payrollAccountMappingSchema,savePayrollAccountMapping,timeEntrySchema,transitionCompensation,transitionCountryPack} from "@erpx/server-people_payroll/public/people-payroll";
 import {createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema} from "@erpx/server-people_payroll/public/payroll-statutory";

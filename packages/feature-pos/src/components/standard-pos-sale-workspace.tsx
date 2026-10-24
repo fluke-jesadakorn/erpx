@@ -13,7 +13,7 @@ import { Button, Card, Field, Select, TextInput } from "@erpx/ui/components/foun
 
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import type { PosWorkspace } from "@erpx/server-pos/public/pos";
-import type { PosRow } from "@erpx/server-pos/public/pos-core";
+import type {PosRow} from '@erpx/server-pos/public/pos-core';
 
 import { formatPosMoney } from "@erpx/server-pos/public/rules/pos";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";

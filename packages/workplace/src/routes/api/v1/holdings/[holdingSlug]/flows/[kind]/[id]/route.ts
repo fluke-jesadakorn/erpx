@@ -5,7 +5,7 @@ import { z } from "zod";
 import { flowKinds } from "@erpx/feature-shared/lib/flow";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requireFlowAccess } from "@erpx/server-workflow/public/flow-access";
-import { assignFlowPrimary, resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 

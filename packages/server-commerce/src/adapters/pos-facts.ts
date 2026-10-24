@@ -1,6 +1,6 @@
 import { commerceFinalOwnerProjectionSources as posProjectionSources } from "@erpx/server-pos/public/commerce-final-owner-projection-sources";
 import "server-only";
-import { one, all } from "@erpx/server-pos/public/pos-core";
+import {one,all} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 export function PosReadCommerceFacts(db: SqlDatabase) {
     return {

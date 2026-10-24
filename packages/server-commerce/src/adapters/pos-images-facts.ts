@@ -1,5 +1,5 @@
 import "server-only";
-import { one } from "@erpx/server-pos/public/pos-core";
+import {one} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 export function posImagesCommerceFacts(db: SqlDatabase) {
     return {

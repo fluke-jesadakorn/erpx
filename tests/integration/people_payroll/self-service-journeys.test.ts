@@ -16,7 +16,7 @@ import { assertLeaveAttachmentAccess,availableLeaveEvidence,leaveEvidenceManifes
 import { withdrawAttachmentLink } from "@erpx/server-files/public/attachments/service";
 import { getLeaveEvidence } from "@erpx/server-work_projection/public/work";
 import { prepareLocalBrowserHrReviewer,prepareLocalBrowserLeaveRecords } from "../../../fixtures/people_payroll/builders/local-browser-leave";
-import { peopleRequestRoute } from "@erpx/server-organization/public/department-authority";
+import {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
 import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:workforceDatabase??env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB,key=()=>crypto.randomUUID();

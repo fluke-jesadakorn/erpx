@@ -14,7 +14,8 @@ import {requirePermission} from '@erpx/server-identity_access/public/iam-permiss
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {financialConstraintError,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
+import {replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import {commercePostingFinanceReferences} from '@erpx/server-finance/adapters/commerce-posting-setup';
 import type {ServicePartsPrerequisitesView} from '@erpx/server-finance/domain/service-parts-prerequisites';

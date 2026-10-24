@@ -5,7 +5,8 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {hospitalityOwnerProjectionSources as identitySources} from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
 import {hospitalityOwnerProjectionSources as workflowSources} from "@erpx/server-workflow/public/hospitality-owner-projection-sources";
 import {hospitalityOwnerProjectionSources as filesSources} from "@erpx/server-files/public/hospitality-owner-projection-sources";
-import {expenseApprovalReadBatch, type ApprovalView} from "@erpx/server-workflow/public/approvals";
+import {expenseApprovalReadBatch} from '@erpx/server-workflow/public/approval-planning';
+import {type ApprovalView} from '@erpx/server-workflow/public/approvals';
 import {attachmentsV2Readable} from "@erpx/server-files/public/attachments/feature";
 import {nativeExpenseEmployment, nativeExpenseRequirements} from "@erpx/server-people_payroll/adapters/expense-drafts";
 import type {ExpenseRow} from "@erpx/server-people_payroll/adapters/expenses";

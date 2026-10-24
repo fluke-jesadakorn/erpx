@@ -37,6 +37,7 @@
     "./components/profile/profile-page": "./src/components/profile/profile-page.tsx",
     "./components/profile/profile-page.module.css": "./src/components/profile/profile-page.module.css",
     "./components/member-profile": "./src/components/member-profile.tsx",
+    "./components/account-profile-fields": "./src/components/account-profile-fields.tsx",
     "./components/account-preferences-context": "./src/components/account-preferences-context.tsx",
     "./components/provider-context-switcher": "./src/components/provider-context-switcher.tsx",
     "./components/revoke-company-access": "./src/components/revoke-company-access.tsx",
@@ -67,8 +68,7 @@
     "./lib/management-workspace-command": "./src/lib/management-workspace-command.ts",
     "./lib/organization-access-command": "./src/lib/organization-access-command.ts",
     "./lib/auth-client": "./src/lib/auth-client.ts",
-    "./lib/account-security": "./src/lib/account-security.ts",
-    "./components/account-profile-fields": "./src/components/account-profile-fields.tsx"
+    "./lib/account-security": "./src/lib/account-security.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

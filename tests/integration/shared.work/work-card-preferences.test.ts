@@ -13,10 +13,7 @@ import {
   getWorkCapabilities,
   hasCoveredTeam,
 } from "@erpx/server-work_projection/public/work-capabilities";
-import {
-  saveServiceTeam,
-  serviceTeamSchema,
-} from "@erpx/server-support/public/service-teams";
+import {saveServiceTeam,serviceTeamSchema} from '@erpx/server-support/public/service-teams';
 import type { WorkCardId } from "@erpx/feature-work_projection/lib/work-cards";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";

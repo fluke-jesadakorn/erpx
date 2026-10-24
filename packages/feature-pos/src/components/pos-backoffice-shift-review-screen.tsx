@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import { Button as UiButton, Field, TextInput } from "@erpx/ui/components/foundation";
 import { FeatureWidget as FeatureWidgetBase } from "@erpx/feature-shared/components/features/feature-page";
-import type { PosRow } from "@erpx/server-pos/public/pos-core";
+import type {PosRow} from '@erpx/server-pos/public/pos-core';
 import { type ComponentProps, type FormEvent, type ReactNode } from "react";
 import styles from "@erpx/feature-pos/components/pos.module.css";
 import { FrontLocalizedTree, useFrontLanguage } from "@erpx/front/components/front-language";

@@ -10,7 +10,7 @@ import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/qu
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {peoplePackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCapability,readPurchasedAccess,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';

@@ -11,7 +11,7 @@ import {executeCommand,replayCommand} from "@erpx/server-workflow/public/command
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import { currentInvoiceLines } from "@erpx/server-finance/public/finance-invoice-lines";
+import {currentInvoiceLines} from '@erpx/server-finance/public/invoice-line-read';
 import { requireCompanyTaxAuthority, reviewedTaxIdentity, taxIdentityGuards, taxSourceDigest } from "@erpx/server-finance/public/finance-tax-identities";
 import { prepareThaiDocumentIssue } from "@erpx/server-finance/public/finance-thai-documents";
 export { withholdingAssessmentSchema, withholdingDecisionSchema } from '@erpx/server-finance/domain/withholding';

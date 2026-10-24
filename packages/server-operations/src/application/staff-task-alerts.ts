@@ -1,6 +1,6 @@
 import { type StaffTaskAlertResult, type TaskAlertRow } from '@erpx/server-operations/domain/staff-task-alerts';
 import { type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { OperationsCommands } from '@erpx/server-operations/domain/commands';
+
 export interface StaffTaskAlertsRepository {
     readEscalateStaffTasksRows(now: number, now2: number, value: number): Promise<{
         results: (TaskAlertRow)[];
@@ -23,7 +23,7 @@ export interface StaffTaskAlertsPorts<Effect> {
     repository: StaffTaskAlertsRepository;
     clock: Clock;
     identifiers: IdentifierSource;
-    commands: OperationsCommands<Effect>;
+
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     batch(effects: Effect[]): Promise<unknown>;

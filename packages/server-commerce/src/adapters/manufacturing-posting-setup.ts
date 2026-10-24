@@ -12,7 +12,8 @@ import {lockPackageSettlementSources} from '@erpx/server-commercial/public/packa
 import {manufacturingPostingCommerceReadLocks} from '@erpx/server-commerce/adapters/manufacturing-posting-setup-sources';
 import {companyPurchaseReadLocks,readPurchasedAccesses,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {executeCommand,replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {requireManufacturingPostingFinanceAuthority,manufacturingPostingFinanceReadLocks,manufacturingPostingFinanceState,validateManufacturingPostingFinanceState,manufacturingPostingEffectiveService} from '@erpx/server-finance/public/manufacturing-posting-setup';
 import {manufacturingPostingSourceReadLocks,manufacturingPostingSourceState} from '@erpx/server-manufacturing/public/posting-setup-sources';

@@ -17,7 +17,8 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
-import {workContextGuards,executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
+import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {workPackageEnforcementMode,projectsPackageEnforcementMode,pmsPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';

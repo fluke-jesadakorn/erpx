@@ -11,4 +11,6 @@ import {z} from 'zod';import type {WorkContext} from '@erpx/server-identity_acce
   }
   const version=input.expectedVersion+1;
 return ports.commit({actor,input,key,version,now:ports.clock.now()},{id:actor.companyId,version});
-}return {saveSpendingTemplate,async spendingTemplate(companyId:string):Promise<SpendingTemplate>{const row=await ports.read(companyId);return row?{version:row.version,exceptions:JSON.parse(row.exceptions_json),reason:row.reason}:{version:1,exceptions:[],reason:'Company default: reporting supervisor, Accounting, posting and Finance payment.'};}};}
+}return {saveSpendingTemplate,spendingTemplate:createSpendingTemplateRead(ports)};}
+
+export function createSpendingTemplateRead(ports:Pick<SpendingTemplatePorts,"read">){return async function spendingTemplate(companyId:string):Promise<SpendingTemplate>{const row=await ports.read(companyId);return row?{version:row.version,exceptions:JSON.parse(row.exceptions_json),reason:row.reason}:{version:1,exceptions:[],reason:'Company default: reporting supervisor, Accounting, posting and Finance payment.'};};}

@@ -1,6 +1,6 @@
 import {z} from "zod";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import type {ApprovalInstance,ApprovalStep} from "@erpx/server-workflow/public/approvals";
+import type {ApprovalInstance,ApprovalStep} from '@erpx/server-workflow/public/approvals';
 import type {Clock,IdentifierSource} from "@erpx/server-shared/application/ports";
 import type {DocumentVersion,LegalItem} from "@erpx/server-legal/domain/model";
 import type {LegalWrite,LegalRows} from "@erpx/server-legal/application/service";

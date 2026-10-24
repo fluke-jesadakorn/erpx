@@ -11,7 +11,7 @@ import {lockPackageSettlementSources} from '@erpx/server-commercial/public/packa
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {assetsFinancialPhysicalSourceLocks,assetsFinancialPhysicalSource} from '@erpx/server-assets/public/financial-workflow-sources';
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import {assetsFinancialFinanceSourceLocks,assetsFinancialReferences,assetsFinancialOriginalSource,assetsFinancialOwnerImage,assetsFinancialRetainedJournalImage} from '@erpx/server-finance/adapters/assets-financial-sources';
 import type {AssetsFinancialResult} from '@erpx/server-finance/domain/assets-financial-workflow';

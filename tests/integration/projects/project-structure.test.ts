@@ -6,7 +6,7 @@ import {projectMilestoneSchema,saveProjectMilestone,transitionProjectMilestone} 
 import {projectGraph,projectHandoffs,projectHandoffWork,projectStructureCommand} from "@erpx/server-projects/public/project-structure";
 import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
 import {createProjectCostAllocation,decideProjectCostAllocation,decideProjectWorkLog,projectCostAllocationSchema,projectCostAllocationDecisionSchema,projectWorkLogSchema,projectWorkLogDecisionSchema,saveProjectWorkLog} from "@erpx/server-projects/public/project-actuals";
-import {createJournal,createJournalSchema,postJournal} from "@erpx/server-finance/public/finance";
+import {createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
 import {packageGrantStore,readCompanyPackageGrants} from "@erpx/server-commercial/public/package-grants";
 import {packageGrantRevision} from "@erpx/server-commercial/public/package-grants";
 import {withOwnerPackageObligations,readOwnerPackageObligations,ownerPackageObligations} from "@erpx/server-commercial/public/owner-package-obligations";

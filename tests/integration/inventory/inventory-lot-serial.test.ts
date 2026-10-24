@@ -12,7 +12,7 @@ import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
 import {decideCommerceReturn,fulfillOrder,getOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
 import {inspectQualityHold,releaseQualityHold} from "@erpx/server-quality/public/quality";
-import {assignFlowPrimary,resolveFlow} from "@erpx/server-workflow/public/flow-routing";
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {saveTransfer,transitionTransfer,transferDetail,transferSchema} from "@erpx/server-inventory/public/inventory-transfers";
 import {decideTransitLoss,dispatchTransit,getTransit,receiveTransit,requestTransitLoss,transitDetail} from "@erpx/server-inventory/public/inventory-transit";
 import {countDetail,countOptions,countsPage,getCount,saveCount,transitionCount} from "@erpx/server-inventory/public/inventory-counts";
@@ -21,7 +21,7 @@ import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";
 import {countSourceReadScope} from "@erpx/server-inventory/public/count-record-purchases";
 import {listStaffNotifications} from "@erpx/server-collaboration/public/staff-notifications";
 import {publishInboxEvent,inboxPage} from "@erpx/server-collaboration/public/inbox";
-import {postInvoice,postJournal} from "@erpx/server-finance/public/finance";
+import {postInvoice,postJournal} from '@erpx/server-finance/public/finance';
 import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";
 import {financeProductDocumentEntry,financeDocumentPostAccess,financeSourceDocumentReadLocks} from "@erpx/server-finance/public/document-purchases";
 import {financeDocumentFlow,financeDocumentPresentationAccess} from "@erpx/server-finance/public/record-presentation";

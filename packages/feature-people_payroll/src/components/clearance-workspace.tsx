@@ -10,7 +10,7 @@ import Link from "@erpx/workplace/components/workspace-link";
 import { useRef, useState } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import type { ClearanceKind } from "@erpx/feature-people_payroll/lib/retirement";
-import type { clearanceCase } from "@erpx/server-people_payroll/public/retirement-clearance";
+import type {clearanceCase} from '@erpx/server-people_payroll/public/retirement-clearance';
 import { StatusBadge } from "@erpx/ui/components/primitives";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
 import {

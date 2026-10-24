@@ -1,5 +1,5 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {run} from '@erpx/server-pos/public/pos-core';
+import {run} from '@erpx/server-runtime/public/runtime/sql';
 export function commerceCommerceStockEffects(db:SqlDatabase){return {prepareCommerceStock1: (facts: {
             fact0: string | number | null;
             fact1: string | number | null;

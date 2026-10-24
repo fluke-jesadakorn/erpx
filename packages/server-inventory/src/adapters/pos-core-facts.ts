@@ -1,5 +1,5 @@
 import "server-only";
-import {one} from "@erpx/server-pos/public/pos-core";
+import {one} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 export function posCoreInventoryFacts(db:SqlDatabase){return {
 readInventoryActiveReservations1:(facts:{warehouse_id:string | number | boolean | null;productId:string;})=>one(db,'SELECT COALESCE(SUM(quantity_milli),0) n FROM inventory_active_reservations WHERE warehouse_id=? AND product_id=?',facts.warehouse_id,facts.productId),

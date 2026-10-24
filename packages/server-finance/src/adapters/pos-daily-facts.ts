@@ -1,6 +1,6 @@
 import { financeSnapshotSources as posSnapshot } from "@erpx/server-pos/public/finance-snapshot-sources";
 import "server-only";
-import {one,all,run} from "@erpx/server-pos/public/pos-core";
+import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 export function PosDayFinanceFacts(db:SqlDatabase){return {
 readFinanceParties1:(facts:{party_id:string | number | true;company_id:string | number | boolean | null;})=>one(db,'SELECT id,name,phone,notification_email,address_json,tax_registration FROM finance_parties WHERE id=? AND company_id=?',facts.party_id,facts.company_id),

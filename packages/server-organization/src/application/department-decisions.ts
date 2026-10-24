@@ -1,6 +1,6 @@
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import type {EmployeeRequest} from '@erpx/server-records/public/employee-requests';
-import type {approvalView} from '@erpx/server-workflow/public/approvals';
+import type {approvalView} from '@erpx/server-workflow/public/approval-planning';
 import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
 import {departmentOverrideInput,savedRequestApproval,overtimeOverrideAction,type DepartmentOverrideKind,type DepartmentOverrideInput,type OvertimeOverrideAction} from '@erpx/server-organization/domain/department-decisions';
 type Approval=Awaited<ReturnType<typeof approvalView>>;

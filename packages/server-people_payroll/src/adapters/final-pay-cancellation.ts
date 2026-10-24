@@ -12,7 +12,8 @@ import {companyPurchaseReadLocks,peoplePackageEnforcementMode,readPurchasedAcces
 import {payrollFinalPayCancellationFinanceSourceLocks} from '@erpx/server-finance/public/payroll-final-pay-cancellation-sources';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {executeCommand,replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {createFinalPayCancellationApplication,type FinalPayCancellationMutation} from '@erpx/server-people_payroll/application/final-pay-cancellation';
 import {recordAttachmentVersionSourceReadLocks} from '@erpx/server-files/public/record-version-receipts';

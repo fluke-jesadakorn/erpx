@@ -2,7 +2,7 @@
 import { Button, Field, Select } from "@erpx/ui/components/foundation";
 import { type FormEvent } from "react";
 import type { PosWorkspace } from "@erpx/server-pos/public/pos";
-import type { PosRow } from "@erpx/server-pos/public/pos-core";
+import type {PosRow} from '@erpx/server-pos/public/pos-core';
 import { formatPosMoney } from "@erpx/server-pos/public/rules/pos";
 import { useFrontLanguage } from "@erpx/front/components/front-language";
 import styles from "@erpx/feature-pos/components/pos.module.css";

@@ -86,6 +86,7 @@
     "products:receipts:import": "bun scripts/docs/import-product-migration-receipt.ts",
     "console:retirement:check": "bun scripts/local/check-console-retirement.ts",
     "build:affected": "bun scripts/testing/scoped.ts build",
+    "release:prepare": "bun scripts/local/prepare-workspace-release.ts",
     "release:acceptance": "bun scripts/testing/release-acceptance.ts",
     "workspaces:catalogue": "bun scripts/testing/workspace-catalogue.ts",
     "workspaces:tasks": "bun scripts/testing/workspace-tasks.ts",

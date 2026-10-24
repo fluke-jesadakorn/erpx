@@ -1,5 +1,5 @@
 import {withPeoplePreparationTransaction} from "@erpx/server-people_payroll/public/people-purchases";
-import { requireClearanceCompletion, requireClearancePlan } from "@erpx/server-people_payroll/public/retirement-clearance";
+import {requireClearanceCompletion,requireClearancePlan} from '@erpx/server-people_payroll/public/retirement-clearance';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";

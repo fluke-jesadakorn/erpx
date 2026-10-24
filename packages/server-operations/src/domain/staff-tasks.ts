@@ -1,6 +1,6 @@
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";
 import { z } from "zod";
-import type { ApprovalView } from "@erpx/server-workflow/public/approvals";
+import type {ApprovalView} from '@erpx/server-workflow/public/approvals';
 import type { RecordScope, StaffActor } from "@erpx/server-operations/public/staff-policy";
 export const users = z.array(z.string().min(1).max(160)).max(20);
 export const taskFieldsSchema = z.object({

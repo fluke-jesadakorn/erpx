@@ -13,7 +13,7 @@ import {executeCommand,replayCommand} from "@erpx/server-workflow/public/command
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { samePerson } from "@erpx/feature-identity_access/lib/iam";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
-import { importBankStatement } from "@erpx/server-finance/public/finance";
+import {importBankStatement} from '@erpx/server-finance/public/finance';
 import type {financeReviewSchema} from "@erpx/server-finance/domain/review";
 import { requireFinanceTool } from "@erpx/server-finance/public/finance-company-tools";
 import { readListPage } from "@erpx/server-work_projection/public/list-page";

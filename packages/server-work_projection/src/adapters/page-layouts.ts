@@ -11,7 +11,7 @@ import { holdingResources, runtimeEnv } from "../../../../packages/server-runtim
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import { navigationContext } from "@erpx/server-work_projection/public/navigation-context";
 import { companyAuthority } from "@erpx/server-operations/public/staff-policy";
-import { workContextGuards } from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";

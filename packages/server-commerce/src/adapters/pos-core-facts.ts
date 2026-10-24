@@ -2,7 +2,7 @@ import { commerceFinalOwnerProjectionSources as posProjectionSources } from "@er
 import {commercePosCoreFactsStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import "server-only";
-import { one, all, run } from "@erpx/server-pos/public/pos-core";
+import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 export function posCoreCommerceFacts(db: SqlDatabase) {
     return {

@@ -1,7 +1,7 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { directoryOptions, directoryPerson, personAccess } from "@erpx/server-people_payroll/public/people-directory";
 import type { staffSettings } from "@erpx/server-operations/public/staff-settings";
-import type { organizationOverview } from "@erpx/server-organization/public/organization";
+import type {organizationOverview} from '@erpx/server-organization/public/organization';
 
 export type MemberProfileReference = { id: string; name: string; email: string; personId: string | null };
 export type MemberProfilePerson = Awaited<ReturnType<typeof directoryPerson>>;

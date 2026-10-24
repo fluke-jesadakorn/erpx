@@ -14,7 +14,8 @@ import {manufacturingPostingSourceReadLocks,manufacturingPostingSourceState} fro
 import {manufacturingPostingInventorySourceLocks,manufacturingPostingInventoryState} from '@erpx/server-inventory/public/manufacturing-posting-setup-sources';
 import {requireManufacturingPostingFinanceAuthority,manufacturingPostingFinanceReadLocks,manufacturingPostingFinanceState} from '@erpx/server-finance/adapters/manufacturing-posting-setup';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
-import {financialConstraintError,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
+import {replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import {commercePostingFinanceReferences} from '@erpx/server-finance/adapters/commerce-posting-setup';
 import type {ManufacturingPostingPrerequisitesView} from '@erpx/server-finance/domain/manufacturing-posting-prerequisites';

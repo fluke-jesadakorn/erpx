@@ -1,12 +1,13 @@
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "../../support/runtime-env";
 import { expenseFixture,expenseDb as db,key } from "../../support/helpers/expense-fixture";
-import { appointmentOverview,changeAppointment,departmentFlowInput,departmentRoute,peopleRequestRoute,publishDepartmentFlow } from "@erpx/server-organization/public/department-authority";
-import { approvalView,openApproval } from "@erpx/server-workflow/public/approvals";
+import {appointmentOverview,departmentRoute,peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
+import {changeAppointment,departmentFlowInput,publishDepartmentFlow} from '@erpx/server-organization/public/department-authority';
+import {approvalView,openApproval} from '@erpx/server-workflow/public/approval-planning';
 import { getExpense } from "@erpx/server-people_payroll/public/expenses";
 import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
 import { decideDepartmentOverride,departmentOverrideDetail,departmentOverrideWork } from "@erpx/server-organization/public/department-decisions";
-import { saveEmployeeRequest,employeeRequestSchema,actOnEmployeeRequest,requestActionSchema,getEmployeeRequest } from "@erpx/server-records/public/employee-requests";
+import {saveEmployeeRequest,employeeRequestSchema,actOnEmployeeRequest,requestActionSchema,getEmployeeRequest} from '@erpx/server-records/public/employee-requests';
 import { reconcilePositionGpo } from "@erpx/server-identity_access/public/position-gpo";
 import { flowSettingsHub } from "@erpx/server-work_projection/public/flow-settings-hub";
 import { departmentFlowSettingsHistory } from "@erpx/server-organization/public/flow-settings-facts";

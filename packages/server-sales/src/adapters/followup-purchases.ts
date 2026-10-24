@@ -5,7 +5,7 @@ import type {FollowupPurchaseControls} from '@erpx/feature-sales/lib/followup-pu
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
-import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {commercePackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';

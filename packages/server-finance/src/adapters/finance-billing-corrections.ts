@@ -17,7 +17,7 @@ import { financeTransaction } from "@erpx/server-finance/public/finance-transact
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { businessContractConfiguration, prepareBusinessBilling } from "@erpx/server-finance/public/finance-business-contracts";
-import { prepareJournal, postInvoice } from "@erpx/server-finance/public/finance";
+import {prepareJournal,postInvoice} from '@erpx/server-finance/public/finance';
 import { prepareOwnedJournalReversal } from "@erpx/server-finance/public/finance-owned-reversal";
 import { snapshotMoneyReversal } from "@erpx/server-finance/public/company-money";
 import { refundNotifications } from "@erpx/server-finance/public/refund-notifications";

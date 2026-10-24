@@ -78,3 +78,61 @@ it('copies source while excluding private environment and generated state in nes
     expect(workspaceCopyInput(source, join(root, 'outside.ts'))).toBe(false);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+
+async function combinedReleaseFixture() {
+  const root=await realpath(await mkdtemp(join(tmpdir(),'erpx-combined-release-'))), fingerprint='a'.repeat(64);
+  const {appDefinitions}=await import('@erpx/contracts/apps');
+  const {releaseArtifactReference}=await import('../../../scripts/local/workspace-release-manifest');
+  const apps:Record<string,Awaited<ReturnType<typeof releaseArtifactReference>>>={};
+  for(const role of [...appDefinitions.map(app=>app.id),'gateway','jobs']){
+    const tool=role==='gateway'||role==='jobs',path=tool?role:`apps/${role}`,directory=join(root,path);
+    await mkdir(directory,{recursive:true});await writeFile(join(directory,'entry.mjs'),'export const ready=true;');
+    await writeFile(join(directory,'artifact.json'),JSON.stringify({schema:tool?'erpx-tool-artifact/v1':'erpx-app-artifact/v2',...(tool?{role}:{app:role}),runtimeFingerprint:fingerprint,node:'26.11.1',bun:'1.4.3',acceptance:false,entry:'entry.mjs',files:{'entry.mjs':createHash('sha256').update('export const ready=true;').digest('hex')},links:{}}));
+    apps[role]=await releaseArtifactReference(root,path,tool?{role:role as 'gateway'|'jobs'}:{app:role});
+  }
+  const manifest={schema:'erpx-workspace-release/v2',candidate:'b'.repeat(40),sourceFingerprint:fingerprint,productionCandidateFrozen:false,acceptance:false,acceptanceAdapter:null,node:'26.11.1',bun:'1.4.3',postgres:'18.6',createdAt:new Date().toISOString(),apps:Object.fromEntries(appDefinitions.map(app=>[app.id,apps[app.id]])),gateway:apps.gateway,jobs:apps.jobs};
+  await writeFile(join(root,'release.json'),JSON.stringify(manifest));return{root,manifest};
+}
+it('verifies all 22 relocated apps plus gateway/jobs and refuses development evidence as a frozen candidate',async()=>{
+ const f=await combinedReleaseFixture();try{
+  const {verifyWorkspaceRelease}=await import('../../../scripts/local/workspace-release-manifest');
+  expect(Object.keys((await verifyWorkspaceRelease(f.root)).apps)).toHaveLength(22);
+  await expect(verifyWorkspaceRelease(f.root,{frozen:true})).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
+  await expect(verifyWorkspaceRelease(f.root,{candidate:'c'.repeat(40)})).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
+  await writeFile(join(f.root,'apps/finance/entry.mjs'),'tampered');
+  await expect(verifyWorkspaceRelease(f.root)).rejects.toThrow('RELEASE_ARTIFACT_INVENTORY_MISMATCH');
+ }finally{await rm(f.root,{recursive:true,force:true});}
+});
+it('rejects stale receipts, missing/extra apps, escaping entries and unexpected release files',async()=>{
+ const f=await combinedReleaseFixture();try{
+  const {verifyWorkspaceRelease}=await import('../../../scripts/local/workspace-release-manifest');
+  const put=async(value:unknown)=>writeFile(join(f.root,'release.json'),JSON.stringify(value));
+  await put({...f.manifest,apps:{...f.manifest.apps,compat:f.manifest.apps.finance}});
+  await expect(verifyWorkspaceRelease(f.root)).rejects.toThrow('EXACT_COMBINED_RELEASE_REQUIRED');
+  await put({...f.manifest,jobs:{...f.manifest.jobs,receiptSha256:'c'.repeat(64)}});
+  await expect(verifyWorkspaceRelease(f.root)).rejects.toThrow('RELEASE_ARTIFACT_REFERENCE_MISMATCH');
+  await put(f.manifest);await writeFile(join(f.root,'unexpected'),'retain');
+  await expect(verifyWorkspaceRelease(f.root)).rejects.toThrow('RELEASE_TREE_MISMATCH');await rm(join(f.root,'unexpected'));
+  const file=join(f.root,'jobs/artifact.json'),receipt=JSON.parse(await readFile(file,'utf8'));
+  await writeFile(file,JSON.stringify({...receipt,entry:'../gateway/entry.mjs'}));
+  await expect(verifyWorkspaceRelease(f.root)).rejects.toThrow('RELEASE_ARTIFACT_PATH_INVALID');
+ }finally{await rm(f.root,{recursive:true,force:true});}
+});
+
+
+it('workspace scaffolding preserves an existing app host policy byte-for-byte across regeneration',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'erpx-proxy-source-'));
+ try{
+  const {ensureWorkspaceProxySource}=await import('../../../scripts/local/workspace-proxy-source');
+  await mkdir(join(root,'apps/account/src'),{recursive:true});await mkdir(join(root,'apps/launcher/src'),{recursive:true});
+  const reviewed='// Fictional reviewed host-only health boundary\nexport function proxy(request){return request.method === "HEAD" ? "owned-health" : "reject-host";}\n';
+  await writeFile(join(root,'apps/account/src/proxy.ts'),reviewed);
+  expect(ensureWorkspaceProxySource(root,'account')).toBe(false);
+  expect(await readFile(join(root,'apps/account/src/proxy.ts'),'utf8')).toBe(reviewed);
+  expect(ensureWorkspaceProxySource(root,'apps')).toBe(true);
+  const scaffold=await readFile(join(root,'apps/launcher/src/proxy.ts'),'utf8');expect(scaffold).toContain('appProxy("apps")');
+  expect(ensureWorkspaceProxySource(root,'apps')).toBe(false);
+  expect(await readFile(join(root,'apps/launcher/src/proxy.ts'),'utf8')).toBe(scaffold);
+ }finally{await rm(root,{recursive:true,force:true});}
+});

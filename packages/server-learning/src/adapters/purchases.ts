@@ -8,7 +8,7 @@ import {learningWorkerReferenceSourceReadLocks,learningWorkerReferenceWitness} f
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {isTransactionalSqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {workContextGuards,financialConstraintError} from "@erpx/server-workflow/public/commands";
+import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {learningPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";

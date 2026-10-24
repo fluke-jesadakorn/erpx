@@ -1,5 +1,5 @@
 import {BusinessRuleError} from "@erpx/server-shared/index";
-import type { JournalLineInput } from "@erpx/server-finance/public/finance";
+import type {JournalLineInput} from '@erpx/server-finance/public/finance';
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 
 export type PayrollAccounts = {

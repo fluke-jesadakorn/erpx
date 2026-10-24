@@ -5,7 +5,7 @@ import { canManagePeople, directoryOptions, personAccess } from "@erpx/server-pe
 import { staffSettings } from "@erpx/server-operations/public/staff-settings";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { organizationOverview } from "@erpx/server-organization/public/organization";
+import {organizationOverview} from '@erpx/server-organization/public/organization';
 import { memberProfile } from "@erpx/server-organization/public/member-directory";
 import { createMemberProfileViewApplication } from "@erpx/server-organization/application/member-profile-view";
 import type { MemberLevelHistory, MemberProfileReference } from "@erpx/server-organization/domain/member-profile-view";

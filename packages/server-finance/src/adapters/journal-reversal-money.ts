@@ -7,7 +7,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type SqlStatement} from '@er
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import {financePackageEnforcementMode,checkPurchasedCapability,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {snapshotMoney,snapshotMoneyCarry,snapshotMoneyReversal} from '@erpx/server-finance/adapters/company-money';
 import {requireFinanceMoneyScale} from '@erpx/server-finance/adapters/finance-money-policy';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';

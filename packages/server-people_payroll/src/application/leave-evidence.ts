@@ -1,7 +1,7 @@
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { AttachmentManifestItem } from '@erpx/server-files/public/attachments/types';
-import type { ApprovalView } from '@erpx/server-workflow/public/approvals';
+import type {ApprovalView} from '@erpx/server-workflow/public/approvals';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { leaveEvidencePurposes, type LeaveEvidencePurpose, type LeaveEvidencePolicy, type LeaveAttachmentTarget, parseLeaveEvidencePolicy } from '@erpx/server-people_payroll/domain/leave-evidence';
 export interface LeaveEvidenceRepository {

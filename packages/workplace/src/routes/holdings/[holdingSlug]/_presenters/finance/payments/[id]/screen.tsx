@@ -17,7 +17,7 @@ import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope,requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { getPayment } from "@erpx/server-finance/public/finance";
+import {getPayment} from '@erpx/server-finance/public/finance';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { ArrowLeft,ArrowUpRight } from "lucide-react";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";

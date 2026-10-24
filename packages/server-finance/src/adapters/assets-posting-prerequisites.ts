@@ -9,7 +9,8 @@ import {companyPurchaseReadLocks,checkPurchasedCapability,readPurchasedAccesses,
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import {commercePostingFinanceReferences} from '@erpx/server-finance/adapters/commerce-posting-setup';
 import {assetsFinancialOwner,requireAssetsFinancialAuthority} from '@erpx/server-finance/adapters/assets-financial-unit';

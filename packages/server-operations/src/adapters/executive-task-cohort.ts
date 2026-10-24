@@ -2,7 +2,7 @@ import { finalRootOwnerProjectionSources as collaborationProjectionSources } fro
 import { finalRootOwnerProjectionSources as projectsProjectionSources } from "@erpx/server-projects/public/final-root-owner-projection-sources";
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { participantSql } from "@erpx/server-workflow/public/approvals";
+import {participantSql} from '@erpx/server-workflow/public/approvals';
 import { socialPostScope } from "@erpx/server-collaboration/public/social-source";
 
 export const operationsMetrics = [

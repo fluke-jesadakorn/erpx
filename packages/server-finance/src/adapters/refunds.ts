@@ -22,7 +22,7 @@ import { requirePermission } from "@erpx/server-identity_access/public/iam-permi
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import type { WorkItem } from "@erpx/feature-work_projection/lib/work-item";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { snapshotMoney } from "@erpx/server-finance/public/company-money";

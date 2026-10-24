@@ -10,7 +10,8 @@ import {companyPurchaseReadLocks,readPurchasedAccesses,checkPurchasedCapability,
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {executeCommand,replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {validateCommercePostingFinanceReferences} from '@erpx/server-finance/public/commerce-posting-setup';
 import {requireExpensePostingFinanceAuthority,expensePostingFinanceReadLocks,expensePostingFinanceState,validateExpensePostingFinanceState,expensePostingEffectiveService} from '@erpx/server-finance/public/expense-posting-setup-sources';

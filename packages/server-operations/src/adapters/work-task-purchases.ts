@@ -12,7 +12,7 @@ import {projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-
 import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {workApprovalSettlementSources as approvals,workTaskApprovalSourceLocks} from '@erpx/server-workflow/public/work-package-obligation-sources';
 import {workTaskSocialReadPolicy,workTaskSocialReadScope} from '@erpx/server-collaboration/public/work-task-read-policy';
 import {workTaskSocialPurchasePredicate,workTaskSocialSourceLocks,workTaskSocialAudienceSourceLocks,workTaskSocialPurchaseSource} from '@erpx/server-collaboration/public/work-task-purchase-source';

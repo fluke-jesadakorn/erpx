@@ -1,5 +1,5 @@
 import "server-only";
-import {one,all,run} from "@erpx/server-pos/public/pos-core";
+import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 export function posCoreFinanceFacts(db:SqlDatabase){return {
 readFinancePeriods1:(facts:{companyId:string;date:string;date2:string;})=>all(db,"SELECT id FROM finance_periods WHERE company_id=? AND start_date<=? AND end_date>=? AND state='open' FOR SHARE",facts.companyId,facts.date,facts.date2),

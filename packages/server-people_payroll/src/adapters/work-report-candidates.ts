@@ -1,4 +1,4 @@
-import {expenseCompanyHistoryScope} from "@erpx/server-people_payroll/adapters/expense-record-purchases";
+import {expenseCompanyHistoryScope} from '@erpx/server-people_payroll/public/expense-company-history-scope';
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkReportCandidate} from "@erpx/server-work_projection/public/work-reports";

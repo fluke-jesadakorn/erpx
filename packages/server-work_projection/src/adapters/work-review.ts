@@ -1,11 +1,11 @@
 import "server-only";
 import { publicScope } from "@erpx/server-identity_access/public/authorization";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import { employeeRequestDetail } from "@erpx/server-records/public/employee-requests";
+import {employeeRequestDetail} from '@erpx/server-records/public/employee-requests';
 import { expenseDetail } from "@erpx/server-people_payroll/public/expenses";
 import { getLeave } from "@erpx/server-people_payroll/public/leave";
 import { taskDetail } from "@erpx/server-operations/public/staff-tasks";
-import { resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { attachmentContentUrl } from "@erpx/feature-files/lib/attachment-client";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { calculateLeaveDays, dateRange, addLeaveDays, leaveCreateSchema, leavePreviewSchema, type LeaveCalculationDay } from "@erpx/feature-people_payroll/lib/leave-self-service";
 import type { activeStaff, requireCompanyAuthority } from "@erpx/server-operations/public/staff-policy";
-import type { openApproval } from "@erpx/server-workflow/public/approvals";
-import type { peopleRequestRoute } from "@erpx/server-organization/public/department-authority";
+import type {openApproval} from '@erpx/server-workflow/public/approval-planning';
+import type {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
 import type { availableLeaveEvidence } from "@erpx/server-people_payroll/public/leave-evidence";
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';

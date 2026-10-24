@@ -3380,6 +3380,7 @@
 @source "../../../../packages/server-finance/src/adapters/finance-intercompany-pairs.ts";
 @source "../../../../packages/server-finance/src/adapters/finance-intercompany.ts";
 @source "../../../../packages/server-finance/src/adapters/finance-invoice-lines.ts";
+@source "../../../../packages/server-finance/src/adapters/finance-invoice-read.ts";
 @source "../../../../packages/server-finance/src/adapters/finance-manual-drafts.ts";
 @source "../../../../packages/server-finance/src/adapters/finance-money-policy.ts";
 @source "../../../../packages/server-finance/src/adapters/finance-owned-reversal.ts";
@@ -3411,6 +3412,7 @@
 @source "../../../../packages/server-finance/src/adapters/inventory-read-projections.ts";
 @source "../../../../packages/server-finance/src/adapters/inventory-transfers-sources.ts";
 @source "../../../../packages/server-finance/src/adapters/inventory-transit-sources.ts";
+@source "../../../../packages/server-finance/src/adapters/invoice-line-read.ts";
 @source "../../../../packages/server-finance/src/adapters/invoice-payment-evidence.ts";
 @source "../../../../packages/server-finance/src/adapters/journal-reversal-money.ts";
 @source "../../../../packages/server-finance/src/adapters/landed-cost-receipt-purchases.ts";
@@ -3732,6 +3734,7 @@
 @source "../../../../packages/server-finance/src/public/finance-intercompany-pairs.ts";
 @source "../../../../packages/server-finance/src/public/finance-intercompany.ts";
 @source "../../../../packages/server-finance/src/public/finance-invoice-lines.ts";
+@source "../../../../packages/server-finance/src/public/finance-invoice-read.ts";
 @source "../../../../packages/server-finance/src/public/finance-manual-drafts.ts";
 @source "../../../../packages/server-finance/src/public/finance-money-policy.ts";
 @source "../../../../packages/server-finance/src/public/finance-owned-reversal.ts";
@@ -3762,6 +3765,7 @@
 @source "../../../../packages/server-finance/src/public/inventory-read-projections.ts";
 @source "../../../../packages/server-finance/src/public/inventory-transfers-sources.ts";
 @source "../../../../packages/server-finance/src/public/inventory-transit-sources.ts";
+@source "../../../../packages/server-finance/src/public/invoice-line-read.ts";
 @source "../../../../packages/server-finance/src/public/invoice-payment-evidence.ts";
 @source "../../../../packages/server-finance/src/public/landed-cost-receipt-purchases.ts";
 @source "../../../../packages/server-finance/src/public/last-audit-owner-projection-sources.ts";
@@ -5034,6 +5038,7 @@
 @source "../../../../packages/server-organization/src/adapters/commercial-usage-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/company-acceptance-result-projection.ts";
 @source "../../../../packages/server-organization/src/adapters/company-business-acceptance.ts";
+@source "../../../../packages/server-organization/src/adapters/department-authority-reads.ts";
 @source "../../../../packages/server-organization/src/adapters/department-authority.ts";
 @source "../../../../packages/server-organization/src/adapters/department-decisions.ts";
 @source "../../../../packages/server-organization/src/adapters/directory-operation-facts.ts";
@@ -5073,6 +5078,8 @@
 @source "../../../../packages/server-organization/src/adapters/operations-staff-settings-facts.ts";
 @source "../../../../packages/server-organization/src/adapters/organization-channels.ts";
 @source "../../../../packages/server-organization/src/adapters/organization-drafts.ts";
+@source "../../../../packages/server-organization/src/adapters/organization-graph-guard.ts";
+@source "../../../../packages/server-organization/src/adapters/organization-roster-read.ts";
 @source "../../../../packages/server-organization/src/adapters/organization-work.ts";
 @source "../../../../packages/server-organization/src/adapters/organization.ts";
 @source "../../../../packages/server-organization/src/adapters/payroll-owner-facts.ts";
@@ -5175,6 +5182,7 @@
 @source "../../../../packages/server-organization/src/public/commercial-usage-facts.ts";
 @source "../../../../packages/server-organization/src/public/company-acceptance-result-projection.ts";
 @source "../../../../packages/server-organization/src/public/company-business-acceptance.ts";
+@source "../../../../packages/server-organization/src/public/department-authority-reads.ts";
 @source "../../../../packages/server-organization/src/public/department-authority.ts";
 @source "../../../../packages/server-organization/src/public/department-decisions.ts";
 @source "../../../../packages/server-organization/src/public/directory-operation-facts.ts";
@@ -5215,6 +5223,8 @@
 @source "../../../../packages/server-organization/src/public/organization-access.ts";
 @source "../../../../packages/server-organization/src/public/organization-channels.ts";
 @source "../../../../packages/server-organization/src/public/organization-drafts.ts";
+@source "../../../../packages/server-organization/src/public/organization-graph-guard.ts";
+@source "../../../../packages/server-organization/src/public/organization-roster-read.ts";
 @source "../../../../packages/server-organization/src/public/organization-work.ts";
 @source "../../../../packages/server-organization/src/public/organization.ts";
 @source "../../../../packages/server-organization/src/public/payroll-owner-facts.ts";
@@ -5310,6 +5320,7 @@
 @source "../../../../packages/server-people_payroll/src/adapters/expense-batch-facts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/expense-command-policy.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/expense-command-port.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/expense-company-history-scope.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/expense-drafts.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/expense-payment-cancellation-sources.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/expense-payment-cancellation.ts";
@@ -5439,6 +5450,7 @@
 @source "../../../../packages/server-people_payroll/src/adapters/roster-presentation.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/roster-purchases.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/self-service-product-entry.ts";
+@source "../../../../packages/server-people_payroll/src/adapters/spending-template-read.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/spending-templates.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/talent-package-obligations.ts";
 @source "../../../../packages/server-people_payroll/src/adapters/technology-provisioning-facts.ts";
@@ -5592,6 +5604,7 @@
 @source "../../../../packages/server-people_payroll/src/public/expense-ai-source.ts";
 @source "../../../../packages/server-people_payroll/src/public/expense-ai.ts";
 @source "../../../../packages/server-people_payroll/src/public/expense-command-policy.ts";
+@source "../../../../packages/server-people_payroll/src/public/expense-company-history-scope.ts";
 @source "../../../../packages/server-people_payroll/src/public/expense-payments.ts";
 @source "../../../../packages/server-people_payroll/src/public/expense-posting-setup-sources.ts";
 @source "../../../../packages/server-people_payroll/src/public/expense-purchases.ts";
@@ -5700,6 +5713,7 @@
 @source "../../../../packages/server-people_payroll/src/public/records-request-person-projection.ts";
 @source "../../../../packages/server-people_payroll/src/public/records-request-preview-facts.ts";
 @source "../../../../packages/server-people_payroll/src/public/records-self-service-owned-facts.ts";
+@source "../../../../packages/server-people_payroll/src/public/retirement-clearance-policy.ts";
 @source "../../../../packages/server-people_payroll/src/public/retirement-clearance.ts";
 @source "../../../../packages/server-people_payroll/src/public/roster-position-exit.ts";
 @source "../../../../packages/server-people_payroll/src/public/roster-presentation.ts";
@@ -5711,6 +5725,7 @@
 @source "../../../../packages/server-people_payroll/src/public/rules/project-worker-startup-entry.ts";
 @source "../../../../packages/server-people_payroll/src/public/rules/self-service-product-entry.ts";
 @source "../../../../packages/server-people_payroll/src/public/self-service-product-entry.ts";
+@source "../../../../packages/server-people_payroll/src/public/spending-template-read.ts";
 @source "../../../../packages/server-people_payroll/src/public/spending-templates.ts";
 @source "../../../../packages/server-people_payroll/src/public/talent-package-obligations.ts";
 @source "../../../../packages/server-people_payroll/src/public/technology-provisioning-facts.ts";
@@ -6286,6 +6301,7 @@
 @source "../../../../packages/server-records/src/adapters/records.ts";
 @source "../../../../packages/server-records/src/adapters/request-administration.ts";
 @source "../../../../packages/server-records/src/adapters/request-ai.ts";
+@source "../../../../packages/server-records/src/adapters/request-override-read.ts";
 @source "../../../../packages/server-records/src/adapters/request-page.ts";
 @source "../../../../packages/server-records/src/adapters/request-preview.ts";
 @source "../../../../packages/server-records/src/adapters/self-service.ts";
@@ -6333,6 +6349,7 @@
 @source "../../../../packages/server-records/src/public/records.ts";
 @source "../../../../packages/server-records/src/public/request-administration.ts";
 @source "../../../../packages/server-records/src/public/request-ai.ts";
+@source "../../../../packages/server-records/src/public/request-override-read.ts";
 @source "../../../../packages/server-records/src/public/request-page.ts";
 @source "../../../../packages/server-records/src/public/request-preview.ts";
 @source "../../../../packages/server-records/src/public/self-service.ts";
@@ -6390,6 +6407,7 @@
 @source "../../../../packages/server-runtime/src/adapters/runtime/read-request.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/redis-cache.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/resources.ts";
+@source "../../../../packages/server-runtime/src/adapters/runtime/sql.ts";
 @source "../../../../packages/server-runtime/src/adapters/runtime/types.ts";
 @source "../../../../packages/server-runtime/src/adapters/simulation-only-adapters.ts";
 @source "../../../../packages/server-runtime/src/application/administration.ts";
@@ -6488,6 +6506,7 @@
 @source "../../../../packages/server-runtime/src/public/runtime/redis-cache.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/request-memo.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/resources.ts";
+@source "../../../../packages/server-runtime/src/public/runtime/sql.ts";
 @source "../../../../packages/server-runtime/src/public/runtime/types.ts";
 @source "../../../../packages/server-runtime/src/public/simulation-only-adapters.ts";
 @source "../../../../packages/server-sales/src/adapters/calendar-customer-followups-facts.ts";
@@ -6572,12 +6591,18 @@
 @source "../../../../packages/server-support/src/adapters/service-intake.ts";
 @source "../../../../packages/server-support/src/adapters/service-package-obligations.ts";
 @source "../../../../packages/server-support/src/adapters/service-team-options.ts";
+@source "../../../../packages/server-support/src/adapters/service-team-reads.ts";
 @source "../../../../packages/server-support/src/adapters/service-teams.ts";
 @source "../../../../packages/server-support/src/adapters/support-evidence.ts";
+@source "../../../../packages/server-support/src/adapters/support-incidents-notification-sources.ts";
 @source "../../../../packages/server-support/src/adapters/support-incidents.ts";
+@source "../../../../packages/server-support/src/adapters/support-notification-sources.ts";
 @source "../../../../packages/server-support/src/adapters/support-recipient.ts";
+@source "../../../../packages/server-support/src/adapters/support-sessions-notification-sources.ts";
 @source "../../../../packages/server-support/src/adapters/support-sessions.ts";
+@source "../../../../packages/server-support/src/adapters/support-sla-alerts-notification-sources.ts";
 @source "../../../../packages/server-support/src/adapters/support-sla-alerts.ts";
+@source "../../../../packages/server-support/src/adapters/support-sla-notification-sources.ts";
 @source "../../../../packages/server-support/src/adapters/support-sla.ts";
 @source "../../../../packages/server-support/src/adapters/support.ts";
 @source "../../../../packages/server-support/src/adapters/ticket-portal-availability.ts";
@@ -6633,6 +6658,7 @@
 @source "../../../../packages/server-support/src/public/service-intake.ts";
 @source "../../../../packages/server-support/src/public/service-package-obligations.ts";
 @source "../../../../packages/server-support/src/public/service-team-options.ts";
+@source "../../../../packages/server-support/src/public/service-team-reads.ts";
 @source "../../../../packages/server-support/src/public/service-teams.ts";
 @source "../../../../packages/server-support/src/public/support-evidence.ts";
 @source "../../../../packages/server-support/src/public/support-incidents.ts";
@@ -6867,6 +6893,7 @@
 @source "../../../../packages/server-workflow/src/adapters/agent-bootstrap-assertions.ts";
 @source "../../../../packages/server-workflow/src/adapters/approval-administration.ts";
 @source "../../../../packages/server-workflow/src/adapters/approval-participant-projection.ts";
+@source "../../../../packages/server-workflow/src/adapters/approval-planning.ts";
 @source "../../../../packages/server-workflow/src/adapters/approvals.ts";
 @source "../../../../packages/server-workflow/src/adapters/beta-invitation-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/calendar-index-facts.ts";
@@ -6876,6 +6903,7 @@
 @source "../../../../packages/server-workflow/src/adapters/collaboration-notification-snapshot-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/collaboration-social-sources.ts";
 @source "../../../../packages/server-workflow/src/adapters/command-assertions.ts";
+@source "../../../../packages/server-workflow/src/adapters/command-guards.ts";
 @source "../../../../packages/server-workflow/src/adapters/command-policies.ts";
 @source "../../../../packages/server-workflow/src/adapters/commands.ts";
 @source "../../../../packages/server-workflow/src/adapters/commercial-owner-projection-sources.ts";
@@ -6894,6 +6922,9 @@
 @source "../../../../packages/server-workflow/src/adapters/finance-owner-decision-effects.ts";
 @source "../../../../packages/server-workflow/src/adapters/finance-refund-notifications.ts";
 @source "../../../../packages/server-workflow/src/adapters/flow-access.ts";
+@source "../../../../packages/server-workflow/src/adapters/flow-command-planning.ts";
+@source "../../../../packages/server-workflow/src/adapters/flow-planning-ports.ts";
+@source "../../../../packages/server-workflow/src/adapters/flow-record.ts";
 @source "../../../../packages/server-workflow/src/adapters/flow-routing.ts";
 @source "../../../../packages/server-workflow/src/adapters/flow-settings-facts.ts";
 @source "../../../../packages/server-workflow/src/adapters/flow-work.ts";
@@ -6951,6 +6982,7 @@
 @source "../../../../packages/server-workflow/src/public/agent-bootstrap-assertions.ts";
 @source "../../../../packages/server-workflow/src/public/approval-administration.ts";
 @source "../../../../packages/server-workflow/src/public/approval-participant-projection.ts";
+@source "../../../../packages/server-workflow/src/public/approval-planning.ts";
 @source "../../../../packages/server-workflow/src/public/approvals.ts";
 @source "../../../../packages/server-workflow/src/public/beta-invitation-sources.ts";
 @source "../../../../packages/server-workflow/src/public/calendar-index-facts.ts";
@@ -6961,6 +6993,7 @@
 @source "../../../../packages/server-workflow/src/public/collaboration-social-sources.ts";
 @source "../../../../packages/server-workflow/src/public/command-assertion-effects.ts";
 @source "../../../../packages/server-workflow/src/public/command-assertions.ts";
+@source "../../../../packages/server-workflow/src/public/command-guards.ts";
 @source "../../../../packages/server-workflow/src/public/command-policies.ts";
 @source "../../../../packages/server-workflow/src/public/commands.ts";
 @source "../../../../packages/server-workflow/src/public/commercial-owner-projection-sources.ts";
@@ -6979,6 +7012,8 @@
 @source "../../../../packages/server-workflow/src/public/finance-owner-decision-effects.ts";
 @source "../../../../packages/server-workflow/src/public/finance-refund-notifications.ts";
 @source "../../../../packages/server-workflow/src/public/flow-access.ts";
+@source "../../../../packages/server-workflow/src/public/flow-command-planning.ts";
+@source "../../../../packages/server-workflow/src/public/flow-record.ts";
 @source "../../../../packages/server-workflow/src/public/flow-routing.ts";
 @source "../../../../packages/server-workflow/src/public/flow-settings-facts.ts";
 @source "../../../../packages/server-workflow/src/public/flow-work.ts";

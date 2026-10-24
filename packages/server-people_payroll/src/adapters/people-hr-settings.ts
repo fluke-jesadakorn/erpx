@@ -6,7 +6,7 @@ import { iamActorFromWork } from "@erpx/server-identity_access/public/iam-contex
 
 import {iamOverview} from '@erpx/server-identity_access/public/iam-service-reads';
 import { leaveAdministration } from "@erpx/server-people_payroll/adapters/leave-self-service";
-import { organizationOverview } from "@erpx/server-organization/public/organization";
+import {organizationOverview} from '@erpx/server-organization/public/organization';
 import { peopleLifecycleData } from "@erpx/server-people_payroll/adapters/people-lifecycle";
 import { directoryOptions } from "@erpx/server-people_payroll/adapters/people-directory";
 import { payrollOptions } from "@erpx/server-people_payroll/adapters/people-payroll";

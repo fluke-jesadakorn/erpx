@@ -4,9 +4,9 @@ import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {deliveryEvidence} from "../../support/helpers/delivery-evidence";
-import {assignFlowPrimary,resolveFlow} from "@erpx/server-workflow/public/flow-routing";
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from "@erpx/server-commerce/public/commerce";
-import {postJournal} from "@erpx/server-finance/public/finance";
+import {postJournal} from '@erpx/server-finance/public/finance';
 import {createLandedCost,landedCostDetail,transitionLandedCost} from "@erpx/server-inventory/public/inventory-landed-costs";
 
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));

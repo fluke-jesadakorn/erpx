@@ -27,7 +27,7 @@ import {
 } from "@erpx/server-finance/public/finance-instruments";
 import { setFinanceCompanyTool } from "@erpx/server-finance/public/finance-company-tools";
 import {scheduleFinanceDraft,drainFinanceDueDrafts,decideFinanceDueDraft} from "@erpx/server-finance/public/finance-due-drafts";
-import { trialBalance } from "@erpx/server-finance/public/finance";
+import {trialBalance} from '@erpx/server-finance/public/finance';
 import { financePackageObligations } from "@erpx/server-finance/public/package-obligations";
 import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
 import { packageGrantStore, packageGrantRevision, readCompanyPackageGrants } from "@erpx/server-commercial/public/package-grants";

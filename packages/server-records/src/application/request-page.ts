@@ -2,7 +2,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import type { inServiceWorkspace } from "@erpx/server-support/public/service-access";
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { RecordsCommands } from '@erpx/server-records/domain/commands';
+
 type Tail<Value extends unknown[]> = Value extends [
     unknown,
     ...infer Rest
@@ -32,7 +32,7 @@ export interface RequestPagePorts<Effect> {
     repository: RequestPageRepository;
     clock: Clock;
     identifiers: IdentifierSource;
-    commands: RecordsCommands<Effect>;
+
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     batch(effects: Effect[]): Promise<unknown>;

@@ -13,7 +13,7 @@ import { businessDate } from "@erpx/server-pos/public/rules/pos";
 import { calculateInvoiceLines } from "@erpx/server-finance/public/rules/finance-invoice-lines";
 import { minorToDecimal } from "@erpx/feature-finance/lib/finance-money";
 import type { SalesDefaults } from "@erpx/server-finance/public/sales";
-import type { FinanceRow } from "@erpx/server-finance/public/finance";
+import type {FinanceRow} from '@erpx/server-finance/public/finance';
 import styles from "@erpx/feature-finance/components/sales-workspace.module.css";
 function useSalesCommand(base: string, invoiceForm?: {current:HTMLFormElement|null}, invoiceDestination?:(id:unknown)=>string) {
   const router=useRouter(),trackCommandPending=useFinanceDraftCommandPending(),source=useRef<{base:string}|null>({base}),commands=useRef<FinanceSalesCommands|null>(null),destinationRef=useRef<((data:Record<string,unknown>)=>string)|undefined>(undefined),pendingToken=useRef({}),pendingCompletion=useRef<ReturnType<typeof captureFinanceForm>|undefined>(undefined),busy=useRef(false),invoiceRecovery=!!invoiceForm;

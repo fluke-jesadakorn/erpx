@@ -9,9 +9,9 @@ import {financeSourceDocumentBackdrop,financeDocumentPresentationAccess,financeD
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {journalDetail,ledgerWorkspace} from "@erpx/server-finance/public/ledger";
 import {journalRecordWorkspace} from "@erpx/server-finance/public/record-presentation";
-import {createJournal,createJournalSchema} from "@erpx/server-finance/public/finance";
+import {createJournal,createJournalSchema} from '@erpx/server-finance/public/finance';
 import {enrichFlowWork} from "@erpx/server-workflow/public/flow-work";
-import {resolveFlow} from "@erpx/server-workflow/public/flow-routing";
+import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {withFinanceFlowAssignment} from "@erpx/server-finance/public/document-purchases";
 import {createAttachmentSet,reserveAttachmentFile,completeAttachmentUpload,drainAttachmentScans,bindRecordAttachmentSet,attachmentContent,linkExistingAttachment} from "@erpx/server-files/public/attachments/service";
 import {assetPage,assetOptions} from "@erpx/server-finance/public/finance-assets";

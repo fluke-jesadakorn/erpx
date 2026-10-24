@@ -6,7 +6,7 @@ import { activeStaff } from "@erpx/server-operations/public/staff-policy";
 import { inServiceWorkspace } from "@erpx/server-support/public/service-access";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';
-import { replayCommand as nativeReplayCommand, executeCommand as nativeExecuteCommand } from '@erpx/server-workflow/public/commands';
+
 import { ApiError as NativeApiError } from '@erpx/server-runtime/public/http';
 import { createRequestPageApplication, type RequestPageRepository } from '@erpx/server-records/application/request-page';
 import { BusinessRuleError } from '@erpx/server-shared/index';
@@ -15,10 +15,10 @@ function application(provided?: SqlDatabase) {
     let database = provided!;
     const repository: RequestPageRepository = { readRequestPageOptionsNodesResultcompanySettings(...args) { return RequestPageOrganizationFacts(database).readRequestPageOptionsNodesResultcompanySettings(...args); },
         readRequestPageOptionsNodesResultcompanySettings2(...args) { return RequestPageCommerceOwnedFacts(database).readRequestPageOptionsNodesResultcompanySettings2(...args); } };
-    return createRequestPageApplication<SqlStatement>({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
+    return createRequestPageApplication<SqlStatement>({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), inServiceWorkspace: (...args) => inServiceWorkspace(...args) });
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, activeStaff: (...args) => fromNative(() => activeStaff(database, ...args)), inServiceWorkspace: (...args) => inServiceWorkspace(...args)});
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {

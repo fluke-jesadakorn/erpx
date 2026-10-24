@@ -12,7 +12,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand} from "@erpx/server-workflow/public/commands";
 import {supplierExportReceipt} from "@erpx/server-workflow/public/supplier-export-receipt";
-import {prepareJournal} from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import {assertControlledThaiTaxPaymentOwner} from "@erpx/server-finance/public/finance-withholding";
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";
 import {attachmentPurposeFacts} from "@erpx/server-files/public/attachment-purpose-facts";

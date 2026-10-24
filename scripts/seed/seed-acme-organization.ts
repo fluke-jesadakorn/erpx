@@ -6,7 +6,7 @@ import { hashPassword } from "better-auth/crypto";
 import { getLocalProxy } from "../local/fixtures";
 import { businessRoles } from "@erpx/feature-identity_access/lib/business-roles";
 import { reportingIssues } from "@erpx/feature-organization/lib/organization";
-import { organizationRoster } from "@erpx/server-organization/public/organization";
+import {organizationRoster} from '@erpx/server-organization/public/organization-roster-read';
 import { expenseRoute, spendingUsers } from "@erpx/server-people_payroll/public/expense-routing";
 import { ensureOrganizationChannels, organizationMemberSql } from "@erpx/server-organization/public/organization-channels";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/adapters/runtime/types";

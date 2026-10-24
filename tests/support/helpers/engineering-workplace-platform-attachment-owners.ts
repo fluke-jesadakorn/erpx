@@ -8,7 +8,7 @@ import {iamActorFromWork} from "@erpx/server-identity_access/public/iam-context"
 import {grantIamAccess,grantInput} from "@erpx/server-identity_access/public/iam-service";
 import {bindIamMigrationEvidence,bindIamReviewEvidence,bindProvisioningEvidence} from "@erpx/server-platform_administration/public/system-evidence";
 import {bindReleaseEvidence} from "@erpx/server-platform_administration/public/release-acceptance";
-import {organizationNodeChangeSchema,saveOrganizationNodeChange,decideOrganizationNodeChange} from "@erpx/server-organization/public/organization";
+import {organizationNodeChangeSchema,saveOrganizationNodeChange,decideOrganizationNodeChange} from '@erpx/server-organization/public/organization';
 import {savePostDraft,publishPost,postDraftSchema} from "@erpx/server-collaboration/public/social-home";
 import {saveMaster,saveOrder,orderSchema} from "@erpx/server-commerce/public/commerce";
 import {createSupportTicket} from "@erpx/server-support/public/support";

@@ -4,17 +4,17 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./console-retirement": "./src/console-retirement.ts",
-    "./development-module-admission": "./src/development-module-admission.ts",
     "./workforce-self-service-entry": "./src/workforce-self-service-entry.ts",
     "./ownership.json": "./src/ownership.json",
+    "./work-social-api": "./src/work-social-api.ts",
+    "./console-retirement": "./src/console-retirement.ts",
     "./apps": "./src/apps.ts",
     "./product-registry": "./src/product-registry.ts",
     "./next-routes": "./src/next-routes.ts",
     "./social-post-entry": "./src/social-post-entry.ts",
     "./command-flow": "./src/command-flow.ts",
     "./ownership": "./src/ownership.ts",
-    "./work-social-api": "./src/work-social-api.ts"
+    "./development-module-admission": "./src/development-module-admission.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

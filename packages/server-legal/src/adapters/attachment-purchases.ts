@@ -7,7 +7,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finance-transactions';
 import {legalPackageEnforcementMode,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,observePurchaseResults} from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';

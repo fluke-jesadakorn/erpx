@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { createChart } from "@erpx/server-finance/public/finance";
+import {createChart} from '@erpx/server-finance/public/finance';
 import { bookRuleSchema, prepareBookRule, decideBookRule } from "@erpx/server-finance/public/finance-books";
 
 /** Pre-migration Company book fixture. Original owner commands prepare and

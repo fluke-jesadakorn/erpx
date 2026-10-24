@@ -14,12 +14,7 @@ import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {
-  approvalView,
-  closeApprovals,
-  openApproval,
-  prepareDecision,
-} from "@erpx/server-workflow/public/approvals";
+import {approvalView,closeApprovals,openApproval,prepareDecision} from '@erpx/server-workflow/public/approval-planning';
 import { activeStaff, notification, staffGuard } from "@erpx/server-operations/public/staff-policy";
 import {
   expenseRoute,
@@ -29,8 +24,8 @@ import {
 import { expenseRequirements } from "@erpx/server-people_payroll/adapters/expense-drafts";
 import { expenseFromDatabase, type ExpenseRow } from "@erpx/server-people_payroll/adapters/expenses";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import { decimalToMinor } from "@erpx/server-finance/public/finance";
-import { resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import {decimalToMinor} from '@erpx/server-finance/public/finance';
+import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { attachmentsV2Readable } from "@erpx/server-files/public/attachments/feature";
 
 export const expenseAccountingSchema = z.object({

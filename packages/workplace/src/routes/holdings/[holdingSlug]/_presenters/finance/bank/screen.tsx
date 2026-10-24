@@ -12,7 +12,7 @@ import { MoneyAmount } from "@erpx/feature-finance/components/money/currency-pro
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { bankWorkspace, listCharts } from "@erpx/server-finance/public/finance";
+import {bankWorkspace,listCharts} from '@erpx/server-finance/public/finance';
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { FilterBar } from "@erpx/ui/components/foundation";
 import { bankAutomationWorkspace } from "@erpx/server-finance/public/finance-bank-automation";

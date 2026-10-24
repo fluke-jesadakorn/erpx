@@ -33,12 +33,6 @@ export async function requireExpenseWorkspaceRecordRead(database:SqlDatabase,act
  const {expenseFromDatabase}=await import('@erpx/server-people_payroll/adapters/expenses');await expenseFromDatabase(database,actor,row);
 }
 
-/** Code-owned Company input, clock alias and capability; no SQL identifiers from callers. */
-export async function expenseCompanyHistoryScope(database:SqlDatabase,companyId:string,alias:"finance_expenses"|"e"="finance_expenses"){
- const mode=await peoplePackageEnforcementMode();if(mode!=="enforced"){if(mode==="shadow")await readPurchasedAccess(database,mode,{companyId,capability:"people.expenses"});return "TRUE";}
- return `EXISTS(WITH expense_company_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM expense_company_clock WHERE ${purchasedCapabilityPredicate(`${alias}.company_id`,"people.expenses","history","expense_company_clock.now_ms")})`;
-}
-
 /** The native current-reviewer policy is asynchronous. Its permitted IDs are
  * usable ONLY while this same owner unit still holds all native source leases;
  * the callback executes the before-limit SQL before those leases are released. */

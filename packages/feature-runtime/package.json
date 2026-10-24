@@ -35,6 +35,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@erpx/contracts": "workspace:*",
     "@erpx/feature-people_payroll": "workspace:*",
     "@erpx/feature-records": "workspace:*",
     "@erpx/feature-shared": "workspace:*",

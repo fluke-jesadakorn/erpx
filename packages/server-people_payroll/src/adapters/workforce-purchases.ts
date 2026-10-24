@@ -6,7 +6,7 @@ import {isTransactionalSqlDatabase} from "@erpx/server-runtime/public/runtime/ty
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {financialConstraintError} from "@erpx/server-workflow/public/commands";
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {peoplePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess,companyPurchaseReadLocks,holdingPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate,packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";

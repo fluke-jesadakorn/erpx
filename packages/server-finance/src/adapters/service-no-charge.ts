@@ -7,7 +7,8 @@ import {holdingResources} from '../../../../packages/server-runtime/src/public/r
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {executeCommand,replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {fieldServiceFinanceSourceReadLocks} from '@erpx/server-field_service/public/finance-record-sources';
 import {companyPurchaseReadLocks,financePackageEnforcementMode,checkPurchasedCapability} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';

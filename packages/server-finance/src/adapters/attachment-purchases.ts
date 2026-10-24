@@ -12,7 +12,7 @@ import {inventoryFinanceSourceReadLocks} from "@erpx/server-inventory/public/fin
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards} from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {requireFinanceCurrentAuthority,financeReferenceCapabilities} from "@erpx/server-finance/adapters/purchase-boundary";
 import {financeDeferredEffectStatements} from "@erpx/server-finance/adapters/finance-transactions";
 import {groupEditionPurchases,groupRecordPurchases} from "@erpx/server-finance/adapters/group-purchase-sources";

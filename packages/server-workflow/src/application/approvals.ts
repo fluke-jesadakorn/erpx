@@ -1,11 +1,11 @@
 import { hasWorkflowPermission } from "@erpx/feature-identity_access/lib/permissions";
 import type { ApprovalRoute, RecordScope, StaffActor } from "@erpx/server-operations/public/staff-policy";
-import type { departmentRoute } from "@erpx/server-organization/public/department-authority";
+import type {departmentRoute} from '@erpx/server-organization/public/department-authority-reads';
 import type { personIdentityIds } from "@erpx/server-identity_access/public/iam-person";
 import type { currentPersonPrincipals } from "@erpx/server-identity_access/public/iam-person";
-import type { appointedHrEligible } from "@erpx/server-organization/public/department-authority";
-import type { departmentStepEligible } from "@erpx/server-organization/public/department-authority";
-import type { organizationGuard } from "@erpx/server-organization/public/organization";
+import type {appointedHrEligible} from '@erpx/server-organization/public/department-authority-reads';
+import type {departmentStepEligible} from '@erpx/server-organization/public/department-authority-reads';
+import type {organizationGuard} from '@erpx/server-organization/public/organization-graph-guard';
 import type { expensePoolCandidates } from "@erpx/server-people_payroll/public/expense-routing";
 import type { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";
 import type { legacyExpenseRoute } from "@erpx/server-people_payroll/public/expense-routing";
@@ -146,9 +146,9 @@ export interface ApprovalsPorts<Effect> {
     requestRoute(...args: Tail<Parameters<typeof requestRoute>>): PortResult<ReturnType<typeof requestRoute>, Effect>;
     staffGuard(...args: Tail<Parameters<typeof staffGuard>>): PortResult<ReturnType<typeof staffGuard>, Effect>;
 }
-export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>) {
-    const r = ports.repository;
-    async function canOverrideStaffStep(context: {
+export type ApprovalPlanningPorts<Effect>=Omit<ApprovalsPorts<Effect>,'commands'>;
+export function createApprovalPlanningApplication<Effect>(ports:ApprovalPlanningPorts<Effect>){const r = ports.repository;
+async function canOverrideStaffStep(context: {
         companyId: string;
         branchId: string | null;
         departmentId: string | null;
@@ -167,12 +167,12 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
         const role = await r.readCanOverrideStaffStepRole(actor.assignmentId, context.companyId, actor.userId, context.branchId, context.departmentId);
         return !!(appointed || role);
     }
-    async function canOverrideDepartment(instance: ApprovalInstance, step: ApprovalStep, actor: Pick<StaffActor, "companyId" | "userId" | "role" | "assignmentId">) {
+async function canOverrideDepartment(instance: ApprovalInstance, step: ApprovalStep, actor: Pick<StaffActor, "companyId" | "userId" | "role" | "assignmentId">) {
         if (instance.state !== "pending" || !(step.stage === "department_approval" || step.authority === "department"))
             return false;
         return canOverrideStaffStep({ companyId: instance.company_id, branchId: instance.branch_id, departmentId: instance.department_id, requesterUserId: instance.requester_user_id, preparerUserId: instance.assignee_user_id, assignedUserId: step.approver_user_id }, actor);
     }
-    async function staffOverrideGuards(key: string, context: {
+async function staffOverrideGuards(key: string, context: {
         companyId: string;
         branchId: string | null;
         departmentId: string | null;
@@ -186,13 +186,13 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
             r.guard5(key, "override-independent", actor.userId, context.requesterUserId, context.companyId, context.preparerUserId, actor.userId, context.preparerUserId, context.companyId),
             ports.staffGuard(key, context.companyId, actor.userId, "override-staff")];
     }
-    async function currentApproval(kind: ApprovalKind, id: string, companyId: string): Promise<ApprovalInstance | null> {
+async function currentApproval(kind: ApprovalKind, id: string, companyId: string): Promise<ApprovalInstance | null> {
         return r.readCurrentApprovalEffect(kind, id, companyId);
     }
-    async function stepsFor(instance: ApprovalInstance) {
+async function stepsFor(instance: ApprovalInstance) {
         return (await r.readStepsForEffect(instance.company_id, instance.id)).results;
     }
-    async function taskRoute(scope: RecordScope, creator: string, assignee: string, phase: ApprovalPhase, users: string[], serviceTask = false): Promise<ApprovalRoute> {
+async function taskRoute(scope: RecordScope, creator: string, assignee: string, phase: ApprovalPhase, users: string[], serviceTask = false): Promise<ApprovalRoute> {
         try {
             await ports.activeStaff(scope.company_id, assignee);
             if (users.length > 20 || new Set(users).size !== users.length)
@@ -220,7 +220,7 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
             return { scope, steps: [], blockedReason: error.message };
         }
     }
-    async function openApproval(key: string, kind: ApprovalKind, id: string, phase: ApprovalPhase, requester: string, assignee: string | null, route: ApprovalRoute, recordVersion: number): Promise<{
+async function openApproval(key: string, kind: ApprovalKind, id: string, phase: ApprovalPhase, requester: string, assignee: string | null, route: ApprovalRoute, recordVersion: number): Promise<{
         statements: Effect[];
         instanceId: string;
     }> {
@@ -253,7 +253,7 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
                 statements.push(ports.notification(route.scope, userId, kind, id, recordVersion, `${phase === "start" ? "Start" : phase === "completion" ? "Completion" : "Request"} approval needs your decision`));
         return { statements, instanceId };
     }
-    async function initializeLegacyApproval(instance: ApprovalInstance): Promise<ApprovalInstance> {
+async function initializeLegacyApproval(instance: ApprovalInstance): Promise<ApprovalInstance> {
         if (["task", "overtime", "leave_cancellation", "legal"].includes(instance.record_type) || instance.state !== "blocked")
             return instance;
         if ((await stepsFor(instance)).length)
@@ -321,7 +321,7 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
         }
         return ((await currentApproval(instance.record_type, instance.record_id, instance.company_id)) ?? instance);
     }
-    async function stepBlock(instance: ApprovalInstance, step: ApprovalStep, steps: ApprovalStep[]): Promise<string | null> {
+async function stepBlock(instance: ApprovalInstance, step: ApprovalStep, steps: ApprovalStep[]): Promise<string | null> {
         const snapshot = JSON.parse(step.route_snapshot_json ?? "{}") as Record<string, unknown>;
         if (step.stage === "department_approval" && "departmentPolicyVersion" in snapshot && !await ports.departmentStepEligible(instance.company_id, step.approver_user_id, snapshot))
             return "The selected department approver no longer occupies the saved position. Reroute with a reason.";
@@ -357,11 +357,11 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
             return "The assigned approver is unavailable. An administrator must reroute with a reason.";
         }
     }
-    function roleGuard(key: string, instance: RecordScope, step: Pick<ApprovalStep, "approver_user_id" | "authority">, label = "approval-authority") {
+function roleGuard(key: string, instance: RecordScope, step: Pick<ApprovalStep, "approver_user_id" | "authority">, label = "approval-authority") {
         const now = ports.clock.now();
         return r.guard26(key, label, step.approver_user_id, instance.company_id, step.authority, now, now, step.authority, instance.branch_id, instance.department_id);
     }
-    async function approvalView(kind: ApprovalKind, id: string, actor: Pick<StaffActor, "companyId" | "userId" | "role" | "assignmentId"> & {
+async function approvalView(kind: ApprovalKind, id: string, actor: Pick<StaffActor, "companyId" | "userId" | "role" | "assignmentId"> & {
         inspection?: true;
     }): Promise<ApprovalView> {
         if (kind === "legal")
@@ -402,7 +402,7 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
                 eligibleApproverIds.includes(actor.userId) && (policyStep || kind === "task" && currentApprover.authority === "named" && !currentApprover.required_role || hasWorkflowPermission(actor, currentApprover.required_role ?? (["named", "department"].includes(currentApprover.authority) ? "people_manager" : currentApprover.authority))),
         };
     }
-    async function expenseDecisionEvidence(actor: StaffActor, instance: ApprovalInstance, step: ApprovalStep, eligible: string[]) {
+async function expenseDecisionEvidence(actor: StaffActor, instance: ApprovalInstance, step: ApprovalStep, eligible: string[]) {
         const now = ports.clock.now();
         const [assignments, receipts, person] = await Promise.all([
             r.readExpenseDecisionEvidenceAssignmentsreceiptsperson(instance.company_id, actor.assignmentId, now, now),
@@ -429,7 +429,7 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
             receipts: receipts.results,
         });
     }
-    async function prepareDecision(actor: StaffActor, key: string, kind: ApprovalKind, id: string, approve: boolean, reason: string, version: number, override = false): Promise<{
+async function prepareDecision(actor: StaffActor, key: string, kind: ApprovalKind, id: string, approve: boolean, reason: string, version: number, override = false): Promise<{
         statements: Effect[];
         final: boolean;
         instance: ApprovalInstance;
@@ -517,14 +517,14 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
                 statements.push(ports.notification(instance, userId, kind, id, version + 1, "Approval needs your decision"));
         return { statements, final, instance, next };
     }
-    function closeApprovals(key: string, kind: ApprovalKind, id: string, actorId: string, action: "cancel" | "revise", reason: string, version: number) {
+function closeApprovals(key: string, kind: ApprovalKind, id: string, actorId: string, action: "cancel" | "revise", reason: string, version: number) {
         const now = ports.clock.now();
         return [
             r.stageCloseApprovalsEffect(key, action, actorId, reason, version, key, now, kind, id),
             r.stageCloseApprovalsEffect2(action === "cancel" ? "cancelled" : "superseded", now, kind, id),
         ];
-    }
-    async function rerouteApproval(actor: StaffActor, id: string, input: {
+    }return{canOverrideStaffStep,canOverrideDepartment,staffOverrideGuards,currentApproval,stepsFor,taskRoute,openApproval,initializeLegacyApproval,stepBlock,roleGuard,approvalView,prepareDecision,closeApprovals};}
+export function createApprovalsApplication<Effect>(ports:ApprovalsPorts<Effect>){const r=ports.repository;const{canOverrideStaffStep,staffOverrideGuards,currentApproval,stepsFor,taskRoute,openApproval,initializeLegacyApproval,stepBlock,roleGuard,approvalView,prepareDecision,closeApprovals}=createApprovalPlanningApplication(ports);async function rerouteApproval(actor: StaffActor, id: string, input: {
         expectedVersion: number;
         instanceVersion: number;
         approverUserId: string;
@@ -619,6 +619,4 @@ export function createApprovalsApplication<Effect>(ports: ApprovalsPorts<Effect>
             branchId: instance.branch_id,
             departmentId: instance.department_id,
         });
-    }
-    return { canOverrideStaffStep, staffOverrideGuards, currentApproval, taskRoute, openApproval, initializeLegacyApproval, stepBlock, approvalView, prepareDecision, closeApprovals, rerouteApproval };
-}
+    }return { canOverrideStaffStep, staffOverrideGuards, currentApproval, taskRoute, openApproval, initializeLegacyApproval, stepBlock, approvalView, prepareDecision, closeApprovals, rerouteApproval };}

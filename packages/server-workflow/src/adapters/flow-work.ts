@@ -16,7 +16,7 @@ import { holdingResources } from '../../../../packages/server-runtime/src/public
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { requireFlowAccess } from '@erpx/server-workflow/public/flow-access';
-import { resolveFlow } from '@erpx/server-workflow/public/flow-routing';
+import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { policyRead } from '@erpx/server-identity_access/public/iam-read-snapshot';
 import { createFlowWorkApplication } from '@erpx/server-workflow/application/flow-work';
 import { flowWorkActionKind, workFlowKind } from '@erpx/server-workflow/domain/flow-work';

@@ -1,6 +1,7 @@
 import {financeProductDocumentEntry} from "@erpx/server-finance/public/document-purchases";
 import {financeSourceDocumentBackdrop} from "@erpx/server-finance/public/record-presentation";
-import {getInvoice,getPayment} from "@erpx/server-finance/public/finance";
+import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
+import {getPayment} from '@erpx/server-finance/public/finance';
 import {journalDetail} from "@erpx/server-finance/public/ledger";
 import { reviewedSecondaryBook } from "../../support/helpers/finance-book-fixture";
 import { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
@@ -27,8 +28,8 @@ import { publishHandover,acknowledgeHandover,handoverView } from "@erpx/server-o
 import { homePosts,postView } from "@erpx/server-collaboration/public/social-home";
 import { projectPmsSocialEvent } from "@erpx/server-pms/public/pms/social-events";
 import type { EventMessage } from "@erpx/server-workflow/public/job-projector";
-import { createJournal,postJournal,previewOpeningTrialBalance,importOpeningTrialBalance,openingTrialBalanceSchema } from "@erpx/server-finance/public/finance";
-import { assignFlowPrimary,resolveFlow } from "@erpx/server-workflow/public/flow-routing";
+import {createJournal,postJournal,previewOpeningTrialBalance,importOpeningTrialBalance,openingTrialBalanceSchema} from '@erpx/server-finance/public/finance';
+import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import { confirmManualRate } from "@erpx/server-finance/public/company-money";
 import { packageGrantStore, readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
 import { withOwnerPackageObligations, readOwnerPackageObligations, ownerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";

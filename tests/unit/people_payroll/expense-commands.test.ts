@@ -19,7 +19,7 @@ import { createExpensePayers, createExpenseWorkflowFields, createCurrentExpenseR
 import { createExpenseAiAllowed, createExpenseAiSource, createExpenseAiClaim, type ExpenseAiEligibilityPorts, type ExpenseAiSourcePorts } from "@erpx/server-people_payroll/application/expense-ai-source";
 import type { OrganizationPerson } from "@erpx/server-organization/public/profile-facts";
 import type { StaffPerson } from "@erpx/server-operations/public/staff-policy";
-import type { ApprovalInstance, ApprovalStep } from "@erpx/server-workflow/public/approvals";
+import type {ApprovalInstance,ApprovalStep} from '@erpx/server-workflow/public/approvals';
 
 const actor = { userId: "claimant", name: "Claimant", companyId: "company", holdingId: "h001", branchId: null, departmentId: null } as WorkContext;
 const row = { id: "expense", company_id: "company", branch_id: "branch", department_id: "department", claimant_user_id: "claimant", created_by: "claimant", prepared_by: "claimant", workflow_version: 2, workflow_stage: "accounts_review", status: "in_review", amount_minor: 10000, tax_minor: 700, expense_date: "2026-09-01", version: 4 };

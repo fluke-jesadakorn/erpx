@@ -1,6 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { all, one } from "@erpx/server-pos/public/pos-core";
+import {all,one} from '@erpx/server-runtime/public/runtime/sql';
 export function pmsHospitalitySetupOrganizationFacts(db: SqlDatabase) {
     return {
         branches: (facts: {

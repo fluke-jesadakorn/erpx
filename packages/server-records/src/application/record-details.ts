@@ -21,13 +21,13 @@ import type { isDomainRecordKind } from "@erpx/server-records/public/record-doma
 import type { recordDomainData } from "@erpx/server-records/public/record-domain-details";
 import type { commerceOverview } from "@erpx/server-commerce/public/commerce";
 import type { commercePermissions } from "@erpx/server-commerce/public/commerce";
-import type { bankWorkspace } from "@erpx/server-finance/public/finance";
-import type { bankStatementDetail } from "@erpx/server-finance/public/finance";
-import type { listCharts } from "@erpx/server-finance/public/finance";
-import type { listAccounts } from "@erpx/server-finance/public/finance";
-import type { aging } from "@erpx/server-finance/public/finance";
-import type { trialBalance } from "@erpx/server-finance/public/finance";
-import type { statements } from "@erpx/server-finance/public/finance";
+import type {bankWorkspace} from '@erpx/server-finance/public/finance';
+import type {bankStatementDetail} from '@erpx/server-finance/public/finance';
+import type {listCharts} from '@erpx/server-finance/public/finance';
+import type {listAccounts} from '@erpx/server-finance/public/finance';
+import type {aging} from '@erpx/server-finance/public/finance';
+import type {trialBalance} from '@erpx/server-finance/public/finance';
+import type {statements} from '@erpx/server-finance/public/finance';
 import type { marketingWorkspace } from "@erpx/server-marketing/public/marketing";
 import type { payrollSummary } from "@erpx/server-people_payroll/public/people-payroll";
 import type { calculationRunDetail } from "@erpx/server-finance/public/finance-engines";
@@ -45,7 +45,7 @@ import type { financialReportSourceRecords } from "@erpx/server-finance/public/f
 import type { financeBookRecord } from "@erpx/server-finance/public/finance-books";
 import { drilldownPage } from '@erpx/server-records/domain/record-details';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
-import type { RecordsCommands } from '@erpx/server-records/domain/commands';
+
 type Tail<Value extends unknown[]> = Value extends [
     unknown,
     ...infer Rest
@@ -90,7 +90,7 @@ export interface RecordDetailsPorts<Effect> {
     repository: RecordDetailsRepository;
     clock: Clock;
     identifiers: IdentifierSource;
-    commands: RecordsCommands<Effect>;
+
     prepare(holdingId: string): Promise<void>;
     production: boolean;
     batch(effects: Effect[]): Promise<unknown>;

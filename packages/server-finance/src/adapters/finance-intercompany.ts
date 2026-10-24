@@ -3,7 +3,7 @@ import { groupCompanyPurchases, groupRecordPurchases, groupHistoryPredicate, gro
 import "server-only";
 import type { z } from "zod";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
-import { decimalToMinor } from "@erpx/server-finance/public/finance";
+import {decimalToMinor} from '@erpx/server-finance/public/finance';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";

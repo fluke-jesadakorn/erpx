@@ -5,7 +5,7 @@ import { LeaveDecisions, LeaveEditor } from "@erpx/feature-records/components/lo
 import styles from "@erpx/feature-people_payroll/components/leave/leave-flow.module.css";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { ApprovalView } from "@erpx/server-workflow/public/approvals";
+import type {ApprovalView} from '@erpx/server-workflow/public/approvals';
 import { ApprovalHistory } from "@erpx/feature-workflow/components/approval-history";
 import { OperationSummary } from "@erpx/workplace/components/operation-summary";
 import { getLeave } from "@erpx/server-people_payroll/public/leave";

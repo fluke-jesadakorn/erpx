@@ -1,10 +1,10 @@
 import type { FlowKind, FlowPerson, FlowStep, FlowView } from "@erpx/feature-shared/lib/flow";
 import type { StaffActor } from "@erpx/server-operations/public/staff-policy";
-import type { ApprovalInstance, ApprovalStep } from "@erpx/server-workflow/public/approvals";
-import type { SavedApproval } from "@erpx/server-records/public/employee-requests";
-import type { approvalView } from "@erpx/server-workflow/public/approvals";
-import type { canOverrideEmployeeRequest } from "@erpx/server-records/public/employee-requests";
-import type { readRequestForOverride } from "@erpx/server-records/public/employee-requests";
+import type {ApprovalInstance,ApprovalStep} from '@erpx/server-workflow/public/approvals';
+import type {SavedApproval} from '@erpx/server-records/public/employee-requests';
+import type {approvalView} from '@erpx/server-workflow/public/approval-planning';
+import type {canOverrideEmployeeRequest} from '@erpx/server-records/public/request-override-read';
+import type {readRequestForOverride} from '@erpx/server-records/public/request-override-read';
 import type { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import type { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import type { hasPolicyReadSnapshot } from "@erpx/server-identity_access/public/iam-read-snapshot";
@@ -19,9 +19,9 @@ import type { expensePoolCandidates } from "@erpx/server-people_payroll/public/e
 import type { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";
 import type { spendingStepCandidates } from "@erpx/server-people_payroll/public/expense-routing";
 import type { spendingUsers } from "@erpx/server-people_payroll/public/expense-routing";
-import type { resolveServiceTeam } from "@erpx/server-support/public/service-teams";
-import type { teamHandlers } from "@erpx/server-support/public/service-teams";
-import type { peopleRequestRoute } from "@erpx/server-organization/public/department-authority";
+import type {resolveServiceTeam} from '@erpx/server-support/public/service-team-reads';
+import type {teamHandlers} from '@erpx/server-support/public/service-team-reads';
+import type {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
 import { type Row, type Definition, type Route, type SavedStep, type DefaultRow, str, scopeFor, json, flowRoleAllowed, type FlowHistoryRow, flowCommandTarget } from '@erpx/server-workflow/domain/flow-routing';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { OwnerCommands } from '@erpx/server-workflow/domain/owner-command-ports';
@@ -188,14 +188,10 @@ export interface FlowRoutingPorts<Effect> {
     teamHandlers(...args: Tail<Parameters<typeof teamHandlers>>): PortResult<ReturnType<typeof teamHandlers>, Effect>;
     peopleRequestRoute(...args: Tail<Parameters<typeof peopleRequestRoute>>): PortResult<ReturnType<typeof peopleRequestRoute>, Effect>;
 }
-export function createFlowRoutingApplication<Effect>(ports: FlowRoutingPorts<Effect>) {
+export type FlowPlanningPorts<Effect> = Omit<FlowRoutingPorts<Effect>, "commands">;
+export function createFlowPlanningApplication<Effect>(ports: FlowPlanningPorts<Effect>) {
     const r = ports.repository;
-    async function flowRecord(companyId: string, kind: FlowKind, id: string): Promise<Row> {
-        const row = await ports.policyRead(JSON.stringify(["flow-record", companyId, kind, id]), () => r.readFlowRecordRow(companyId, id, kind));
-        if (!row)
-            throw new BusinessRuleError(404, "FLOW_NOT_FOUND", "Workflow document not found in this company.");
-        return row;
-    }
+    const flowRecord=createFlowRecordReader(ports);
     async function workFulfillments(companyId: string) {
         return ports.policyRead(JSON.stringify(["work-fulfillments", companyId]), async () => {
             const rows = (await r.readWorkFulfillmentsRows(companyId)).results;
@@ -588,6 +584,11 @@ export function createFlowRoutingApplication<Effect>(ports: FlowRoutingPorts<Eff
         const after = ports.flowAfterEffects(actor, key, kind, id);
         return { before: steps, after, view };
     }
+    return { flowRecord, flowRoleAllowed, resolveFlow, prepareFlowCommand, flowCommandTarget, routeStatements };
+}
+export function createFlowRoutingApplication<Effect>(ports: FlowRoutingPorts<Effect>) {
+    const r = ports.repository;
+    const { flowRecord, flowRoleAllowed, resolveFlow, prepareFlowCommand, flowCommandTarget, routeStatements } = createFlowPlanningApplication(ports);
     async function assignFlowPrimary(actor: StaffActor, kind: FlowKind, id: string, input: {
         stepKey: string;
         userId: string;
@@ -646,3 +647,11 @@ export function createFlowRoutingApplication<Effect>(ports: FlowRoutingPorts<Eff
     }
     return { flowRecord, flowRoleAllowed, resolveFlow, prepareFlowCommand, assignFlowPrimary, flowCommandTarget };
 }
+
+export type FlowRecordReadPorts<Effect>=Pick<FlowPlanningPorts<Effect>,'policyRead'>&{repository:Pick<FlowRoutingRepository<Effect>,'readFlowRecordRow'>};
+export function createFlowRecordReader<Effect>(ports:FlowRecordReadPorts<Effect>){const r=ports.repository;async function flowRecord(companyId: string, kind: FlowKind, id: string): Promise<Row> {
+        const row = await ports.policyRead(JSON.stringify(["flow-record", companyId, kind, id]), () => r.readFlowRecordRow(companyId, id, kind));
+        if (!row)
+            throw new BusinessRuleError(404, "FLOW_NOT_FOUND", "Workflow document not found in this company.");
+        return row;
+    }return flowRecord;}

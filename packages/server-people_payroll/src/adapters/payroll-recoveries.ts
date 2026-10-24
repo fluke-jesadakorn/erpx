@@ -6,7 +6,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { snapshotMoney } from "@erpx/server-finance/public/company-money";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
-import { prepareJournal } from "@erpx/server-finance/public/finance";
+import {prepareJournal} from '@erpx/server-finance/public/finance';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";

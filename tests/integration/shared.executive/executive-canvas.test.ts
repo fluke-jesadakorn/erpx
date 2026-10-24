@@ -2546,7 +2546,7 @@ import {saveProject,projectSchema} from "@erpx/server-projects/public/staff-proj
 import {saveProjectMilestone,projectMilestoneSchema} from "@erpx/server-projects/public/project-milestones";
 import {saveProjectWorkLog,projectWorkLogSchema,decideProjectWorkLog,projectWorkLogDecisionSchema,createProjectCostAllocation,projectCostAllocationSchema,decideProjectCostAllocation,projectCostAllocationDecisionSchema} from "@erpx/server-projects/public/project-actuals";
 import {readExecutiveMetricProjection as projectProjection} from "@erpx/server-projects/public/executive-metric-projections";
-import {createJournal,createJournalSchema,postJournal} from "@erpx/server-finance/public/finance";
+import {createJournal,createJournalSchema,postJournal} from '@erpx/server-finance/public/finance';
 async function metricProjectGrant(state:'active'|'draining'='active',packageId='projects'){
  const prior=(await readCompanyPackageGrants(db,f.company)).find(row=>row.packageId===packageId);return packageGrantStore(db,{authorize:async()=>({userId:'isolated-project-metric-provider'}),obligations:async()=>{throw Error('No synthetic metric withdrawal witness');}}).apply({expectedVersion:prior?.version??0,idempotencyKey:key(),grant:{companyId:f.company,packageId,packageVersion:1,state,startsAt:0,endsAt:null,version:(prior?.version??0)+1,reason:'Actual Project metric source workflow',evidence:'test:project-metric-owner'}});
 }

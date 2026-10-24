@@ -16,11 +16,12 @@ import type {BetaEnvironment} from "@erpx/server-manage_erpx/public/beta-config"
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {sha256} from "@erpx/server-runtime/public/crypto";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {executeCommand,workContextGuards} from "@erpx/server-workflow/public/commands";
+import {executeCommand} from '@erpx/server-workflow/public/commands';
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {aiProviderOverview,aiSnapshotGuard,aiUsageStatement,resolveAiProvider} from "@erpx/server-agent/adapters/ai-providers";
 import {generateProviderJson,withAiGatewayScope} from "@erpx/server-agent/adapters/ai-transport";
-import {employeeRequestDetail} from "@erpx/server-records/public/employee-requests";
+import {employeeRequestDetail} from '@erpx/server-records/public/employee-requests';
 import {getExpense} from "@erpx/server-people_payroll/public/expenses";
 import {getTask} from "@erpx/server-operations/public/staff-tasks";
 import {handbookArticle} from "@erpx/server-runtime/public/handbook";
@@ -29,7 +30,7 @@ import {assistantGovernanceContext,assistantGovernanceGuards,validateAssistantGo
 import {pmsWorkspace} from "../../../../packages/server-pms/src/public/pms";
 import {posWorkspace} from "@erpx/server-pos/public/pos";
 import {commercePage} from "@erpx/server-commerce/public/commerce";
-import {financeOverviewCounts} from "@erpx/server-finance/public/finance";
+import {financeOverviewCounts} from '@erpx/server-finance/public/finance';
 import {closeWorkspace} from "@erpx/server-finance/public/finance-workspace";
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {getWorkPage} from "@erpx/server-work_projection/public/work-summary";

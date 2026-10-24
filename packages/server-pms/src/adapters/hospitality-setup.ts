@@ -1,6 +1,6 @@
 import 'server-only';
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
-import { all } from "@erpx/server-pos/public/pos-core";
+import {all} from '@erpx/server-runtime/public/runtime/sql';
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { loadPms } from "../../../../packages/server-pms/src/public/pms";
 import { pmsAccountCategory, pmsAccountCode } from "@erpx/server-finance/public/hospitality-accounting";

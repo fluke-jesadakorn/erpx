@@ -5,7 +5,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { Clock } from "@erpx/server-shared/application/ports";
 import type { AttachmentManifestItem } from "@erpx/server-files/public/attachments/types";
 import type { FunctionalFxEvidence } from "@erpx/server-finance/public/commerce-journal-contracts";
-import type { EmployeeRequest } from "@erpx/server-records/public/employee-requests";
+import type {EmployeeRequest} from '@erpx/server-records/public/employee-requests';
 import type { SalesPricingRow } from "@erpx/server-sales/public/commerce-pricing-contracts";
 import type { BillRow } from "@erpx/server-procurement/public/commerce-bill-contracts";
 import type { ListPage } from "@erpx/server-work_projection/public/list-page";

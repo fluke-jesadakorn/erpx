@@ -11,7 +11,7 @@ import {initialPhysicalStockCountFinanceLeases} from '@erpx/server-finance/publi
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
-import {financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {BusinessRuleError} from '@erpx/server-shared/index';

@@ -1,4 +1,4 @@
-import type { appointmentOverview } from "@erpx/server-organization/public/department-authority";
+import type {appointmentOverview} from '@erpx/server-organization/public/department-authority-reads';
 import type { administrationAccess } from "@erpx/server-runtime/public/administration";
 import type { serviceTeamOptions } from "@erpx/server-support/public/service-team-options";
 import type { departmentFlowSettingsHistory } from "@erpx/server-organization/public/flow-settings-facts";

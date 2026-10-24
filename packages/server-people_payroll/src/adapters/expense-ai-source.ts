@@ -9,7 +9,7 @@ import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import { approvalView } from "@erpx/server-workflow/public/approvals";
+import {approvalView} from '@erpx/server-workflow/public/approval-planning';
 import { expenseRoleUsers } from "@erpx/server-people_payroll/adapters/expense-routing";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import {

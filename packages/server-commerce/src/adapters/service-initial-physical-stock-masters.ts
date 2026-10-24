@@ -14,7 +14,8 @@ import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-a
 import {financeStarterOrganizationNodes} from '@erpx/server-organization/public/finance-starter-sources';
 import {serviceInitialPhysicalStockMasterFinanceLeases,serviceInitialPhysicalStockMasterFinanceSource,serviceInitialPhysicalStockProductMoneySource,serviceInitialPhysicalStockProductMoneyMatches} from '@erpx/server-finance/public/service-initial-physical-stock-master-sources';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
-import {replayCommand,financialConstraintError} from '@erpx/server-workflow/public/commands';
+import {replayCommand} from '@erpx/server-workflow/public/commands';
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';

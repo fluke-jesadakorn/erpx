@@ -1,5 +1,5 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { organizationRoster } from "@erpx/server-organization/public/organization";
+import {organizationRoster} from '@erpx/server-organization/public/organization-roster-read';
 import { reportingIssues, type OrganizationPerson } from "@erpx/feature-organization/lib/organization";
 
 /** Native owner facts retain the exact current placement and reporting policy. */

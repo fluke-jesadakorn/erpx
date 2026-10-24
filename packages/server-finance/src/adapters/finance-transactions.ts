@@ -1,6 +1,6 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { isTransactionalSqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { financialConstraintError } from "@erpx/server-workflow/public/commands";
+import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import { ApiError } from "@erpx/server-runtime/public/http";
 /** A posted primary journal produces its secondary journals at the deferred
  * book boundary. Materialize those rows while event capture/final line checks

@@ -7,10 +7,10 @@ import { holdingResources } from "../../../../packages/server-runtime/src/public
 import { activeStaff, requireCompanyAuthority } from "@erpx/server-operations/public/staff-policy";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { executeCommand, replayCommand } from "@erpx/server-workflow/public/commands";
-import { openApproval } from "@erpx/server-workflow/public/approvals";
+import {openApproval} from '@erpx/server-workflow/public/approval-planning';
 import { leaveCreateSchema, leavePreviewSchema } from "@erpx/feature-people_payroll/lib/leave-self-service";
 import { z } from "zod";
-import { peopleRequestRoute } from "@erpx/server-organization/public/department-authority";
+import {peopleRequestRoute} from '@erpx/server-organization/public/department-authority-reads';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { availableLeaveEvidence } from "@erpx/server-people_payroll/public/leave-evidence";
 import { isTransactionalSqlDatabase, type SqlStatement } from '@erpx/server-runtime/public/runtime/types';

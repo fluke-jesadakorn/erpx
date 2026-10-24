@@ -4,7 +4,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {getOrder} from "@erpx/server-commerce/public/commerce";
 import {legalPersonSource} from "@erpx/server-people_payroll/public/legal-evidence-read";
-import {getEmployeeRequest} from "@erpx/server-records/public/employee-requests";
+import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests';
 import {readExpenseForLegal} from "@erpx/server-people_payroll/public/legal-expense-read";
 import {access,guards} from "@erpx/server-legal/adapters/legal/access";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";

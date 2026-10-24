@@ -1,7 +1,7 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import { expenseFixture, expenseDb as db, key } from "../../support/helpers/expense-fixture";
-import { installStaffLevels, positionSchema, savePosition } from "@erpx/server-organization/public/organization";
+import {installStaffLevels,positionSchema,savePosition} from '@erpx/server-organization/public/organization';
 import { previewPositionMove, submitPositionMove, drainPositionMoves, cancelPositionMove, positionMoves } from "@erpx/server-organization/public/position-moves";
 import { positionMoveDate, positionMoveInput, positionMoveSubmitInput, type PositionMoveRecord } from "@erpx/feature-people_payroll/lib/position-moves";
 import { lifecycleInput } from "@erpx/feature-people_payroll/lib/people-lifecycle";

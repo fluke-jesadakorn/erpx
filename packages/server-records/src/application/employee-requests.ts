@@ -14,18 +14,18 @@ import type { resourceRequestRoute } from "@erpx/server-people_payroll/public/ex
 import type { expenseRoute } from "@erpx/server-people_payroll/public/expense-routing";
 import type { spendingStepCandidates } from "@erpx/server-people_payroll/public/expense-routing";
 import type { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";
-import type { departmentRoute } from "@erpx/server-organization/public/department-authority";
-import type { departmentStepEligible } from "@erpx/server-organization/public/department-authority";
-import type { canOverrideStaffStep } from "@erpx/server-workflow/public/approvals";
-import type { staffOverrideGuards } from "@erpx/server-workflow/public/approvals";
+import type {departmentRoute} from '@erpx/server-organization/public/department-authority-reads';
+import type {departmentStepEligible} from '@erpx/server-organization/public/department-authority-reads';
+import type {canOverrideStaffStep} from '@erpx/server-workflow/public/approval-planning';
+import type {staffOverrideGuards} from '@erpx/server-workflow/public/approval-planning';
 import type { companyMember } from "@erpx/server-support/public/service-access";
 import type { inServiceWorkspace } from "@erpx/server-support/public/service-access";
 import type { serviceAuthoritySnapshot } from "@erpx/server-support/public/service-access";
 import type { serviceMember } from "@erpx/server-support/public/service-access";
 import type { serviceOwner } from "@erpx/server-support/public/service-access";
 import type { validateServiceScope } from "@erpx/server-support/public/service-access";
-import type { resolveServiceTeam } from "@erpx/server-support/public/service-teams";
-import type { teamHandlers } from "@erpx/server-support/public/service-teams";
+import type {resolveServiceTeam} from '@erpx/server-support/public/service-team-reads';
+import type {teamHandlers} from '@erpx/server-support/public/service-team-reads';
 import { employeeRequestSchema, requestActionSchema, type EmployeeRequest, type SavedApproval, terminal, editable, requestOwn } from '@erpx/server-records/domain/employee-requests';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import type { RecordsCommands } from '@erpx/server-records/domain/commands';
@@ -176,19 +176,8 @@ export function createEmployeeRequestsApplication<Effect>(ports: EmployeeRequest
     function requestVersionGuard(key: string, row: EmployeeRequest) {
         return r.guard1(key, "request-version", row.id, row.company_id, row.version, row.state, row.evidence_version);
     }
-    async function canOverrideEmployeeRequest(actor: Pick<WorkContext, "companyId" | "userId" | "role" | "assignmentId">, row: EmployeeRequest) {
-        const saved = JSON.parse(row.approval_json) as SavedApproval, step = saved.route?.steps[saved.currentStep ?? 0];
-        if (row.state !== "awaiting_approval" || step?.stage !== "department_approval")
-            return false;
-        return ports.canOverrideStaffStep({ companyId: row.company_id, branchId: row.branch_id, departmentId: row.department_id,
-            requesterUserId: row.requester_user_id, preparerUserId: row.created_by, assignedUserId: step.userId }, actor);
-    }
-    async function readRequestForOverride(companyId: string, id: string) {
-        const row = await r.readReadRequestForOverrideRow(id, companyId);
-        if (!row)
-            throw new BusinessRuleError(404, "REQUEST_NOT_FOUND", "Request not found.");
-        return row;
-    }
+    const {canOverrideEmployeeRequest,readRequestForOverride}=createRequestOverrideRead(ports);
+
     async function requestAccess(actor: WorkContext, row: EmployeeRequest, override = false) {
         const saved = JSON.parse(row.approval_json) as SavedApproval;
         const current = saved.route?.steps[saved.currentStep ?? 0];
@@ -923,3 +912,18 @@ export function createEmployeeRequestsApplication<Effect>(ports: EmployeeRequest
     }
     return { requestVersionGuard, requestOwn, canOverrideEmployeeRequest, readRequestForOverride, getEmployeeRequest, requestAttachments, employeeRequestDetail, saveEmployeeRequest, actOnEmployeeRequest, listEmployeeRequests, employeeRequestWork, employeeRequestUpload, prepareRequestOrderHandoff, requestQuotationSource, previewEmployeeRequest };
 }
+
+export type RequestOverrideReadPorts<Effect>={repository:Pick<EmployeeRequestsRepository<Effect>,'readReadRequestForOverrideRow'>;canOverrideStaffStep:EmployeeRequestsPorts<Effect>['canOverrideStaffStep']};
+export function createRequestOverrideRead<Effect>(ports:RequestOverrideReadPorts<Effect>){const r=ports.repository;async function canOverrideEmployeeRequest(actor: Pick<WorkContext, "companyId" | "userId" | "role" | "assignmentId">, row: EmployeeRequest) {
+        const saved = JSON.parse(row.approval_json) as SavedApproval, step = saved.route?.steps[saved.currentStep ?? 0];
+        if (row.state !== "awaiting_approval" || step?.stage !== "department_approval")
+            return false;
+        return ports.canOverrideStaffStep({ companyId: row.company_id, branchId: row.branch_id, departmentId: row.department_id,
+            requesterUserId: row.requester_user_id, preparerUserId: row.created_by, assignedUserId: step.userId }, actor);
+    }
+async function readRequestForOverride(companyId: string, id: string) {
+        const row = await r.readReadRequestForOverrideRow(id, companyId);
+        if (!row)
+            throw new BusinessRuleError(404, "REQUEST_NOT_FOUND", "Request not found.");
+        return row;
+    }return{canOverrideEmployeeRequest,readRequestForOverride};}

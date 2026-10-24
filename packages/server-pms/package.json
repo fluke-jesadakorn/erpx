@@ -47,6 +47,7 @@
     "./adapters/hospitality-rollout": "./src/adapters/hospitality-rollout.ts",
     "./adapters/pms-booking-changes": "./src/adapters/pms-booking-changes.ts",
     "./adapters/property-purchase-boundary": "./src/adapters/property-purchase-boundary.ts",
+    "./adapters/feature-availability": "./src/adapters/feature-availability.ts",
     "./adapters/people-payroll-final-owner-projections": "./src/adapters/people-payroll-final-owner-projections.ts",
     "./adapters/purchase-boundary": "./src/adapters/purchase-boundary.ts",
     "./adapters/scheduled-feature-source-locks": "./src/adapters/scheduled-feature-source-locks.ts",
@@ -115,6 +116,7 @@
     "./public/rules/pms-model": "./src/public/rules/pms-model.ts",
     "./public/rules/pms-source-link": "./src/public/rules/pms-source-link.ts",
     "./public/rules/pms": "./src/public/rules/pms.ts",
+    "./public/feature-availability": "./src/public/feature-availability.ts",
     "./public/people-payroll-final-owner-projections": "./src/public/people-payroll-final-owner-projections.ts",
     "./public/public-booking-body": "./src/public/public-booking-body.ts",
     "./public/scheduled-feature-source-locks": "./src/public/scheduled-feature-source-locks.ts",
@@ -146,6 +148,7 @@
     "./application/home-api": "./src/application/home-api.ts",
     "./application/pms-booking-changes": "./src/application/pms-booking-changes.ts",
     "./application/social-events": "./src/application/social-events.ts",
+    "./application/feature-availability": "./src/application/feature-availability.ts",
     "./application/staff-booking-changes": "./src/application/staff-booking-changes.ts",
     "./application/hospitality-setup": "./src/application/hospitality-setup.ts",
     "./application/home": "./src/application/home.ts",
@@ -165,10 +168,7 @@
     "./domain/social-events": "./src/domain/social-events.ts",
     "./domain/home": "./src/domain/home.ts",
     "./domain/pms-model": "./src/domain/pms-model.ts",
-    "./domain/pms": "./src/domain/pms.ts",
-    "./public/feature-availability": "./src/public/feature-availability.ts",
-    "./adapters/feature-availability": "./src/adapters/feature-availability.ts",
-    "./application/feature-availability": "./src/application/feature-availability.ts"
+    "./domain/pms": "./src/domain/pms.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

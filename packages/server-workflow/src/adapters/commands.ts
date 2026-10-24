@@ -1,14 +1,13 @@
 import type {SqlDatabase,SqlStatement,SqlResult} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
-import {workflowWorkContextGuards,workflowAssignmentGuard,workflowAssignmentAuthorityProjection,workflowActiveContext,workflowActiveGrant} from '@erpx/server-identity_access/public/workflow-command-authority';
+import {createWorkflowCommandGuards,workflowAssignmentAuthorityProjection,workflowActiveContext,workflowActiveGrant} from '@erpx/server-identity_access/public/workflow-command-authority';
+import {assertion} from '@erpx/server-workflow/public/command-assertions';
 import {prepareOwnerCommandStatements} from '@erpx/server-workflow/public/command-policies';
 import {createCommandApplication,type CommandBoundary,type CommandRepository} from '@erpx/server-workflow/application/commands';
-import {financialConstraintError as domainFinancialConstraintError,type CommandActor} from '@erpx/server-workflow/domain/commands';
+import type {CommandActor} from '@erpx/server-workflow/domain/commands';
 import {BusinessRuleError} from '@erpx/server-shared/index';
-export { assertion } from "@erpx/server-workflow/adapters/command-assertions";
-export function workContextGuards(db:SqlDatabase,actor:CommandActor,id:string):SqlStatement[]{return workflowWorkContextGuards(db,actor,id);}
-export function financialConstraintError(error:unknown){const failure=domainFinancialConstraintError(error);return failure?new ApiError(failure.status,failure.code,failure.message):null;}
+const {workflowWorkContextGuards,workflowAssignmentGuard}=createWorkflowCommandGuards(assertion);
 type NativeCommandBoundary=CommandBoundary<SqlStatement>&{observe?:(results:SqlResult[])=>undefined};
 function application(db:SqlDatabase,boundary?:NativeCommandBoundary){
  const repository:CommandRepository<SqlStatement>={

@@ -36,7 +36,8 @@ if(mode==='preview'){
 }
 process.env.ERPX_DATABASE_MANIFEST=jobsPath;process.env.ERPX_PROCESS_ROLE='jobs';
 const {getRuntime,closeRuntime}=await import("@erpx/server-runtime/adapters/runtime/env");
-const {posCommand,one,all,run}=await import("@erpx/server-pos/public/pos-core");
+const {posCommand}=await import("@erpx/server-pos/public/pos-core");
+const {one,all,run}=await import("@erpx/server-runtime/public/runtime/sql");
 const {posDayReport}=await import("@erpx/server-pos/public/pos-daily");
 const {savePosProductImage}=await import("@erpx/server-pos/public/pos-images");
 const {saveMaster}=await import("@erpx/server-commerce/public/commerce");

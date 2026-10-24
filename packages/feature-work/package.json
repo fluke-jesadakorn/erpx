@@ -79,6 +79,7 @@
     "./routes/holdings/[holdingSlug]/overtime/page": "./src/routes/holdings/[holdingSlug]/overtime/page.tsx",
     "./routes/holdings/[holdingSlug]/leave/new/page": "./src/routes/holdings/[holdingSlug]/leave/new/page.tsx",
     "./routes/holdings/[holdingSlug]/leave/page": "./src/routes/holdings/[holdingSlug]/leave/page.tsx",
+    "./routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/collaboration/route": "./src/routes/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/posts/[id]/comments/route": "./src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/comments/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/posts/[id]/reaction/route": "./src/routes/api/v1/holdings/[holdingSlug]/posts/[id]/reaction/route.ts",
@@ -104,8 +105,7 @@
     "./routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/executive/[[...path]]/route.ts",
     "./routes/api/v1/holdings/[holdingSlug]/executive/connections/route": "./src/routes/api/v1/holdings/[holdingSlug]/executive/connections/route.ts",
-    "./routes/api/mcp/executive/route": "./src/routes/api/mcp/executive/route.ts",
-    "./routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route": "./src/routes/api/v1/holdings/[holdingSlug]/beta/[[...path]]/route.ts"
+    "./routes/api/mcp/executive/route": "./src/routes/api/mcp/executive/route.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
@@ -115,6 +115,7 @@
     "@erpx/contracts": "workspace:*",
     "@erpx/feature-projects": "workspace:*",
     "@erpx/feature-records": "workspace:*",
+    "@erpx/feature-runtime": "workspace:*",
     "@erpx/feature-shared": "workspace:*",
     "@erpx/feature-work_projection": "workspace:*",
     "@erpx/server-collaboration": "workspace:*",

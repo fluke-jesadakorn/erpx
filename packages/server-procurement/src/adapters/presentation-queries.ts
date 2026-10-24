@@ -1,7 +1,7 @@
 import "server-only";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { procurementInvoiceMatchForFinance } from "@erpx/server-procurement/public/finance-entrypoint-queries";
-import { requestQuotationSource } from "@erpx/server-records/public/employee-requests";
+import {requestQuotationSource} from '@erpx/server-records/public/employee-requests';
 
 type ReadArguments<F extends (...args: never[]) => unknown> = Parameters<F> extends [unknown, ...infer Rest] ? Rest : never;
 

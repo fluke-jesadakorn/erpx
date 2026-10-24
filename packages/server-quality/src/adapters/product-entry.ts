@@ -12,7 +12,7 @@ import {salesQualityCountProductEntry} from "@erpx/server-inventory/public/quali
 import {qualityPurchaseSourceRows} from "@erpx/server-quality/adapters/purchase-sources";
 import {qualitySourcePurchasePredicate} from "@erpx/server-quality/adapters/record-purchases";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import {workContextGuards,financialConstraintError} from "@erpx/server-workflow/public/commands";
+import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {ApiError} from "@erpx/server-runtime/public/http";
 /** Read-only role candidate discovery. Entry never creates a WorkContext,

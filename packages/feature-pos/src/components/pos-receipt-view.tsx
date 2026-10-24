@@ -1,4 +1,4 @@
-import type { PosRow } from "@erpx/server-pos/public/pos-core";
+import type {PosRow} from '@erpx/server-pos/public/pos-core';
 import type { PosReceiptSnapshot } from "@erpx/server-pos/public/pos-daily";
 import { formatPosMoney } from "@erpx/server-pos/public/rules/pos";
 import styles from "@erpx/feature-pos/components/pos.module.css";

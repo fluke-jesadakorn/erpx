@@ -5,7 +5,7 @@ import type { SqlDatabase, SqlStatement, SqlValue } from "@erpx/server-runtime/p
 import { z } from "zod";
 import { validateTaskConfiguration, configGuards } from "@erpx/server-operations/public/staff-tasks";
 import { activeStaff, companyAuthority, staffGuard, notification, type StaffActor } from "@erpx/server-operations/public/staff-policy";
-import { taskRoute, openApproval } from "@erpx/server-workflow/public/approvals";
+import {taskRoute,openApproval} from '@erpx/server-workflow/public/approval-planning';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';

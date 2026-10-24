@@ -8,7 +8,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import type {AttachmentOperation,AttachmentPolicy} from "@erpx/server-files/public/attachments/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {workContextGuards} from "@erpx/server-workflow/public/commands";
+import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {financeDeferredEffectStatements} from "@erpx/server-finance/public/finance-transactions";
 import {peoplePackageEnforcementMode,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,observePurchaseResults} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {requirePeopleCurrentAuthority} from "@erpx/server-people_payroll/public/people-purchases";

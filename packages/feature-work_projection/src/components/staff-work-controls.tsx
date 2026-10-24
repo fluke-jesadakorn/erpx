@@ -21,7 +21,7 @@ export { useStaffCommand } from "@erpx/feature-work_projection/components/use-st
 import type { StaffPerson } from "@erpx/server-operations/public/staff-policy";
 import type { TaskDetail, TaskRow, ProjectRow } from "@erpx/server-operations/public/staff-tasks";
 import type { TemplateRow } from "@erpx/server-operations/public/routines";
-import type { ApprovalView } from "@erpx/server-workflow/public/approvals";
+import type {ApprovalView} from '@erpx/server-workflow/public/approvals';
 import {
   AttachmentPanel,
   type AttachmentPanelChange,
