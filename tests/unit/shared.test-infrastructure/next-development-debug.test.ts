@@ -4,7 +4,75 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { guardDebugChunkCycles, guardDevelopmentTypeWrites } from "../../../scripts/local/prepare-next-development";
+import { clearDevelopmentCaches, guardDebugChunkCycles, guardDevelopmentTypeWrites, guardPendingPerformanceMetadata } from "../../../scripts/local/prepare-next-development";
+
+describe.each(["webpack", "turbopack", "webpack-experimental", "turbopack-experimental"])("Next pending performance metadata: %s", variant => {
+  const file = `node_modules/next/dist/compiled/react-server-dom-${variant}/cjs/react-server-dom-${variant.replace("-experimental", "")}-client.browser.development.js`;
+  const upstream = readFileSync(file, "utf8")
+    .replace("/* ERPX: pending development performance metadata */\n    ", "")
+    .replaceAll(/\n\s*if \(null == (?:info|_info|_info2|candidateInfo|_candidateInfo)\) continue;/g, "");
+  const patched = guardPendingPerformanceMetadata(upstream);
+  function trace(source: string, debugInfo: unknown[]) {
+    const start = source.indexOf("function flushComponentPerformance("), end = source.indexOf("function flushInitialRenderPerformance(", start);
+    const model = Object.freeze({ content: "actual reports page" });
+    const root = { status: "fulfilled", value: model, _debugInfo: debugInfo, _children: [] };
+    const result = runInNewContext(`${source.slice(start, end)}; flushComponentPerformance({_rootEnvironmentName:'Server'},root,0,-Infinity,-Infinity)`, { root, isArrayImpl: Array.isArray, supportsUserTiming: false }, { timeout: 100 });
+    expect(root.status).toBe("fulfilled"); expect(root.value).toBe(model);
+    return result;
+  }
+  it("traces pending sparse metadata without changing reserved indexes or the rendered model", () => {
+    const debugInfo = new Array(9); debugInfo[1] = { time: 10 }; debugInfo[3] = { name: "Reports", env: "Server" }; debugInfo[7] = { time: 20 };
+    const before = Object.getOwnPropertyDescriptors(debugInfo);
+    // Reproduce the installed browser failure on the exact upstream function.
+    expect(() => trace(upstream, debugInfo)).toThrow(/time/);
+    expect(() => trace(patched, debugInfo)).not.toThrow();
+    expect(Object.getOwnPropertyDescriptors(debugInfo)).toEqual(before);
+    debugInfo[2] = { name: "Later resolved metadata", env: "Server" };
+    expect(() => trace(patched, debugInfo)).not.toThrow(); expect(debugInfo[3].name).toBe("Reports");
+  });
+  it("preserves ordinary dense performance results", () => {
+    const metadata = [{ time: 10 }, { name: "Reports", env: "Server" }, { time: 20 }];
+    expect(trace(patched, metadata)).toEqual(trace(upstream, metadata));
+  });
+  it("is idempotent and rejects changed upstream trace code", () => {
+    expect(guardPendingPerformanceMetadata(patched)).toBe(patched);
+    expect(() => guardPendingPerformanceMetadata("changed runtime")).toThrow("no longer matches");
+    const invalid = upstream.replace("var candidateInfo = debugInfo[j];", "var candidateInfo = changed[j];");
+    expect(() => guardPendingPerformanceMetadata(invalid)).toThrow("no longer matches");
+  });
+});
+
+describe("Next workspace vendor cache invalidation", () => {
+  it("invalidates owned root and app dev caches while preserving compiled outputs and unrelated directories", async () => {
+    const directory = await fs.mkdtemp(join(tmpdir(), "erpx-next-cache-"));
+    try {
+      for (const app of ["", "apps/finance", "apps/launcher"]) {
+        await fs.mkdir(join(directory, app, ".next/dev/cache"), { recursive: true });
+        await fs.writeFile(join(directory, app, ".next/dev/cache/vendor"), "old vendor");
+      }
+      await fs.mkdir(join(directory, "apps/finance/.build"), { recursive: true });
+      await fs.writeFile(join(directory, "apps/finance/.build/receipt"), "compiled artifact");
+      await fs.mkdir(join(directory, "unrelated/.next/dev/cache"), { recursive: true });
+      clearDevelopmentCaches(directory);
+      for (const app of ["", "apps/finance", "apps/launcher"]) await expect(fs.access(join(directory, app, ".next/dev/cache"))).rejects.toThrow();
+      expect(await fs.readFile(join(directory, "apps/finance/.build/receipt"), "utf8")).toBe("compiled artifact");
+      await expect(fs.access(join(directory, "unrelated/.next/dev/cache"))).resolves.toBeUndefined();
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
+  });
+  it("refuses a foreign app cache before deleting any owned cache", async () => {
+    const directory = await fs.mkdtemp(join(tmpdir(), "erpx-next-cache-")), foreign = await fs.mkdtemp(join(tmpdir(), "erpx-next-foreign-"));
+    try {
+      await fs.mkdir(join(directory, ".next/dev/cache"), { recursive: true });
+      await fs.writeFile(join(directory, ".next/dev/cache/vendor"), "owned");
+      await fs.mkdir(join(directory, "apps/finance/.next/dev"), { recursive: true });
+      await fs.writeFile(join(foreign, "sentinel"), "foreign");
+      await fs.symlink(foreign, join(directory, "apps/finance/.next/dev/cache"));
+      expect(() => clearDevelopmentCaches(directory)).toThrow("OWNED_DEVELOPMENT_CACHE_REQUIRED");
+      expect(await fs.readFile(join(directory, ".next/dev/cache/vendor"), "utf8")).toBe("owned");
+      expect(await fs.readFile(join(foreign, "sentinel"), "utf8")).toBe("foreign");
+    } finally { await fs.rm(directory, { recursive: true, force: true }); await fs.rm(foreign, { recursive: true, force: true }); }
+  });
+});
 
 function initialize(patched: string, chunk: object) {
   const start = patched.indexOf("function initializeDebugChunk(");

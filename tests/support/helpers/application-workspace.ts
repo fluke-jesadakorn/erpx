@@ -35,6 +35,11 @@ export async function verifyApplicationWorkspace(page:Page,context:BrowserContex
   await page.getByRole('textbox',{name:'Work email',exact:true}).fill(user.email);await page.locator('input[name="password"]').fill(fixture.fixture.password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
   await expect(page.getByRole('heading',{name:entry.heading,exact:true})).toBeVisible({timeout:120_000});
+  // The shell streams its authority-backed menus separately from the page.
+  // Do not count a partial report render as a functional or warm-HMR pass.
+  const productMenus=page.getByRole('navigation',{name:'Product and workspace',exact:true});
+  await expect(productMenus.getByRole('button')).toHaveCount(2,{timeout:120_000});
+  await expect(productMenus.getByRole('button').first()).toBeVisible();
   expect(new URL(page.url()).origin).toBe(origin);expect(new URL(page.url()).searchParams.get('workspaceSmoke')).toBe('preserved');
   for(const key of ['code','state','token','session_token'])expect(new URL(page.url()).searchParams.has(key)).toBe(false);
   const owner=page.locator('[data-work-company]').first();await expect(owner).toHaveAttribute('data-work-company',company.companyId);await expect(owner).toHaveAttribute('data-work-user',user.userId);

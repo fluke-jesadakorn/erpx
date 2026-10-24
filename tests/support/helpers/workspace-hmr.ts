@@ -28,6 +28,9 @@ export function workspaceHmrReady(page: Page, origin: string) {
     socket.on('close',()=>{if(current===socket)ready=false;});
   });
   return async()=>{
+    // A streamed heading/drawer can appear before the initial server render
+    // finishes. Warm edits must not overlap that document's pending DB reads.
+    await page.waitForLoadState('load',{timeout:120_000});
     await expect.poll(()=>ready,{timeout:30_000,message:'Next HMR must synchronize before a warm source edit'}).toBe(true);
     await page.evaluate(()=>new Promise<void>(done=>requestAnimationFrame(()=>requestAnimationFrame(()=>done()))));
   };

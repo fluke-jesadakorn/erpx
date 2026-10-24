@@ -1,9 +1,44 @@
-import { readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { appDefinitions } from "@erpx/contracts/apps";
 
 const legacyMarker = "/* ERPX: cyclic React development debug metadata */";
 const marker = "/* ERPX: bounded cyclic React development debug metadata */";
 const typeWriteMarker = "/* ERPX: atomic development route type writes */";
+const performanceMarker = "/* ERPX: pending development performance metadata */";
+
+/** Pending debug chunks reserve array slots before their metadata resolves.
+ * Preserve those indexes; only optional performance tracing skips empty slots. */
+export function guardPendingPerformanceMetadata(source: string): string {
+  if (source.includes(performanceMarker)) return source;
+  const start = source.indexOf("function flushComponentPerformance("), end = source.indexOf("function flushInitialRenderPerformance(", start);
+  if (start < 0 || end <= start) throw new Error("Next development performance guard no longer matches; review the pinned runtime.");
+  const assignments = [
+    ["info", "i"], ["_info", "_i5"], ["_info2", "_i7"],
+    ["candidateInfo", "j"], ["_candidateInfo", "_j"],
+  ];
+  let section = source.slice(start, end);
+  for (const [name, index] of assignments) {
+    const target = `var ${name} = debugInfo[${index}];`;
+    if (section.split(target).length !== 2) throw new Error("Next development performance guard no longer matches; review the pinned runtime.");
+    section = section.replace(target, `${target}\n          if (null == ${name}) continue;`);
+  }
+  return source.slice(0, start) + performanceMarker + "\n    " + section + source.slice(end);
+}
+
+/** Called under the root startup lock before any workspace compiler starts. */
+export function clearDevelopmentCaches(root: string) {
+  const canonical = realpathSync(root), build = process.env.ERPX_BUILD_DIR ?? ".next";
+  const directories = ["", "apps/compat", ...appDefinitions.map(app => app.directory)];
+  const caches = directories.map(directory => resolve(canonical, directory, build, "dev/cache"));
+  // Validate the complete deletion set before changing any cache. Never follow
+  // a linked build/cache directory into another checkout or external resource.
+  for (const cache of caches) {
+    if (!cache.startsWith(canonical + "/") || existsSync(cache) && realpathSync(cache) !== cache)
+      throw new Error("OWNED_DEVELOPMENT_CACHE_REQUIRED");
+  }
+  for (const cache of caches) rmSync(cache, { recursive: true, force: true });
+}
 
 /** The dev watcher can overlap generations of routes.d.ts and validator.ts. */
 export function guardDevelopmentTypeWrites(source: string): string {
@@ -100,7 +135,9 @@ export function prepareNextDevelopment(root = process.cwd()) {
   // Validate every target before writing any file.
   const patches = files.map(file => {
     const source = readFileSync(file, "utf8");
-    return { file, source, patched: guardDebugChunkCycles(source) };
+    let patched = guardDebugChunkCycles(source);
+    if (file.endsWith(".browser.development.js")) patched = guardPendingPerformanceMetadata(patched);
+    return { file, source, patched };
   });
   const devBundler = join(next, "dist/server/lib/router-utils/setup-dev-bundler.js");
   const devBundlerSource = readFileSync(devBundler, "utf8");
@@ -111,6 +148,6 @@ export function prepareNextDevelopment(root = process.cwd()) {
   if (patches.some(({ source, patched }) => source !== patched)) {
     // Webpack treats node_modules as immutable, so its existing cache would
     // otherwise continue serving the unpatched browser/server vendor chunks.
-    rmSync(join(root, process.env.ERPX_BUILD_DIR ?? ".next", "dev/cache"), { recursive: true, force: true });
+    clearDevelopmentCaches(root);
   }
 }
