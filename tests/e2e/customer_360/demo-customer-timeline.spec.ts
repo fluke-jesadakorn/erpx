@@ -8,17 +8,11 @@ type Credentials = { password: string; users: DemoUser[] };
 type DemoState = { fixture?: { customerId?: string; quotationId?: string } };
 
 async function openFullProfileView(page: Page, view: "History" | "Summary") {
-  const path = new URL(page.url()).pathname;
-  const href = path + (view === "History" ? "?section=history" : "");
-  const link = page.locator("#workspace-content:visible").getByRole("navigation", { name: "Customer profile views", exact: true }).getByRole("link", { name: view, exact: true });
-  await expect(link).toHaveAttribute("href", href);
-  await link.click();
   const drawer = page.getByTestId("record-detail-drawer").filter({ visible: true });
+  const link = drawer.getByRole("navigation", { name: "Customer profile views", exact: true }).getByRole("link", { name: view, exact: true });
+  await link.click();
   await expect(drawer).toHaveCount(1);
-  const fullPage = drawer.getByRole("link", { name: "Open full page ↗", exact: true });
-  await expect(fullPage).toHaveAttribute("href", href);
-  await fullPage.click();
-  await expect(page).toHaveURL(new URL(href, page.url()).href);
+  await expect(link).toHaveAttribute("aria-current", "page");
 }
 
 async function signInRole(context: BrowserContext, page: Page, credentials: Credentials, role: string, path: string) {
@@ -52,21 +46,25 @@ test("isolated demo exposes a scoped Customer 360 timeline to independent Sales 
   const managerContext = await createEngineeringBrowserContext(browser,testInfo);
   const operatorPage = await operatorContext.newPage();
   const managerPage = await managerContext.newPage();
-  const path = `/holdings/simulation/customers/${customerId}`;
+  const path = `/holdings/simulation/customers-sales/customers/directory/${customerId}`;
+  const originalBody = "Demo customer asked for a copy of the updated service terms.";
+  const correctedBody = "Demo customer requested the updated service terms by email.";
+  const correctionReason = "Confirmed the wording in the customer mailbox.";
+  const archiveReason = "Replaced by the signed customer correspondence.";
   try {
     await signInRole(operatorContext, operatorPage, credentials, "sales_operator", path);
     await expect(operatorPage.getByRole("heading", { name: "Simulation customer only", exact: true })).toBeVisible();
-    const operatorWorkspace = operatorPage.locator("#workspace-content:visible");
+    const operatorWorkspace = operatorPage.getByTestId("record-detail-drawer").filter({ visible: true });
     await expect(operatorWorkspace).toHaveCount(1);
     const pendingWork = operatorWorkspace.locator("section").filter({ has: operatorPage.getByRole("heading", { name: "Pending work", exact: true }) });
     await expect(pendingWork).toHaveCount(1);
-    const source = pendingWork.locator(`[data-slot="record-list"] a[href="/holdings/simulation/commerce/orders/${quotationId}?view=quote"]`);
+    const source = pendingWork.locator(`[data-slot="record-list"] a[href*="${quotationId}"]`);
     await expect(source).toHaveCount(1);
     await expect(source).toContainText(/Quotation ·/);
-    await expect(source).toHaveAttribute("href", /\/commerce\/orders\/[^?]+\?view=quote$/);
-    await expect(operatorPage.locator("#workspace-content:visible").getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
+    await expect(source).toHaveAttribute("href", new RegExp(quotationId));
+    await expect(operatorWorkspace.getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
     await operatorWorkspace.getByRole("button", { name: "Record contact", exact: true }).click();
-    const contact = operatorPage.getByRole("dialog", { name: "Record customer contact", exact: true });
+    const contact = operatorWorkspace.locator("[data-record-editor]");
     await expect(contact).toBeVisible();
     await expect(contact.getByRole("heading", { name: "Record contact", exact: true })).toBeVisible();
     const contactTime = contact.getByLabel("Contact time", { exact: true });
@@ -78,7 +76,7 @@ test("isolated demo exposes a scoped Customer 360 timeline to independent Sales 
     const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(instant).map(part => [part.type, part.value]));
     await contactTime.fill(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`);
     await expect(timeField.locator('input[name="occurred"]')).toHaveValue(new Date(instant).toISOString());
-    await contact.getByRole("textbox", { name: "Contact summary", exact: true }).fill("Demo customer asked for the updated service terms by email.");
+    await contact.getByRole("textbox", { name: "Contact summary", exact: true }).fill(originalBody);
     const [saved] = await Promise.all([
       operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/customer-notes") && response.request().method() === "POST"),
       contact.getByRole("button", { name: "Save internal note", exact: true }).click(),
@@ -89,30 +87,96 @@ test("isolated demo exposes a scoped Customer 360 timeline to independent Sales 
     await expect(contact).not.toBeVisible();
     await openFullProfileView(operatorPage, "History");
     await expect(operatorWorkspace.getByRole("heading", { name: "Customer history", exact: true })).toBeVisible();
-    await expect(operatorWorkspace.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).filter({ visible: true })).toBeVisible();
+    await expect(operatorWorkspace.getByRole("paragraph").filter({ hasText: originalBody }).filter({ visible: true })).toBeVisible();
     await operatorPage.reload();
-    await expect(operatorWorkspace.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).filter({ visible: true })).toBeVisible();
+    await expect(operatorWorkspace.getByRole("paragraph").filter({ hasText: originalBody }).filter({ visible: true })).toBeVisible();
+
+    let noteCard = operatorWorkspace.locator("section").filter({ hasText: originalBody });
+    await expect(noteCard).toHaveCount(1);
+    await noteCard.getByText("Correct or archive", { exact: true }).click();
+    let changeForm = noteCard.locator("form");
+    await expect(changeForm).toHaveCount(1);
+    await changeForm.locator('select[name="action"]').selectOption("correct");
+    await changeForm.locator('textarea[name="body"]').fill(correctedBody);
+    await changeForm.locator('textarea[name="reason"]').fill(correctionReason);
+    const [corrected] = await Promise.all([
+      operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/customer-notes") && response.request().method() === "POST"),
+      changeForm.getByRole("button", { name: "Save with history", exact: true }).click(),
+    ]);
+    expect(corrected.ok(), await corrected.text()).toBe(true);
+    expect(corrected.request().postDataJSON()).toMatchObject({ id: noteId, expectedVersion: 1, action: "correct", body: correctedBody, reason: correctionReason });
+    await expect(noteCard.getByRole("heading").first()).toContainText("active");
+    await expect(noteCard.locator(":scope > p").filter({ hasText: correctedBody })).toBeVisible();
+    let noteHistory = noteCard.locator("details").filter({ hasText: "Change history" });
+    await noteHistory.locator("summary").click();
+    await expect(noteHistory).toContainText("Version 1 · create");
+    await expect(noteHistory).toContainText("Initial standalone customer contact record");
+    await expect(noteHistory).toContainText(originalBody);
+    await expect(noteHistory).toContainText("Version 2 · correct");
+    await expect(noteHistory).toContainText(correctionReason);
+    await expect(noteHistory).toContainText(correctedBody);
+
+    await noteCard.getByText("Correct or archive", { exact: true }).click();
+    changeForm = noteCard.locator("form");
+    await expect(changeForm).toHaveCount(1);
+    await changeForm.locator('select[name="action"]').selectOption("archive");
+    await changeForm.locator('textarea[name="reason"]').fill(archiveReason);
+    const [archived] = await Promise.all([
+      operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/customer-notes") && response.request().method() === "POST"),
+      changeForm.getByRole("button", { name: "Save with history", exact: true }).click(),
+    ]);
+    expect(archived.ok(), await archived.text()).toBe(true);
+    expect(archived.request().postDataJSON()).toMatchObject({ id: noteId, expectedVersion: 2, action: "archive", reason: archiveReason });
+    await expect(noteCard.getByRole("heading").first()).toContainText("archived");
+    await expect(noteCard.getByText("Correct or archive", { exact: true })).toHaveCount(0);
+    await operatorPage.reload();
+    noteCard = operatorWorkspace.locator("section").filter({ hasText: originalBody });
+    await expect(noteCard).toHaveCount(1);
+    await expect(noteCard.getByRole("heading").first()).toContainText("archived");
+    noteHistory = noteCard.locator("details").filter({ hasText: "Change history" });
+    await noteHistory.locator("summary").click();
+    await expect(noteHistory).toContainText("Version 1 · create");
+    await expect(noteHistory).toContainText(originalBody);
+    await expect(noteHistory).toContainText("Version 2 · correct");
+    await expect(noteHistory).toContainText(correctionReason);
+    await expect(noteHistory).toContainText("Version 3 · archive");
+    await expect(noteHistory).toContainText(archiveReason);
+    await expect(noteHistory).toContainText(correctedBody);
+
     await openFullProfileView(operatorPage, "Summary");
-    await expect(source).toHaveAttribute("href", /\/commerce\/orders\//);
     await source.click();
     const sourceDrawer = operatorPage.getByTestId("record-detail-drawer").filter({ visible: true });
     await expect(sourceDrawer).toHaveCount(1);
-    await expect(sourceDrawer.getByRole("link", { name: "Open full page ↗", exact: true })).toHaveAttribute("href", `/holdings/simulation/commerce/orders/${quotationId}?view=quote`);
-    await sourceDrawer.getByRole("link", { name: "Open full page ↗", exact: true }).click();
-    await expect(operatorPage).toHaveURL(/\/commerce\/orders\//);
+    await expect(sourceDrawer.getByRole("link", { name: "Open in new tab ↗", exact: true })).toHaveAttribute("href", new RegExp(quotationId));
+    await expect(operatorPage).toHaveURL(new RegExp(quotationId));
     await signInRole(managerContext, managerPage, credentials, "sales_manager", path);
-    const managerWorkspace = managerPage.locator("#workspace-content:visible");
+    const managerWorkspace = managerPage.getByTestId("record-detail-drawer").filter({ visible: true });
     await expect(managerWorkspace).toHaveCount(1);
     await expect(managerWorkspace.getByRole("heading", { name: "Pending work", exact: true })).toBeVisible();
-    await expect(managerWorkspace.locator(`a[href="/holdings/simulation/commerce/orders/${quotationId}?view=quote"]`)).toContainText(/Quotation ·/);
+    await expect(managerWorkspace.locator(`[data-slot="record-list"] a[href*="${quotationId}"]`)).toContainText(/Quotation ·/);
     await openFullProfileView(managerPage, "History");
     await expect(managerWorkspace.getByRole("heading", { name: "Customer history", exact: true })).toBeVisible();
-    await expect(managerWorkspace.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).filter({ visible: true })).toBeVisible();
+    await expect(managerWorkspace.getByRole("paragraph").filter({ hasText: correctedBody }).filter({ visible: true })).toBeVisible();
+    const managerNote = managerWorkspace.locator("section").filter({ hasText: originalBody });
+    await expect(managerNote).toHaveCount(1);
+    await managerNote.locator("details").filter({ hasText: "Change history" }).locator("summary").click();
+    await expect(managerNote).toContainText("Version 1 · create");
+    await expect(managerNote).toContainText(originalBody);
+    await expect(managerNote).toContainText("Version 2 · correct");
+    await expect(managerNote).toContainText(correctionReason);
+    await expect(managerNote).toContainText("Version 3 · archive");
+    await expect(managerNote).toContainText(archiveReason);
     const notes = await managerContext.request.get(`/api/v1/holdings/simulation/customer-notes?customerId=${customerId}`);
     expect(notes.ok(), await notes.text()).toBe(true);
-    expect((await notes.json()).data.notes).toContainEqual(expect.objectContaining({ id: noteId, occurred_at: instant, body: "Demo customer asked for the updated service terms by email." }));
-    await expect(managerPage.locator("#workspace-content:visible").getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
-    await testInfo.attach("customer-timeline-result", { contentType: "application/json", body: JSON.stringify({ run, customerId, roles: ["sales_operator", "sales_manager"], sourceLinkScoped: true, standaloneNoteCreatedAndReloaded: true, restrictedFieldsHidden: true }, null, 2) });
+    const noteData = (await notes.json()).data;
+    expect(noteData.notes).toContainEqual(expect.objectContaining({ id: noteId, occurred_at: instant, status: "archived", version: 3, body: correctedBody }));
+    expect(noteData.history.filter((event: { note_id: string }) => event.note_id === noteId)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ version: 1, action: "create", body: originalBody }),
+      expect.objectContaining({ version: 2, action: "correct", body: correctedBody, reason: correctionReason }),
+      expect.objectContaining({ version: 3, action: "archive", body: correctedBody, reason: archiveReason }),
+    ]));
+    await expect(managerWorkspace.getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
+    await testInfo.attach("customer-timeline-result", { contentType: "application/json", body: JSON.stringify({ run, customerId, roles: ["sales_operator", "sales_manager"], sourceLinkScoped: true, standaloneNoteCreatedCorrectedArchivedAndReloaded: true, noteVersions: [1, 2, 3], originalEvidenceRetained: true, restrictedFieldsHidden: true }, null, 2) });
     await managerPage.screenshot({ path: testInfo.outputPath("customer-timeline.png"), fullPage: true });
   } finally {
     await Promise.allSettled([operatorContext.close(), managerContext.close()]);

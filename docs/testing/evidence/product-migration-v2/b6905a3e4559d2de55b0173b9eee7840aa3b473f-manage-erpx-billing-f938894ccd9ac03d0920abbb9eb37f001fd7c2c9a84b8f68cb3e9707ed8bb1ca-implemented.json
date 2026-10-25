@@ -1,0 +1,94 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "manage_erpx/billing",
+  "phase": "implemented",
+  "candidateSha": "b6905a3e4559d2de55b0173b9eee7840aa3b473f",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
+  "release": {
+    "id": "2026-10-22T09-09-10-280Z",
+    "fileManifestSha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "commercial.billing.integration",
+      "file": "tests/integration/commercial/billing.test.ts",
+      "title": "issues exactly one 925 baht reviewed invoice across concurrent approvals and an interrupted Stripe response",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "commercial.billing.integration",
+      "file": "tests/integration/commercial/billing.test.ts",
+      "title": "reconciles payment failures, authentication and paid state from current Stripe, never from event snapshots",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "commercial.api.integration",
+      "file": "tests/integration/commercial/billing-api.test.ts",
+      "title": "returns the native measured target quote through the Console route with current Holding scope and validated month",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "commercial.billing.integration",
+      "file": "tests/integration/commercial/billing.test.ts",
+      "title": "holds a Sandbox credential failure for explicit repair and resumes the original reviewed invoice once",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "commercial.stripe-errors.unit",
+      "file": "tests/unit/commercial/billing-stripe-errors.test.ts",
+      "title": "requires Sandbox configuration repair for provider status 401 without exposing its body",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "commercial.stripe-errors.unit",
+      "file": "tests/unit/commercial/billing-stripe-errors.test.ts",
+      "title": "requires Sandbox configuration repair for provider status 403 without exposing its body",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "commercial.stripe-errors.unit",
+      "file": "tests/unit/commercial/billing-stripe-errors.test.ts",
+      "title": "keeps transient and lost responses on the original Sandbox operation key",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-b6905a3e-bulk/manage-erpx-billing-f938894c-implemented.json",
+      "sha256": "a5941766b85301d1e5c563e046400bb15edb73c48c07c372fa7e0646e883de07"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release.json",
+      "sha256": "49b8c5aac042a8b38f27d5939a94f74f9ee609acba83b9ab181fb6799ba368a0"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release-files.json",
+      "sha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    "browserRuns": []
+  }
+}

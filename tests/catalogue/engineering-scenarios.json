@@ -981,6 +981,20 @@
           "file": "tests/integration/sales/customer-notes.test.ts",
           "title": "records standalone Customer 360 contact evidence with correction, archive and reload history",
           "proof": "expect(view.notes[0]).toMatchObject({id,order_id:null,status:'active',version:1});\nexpect(view.customer.id).toBe(customerId);\nexpect(view.notes[0]).toMatchObject({id,order_id:null,status:'archived',version:3,canChange:false});\nexpect(view.history.filter(h=>h.note_id===id)).toHaveLength(3);"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_360/demo-customer-timeline.spec.ts",
+          "title": "isolated demo exposes a scoped Customer 360 timeline to independent Sales roles",
+          "project": "desktop",
+          "proof": "The sales operator records a standalone customer note, corrects it with expectedVersion 1, archives it with expectedVersion 2, reloads all three immutable history events, and confirms the independent sales manager sees the archived version and original evidence."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/customer_360/demo-customer-timeline.spec.ts",
+          "title": "isolated demo exposes a scoped Customer 360 timeline to independent Sales roles",
+          "project": "mobile",
+          "proof": "The sales operator records a standalone customer note, corrects it with expectedVersion 1, archives it with expectedVersion 2, reloads all three immutable history events, and confirms the independent sales manager sees the archived version and original evidence."
         }
       ],
       "moduleId": "customer_360",
@@ -4179,6 +4193,20 @@
           "file": "tests/integration/crm/crm-activities.test.ts",
           "title": "schedules, completes and reloads a lead activity with Work and immutable history",
           "proof": "expect(await createCRMActivity(f.owner,input,k)).toEqual(created);\nexpect(view.items[0]).toMatchObject({id:created.id,status:'open',version:1,canComplete:true});\nexpect((await crmActivityWork(f.owner)).find(x=>x.id===created.id)).toMatchObject({queue:'todo',type:'crm_activity'});\nexpect(view.items[0]).toMatchObject({status:'completed',version:2});\nexpect(view.history.filter(x=>x.activity_id===created.id)).toHaveLength(2);\nawait expect(db.prepare('DELETE FROM crm_lead_activity_events WHERE activity_id=?').bind(created.id).run()).rejects.toThrow('CRM_ACTIVITY_EVIDENCE_IMMUTABLE');"
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/crm/demo-crm-activities.spec.ts",
+          "title": "isolated demo records CRM lead activities through Sales ownership and Work",
+          "project": "desktop",
+          "proof": "Schedules an activity for the eligible Sales manager, verifies it appears in that manager's Actions work queue, completes it as the owner, and reloads both activity history and Work to confirm the outcome and versions remain while the open action disappears."
+        },
+        {
+          "runner": "playwright",
+          "file": "tests/e2e/crm/demo-crm-activities.spec.ts",
+          "title": "isolated demo records CRM lead activities through Sales ownership and Work",
+          "project": "mobile",
+          "proof": "Schedules an activity for the eligible Sales manager, verifies it appears in that manager's Actions work queue, completes it as the owner, and reloads both activity history and Work to confirm the outcome and versions remain while the open action disappears."
         }
       ],
       "moduleId": "crm",

@@ -122,14 +122,30 @@ test(companyAdminOwnerReadsProductHostCase,async({browser},testInfo)=>{
    organization:'/holdings/simulation/administration/technology/organization',
    iam:'/holdings/simulation/administration/technology/settings/roles',
   };
-  await openApps(page);
+  await page.goto(`${accountOrigin}/my-access`,{waitUntil:'domcontentloaded'});
+  await expect(page.getByRole('heading',{name:'My access',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Roles & permissions',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:user!.role,exact:true})).toBeVisible();
+  await expect(page.getByRole('link',{name:'Open Apps',exact:true})).toBeVisible();
+  await attachProductHostUiObservation(page,testInfo,lease,'account-my-access','The signed-in Account owner’s current roles and workspace entry',[
+   'My access displays the authenticated Account owner’s current role.',
+   'The Account page exposes Apps without changing role, package or grant authority.',
+  ]);
+  await page.getByRole('link',{name:'Open Apps',exact:true}).click();
+  await expect(page).toHaveURL(new RegExp(`^${appsOrigin.replaceAll('.','\\.')}/`));
+  await expect(page.getByRole('heading',{name:/Choose a workspace|เลือกพื้นที่ทำงาน/})).toBeVisible();
   const adminOrigin='https://admin-dev-erpx.jesadakorn.com',companyTarget='/holdings/simulation/administration',tiles=[] as {href:string;target:string}[];
   for(const anchor of await page.locator('a[data-product-switch].tile').all()){
    const rawHref=await anchor.getAttribute('href');if(!rawHref)continue;const href=new URL(rawHref,page.url());
    if(href.origin!==adminOrigin||href.pathname!=='/sso/start')continue;const next=href.searchParams.get('next');if(!next)continue;
    const target=new URL(next,adminOrigin);if(target.pathname==='/admin/launch'&&target.searchParams.get('companyId')===companyId&&target.searchParams.get('next')===companyTarget)tiles.push({href:href.href,target:target.href});
   }
-  expect(tiles).toHaveLength(1);await selectVisibleTile(page,tiles[0]!.href);
+  expect(tiles).toHaveLength(1);
+  await attachProductHostUiObservation(page,testInfo,lease,'account-authorized-admin-app','The existing Company Admin product available to the signed-in Account owner',[
+   'Apps exposes the Company Admin destination under the same Company as the owner’s current assignment.',
+   'The Account and Apps UI reads current authority without a Commercial grant or business write.',
+  ]);
+  await selectVisibleTile(page,tiles[0]!.href);
   await page.waitForURL(url=>url.origin===adminOrigin&&(url.pathname===companyTarget||url.pathname==='/admin/choose-work-role'));
   expect(new URL(page.url()).pathname,'Existing Company authority must land without choosing a role').toBe(companyTarget);
   let assignmentId:string|undefined;
@@ -308,6 +324,45 @@ async function signOutAndClose(context: BrowserContext) {
   } finally {
     await context.close();
   }
+}
+
+async function attachProductHostUiObservation(
+  page: Page,
+  testInfo: TestInfo,
+  lease: Awaited<ReturnType<typeof readProductHostLease>>,
+  label: string,
+  subject: string,
+  checks: string[],
+) {
+  if (process.env.ERPX_DEMO_RUN !== lease.run || !checks.length) throw new Error("PRODUCT_HOST_UI_OBSERVATION_RUN_REQUIRED");
+  const screenshotPath = testInfo.outputPath(`${label}.png`);
+  const screenshotBytes = await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+  const screenshotIndex = testInfo.attachments.length;
+  await testInfo.attach("product-host-ui-screenshot", { path: screenshotPath, contentType: "image/png" });
+  const screenshotAttachment = testInfo.attachments[screenshotIndex];
+  if (!screenshotAttachment?.path) throw new Error("PRODUCT_HOST_UI_SCREENSHOT_ATTACHMENT_REQUIRED");
+  const screenshot = {
+    path: relative(process.cwd(), screenshotAttachment.path).replaceAll("\\", "/"),
+    sha256: createHash("sha256").update(screenshotBytes).digest("hex"),
+    bytes: screenshotBytes.length,
+  };
+  const observationPath = testInfo.outputPath(`${label}-observation.json`);
+  await writeFile(observationPath, JSON.stringify({
+    schema: "erpx-ui-browser-observation/v1",
+    result: "passed",
+    run: lease.run,
+    sourceFingerprint: lease.sourceFingerprint,
+    verificationFingerprint: lease.verificationFingerprint,
+    releaseId: lease.release.id,
+    releaseManifestSha256: lease.release.fileManifestSha256,
+    url: page.url(),
+    subject,
+    audience: "signed-in Account owner",
+    authority: "current Account self-access and existing scoped workspace assignment",
+    checks,
+    screenshot,
+  }, null, 2) + "\n", { flag: "wx", mode: 0o600 });
+  await testInfo.attach("erpx-ui-observation", { path: observationPath, contentType: "application/json" });
 }
 
 const scopedUsers = [

@@ -20,7 +20,7 @@ import {productIds} from "../../src/lib/commercial/product-registry";
 import { assertProductHostPlanWorkflow, productHostBrowserFile, productHostProducts, productHostPlan, productHostBusinessWorkflowForCase, productHostPlanPathForWorkflow, productHostPlanPathsFromEnvironment, productHostReadOnlyWorkflowForCase, startProductHostEdge, type ProductHostBusinessWorkflow, type ProductHostPlanPaths } from "./product-host-cohort";
 import { executiveWorkHostBrowserFile, startExecutiveWorkHostEdge } from "./executive-work-host-cohort";
 import { formsHostBrowserFile, formsHostCaseTitle, formsHostOrigin, formsHostPlan, startFormsHostEdge } from "./forms-host-cohort";
-import {captureUiBrowserEvidence,verifyUiBrowserEvidence,type UiBrowserEvidenceWitness} from "./ui-evidence-witness";
+import {captureUiBrowserEvidence,uiLocalFrontAppForCase,verifyUiBrowserEvidence,type UiBrowserEvidenceWitness} from "./ui-evidence-witness";
 import {captureProductHostReceiptBindings} from "./product-host-commercial-evidence";
 import { preparePdfAssets } from "../assets/prepare-pdf-assets";
 import { resolveRegisteredCase, suiteForRegisteredCase } from "./exact-case-selection";
@@ -332,7 +332,8 @@ export async function runBrowserSuites(suites: Suite[], options: { projects?: ("
         if(executiveWorkEdge)await executiveWorkEdge.stable();
         if(formsEdge)await formsEdge.stable();
         if (await runtimeSourceFingerprint(root) !== runtimeFingerprint || await verificationSourceFingerprint(root, runtimeFingerprint) !== verificationFingerprint) throw new Error("BROWSER_SOURCE_CHANGED");
-        const uiEvidence=await captureUiBrowserEvidence({root,run,reportPath:report,report:result,runtimeFingerprint,verificationFingerprint,...(productEdge?{productHostLeasePath:productEdge.path}:{}),...(executiveWorkEdge?{executiveWorkHostLeasePath:executiveWorkEdge.path}:{}),...(formsEdge?{formsHostLeasePath:formsEdge.path}:{})});
+        const localFrontApp=uiLocalFrontAppForCase(suite.id,wanted.file,wanted.title);
+        const uiEvidence=await captureUiBrowserEvidence({root,run,reportPath:report,report:result,runtimeFingerprint,verificationFingerprint,...(localFrontApp?{localFrontApp}:{}),...(productEdge?{productHostLeasePath:productEdge.path}:{}),...(executiveWorkEdge?{executiveWorkHostLeasePath:executiveWorkEdge.path}:{}),...(formsEdge?{formsHostLeasePath:formsEdge.path}:{})});
         if(formsEdge&&!uiEvidence)throw Error("FORMS_HOST_UI_OBSERVATION_REQUIRED");
         const reportSha256=createHash("sha256").update(await readFile(report)).digest("hex");
         const productBindings=productEdge?await captureProductHostReceiptBindings(root,evidence,run,report,result):undefined;

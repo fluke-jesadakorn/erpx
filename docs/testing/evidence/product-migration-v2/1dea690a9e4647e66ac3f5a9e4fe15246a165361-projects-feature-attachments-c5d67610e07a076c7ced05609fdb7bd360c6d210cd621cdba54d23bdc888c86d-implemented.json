@@ -1,0 +1,52 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "projects/feature-attachments",
+  "phase": "implemented",
+  "candidateSha": "1dea690a9e4647e66ac3f5a9e4fe15246a165361",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "d1f706841e18f43c01e933b950f56d03f1395a45d3e0c49195f4d6bfcd2f98d7",
+  "release": {
+    "id": "2026-10-22T11-26-48-555Z",
+    "fileManifestSha256": "49ae089596e7e858f0a7e707c31a6c5582fdb99511dcabb733ce615d52446a8c"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "projects.project-actuals.integration",
+      "file": "tests/integration/projects/project-actuals.test.ts",
+      "title": "keeps project documents inside exact project membership and owner authority",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-1dea690a-bulk/projects-feature-attachments-c5d67610-implemented.json",
+      "sha256": "51328c60127b9b24f87741b5c9ca00241e4cf41e613e79f59aa8f9ec3ecc87ae"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "abd093366481502364a0cabc16680f1b35366bdd85687de02cb0452400e75f77"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T11-26-48-555Z/release.json",
+      "sha256": "8e83da70a12ef8031297955da6b968daedac5401eee8f22211a345400bbdcc1b"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T11-26-48-555Z/release-files.json",
+      "sha256": "49ae089596e7e858f0a7e707c31a6c5582fdb99511dcabb733ce615d52446a8c"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "abd093366481502364a0cabc16680f1b35366bdd85687de02cb0452400e75f77"
+    },
+    "browserRuns": []
+  }
+}

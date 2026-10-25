@@ -20,7 +20,7 @@ async function signInRole(context: BrowserContext, page: Page, credentials: Cred
   const selected = await context.request.post(endpoint, { headers, data: { assignmentId: assignment.id, revision: active.revision } });
   expect(selected.ok(), await selected.text()).toBe(true);
   await page.goto(path, { waitUntil: "commit" });
-  await expect(page.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
+  await expect(page.getByRole("heading", { name: "Lead activities", exact: true })).toBeVisible();
 }
 
 test("isolated demo records CRM lead activities through Sales ownership and Work", async ({ browser }, testInfo) => {
@@ -36,39 +36,61 @@ test("isolated demo records CRM lead activities through Sales ownership and Work
   const managerContext = await createEngineeringBrowserContext(browser,testInfo);
   const operatorPage = await operatorContext.newPage();
   const managerPage = await managerContext.newPage();
-  const path = `/holdings/simulation/crm/${leadId}`;
+  const path = `/holdings/simulation/customers-sales/sales/pipeline/${leadId}`;
   try {
     await signInRole(operatorContext, operatorPage, credentials, "sales_operator", path);
-    await expect(operatorPage.getByRole("heading", { name: "Lead activities", exact: true })).toBeVisible();
-    await operatorPage.locator('#workspace-content:visible').getByLabel("Subject", { exact: true }).fill("Confirm installation window");
-    await operatorPage.locator('#workspace-content:visible').getByLabel("Next action details", { exact: true }).fill("Email the customer with the approved installation window.");
-    await operatorPage.getByRole("combobox", { name: "Responsible salesperson", exact: true }).selectOption({ label: "Support agent" });
-    await operatorPage.locator('#workspace-content:visible').getByLabel("Due date", { exact: true }).fill("2026-09-26");
+    const activityArea = operatorPage.locator("#crm-activities");
+    await expect(activityArea.getByRole("heading", { name: "Lead activities", exact: true })).toBeVisible();
+    await activityArea.getByRole("button", { name: "Schedule lead activity", exact: true }).click();
+    const scheduleEditor = activityArea.locator("[data-record-editor]").filter({ hasText: "Schedule lead activity" });
+    const scheduleForm = scheduleEditor.locator("form");
+    await expect(scheduleEditor).toBeVisible();
+    await scheduleForm.getByLabel("Subject", { exact: true }).fill("Confirm installation window");
+    await scheduleForm.getByLabel("Next action details", { exact: true }).fill("Email the customer with the approved installation window.");
+    await scheduleForm.getByRole("combobox", { name: "Responsible salesperson", exact: true }).selectOption({ label: "Support manager" });
+    await scheduleForm.getByLabel("Due date", { exact: true }).fill("2026-09-26");
     await Promise.all([
       operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/crm/activities") && response.request().method() === "POST"),
-      operatorPage.getByRole("button", { name: "Schedule activity", exact: true }).click(),
+      scheduleForm.getByRole("button", { name: "Schedule activity", exact: true }).click(),
     ]);
-    const activity = operatorPage.locator("#workspace-content:visible article[data-slot=card]:visible").filter({ hasText: "Confirm installation window" });
+    const activity = activityArea.locator("article[data-slot=card]:visible").filter({ hasText: "Confirm installation window" });
     await expect(activity).toBeVisible();
-    await expect(activity.getByText(/open · Owner/)).toBeVisible();
+    await expect(activity.getByText(/open · Owner Support manager/)).toBeVisible();
     await signInRole(managerContext, managerPage, credentials, "sales_manager", path);
-    const managerActivity = managerPage.locator("#workspace-content:visible article[data-slot=card]:visible").filter({ hasText: "Confirm installation window" });
+    const managerActivity = managerPage.locator("#crm-activities article[data-slot=card]:visible").filter({ hasText: "Confirm installation window" });
     await expect(managerActivity).toBeVisible();
-    await expect(managerActivity.getByText(/open · Owner/)).toBeVisible();
-    await activity.locator("summary").filter({ hasText: /^Record activity decision$/ }).click();
-    const decisionDrawer = operatorPage.getByRole("dialog", { name: "Record activity decision", exact: true });
-    const decisionForm = decisionDrawer.locator("form");
-    await expect(decisionDrawer).toBeVisible();
+    await expect(managerActivity.getByText(/open · Owner Support manager/)).toBeVisible();
+    const actionsPath = `/holdings/simulation/work/actions?type=crm_activity&q=${encodeURIComponent("Confirm installation window")}`;
+    await managerPage.goto(actionsPath, { waitUntil: "commit" });
+    const workResults = managerPage.getByRole("region", { name: "Work results", exact: true });
+    const actionableWork = workResults.getByRole("link", { name: /CRM activity · Confirm installation window/ });
+    await expect(actionableWork).toBeVisible();
+    await managerPage.goto(path, { waitUntil: "commit" });
+    const managerLeadActivity = managerPage.locator("#crm-activities article[data-slot=card]:visible").filter({ hasText: "Confirm installation window" });
+    await managerLeadActivity.getByRole("button", { name: "Record activity decision", exact: true }).click();
+    const decisionEditor = managerLeadActivity.locator("[data-record-editor]").filter({ hasText: "Record activity decision" });
+    const decisionForm = decisionEditor.locator("form");
+    await expect(decisionEditor).toBeVisible();
     await expect(decisionForm).toHaveCount(1);
     await decisionForm.getByRole("combobox", { name: "Action", exact: true }).selectOption("complete");
     await decisionForm.getByRole("textbox", { name: "Outcome and reason", exact: true }).fill("Customer confirmed the installation window.");
     await Promise.all([
-      operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/crm/activities") && response.request().method() === "POST"),
+      managerPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/crm/activities") && response.request().method() === "POST"),
       decisionForm.getByRole("button", { name: "Save activity decision", exact: true }).click(),
     ]);
-    await expect(decisionDrawer).not.toBeVisible();
-    await expect(activity.getByText(/completed · Owner/)).toBeVisible();
-    await testInfo.attach("crm-activity-result", { contentType: "application/json", body: JSON.stringify({ run, leadId, roles: ["sales_operator", "sales_manager"], created: true, reloadedForManager: true, completed: true }, null, 2) });
+    await expect(decisionEditor).not.toBeVisible();
+    await managerPage.reload();
+    const completedActivity = managerPage.locator("#crm-activities article[data-slot=card]:visible").filter({ hasText: "Confirm installation window" });
+    await expect(completedActivity.getByText(/completed · Owner Support manager/)).toBeVisible();
+    await expect(completedActivity.getByText("Outcome: Customer confirmed the installation window.", { exact: true })).toBeVisible();
+    await completedActivity.getByText("Activity history", { exact: true }).click();
+    await expect(completedActivity.getByText(/Version 1 · create ·/)).toBeVisible();
+    await expect(completedActivity.getByText(/Version 2 · complete ·/)).toBeVisible();
+    await managerPage.goto(actionsPath, { waitUntil: "commit" });
+    await expect(workResults.getByText("No matching work", { exact: true })).toBeVisible();
+    await managerPage.goto(`/holdings/simulation/work/completed?type=crm_activity&q=${encodeURIComponent("Confirm installation window")}`, { waitUntil: "commit" });
+    await expect(managerPage.getByRole("region", { name: "Work results", exact: true }).getByRole("link", { name: /CRM activity · Confirm installation window/ })).toBeVisible();
+    await testInfo.attach("crm-activity-result", { contentType: "application/json", body: JSON.stringify({ run, leadId, roles: ["sales_operator", "sales_manager"], owner: "sales_manager", created: true, appearedInOwnerActions: true, reloadedForManager: true, completed: true, disappearedFromActions: true, retainedInCompletedWork: true, retainedOutcomeAndVersions: [1, 2] }, null, 2) });
   } finally {
     await Promise.allSettled([operatorContext.close(), managerContext.close()]);
   }

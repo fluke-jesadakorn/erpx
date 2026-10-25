@@ -247,7 +247,7 @@ describe("test selection contracts", () => {
       ...(["desktop", "mobile"] as const).map(project => ({
         runner: "playwright" as const,
         file: "tests/e2e/identity_access/product-hosts.spec.ts",
-        title: "isolated Company Admin reads current Brand, Organization, and IAM projections without changing H001 authority",
+        title: "isolated Account My access and Company Admin show authorized products and current owner projections without changing H001 authority",
         project,
       })),
       ...([

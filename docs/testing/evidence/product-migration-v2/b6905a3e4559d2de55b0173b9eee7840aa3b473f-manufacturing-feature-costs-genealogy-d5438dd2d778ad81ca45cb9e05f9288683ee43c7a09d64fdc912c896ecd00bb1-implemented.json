@@ -1,0 +1,59 @@
+{
+  "schema": "erpx-product-migration-receipt/v2",
+  "result": "passed",
+  "id": "manufacturing/feature-costs-genealogy",
+  "phase": "implemented",
+  "candidateSha": "b6905a3e4559d2de55b0173b9eee7840aa3b473f",
+  "runtimeFingerprint": "4ef41bfd8b8a49e005fb0582e4748da1417c80211fb2e984ff0b5ddb075f714e",
+  "verificationFingerprint": "e37b62b3756aef2bf9f0a522d187686593f3c9946a3c556b1ca1f326fbd2f9a4",
+  "release": {
+    "id": "2026-10-22T09-09-10-280Z",
+    "fileManifestSha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+  },
+  "observations": [
+    {
+      "runner": "vitest",
+      "suite": "manufacturing.production.integration",
+      "file": "tests/integration/manufacturing/production.test.ts",
+      "title": "posts material, conversion cost and independently released output atomically, clearing WIP and freezing each money source",
+      "status": "passed"
+    },
+    {
+      "runner": "vitest",
+      "suite": "manufacturing.production.integration",
+      "file": "tests/integration/manufacturing/production.test.ts",
+      "title": "issues exact material lot cost and retains balanced serial output genealogy in the shared inventory ledger",
+      "status": "passed"
+    }
+  ],
+  "evidenceInputs": [
+    {
+      "kind": "import-manifest",
+      "path": ".scratch/dev/test-suites/product-migration/current-b6905a3e-bulk/manufacturing-feature-costs-genealogy-d5438dd2-implemented.json",
+      "sha256": "8db56becec787aa87042326323605259145dee69f6a41bc3514e9e688e949efe"
+    },
+    {
+      "kind": "native-ci",
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    {
+      "kind": "compiled-release-json",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release.json",
+      "sha256": "49b8c5aac042a8b38f27d5939a94f74f9ee609acba83b9ab181fb6799ba368a0"
+    },
+    {
+      "kind": "compiled-release-manifest",
+      "path": ".runtime/releases/2026-10-22T09-09-10-280Z/release-files.json",
+      "sha256": "671c190906b847a20ff9192f27acd8518747fdb76a57ff49fac7dd92ac0a1349"
+    }
+  ],
+  "cleanup": {
+    "native": {
+      "passed": true,
+      "path": ".scratch/dev/test-suites/ci/native.json",
+      "sha256": "4f0ba97c403e848209b7115b8b906cc4b144fd407343c88a95fd2513ddb81d7f"
+    },
+    "browserRuns": []
+  }
+}
