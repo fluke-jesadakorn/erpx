@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { mkdtemp, readFile, writeFile, rm, mkdir, cp, realpath } from 'node:fs/promises';
+import { access, mkdtemp, readFile, writeFile, rm, mkdir, cp, realpath } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -41,6 +41,12 @@ it('replays durable provider acceptance after killing the process waiting for it
   const ended = new Promise(resolveExit => child.once('exit', resolveExit));
   try {
     await expect.poll(async () => JSON.parse(await readFile(join(home, 'provider-fixture.json'), 'utf8')).held?.pid).toBe(child.pid);
+    // The durable record precedes lock release. Kill only in the response wait,
+    // after the provider has finished its mutation and released the write lock.
+    await expect.poll(async () => {
+      try { await access(join(home, 'provider-fixture.lock')); return false; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; return true; }
+    }).toBe(true);
     child.kill('SIGKILL'); await ended;
     const next = await createProviderFixtureFetch(home, noNetwork);
     expect(await (await next('https://api.stripe.com/v1/refunds', options())).json()).toMatchObject({ id: 're_fictional_1', amount: 21400 });
